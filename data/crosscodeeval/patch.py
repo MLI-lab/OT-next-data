@@ -35,6 +35,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import re
 import sys
 import tarfile
@@ -394,6 +395,18 @@ if __name__ == "__main__":
 '''
 
 
+# The pinned upstream: which TaskTrove files this patch reads, at which revision,
+# and the name each repaired set is published under. --all fetches and patches
+# every one of them, so "run the patcher on the pinned upstream" is one command.
+UPSTREAM_REPO = 'open-thoughts/TaskTrove'
+UPSTREAM_REVISION = '96567362fa3c41208e0954317c53767023b420eb'
+SOURCES = {
+    'csharp': ('deprecated/laion__exp_rpt_crosscodeeval-csharp-v4', 'laion__exp_rpt_crosscodeeval-csharp-v5'),
+    'java': ('laion__exp_rpt_crosscodeeval-java-v3', 'laion__exp_rpt_crosscodeeval-java-v4'),
+    'python': ('deprecated/laion__exp_rpt_crosscodeeval-python-v2', 'laion__exp_rpt_crosscodeeval-python-v3'),
+    'typescript': ('deprecated/laion__exp_rpt_crosscodeeval-typescript-v2', 'laion__exp_rpt_crosscodeeval-typescript-v3'),
+}
+
 RETRIEVERS = ('rg1_bm25', 'rg1_unixcoder_cosine_sim', 'rg1_openai_cosine_sim')
 COMMON_REPOS = 3
 LITERALS = frozenset('true false null undefined None True False this self super NaN Infinity void'.split())
@@ -679,15 +692,46 @@ def write_review(out, records, sample=40, seed=20260916):
     return len(dropped)
 
 
+def fetch_upstream(dest):
+    """The pinned upstream parquets, downloaded once into <dest>/<source name>/."""
+    from huggingface_hub import hf_hub_download
+    out = {}
+    for lang, (src, published) in SOURCES.items():
+        path = Path(hf_hub_download(UPSTREAM_REPO, f'{src}/tasks.parquet', repo_type='dataset',
+                                    revision=UPSTREAM_REVISION, local_dir=dest))
+        out[lang] = (path, published)
+        print(f'{src}/tasks.parquet -> {path}')
+    return out
+
+
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--input', required=True)
-    ap.add_argument('--output', required=True)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--input', help='one upstream parquet')
+    ap.add_argument('--output', help='where the repaired parquet goes')
+    ap.add_argument('--all', action='store_true',
+                    help=f'fetch and patch every source of {UPSTREAM_REPO} at {UPSTREAM_REVISION[:8]}')
+    ap.add_argument('--upstream', type=Path, default=Path(os.environ.get('PILOT_ROOT', '.')) / 'upstream',
+                    help='where --all downloads the pinned parquets')
+    ap.add_argument('--outdir', type=Path, default=Path(os.environ.get('PILOT_ROOT', '.')) / 'patched',
+                    help='where --all writes the repaired parquets')
     ap.add_argument('--archive', required=True)
     ap.add_argument('--review', help='also write per-task verdicts and a sample of dropped tasks here')
     a = ap.parse_args()
-    originals = load_original(a.archive)
-    table = pq.read_table(a.input)
+    if a.all:
+        originals = load_original(a.archive)
+        for lang, (src, published) in fetch_upstream(a.upstream).items():
+            out = a.outdir / published / 'tasks.parquet'
+            print(f'\n=== {lang}: {src} -> {out}')
+            patch_parquet(src, out, originals, Path(a.review) / lang if a.review else None)
+        return
+    if not (a.input and a.output):
+        raise SystemExit('pass --all, or both --input and --output')
+    patch_parquet(Path(a.input), Path(a.output), load_original(a.archive),
+                  Path(a.review) if a.review else None)
+
+
+def patch_parquet(input_path, output_path, originals, review_dir):
+    table = pq.read_table(input_path)
     stats = dict.fromkeys(('rows', 'unique', 'unmatched', 'ambiguous', 'kept', 'dropped', 'dropped_no_identifiers',
                            'oracle_upstream', 'oracle_packaged_gold', 'context_chunks', 'kept_chunks',
                            'dropped_empty', 'dropped_target', 'dropped_gold'), 0)
@@ -719,7 +763,7 @@ def main():
     review = []
 
     def record(row, lang, gold, p, kept, reason, retriever=None, verdicts=None, missing=None):
-        if a.review:
+        if review_dir:
             review.append({'task': row['path'], 'language': lang, 'kept': kept, 'reason': reason,
                            'retriever': retriever, 'verdicts': verdicts or {},
                            'missing_names': sorted({n for names in (missing or {}).values()
@@ -771,14 +815,14 @@ def main():
         for n in rows:
             rows[n].append(row[n])
 
-    Path(a.output).parent.mkdir(parents=True, exist_ok=True)
-    pq.write_table(pa.table(rows, schema=table.schema), a.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.table(rows, schema=table.schema), output_path)
     report = json.dumps(stats, indent=2)
-    Path(a.output).with_suffix('.report.json').write_text(report + '\n')
+    output_path.with_suffix('.report.json').write_text(report + '\n')
     print(report)
-    if a.review:
-        n = write_review(Path(a.review), review)
-        print(f'review: {len(review)} task records, {n} dropped, sample in {a.review}/sample.md')
+    if review_dir:
+        n = write_review(review_dir, review)
+        print(f'review: {len(review)} task records, {n} dropped, sample in {review_dir}/sample.md')
 
 
 if __name__ == '__main__':
