@@ -27,11 +27,6 @@ itself, and upstream translates one into the other unchanged, so `COPY data/ /ro
 at /root/data/data and the task cannot find its inputs. Directory sources are expanded into
 their children here.
 
-Shell prompt: apptainer forces PS1 to "Apptainer> " from its own env script, after the instance
-environment is applied, so `--env PS1=...` never survives. The agent reads pane text, so every
-observation would carry that marker; a normal prompt is written into the container's bash startup
-files instead, which an interactive shell reads later and therefore wins.
-
 Baked /tests: upstream binds a staging dir at /tests on every instance, which hides the /tests a
 Harbor separate-verifier image builds in from its own tests/ context. The bind is dropped for
 images that ship /tests/test.sh themselves.
@@ -142,42 +137,6 @@ def anchor_log_tail(env, lines=8):
     return ' | '.join(text) or '(tmux-anchor.log is empty)'
 
 
-# A plain prompt with the working directory. Apptainer's own env script sets PS1 to
-# "Apptainer> ", and it runs after the instance environment is applied, so the worker's
-# `--env PS1=...` never survives. An interactive bash reads these files *after* inheriting the
-# environment, so setting it here wins. Written to both locations because tmux may start the
-# shell as a login shell (/etc/profile.d) or as a plain interactive one (/etc/bash.bashrc).
-PROMPT_SETUP = (
-    "marker=/etc/profile.d/99-prompt.sh; "
-    "if [ ! -f $marker ]; then "
-    "printf 'PS1=\"\\\\w\\\\$ \"\\n' > $marker 2>/dev/null; "
-    "printf 'PS1=\"\\\\w\\\\$ \"\\n' >> /etc/bash.bashrc 2>/dev/null; "
-    "fi; true")
-
-
-def set_container_prompt(instance_name):
-    """Replace apptainer's "Apptainer> " prompt inside one instance.
-
-    Cosmetic but cheap: the agent reads the pane text, so every observation otherwise carries a
-    container-specific marker instead of a normal shell prompt. Completion detection does not
-    depend on it (Terminus signals with `tmux wait`), so a failure here is logged and ignored
-    rather than failing the instance.
-    """
-    apptainer = worker.APPTAINER or worker.detect_apptainer()
-    try:
-        done = subprocess.run([apptainer, 'exec', f'instance://{instance_name}',
-                               '/bin/bash', '-c', PROMPT_SETUP],
-                              capture_output=True, text=True, timeout=30)
-        if done.returncode != 0:
-            # Reported, not swallowed: a silent failure here looks exactly like a fix that
-            # works, and the only symptom is a prompt nobody reads carefully.
-            print(f'[worker] setting the container prompt on {instance_name} failed '
-                  f'(rc={done.returncode}): {(done.stderr or done.stdout).strip()[-200:]}',
-                  flush=True)
-    except Exception as exc:
-        print(f'[worker] could not set the container prompt on {instance_name}: {exc}', flush=True)
-
-
 def start_with_anchor(self, payload):
     result = _original_start(self, payload)
     cmd = [worker.APPTAINER, 'exec', '--pwd', '/tmp',
@@ -197,9 +156,6 @@ def start_with_anchor(self, payload):
             check = subprocess.run(cmd + ['tmux has-session -t _pilot_anchor'],
                                    capture_output=True, timeout=10)
             if check.returncode == 0:
-                # Only now is the instance certainly accepting execs. Doing this before the
-                # anchor raced the instance coming up, and the failure was invisible.
-                set_container_prompt(self.instance_name)
                 print(f'[{self.env_id}] Helma persistent tmux owner ready'
                       + (f' (Slurm step: {" ".join(step[2:6])})' if step else ''), flush=True)
                 return result
