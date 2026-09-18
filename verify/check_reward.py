@@ -13,8 +13,7 @@ Grades nine answer variants for every task with that task's own verifier:
 first-identifier match passes every other variant and fails only this one.
 
 Runs on the local machine: this python imports each task's verifier directly, so
-1,000 tasks take about a minute with no container and no cluster. Run it after
-every change to a patcher.
+no container and no cluster are involved. Run it after every change to a patcher.
 
 It says nothing about whether the task image builds or the sandbox works - that
 is check_reward_harbor.py, which runs the same grading through Harbor.

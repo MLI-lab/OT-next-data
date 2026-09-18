@@ -18,32 +18,32 @@ them.
 
 ## Verifying a pipeline
 
-Four checks of rising cost, one entry point:
+`verify_pipeline.py` runs every check in `verify/`, cheapest first, and stops at
+the first failure. Each check is also a normal script you can run alone.
 
 ```bash
-python verify_pipeline.py tests                 # seconds: unit tests (43)
-python verify_pipeline.py reward <dir>          # ~1 min: gold 1 / nonsense 0, on this machine
-python verify_pipeline.py sandbox <dir>         # minutes: the same, built and run through Harbor
-python verify_pipeline.py model                 # ~1 h: real run, 8 attempts, then pass@k
-python verify_pipeline.py all <dir>             # in order, stopping at the first failure
+python verify_pipeline.py all <dir with tasks/> [--parquet <patched>.parquet]
+python verify_pipeline.py reward <dir with tasks/>     # or any single check
 ```
 
-- **tests** — the patcher's rules and the run layer (`tests/`, pytest).
-- **reward** — grades nine answer variants per task with the task's own verifier,
-  on this machine: the reference and a re-indented reference must score 1, and
-  empty, garbage, lone `}`/`;`/`{`, `return null;` and *the reference with one
-  identifier renamed* must score 0. That last variant is the one that catches a
-  verifier paying for a prefix match. No container, ~1 min for 1,000 tasks.
-- **sandbox** — the reference and garbage again, but the image is built and the
-  task's own `tests/test.sh` runs inside the container. This is the build and
-  sandbox check: it fails if the Dockerfile breaks, the image has no python, or
-  the reward never reaches `/logs/verifier/reward.json`. Needs a running bridge,
-  so it belongs inside a Slurm job.
-- **model** — submits a real Slurm job (default Qwen3-Coder-30B-A3B-Instruct,
-  8 attempts, 5 tasks per language, sampling from the model card). This is the
-  only check that exercises the whole chain, and its oracle stage proves the
-  sandbox independently of the model by running every `solution/solve.sh`
-  through Harbor.
+| Check | What it proves | Needs |
+| --- | --- | --- |
+| `tests` | the patcher's rules and the run layer behave | nothing |
+| `reward` | each task's own verifier scores the reference 1 and nonsense 0 | nothing |
+| `images` | the dataset needs few enough distinct container images | nothing |
+| `solvability` | every name in a graded reference is knowable from what the agent sees | `--parquet`, benchmark archive |
+| `sandbox` | the image builds and the task's `tests/test.sh` scores correctly inside the container | a running bridge |
+| `isolation` | two containers at once cannot see each other's files, cgroups or loopback | a running bridge |
+| `model` | the whole chain, agent included; submits a run and then you report pass@k | a Slurm allocation |
+
+The `reward` check grades nine variants because each one was added after a
+verifier passed the others: the reference and a **re-indented** reference must
+score 1 (whitespace must not matter), while empty, garbage, lone `}`, `;`, `{`,
+`return null;` and **the reference with one identifier renamed** must score 0.
+The braces and `return null;` are what the retired TaskTrove verifier paid
+partial credit for; the renamed identifier is what catches a verifier rewarding a
+prefix or first-token match. Drop variants only if you know which failure you are
+giving up.
 
 Then report:
 

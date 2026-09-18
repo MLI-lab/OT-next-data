@@ -11,9 +11,8 @@ sbatch hpc/helma/run_pilot.sbatch <weak|strong> <smoke|diag|sweep|full>
 ```
 
 Stages are task counts per language: smoke 1, diag 5, sweep 25, full 250.
-`weak` = one GPU, `strong` = four. Always pass a smoke before a full run; a
-smoke costs 15 minutes and catches every staging error a full run would hit
-three hours in.
+`weak` = one GPU, `strong` = four. Always pass a smoke before a full run: it catches the staging errors a full run
+would otherwise hit hours in, at a fraction of the cost.
 
 ## Knobs
 

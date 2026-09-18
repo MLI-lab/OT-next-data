@@ -5,8 +5,9 @@ description: Prove a patched dataset before spending GPU hours - verifier discri
 
 # Verifying a dataset
 
-A reward number is worthless until these four hold. Run them in order; each is
-cheap compared to a 1,000-task run.
+A reward number is worthless until these hold. `python verify_pipeline.py all
+<tasks dir>` runs them all in order, cheapest first; each is also a script of its
+own, described below.
 
 ## 1. Tests
 
@@ -23,8 +24,9 @@ Two levels, and both matter:
 
 ```bash
 tar -xzf $PILOT_ROOT/tasks/<selection>.tar.gz -C $DIR
-python verify/check_reward.py $DIR                  # this machine, ~1 min for 1,000 tasks
+python verify/check_reward.py $DIR                  # this machine, no container
 python verify/check_reward_harbor.py $DIR $OUT      # inside a Slurm job: build + sandbox + test.sh
+python verify/check_images.py $DIR                  # how many distinct images the dataset needs
 ```
 
 The local one catches verifier bugs; the Harbor one catches a broken image, a
@@ -35,7 +37,8 @@ Variants graded: gold, re-indented gold (must still be 1 — whitespace must not
 matter), empty, garbage, lone `}` / `;` / `{`, `return null;`, and the gold with
 one identifier renamed (the near miss that catches a prefix-matching verifier).
 Anything other than "gold N/N, every nonsense 0/N" is a defect in the verifier,
-not in the tasks.
+not in the tasks. The nine variants each exist because a broken verifier passed
+the other eight - drop one only if you know which failure you stop catching.
 
 ## 3. Solvability
 
@@ -51,7 +54,7 @@ actually infer. The strict variant is in
 ## 4. Oracle parity and isolation, on the cluster
 
 - Oracle stage of a run (`PILOT_ORACLE_CHECK=1`, the default) executes every
-  `solution/solve.sh` through the real harness: expect 1,000/1,000 reward 1.
+  `solution/solve.sh` through the real harness: expect reward 1 from all of them.
 - `python verify/check_isolation.py` — two containers at once: separate cgroups,
   no shared temp files, an OOM in one contained, loopback not shared.
 
