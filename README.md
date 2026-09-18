@@ -18,22 +18,27 @@ them.
 
 ## Verifying a pipeline
 
-Three checks of rising cost, one entry point:
+Four checks of rising cost, one entry point:
 
 ```bash
 python verify_pipeline.py tests                 # seconds: unit tests (43)
-python verify_pipeline.py reward <dir>          # ~1 min: gold scores 1, nonsense scores 0
+python verify_pipeline.py reward <dir>          # ~1 min: gold 1 / nonsense 0, on this machine
+python verify_pipeline.py sandbox <dir>         # minutes: the same, built and run through Harbor
 python verify_pipeline.py model                 # ~1 h: real run, 8 attempts, then pass@k
-python verify_pipeline.py all <dir>             # all three, stopping at the first failure
+python verify_pipeline.py all <dir>             # in order, stopping at the first failure
 ```
 
 - **tests** — the patcher's rules and the run layer (`tests/`, pytest).
-- **reward** — grades nine answer variants per task with the task's own verifier:
-  the reference and a re-indented reference must score 1, and empty, garbage,
-  lone `}`/`;`/`{`, `return null;` and *the reference with one identifier renamed*
-  must score 0. That last variant is the one that catches a verifier paying for a
-  prefix match. Runs on the host by default; `--image <task.sif>` repeats it on
-  the python of the shipped task image.
+- **reward** — grades nine answer variants per task with the task's own verifier,
+  on this machine: the reference and a re-indented reference must score 1, and
+  empty, garbage, lone `}`/`;`/`{`, `return null;` and *the reference with one
+  identifier renamed* must score 0. That last variant is the one that catches a
+  verifier paying for a prefix match. No container, ~1 min for 1,000 tasks.
+- **sandbox** — the reference and garbage again, but the image is built and the
+  task's own `tests/test.sh` runs inside the container. This is the build and
+  sandbox check: it fails if the Dockerfile breaks, the image has no python, or
+  the reward never reaches `/logs/verifier/reward.json`. Needs a running bridge,
+  so it belongs inside a Slurm job.
 - **model** — submits a real Slurm job (default Qwen3-Coder-30B-A3B-Instruct,
   8 attempts, 5 tasks per language, sampling from the model card). This is the
   only check that exercises the whole chain, and its oracle stage proves the
@@ -74,7 +79,7 @@ repeating: `.agents/skills/run-teachers/SKILL.md`.
 | --- | --- |
 | `data/<dataset>/` | One folder per dataset pipeline: `patch.py` plus its data files. Currently `crosscodeeval/`. |
 | `tests/` | pytest: 34 patcher tests, 9 run-layer tests (skipped without `OTAGENT_ROOT`). |
-| `verify/` | Dataset-agnostic checks: `check_reward.py`, `check_solvability.py`, `check_isolation.py`, `pass_at_k.py`, `plot_pass_rates.py`. |
+| `verify/` | Dataset-agnostic checks: `check_reward.py` (local), `check_reward_harbor.py` (build + sandbox), `check_solvability.py`, `check_isolation.py`, `pass_at_k.py`, `plot_pass_rates.py`. |
 | `teacher_traces/` | Driving a run: selection and configs (`prepare_run.py`), trial archiving, completion gate. |
 | `harbor_patches/` | Everything that works around Harbor: `bridge_worker.py` (a Slurm step per trial, network isolation probe, own-staging-only cleanup) and the startup isolation check. |
 | `hpc/<cluster>/` | Cluster-specific launchers. `helma/` works; `zih/` is a skeleton. |

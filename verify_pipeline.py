@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Verify a data pipeline end to end, in three checks of rising cost.
+"""Verify a data pipeline end to end, in four checks of rising cost.
 
   python verify_pipeline.py tests            seconds   unit tests of the patcher and run layer
-  python verify_pipeline.py reward <dir>     ~1 min    gold scores 1, nonsense scores 0
+  python verify_pipeline.py reward <dir>     ~1 min    gold scores 1, nonsense scores 0 (this machine)
+  python verify_pipeline.py sandbox <dir>    minutes   the same, but built and run through Harbor
   python verify_pipeline.py model            ~1 h      run a model and report pass@k
-  python verify_pipeline.py all <dir>                  the three in order, stopping at the first failure
+  python verify_pipeline.py all <dir>                  in order, stopping at the first failure
 
-`tests` and `reward` need no GPU and no cluster. `model` submits a real Slurm job
-(default: Qwen3-Coder-30B-A3B-Instruct, 8 attempts per task, 5 tasks per language,
-the sampling from the model card) and is the only check that proves the whole
-chain: task image builds, sandbox runs, agent writes an answer, verifier scores it.
-
-The submitted job's own oracle stage is what proves the sandbox independently of
-the model: it executes every task's solution/solve.sh through Harbor and requires
-reward 1 from all of them. `PILOT_ORACLE_CHECK=0` turns it off; do not, for a
-pipeline that has not been verified before.
+`tests` and `reward` need no GPU and no cluster; `sandbox` needs the bridge
+server and bridge worker of a Slurm job; `model` submits one (default:
+Qwen3-Coder-30B-A3B-Instruct, 8 attempts per task, 5 tasks per language, sampling
+from the model card) and is the only check that exercises the whole chain
+including the agent.
 """
 from __future__ import annotations
 import argparse
@@ -38,15 +35,23 @@ def check_tests(a):
 
 
 def check_reward(a):
-    """Every reference solution scores 1, every nonsense answer 0."""
+    """Every reference solution scores 1, every nonsense answer 0 (this machine)."""
     if not a.tasks:
         sys.exit('reward: pass the directory that contains tasks/')
     cmd = [PY, HERE / 'verify/check_reward.py', a.tasks]
-    if a.image:
-        cmd += ['--image', a.image]
     if a.limit:
         cmd += ['--limit', a.limit]
     return run(cmd)
+
+
+def check_sandbox(a):
+    """Image builds, sandbox runs the task's own test.sh, reference 1 and garbage 0."""
+    if not a.tasks:
+        sys.exit('sandbox: pass the directory that contains tasks/')
+    if 'APPTAINER_BRIDGE_URL' not in os.environ:
+        sys.exit('sandbox: needs a running bridge (submit through hpc/<cluster>/run_pilot.sbatch)')
+    return run([PY, HERE / 'verify/check_reward_harbor.py', a.tasks, a.out,
+                *(['--limit', str(a.limit)] if a.limit else [])])
 
 
 def check_model(a):
@@ -63,14 +68,14 @@ def check_model(a):
     return rc
 
 
-CHECKS = {'tests': check_tests, 'reward': check_reward, 'model': check_model}
+CHECKS = {'tests': check_tests, 'reward': check_reward, 'sandbox': check_sandbox, 'model': check_model}
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('check', choices=[*CHECKS, 'all'])
     ap.add_argument('tasks', nargs='?', type=Path, help='directory containing tasks/ (for reward)')
-    ap.add_argument('--image', type=Path, help='task .sif, to grade inside the task image')
+    ap.add_argument('--out', type=Path, default=Path('sandbox-check'), help='trial dir for the sandbox check')
     ap.add_argument('--limit', type=int, help='grade only the first N tasks')
     ap.add_argument('--cluster', default='helma', help='which hpc/<cluster>/run_pilot.sbatch to submit')
     ap.add_argument('--model', default='weak', choices=['weak', 'strong'],

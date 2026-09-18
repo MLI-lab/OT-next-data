@@ -16,16 +16,20 @@ source env.sh && pytest tests -q          # expect: 43 passed
 Check the output for `failed`, not only for `passed` — `grep ' passed'` matches
 `1 failed, 42 passed`, which is how a stale test once went unnoticed for a day.
 
-## 2. Verifier discrimination — every task, not a sample
+## 2. Reward sanity — every task, not a sample
 
-Gold must score 1 and nonsense must score 0, graded by each task's own verifier
-inside the task image (python 3.10 there, not the host python):
+Gold must score 1 and nonsense must score 0, graded by each task's own verifier.
+Two levels, and both matter:
 
 ```bash
 tar -xzf $PILOT_ROOT/tasks/<selection>.tar.gz -C $DIR
-apptainer exec --no-home --bind $DIR:$DIR $PILOT_ROOT/images/build_<lang>-*.sif \
-    python3 verify/check_reward.py $DIR
+python verify/check_reward.py $DIR                  # this machine, ~1 min for 1,000 tasks
+python verify/check_reward_harbor.py $DIR $OUT      # inside a Slurm job: build + sandbox + test.sh
 ```
+
+The local one catches verifier bugs; the Harbor one catches a broken image, a
+missing python in the container, or a reward that never reaches
+`/logs/verifier/reward.json`.
 
 Variants graded: gold, re-indented gold (must still be 1 — whitespace must not
 matter), empty, garbage, lone `}` / `;` / `{`, `return null;`, and the gold with

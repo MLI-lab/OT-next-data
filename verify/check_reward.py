@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check 1 of the pipeline: the reference solution must score reward 1 and nonsense 0.
+"""Check 1 of the pipeline: the reference scores reward 1 and nonsense 0, on this machine.
 
 Grades nine answer variants for every task with that task's own verifier:
 
@@ -12,17 +12,15 @@ Grades nine answer variants for every task with that task's own verifier:
 `one_name_changed` is the one that matters: a verifier that rewards a prefix or a
 first-identifier match passes every other variant and fails only this one.
 
-Two modes:
-  local  (default)  the host python runs each task's verifier directly. Seconds,
-                    no container, no Harbor - run it after every patch.
-  image  --image X  re-runs this script inside the task image, so the verifier is
-                    exercised on the python that production actually uses.
+Runs on the local machine: this python imports each task's verifier directly, so
+1,000 tasks take about a minute with no container and no cluster. Run it after
+every change to a patcher.
 
-Neither mode proves the sandbox itself works; that is what the oracle stage of a
-run does (it executes solution/solve.sh through Harbor). See verify_pipeline.py.
+It says nothing about whether the task image builds or the sandbox works - that
+is check_reward_harbor.py, which runs the same grading through Harbor.
 
 Usage:
-  python verify/check_reward.py <dir with tasks/> [--image <task.sif>] [--limit N]
+  python verify/check_reward.py <dir with tasks/> [--limit N] [--json out.json]
 Exit code is 0 only if every task scores 1 on gold and 0 on every nonsense variant.
 """
 from __future__ import annotations
@@ -31,9 +29,7 @@ import contextlib
 import importlib.util
 import io
 import json
-import os
 import re
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -79,17 +75,9 @@ def grade(task, lang):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('root', type=Path, help='directory containing tasks/')
-    ap.add_argument('--image', type=Path, help='task .sif; re-runs this check inside it')
     ap.add_argument('--limit', type=int, help='grade only the first N tasks')
     ap.add_argument('--json', type=Path, help='also write the per-variant counts here')
     a = ap.parse_args()
-
-    if a.image:  # same check, but on the python of the shipped task image
-        cmd = ['apptainer', 'exec', '--no-home', '--bind', f'{a.root}:{a.root}', str(a.image),
-               'python3', str(Path(__file__).resolve()), str(a.root)]
-        if a.limit:
-            cmd += ['--limit', str(a.limit)]
-        raise SystemExit(subprocess.run(cmd).returncode)
 
     tasks = sorted((a.root / 'tasks').iterdir())[:a.limit]
     if not tasks:
@@ -109,8 +97,7 @@ def main():
         row = counts.get(name, {})
         want = f'{len(tasks)} (all)' if name in MUST_PASS else '0'
         print(f'{name:28}' + ''.join(f'{row.get(l, 0):12}' for l in langs) + f'{sum(row.values()):10}   {want}')
-    print(f'\n{len(tasks)} tasks graded' + (f' inside {os.environ.get("APPTAINER_NAME", "a container")}'
-                                            if os.environ.get('APPTAINER_NAME') else ' on the host python'))
+    print(f'\n{len(tasks)} tasks graded on this machine')
     if a.json:
         a.json.write_text(json.dumps({'counts': counts, 'tasks': len(tasks), 'failures': failures}, indent=1))
     if failures:
