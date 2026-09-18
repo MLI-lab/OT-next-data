@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+env.sh
+out/
+runs/
+*.parquet
+*.tar.gz

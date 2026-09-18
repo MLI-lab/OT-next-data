@@ -1,0 +1,7 @@
+# Host tooling: patching parquets, the solvability/verifier checks, analysis.
+# The task containers need none of this (each task's verifier is stdlib-only).
+pyarrow>=15
+pyyaml
+pytest
+matplotlib>=3.8      # verify/plot_pass_rates.py only
+huggingface_hub>=0.20  # downloading sources / opening the dataset PR
