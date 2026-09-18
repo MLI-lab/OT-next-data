@@ -7,9 +7,12 @@ description: Repair an agent-task dataset (context, verifier, oracle, solvabilit
 
 ## Rules that hold for every dataset here
 
-1. **One patcher per dataset, one file.** The verifier, the solvability rules
-   and the context selection must stay in the same module: a filter that
-   disagrees with the grader silently keeps unsolvable tasks.
+1. **One patcher per dataset, one file.** The verifier, the solvability rules,
+   the context selection and the audit of all three stay in the same module: a
+   filter that disagrees with the grader silently keeps unsolvable tasks, and a
+   separate audit script drifts from the filter it audits.
+   Running the patcher on the pinned upstream must reproduce the published
+   dataset exactly - record it with `verify/check_reproducible.py --digests`.
 2. **The filter asks exactly what the grader asks.** Identifiers are extracted
    from the *graded* text (after truncation and comment removal), by calling
    the verifier's own functions — never by a second regex.
@@ -40,7 +43,7 @@ graded reference contains no identifier at all.
 
 ```bash
 pytest tests -q                                   # 43 passed
-python data/crosscodeeval/check_solvability.py out/*.parquet --out reviews/
+python data/crosscodeeval/patch.py ... --review reviews/   # verdicts + dropped sample
 ```
 then the discrimination check from `.agents/skills/verify-dataset/SKILL.md`.
 Patched parquets that have not passed both are not ready for a run.

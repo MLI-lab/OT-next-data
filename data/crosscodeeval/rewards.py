@@ -69,3 +69,14 @@ def extra_variants(task: Path, gold: str) -> dict[str, tuple[str, float]]:
             'lone }': ('}', 0), 'lone ;': (';', 0), 'lone {': ('{', 0),
             'return null;': ('return null;', 0),
             'one identifier renamed': (near, 0)}
+
+
+if __name__ == '__main__':          # standalone: grade one task's variants
+    import sys
+    task = Path(sys.argv[1])
+    gold = reference(task)
+    print(f'{task.name}  ({language(task)})')
+    for label, (answer, want) in {'reference': (gold, 1), 'empty answer': ('', 0),
+                                  **extra_variants(task, gold)}.items():
+        got = grade(task, answer)
+        print(f'  {label:26} scored {got}, expected {want}  {"ok" if got == want else "MISMATCH"}')

@@ -31,7 +31,7 @@ python verify_pipeline.py reward <dir with tasks/>     # or any single check
 | `tests` | the patcher's rules and the run layer behave | nothing |
 | `reward` | each task's own verifier scores the reference 1 and nonsense 0 | nothing |
 | `images` | the dataset needs few enough distinct container images | nothing |
-| `solvability` | every name in a graded reference is knowable from what the agent sees (dataset-specific) | `--parquet` |
+| `reproduce` | the patcher still produces exactly the published tasks, compared by task contents | `--parquet` |
 | `sandbox` | the image builds and the task's `tests/test.sh` scores correctly inside the container | a running bridge |
 | `isolation` | two containers at once cannot see each other's files, cgroups or loopback | a running bridge |
 | `model` | the whole chain, agent included; submits a run and then you report pass@k | a Slurm allocation |
@@ -58,20 +58,29 @@ python verify/plot_pass_rates.py "Model A=<run dir>" "Model B=<dir>,<dir>" -o pa
 
 ```bash
 python data/crosscodeeval/patch.py --input <src>.parquet --output <dst>.parquet \
-       --archive $CCEVAL_ARCHIVE
+       --archive $CCEVAL_ARCHIVE --review reviews/
 ```
 
-Writes `<output>.report.json` with every kept, dropped and unmatched task ID, the
-retrieval variant chosen per task, and the unknowable names per tried retrieval.
-See `data/crosscodeeval/README.md` for what the patch changes inside a task.
+One script does the whole patch: context, verifier, oracle, the solvability
+filter *and* its audit. It writes `<output>.report.json` (kept, dropped and
+unmatched task IDs, the retrieval chosen per task, the unknowable names per tried
+retrieval) and, with `--review`, per-task verdicts plus a sample of dropped tasks
+to read. Running it on the pinned upstream reproduces the published dataset
+exactly — that is what `verify_pipeline.py reproduce` checks, against
+`data/crosscodeeval/published_digests.json`.
 
 ## Running teachers
 
 ```bash
-python verify_pipeline.py model --stage smoke    # detects the cluster, fills in the resources
-sbatch --gres=gpu:h200:1 hpc/helma/run_pilot.sbatch weak smoke     # or submit it yourself
-sbatch --gres=gpu:h200:4 hpc/helma/run_pilot.sbatch strong full
+python verify_pipeline.py model --stage smoke              # detects the cluster and its GPU request
+sbatch --gres=gpu:h200:1 hpc/helma/run_pilot.sbatch coder-30b smoke      # or submit it yourself
+sbatch --gres=gpu:h200:4 hpc/helma/run_pilot.sbatch qwen35-122b full
 ```
+
+Models live in `teacher_traces/models.py` (weights directory, GPU count, the
+sampling from the model card). `python teacher_traces/models.py` lists them; the
+pilot's `weak` and `strong` still work as aliases. `python hpc/clusters.py` prints
+the detected cluster, its submit line and the workspace layout.
 
 Always pass a smoke before a full run. Knobs and the failures worth not
 repeating: `.agents/skills/run-teachers/SKILL.md`.
@@ -80,12 +89,12 @@ repeating: `.agents/skills/run-teachers/SKILL.md`.
 
 | Path | What it is |
 | --- | --- |
-| `data/<dataset>/` | One folder per dataset pipeline: `patch.py`, `rewards.py` (how its answers are graded and which nonsense to try), dataset-specific checks, data files. |
-| `tests/` | pytest: 34 patcher tests, 9 run-layer tests (skipped without `OTAGENT_ROOT`). |
+| `data/<dataset>/` | One folder per dataset pipeline: `patch.py` (the whole patch, filter and audit included), `rewards.py` (how its answers are graded and which nonsense to try), `published_digests.json`, data files. |
+| `tests/` | pytest: 34 patcher tests, 9 run-layer tests (skipped without `OTAGENT_ROOT`), 2 on the dataset plug-in contract. |
 | `verify/` | Dataset-agnostic checks: `check_reward.py` (local), `check_reward_harbor.py` (build + sandbox), `check_images.py`, `check_isolation.py`, `pass_at_k.py`, `plot_pass_rates.py`. |
-| `teacher_traces/` | Driving a run: selection and configs (`prepare_run.py`), trial archiving, completion gate. |
+| `teacher_traces/` | Driving a run: the model registry (`models.py`), selection and configs (`prepare_run.py`), trial archiving, completion gate. |
 | `harbor_patches/` | Everything that works around Harbor: `bridge_worker.py` (a Slurm step per trial, network isolation probe, own-staging-only cleanup) and the startup isolation check. |
-| `hpc/` | `clusters.py` maps this hostname to a cluster and its submit arguments; `hpc/<cluster>/` holds that cluster's launcher. `helma/` works; `zih/` is a skeleton. |
+| `hpc/` | `clusters.py` maps this hostname to a cluster, its GPU request and its storage layout; `hpc/<cluster>/` holds that cluster's launcher. `helma/` works; `zih/` is a skeleton. |
 | `.agents/skills/` | How-tos for agents working in this repo. |
 
 ## Where the CrossCodeEval dataset stands

@@ -23,6 +23,9 @@ For each task in the input parquet:
 
 The report (<output>.report.json) lists kept, dropped and unmatched task IDs,
 the retrieval used per task and the unknowable names per tried retrieval.
+--review additionally writes per-task verdicts and a sample of dropped tasks for
+hand review, from the same pass: the filter and its audit are one script, so they
+cannot disagree.
 The standard-library list comes from the running interpreter (python_version
 in the report).
 """
@@ -652,11 +655,36 @@ def choose_context(files, lang, prompt_text, gold, k, matches, originals, is_com
     return None, missing
 
 
+def graded_reference(gold, lang, prompt_text=''):
+    """The part of the reference the verifier actually compares."""
+    return verifier_module().postprocess_code_lines(prompt_text, gold, None, lang)
+
+
+def write_review(out, records, sample=40, seed=20260916):
+    """Per-task verdicts plus a seeded sample of dropped tasks, for hand review."""
+    out.mkdir(parents=True, exist_ok=True)
+    with open(out / 'tasks.jsonl', 'w') as f:
+        for r in records:
+            f.write(json.dumps(r) + '\n')
+    dropped = [r for r in records if not r['kept']]
+    import random
+    picked = random.Random(seed).sample(dropped, min(sample, len(dropped)))
+    md = ['# Dropped tasks, sampled for review', '',
+          f'{len(dropped)} of {len(records)} tasks were dropped; {len(picked)} shown.', '']
+    for r in picked:
+        md += [f"## {r['task']} ({r['language']}) - {r['reason']}", '',
+               '```', r['graded_reference'].strip(), '```', '',
+               f"unknowable names: {', '.join(r['missing_names']) or '(none)'}", '']
+    (out / 'sample.md').write_text('\n'.join(md))
+    return len(dropped)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--input', required=True)
     ap.add_argument('--output', required=True)
     ap.add_argument('--archive', required=True)
+    ap.add_argument('--review', help='also write per-task verdicts and a sample of dropped tasks here')
     a = ap.parse_args()
     originals = load_original(a.archive)
     table = pq.read_table(a.input)
@@ -688,11 +716,22 @@ def main():
     stdlib = python_stdlib_names() if any(x[2] == 'python' for x in prepared) else frozenset()
 
     rows = {n: [] for n in table.column_names}
+    review = []
+
+    def record(row, lang, gold, p, kept, reason, retriever=None, verdicts=None, missing=None):
+        if a.review:
+            review.append({'task': row['path'], 'language': lang, 'kept': kept, 'reason': reason,
+                           'retriever': retriever, 'verdicts': verdicts or {},
+                           'missing_names': sorted({n for names in (missing or {}).values()
+                                                    for n in (names or [])}),
+                           'graded_reference': graded_reference(gold, lang, p or '')})
+
     for row, files, lang, p, gold, k, matches, match, repo in prepared:
         stats['rows'] += 1
         if not reference_identifiers(gold, lang, p or ''):
             stats['dropped_no_identifiers'] += 1
             stats['dropped_no_identifiers_task_ids'].append(row['path'])
+            record(row, lang, gold, p, False, 'no identifier in the graded reference')
             continue
         if match is None:
             stats['unmatched' if not matches else 'ambiguous'] += 1
@@ -706,8 +745,10 @@ def main():
             if chosen is None:
                 stats['dropped'] += 1
                 stats['dropped_task_ids'].append(row['path'])
+                record(row, lang, gold, p, False, 'no retrieval makes every name knowable', missing=missing)
                 continue
             retriever, kept, counts, verdicts = chosen
+            record(row, lang, gold, p, True, 'kept', retriever, verdicts, missing)
             stats['context_source'][retriever] += 1
             stats['context_source_task_ids'][retriever].append(row['path'])
             for n, c in counts.items():
@@ -719,6 +760,8 @@ def main():
             instruction = files['instruction.md'].decode('utf8', 'replace')
             if kept and '/setup_files/context/' not in instruction:
                 files['instruction.md'] = (instruction.rstrip() + CONTEXT_NOTE).encode()
+        if match is None:
+            record(row, lang, gold, p, True, 'kept without context (no unique upstream match)')
         stats['kept'] += 1
         if 'tests/test.sh' in files:
             files['tests/test.sh'] = benchmark_verifier(files, lang, p)
@@ -733,6 +776,9 @@ def main():
     report = json.dumps(stats, indent=2)
     Path(a.output).with_suffix('.report.json').write_text(report + '\n')
     print(report)
+    if a.review:
+        n = write_review(Path(a.review), review)
+        print(f'review: {len(review)} task records, {n} dropped, sample in {a.review}/sample.md')
 
 
 if __name__ == '__main__':

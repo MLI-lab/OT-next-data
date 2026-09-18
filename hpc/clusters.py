@@ -17,23 +17,38 @@ from dataclasses import dataclass, field
 class Cluster:
     name: str
     hostname_pattern: str
-    # Extra sbatch arguments per model size; the launcher's #SBATCH header carries
-    # the rest. Helma refuses a GPU-partition job that does not ask for a GPU.
-    gres: dict[str, str] = field(default_factory=dict)
+    # GPU request, with {n} for the GPU count (OT-Agent calls this
+    # gpu_directive_format). Helma refuses a GPU-partition job without one.
+    gpu_directive: str = ''
+    # Where the big things live. setup.sh writes the chosen workspace into env.sh;
+    # this is the default it suggests per cluster, and what the layout means.
+    workspace: str = ''
+    scratch: str = '$TMPDIR'      # node-local, per job: trials and container overlays
     note: str = ''
 
-    def submit_args(self, model: str) -> list[str]:
-        gres = self.gres.get(model)
-        return ['--gres', gres] if gres else []
+    def submit_args(self, gpus: int) -> list[str]:
+        return [self.gpu_directive.format(n=gpus)] if self.gpu_directive else []
 
 
 CLUSTERS = [
     Cluster(name='helma', hostname_pattern=r'helma\d*',
-            gres={'weak': 'gpu:h200:1', 'strong': 'gpu:h200:4'},
-            note='NHR@FAU; GPU jobs must request --gres, max 32 cores per GPU'),
+            gpu_directive='--gres=gpu:h200:{n}',
+            workspace='/hnvme/workspace/$USER-crosscodeeval-pilot',
+            note='NHR@FAU; GPU jobs must request --gres, max 32 cores per GPU, '
+                 'file-count quota on the shared filesystem'),
     Cluster(name='zih', hostname_pattern=r'(login\d*\.|.*\.)?(taurus|barnard|capella)',
             note='TU Dresden; launcher is a skeleton, see hpc/zih/run_pilot.sbatch'),
 ]
+
+# What the workspace holds, on every cluster. The repo holds none of it.
+LAYOUT = {
+    'models/': 'model weights (HF snapshots)',
+    'images/': 'built task images and the serving runtime.sif (HARBOR_SIF_CACHE)',
+    'tasks/': 'packed task archives and the selection manifests',
+    'runs/<run id>/': 'configs, logs, progress.json, attempt summaries, archived trials',
+    'envs/prep/': 'the host python environment',
+    'cache/': 'HF, apptainer and uv caches',
+}
 
 
 def detect_cluster(hostname: str | None = None) -> Cluster | None:
@@ -49,6 +64,10 @@ if __name__ == '__main__':
     c = detect_cluster(host)
     if not c:
         raise SystemExit(f'{host}: no cluster in CLUSTERS matches; pass --cluster explicitly')
-    print(f'{host} -> {c.name} ({c.note})')
-    for model in ('weak', 'strong'):
-        print(f'  {model}: sbatch {" ".join(c.submit_args(model))} hpc/{c.name}/run_pilot.sbatch {model} <stage>')
+    print(f'{host} -> {c.name}\n  {c.note}')
+    print(f'  workspace: {c.workspace or "(set PILOT_ROOT yourself)"}   node-local scratch: {c.scratch}')
+    for gpus in (1, 4):
+        print(f'  {gpus} GPU: sbatch {" ".join(c.submit_args(gpus))} hpc/{c.name}/run_pilot.sbatch <model> <stage>')
+    print('\n  workspace layout:')
+    for path, what in LAYOUT.items():
+        print(f'    {path:18} {what}')

@@ -40,16 +40,20 @@ Anything other than "gold N/N, every nonsense 0/N" is a defect in the verifier,
 not in the tasks. The nine variants each exist because a broken verifier passed
 the other eight - drop one only if you know which failure you stop catching.
 
-## 3. Solvability
+## 3. Solvability and reproducibility
+
+The solvability filter lives inside the patcher, so its audit comes from the same
+pass: `python data/<dataset>/patch.py ... --review reviews/` writes per-task
+verdicts and a sample of dropped tasks for hand review. Read the sample: the rules are heuristics, and the lenient "parts" rule
+(camelCase parts appearing anywhere) passes names the agent cannot actually
+infer. The strict variant is in `data/crosscodeeval/strict_subset_1000.json`;
+report scores on both.
+
+For a published dataset, also prove it is reproducible:
 
 ```bash
-python data/crosscodeeval/check_solvability.py <patched>.parquet --out reviews/
+python verify/check_reproducible.py out-*.parquet --expect data/<dataset>/published_digests.json
 ```
-Re-derives every verdict from the shipped parquets and writes a sample for
-hand review. Read the sample: the rules are heuristics, and the lenient "parts"
-rule (camelCase parts appearing anywhere) passes names the agent cannot
-actually infer. The strict variant is in
-`data/crosscodeeval/strict_subset_1000.json`; report scores on both.
 
 ## 4. Oracle parity and isolation, on the cluster
 

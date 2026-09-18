@@ -11,7 +11,11 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from models import resolve  # noqa: E402
 
 LANGUAGES = ('csharp', 'java', 'python', 'typescript')
 # The four tasks used by every smoke (one per language). They were the
@@ -70,30 +74,28 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
         'stage': stage, 'tasks_per_language': STAGES[stage], 'total': len(tasks),
         'rule': select_tasks.__doc__.strip(), 'smoke_tasks': SMOKE_TASKS, 'per_language': chosen,
         'work_dir': str(work), 'tasks_src': str(tasks_src), 'concurrency': concurrency, 'max_num_seqs': max_num_seqs}, indent=2) + '\n')
-    strong = mode == 'strong'
-    model = str(base / 'models' / ('Qwen3.5-122B-A10B' if strong else 'Qwen3-Coder-30B-A3B-Instruct'))
+    key, spec = resolve(mode)          # 'weak'/'strong' are aliases, see models.py
+    strong = spec.thinking
+    model = str(base / 'models' / spec.name)
     # Two single-GPU jobs can share a node: derive the Ray and vLLM API ports
     # from the job ID (the launcher does the same for the bridge port).
     job = int(os.environ.get('SLURM_JOB_ID', '0')) % 10000
     serving = {'engine': {'type': 'vllm_local', 'model': model, 'max_output_tokens': 8192, 'healthcheck_interval': 300, 'vllm_local': {}},
                'backend': {'type': 'ray', 'wait_for_endpoint': True, 'ray_port': 20000 + job, 'api_port': 30000 + job},
-               'vllm_server': {'model_path': model, 'num_replicas': 1, 'tensor_parallel_size': 4 if strong else 1,
+               'vllm_server': {'model_path': model, 'num_replicas': 1, 'tensor_parallel_size': spec.tensor_parallel_size,
                  'pipeline_parallel_size': 1, 'data_parallel_size': 1, 'max_model_len': 32768,
                  'max_num_seqs': max_num_seqs, 'gpu_memory_utilization': 0.9, 'enable_expert_parallel': False,
                  # OpenThoughts' hpc/vllm_utils.py injects --no-enable-prefix-caching unless the
                  # flag appears in the CLI args; its model registry and agentic eval path enable
                  # it (each agent turn otherwise re-prefills the whole conversation).
-                 'extra_args': ['--dtype', 'bfloat16', '--generation-config', 'vllm', '--enable-prefix-caching'] + (['--language-model-only'] if strong else [])}}
+                 'extra_args': ['--dtype', 'bfloat16', '--generation-config', 'vllm', '--enable-prefix-caching'] + spec.extra_args}}
     if strong:
         serving['vllm_server']['reasoning_parser'] = 'qwen3'
     (run / 'serving.yaml').write_text(yaml.safe_dump(serving, sort_keys=False))
-    # Sampling = each model card's recommendation (also in the model's
-    # generation_config.json, which vLLM ignores under --generation-config vllm):
-    # Qwen3.5-122B-A10B thinking mode, precise coding: T 0.6, top_p 0.95, top_k 20;
-    # Qwen3-Coder-30B-A3B-Instruct: T 0.7, top_p 0.8, top_k 20, repetition_penalty
-    # 1.05 (same as OpenThoughts' model_config/Qwen/Qwen3-Coder-30B-A3B-Instruct.yaml).
-    sampling = ({'temperature': 0.6, 'top_p': 0.95, 'top_k': 20} if strong else
-                {'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'repetition_penalty': 1.05})
+    # Sampling = the model card's recommendation, from teacher_traces/models.py
+    # (also in the model's generation_config.json, which vLLM ignores under
+    # --generation-config vllm).
+    sampling = spec.sampling
     config = {'job_name': run_id, 'jobs_dir': str(work / 'harbor_jobs'), 'n_attempts': 1,
         'orchestrator': {'type': 'local', 'n_concurrent_trials': concurrency, 'retry': {'max_retries': 0}},
         'environment': {'type': 'apptainer', 'force_build': False, 'delete': True, 'kwargs': {}},
@@ -112,7 +114,7 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('run_id')
-    p.add_argument('mode', choices=['weak', 'strong'])
+    p.add_argument('mode', help='model key or alias, see teacher_traces/models.py')
     p.add_argument('stage', choices=sorted(STAGES))
     p.add_argument('--work', type=Path, required=True, help='node-local wrapper run directory')
     p.add_argument('--tasks-src', type=Path, required=True, help='node-local directory holding extracted tasks')

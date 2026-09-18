@@ -16,9 +16,9 @@ set -euo pipefail
 : "${PILOT_ROOT:?Use the Helma /hnvme workspace}"
 : "${TMPDIR:?Node-local SSD required}"
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)   # repo root
-mode=${1:?weak or strong}
+mode=${1:?model key or alias, see teacher_traces/models.py}
 stage=${2:-smoke}
-case "$mode:$stage" in weak:smoke|strong:smoke|weak:diag|strong:diag|weak:sweep|strong:sweep|weak:full|strong:full) ;; *) exit 2 ;; esac
+case "$stage" in smoke|diag|sweep|full) ;; *) echo "unknown stage $stage" >&2; exit 2 ;; esac
 base=$PILOT_ROOT
 run_id="crosscodeeval-$mode-$stage-$SLURM_JOB_ID"
 run="$base/runs/$run_id"
@@ -203,9 +203,8 @@ if [[ "${PILOT_ORACLE_CHECK:-1}" == 1 ]]; then
     cp "$work/parity/parity_report.json" "$run/parity_report.json"
 fi
 attempts=1
-gpus=1
-[[ "$mode" != strong ]] || gpus=4
-[[ "$mode:$stage" != weak:full ]] || attempts=16
+gpus=$(python -c "import sys; sys.path.insert(0, '$here/teacher_traces'); from models import resolve; print(resolve('$mode')[1].gpus)")
+[[ "$stage:$mode" != full:weak ]] || attempts=16
 # PILOT_ATTEMPTS splits a pass@k run across jobs (e.g. two jobs of 8 attempts);
 # each job has its own run id, results are merged afterwards.
 attempts=${PILOT_ATTEMPTS:-$attempts}

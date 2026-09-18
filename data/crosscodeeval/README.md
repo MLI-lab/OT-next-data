@@ -38,8 +38,13 @@ grades an agent in production. The repo-level tests are elsewhere by design:
 ## Files here
 
 - `patch.py` — the whole pipeline for this dataset in one module: verifier,
-  context selection, solvability rules, oracle. One file on purpose: a filter
-  that disagrees with the grader silently keeps unsolvable tasks.
+  context selection, solvability rules and their audit (`--review`), oracle. One
+  file on purpose: a filter that disagrees with the grader silently keeps
+  unsolvable tasks, and a separate audit script can drift from the filter.
+- `rewards.py` — how an answer is graded locally and which nonsense answers the
+  reward checks should try. This is the plug-in `verify/check_reward*.py` load.
+- `published_digests.json` — the content digest of every task as published, so
+  `verify/check_reproducible.py` can prove the patcher still produces it.
 - `strict_subset_1000.json` — which of the 1,000 evaluated tasks survive the
   strict reading of the "parts" rule (750 do), with the name that fails for each
   of the others. Reporting only; nothing is filtered by it.
