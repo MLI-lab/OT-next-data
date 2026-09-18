@@ -18,7 +18,7 @@ would otherwise hit hours in, at a fraction of the cost.
 
 | Variable | Meaning |
 | --- | --- |
-| `PILOT_CONCURRENCY` | Trials in flight = bridge worker slots. Also capped by cores: one Slurm step per trial, `PILOT_TRIAL_CPUS` each, 32 cores per GPU here. |
+| `PILOT_CONCURRENCY` | Trials in flight = bridge worker slots. Filled in from `config/models.py` when that model was measured on this hardware, else from the cluster's cores per GPU. Each trial is a Slurm step of `PILOT_TRIAL_CPUS` cores, and Helma allows 32 per GPU. |
 | `PILOT_ATTEMPTS` | Attempts per task; split pass@16 into four jobs of 4 and merge with `verify/pass_at_k.py`. |
 | `PILOT_TRIAL_CPUS`, `PILOT_TRIAL_MEM` | Per-trial step limits (defaults 1 core, 4 GiB). |
 | `PILOT_ORACLE_CHECK=0` | Skip the oracle stage once a task tarball is verified (saves ~30 min per 1K run). |

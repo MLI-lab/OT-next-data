@@ -21,6 +21,7 @@ class Cluster:
     # gpu_directive_format). Helma refuses a GPU-partition job without one.
     gpu_directive: str = ''
     gpus_per_node: int = 4
+    gpu_type: str = ''            # what a measurement on this cluster is about
     # Where the big things live. setup.sh writes the chosen workspace into env.sh;
     # this is the default it suggests per cluster, and what the layout means.
     workspace: str = ''
@@ -32,6 +33,11 @@ class Cluster:
     cores_per_gpu: int = 16
     concurrency_note: str = ''
     note: str = ''
+
+    @property
+    def hardware(self) -> str:
+        """What a concurrency measurement is keyed on: the cluster and its GPU."""
+        return f'{self.name}-{self.gpu_type}' if self.gpu_type else self.name
 
     def trials_in_flight(self, gpus: int, cores_per_trial: int = 1) -> int:
         """How many trials to keep in flight for an allocation of `gpus` GPUs.
@@ -56,7 +62,7 @@ class Cluster:
 
 CLUSTERS = [
     Cluster(name='helma', hostname_pattern=r'helma\d*',
-            gpu_directive='--gres=gpu:h200:{n}',
+            gpu_directive='--gres=gpu:h200:{n}', gpu_type='h200',
             workspace='/hnvme/workspace/$USER-crosscodeeval-pilot',
             cores_per_gpu=32,
             concurrency_note=(

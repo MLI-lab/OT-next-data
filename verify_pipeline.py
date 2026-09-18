@@ -165,7 +165,10 @@ def check_model(a):
     env = {**os.environ, 'PILOT_ATTEMPTS': str(a.attempts), 'OTAGENT_ROOT': otagent,
            'OT_NEXT_DATA': str(HERE)}
     if cluster and 'PILOT_CONCURRENCY' not in os.environ:
-        env['PILOT_CONCURRENCY'] = str(cluster.trials_in_flight(
+        # A measurement for this model on this hardware beats the arithmetic
+        # ceiling; it is already the total for this model's allocation.
+        measured = resolve(a.model)[1].concurrency.get(cluster.hardware)
+        env['PILOT_CONCURRENCY'] = str(measured.trials if measured else cluster.trials_in_flight(
             gpus, int(os.environ.get('PILOT_TRIAL_CPUS', 1))))
     cmd = ['sbatch', *extra, sbatch, a.model, a.stage]
     if a.dry_run:

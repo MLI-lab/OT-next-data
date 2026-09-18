@@ -18,6 +18,23 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class Concurrency:
+    """What one measurement on one kind of hardware found.
+
+    `trials` is the total to run in flight for this model's own allocation (its
+    `gpus`), not per GPU. `limited_by` says what stops it going higher - 'gpu'
+    when more trials no longer raise utilization, 'cores' when the allocation
+    runs out of cores first and the GPU is still partly idle. Both are worth
+    recording: the second is still the number to use, it just says that more
+    cores per GPU, not a bigger engine, is what would help.
+    """
+    trials: int
+    gpu_util: float
+    limited_by: str
+    note: str = ''
+
+
+@dataclass
 class Model:
     name: str                       # directory under $PILOT_ROOT/models
     gpus: int
@@ -36,10 +53,9 @@ class Model:
     dtype: str = 'bfloat16'
     reasoning_parser: str = ''
     weights_gb: int = 0             # bf16/fp8 checkpoint size, for planning
-    # Trials in flight beyond which GPU utilization stops improving, measured
-    # with the `sweep` stage on the cluster named in the comment. 0 = not
-    # measured (or no plateau found, i.e. something other than the GPU limits it).
-    saturating_trials: int = 0
+    # Measured with the `sweep` stage, per hardware ('<cluster>-<gpu type>'),
+    # because a different GPU or core budget gives a different answer.
+    concurrency: dict = field(default_factory=dict)
 
     def parallelism(self, gpus_per_node: int) -> tuple[int, int]:
         """(tensor parallel, pipeline parallel) for a cluster with this node width."""
@@ -56,13 +72,18 @@ MODELS = {
     'coder-30b': Model(
         name='Qwen3-Coder-30B-A3B-Instruct', hf_repo='Qwen/Qwen3-Coder-30B-A3B-Instruct',
         gpus=1, weights_gb=61,
-        # Helma, 1 H200: 73-74% at 16 and at 32 trials - core-limited, no plateau found.
+        concurrency={'helma-h200': Concurrency(
+            trials=32, gpu_util=0.74, limited_by='cores',
+            note='73-74% at 16 and at 32 trials; 32 is all that fits in 32 cores per GPU, '
+                 'so the GPU stays partly idle and only more cores per GPU would help')},
         sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'repetition_penalty': 1.05}),
     'qwen35-122b': Model(
         name='Qwen3.5-122B-A10B', hf_repo='Qwen/Qwen3.5-122B-A10B',
         gpus=4, thinking=True, weights_gb=245, reasoning_parser='qwen3',
-        # Helma, 4 H200: 88-90% utilization from 32 trials up; 64 and 100 gained nothing.
-        saturating_trials=32,
+        concurrency={'helma-h200': Concurrency(
+            trials=32, gpu_util=0.89, limited_by='gpu',
+            note='88-90% from 32 trials up; 64 and 100 in flight gained nothing, so the '
+                 'engine, not the cores, is the wall')},
         sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20},
         extra_args=['--language-model-only']),
     # Multi-node teacher: 756 GB of FP8 weights do not fit one node's 4 H200
@@ -108,10 +129,12 @@ if __name__ == '__main__':
         print(f'{m.hf_repo} -> {dest}  ({m.weights_gb} GB)')
         snapshot_download(m.hf_repo, local_dir=dest, max_workers=8)
         raise SystemExit(0)
-    print(f"{'key':14}{'weights':>9}{'GPUs':>6}{'nodes':>7}  {'TPxPP':8}{'thinking':>9}{'saturates':>13}  sampling")
+    print(f"{'key':14}{'weights':>9}{'GPUs':>6}{'nodes':>7}  {'TPxPP':8}{'thinking':>9}  sampling")
     for key, m in MODELS.items():
         tp, pp = m.parallelism(a.gpus_per_node)
         alias = [x for x, n in ALIASES.items() if n == key]
-        sat = f'{m.saturating_trials} trials' if m.saturating_trials else 'not measured'
         print(f'{key:14}{m.weights_gb:7} GB{m.gpus:6}{m.nodes(a.gpus_per_node):7}  {f"{tp}x{pp}":8}'
-              f'{str(m.thinking):>9}{sat:>13}  {m.sampling}' + (f'  (alias: {", ".join(alias)})' if alias else ''))
+              f'{str(m.thinking):>9}  {m.sampling}' + (f'  (alias: {", ".join(alias)})' if alias else ''))
+        for hardware, c in m.concurrency.items():
+            print(f'{"":14}measured on {hardware}: {c.trials} trials in flight, '
+                  f'{c.gpu_util:.0%} GPU, limited by {c.limited_by} - {c.note}')
