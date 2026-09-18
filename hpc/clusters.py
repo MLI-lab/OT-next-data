@@ -20,6 +20,7 @@ class Cluster:
     # GPU request, with {n} for the GPU count (OT-Agent calls this
     # gpu_directive_format). Helma refuses a GPU-partition job without one.
     gpu_directive: str = ''
+    gpus_per_node: int = 4
     # Where the big things live. setup.sh writes the chosen workspace into env.sh;
     # this is the default it suggests per cluster, and what the layout means.
     workspace: str = ''
@@ -31,7 +32,16 @@ class Cluster:
     note: str = ''
 
     def submit_args(self, gpus: int) -> list[str]:
-        return [self.gpu_directive.format(n=gpus)] if self.gpu_directive else []
+        """sbatch arguments for a model that wants `gpus` GPUs in total.
+
+        --gres is per node, so a model larger than one node asks for full nodes.
+        """
+        nodes = -(-gpus // self.gpus_per_node)
+        per_node = min(gpus, self.gpus_per_node)
+        args = [f'--nodes={nodes}'] if nodes > 1 else []
+        if self.gpu_directive:
+            args.append(self.gpu_directive.format(n=per_node))
+        return args
 
 
 CLUSTERS = [
@@ -78,7 +88,7 @@ if __name__ == '__main__':
         raise SystemExit(f'{host}: no cluster in CLUSTERS matches; pass --cluster explicitly')
     print(f'{host} -> {c.name}\n  {c.note}')
     print(f'  workspace: {c.workspace or "(set PILOT_ROOT yourself)"}   node-local scratch: {c.scratch}')
-    for gpus in (1, 4):
+    for gpus in (1, 4, 8):
         print(f'  {gpus} GPU: sbatch {" ".join(c.submit_args(gpus))} hpc/{c.name}/run_pilot.sbatch <model> <stage>'
               f'   (PILOT_CONCURRENCY={c.trials_per_gpu * gpus})')
     if c.concurrency_note:

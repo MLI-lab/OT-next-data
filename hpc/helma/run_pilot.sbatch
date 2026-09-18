@@ -3,7 +3,7 @@
 #SBATCH --partition=h200
 # The GPU count is passed at submit time, because `strong` needs four and `weak` one:
 #   sbatch --gres=gpu:h200:1 hpc/helma/run_pilot.sbatch weak diag
-#SBATCH --nodes=1
+# --nodes comes from the submit line (hpc/clusters.py derives it from the model).
 #SBATCH --time=12:00:00
 #SBATCH --signal=B:USR1@900
 # Storage layout: /hnvme (PILOT_ROOT) holds models, the runtime image, the
@@ -63,9 +63,22 @@ export BRIDGE_INSTANCE_REUSE=0
 # Set an external URL and PILOT_EXTERNAL_WORKERS=1 to use CPU workers later.
 # Two single-GPU jobs can share a node (4 GPUs per node): derive the bridge
 # port from the job ID so their servers do not collide (868550 died on 9910).
+nodes=${SLURM_NNODES:-1}
+gpus_per_node=$(nvidia-smi --list-gpus | wc -l)
+export PILOT_GPUS_PER_NODE=$gpus_per_node
+# Everything below is single-node unless the allocation has several nodes: a
+# model whose weights exceed one node's HBM runs tensor-parallel inside each node
+# and pipeline-parallel across them (teacher_traces/models.py decides the split).
+head_ip=$(hostname -I | awk '{print $1}')
 bridge_port=$((40000 + SLURM_JOB_ID % 10000))
 export TRP_RAY_PORT=$((20000 + SLURM_JOB_ID % 10000)) TRP_API_PORT=$((30000 + SLURM_JOB_ID % 10000))
-export APPTAINER_BRIDGE_URL=${APPTAINER_BRIDGE_URL:-http://127.0.0.1:$bridge_port}
+if (( nodes > 1 )); then
+    export APPTAINER_BRIDGE_URL=${APPTAINER_BRIDGE_URL:-http://$head_ip:$bridge_port}
+    bridge_host=0.0.0.0
+else
+    export APPTAINER_BRIDGE_URL=${APPTAINER_BRIDGE_URL:-http://127.0.0.1:$bridge_port}
+    bridge_host=127.0.0.1
+fi
 export BRIDGE_WORKERS_DEAD_TIMEOUT=60
 # Throughput knobs: trials in flight (= bridge worker slots) and vLLM batch size.
 # 4 trials left the H200 at ~30% utilization; tasks are short, so many trials
@@ -180,10 +193,13 @@ pids+=("$!")
 printf '%s setup\n' "$(date -Is)" > "$run/phases.log"
 cd "$TMPDIR"
 if [[ "${PILOT_EXTERNAL_WORKERS:-0}" == 0 ]]; then
-    [[ "$APPTAINER_BRIDGE_URL" == "http://127.0.0.1:$bridge_port" ]] || { echo 'External URL requires PILOT_EXTERNAL_WORKERS=1'; exit 1; }
-    python -u -m harbor.environments.apptainer.server --host 127.0.0.1 --port "$bridge_port" > "$run/bridge.log" 2>&1 &
+    [[ "$APPTAINER_BRIDGE_URL" == "http://$bridge_host:$bridge_port" || "$APPTAINER_BRIDGE_URL" == "http://$head_ip:$bridge_port" ]] || { echo 'External URL requires PILOT_EXTERNAL_WORKERS=1'; exit 1; }
+    python -u -m harbor.environments.apptainer.server --host "$bridge_host" --port "$bridge_port" > "$run/bridge.log" 2>&1 &
     pids+=("$!")
-    python -u "$here/harbor_patches/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$PILOT_CONCURRENCY" > "$run/worker.log" 2>&1 &
+    # One worker process per node: trials are Slurm steps, so they spread over the
+    # whole allocation, and each node stages its containers on its own $TMPDIR.
+    srun --nodes="$nodes" --ntasks="$nodes" --ntasks-per-node=1 --overlap \
+        python -u "$here/harbor_patches/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$((PILOT_CONCURRENCY / nodes))" > "$run/worker.log" 2>&1 &
     pids+=("$!")
 fi
 ready=false
@@ -204,14 +220,35 @@ if [[ "${PILOT_ORACLE_CHECK:-1}" == 1 ]]; then
 fi
 attempts=1
 gpus=$(python -c "import sys; sys.path.insert(0, '$here/teacher_traces'); from models import resolve; print(resolve('$mode')[1].gpus)")
+(( gpus <= nodes * gpus_per_node )) || { echo "$mode needs $gpus GPUs, allocation has $((nodes * gpus_per_node))" >&2; exit 1; }
 [[ "$stage:$mode" != full:weak ]] || attempts=16
 # PILOT_ATTEMPTS splits a pass@k run across jobs (e.g. two jobs of 8 attempts);
 # each job has its own run id, results are merged afterwards.
 attempts=${PILOT_ATTEMPTS:-$attempts}
+if (( nodes > 1 )); then
+    # vLLM's Ray backend expects a cluster to join; without this each node would
+    # start its own head and the engine would only see one node's GPUs.
+    printf '%s ray-cluster\n' "$(date -Is)" >> "$run/phases.log"
+    export RAY_ADDRESS="$head_ip:$TRP_RAY_PORT"
+    apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$base/images/runtime.sif" \
+        ray start --head --node-ip-address "$head_ip" --port "$TRP_RAY_PORT" --num-gpus "$gpus_per_node" --disable-usage-stats >> "$run/ray.log" 2>&1
+    srun --nodes="$((nodes - 1))" --ntasks="$((nodes - 1))" --ntasks-per-node=1 --overlap --exclude="$(hostname -s)" \
+        apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$base/images/runtime.sif" \
+        ray start --address "$RAY_ADDRESS" --num-gpus "$gpus_per_node" --block >> "$run/ray.log" 2>&1 &
+    pids+=("$!")
+    for ((i = 0; i < 60; i++)); do
+        ready=$(apptainer exec --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$base/images/runtime.sif" \
+            python3 -c "import ray, os; ray.init(address=os.environ['RAY_ADDRESS'], log_to_driver=False); print(int(ray.cluster_resources().get('GPU', 0)))" 2>/dev/null || echo 0)
+        (( ready >= nodes * gpus_per_node )) && break
+        sleep 5
+    done
+    (( ready >= nodes * gpus_per_node )) || { echo "Ray cluster has $ready of $((nodes * gpus_per_node)) GPUs" >&2; exit 1; }
+    echo "Ray cluster ready: $ready GPUs over $nodes nodes" >> "$run/ray.log"
+fi
 printf '%s generation\n' "$(date -Is)" >> "$run/phases.log"
 python -u "$here/teacher_traces/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --interval "${PILOT_ARCHIVE_INTERVAL:-600}" > "$run/archiver.log" 2>&1 &
 archiver_pid=$!
-apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env "$base/images/runtime.sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" "TRP_BUILD_TIMEOUT_MULTIPLIER=8" python3 "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
+apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env "$base/images/runtime.sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" ${RAY_ADDRESS:+"RAY_ADDRESS=$RAY_ADDRESS"} "TRP_BUILD_TIMEOUT_MULTIPLIER=8" python3 "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
 generation_pid=$!
 while kill -0 "$generation_pid" 2>/dev/null; do
     if grep -q -E 'Engine core initialization failed|EngineCore failed to start|Fatal Python error:|api_server.py: error:' "$work"/traces/*/apptainer_bridge/experiments/logs/vllm_controller.log 2>/dev/null; then

@@ -77,13 +77,17 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
     key, spec = resolve(mode)          # 'weak'/'strong' are aliases, see models.py
     strong = spec.thinking
     model = str(base / 'models' / spec.name)
+    # GPUs per node comes from the allocation; a model bigger than one node is
+    # tensor-parallel inside each node and pipeline-parallel across them.
+    gpus_per_node = int(os.environ.get('PILOT_GPUS_PER_NODE', spec.gpus))
+    tp, pp = spec.parallelism(gpus_per_node)
     # Two single-GPU jobs can share a node: derive the Ray and vLLM API ports
     # from the job ID (the launcher does the same for the bridge port).
     job = int(os.environ.get('SLURM_JOB_ID', '0')) % 10000
     serving = {'engine': {'type': 'vllm_local', 'model': model, 'max_output_tokens': 8192, 'healthcheck_interval': 300, 'vllm_local': {}},
                'backend': {'type': 'ray', 'wait_for_endpoint': True, 'ray_port': 20000 + job, 'api_port': 30000 + job},
-               'vllm_server': {'model_path': model, 'num_replicas': 1, 'tensor_parallel_size': spec.tensor_parallel_size,
-                 'pipeline_parallel_size': 1, 'data_parallel_size': 1, 'max_model_len': 32768,
+               'vllm_server': {'model_path': model, 'num_replicas': 1, 'tensor_parallel_size': tp,
+                 'pipeline_parallel_size': pp, 'data_parallel_size': 1, 'max_model_len': 32768,
                  'max_num_seqs': max_num_seqs, 'gpu_memory_utilization': 0.9, 'enable_expert_parallel': False,
                  # OpenThoughts' hpc/vllm_utils.py injects --no-enable-prefix-caching unless the
                  # flag appears in the CLI args; its model registry and agentic eval path enable

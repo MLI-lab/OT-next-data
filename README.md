@@ -116,18 +116,39 @@ model, one bar per group, k as a light-to-dark ramp.
 ## Running teachers
 
 ```bash
-python verify_pipeline.py model --stage smoke     # detects the cluster and its GPU request
-sbatch --gres=gpu:h200:1 hpc/helma/run_pilot.sbatch coder-30b smoke   # or submit it yourself
+python verify_pipeline.py model --stage smoke --time 00:45:00    # cluster, GPUs and concurrency filled in
+sbatch --gres=gpu:h200:1 --time=00:45:00 hpc/helma/run_pilot.sbatch coder-30b smoke   # or submit it yourself
 ```
 
-Stages are tasks per language: `smoke` 1, `diag` 5, `sweep` 25, `full` 250.
-Always pass a smoke first.
+`--time` is required: a job that reserves more than it needs waits longer in the
+queue, and a smoke asking for twelve hours can sit behind everything. Stages are
+tasks per language: `smoke` 1, `diag` 5, `sweep` 25, `full` 250. Always pass a
+smoke first.
 
-- `python teacher_traces/models.py` — the models: weights directory, GPU count,
-  and the sampling from each model card. `weak` and `strong` still work as
-  aliases for `coder-30b` and `qwen35-122b`.
+- `python teacher_traces/models.py` — the teachers: weights size, GPU count,
+  nodes, the tensor/pipeline split and the sampling from each model card.
+  `--download <key>` fetches the weights into `$PILOT_ROOT/models`. `weak` and
+  `strong` still work as aliases for `coder-30b` and `qwen35-122b`.
 - `python hpc/clusters.py` — the detected cluster, its GPU request, how many
   trials to run in parallel there, and the workspace layout.
+
+### Models bigger than one node
+
+A teacher whose weights exceed one node's HBM is served tensor-parallel inside
+each node and pipeline-parallel across nodes; the split lives in the model entry:
+
+| model | weights | GPUs | nodes | TP x PP |
+| --- | --- | --- | --- | --- |
+| `coder-30b` | 61 GB | 1 | 1 | 1 x 1 |
+| `qwen35-122b` | 245 GB | 4 | 1 | 4 x 1 |
+| `glm-5.1-fp8` | 756 GB | 8 | 2 | 4 x 2 |
+| `glm-5.1` | 1508 GB | 16 | 4 | 4 x 4 |
+
+For more than one node the launcher starts a Ray head on the first node and a
+worker on each other node, waits until the cluster reports every GPU, binds the
+bridge to the node's address instead of localhost, and runs one trial worker per
+node so trials spread over the allocation. On one node nothing of that runs and
+the path is exactly the one all published results came from.
 
 ## Layout
 
