@@ -27,6 +27,10 @@ itself, and upstream translates one into the other unchanged, so `COPY data/ /ro
 at /root/data/data and the task cannot find its inputs. Directory sources are expanded into
 their children here.
 
+Baked /tests: upstream binds a staging dir at /tests on every instance, which hides the /tests a
+Harbor separate-verifier image builds in from its own tests/ context. The bind is dropped for
+images that ship /tests/test.sh themselves.
+
 Job-scoped startup cleanup: upstream `_cleanup_stale_instances` stops every
 `hb_env_*` instance of the user on the host. Apptainer's instance registry is
 per user and host (~/.apptainer/instances), so a job starting on a node would
@@ -139,6 +143,50 @@ def stop_with_anchor(self, payload):
         stop_anchor(self)
 
 
+_baked_tests = {}
+
+
+def image_bakes_tests(sif):
+    """Does this SIF already contain /tests/test.sh? Probed once per image, then cached."""
+    if sif not in _baked_tests:
+        apptainer = worker.APPTAINER or worker.detect_apptainer()
+        probe = subprocess.run([apptainer, 'exec', sif, 'test', '-f', '/tests/test.sh'],
+                               capture_output=True, timeout=120)
+        _baked_tests[sif] = probe.returncode == 0
+        if _baked_tests[sif]:
+            print(f'[worker] {os.path.basename(sif)} bakes /tests; not masking it with a bind',
+                  flush=True)
+    return _baked_tests[sif]
+
+
+def run_keeping_baked_tests(original_run):
+    """Drop the `--bind <staging>:/tests:rw` for images that ship their own /tests.
+
+    Upstream binds a staging directory at /tests on every instance, because it assumes the
+    verifier's tests are uploaded at run time. Harbor's separate-verifier mode does the opposite:
+    the verifier image is built with tests/ as its build context and ends `COPY . /tests/`, so the
+    bind hides the verifier and `bash /tests/test.sh` exits 127. Tasks that upload their tests are
+    unaffected, since their image has no /tests/test.sh and the bind stays.
+    """
+    def run(cmd, *args, **kwargs):
+        if isinstance(cmd, list) and len(cmd) > 2 and cmd[1:3] == ['instance', 'start']:
+            sif = next((c for c in cmd if isinstance(c, str) and c.endswith('.sif')), '')
+            if sif and image_bakes_tests(sif):
+                kept, skip = [], False
+                for i, arg in enumerate(cmd):
+                    if skip:
+                        skip = False
+                        continue
+                    if (arg == '--bind' and i + 1 < len(cmd)
+                            and str(cmd[i + 1]).endswith(':/tests:rw')):
+                        skip = True
+                        continue
+                    kept.append(arg)
+                cmd = kept
+        return original_run(cmd, *args, **kwargs)
+    return run
+
+
 NET_FLAGS = ['--net', '--network', 'none']
 
 
@@ -184,6 +232,7 @@ if __name__ == '__main__':
     worker.ApptainerInstance.start = start_with_anchor
     worker.ApptainerInstance.stop = stop_with_anchor
     worker._parse_copies = parse_copies_docker_semantics
+    worker.subprocess.run = run_keeping_baked_tests(worker.subprocess.run)
     sif_cache = next((a.split('=', 1)[1] if '=' in a else sys.argv[i + 1]
                       for i, a in enumerate(sys.argv) if a.startswith('--sif-cache')), '')
     if network_isolation_available(sif_cache):
