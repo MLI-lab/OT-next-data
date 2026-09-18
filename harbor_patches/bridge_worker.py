@@ -22,6 +22,11 @@ allows unprivileged network namespaces, every `apptainer instance start` gets
 worker start with a real SIF and skipped, with a log line, where the kernel
 forbids it (Helma: user.max_net_namespaces = 0). PILOT_NET_ISOLATION=0 disables.
 
+Directory COPY: Docker copies a directory's contents, apptainer's %files copies the directory
+itself, and upstream translates one into the other unchanged, so `COPY data/ /root/data/` lands
+at /root/data/data and the task cannot find its inputs. Directory sources are expanded into
+their children here.
+
 Job-scoped startup cleanup: upstream `_cleanup_stale_instances` stops every
 `hb_env_*` instance of the user on the host. Apptainer's instance registry is
 per user and host (~/.apptainer/instances), so a job starting on a node would
@@ -42,6 +47,32 @@ from harbor.environments.apptainer import worker
 
 _original_start = worker.ApptainerInstance.start
 _original_stop = worker.ApptainerInstance.stop
+_original_parse_copies = worker._parse_copies
+
+
+def parse_copies_docker_semantics(dockerfile_path):
+    """Docker COPY of a directory copies its CONTENTS; apptainer %files copies the directory.
+
+    Upstream's Dockerfile-to-def translation emits one %files line per COPY, so
+    `COPY data/ /root/data/` lands the files at /root/data/data/ and the task starts without its
+    inputs. Expanding a directory source into its children is what Docker does, and %files then
+    reproduces it. The destination keeps a trailing slash so apptainer treats it as a directory
+    rather than renaming the first child onto it.
+
+    Files are left alone, so Dockerfiles that copy only files are unaffected.
+    """
+    context = os.path.dirname(os.path.abspath(dockerfile_path))
+    expanded = []
+    for sources, dest in _original_parse_copies(dockerfile_path):
+        for src in sources:
+            abs_src = os.path.normpath(os.path.join(context, src))
+            if os.path.isdir(abs_src):
+                target = dest.rstrip('/') + '/'
+                for child in sorted(os.listdir(abs_src)):
+                    expanded.append(([os.path.join(src, child)], target))
+            else:
+                expanded.append(([src], dest))
+    return expanded
 
 
 def stop_anchor(instance):
@@ -152,6 +183,7 @@ if __name__ == '__main__':
     worker._cleanup_stale_instances = cleanup_own_staging_only
     worker.ApptainerInstance.start = start_with_anchor
     worker.ApptainerInstance.stop = stop_with_anchor
+    worker._parse_copies = parse_copies_docker_semantics
     sif_cache = next((a.split('=', 1)[1] if '=' in a else sys.argv[i + 1]
                       for i, a in enumerate(sys.argv) if a.startswith('--sif-cache')), '')
     if network_isolation_available(sif_cache):
