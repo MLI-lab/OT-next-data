@@ -92,9 +92,9 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
                  # OpenThoughts' hpc/vllm_utils.py injects --no-enable-prefix-caching unless the
                  # flag appears in the CLI args; its model registry and agentic eval path enable
                  # it (each agent turn otherwise re-prefills the whole conversation).
-                 'extra_args': ['--dtype', 'bfloat16', '--generation-config', 'vllm', '--enable-prefix-caching'] + spec.extra_args}}
-    if strong:
-        serving['vllm_server']['reasoning_parser'] = 'qwen3'
+                 'extra_args': ['--dtype', spec.dtype, '--generation-config', 'vllm', '--enable-prefix-caching'] + spec.extra_args}}
+    if spec.reasoning_parser:
+        serving['vllm_server']['reasoning_parser'] = spec.reasoning_parser
     (run / 'serving.yaml').write_text(yaml.safe_dump(serving, sort_keys=False))
     # Sampling = the model card's recommendation, from teacher_traces/models.py
     # (also in the model's generation_config.json, which vLLM ignores under

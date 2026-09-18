@@ -30,6 +30,10 @@ class Model:
     # parallelism fills one node and pipeline parallelism covers the rest.
     tensor_parallel: int = 0
     pipeline_parallel: int = 0
+    # vLLM's --dtype: 'auto' keeps a quantized checkpoint's own precision, which
+    # forcing bfloat16 would fight. Its reasoning parser is per model family.
+    dtype: str = 'bfloat16'
+    reasoning_parser: str = ''
     weights_gb: int = 0             # bf16/fp8 checkpoint size, for planning
 
     def parallelism(self, gpus_per_node: int) -> tuple[int, int]:
@@ -54,7 +58,7 @@ MODELS = {
         sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'repetition_penalty': 1.05}),
     'qwen35-122b': Model(
         name='Qwen3.5-122B-A10B', hf_repo='Qwen/Qwen3.5-122B-A10B',
-        gpus=4, thinking=True, weights_gb=245,
+        gpus=4, thinking=True, weights_gb=245, reasoning_parser='qwen3',
         sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20},
         extra_args=['--language-model-only']),
     # Multi-node teacher: 756 GB of FP8 weights do not fit one node's 4 H200
@@ -64,11 +68,13 @@ MODELS = {
     'glm-5.1-fp8': Model(
         name='GLM-5.1-FP8', hf_repo='zai-org/GLM-5.1-FP8',
         gpus=8, tensor_parallel=4, pipeline_parallel=2, thinking=True, weights_gb=756,
+        dtype='auto', reasoning_parser='glm45',
         sampling={'temperature': 1.0, 'top_p': 0.95}),
     # The bf16 checkpoint of the same model: 1.5 TB, four nodes.
     'glm-5.1': Model(
         name='GLM-5.1', hf_repo='zai-org/GLM-5.1',
         gpus=16, tensor_parallel=4, pipeline_parallel=4, thinking=True, weights_gb=1508,
+        reasoning_parser='glm45',
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
 

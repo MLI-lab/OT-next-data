@@ -15,7 +15,10 @@ set -euo pipefail
 : "${SLURM_JOB_ID:?Submit through Slurm}"
 : "${PILOT_ROOT:?Use the Helma /hnvme workspace}"
 : "${TMPDIR:?Node-local SSD required}"
-here=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)   # repo root
+# Slurm runs a copy of this script from /var/tmp, so the repo cannot be derived
+# from its own path: env.sh exports OT_NEXT_DATA, and verify_pipeline.py passes it.
+here=${OT_NEXT_DATA:?Set OT_NEXT_DATA to the OT_next_data checkout (source env.sh)}
+test -f "$here/teacher_traces/prepare_run.py" || { echo "OT_NEXT_DATA=$here is not the repo" >&2; exit 2; }
 mode=${1:?model key or alias, see teacher_traces/models.py}
 stage=${2:-smoke}
 case "$stage" in smoke|diag|sweep|full) ;; *) echo "unknown stage $stage" >&2; exit 2 ;; esac
@@ -196,11 +199,17 @@ if [[ "${PILOT_EXTERNAL_WORKERS:-0}" == 0 ]]; then
     [[ "$APPTAINER_BRIDGE_URL" == "http://$bridge_host:$bridge_port" || "$APPTAINER_BRIDGE_URL" == "http://$head_ip:$bridge_port" ]] || { echo 'External URL requires PILOT_EXTERNAL_WORKERS=1'; exit 1; }
     python -u -m harbor.environments.apptainer.server --host "$bridge_host" --port "$bridge_port" > "$run/bridge.log" 2>&1 &
     pids+=("$!")
-    # One worker process per node: trials are Slurm steps, so they spread over the
-    # whole allocation, and each node stages its containers on its own $TMPDIR.
-    srun --nodes="$nodes" --ntasks="$nodes" --ntasks-per-node=1 --overlap \
-        python -u "$here/harbor_patches/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$((PILOT_CONCURRENCY / nodes))" > "$run/worker.log" 2>&1 &
+    # The worker itself must NOT be a Slurm step: it launches one step per trial
+    # (srun --exact), and a step started inside another step loses its tmux anchor
+    # (872598). On one node it runs in the batch step, as it always has; extra
+    # nodes get their own worker through a step of their own.
+    python -u "$here/harbor_patches/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$((PILOT_CONCURRENCY / nodes))" > "$run/worker.log" 2>&1 &
     pids+=("$!")
+    if (( nodes > 1 )); then
+        srun --nodes="$((nodes - 1))" --ntasks="$((nodes - 1))" --ntasks-per-node=1 --overlap --exclude="$(hostname -s)" \
+            python -u "$here/harbor_patches/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$((PILOT_CONCURRENCY / nodes))" > "$run/worker-other-nodes.log" 2>&1 &
+        pids+=("$!")
+    fi
 fi
 ready=false
 for ((i=0; i<60; i++)); do

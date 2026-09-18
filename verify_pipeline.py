@@ -111,6 +111,14 @@ def check_model(a):
     sbatch = HERE / f'hpc/{name}/run_pilot.sbatch'
     if not sbatch.exists():
         return SKIP, f'no launcher for cluster {name}'
+    # The launcher needs both of these on the node, and Slurm only passes on what
+    # this shell has. Checking here turns a wasted queue slot into an error now.
+    if 'PILOT_ROOT' not in os.environ:
+        return SKIP, 'PILOT_ROOT is not set (source env.sh)'
+    otagent = os.environ.get('OTAGENT_ROOT') or str(Path(os.environ['PILOT_ROOT']) / 'code')
+    if not (Path(otagent) / 'data/teacher_ranking_proxy/generate_trajectories.py').exists():
+        return SKIP, (f'OTAGENT_ROOT={otagent} has no data/teacher_ranking_proxy/'
+                      'generate_trajectories.py (source env.sh, or set it to the checkout)')
     # Resources are submit-time arguments, not header lines: hpc/clusters.py holds
     # them per cluster (Helma rejects a GPU-partition job without --gres).
     gpus = resolve(a.model)[1].gpus
@@ -118,7 +126,19 @@ def check_model(a):
     if not a.time:
         return SKIP, 'pass --time HH:MM:SS (a job that reserves more than it needs waits longer)'
     extra += ['--time', a.time]
-    env = {**os.environ, 'PILOT_ATTEMPTS': str(a.attempts)}
+    # The launcher archives and stops when Slurm signals that time is nearly up.
+    # The header's 900 s lead would fire 4 minutes into a 20 minute job (872626),
+    # so scale it: a fifth of the limit, at most 15 minutes, at least a minute.
+    parts = [int(x) for x in a.time.split(':')]
+    total = parts[0] * 3600 + parts[1] * 60 + (parts[2] if len(parts) > 2 else 0)
+    extra += [f'--signal=B:USR1@{max(60, min(900, total // 5))}']
+    # Without this Slurm scatters the job log; keep them all in one place.
+    if 'PILOT_ROOT' in os.environ:
+        logs = Path(os.environ['PILOT_ROOT']) / 'logs'
+        logs.mkdir(parents=True, exist_ok=True)
+        extra += [f'--output={logs}/slurm-%j.out']
+    env = {**os.environ, 'PILOT_ATTEMPTS': str(a.attempts), 'OTAGENT_ROOT': otagent,
+           'OT_NEXT_DATA': str(HERE)}
     if cluster and 'PILOT_CONCURRENCY' not in os.environ:
         env['PILOT_CONCURRENCY'] = str(cluster.trials_per_gpu * gpus)
     cmd = ['sbatch', *extra, sbatch, a.model, a.stage]
