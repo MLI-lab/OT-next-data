@@ -3,7 +3,7 @@ cgroup, files are invisible across trials, and an OOM in one leaves the other al
 
 Runs the agent's own path (commands typed into the instance's tmux server) via
 the bridge, like check_isolation.py. Usage inside a Slurm job with the bridge
-server and bridge_worker.py running: check_trial_isolation.py <task dir> <out dir>.
+server and bridge_worker.py running: verify/check_isolation.py <task dir> <out dir>.
 """
 import asyncio
 import os

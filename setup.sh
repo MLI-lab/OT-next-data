@@ -29,7 +29,7 @@ git -C "$ws/OpenThoughts-Agent" fetch --quiet origin
 git -C "$ws/OpenThoughts-Agent" checkout --quiet "$OTAGENT_PIN"
 
 # 2. Host env: the patcher, the checks and the analysis run here; Harbor is
-#    needed because run/bridge_worker.py wraps its apptainer worker.
+#    needed because harbor_patches/bridge_worker.py wraps its apptainer worker.
 python3 -m venv "$ws/envs/prep"
 "$ws/envs/prep/bin/pip" install --quiet --upgrade pip
 "$ws/envs/prep/bin/pip" install --quiet -r "$here/requirements-host.txt"
@@ -49,5 +49,5 @@ echo "Installed. Workspace: $ws"
 echo "  OpenThoughts-Agent @ $OTAGENT_PIN"
 echo "  harbor             @ $HARBOR_PIN"
 echo "Next: source $here/env.sh"
-echo "Then: pytest $here/tests -q        # 18 patcher tests, no cluster needed"
-echo "The GPU runtime image is built separately: run/build_runtime.sh (see README)."
+echo "Then: python $here/verify_pipeline.py tests   # 43 tests, no cluster needed"
+echo "The GPU runtime image is built separately: hpc/<cluster>/build_runtime.sh (see README)."

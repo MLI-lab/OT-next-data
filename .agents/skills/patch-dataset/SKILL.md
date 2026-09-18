@@ -22,7 +22,7 @@ description: Repair an agent-task dataset (context, verifier, oracle, solvabilit
 
 ```bash
 source env.sh
-python patchers/crosscodeeval.py --input <src>.parquet --output <dst>.parquet \
+python data/crosscodeeval/patch.py --input <src>.parquet --output <dst>.parquet \
        --archive $CCEVAL_ARCHIVE
 ```
 
@@ -40,16 +40,17 @@ graded reference contains no identifier at all.
 
 ```bash
 pytest tests -q                                   # 43 passed
-python verify/solvability_check.py out/*.parquet --out reviews/
+python verify/check_solvability.py out/*.parquet --out reviews/
 ```
 then the discrimination check from `.agents/skills/verify-dataset/SKILL.md`.
 Patched parquets that have not passed both are not ready for a run.
 
 ## Adding a new dataset
 
-Add `patchers/<dataset>.py` with the same five steps and its own verifier; the
-`verify/` tools are dataset-agnostic except `solvability_check.py`, which
-imports the patcher's rules by name. Keep task IDs stable across versions
+Add `data/<dataset>/patch.py` with the same five steps and its own verifier,
+plus a short `README.md` saying what it changes inside a task. The `verify/`
+tools are dataset-agnostic except `check_solvability.py`, which imports the
+patcher's rules by name. Keep task IDs stable across versions
 (gaps where tasks were dropped) so results stay comparable to earlier runs.
 
 ## Publishing

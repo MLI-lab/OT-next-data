@@ -130,7 +130,7 @@ def test_missing_oracles_warn_without_dropping_generation_tasks(tmp_path, monkey
 
 
 # --- Helma storage layout: selection rules, node-local trial archiving, exports ---
-NHR = HERE / 'run'
+NHR = HERE / 'teacher_traces'
 sys.path.insert(0, str(NHR))
 import prepare_run
 import archive_trials

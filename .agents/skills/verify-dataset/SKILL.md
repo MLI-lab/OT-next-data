@@ -24,7 +24,7 @@ inside the task image (python 3.10 there, not the host python):
 ```bash
 tar -xzf $PILOT_ROOT/tasks/<selection>.tar.gz -C $DIR
 apptainer exec --no-home --bind $DIR:$DIR $PILOT_ROOT/images/build_<lang>-*.sif \
-    python3 verify/verifier_discrimination.py $DIR
+    python3 verify/check_reward.py $DIR
 ```
 
 Variants graded: gold, re-indented gold (must still be 1 — whitespace must not
@@ -36,19 +36,19 @@ not in the tasks.
 ## 3. Solvability
 
 ```bash
-python verify/solvability_check.py <patched>.parquet --out reviews/
+python verify/check_solvability.py <patched>.parquet --out reviews/
 ```
 Re-derives every verdict from the shipped parquets and writes a sample for
 hand review. Read the sample: the rules are heuristics, and the lenient "parts"
 rule (camelCase parts appearing anywhere) passes names the agent cannot
 actually infer. The strict variant is in
-`verify/data/selection1000_strict_subset.json`; report scores on both.
+`data/crosscodeeval/strict_subset_1000.json`; report scores on both.
 
 ## 4. Oracle parity and isolation, on the cluster
 
 - Oracle stage of a run (`PILOT_ORACLE_CHECK=1`, the default) executes every
   `solution/solve.sh` through the real harness: expect 1,000/1,000 reward 1.
-- `python verify/trial_isolation.py` — two containers at once: separate cgroups,
+- `python verify/check_isolation.py` — two containers at once: separate cgroups,
   no shared temp files, an OOM in one contained, loopback not shared.
 
 ## Reporting

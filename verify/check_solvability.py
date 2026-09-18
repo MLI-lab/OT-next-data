@@ -15,7 +15,7 @@ recoverable and are reported separately.
 The rules (whole word, camelCase/snake_case parts, literals, python standard
 library names, names used by >= --common-repos other repositories) are the
 patcher's own (classify/parts_of/python_stdlib_names in
-patchers/crosscodeeval.py), which applies them
+data/crosscodeeval/patch.py), which applies them
 to choose the retrieval context and drop unrecoverable tasks; on its output
 every matched task should therefore be recoverable, and this script verifies
 that and reports the counts.
@@ -43,7 +43,7 @@ import pyarrow.parquet as pq
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from patchers import crosscodeeval as patcher  # noqa: E402
+from data.crosscodeeval import patch as patcher  # noqa: E402
 
 verifier = patcher.verifier_module()
 

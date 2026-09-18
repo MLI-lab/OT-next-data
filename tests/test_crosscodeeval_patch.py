@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from patchers import crosscodeeval as patcher
+from data.crosscodeeval import patch as patcher
 
 
 def test_prompt_preserves_code_fences_inside_source_comments():

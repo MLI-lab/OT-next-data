@@ -13,7 +13,7 @@ set -euo pipefail
 : "${SLURM_JOB_ID:?Submit through Slurm}"
 : "${PILOT_ROOT:?Use the Helma /hnvme workspace}"
 : "${TMPDIR:?Node-local SSD required}"
-here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)   # repo root
 mode=${1:?weak or strong}
 stage=${2:-smoke}
 case "$mode:$stage" in weak:smoke|strong:smoke|weak:diag|strong:diag|weak:sweep|strong:sweep|weak:full|strong:full) ;; *) exit 2 ;; esac
@@ -97,7 +97,7 @@ for path in Path(sys.argv[1]).rglob('*.yaml'):
     if kept != lines:
         path.write_text(''.join(kept))
 PYFILTER
-python "$here/prepare_run.py" "$run_id" "$mode" "$stage" --work "$work" --tasks-src "$tasks_src" --concurrency "$PILOT_CONCURRENCY" --max-num-seqs "$PILOT_MAX_NUM_SEQS"
+python "$here/teacher_traces/prepare_run.py" "$run_id" "$mode" "$stage" --work "$work" --tasks-src "$tasks_src" --concurrency "$PILOT_CONCURRENCY" --max-num-seqs "$PILOT_MAX_NUM_SEQS"
 # Extract only the selected tasks from the single compressed dataset.
 python - "$run/sampled_task_ids.json" > "$run/task-members.txt" <<'PY'
 import json, sys
@@ -133,7 +133,7 @@ finalize() {
     for pid in $generation_pid $archiver_pid; do kill "$pid" 2>/dev/null || true; done
     for pid in $generation_pid $archiver_pid; do wait "$pid" 2>/dev/null || true; done
     printf '%s archive-final\n' "$(date -Is)" >> "$run/phases.log"
-    python "$here/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --final >> "$run/archiver.log" 2>&1 || echo 'Final archive failed' >&2
+    python "$here/teacher_traces/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --final >> "$run/archiver.log" 2>&1 || echo 'Final archive failed' >&2
 }
 cleanup() {
     rc=$?
@@ -181,7 +181,7 @@ if [[ "${PILOT_EXTERNAL_WORKERS:-0}" == 0 ]]; then
     [[ "$APPTAINER_BRIDGE_URL" == "http://127.0.0.1:$bridge_port" ]] || { echo 'External URL requires PILOT_EXTERNAL_WORKERS=1'; exit 1; }
     python -u -m harbor.environments.apptainer.server --host 127.0.0.1 --port "$bridge_port" > "$run/bridge.log" 2>&1 &
     pids+=("$!")
-    python -u "$here/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$PILOT_CONCURRENCY" > "$run/worker.log" 2>&1 &
+    python -u "$here/harbor_patches/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$PILOT_CONCURRENCY" > "$run/worker.log" 2>&1 &
     pids+=("$!")
 fi
 ready=false
@@ -191,7 +191,7 @@ for ((i=0; i<60; i++)); do
     sleep 2
 done
 "$ready" || { echo 'Bridge readiness failed'; exit 1; }
-python "$here/check_isolation.py" "$work" > "$run/isolation.log" 2>&1
+python "$here/harbor_patches/startup_check.py" "$work" > "$run/isolation.log" 2>&1
 common=(--runtime apptainer_bridge --dataset crosscodeeval --manifest "$work/manifest.jsonl" --sample-file "$work/sampled_task_ids.json" --run-id "$run_id")
 # The oracle stage also warms the task container images (SIF build with an 8x
 # timeout) before agent trials start. Keep it on; PILOT_ORACLE_CHECK=0 skips it.
@@ -208,7 +208,7 @@ gpus=1
 # each job has its own run id, results are merged afterwards.
 attempts=${PILOT_ATTEMPTS:-$attempts}
 printf '%s generation\n' "$(date -Is)" >> "$run/phases.log"
-python -u "$here/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --interval "${PILOT_ARCHIVE_INTERVAL:-600}" > "$run/archiver.log" 2>&1 &
+python -u "$here/teacher_traces/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --interval "${PILOT_ARCHIVE_INTERVAL:-600}" > "$run/archiver.log" 2>&1 &
 archiver_pid=$!
 apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env "$base/images/runtime.sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" "TRP_BUILD_TIMEOUT_MULTIPLIER=8" python3 "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
 generation_pid=$!
@@ -225,6 +225,6 @@ wait "$generation_pid"
 generation_pid=
 mkdir -p "$run/metadata"
 cp "$work"/metadata/*.json "$run/metadata/" 2>/dev/null || true
-python "$here/check_run.py" "$work" "$attempts" "$run"
+python "$here/teacher_traces/check_run.py" "$work" "$attempts" "$run"
 finalize
 touch "$run/PASSED"

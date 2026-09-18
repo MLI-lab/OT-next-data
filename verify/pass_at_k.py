@@ -37,7 +37,7 @@ def main():
             attempts[task][0] += n
             attempts[task][1] += x['n_success']
             attempts[task][2] += x['n_timeouts']
-    strict = json.loads((HERE / 'data/selection1000_strict_subset.json').read_text())['tasks']
+    strict = json.loads((HERE.parent / 'data/crosscodeeval/strict_subset_1000.json').read_text())['tasks']
     ns = sorted({v[0] for v in attempts.values()})
     print(f"runs: {', '.join(r.name for r in a.runs)} | tasks {len(attempts)} | attempts per task {ns}")
     for subset in ('all', 'strict'):

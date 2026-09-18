@@ -7,7 +7,7 @@ description: Generate teacher trajectories on Slurm - stages, throughput knobs, 
 
 ```bash
 source env.sh
-sbatch run/run_pilot.sbatch <weak|strong> <smoke|diag|sweep|full>
+sbatch hpc/helma/run_pilot.sbatch <weak|strong> <smoke|diag|sweep|full>
 ```
 
 Stages are task counts per language: smoke 1, diag 5, sweep 25, full 250.
@@ -44,7 +44,7 @@ T 0.7 / top_p 0.8 / top_k 20 / repetition_penalty 1.05.
   launcher therefore runs from a job-private copy of the OT-Agent checkout in
   `$TMPDIR/code`.
 - **Harbor's `_cleanup_stale_instances` stops every `hb_env_*` instance of the
-  user on the host**, including other jobs'. `run/bridge_worker.py` replaces it
+  user on the host**, including other jobs'. `harbor_patches/bridge_worker.py` replaces it
   with own-staging-only cleanup and pins `BRIDGE_INSTANCE_REUSE=0`.
 - **`srun` per trial without `--gres=none` serializes the trials** on the GPU;
   `--overlap` pins every step to the same cores. Use
@@ -62,5 +62,5 @@ T 0.7 / top_p 0.8 / top_k 20 / repetition_penalty 1.05.
 `runs/<run-id>/` holds configs, logs, `progress.json`,
 `validated_attempt_summary.json` and `archives/*.tar.gz` — trials are archived,
 so there are no loose `result.json` files. `verify/pass_at_k.py` reads the
-summary; `run/check_run.py` is the completion gate (it needs `OTAGENT_ROOT`).
+summary; `teacher_traces/check_run.py` is the completion gate (it needs `OTAGENT_ROOT`).
 Never kill a RUNNING job without explicit permission from the operator.
