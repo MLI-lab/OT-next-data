@@ -52,6 +52,10 @@ class Model:
     # forcing bfloat16 would fight. Its reasoning parser is per model family.
     dtype: str = 'bfloat16'
     reasoning_parser: str = ''
+    # Which serving image to use, under $PILOT_ROOT/images. A model newer than
+    # the runtime fails to load its own weights, so a new model may need a newer
+    # vLLM: build one with hpc/<cluster>/build_runtime.sh <tag> and name it here.
+    runtime: str = 'runtime.sif'
     weights_gb: int = 0             # bf16/fp8 checkpoint size, for planning
     # Measured with the `sweep` stage, per hardware ('<cluster>-<gpu type>'),
     # because a different GPU or core budget gives a different answer.
@@ -86,18 +90,30 @@ MODELS = {
                  'engine, not the cores, is the wall')},
         sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20},
         extra_args=['--language-model-only']),
+    # Multi-node teacher that this runtime can actually serve: Qwen3MoeForCausalLM
+    # is long supported, and 482 GB of FP8 weights need two of Helma's nodes.
+    'qwen3-coder-480b-fp8': Model(
+        name='Qwen3-Coder-480B-A35B-Instruct-FP8', hf_repo='Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8',
+        gpus=8, weights_gb=482, dtype='auto',
+        sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'repetition_penalty': 1.05}),
     # Multi-node teacher: 756 GB of FP8 weights do not fit one node's 4 H200
     # (564 GB), so it runs tensor-parallel inside each node and pipeline-parallel
     # across two. Sampling is the model's own generation_config (T 1.0, top_p
     # 0.95); check the model card before trusting it for a scored run.
     'glm-5.1-fp8': Model(
         name='GLM-5.1-FP8', hf_repo='zai-org/GLM-5.1-FP8',
+        # vLLM 0.20.0 registers GlmMoeDsaForCausalLM but its loader does not know
+        # this checkpoint's attention-indexer weights (873761: KeyError
+        # 'model.layers.0.self_attn.indexer.wk_weights_proj.weight'), so it needs
+        # the newer runtime.
         gpus=8, thinking=True, weights_gb=756, dtype='auto', reasoning_parser='glm45',
+        runtime='runtime-v0.29.0.sif',
         sampling={'temperature': 1.0, 'top_p': 0.95}),
     # The bf16 checkpoint of the same model: 1.5 TB, four nodes.
     'glm-5.1': Model(
         name='GLM-5.1', hf_repo='zai-org/GLM-5.1',
         gpus=16, thinking=True, weights_gb=1508, reasoning_parser='glm45',
+        runtime='runtime-v0.29.0.sif',
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
 
@@ -125,9 +141,17 @@ if __name__ == '__main__':
         key, m = resolve(a.download)
         if not m.hf_repo:
             raise SystemExit(f'{key} has no hf_repo')
+        import json
+        from huggingface_hub import HfApi
         dest = P(os.environ['PILOT_ROOT']) / 'models' / m.name
         print(f'{m.hf_repo} -> {dest}  ({m.weights_gb} GB)')
         snapshot_download(m.hf_repo, local_dir=dest, max_workers=8)
+        # The launcher refuses to serve a model without this marker, so a
+        # half-finished download can never be mistaken for a complete one.
+        revision = HfApi().model_info(m.hf_repo).sha
+        (dest / 'download_complete.json').write_text(
+            json.dumps({'model': m.hf_repo, 'revision': revision}, indent=2) + '\n')
+        print(f'wrote {dest}/download_complete.json (revision {revision})')
         raise SystemExit(0)
     print(f"{'key':14}{'weights':>9}{'GPUs':>6}{'nodes':>7}  {'TPxPP':8}{'thinking':>9}  sampling")
     for key, m in MODELS.items():

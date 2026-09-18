@@ -45,6 +45,9 @@ export TEACHER_PROXY_VENV="$HARBOR_BRIDGE_VENV"
 export PATH="$HARBOR_BRIDGE_VENV/bin:$PATH"
 export PYTHONPATH="$repo"
 export WS_ROOT="$base" TRP_RUNS_DIR="$TMPDIR/runs" TRP_APPTAINER_SHIM=0
+# Serve with the image this model asks for (config/models.py).
+runtime_sif=$base/images/$(python -c "import sys; sys.path.insert(0, '$here/config'); from models import resolve; print(resolve('$mode')[1].runtime)")
+test -f "$runtime_sif" || { echo "$mode needs $runtime_sif: build it with hpc/<cluster>/build_runtime.sh" >&2; exit 2; }
 export HF_HOME="$base/cache/huggingface" HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export HARBOR_SIF_CACHE="$base/images" APPTAINER_CACHEDIR="$base/cache/apptainer"
 export APPTAINER_TMPDIR="$TMPDIR/apptainer"
@@ -67,12 +70,22 @@ export BRIDGE_INSTANCE_REUSE=0
 # Two single-GPU jobs can share a node (4 GPUs per node): derive the bridge
 # port from the job ID so their servers do not collide (868550 died on 9910).
 nodes=${SLURM_NNODES:-1}
+# --pid gives the runtime container its own PID namespace, so `ray stop` in one
+# job cannot kill a co-located job's raylet. A Ray driver in a separate PID
+# namespace cannot attach to the local raylet, though (probed in 873667), so a
+# multi-node run drops it - it holds whole nodes, so nothing is co-located.
+pid_ns=--pid
+(( ${SLURM_NNODES:-1} > 1 )) && pid_ns=""  
 gpus_per_node=$(nvidia-smi --list-gpus | wc -l)
 export PILOT_GPUS_PER_NODE=$gpus_per_node
 # Everything below is single-node unless the allocation has several nodes: a
 # model whose weights exceed one node's HBM runs tensor-parallel inside each node
 # and pipeline-parallel across them (config/models.py decides the split).
 head_ip=$(hostname -I | awk '{print $1}')
+# The interface that carries $head_ip. Gloo otherwise binds the loopback and the
+# other node's ranks try to reach rank 0 at 127.0.0.1 (873742). OT-Agent warns
+# against pointing Gloo at InfiniBand, so this is deliberately the ethernet one.
+net_iface=$(ip -o -4 addr show | awk -v ip="$head_ip" '$4 ~ "^"ip"/" {print $2; exit}')
 bridge_port=$((40000 + SLURM_JOB_ID % 10000))
 export TRP_RAY_PORT=$((20000 + SLURM_JOB_ID % 10000)) TRP_API_PORT=$((30000 + SLURM_JOB_ID % 10000))
 if (( nodes > 1 )); then
@@ -93,6 +106,9 @@ export PILOT_MAX_NUM_SEQS=${PILOT_MAX_NUM_SEQS:-$((PILOT_CONCURRENCY * 2))}
 # allocation's cores are used up, so CPUs / PILOT_TRIAL_CPUS also caps the
 # trials in flight (32 CPUs per H200 here).
 export PILOT_TRIAL_CPUS=${PILOT_TRIAL_CPUS:-1} PILOT_TRIAL_MEM=${PILOT_TRIAL_MEM:-4G}
+# Cold container builds do not fit a task's own build_timeout_sec; raise it for
+# both the oracle stage and generation. 8 was enough for warm caches, more for cold.
+export PILOT_BUILD_TIMEOUT_MULTIPLIER=${PILOT_BUILD_TIMEOUT_MULTIPLIER:-16}
 # Refuse to start when the shared file quota is already exhausted.
 python - <<'PY'
 import os, pwd, subprocess
@@ -126,7 +142,7 @@ tar -xzf "$base/tasks/selection1000.tar.gz" -C "$tasks_src" --strip-components=1
 test "$(find "$tasks_src" -mindepth 1 -maxdepth 1 -type d | wc -l)" = "$(wc -l < "$run/task-members.txt")"
 export TRP_DATAGEN_YAML="$run/serving.yaml" TRP_HARBOR_TEMPLATE="$run/harbor-template.yaml"
 model=$(cat "$run/model-path")
-test -f "$model/download_complete.json"
+test -f "$model/download_complete.json" || { echo "$model has no download_complete.json: the weights are missing or the download did not finish (python config/models.py --download $mode)" >&2; exit 2; }
 # Check every weight shard referenced by the downloaded index before serving.
 python - "$model" <<'PY'
 import json,sys
@@ -139,7 +155,7 @@ PY
 nvidia-smi > "$run/nvidia-smi.txt"
 cat /proc/self/cgroup > "$run/cgroup.txt"
 apptainer version > "$run/apptainer-version.txt"
-apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$base/images/runtime.sif" python3 -c 'import torch,vllm,ray; print(torch.__version__,vllm.__version__,ray.__version__); assert torch.cuda.is_available(); print(torch.cuda.get_device_name()); print((torch.ones(16,device="cuda") @ torch.ones(16,device="cuda")).item())' > "$run/gpu-smoke.txt"
+apptainer exec $pid_ns --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$runtime_sif" python3 -c 'import torch,vllm,ray; print(torch.__version__,vllm.__version__,ray.__version__); assert torch.cuda.is_available(); print(torch.cuda.get_device_name()); print((torch.ones(16,device="cuda") @ torch.ones(16,device="cuda")).item())' > "$run/gpu-smoke.txt"
 pids=()
 generation_pid=
 archiver_pid=
@@ -205,26 +221,36 @@ if [[ "${PILOT_EXTERNAL_WORKERS:-0}" == 0 ]]; then
     # nodes get their own worker through a step of their own.
     python -u "$here/harbor_patches/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$((PILOT_CONCURRENCY / nodes))" > "$run/worker.log" 2>&1 &
     pids+=("$!")
-    if (( nodes > 1 )); then
-        srun --nodes="$((nodes - 1))" --ntasks="$((nodes - 1))" --ntasks-per-node=1 --overlap --exclude="$(hostname -s)" \
-            python -u "$here/harbor_patches/bridge_worker.py" --bridge-url "$APPTAINER_BRIDGE_URL" --sif-cache "$HARBOR_SIF_CACHE" --staging-base "$TMPDIR/bridge" --num-workers "$((PILOT_CONCURRENCY / nodes))" > "$run/worker-other-nodes.log" 2>&1 &
-        pids+=("$!")
-    fi
 fi
 ready=false
 for ((i=0; i<60; i++)); do
-    for pid in "${pids[@]}"; do kill -0 "$pid"; done
+    for pid in "${pids[@]}"; do
+        kill -0 "$pid" 2>/dev/null || { echo "Bridge startup process $pid died; see bridge.log/worker.log" >&2; exit 1; }
+    done
     if curl -fsS "$APPTAINER_BRIDGE_URL/status" | python -c 'import json,sys; sys.exit(not json.load(sys.stdin)["workers_alive"])'; then ready=true; break; fi
     sleep 2
 done
 "$ready" || { echo 'Bridge readiness failed'; exit 1; }
+# Only now, with the server listening, can workers on the other nodes connect:
+# started earlier they exit at once, and their dead pid aborts this script (873444).
+if (( nodes > 1 )) && [[ "${PILOT_EXTERNAL_WORKERS:-0}" == 0 ]]; then
+    # The worker step must hold the node's cores: with srun's default of one CPU
+    # its nested trial steps cannot bind a core and die at once (873554,
+    # "CPU binding outside of job step allocation").
+    srun --nodes="$((nodes - 1))" --ntasks="$((nodes - 1))" --ntasks-per-node=1 --overlap \
+        --cpus-per-task="${SLURM_CPUS_ON_NODE:-32}" --exclude="$(hostname -s)" \
+        --export=ALL,PILOT_RUN_DIR="$run" "$here/harbor_patches/start_worker.sh" "$here" "$APPTAINER_BRIDGE_URL" "$HARBOR_SIF_CACHE" \
+        "$((PILOT_CONCURRENCY / nodes))" > "$run/worker-other-nodes.log" 2>&1 &
+    pids+=("$!")
+    sleep 10   # let them register before the first trial is handed out
+fi
 python "$here/verify/check_bridge.py" "$work" > "$run/isolation.log" 2>&1
 common=(--runtime apptainer_bridge --dataset crosscodeeval --manifest "$work/manifest.jsonl" --sample-file "$work/sampled_task_ids.json" --run-id "$run_id")
 # The oracle stage also warms the task container images (SIF build with an 8x
 # timeout) before agent trials start. Keep it on; PILOT_ORACLE_CHECK=0 skips it.
 if [[ "${PILOT_ORACLE_CHECK:-1}" == 1 ]]; then
     printf '%s oracle\n' "$(date -Is)" >> "$run/phases.log"
-    TRP_BUILD_TIMEOUT_MULTIPLIER=8 python "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --parity-check --apptainer-only > "$run/oracle.log" 2>&1
+    TRP_BUILD_TIMEOUT_MULTIPLIER="$PILOT_BUILD_TIMEOUT_MULTIPLIER" python "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --parity-check --apptainer-only > "$run/oracle.log" 2>&1
     cp "$work/parity/parity_report.json" "$run/parity_report.json"
 fi
 attempts=1
@@ -235,29 +261,55 @@ gpus=$(python -c "import sys; sys.path.insert(0, '$here/config'); from models im
 # each job has its own run id, results are merged afterwards.
 attempts=${PILOT_ATTEMPTS:-$attempts}
 if (( nodes > 1 )); then
-    # vLLM's Ray backend expects a cluster to join; without this each node would
-    # start its own head and the engine would only see one node's GPUs.
+    # OT-Agent's controller connects to RAY_ADDRESS instead of starting a head, so
+    # the head is ours to run: --block in the background (it would otherwise exit
+    # with its apptainer exec, 873580) and with its own --temp-dir, because a
+    # `ray stop` inside the serving container would otherwise clear the session
+    # directory they share through $TMPDIR (873587).
     printf '%s ray-cluster\n' "$(date -Is)" >> "$run/phases.log"
     export RAY_ADDRESS="$head_ip:$TRP_RAY_PORT"
-    apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$base/images/runtime.sif" \
-        ray start --head --node-ip-address "$head_ip" --port "$TRP_RAY_PORT" --num-gpus "$gpus_per_node" --disable-usage-stats >> "$run/ray.log" 2>&1
-    srun --nodes="$((nodes - 1))" --ntasks="$((nodes - 1))" --ntasks-per-node=1 --overlap --exclude="$(hostname -s)" \
-        apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$base/images/runtime.sif" \
-        ray start --address "$RAY_ADDRESS" --num-gpus "$gpus_per_node" --block >> "$run/ray.log" 2>&1 &
+    mkdir -p "$TMPDIR/ray-head"
+    apptainer exec $pid_ns --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$runtime_sif" \
+        env VLLM_HOST_IP="$head_ip" GLOO_SOCKET_IFNAME="$net_iface" NCCL_SOCKET_IFNAME="$net_iface" ray start --head --node-ip-address "$head_ip" --port "$TRP_RAY_PORT" --num-gpus "$gpus_per_node" \
+        --num-cpus "${SLURM_CPUS_ON_NODE:-32}" --temp-dir "$TMPDIR/ray-head" --disable-usage-stats --block >> "$run/ray.log" 2>&1 &
     pids+=("$!")
+    srun --nodes="$((nodes - 1))" --ntasks="$((nodes - 1))" --ntasks-per-node=1 --overlap \
+        --cpus-per-task="${SLURM_CPUS_ON_NODE:-32}" --exclude="$(hostname -s)" \
+        "$here/run/ray_worker.sh" "$RAY_ADDRESS" "$gpus_per_node" "${SLURM_CPUS_ON_NODE:-32}" \
+        "$runtime_sif" "$TMPDIR" "$base" >> "$run/ray.log" 2>&1 &
+    pids+=("$!")
+    ready=0
     for ((i = 0; i < 60; i++)); do
-        ready=$(apptainer exec --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$base/images/runtime.sif" \
+        ready=$(apptainer exec --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$runtime_sif" \
             python3 -c "import ray, os; ray.init(address=os.environ['RAY_ADDRESS'], log_to_driver=False); print(int(ray.cluster_resources().get('GPU', 0)))" 2>/dev/null || echo 0)
         (( ready >= nodes * gpus_per_node )) && break
         sleep 5
     done
     (( ready >= nodes * gpus_per_node )) || { echo "Ray cluster has $ready of $((nodes * gpus_per_node)) GPUs" >&2; exit 1; }
     echo "Ray cluster ready: $ready GPUs over $nodes nodes" >> "$run/ray.log"
+    # The engine connects from a container started with --pid and its own --home;
+    # the probe above used neither. Try it both ways so a failure names the cause.
+    out=$(apptainer exec $pid_ns --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$runtime_sif" \
+        python3 -c "import ray, os; ray.init(address=os.environ['RAY_ADDRESS'], log_to_driver=False); print('connected,', int(ray.cluster_resources().get('GPU', 0)), 'GPUs')" 2>&1 | tail -1) || true
+    echo "driver probe, same flags as the engine: $out" >> "$run/ray.log"
+    # Keep saying whether the head is still there, so a later failure is not a mystery.
+    ( for ((i = 0; i < 60; i++)); do
+        sleep 30
+        echo "--- ray status $(date -Is)" >> "$run/ray-status.log"
+        apptainer exec --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" "$runtime_sif" \
+            env RAY_ADDRESS="$RAY_ADDRESS" ray status >> "$run/ray-status.log" 2>&1 || true
+      done ) &
+    pids+=("$!")
 fi
 printf '%s generation\n' "$(date -Is)" >> "$run/phases.log"
 python -u "$here/run/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --interval "${PILOT_ARCHIVE_INTERVAL:-600}" > "$run/archiver.log" 2>&1 &
 archiver_pid=$!
-apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env "$base/images/runtime.sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" ${RAY_ADDRESS:+"RAY_ADDRESS=$RAY_ADDRESS"} "TRP_BUILD_TIMEOUT_MULTIPLIER=8" python3 "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
+if (( nodes > 1 )); then
+    apptainer exec $pid_ns --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" \
+        --env VLLM_HOST_IP="$head_ip" "$runtime_sif" \
+        bash -c 'echo "serving container sees VLLM_HOST_IP=$VLLM_HOST_IP RAY_ADDRESS=${RAY_ADDRESS:-<unset>}"' >> "$run/ray.log" 2>&1 || true
+fi
+apptainer exec $pid_ns --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env ${RAY_ADDRESS:+--env VLLM_HOST_IP="$head_ip"} ${RAY_ADDRESS:+--env GLOO_SOCKET_IFNAME="$net_iface"} ${RAY_ADDRESS:+--env NCCL_SOCKET_IFNAME="$net_iface"} "$runtime_sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" ${RAY_ADDRESS:+"RAY_ADDRESS=$RAY_ADDRESS"} ${RAY_ADDRESS:+"VLLM_HOST_IP=$head_ip"} "TRP_BUILD_TIMEOUT_MULTIPLIER=$PILOT_BUILD_TIMEOUT_MULTIPLIER" python3 "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
 generation_pid=$!
 while kill -0 "$generation_pid" 2>/dev/null; do
     if grep -q -E 'Engine core initialization failed|EngineCore failed to start|Fatal Python error:|api_server.py: error:' "$work"/traces/*/apptainer_bridge/experiments/logs/vllm_controller.log 2>/dev/null; then

@@ -43,6 +43,7 @@ import glob
 import re
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -102,8 +103,38 @@ def trial_step_prefix(payload, env_id):
     mem = f"{int(cfg['memory_mb'])}M" if cfg.get('memory_mb') else os.environ.get('PILOT_TRIAL_MEM', '4G')
     # --gres=none: a step would otherwise take the job's GPU, and GPUs cannot be
     # shared between steps, which serialized all trials (smoke 868318).
-    return ['srun', '--quiet', '--exact', '-n1', f'-c{cpus}', f'--mem={mem}', '--gres=none',
-            '--job-name', f'trial-{env_id}']
+    # --nodes=1 -w <this host>: on a multi-node allocation the step must run on
+    # the node whose worker started it - its container staging and $TMPDIR are
+    # local - and an unpinned step dies immediately (873451).
+    # SLURMD_NODENAME is the name Slurm itself uses; a hostname with a domain
+    # suffix would be rejected and the step would die at once.
+    # On the batch node this is the shape that has always worked; do not add
+    # --nodes/-w here, they make steps wait for resources and a trial hangs
+    # until the time limit (873508). A worker started on another node runs
+    # inside a step of its own, so its trial steps are nested: they then need
+    # --overlap and must be pinned to that node.
+    nested = []
+    if os.environ.get('SLURM_STEP_ID'):
+        node = os.environ.get('SLURMD_NODENAME') or socket.gethostname().split('.')[0]
+        # --cpu-bind=none: the parent step already holds a core mask, and an
+        # inherited binding makes every nested step fight over the same core.
+        nested = ['--overlap', '--nodes=1', '-w', node, '--cpu-bind=none']
+    return ['srun', '--quiet', '--exact', '-n1', *nested,
+            f'-c{cpus}', f'--mem={mem}', '--gres=none', '--job-name', f'trial-{env_id}']
+
+
+def anchor_log_tail(env, lines=8):
+    """The last lines the anchor wrote, so the failure says why instead of where."""
+    path = Path(env.staging_dir) / 'tmux-anchor.log'
+    try:
+        env._helma_tmux_log.flush()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        text = path.read_text(errors='replace').strip().splitlines()[-lines:]
+    except OSError as e:
+        return f'(no tmux-anchor.log: {e})'
+    return ' | '.join(text) or '(tmux-anchor.log is empty)'
 
 
 def start_with_anchor(self, payload):
@@ -121,7 +152,7 @@ def start_with_anchor(self, payload):
     try:
         while time.monotonic() < deadline:
             if self._helma_tmux_anchor.poll() is not None:
-                raise RuntimeError('Persistent tmux owner exited; inspect tmux-anchor.log')
+                raise RuntimeError('Persistent tmux owner exited: ' + anchor_log_tail(self))
             check = subprocess.run(cmd + ['tmux has-session -t _pilot_anchor'],
                                    capture_output=True, timeout=10)
             if check.returncode == 0:
