@@ -165,17 +165,21 @@ def set_container_prompt(instance_name):
     """
     apptainer = worker.APPTAINER or worker.detect_apptainer()
     try:
-        subprocess.run([apptainer, 'exec', f'instance://{instance_name}',
-                        '/bin/bash', '-c', PROMPT_SETUP],
-                       capture_output=True, timeout=30)
+        done = subprocess.run([apptainer, 'exec', f'instance://{instance_name}',
+                               '/bin/bash', '-c', PROMPT_SETUP],
+                              capture_output=True, text=True, timeout=30)
+        if done.returncode != 0:
+            # Reported, not swallowed: a silent failure here looks exactly like a fix that
+            # works, and the only symptom is a prompt nobody reads carefully.
+            print(f'[worker] setting the container prompt on {instance_name} failed '
+                  f'(rc={done.returncode}): {(done.stderr or done.stdout).strip()[-200:]}',
+                  flush=True)
     except Exception as exc:
         print(f'[worker] could not set the container prompt on {instance_name}: {exc}', flush=True)
 
 
 def start_with_anchor(self, payload):
     result = _original_start(self, payload)
-    # Before the tmux anchor: the anchor's shell is the first to read these files.
-    set_container_prompt(self.instance_name)
     cmd = [worker.APPTAINER, 'exec', '--pwd', '/tmp',
            f'instance://{self.instance_name}', '/bin/bash', '-c']
     step = trial_step_prefix(payload, self.env_id)
@@ -193,6 +197,9 @@ def start_with_anchor(self, payload):
             check = subprocess.run(cmd + ['tmux has-session -t _pilot_anchor'],
                                    capture_output=True, timeout=10)
             if check.returncode == 0:
+                # Only now is the instance certainly accepting execs. Doing this before the
+                # anchor raced the instance coming up, and the failure was invisible.
+                set_container_prompt(self.instance_name)
                 print(f'[{self.env_id}] Helma persistent tmux owner ready'
                       + (f' (Slurm step: {" ".join(step[2:6])})' if step else ''), flush=True)
                 return result
