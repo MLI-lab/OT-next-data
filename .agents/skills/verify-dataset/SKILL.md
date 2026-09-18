@@ -43,7 +43,7 @@ the other eight - drop one only if you know which failure you stop catching.
 ## 3. Solvability
 
 ```bash
-python verify/check_solvability.py <patched>.parquet --out reviews/
+python data/crosscodeeval/check_solvability.py <patched>.parquet --out reviews/
 ```
 Re-derives every verdict from the shipped parquets and writes a sample for
 hand review. Read the sample: the rules are heuristics, and the lenient "parts"

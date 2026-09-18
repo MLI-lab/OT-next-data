@@ -40,17 +40,18 @@ graded reference contains no identifier at all.
 
 ```bash
 pytest tests -q                                   # 43 passed
-python verify/check_solvability.py out/*.parquet --out reviews/
+python data/crosscodeeval/check_solvability.py out/*.parquet --out reviews/
 ```
 then the discrimination check from `.agents/skills/verify-dataset/SKILL.md`.
 Patched parquets that have not passed both are not ready for a run.
 
 ## Adding a new dataset
 
-Add `data/<dataset>/patch.py` with the same five steps and its own verifier,
-plus a short `README.md` saying what it changes inside a task. The `verify/`
-tools are dataset-agnostic except `check_solvability.py`, which imports the
-patcher's rules by name. Keep task IDs stable across versions
+A dataset folder holds `patch.py` (the pipeline), `rewards.py` (how an answer is
+graded locally and which nonsense answers to try), any dataset-specific check
+such as `check_solvability.py`, and a short `README.md` saying what the patch
+changes inside a task. Everything in `verify/` is dataset-agnostic and finds the
+plug-in from the task name prefix. Keep task IDs stable across versions
 (gaps where tasks were dropped) so results stay comparable to earlier runs.
 
 ## Publishing

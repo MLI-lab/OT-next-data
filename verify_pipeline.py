@@ -8,8 +8,9 @@ Each check is also a normal script you can run alone; this is only the sequencer
                reference 1 and nonsense 0, on this machine.
   images       verify/check_images.py - how many distinct container images the
                dataset needs (build time and image-cache pressure).
-  solvability  verify/check_solvability.py - every identifier of a graded
-               reference is knowable from what the agent sees. Needs --parquet.
+  solvability  data/<dataset>/check_solvability.py - every identifier of a graded
+               reference is knowable from what the agent sees. Dataset-specific,
+               needs --parquet; skipped when the dataset has no such script.
   sandbox      verify/check_reward_harbor.py - builds the image, runs the task's
                own tests/test.sh in the container, reference 1 and garbage 0.
   isolation    verify/check_isolation.py - two containers at once cannot see
@@ -33,6 +34,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from hpc.clusters import CLUSTERS, detect_cluster  # noqa: E402
 PY = sys.executable
 SKIP = 'skip'
 
@@ -59,6 +62,14 @@ def check_tests(a):
     return run([PY, '-m', 'pytest', HERE / 'tests', '-q'], env={**os.environ, 'PYTHONPATH': str(HERE)})
 
 
+def dataset_of(a):
+    """Dataset name from --dataset, else from the first task (crosscodeeval-python-0001)."""
+    if a.dataset:
+        return a.dataset
+    tasks = sorted((a.tasks / 'tasks').iterdir()) if a.tasks and (a.tasks / 'tasks').is_dir() else []
+    return tasks[0].name.split('-')[0] if tasks else ''
+
+
 def check_reward(a):
     return run([PY, HERE / 'verify/check_reward.py', a.tasks, *(['--limit', a.limit] if a.limit else [])])
 
@@ -71,7 +82,10 @@ def check_images(a):
 def check_solvability(a):
     if not a.parquet:
         return SKIP, 'no --parquet given'
-    return run([PY, HERE / 'verify/check_solvability.py', a.parquet, '--out', a.out / 'solvability'])
+    script = HERE / f'data/{dataset_of(a)}/check_solvability.py'
+    if not script.exists():
+        return SKIP, f'{script.relative_to(HERE)} does not exist'
+    return run([PY, script, a.parquet, '--out', a.out / 'solvability'])
 
 
 def check_sandbox(a):
@@ -85,12 +99,18 @@ def check_isolation(a):
 
 
 def check_model(a):
-    sbatch = HERE / f'hpc/{a.cluster}/run_pilot.sbatch'
+    cluster = detect_cluster() if a.cluster is None else next(
+        (c for c in CLUSTERS if c.name == a.cluster), None)
+    name = a.cluster or (cluster.name if cluster else None)
+    if not name:
+        return SKIP, 'no cluster matched this host; pass --cluster'
+    sbatch = HERE / f'hpc/{name}/run_pilot.sbatch'
     if not sbatch.exists():
-        return SKIP, f'no launcher for cluster {a.cluster}'
-    # The GPU count is a submit-time argument, not a header: `strong` needs four.
-    gres = a.gres or (f'gpu:h200:{4 if a.model == "strong" else 1}' if a.cluster == 'helma' else None)
-    rc = run(['sbatch', *(['--gres', gres] if gres else []), sbatch, a.model, a.stage],
+        return SKIP, f'no launcher for cluster {name}'
+    # Resources are submit-time arguments, not header lines: hpc/clusters.py holds
+    # them per cluster (Helma rejects a GPU-partition job without --gres).
+    extra = ['--gres', a.gres] if a.gres else (cluster.submit_args(a.model) if cluster else [])
+    rc = run(['sbatch', *extra, sbatch, a.model, a.stage],
              env={**os.environ, 'PILOT_ATTEMPTS': str(a.attempts)})
     if rc == 0:
         print(f'\nSubmitted. When it finishes:\n'
@@ -119,7 +139,8 @@ def main():
     ap.add_argument('--out', type=Path, default=Path('verify-out'), help='where check outputs are written')
     ap.add_argument('--limit', type=int, help='grade only the first N tasks')
     ap.add_argument('--max-images', type=int, help='fail if the dataset needs more distinct images than this')
-    ap.add_argument('--cluster', default='helma', help='which hpc/<cluster>/run_pilot.sbatch to submit')
+    ap.add_argument('--cluster', help='which hpc/<cluster>/ to submit to (default: detected from the hostname)')
+    ap.add_argument('--dataset', help='defaults to the part of the task name before the first "-"')
     ap.add_argument('--model', default='weak', choices=['weak', 'strong'],
                     help='weak = Qwen3-Coder-30B-A3B-Instruct (default), strong = Qwen3.5-122B-A10B')
     ap.add_argument('--attempts', type=int, default=8, help='attempts per task (default 8)')
