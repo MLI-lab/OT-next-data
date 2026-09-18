@@ -46,8 +46,9 @@ export PATH="$HARBOR_BRIDGE_VENV/bin:$PATH"
 export PYTHONPATH="$repo"
 export WS_ROOT="$base" TRP_RUNS_DIR="$TMPDIR/runs" TRP_APPTAINER_SHIM=0
 # Serve with the image this model asks for (config/models.py).
-runtime_sif=$base/images/$(python -c "import sys; sys.path.insert(0, '$here/config'); from models import resolve; print(resolve('$mode')[1].runtime)")
-test -f "$runtime_sif" || { echo "$mode needs $runtime_sif: build it with hpc/<cluster>/build_runtime.sh" >&2; exit 2; }
+vllm_version=$(python -c "import sys; sys.path.insert(0, '$here/config'); import models; print(models.VLLM_VERSION)")
+runtime_sif=$base/images/runtime-$vllm_version.sif
+test -f "$runtime_sif" || { echo "no $runtime_sif: build it with 'hpc/<cluster>/build_runtime.sh $vllm_version'" >&2; exit 2; }
 export HF_HOME="$base/cache/huggingface" HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export HARBOR_SIF_CACHE="$base/images" APPTAINER_CACHEDIR="$base/cache/apptainer"
 export APPTAINER_TMPDIR="$TMPDIR/apptainer"

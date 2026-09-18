@@ -3,13 +3,13 @@
 #
 #   PILOT_ROOT=... TMPDIR=... hpc/helma/build_runtime.sh [vllm tag]
 #
-# Produces $PILOT_ROOT/images/runtime-<tag>.sif and points images/runtime.sif at
-# the default one. A model that needs a newer vLLM names its image in
-# config/models.py, so several versions can live side by side.
+# Produces $PILOT_ROOT/images/runtime-<tag>.sif. The tag defaults to
+# config/models.py's VLLM_VERSION, which is the one version everything runs on.
 set -euo pipefail
 : "${PILOT_ROOT:?}"
 : "${TMPDIR:?Private frontend build directory}"
-tag=${1:-v0.20.0}
+here_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+tag=${1:-$(python3 -c "import sys; sys.path.insert(0, '$here_repo/config'); import models; print(models.VLLM_VERSION)")}
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 mkdir -p "$PILOT_ROOT/images" "$TMPDIR/apptainer-cache" "$TMPDIR/apptainer-build"
 export APPTAINER_CACHEDIR="$TMPDIR/apptainer-cache"

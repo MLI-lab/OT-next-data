@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """The teacher models a run can use, and how each one is served.
 
+All of them run on the one pinned serving runtime (VLLM_VERSION below): a single
+version keeps the setup honest, since a model newer than the runtime fails to
+load its own weights, and two runtimes side by side make it unclear which numbers
+came from which. Bump the pin, rebuild the image, re-run a smoke.
+
 `weak` and `strong` were the pilot's names for "the small coder model" and "the
 big thinking model" (it compared teachers of different strength). They survive
 as aliases, but a model is addressed by name here, so adding a third one does not
@@ -15,6 +20,11 @@ the one the model was tuned for.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
+
+
+# The serving runtime everything uses. hpc/<cluster>/build_runtime.sh builds the
+# image for this tag, and the launcher refuses to start without it.
+VLLM_VERSION = 'v0.29.0'
 
 
 @dataclass
@@ -52,10 +62,6 @@ class Model:
     # forcing bfloat16 would fight. Its reasoning parser is per model family.
     dtype: str = 'bfloat16'
     reasoning_parser: str = ''
-    # Which serving image to use, under $PILOT_ROOT/images. A model newer than
-    # the runtime fails to load its own weights, so a new model may need a newer
-    # vLLM: build one with hpc/<cluster>/build_runtime.sh <tag> and name it here.
-    runtime: str = 'runtime.sif'
     weights_gb: int = 0             # bf16/fp8 checkpoint size, for planning
     # Measured with the `sweep` stage, per hardware ('<cluster>-<gpu type>'),
     # because a different GPU or core budget gives a different answer.
@@ -96,24 +102,16 @@ MODELS = {
         name='Qwen3-Coder-480B-A35B-Instruct-FP8', hf_repo='Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8',
         gpus=8, weights_gb=482, dtype='auto',
         sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'repetition_penalty': 1.05}),
-    # Multi-node teacher: 756 GB of FP8 weights do not fit one node's 4 H200
-    # (564 GB), so it runs tensor-parallel inside each node and pipeline-parallel
-    # across two. Sampling is the model's own generation_config (T 1.0, top_p
-    # 0.95); check the model card before trusting it for a scored run.
-    'glm-5.1-fp8': Model(
-        name='GLM-5.1-FP8', hf_repo='zai-org/GLM-5.1-FP8',
-        # vLLM 0.20.0 registers GlmMoeDsaForCausalLM but its loader does not know
-        # this checkpoint's attention-indexer weights (873761: KeyError
-        # 'model.layers.0.self_attn.indexer.wk_weights_proj.weight'), so it needs
-        # the newer runtime.
+    # The newest GLM, and the reason the runtime pin moved: vLLM 0.20 could not
+    # load this family's attention-indexer weights. FP8 already, 756 GB, so two
+    # of Helma's nodes. Sampling is the model's own generation_config.
+    'glm-5.3': Model(
+        name='GLM-5.3', hf_repo='zai-org/GLM-5.3',
         gpus=8, thinking=True, weights_gb=756, dtype='auto', reasoning_parser='glm45',
-        runtime='runtime-v0.29.0.sif',
-        sampling={'temperature': 1.0, 'top_p': 0.95}),
-    # The bf16 checkpoint of the same model: 1.5 TB, four nodes.
-    'glm-5.1': Model(
-        name='GLM-5.1', hf_repo='zai-org/GLM-5.1',
-        gpus=16, thinking=True, weights_gb=1508, reasoning_parser='glm45',
-        runtime='runtime-v0.29.0.sif',
+        # CUDA graph capture fails on the pipeline-parallel stage that spans nodes
+        # (873959: cudaErrorStreamCaptureInvalidated), so capture is off. It costs
+        # some throughput; drop the flag when a vLLM release fixes capture under PP.
+        extra_args=['--enforce-eager'],
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
 
