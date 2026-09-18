@@ -1,22 +1,34 @@
 #!/usr/bin/env python3
-"""Pass@k per language for one or more finished pilot runs of the same model.
+"""pass@k per task group, for one or more finished runs of the same model.
 
-Runs are merged per task (e.g. two Coder jobs of 8 attempts each -> 16 attempts).
-pass@k uses the unbiased estimator 1 - C(n-c, k) / C(n, k) (Chen et al. 2021),
-averaged over tasks; timeouts and infrastructure errors count as failed attempts.
-Reported for the full selection and for the strict subset in
-data/selection1000_strict_subset.json.
+It does two things and nothing else:
 
-Usage: analyze_full.py <run dir> [<run dir> ...] [--k 1 4 16]
+1. **Gathers.** One run directory holds one job's attempts. A pass@16 is usually
+   split over several jobs (four jobs of four attempts, say), so the runs given
+   here are merged per task: attempts add up, successes add up.
+2. **Computes.** pass@k with the unbiased estimator 1 - C(n-c, k) / C(n, k)
+   (Chen et al. 2021), averaged over tasks. Timeouts and infrastructure errors
+   count as failed attempts, never as missing data, and the timeout column says
+   how many there were - a run with a broken serving path otherwise reads as a
+   weak model.
+
+It reads each run's `validated_attempt_summary.json`, so it never disagrees with
+what the run itself recorded, and it works for any dataset: tasks are grouped by
+the middle part of the task id (`<dataset>-<group>-<number>`, e.g. the language
+in `crosscodeeval-python-0001`), or all together if ids are not shaped that way.
+
+  python verify/pass_at_k.py <run dir> [<run dir> ...] [--k 1 4 16] [--subset f.json]
+
+--subset takes a JSON file `{"tasks": {"<task id>": {"keep": true|false}}}` and
+reports those tasks a second time, for reporting a harder subset beside the full
+set (CrossCodeEval uses data/crosscodeeval/strict_subset_1000.json, whose flag is
+named strict_keep).
 """
 import argparse
 import json
-import re
 from collections import defaultdict
 from math import comb
 from pathlib import Path
-
-HERE = Path(__file__).resolve().parent
 
 
 def pass_at_k(n, c, k):
@@ -25,42 +37,56 @@ def pass_at_k(n, c, k):
     return 1.0 if n - c < k else 1.0 - comb(n - c, k) / comb(n, k)
 
 
+def group_of(task):
+    parts = task.split('-')
+    return parts[1] if len(parts) >= 3 else 'all'
+
+
+def table(rows, ks, title):
+    print(f'\n[{title}]')
+    print(f"{'group':12}{'tasks':>6}" + ''.join(f"{'pass@' + str(k):>9}" for k in ks) + f"{'timeouts':>10}")
+    for group in sorted(rows, key=lambda g: (g == 'total', g)):
+        r = rows[group]
+        cells = []
+        for k in ks:
+            vals = [v for v in (pass_at_k(n, c, k) for n, c, _ in r) if v is not None]
+            cells.append(f'{100 * sum(vals) / len(vals):8.1f}%' if vals else f"{'-':>9}")
+        print(f'{group:12}{len(r):6}' + ''.join(cells) + f'{sum(t for _, _, t in r):10}')
+
+
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('runs', nargs='+', type=Path)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('runs', nargs='+', type=Path, help='run directories of the same model, merged per task')
     ap.add_argument('--k', nargs='+', type=int, default=[1, 4, 16])
+    ap.add_argument('--subset', type=Path, help='JSON marking a subset of tasks to report separately')
     a = ap.parse_args()
-    attempts = defaultdict(lambda: [0, 0, 0])  # task -> [n, successes, timeouts]
+
+    attempts = defaultdict(lambda: [0, 0, 0])            # task -> [attempts, successes, timeouts]
     for run in a.runs:
-        for task, x in json.loads((run / 'validated_attempt_summary.json').read_text())['tasks'].items():
-            n = len(x['trials']) or 1
-            attempts[task][0] += n
+        summary = json.loads((run / 'validated_attempt_summary.json').read_text())['tasks']
+        for task, x in summary.items():
+            attempts[task][0] += len(x['trials']) or 1
             attempts[task][1] += x['n_success']
             attempts[task][2] += x['n_timeouts']
-    strict = json.loads((HERE.parent / 'data/crosscodeeval/strict_subset_1000.json').read_text())['tasks']
-    ns = sorted({v[0] for v in attempts.values()})
-    print(f"runs: {', '.join(r.name for r in a.runs)} | tasks {len(attempts)} | attempts per task {ns}")
-    for subset in ('all', 'strict'):
+
+    print(f"runs: {', '.join(r.name for r in a.runs)} | tasks {len(attempts)} | "
+          f"attempts per task {sorted({v[0] for v in attempts.values()})}")
+
+    def rows_for(keep=lambda task: True):
         rows = defaultdict(list)
         for task, (n, c, t) in attempts.items():
-            if subset == 'strict' and not strict.get(task, {}).get('strict_keep', True):
-                continue
-            lang = re.search(r'crosscodeeval-(\w+)-', task).group(1)
-            rows[lang].append((n, c, t))
-            rows['total'].append((n, c, t))
-        print(f"\n[{subset} tasks]")
-        header = f"{'language':11}{'tasks':>6}" + ''.join(f"{'pass@' + str(k):>9}" for k in a.k) + f"{'timeouts':>10}"
-        print(header)
-        for lang in ('csharp', 'java', 'python', 'typescript', 'total'):
-            r = rows.get(lang, [])
-            if not r:
-                continue
-            cells = []
-            for k in a.k:
-                vals = [pass_at_k(n, c, k) for n, c, _ in r]
-                vals = [x for x in vals if x is not None]
-                cells.append(f"{100 * sum(vals) / len(vals):8.1f}%" if vals else f"{'-':>9}")
-            print(f"{lang:11}{len(r):6}" + ''.join(cells) + f"{sum(t for _, _, t in r):10}")
+            if keep(task):
+                rows[group_of(task)].append((n, c, t))
+                rows['total'].append((n, c, t))
+        return rows
+
+    table(rows_for(), a.k, 'all tasks')
+    if a.subset:
+        marks = json.loads(a.subset.read_text())['tasks']
+        def keep(task):
+            m = marks.get(task, {})
+            return m.get('keep', m.get('strict_keep', True))
+        table(rows_for(keep), a.k, f'subset: {a.subset.name}')
 
 
 if __name__ == '__main__':

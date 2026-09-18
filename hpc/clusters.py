@@ -24,6 +24,10 @@ class Cluster:
     # this is the default it suggests per cluster, and what the layout means.
     workspace: str = ''
     scratch: str = '$TMPDIR'      # node-local, per job: trials and container overlays
+    # Trials to run in parallel per GPU (PILOT_CONCURRENCY). Agent trials are
+    # mostly waiting on tools, so a GPU needs many of them to stay busy.
+    trials_per_gpu: int = 16
+    concurrency_note: str = ''
     note: str = ''
 
     def submit_args(self, gpus: int) -> list[str]:
@@ -34,6 +38,14 @@ CLUSTERS = [
     Cluster(name='helma', hostname_pattern=r'helma\d*',
             gpu_directive='--gres=gpu:h200:{n}',
             workspace='/hnvme/workspace/$USER-crosscodeeval-pilot',
+            trials_per_gpu=32,
+            concurrency_note=(
+                'Each trial gets its own Slurm step of 1 core, and Helma allows at most '
+                '32 cores per GPU, so 32 trials per GPU is the ceiling here - not a tuned '
+                'optimum. Measured: the 122B on 4 GPUs plateaus at 88-90% utilization from '
+                '32 trials upward (more in flight does not help); the 30B coder on 1 GPU '
+                'reaches only 73-74% at 16-32 trials, i.e. it is core-limited, not '
+                'GPU-limited. Wall time is set by the agent-timeout tail, not by throughput.'),
             note='NHR@FAU; GPU jobs must request --gres, max 32 cores per GPU, '
                  'file-count quota on the shared filesystem'),
     Cluster(name='zih', hostname_pattern=r'(login\d*\.|.*\.)?(taurus|barnard|capella)',
@@ -67,7 +79,10 @@ if __name__ == '__main__':
     print(f'{host} -> {c.name}\n  {c.note}')
     print(f'  workspace: {c.workspace or "(set PILOT_ROOT yourself)"}   node-local scratch: {c.scratch}')
     for gpus in (1, 4):
-        print(f'  {gpus} GPU: sbatch {" ".join(c.submit_args(gpus))} hpc/{c.name}/run_pilot.sbatch <model> <stage>')
+        print(f'  {gpus} GPU: sbatch {" ".join(c.submit_args(gpus))} hpc/{c.name}/run_pilot.sbatch <model> <stage>'
+              f'   (PILOT_CONCURRENCY={c.trials_per_gpu * gpus})')
+    if c.concurrency_note:
+        print('\n  concurrency: ' + c.concurrency_note.replace('. ', '.\n               '))
     print('\n  workspace layout:')
     for path, what in LAYOUT.items():
         print(f'    {path:18} {what}')

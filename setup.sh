@@ -32,7 +32,7 @@ git -C "$ws/OpenThoughts-Agent" checkout --quiet "$OTAGENT_PIN"
 #    needed because harbor_patches/bridge_worker.py wraps its apptainer worker.
 python3 -m venv "$ws/envs/prep"
 "$ws/envs/prep/bin/pip" install --quiet --upgrade pip
-"$ws/envs/prep/bin/pip" install --quiet -r "$here/requirements-host.txt"
+"$ws/envs/prep/bin/pip" install --quiet -r "$here/requirements.txt"
 "$ws/envs/prep/bin/pip" install --quiet \
     "harbor[daytona] @ https://github.com/marin-community/harbor/archive/$HARBOR_PIN.zip"
 

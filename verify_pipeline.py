@@ -15,8 +15,9 @@ Each check is also a normal script you can run alone; this is only the sequencer
                own tests/test.sh in the container, reference 1 and garbage 0.
   isolation    verify/check_isolation.py - two containers at once cannot see
                each other's files, cgroups or loopback.
-  model        submits a real teacher run (default Qwen3-Coder-30B-A3B-Instruct,
-               8 attempts per task) and says how to report pass@k afterwards.
+  model        lets an agent solve tasks: submits a real run (default coder-30b,
+               8 attempts per task) with this cluster's GPU request, concurrency
+               and a time limit for the stage. --dry-run prints the command.
 
   python verify_pipeline.py <check|all> <dir with tasks/> [options]
 
@@ -99,6 +100,11 @@ def check_isolation(a):
     return run([PY, HERE / 'verify/check_isolation.py', task, a.out / 'isolation'])
 
 
+# A smoke waiting behind a 12 h reservation schedules badly; ask for what the
+# stage needs (the launcher's header is the upper bound).
+STAGE_TIME = {'smoke': '01:00:00', 'diag': '02:00:00', 'sweep': '06:00:00', 'full': '24:00:00'}
+
+
 def check_model(a):
     cluster = detect_cluster() if a.cluster is None else next(
         (c for c in CLUSTERS if c.name == a.cluster), None)
@@ -112,8 +118,17 @@ def check_model(a):
     # them per cluster (Helma rejects a GPU-partition job without --gres).
     gpus = resolve(a.model)[1].gpus
     extra = [a.gres] if a.gres else (cluster.submit_args(gpus) if cluster else [])
-    rc = run(['sbatch', *extra, sbatch, a.model, a.stage],
-             env={**os.environ, 'PILOT_ATTEMPTS': str(a.attempts)})
+    extra += ['--time', a.time or STAGE_TIME.get(a.stage, '12:00:00')]
+    env = {**os.environ, 'PILOT_ATTEMPTS': str(a.attempts)}
+    if cluster and 'PILOT_CONCURRENCY' not in os.environ:
+        env['PILOT_CONCURRENCY'] = str(cluster.trials_per_gpu * gpus)
+    cmd = ['sbatch', *extra, sbatch, a.model, a.stage]
+    if a.dry_run:
+        print('\n$ ' + ' '.join(str(c) for c in cmd)
+              + f"   (PILOT_ATTEMPTS={env['PILOT_ATTEMPTS']}"
+              + (f", PILOT_CONCURRENCY={env['PILOT_CONCURRENCY']}" if 'PILOT_CONCURRENCY' in env else '') + ')')
+        return 0
+    rc = run(cmd, env=env)
     if rc == 0:
         print(f'\nSubmitted. When it finishes:\n'
               f'  python {HERE}/verify/pass_at_k.py $PILOT_ROOT/runs/<run-id> --k 1 {a.attempts}\n'
@@ -147,6 +162,8 @@ def main():
     ap.add_argument('--attempts', type=int, default=8, help='attempts per task (default 8)')
     ap.add_argument('--stage', default='diag', help='smoke, diag, sweep or full tasks per language')
     ap.add_argument('--gres', help="override the cluster's GPU request, e.g. '--gres=gpu:h200:2'")
+    ap.add_argument('--time', help='sbatch time limit (default: per stage)')
+    ap.add_argument('--dry-run', action='store_true', help='print the submit command instead of running it')
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
 

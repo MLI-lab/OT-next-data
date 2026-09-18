@@ -1,118 +1,158 @@
 # OT_next_data
 
-Build agent-task datasets, run teacher models on them, and prove the result
-measures what it claims to measure.
+Build agent-task datasets and verify them by running teacher models on the
+resulting tasks.
 
 ## Setup
 
 ```bash
-./setup.sh /path/to/workspace     # clones OpenThoughts-Agent at its pin, installs Harbor + tooling
-source env.sh                     # PILOT_ROOT, OTAGENT_ROOT, PATH, PYTHONPATH
+./setup.sh /path/to/workspace
+source env.sh
 ```
 
-The workspace holds what must not live in the repo: the OT-Agent checkout, the
-python env, model weights, task archives, run outputs. Harbor (`7faf878c`) and
-OpenThoughts-Agent (`75a438d2`) are **pinned dependencies, not vendored** — their
-import closure is 48 files of launcher internals, so copying them would fork
-them.
+`setup.sh` clones OpenThoughts-Agent at its pin, installs Harbor and the python
+requirements into a virtual environment inside the workspace, and writes
+`env.sh`.
 
-## Verifying a pipeline
+`env.sh` sets the four environment variables everything here expects, so paths do
+not have to be passed to every script:
 
-`verify_pipeline.py` runs every check in `verify/`, cheapest first, and stops at
-the first failure. Each check is also a normal script you can run alone.
+- `PILOT_ROOT` — the workspace: model weights, built images, task archives, run
+  outputs. None of that belongs in the repo.
+- `OTAGENT_ROOT` — the pinned OpenThoughts-Agent checkout, which provides the
+  trajectory generation entry point the launcher drives.
+- `PATH` — puts the workspace's python environment first.
+- `PYTHONPATH` — puts this repo first, so `data.<dataset>` imports resolve.
 
-```bash
-python verify_pipeline.py all <dir with tasks/> [--parquet <patched>.parquet]
-python verify_pipeline.py reward <dir with tasks/>     # or any single check
-```
+`requirements.txt` is for wherever you run the patcher, the checks and the
+analysis — a cluster login node, or your laptop. It is deliberately small
+(pyarrow, pyyaml, pytest, matplotlib): patched tasks carry a
+standard-library-only verifier, and the GPU side runs in a container built from
+`hpc/<cluster>/runtime.def`.
 
-| Check | What it proves | Needs |
-| --- | --- | --- |
-| `tests` | the patcher's rules and the run layer behave | nothing |
-| `reward` | each task's own verifier scores the reference 1 and nonsense 0 | nothing |
-| `images` | the dataset needs few enough distinct container images | nothing |
-| `reproduce` | the patcher still produces exactly the published tasks, compared by task contents | `--parquet` |
-| `sandbox` | the image builds and the task's `tests/test.sh` scores correctly inside the container | a running bridge |
-| `isolation` | two containers at once cannot see each other's files, cgroups or loopback | a running bridge |
-| `model` | the whole chain, agent included; submits a run and then you report pass@k | a Slurm allocation |
-
-The reward checks are generic with a dataset plug-in. Every dataset gets the same
-two variants — the reference must score 1, an empty answer 0 — and adds its own in
-`data/<dataset>/rewards.py`. CrossCodeEval adds seven, each of which a broken
-verifier once passed: a **re-indented** reference (must still score 1, which the
-old Java diff failed), lone `}`, `;`, `{` and `return null;` (what the retired
-TaskTrove verifier paid partial credit for), a garbage call, and **the reference
-with one identifier renamed** (which catches a verifier rewarding a prefix or
-first-token match). The Harbor variant needs no plug-in at all: it takes the
-reference from the task's own `solution/solve.sh` and the wrong answer from
-running the tests with nothing written.
-
-Then report:
-
-```bash
-python verify/pass_at_k.py $PILOT_ROOT/runs/<run-id> ... --k 1 4 16
-python verify/plot_pass_rates.py "Model A=<run dir>" "Model B=<dir>,<dir>" -o pass_rates.png
-```
+Harbor (`7faf878c`) and OpenThoughts-Agent (`75a438d2`) are pinned dependencies,
+never vendored: their import closure is 48 files of launcher internals, so
+copying them would fork them.
 
 ## Patching a dataset
 
+A dataset pipeline is one script, `data/<dataset>/patch.py`, that turns a pinned
+published dataset into a repaired one: it reads the upstream parquet, fixes each
+task, and writes a new parquet plus a report. Add one per dataset — for a
+TaskTrove set or any other Hugging Face dataset of tasks. `data/crosscodeeval/`
+is the worked example, and its README says what that patch changes inside a task.
+
 ```bash
-python data/crosscodeeval/patch.py --input <src>.parquet --output <dst>.parquet \
-       --archive $CCEVAL_ARCHIVE --review reviews/
+python data/crosscodeeval/patch.py \
+    --input  upstream/tasks.parquet \   # the pinned published dataset
+    --output out/tasks.parquet \        # the repaired one
+    --archive $CCEVAL_ARCHIVE \         # dataset-specific input: here the benchmark's own data
+    --review reviews/                   # optional: the filter's audit, for reading
 ```
 
-One script does the whole patch: context, verifier, oracle, the solvability
-filter *and* its audit. It writes `<output>.report.json` (kept, dropped and
-unmatched task IDs, the retrieval chosen per task, the unknowable names per tried
-retrieval) and, with `--review`, per-task verdicts plus a sample of dropped tasks
-to read. Running it on the pinned upstream reproduces the published dataset
-exactly — that is what `verify_pipeline.py reproduce` checks, against
-`data/crosscodeeval/published_digests.json`.
+`--archive` is particular to CrossCodeEval — the upstream benchmark tarball the
+patch takes its cross-file context from. `--review` writes `tasks.jsonl` (per
+task: kept or dropped, why, which names were not inferable) and `sample.md`, a
+seeded sample of dropped tasks to read before trusting the filter.
+
+Everything a patcher decides lives in that one script, audit included, so the
+filter and its report cannot drift apart. The consequence worth keeping: running
+it on the pinned upstream reproduces the published dataset exactly, which
+`verify_pipeline.py reproduce` checks.
+
+## Verifying
+
+`verify_pipeline.py` runs the checks in `verify/`, cheapest first, stopping at the
+first failure. Each is also a normal script you can run alone.
+
+```bash
+python verify_pipeline.py all <dir with tasks/> [--parquet out/tasks.parquet]
+python verify_pipeline.py reward <dir with tasks/>        # or any single check
+```
+
+- **tests** — runs pytest over `tests/`: the patcher's rules, the run layer, and
+  the dataset plug-in contract.
+- **reward** — grades answers with each task's own verifier, on this machine. The
+  reference must score 1 and an empty answer 0; a dataset adds its own variants
+  in `data/<dataset>/rewards.py`.
+- **images** — prints how many distinct container images the dataset needs and
+  which tasks share each. Harbor builds one image per distinct Dockerfile, so
+  fewer is better: many distinct images turn a run into a build queue and fill
+  the image cache. `--max-images N` turns the report into a gate.
+- **reproduce** — checks that the patched parquet passed with `--parquet`
+  contains exactly the tasks recorded in `data/<dataset>/published_digests.json`,
+  compared task by task on file contents. Those digests come from the parquets
+  that were actually published (for CrossCodeEval, the ones in the TaskTrove PR).
+  It works on local files, so `hf download` first if you want to compare against
+  what is currently on the Hub.
+- **sandbox** — builds the task image and runs the task's own `tests/test.sh`
+  inside the container: the task's oracle (`solution/solve.sh`) must score 1, and
+  running the tests with no answer written must score 0. This is what fails when
+  the Dockerfile breaks or the reward never reaches `/logs/verifier/reward.json`.
+- **isolation** — two containers at once must not see each other's files, cgroups
+  or loopback.
+- **model** — lets an agent actually solve tasks: submits a run (default
+  `coder-30b`, 8 attempts per task), which you then report with pass@k.
+
+## Reporting
+
+Both scripts are dataset-agnostic and read what the run itself recorded:
+
+```bash
+python verify/pass_at_k.py <run dir> [<run dir> ...] --k 1 4 16 [--subset f.json]
+python verify/plot_pass_rates.py "Model A=<run dir>" "Model B=<dir>,<dir>" -o pass_rates.png
+```
+
+`pass_at_k.py` gathers and computes, nothing more. A pass@16 split over four jobs
+of four attempts is merged per task, then pass@k is computed with the unbiased
+estimator, grouped by the middle part of the task id (the language, for
+CrossCodeEval). Timeouts count as failures and are reported separately, so an
+infrastructure problem cannot masquerade as a weak model. `--subset` reports a
+harder subset of tasks beside the full set.
+
+`plot_pass_rates.py` draws those same numbers from the same files: one panel per
+model, one bar per group, k as a light-to-dark ramp.
 
 ## Running teachers
 
 ```bash
-python verify_pipeline.py model --stage smoke              # detects the cluster and its GPU request
-sbatch --gres=gpu:h200:1 hpc/helma/run_pilot.sbatch coder-30b smoke      # or submit it yourself
-sbatch --gres=gpu:h200:4 hpc/helma/run_pilot.sbatch qwen35-122b full
+python verify_pipeline.py model --stage smoke     # detects the cluster and its GPU request
+sbatch --gres=gpu:h200:1 hpc/helma/run_pilot.sbatch coder-30b smoke   # or submit it yourself
 ```
 
-Models live in `teacher_traces/models.py` (weights directory, GPU count, the
-sampling from the model card). `python teacher_traces/models.py` lists them; the
-pilot's `weak` and `strong` still work as aliases. `python hpc/clusters.py` prints
-the detected cluster, its submit line and the workspace layout.
+Stages are tasks per language: `smoke` 1, `diag` 5, `sweep` 25, `full` 250.
+Always pass a smoke first.
 
-Always pass a smoke before a full run. Knobs and the failures worth not
-repeating: `.agents/skills/run-teachers/SKILL.md`.
+- `python teacher_traces/models.py` — the models: weights directory, GPU count,
+  and the sampling from each model card. `weak` and `strong` still work as
+  aliases for `coder-30b` and `qwen35-122b`.
+- `python hpc/clusters.py` — the detected cluster, its GPU request, how many
+  trials to run in parallel there, and the workspace layout.
 
 ## Layout
 
-| Path | What it is |
-| --- | --- |
-| `data/<dataset>/` | One folder per dataset pipeline: `patch.py` (the whole patch, filter and audit included), `rewards.py` (how its answers are graded and which nonsense to try), `published_digests.json`, data files. |
-| `tests/` | pytest: 34 patcher tests, 9 run-layer tests (skipped without `OTAGENT_ROOT`), 2 on the dataset plug-in contract. |
-| `verify/` | Dataset-agnostic checks: `check_reward.py` (local), `check_reward_harbor.py` (build + sandbox), `check_images.py`, `check_isolation.py`, `pass_at_k.py`, `plot_pass_rates.py`. |
-| `teacher_traces/` | Driving a run: the model registry (`models.py`), selection and configs (`prepare_run.py`), trial archiving, completion gate. |
-| `harbor_patches/` | Everything that works around Harbor: `bridge_worker.py` (a Slurm step per trial, network isolation probe, own-staging-only cleanup) and the startup isolation check. |
-| `hpc/` | `clusters.py` maps this hostname to a cluster, its GPU request and its storage layout; `hpc/<cluster>/` holds that cluster's launcher. `helma/` works; `zih/` is a skeleton. |
-| `.agents/skills/` | How-tos for agents working in this repo. |
-
-## Where the CrossCodeEval dataset stands
-
-7,763 upstream tasks → 6,710 kept (C# 1,353, Java 1,895, Python 432,
-TypeScript 3,030); all 6,710 pass the reward check. On a 1,000-task selection
-(Terminus-2, 32k context): Qwen3.5-122B-A10B (thinking) pass@1 20.0%;
-Qwen3-Coder-30B-A3B-Instruct pass@1 7.0%, pass@4 14.3%, pass@16 22.3%.
-Submitted upstream as
-[TaskTrove PR #3](https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/3).
+- `data/<dataset>/` — one dataset pipeline per folder: `patch.py` (the whole
+  patch, filter and audit included), `rewards.py` (how its answers are graded and
+  which wrong answers to try), `published_digests.json`, and its data files.
+- `verify/` — dataset-agnostic checks and reporting: `check_reward.py`,
+  `check_reward_harbor.py`, `check_images.py`, `check_reproducible.py`,
+  `check_isolation.py`, `pass_at_k.py`, `plot_pass_rates.py`.
+- `tests/` — pytest: the patcher's rules, the run layer, the plug-in contract.
+- `teacher_traces/` — driving a run: the model registry, per-run selection and
+  configs, trial archiving, the completion gate.
+- `harbor_patches/` — the workarounds Harbor needs: a Slurm step per trial, the
+  network-isolation probe, own-staging-only cleanup, the startup check.
+- `hpc/` — `clusters.py` maps this hostname to a cluster, its GPU request, its
+  concurrency and its storage layout; `hpc/<cluster>/` holds that cluster's
+  launcher and container definition. `helma/` works, `zih/` is a skeleton.
+- `.agents/skills/` — how-tos for agents working here: patching, verifying,
+  running teachers, plotting.
 
 ## Boundaries
 
 - Trajectory generation goes through OT-Agent's `generate_trajectories.py`.
-  Replacing it with a thin Harbor driver would make this repo standalone — and
+  Replacing it with a thin Harbor driver would make this repo standalone, and
   would mean reimplementing vLLM startup, agent wiring, resume and attempt
-  summaries, then re-verifying every number above.
-- The solvability filter's "parts" rule is deliberately lenient. The strict
-  variant is computed for reporting only
-  (`data/crosscodeeval/strict_subset_1000.json`); both models score 2-3 points
-  higher on that subset.
+  summaries, then re-verifying every published number.
+- The run layer is written for Slurm with apptainer and node-local scratch.
+  Porting means editing `hpc/<cluster>/`, not the rest.
