@@ -17,12 +17,7 @@ what the run itself recorded, and it works for any dataset: tasks are grouped by
 the middle part of the task id (`<dataset>-<group>-<number>`, e.g. the language
 in `crosscodeeval-python-0001`), or all together if ids are not shaped that way.
 
-  python verify/pass_at_k.py <run dir> [<run dir> ...] [--k 1 4 16] [--subset f.json]
-
---subset takes a JSON file `{"tasks": {"<task id>": {"keep": true|false}}}` and
-reports those tasks a second time, for reporting a harder subset beside the full
-set (CrossCodeEval uses data/crosscodeeval/strict_subset_1000.json, whose flag is
-named strict_keep).
+  python verify/pass_at_k.py <run dir> [<run dir> ...] [--k 1 4 16]
 """
 import argparse
 import json
@@ -58,7 +53,6 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('runs', nargs='+', type=Path, help='run directories of the same model, merged per task')
     ap.add_argument('--k', nargs='+', type=int, default=[1, 4, 16])
-    ap.add_argument('--subset', type=Path, help='JSON marking a subset of tasks to report separately')
     a = ap.parse_args()
 
     attempts = defaultdict(lambda: [0, 0, 0])            # task -> [attempts, successes, timeouts]
@@ -81,12 +75,6 @@ def main():
         return rows
 
     table(rows_for(), a.k, 'all tasks')
-    if a.subset:
-        marks = json.loads(a.subset.read_text())['tasks']
-        def keep(task):
-            m = marks.get(task, {})
-            return m.get('keep', m.get('strict_keep', True))
-        table(rows_for(keep), a.k, f'subset: {a.subset.name}')
 
 
 if __name__ == '__main__':

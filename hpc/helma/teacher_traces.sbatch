@@ -2,7 +2,7 @@
 #SBATCH --job-name=cceval-pilot
 #SBATCH --partition=h200
 # The GPU count is passed at submit time, because `strong` needs four and `weak` one:
-#   sbatch --gres=gpu:h200:1 hpc/helma/run_pilot.sbatch weak diag
+#   sbatch --gres=gpu:h200:1 hpc/helma/teacher_traces.sbatch weak diag
 # --nodes comes from the submit line (hpc/clusters.py derives it from the model).
 #SBATCH --time=12:00:00
 #SBATCH --signal=B:USR1@900

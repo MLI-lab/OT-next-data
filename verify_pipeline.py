@@ -10,11 +10,13 @@ Each check is also a normal script you can run alone; this is only the sequencer
                dataset needs (build time and image-cache pressure).
   reproduce    verify/check_reproducible.py - the patcher still produces exactly
                the published tasks. Needs --parquet and the dataset's
-               published_digests.json.
+               published_task_hashes.json.
   sandbox      verify/check_reward_harbor.py - builds the image, runs the task's
                own tests/test.sh in the container, reference 1 and garbage 0.
+               Needs a bridge, so outside a job it submits hpc/<cluster>/
+               checks.sbatch, which runs it and the isolation check together.
   isolation    verify/check_isolation.py - two containers at once cannot see
-               each other's files, cgroups or loopback.
+               each other's files, cgroups or loopback. Runs in that same job.
   model        lets an agent solve tasks: submits a real run (default coder-30b,
                8 attempts per task) with this cluster's GPU request and
                concurrency. --time HH:MM:SS is required, because a job that
@@ -58,8 +60,7 @@ def needs_tasks(a):
 
 
 def needs_bridge(a):
-    return needs_tasks(a) or (None if 'APPTAINER_BRIDGE_URL' in os.environ
-                              else 'no bridge running (submit through hpc/<cluster>/run_pilot.sbatch)')
+    return needs_tasks(a)
 
 
 def check_tests(a):
@@ -86,29 +87,56 @@ def check_images(a):
 def check_reproduce(a):
     if not a.parquet:
         return SKIP, 'no --parquet given'
-    digests = HERE / f'data/{dataset_of(a)}/published_digests.json'
+    digests = HERE / f'data/{dataset_of(a)}/published_task_hashes.json'
     if not digests.exists():
         return SKIP, f'{digests.relative_to(HERE)} does not exist'
     return run([PY, HERE / 'verify/check_reproducible.py', *a.parquet, '--expect', digests])
 
 
+def submit_checks(a):
+    """Both sandbox checks need a bridge, which only exists inside a job: submit one."""
+    cluster, name = cluster_for(a)
+    sbatch = HERE / f'hpc/{name}/checks.sbatch' if name else None
+    if not sbatch or not sbatch.exists():
+        return SKIP, f'no checks job for cluster {name}'
+    extra = [a.gres] if a.gres else (cluster.submit_args(1) if cluster else [])
+    extra += ['--time', a.time or '00:30:00']
+    if 'PILOT_ROOT' in os.environ:
+        logs = Path(os.environ['PILOT_ROOT']) / 'logs'
+        logs.mkdir(parents=True, exist_ok=True)
+        extra += [f'--output={logs}/slurm-%j.out']
+    cmd = ['sbatch', *extra, sbatch, a.tasks, str(a.limit or 3)]
+    if a.dry_run:
+        print('\n$ ' + ' '.join(str(c) for c in cmd))
+        return 0
+    return run(cmd, env={**os.environ, 'OT_NEXT_DATA': str(HERE)})
+
+
 def check_sandbox(a):
-    return run([PY, HERE / 'verify/check_reward_harbor.py', a.tasks, a.out / 'sandbox',
+    if 'APPTAINER_BRIDGE_URL' not in os.environ:      # not inside a job: submit one
+        return submit_checks(a)
+    return run([PY, HERE / 'verify/check_reward_harbor.py', a.tasks, a.out / 'sandbox', '--extras',
                 *(['--limit', a.limit] if a.limit else [])])
 
 
 def check_isolation(a):
+    if 'APPTAINER_BRIDGE_URL' not in os.environ:
+        return SKIP, 'submitted together with the sandbox check (hpc/<cluster>/checks.sbatch)'
     task = sorted((a.tasks / 'tasks').iterdir())[0]
     return run([PY, HERE / 'verify/check_isolation.py', task, a.out / 'isolation'])
 
 
-def check_model(a):
+def cluster_for(a):
     cluster = detect_cluster() if a.cluster is None else next(
         (c for c in CLUSTERS if c.name == a.cluster), None)
-    name = a.cluster or (cluster.name if cluster else None)
+    return cluster, (a.cluster or (cluster.name if cluster else None))
+
+
+def check_model(a):
+    cluster, name = cluster_for(a)
     if not name:
         return SKIP, 'no cluster matched this host; pass --cluster'
-    sbatch = HERE / f'hpc/{name}/run_pilot.sbatch'
+    sbatch = HERE / f'hpc/{name}/teacher_traces.sbatch'
     if not sbatch.exists():
         return SKIP, f'no launcher for cluster {name}'
     # The launcher needs both of these on the node, and Slurm only passes on what

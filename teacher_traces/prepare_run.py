@@ -4,7 +4,7 @@ Shared storage (/hnvme) keeps only the small provenance/config files under
 runs/<run-id>/. The trajectory wrapper's own run directory (task copies,
 Harbor trials, logs) lives on the node-local disk given by --work, and
 tasks are extracted there from the single compressed dataset under
-tasks/selection1000.tar.gz. See run_pilot.sbatch for the archiving flow.
+tasks/selection1000.tar.gz. See teacher_traces.sbatch for the archiving flow.
 """
 from __future__ import annotations
 import argparse

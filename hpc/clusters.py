@@ -3,7 +3,7 @@
 
 Mirrors how OpenThoughts-Agent does it (`hpc/hpc.py:detect_hpc`): each cluster
 declares a hostname pattern, and the one whose pattern matches this host wins.
-Adding a cluster means adding an entry here and an `hpc/<name>/run_pilot.sbatch`.
+Adding a cluster means adding an entry here and an `hpc/<name>/teacher_traces.sbatch`.
 
   python hpc/clusters.py            # print the detected cluster and its submit line
 """
@@ -59,7 +59,7 @@ CLUSTERS = [
             note='NHR@FAU; GPU jobs must request --gres, max 32 cores per GPU, '
                  'file-count quota on the shared filesystem'),
     Cluster(name='zih', hostname_pattern=r'(login\d*\.|.*\.)?(taurus|barnard|capella)',
-            note='TU Dresden; launcher is a skeleton, see hpc/zih/run_pilot.sbatch'),
+            note='TU Dresden; launcher is a skeleton, see hpc/zih/teacher_traces.sbatch'),
 ]
 
 # What the workspace holds, on every cluster. The repo holds none of it.
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     print(f'{host} -> {c.name}\n  {c.note}')
     print(f'  workspace: {c.workspace or "(set PILOT_ROOT yourself)"}   node-local scratch: {c.scratch}')
     for gpus in (1, 4, 8):
-        print(f'  {gpus} GPU: sbatch {" ".join(c.submit_args(gpus))} hpc/{c.name}/run_pilot.sbatch <model> <stage>'
+        print(f'  {gpus} GPU: sbatch {" ".join(c.submit_args(gpus))} hpc/{c.name}/teacher_traces.sbatch <model> <stage>'
               f'   (PILOT_CONCURRENCY={c.trials_per_gpu * gpus})')
     if c.concurrency_note:
         print('\n  concurrency: ' + c.concurrency_note.replace('. ', '.\n               '))

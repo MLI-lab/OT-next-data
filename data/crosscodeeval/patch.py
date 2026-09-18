@@ -23,8 +23,9 @@ For each task in the input parquet:
 
 The report (<output>.report.json) lists kept, dropped and unmatched task IDs,
 the retrieval used per task and the unknowable names per tried retrieval.
---review additionally writes per-task verdicts and a sample of dropped tasks for
-hand review, from the same pass: the filter and its audit are one script, so they
+Beside the output it writes review/dropped.jsonl (every dropped task with the
+reason and the names that were not inferable) and review/sample.md (40 of them
+with their code, to read): the filter and its audit are one script, so they
 cannot disagree.
 The standard-library list comes from the running interpreter (python_version
 in the report).
@@ -674,12 +675,16 @@ def graded_reference(gold, lang, prompt_text=''):
 
 
 def write_review(out, records, sample=40, seed=20260916):
-    """Per-task verdicts plus a seeded sample of dropped tasks, for hand review."""
+    """Why each dropped task was dropped, plus a sample of them to read.
+
+    Only the dropped ones are written out: the kept tasks are the output parquet,
+    and their verdicts are counted in the report.
+    """
     out.mkdir(parents=True, exist_ok=True)
-    with open(out / 'tasks.jsonl', 'w') as f:
-        for r in records:
-            f.write(json.dumps(r) + '\n')
     dropped = [r for r in records if not r['kept']]
+    with open(out / 'dropped.jsonl', 'w') as f:
+        for r in dropped:
+            f.write(json.dumps(r) + '\n')
     import random
     picked = random.Random(seed).sample(dropped, min(sample, len(dropped)))
     md = ['# Dropped tasks, sampled for review', '',
@@ -700,7 +705,7 @@ def fetch_upstream(dest):
         path = Path(hf_hub_download(UPSTREAM_REPO, f'{src}/tasks.parquet', repo_type='dataset',
                                     revision=UPSTREAM_REVISION, local_dir=dest))
         out[lang] = (path, published)
-        print(f'{src}/tasks.parquet -> {path}')
+        print(f'{src}/tasks.parquet -> {path}', file=sys.stderr)
     return out
 
 
@@ -715,22 +720,20 @@ def main():
     ap.add_argument('--outdir', type=Path, default=Path(os.environ.get('PILOT_ROOT', '.')) / 'patched',
                     help='where --all writes the repaired parquets')
     ap.add_argument('--archive', required=True)
-    ap.add_argument('--review', help='also write per-task verdicts and a sample of dropped tasks here')
     a = ap.parse_args()
     if a.all:
         originals = load_original(a.archive)
         for lang, (src, published) in fetch_upstream(a.upstream).items():
             out = a.outdir / published / 'tasks.parquet'
-            print(f'\n=== {lang}: {src} -> {out}')
-            patch_parquet(src, out, originals, Path(a.review) / lang if a.review else None)
+            print(f'\n=== {lang}: {src} -> {out}', file=sys.stderr)
+            patch_parquet(src, out, originals)
         return
     if not (a.input and a.output):
         raise SystemExit('pass --all, or both --input and --output')
-    patch_parquet(Path(a.input), Path(a.output), load_original(a.archive),
-                  Path(a.review) if a.review else None)
+    patch_parquet(Path(a.input), Path(a.output), load_original(a.archive))
 
 
-def patch_parquet(input_path, output_path, originals, review_dir):
+def patch_parquet(input_path, output_path, originals):
     table = pq.read_table(input_path)
     stats = dict.fromkeys(('rows', 'unique', 'unmatched', 'ambiguous', 'kept', 'dropped', 'dropped_no_identifiers',
                            'oracle_upstream', 'oracle_packaged_gold', 'context_chunks', 'kept_chunks',
@@ -759,16 +762,16 @@ def patch_parquet(input_path, output_path, originals, review_dir):
         prepared.append((row, files, lang, p, gold, k, matches, match, repo))
     stdlib = python_stdlib_names() if any(x[2] == 'python' for x in prepared) else frozenset()
 
+    review_dir = output_path.parent / 'review'
     rows = {n: [] for n in table.column_names}
     review = []
 
     def record(row, lang, gold, p, kept, reason, retriever=None, verdicts=None, missing=None):
-        if review_dir:
-            review.append({'task': row['path'], 'language': lang, 'kept': kept, 'reason': reason,
-                           'retriever': retriever, 'verdicts': verdicts or {},
-                           'missing_names': sorted({n for names in (missing or {}).values()
-                                                    for n in (names or [])}),
-                           'graded_reference': graded_reference(gold, lang, p or '')})
+        review.append({'task': row['path'], 'language': lang, 'kept': kept, 'reason': reason,
+                       'retriever': retriever, 'verdicts': verdicts or {},
+                       'missing_names': sorted({n for names in (missing or {}).values()
+                                                for n in (names or [])}),
+                       'graded_reference': graded_reference(gold, lang, p or '')})
 
     for row, files, lang, p, gold, k, matches, match, repo in prepared:
         stats['rows'] += 1
@@ -820,9 +823,10 @@ def patch_parquet(input_path, output_path, originals, review_dir):
     report = json.dumps(stats, indent=2)
     output_path.with_suffix('.report.json').write_text(report + '\n')
     print(report)
-    if review_dir:
-        n = write_review(review_dir, review)
-        print(f'review: {len(review)} task records, {n} dropped, sample in {review_dir}/sample.md')
+    n = write_review(review_dir, review)
+    # stdout stays the report as JSON, so it can be piped; notes go to stderr.
+    print(f'review: {n} dropped tasks in {review_dir}/dropped.jsonl, sample in {review_dir}/sample.md',
+          file=sys.stderr)
 
 
 if __name__ == '__main__':

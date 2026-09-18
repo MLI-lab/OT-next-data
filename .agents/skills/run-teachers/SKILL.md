@@ -7,7 +7,7 @@ description: Generate teacher trajectories on Slurm - stages, throughput knobs, 
 
 ```bash
 source env.sh
-sbatch hpc/helma/run_pilot.sbatch <weak|strong> <smoke|diag|sweep|full>
+sbatch hpc/helma/teacher_traces.sbatch <weak|strong> <smoke|diag|sweep|full>
 ```
 
 Stages are task counts per language: smoke 1, diag 5, sweep 25, full 250.

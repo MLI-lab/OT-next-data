@@ -117,7 +117,7 @@ model, one bar per group, k as a light-to-dark ramp.
 
 ```bash
 python verify_pipeline.py model --stage smoke --time 00:45:00    # cluster, GPUs and concurrency filled in
-sbatch --gres=gpu:h200:1 --time=00:45:00 hpc/helma/run_pilot.sbatch coder-30b smoke   # or submit it yourself
+sbatch --gres=gpu:h200:1 --time=00:45:00 hpc/helma/teacher_traces.sbatch coder-30b smoke   # or submit it yourself
 ```
 
 `--time` is required: a job that reserves more than it needs waits longer in the

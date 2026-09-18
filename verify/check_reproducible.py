@@ -1,20 +1,31 @@
 #!/usr/bin/env python3
-"""Running the patcher on the pinned upstream must reproduce the published dataset.
+"""Does the patcher still produce exactly the dataset that was published?
 
-This is the property that makes a published dataset auditable: anyone can take
-the pinned upstream parquet and the pinned benchmark archive, run
-`data/<dataset>/patch.py`, and get exactly the tasks that were published.
+That property is what makes a published dataset auditable: anyone can run the
+patcher on the pinned upstream and get the same tasks back.
 
-Compares by content, not by parquet bytes: for every task it hashes the sorted
-(filename, content) pairs of the task tarball, so a different pyarrow version or
-compression setting does not make an identical dataset look different.
+Three ways to use it, from most automatic to most manual:
 
-  # record what was published (once, from the parquets you uploaded)
-  python verify/check_reproducible.py --digests upload/*/tasks.parquet -o data/<ds>/published_digests.json
+  # 1. run the patcher yourself, then compare (the whole check in one command)
+  python verify/check_reproducible.py --patcher data/crosscodeeval/patch.py \\
+         --archive $CCEVAL_ARCHIVE --expect data/crosscodeeval/published_task_hashes.json
 
-  # check that today's patcher still produces it, from the pinned upstream
-  python data/<ds>/patch.py --input upstream-<lang>.parquet --output out-<lang>.parquet --archive $CCEVAL_ARCHIVE
-  python verify/check_reproducible.py out-*.parquet --expect data/<ds>/published_digests.json
+  # 2. compare parquets you already patched
+  python verify/check_reproducible.py $PILOT_ROOT/patched/*/tasks.parquet \\
+         --expect data/crosscodeeval/published_task_hashes.json
+
+  # 3. compare against the published parquets directly, no hash file
+  python verify/check_reproducible.py new/*/tasks.parquet --reference published/*/tasks.parquet
+
+  # and, once, to record what was published:
+  python verify/check_reproducible.py --digests published/*/tasks.parquet -o <dataset>/published_task_hashes.json
+
+The comparison is by task *contents* - for each task, a hash over its files -
+not by parquet bytes, so a different pyarrow version or compression setting does
+not make an identical dataset look different.
+
+--partial compares only the tasks present on the new side, for checking one
+source of a multi-source dataset.
 
 Exit code is 0 only if the task sets and every task's contents match.
 """
@@ -23,54 +34,83 @@ import argparse
 import hashlib
 import io
 import json
+import subprocess
 import sys
 import tarfile
+import tempfile
 from pathlib import Path
 
 import pyarrow.parquet as pq
 
 
-def task_digests(parquet):
-    """{task id: digest of its files}, independent of parquet encoding."""
+def task_hashes(parquets):
+    """{task id: hash of its files}, independent of parquet encoding."""
     out = {}
-    for row in pq.read_table(parquet).to_pylist():
-        h = hashlib.sha256()
-        with tarfile.open(fileobj=io.BytesIO(row['task_binary']), mode='r:*') as t:
-            for m in sorted((m for m in t if m.isfile()), key=lambda m: m.name):
-                h.update(m.name.encode())
-                h.update(hashlib.sha256(t.extractfile(m).read()).digest())
-        out[row['path']] = h.hexdigest()[:16]
+    for parquet in parquets:
+        for row in pq.read_table(parquet).to_pylist():
+            h = hashlib.sha256()
+            with tarfile.open(fileobj=io.BytesIO(row['task_binary']), mode='r:*') as t:
+                for m in sorted((m for m in t if m.isfile()), key=lambda m: m.name):
+                    h.update(m.name.encode())
+                    h.update(hashlib.sha256(t.extractfile(m).read()).digest())
+            out[row['path']] = h.hexdigest()[:16]
     return out
+
+
+def run_patcher(patcher, archive, workdir):
+    """Patch every pinned upstream source into workdir, and return the parquets."""
+    cmd = [sys.executable, str(patcher), '--all', '--archive', str(archive),
+           '--upstream', str(workdir / 'upstream'), '--outdir', str(workdir / 'patched')]
+    print(f'$ {" ".join(cmd)}', flush=True)
+    if subprocess.run(cmd).returncode != 0:
+        sys.exit('the patcher failed')
+    return sorted((workdir / 'patched').glob('*/tasks.parquet'))
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('parquet', type=Path, nargs='+', help='the parquet(s) to check, or to record with --digests')
-    ap.add_argument('--digests', action='store_true', help='write the digests instead of checking them')
+    ap.add_argument('parquet', nargs='*', type=Path, help='the patched parquet(s) to check')
+    ap.add_argument('--patcher', type=Path, help='run this patcher (--all) and check what it produces')
+    ap.add_argument('--archive', type=Path, help='dataset-specific patcher input, passed through')
+    ap.add_argument('--workdir', type=Path, help='where --patcher works (default: a temporary directory)')
+    ap.add_argument('--expect', type=Path, help='hash file recorded from the published dataset')
+    ap.add_argument('--reference', nargs='+', type=Path, help='published parquet(s) to compare against instead')
+    ap.add_argument('--digests', action='store_true', help='record hashes instead of checking them')
     ap.add_argument('-o', '--out', type=Path, help='where --digests writes')
-    ap.add_argument('--expect', type=Path, help='digest file to compare against')
-    ap.add_argument('--partial', action='store_true',
-                    help='checking one source of a multi-source dataset: only compare the tasks present here')
+    ap.add_argument('--partial', action='store_true', help='compare only the tasks present on the new side')
     a = ap.parse_args()
 
-    digests = {}
-    for parquet in a.parquet:
-        digests.update(task_digests(parquet))
     if a.digests:
-        out = a.out or a.parquet[0].with_suffix('.digests.json')
-        out.write_text(json.dumps(digests, indent=0, sort_keys=True) + '\n')
-        print(f'wrote {len(digests)} task digests to {out}')
+        hashes = task_hashes(a.parquet)
+        out = a.out or a.parquet[0].with_suffix('.task_hashes.json')
+        out.write_text(json.dumps(hashes, indent=0, sort_keys=True) + '\n')
+        print(f'wrote {len(hashes)} task hashes to {out}')
         return
-    if not a.expect:
-        sys.exit('pass --expect <digest file>, or --digests to record one')
 
-    expected = json.loads(a.expect.read_text())
+    with tempfile.TemporaryDirectory() as tmp:
+        if a.patcher:
+            if not a.archive:
+                sys.exit('--patcher needs --archive (the patcher input)')
+            parquets = run_patcher(a.patcher, a.archive, a.workdir or Path(tmp))
+        elif a.parquet:
+            parquets = a.parquet
+        else:
+            sys.exit('pass patched parquets, or --patcher to produce them')
+        hashes = task_hashes(parquets)
+
+    if a.reference:
+        expected = task_hashes(a.reference)
+    elif a.expect:
+        expected = json.loads(a.expect.read_text())
+    else:
+        sys.exit('pass --expect <hash file> or --reference <published parquets>')
     if a.partial:
-        expected = {k: v for k, v in expected.items() if k in digests}
-    missing = sorted(set(expected) - set(digests))
-    extra = sorted(set(digests) - set(expected))
-    changed = sorted(t for t in set(digests) & set(expected) if digests[t] != expected[t])
-    print(f'{len(digests)} tasks now, {len(expected)} published')
+        expected = {k: v for k, v in expected.items() if k in hashes}
+
+    missing = sorted(set(expected) - set(hashes))
+    extra = sorted(set(hashes) - set(expected))
+    changed = sorted(t for t in set(hashes) & set(expected) if hashes[t] != expected[t])
+    print(f'{len(hashes)} tasks produced, {len(expected)} published')
     for label, ids in (('missing now', missing), ('not published', extra), ('contents changed', changed)):
         if ids:
             print(f'  {label}: {len(ids)}  e.g. {", ".join(ids[:5])}')

@@ -1,11 +1,11 @@
 #!/bin/bash
 # ZIH (TU Dresden) launcher — SKELETON, never run yet.
 #
-# Copy the structure from ../helma/run_pilot.sbatch, which is the working one, and
+# Copy the structure from ../helma/teacher_traces.sbatch, which is the working one, and
 # replace the cluster-specific parts marked TODO below. Everything else (the
 # pilot layer in ../../teacher_traces, ../../harbor_patches) is cluster-agnostic.
 #
-# Submit as:  sbatch hpc/zih/run_pilot.sbatch <weak|strong> <smoke|diag|sweep|full>
+# Submit as:  sbatch hpc/zih/teacher_traces.sbatch <weak|strong> <smoke|diag|sweep|full>
 #SBATCH --job-name=cceval-pilot
 #SBATCH --partition=TODO          # GPU partition name on ZIH
 #SBATCH --nodes=1
@@ -17,7 +17,7 @@ set -euo pipefail
 : "${TMPDIR:?Node-local scratch required}"
 : "${OTAGENT_ROOT:?Set by setup.sh in env.sh}"
 
-echo 'hpc/zih/run_pilot.sbatch is a skeleton; fill in the TODOs before using it.' >&2
+echo 'hpc/zih/teacher_traces.sbatch is a skeleton; fill in the TODOs before using it.' >&2
 exit 2
 
 # --- What has to be decided per cluster -------------------------------------
