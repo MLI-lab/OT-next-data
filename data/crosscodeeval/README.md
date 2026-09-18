@@ -43,8 +43,11 @@ grades an agent in production. The repo-level tests are elsewhere by design:
   unsolvable tasks, and a separate audit script can drift from the filter.
 - `rewards.py` — how an answer is graded locally and which nonsense answers the
   reward checks should try. This is the plug-in `verify/check_reward*.py` load.
-- `published_digests.json` — the content digest of every task as published, so
-  `verify/check_reproducible.py` can prove the patcher still produces it.
+- `published_tasktrove_pr3.task_hashes.json` — a hash of every task's files as
+  published in [TaskTrove PR #3](https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/3)
+  (csharp-v5, java-v4, python-v3, typescript-v3, patched from TaskTrove revision
+  96567362), so `verify/check_reproducible.py` can prove the patcher still
+  produces exactly those tasks. A later publication gets its own file.
 - `strict_subset_1000.json` — which of the 1,000 evaluated tasks survive the
   strict reading of the "parts" rule (750 do), with the name that fails for each
   of the others. Reporting only; nothing is filtered by it.
