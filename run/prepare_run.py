@@ -14,8 +14,8 @@ from pathlib import Path
 import sys
 import yaml
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from models import resolve  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config.models import resolve  # noqa: E402
 
 LANGUAGES = ('csharp', 'java', 'python', 'typescript')
 # The four tasks used by every smoke (one per language). They were the
@@ -96,7 +96,7 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
     if spec.reasoning_parser:
         serving['vllm_server']['reasoning_parser'] = spec.reasoning_parser
     (run / 'serving.yaml').write_text(yaml.safe_dump(serving, sort_keys=False))
-    # Sampling = the model card's recommendation, from teacher_traces/models.py
+    # Sampling = the model card's recommendation, from config/models.py
     # (also in the model's generation_config.json, which vLLM ignores under
     # --generation-config vllm).
     sampling = spec.sampling
@@ -118,7 +118,7 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('run_id')
-    p.add_argument('mode', help='model key or alias, see teacher_traces/models.py')
+    p.add_argument('mode', help='model key or alias, see config/models.py')
     p.add_argument('stage', choices=sorted(STAGES))
     p.add_argument('--work', type=Path, required=True, help='node-local wrapper run directory')
     p.add_argument('--tasks-src', type=Path, required=True, help='node-local directory holding extracted tasks')

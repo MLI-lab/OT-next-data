@@ -4,25 +4,20 @@
 That property is what makes a published dataset auditable: anyone can run the
 patcher on the pinned upstream and get the same tasks back.
 
-Three ways to use it, from most automatic to most manual:
+Download what was published (`hf download <repo> ...`), then either:
 
-  # 1. run the patcher yourself, then compare (the whole check in one command)
+  # run the patcher yourself and compare (the whole check in one command)
   python verify/check_reproducible.py --patcher data/crosscodeeval/patch.py \\
-         --archive $CCEVAL_ARCHIVE --expect data/crosscodeeval/published_tasktrove_pr3.task_hashes.json
+         --archive $CCEVAL_ARCHIVE --reference published/*/tasks.parquet
 
-  # 2. compare parquets you already patched
+  # or compare parquets you already patched
   python verify/check_reproducible.py $PILOT_ROOT/patched/*/tasks.parquet \\
-         --expect data/crosscodeeval/published_tasktrove_pr3.task_hashes.json
-
-  # 3. compare against the published parquets directly, no hash file
-  python verify/check_reproducible.py new/*/tasks.parquet --reference published/*/tasks.parquet
-
-  # and, once, to record what was published:
-  python verify/check_reproducible.py --digests published/*/tasks.parquet -o <dataset>/published_tasktrove_pr3.task_hashes.json
+         --reference published/*/tasks.parquet
 
 The comparison is by task *contents* - for each task, a hash over its files -
 not by parquet bytes, so a different pyarrow version or compression setting does
-not make an identical dataset look different.
+not make an identical dataset look different. Nothing is stored in the repo: the
+published dataset itself is the reference.
 
 --partial compares only the tasks present on the new side, for checking one
 source of a multi-source dataset.
@@ -33,7 +28,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
-import json
 import subprocess
 import sys
 import tarfile
@@ -73,19 +67,10 @@ def main():
     ap.add_argument('--patcher', type=Path, help='run this patcher (--all) and check what it produces')
     ap.add_argument('--archive', type=Path, help='dataset-specific patcher input, passed through')
     ap.add_argument('--workdir', type=Path, help='where --patcher works (default: a temporary directory)')
-    ap.add_argument('--expect', type=Path, help='hash file recorded from the published dataset')
-    ap.add_argument('--reference', nargs='+', type=Path, help='published parquet(s) to compare against instead')
-    ap.add_argument('--digests', action='store_true', help='record hashes instead of checking them')
-    ap.add_argument('-o', '--out', type=Path, help='where --digests writes')
+    ap.add_argument('--reference', nargs='+', type=Path, required=True,
+                    help='the published parquet(s) to compare against')
     ap.add_argument('--partial', action='store_true', help='compare only the tasks present on the new side')
     a = ap.parse_args()
-
-    if a.digests:
-        hashes = task_hashes(a.parquet)
-        out = a.out or a.parquet[0].with_suffix('.task_hashes.json')
-        out.write_text(json.dumps(hashes, indent=0, sort_keys=True) + '\n')
-        print(f'wrote {len(hashes)} task hashes to {out}')
-        return
 
     with tempfile.TemporaryDirectory() as tmp:
         if a.patcher:
@@ -98,12 +83,7 @@ def main():
             sys.exit('pass patched parquets, or --patcher to produce them')
         hashes = task_hashes(parquets)
 
-    if a.reference:
-        expected = task_hashes(a.reference)
-    elif a.expect:
-        expected = json.loads(a.expect.read_text())
-    else:
-        sys.exit('pass --expect <hash file> or --reference <published parquets>')
+    expected = task_hashes(a.reference)
     if a.partial:
         expected = {k: v for k, v in expected.items() if k in hashes}
 

@@ -9,8 +9,8 @@ Each check is also a normal script you can run alone; this is only the sequencer
   images       verify/check_images.py - how many distinct container images the
                dataset needs (build time and image-cache pressure).
   reproduce    verify/check_reproducible.py - the patcher still produces exactly
-               the published tasks. Needs --parquet and the dataset's
-               published_tasktrove_pr3.task_hashes.json.
+               the published tasks. Needs --parquet (what you patched) and
+               --reference (the published parquets, downloaded).
   sandbox      verify/check_reward_harbor.py - builds the image, runs the task's
                own tests/test.sh in the container, reference 1 and garbage 0.
                Needs a bridge, so outside a job it submits hpc/<cluster>/
@@ -26,7 +26,7 @@ Each check is also a normal script you can run alone; this is only the sequencer
   python verify_pipeline.py <check|all> <dir with tasks/> [options]
 
 `tests`, `reward` and `images` need nothing but this repo. `reproduce` needs the
-patched parquet. `sandbox` and
+patched parquets and the published ones to compare with. `sandbox` and
 `isolation` need a running bridge, so they belong inside a Slurm job. `model`
 submits one. Under `all`, a check whose inputs are missing is skipped with a
 reason instead of failing.
@@ -40,8 +40,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from hpc.clusters import CLUSTERS, detect_cluster  # noqa: E402
-from teacher_traces.models import resolve  # noqa: E402
+from config.clusters import CLUSTERS, detect_cluster  # noqa: E402
+from config.models import resolve  # noqa: E402
 PY = sys.executable
 SKIP = 'skip'
 
@@ -85,12 +85,9 @@ def check_images(a):
 
 
 def check_reproduce(a):
-    if not a.parquet:
-        return SKIP, 'no --parquet given'
-    digests = HERE / f'data/{dataset_of(a)}/published_tasktrove_pr3.task_hashes.json'
-    if not digests.exists():
-        return SKIP, f'{digests.relative_to(HERE)} does not exist'
-    return run([PY, HERE / 'verify/check_reproducible.py', *a.parquet, '--expect', digests])
+    if not (a.parquet and a.reference):
+        return SKIP, 'needs --parquet (what you patched) and --reference (the published parquets)'
+    return run([PY, HERE / 'verify/check_reproducible.py', *a.parquet, '--reference', *a.reference])
 
 
 def submit_checks(a):
@@ -147,7 +144,7 @@ def check_model(a):
     if not (Path(otagent) / 'data/teacher_ranking_proxy/generate_trajectories.py').exists():
         return SKIP, (f'OTAGENT_ROOT={otagent} has no data/teacher_ranking_proxy/'
                       'generate_trajectories.py (source env.sh, or set it to the checkout)')
-    # Resources are submit-time arguments, not header lines: hpc/clusters.py holds
+    # Resources are submit-time arguments, not header lines: config/clusters.py holds
     # them per cluster (Helma rejects a GPU-partition job without --gres).
     gpus = resolve(a.model)[1].gpus
     extra = [a.gres] if a.gres else (cluster.submit_args(gpus) if cluster else [])
@@ -201,12 +198,13 @@ def main():
     ap.add_argument('check', choices=[*CHECKS, 'all'])
     ap.add_argument('tasks', nargs='?', type=Path, help='directory containing tasks/')
     ap.add_argument('--parquet', type=Path, nargs='+', help='patched parquet(s), for the reproduce check')
+    ap.add_argument('--reference', type=Path, nargs='+', help='published parquet(s) the reproduce check compares against')
     ap.add_argument('--out', type=Path, default=Path('verify-out'), help='where check outputs are written')
     ap.add_argument('--limit', type=int, help='grade only the first N tasks')
     ap.add_argument('--max-images', type=int, help='fail if the dataset needs more distinct images than this')
     ap.add_argument('--cluster', help='which hpc/<cluster>/ to submit to (default: detected from the hostname)')
     ap.add_argument('--dataset', help='defaults to the part of the task name before the first "-"')
-    ap.add_argument('--model', default='coder-30b', help='model key, see teacher_traces/models.py')
+    ap.add_argument('--model', default='coder-30b', help='model key, see config/models.py')
     ap.add_argument('--attempts', type=int, default=8, help='attempts per task (default 8)')
     ap.add_argument('--stage', default='diag', help='smoke, diag, sweep or full tasks per language')
     ap.add_argument('--gres', help="override the cluster's GPU request, e.g. '--gres=gpu:h200:2'")

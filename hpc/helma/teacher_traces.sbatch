@@ -3,7 +3,7 @@
 #SBATCH --partition=h200
 # The GPU count is passed at submit time, because `strong` needs four and `weak` one:
 #   sbatch --gres=gpu:h200:1 hpc/helma/teacher_traces.sbatch weak diag
-# --nodes comes from the submit line (hpc/clusters.py derives it from the model).
+# --nodes comes from the submit line (config/clusters.py derives it from the model).
 #SBATCH --time=12:00:00
 #SBATCH --signal=B:USR1@900
 # Storage layout: /hnvme (PILOT_ROOT) holds models, the runtime image, the
@@ -18,8 +18,8 @@ set -euo pipefail
 # Slurm runs a copy of this script from /var/tmp, so the repo cannot be derived
 # from its own path: env.sh exports OT_NEXT_DATA, and verify_pipeline.py passes it.
 here=${OT_NEXT_DATA:?Set OT_NEXT_DATA to the OT_next_data checkout (source env.sh)}
-test -f "$here/teacher_traces/prepare_run.py" || { echo "OT_NEXT_DATA=$here is not the repo" >&2; exit 2; }
-mode=${1:?model key or alias, see teacher_traces/models.py}
+test -f "$here/run/prepare_run.py" || { echo "OT_NEXT_DATA=$here is not the repo" >&2; exit 2; }
+mode=${1:?model key or alias, see config/models.py}
 stage=${2:-smoke}
 case "$stage" in smoke|diag|sweep|full) ;; *) echo "unknown stage $stage" >&2; exit 2 ;; esac
 base=$PILOT_ROOT
@@ -71,7 +71,7 @@ gpus_per_node=$(nvidia-smi --list-gpus | wc -l)
 export PILOT_GPUS_PER_NODE=$gpus_per_node
 # Everything below is single-node unless the allocation has several nodes: a
 # model whose weights exceed one node's HBM runs tensor-parallel inside each node
-# and pipeline-parallel across them (teacher_traces/models.py decides the split).
+# and pipeline-parallel across them (config/models.py decides the split).
 head_ip=$(hostname -I | awk '{print $1}')
 bridge_port=$((40000 + SLURM_JOB_ID % 10000))
 export TRP_RAY_PORT=$((20000 + SLURM_JOB_ID % 10000)) TRP_API_PORT=$((30000 + SLURM_JOB_ID % 10000))
@@ -115,7 +115,7 @@ for path in Path(sys.argv[1]).rglob('*.yaml'):
     if kept != lines:
         path.write_text(''.join(kept))
 PYFILTER
-python "$here/teacher_traces/prepare_run.py" "$run_id" "$mode" "$stage" --work "$work" --tasks-src "$tasks_src" --concurrency "$PILOT_CONCURRENCY" --max-num-seqs "$PILOT_MAX_NUM_SEQS"
+python "$here/run/prepare_run.py" "$run_id" "$mode" "$stage" --work "$work" --tasks-src "$tasks_src" --concurrency "$PILOT_CONCURRENCY" --max-num-seqs "$PILOT_MAX_NUM_SEQS"
 # Extract only the selected tasks from the single compressed dataset.
 python - "$run/sampled_task_ids.json" > "$run/task-members.txt" <<'PY'
 import json, sys
@@ -151,7 +151,7 @@ finalize() {
     for pid in $generation_pid $archiver_pid; do kill "$pid" 2>/dev/null || true; done
     for pid in $generation_pid $archiver_pid; do wait "$pid" 2>/dev/null || true; done
     printf '%s archive-final\n' "$(date -Is)" >> "$run/phases.log"
-    python "$here/teacher_traces/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --final >> "$run/archiver.log" 2>&1 || echo 'Final archive failed' >&2
+    python "$here/run/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --final >> "$run/archiver.log" 2>&1 || echo 'Final archive failed' >&2
 }
 cleanup() {
     rc=$?
@@ -218,7 +218,7 @@ for ((i=0; i<60; i++)); do
     sleep 2
 done
 "$ready" || { echo 'Bridge readiness failed'; exit 1; }
-python "$here/harbor_patches/startup_check.py" "$work" > "$run/isolation.log" 2>&1
+python "$here/verify/check_bridge.py" "$work" > "$run/isolation.log" 2>&1
 common=(--runtime apptainer_bridge --dataset crosscodeeval --manifest "$work/manifest.jsonl" --sample-file "$work/sampled_task_ids.json" --run-id "$run_id")
 # The oracle stage also warms the task container images (SIF build with an 8x
 # timeout) before agent trials start. Keep it on; PILOT_ORACLE_CHECK=0 skips it.
@@ -228,7 +228,7 @@ if [[ "${PILOT_ORACLE_CHECK:-1}" == 1 ]]; then
     cp "$work/parity/parity_report.json" "$run/parity_report.json"
 fi
 attempts=1
-gpus=$(python -c "import sys; sys.path.insert(0, '$here/teacher_traces'); from models import resolve; print(resolve('$mode')[1].gpus)")
+gpus=$(python -c "import sys; sys.path.insert(0, '$here/config'); from models import resolve; print(resolve('$mode')[1].gpus)")
 (( gpus <= nodes * gpus_per_node )) || { echo "$mode needs $gpus GPUs, allocation has $((nodes * gpus_per_node))" >&2; exit 1; }
 [[ "$stage:$mode" != full:weak ]] || attempts=16
 # PILOT_ATTEMPTS splits a pass@k run across jobs (e.g. two jobs of 8 attempts);
@@ -255,7 +255,7 @@ if (( nodes > 1 )); then
     echo "Ray cluster ready: $ready GPUs over $nodes nodes" >> "$run/ray.log"
 fi
 printf '%s generation\n' "$(date -Is)" >> "$run/phases.log"
-python -u "$here/teacher_traces/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --interval "${PILOT_ARCHIVE_INTERVAL:-600}" > "$run/archiver.log" 2>&1 &
+python -u "$here/run/archive_trials.py" --work "$work" --dest "$run" --run-id "$run_id" --interval "${PILOT_ARCHIVE_INTERVAL:-600}" > "$run/archiver.log" 2>&1 &
 archiver_pid=$!
 apptainer exec --pid --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env "$base/images/runtime.sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" ${RAY_ADDRESS:+"RAY_ADDRESS=$RAY_ADDRESS"} "TRP_BUILD_TIMEOUT_MULTIPLIER=8" python3 "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
 generation_pid=$!
@@ -272,6 +272,6 @@ wait "$generation_pid"
 generation_pid=
 mkdir -p "$run/metadata"
 cp "$work"/metadata/*.json "$run/metadata/" 2>/dev/null || true
-python "$here/teacher_traces/check_run.py" "$work" "$attempts" "$run"
+python "$here/run/check_run.py" "$work" "$attempts" "$run"
 finalize
 touch "$run/PASSED"

@@ -79,12 +79,10 @@ python verify_pipeline.py reward <dir with tasks/>        # or any single check
   which tasks share each. Harbor builds one image per distinct Dockerfile, so
   fewer is better: many distinct images turn a run into a build queue and fill
   the image cache. `--max-images N` turns the report into a gate.
-- **reproduce** — checks that the patched parquet passed with `--parquet`
-  contains exactly the tasks recorded in `data/<dataset>/published_tasktrove_pr3.task_hashes.json`,
-  compared task by task on file contents. Those digests come from the parquets
-  that were actually published (for CrossCodeEval, the ones in the TaskTrove PR).
-  It works on local files, so `hf download` first if you want to compare against
-  what is currently on the Hub.
+- **reproduce** — checks that what the patcher produces (`--parquet`) contains
+  exactly the tasks that were published (`--reference`), compared task by task on
+  file contents. Download the published parquets with `hf download` first; the
+  published dataset is the reference, nothing is stored in the repo.
 - **sandbox** — builds the task image and runs the task's own `tests/test.sh`
   inside the container: the task's oracle (`solution/solve.sh`) must score 1, and
   running the tests with no answer written must score 0. This is what fails when
@@ -125,12 +123,12 @@ queue, and a smoke asking for twelve hours can sit behind everything. Stages are
 tasks per language: `smoke` 1, `diag` 5, `sweep` 25, `full` 250. Always pass a
 smoke first.
 
-- `python teacher_traces/models.py` — the teachers: weights size, GPU count,
+- `python config/models.py` — the teachers: weights size, GPU count,
   nodes, the tensor/pipeline split and the sampling from each model card.
   `--download <key>` fetches the weights into `$PILOT_ROOT/models`. `weak` and
   `strong` still work as aliases for `coder-30b` and `qwen35-122b`.
-- `python hpc/clusters.py` — the detected cluster, its GPU request, how many
-  trials to run in parallel there, and the workspace layout.
+- `python config/clusters.py` — the detected cluster, its GPU request, how many
+  trials fit in parallel there, and the workspace layout.
 
 ### Models bigger than one node
 
@@ -152,15 +150,18 @@ the path is exactly the one all published results came from.
 
 ## Layout
 
+- `config/` — what exists, independent of any run: `clusters.py` (hostname to
+  cluster, its GPU request, GPUs and cores per GPU, storage layout) and
+  `models.py` (the teachers: weights, GPUs, sampling, measured saturation).
 - `data/<dataset>/` — one dataset pipeline per folder: `patch.py` (the whole
   patch, filter and audit included), `rewards.py` (how its answers are graded and
-  which wrong answers to try), `published_tasktrove_pr3.task_hashes.json`, and its data files.
+  which wrong answers to try), and its data files.
 - `verify/` — dataset-agnostic checks and reporting: `check_reward.py`,
   `check_reward_harbor.py`, `check_images.py`, `check_reproducible.py`,
   `check_isolation.py`, `pass_at_k.py`, `plot_pass_rates.py`.
 - `tests/` — pytest: the patcher's rules, the run layer, the plug-in contract.
-- `teacher_traces/` — driving a run: the model registry, per-run selection and
-  configs, trial archiving, the completion gate.
+- `run/` — driving a run: per-run selection and configs (`prepare_run.py`),
+  trial archiving under the file-count quota, the completion gate.
 - `harbor_patches/` — the workarounds Harbor needs: a Slurm step per trial, the
   network-isolation probe, own-staging-only cleanup, the startup check.
 - `hpc/` — `clusters.py` maps this hostname to a cluster, its GPU request, its

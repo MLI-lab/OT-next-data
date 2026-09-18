@@ -61,5 +61,5 @@ T 0.7 / top_p 0.8 / top_k 20 / repetition_penalty 1.05.
 `runs/<run-id>/` holds configs, logs, `progress.json`,
 `validated_attempt_summary.json` and `archives/*.tar.gz` — trials are archived,
 so there are no loose `result.json` files. `verify/pass_at_k.py` reads the
-summary; `teacher_traces/check_run.py` is the completion gate (it needs `OTAGENT_ROOT`).
+summary; `run/check_run.py` is the completion gate (it needs `OTAGENT_ROOT`).
 Never kill a RUNNING job without explicit permission from the operator.

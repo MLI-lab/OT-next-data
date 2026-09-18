@@ -5,7 +5,7 @@ Mirrors how OpenThoughts-Agent does it (`hpc/hpc.py:detect_hpc`): each cluster
 declares a hostname pattern, and the one whose pattern matches this host wins.
 Adding a cluster means adding an entry here and an `hpc/<name>/teacher_traces.sbatch`.
 
-  python hpc/clusters.py            # print the detected cluster and its submit line
+  python config/clusters.py            # print the detected cluster and its submit line
 """
 from __future__ import annotations
 import re

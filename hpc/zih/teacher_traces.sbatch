@@ -30,7 +30,7 @@ exit 2
 #      archives them to $PILOT_ROOT because of a file-count quota.
 # TODO quota guard: Helma refuses to start when the shared file quota is nearly
 #      exhausted (lfs quota). Replace with the ZIH equivalent or drop it.
-# TODO GPUs per node: hpc/clusters.py derives the node count for a model from it
+# TODO GPUs per node: config/clusters.py derives the node count for a model from it
 #      (Helma has 4 H200 per node, so a 756 GB model takes two nodes).
 # TODO whether user network namespaces are allowed. Helma forbids them
 #      (user.max_net_namespaces=0), so harbor_patches/bridge_worker.py probes
