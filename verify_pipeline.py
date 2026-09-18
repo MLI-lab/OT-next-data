@@ -10,7 +10,7 @@ Each check is also a normal script you can run alone; this is only the sequencer
                dataset needs (build time and image-cache pressure).
   reproduce    verify/check_reproducible.py - the patcher still produces exactly
                the published tasks. Needs --parquet and the dataset's
-               published_task_hashes.json.
+               published_to_tasktrove.task_hashes.json.
   sandbox      verify/check_reward_harbor.py - builds the image, runs the task's
                own tests/test.sh in the container, reference 1 and garbage 0.
                Needs a bridge, so outside a job it submits hpc/<cluster>/
@@ -87,7 +87,7 @@ def check_images(a):
 def check_reproduce(a):
     if not a.parquet:
         return SKIP, 'no --parquet given'
-    digests = HERE / f'data/{dataset_of(a)}/published_task_hashes.json'
+    digests = HERE / f'data/{dataset_of(a)}/published_to_tasktrove.task_hashes.json'
     if not digests.exists():
         return SKIP, f'{digests.relative_to(HERE)} does not exist'
     return run([PY, HERE / 'verify/check_reproducible.py', *a.parquet, '--expect', digests])
@@ -168,7 +168,8 @@ def check_model(a):
     env = {**os.environ, 'PILOT_ATTEMPTS': str(a.attempts), 'OTAGENT_ROOT': otagent,
            'OT_NEXT_DATA': str(HERE)}
     if cluster and 'PILOT_CONCURRENCY' not in os.environ:
-        env['PILOT_CONCURRENCY'] = str(cluster.trials_per_gpu * gpus)
+        env['PILOT_CONCURRENCY'] = str(cluster.trials_in_flight(
+            gpus, int(os.environ.get('PILOT_TRIAL_CPUS', 1))))
     cmd = ['sbatch', *extra, sbatch, a.model, a.stage]
     if a.dry_run:
         print('\n$ ' + ' '.join(str(c) for c in cmd)

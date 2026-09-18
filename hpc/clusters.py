@@ -25,11 +25,21 @@ class Cluster:
     # this is the default it suggests per cluster, and what the layout means.
     workspace: str = ''
     scratch: str = '$TMPDIR'      # node-local, per job: trials and container overlays
-    # Trials to run in parallel per GPU (PILOT_CONCURRENCY). Agent trials are
-    # mostly waiting on tools, so a GPU needs many of them to stay busy.
-    trials_per_gpu: int = 16
+    # What actually limits parallel trials: each trial is a Slurm step with its
+    # own cores, and the allocation has only so many. Trials in flight therefore
+    # follow from the cores available and what one trial asks for - a task whose
+    # environment requests 4 cores gets 4, and a quarter as many run at once.
+    cores_per_gpu: int = 16
     concurrency_note: str = ''
     note: str = ''
+
+    def trials_in_flight(self, gpus: int, cores_per_trial: int = 1) -> int:
+        """How many trials to keep in flight for an allocation of `gpus` GPUs.
+
+        Slurm queues steps that do not fit, so this is a target, not a cap: it is
+        the number that keeps the cores busy without over-subscribing them.
+        """
+        return max(1, self.cores_per_gpu * gpus // max(1, cores_per_trial))
 
     def submit_args(self, gpus: int) -> list[str]:
         """sbatch arguments for a model that wants `gpus` GPUs in total.
@@ -48,11 +58,12 @@ CLUSTERS = [
     Cluster(name='helma', hostname_pattern=r'helma\d*',
             gpu_directive='--gres=gpu:h200:{n}',
             workspace='/hnvme/workspace/$USER-crosscodeeval-pilot',
-            trials_per_gpu=32,
+            cores_per_gpu=32,
             concurrency_note=(
-                'Each trial gets its own Slurm step of 1 core, and Helma allows at most '
-                '32 cores per GPU, so 32 trials per GPU is the ceiling here - not a tuned '
-                'optimum. Measured: the 122B on 4 GPUs plateaus at 88-90% utilization from '
+                'Helma allows at most 32 cores per GPU and each trial is a Slurm step of '
+                'its own, so 32 single-core trials per GPU is the ceiling here - not a tuned '
+                'optimum, and a task whose environment asks for more cores gets '
+                'proportionally fewer in flight. Measured: the 122B on 4 GPUs plateaus at 88-90% utilization from '
                 '32 trials upward (more in flight does not help); the 30B coder on 1 GPU '
                 'reaches only 73-74% at 16-32 trials, i.e. it is core-limited, not '
                 'GPU-limited. Wall time is set by the agent-timeout tail, not by throughput.'),
@@ -90,7 +101,7 @@ if __name__ == '__main__':
     print(f'  workspace: {c.workspace or "(set PILOT_ROOT yourself)"}   node-local scratch: {c.scratch}')
     for gpus in (1, 4, 8):
         print(f'  {gpus} GPU: sbatch {" ".join(c.submit_args(gpus))} hpc/{c.name}/teacher_traces.sbatch <model> <stage>'
-              f'   (PILOT_CONCURRENCY={c.trials_per_gpu * gpus})')
+              f'   (PILOT_CONCURRENCY={c.trials_in_flight(gpus)} at 1 core per trial)')
     if c.concurrency_note:
         print('\n  concurrency: ' + c.concurrency_note.replace('. ', '.\n               '))
     print('\n  workspace layout:')

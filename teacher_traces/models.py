@@ -25,11 +25,12 @@ class Model:
     hf_repo: str = ''               # where the weights come from
     thinking: bool = False
     extra_args: list = field(default_factory=list)
-    # How the GPUs are split. Tensor parallelism wants fast interconnect, so it
-    # stays inside a node; pipeline parallelism spans nodes. Left at 0, tensor
-    # parallelism fills one node and pipeline parallelism covers the rest.
-    tensor_parallel: int = 0
-    pipeline_parallel: int = 0
+    # The tensor/pipeline split is NOT stated here: it depends on the cluster's
+    # GPUs per node. parallelism() fills one node with tensor parallelism (it
+    # wants the fast intra-node interconnect) and spans nodes with pipeline
+    # parallelism. Set max_tensor_parallel only if a model cannot use a whole
+    # node's width (e.g. an attention-head count that does not divide).
+    max_tensor_parallel: int = 0
     # vLLM's --dtype: 'auto' keeps a quantized checkpoint's own precision, which
     # forcing bfloat16 would fight. Its reasoning parser is per model family.
     dtype: str = 'bfloat16'
@@ -37,18 +38,14 @@ class Model:
     weights_gb: int = 0             # bf16/fp8 checkpoint size, for planning
 
     def parallelism(self, gpus_per_node: int) -> tuple[int, int]:
-        if self.tensor_parallel or self.pipeline_parallel:
-            tp = self.tensor_parallel or 1
-            return tp, self.pipeline_parallel or max(1, self.gpus // tp)
-        tp = min(self.gpus, gpus_per_node)
+        """(tensor parallel, pipeline parallel) for a cluster with this node width."""
+        tp = min(self.gpus, gpus_per_node, self.max_tensor_parallel or gpus_per_node)
         return tp, max(1, self.gpus // tp)
 
     def nodes(self, gpus_per_node: int) -> int:
         return -(-self.gpus // gpus_per_node)
 
-    @property
-    def tensor_parallel_size(self) -> int:      # single-node shorthand
-        return self.tensor_parallel or self.gpus
+
 
 
 MODELS = {
@@ -67,14 +64,12 @@ MODELS = {
     # 0.95); check the model card before trusting it for a scored run.
     'glm-5.1-fp8': Model(
         name='GLM-5.1-FP8', hf_repo='zai-org/GLM-5.1-FP8',
-        gpus=8, tensor_parallel=4, pipeline_parallel=2, thinking=True, weights_gb=756,
-        dtype='auto', reasoning_parser='glm45',
+        gpus=8, thinking=True, weights_gb=756, dtype='auto', reasoning_parser='glm45',
         sampling={'temperature': 1.0, 'top_p': 0.95}),
     # The bf16 checkpoint of the same model: 1.5 TB, four nodes.
     'glm-5.1': Model(
         name='GLM-5.1', hf_repo='zai-org/GLM-5.1',
-        gpus=16, tensor_parallel=4, pipeline_parallel=4, thinking=True, weights_gb=1508,
-        reasoning_parser='glm45',
+        gpus=16, thinking=True, weights_gb=1508, reasoning_parser='glm45',
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
 

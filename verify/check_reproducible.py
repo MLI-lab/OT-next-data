@@ -8,17 +8,17 @@ Three ways to use it, from most automatic to most manual:
 
   # 1. run the patcher yourself, then compare (the whole check in one command)
   python verify/check_reproducible.py --patcher data/crosscodeeval/patch.py \\
-         --archive $CCEVAL_ARCHIVE --expect data/crosscodeeval/published_task_hashes.json
+         --archive $CCEVAL_ARCHIVE --expect data/crosscodeeval/published_to_tasktrove.task_hashes.json
 
   # 2. compare parquets you already patched
   python verify/check_reproducible.py $PILOT_ROOT/patched/*/tasks.parquet \\
-         --expect data/crosscodeeval/published_task_hashes.json
+         --expect data/crosscodeeval/published_to_tasktrove.task_hashes.json
 
   # 3. compare against the published parquets directly, no hash file
   python verify/check_reproducible.py new/*/tasks.parquet --reference published/*/tasks.parquet
 
   # and, once, to record what was published:
-  python verify/check_reproducible.py --digests published/*/tasks.parquet -o <dataset>/published_task_hashes.json
+  python verify/check_reproducible.py --digests published/*/tasks.parquet -o <dataset>/published_to_tasktrove.task_hashes.json
 
 The comparison is by task *contents* - for each task, a hash over its files -
 not by parquet bytes, so a different pyarrow version or compression setting does
