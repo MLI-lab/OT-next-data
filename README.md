@@ -80,7 +80,7 @@ python verify_pipeline.py reward <dir with tasks/>        # or any single check
   fewer is better: many distinct images turn a run into a build queue and fill
   the image cache. `--max-images N` turns the report into a gate.
 - **reproduce** — checks that the patched parquet passed with `--parquet`
-  contains exactly the tasks recorded in `data/<dataset>/published_digests.json`,
+  contains exactly the tasks recorded in `data/<dataset>/published_tasktrove_pr3.task_hashes.json`,
   compared task by task on file contents. Those digests come from the parquets
   that were actually published (for CrossCodeEval, the ones in the TaskTrove PR).
   It works on local files, so `hf download` first if you want to compare against
@@ -154,7 +154,7 @@ the path is exactly the one all published results came from.
 
 - `data/<dataset>/` — one dataset pipeline per folder: `patch.py` (the whole
   patch, filter and audit included), `rewards.py` (how its answers are graded and
-  which wrong answers to try), `published_digests.json`, and its data files.
+  which wrong answers to try), `published_tasktrove_pr3.task_hashes.json`, and its data files.
 - `verify/` — dataset-agnostic checks and reporting: `check_reward.py`,
   `check_reward_harbor.py`, `check_images.py`, `check_reproducible.py`,
   `check_isolation.py`, `pass_at_k.py`, `plot_pass_rates.py`.

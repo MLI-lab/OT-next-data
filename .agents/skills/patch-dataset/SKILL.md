@@ -52,7 +52,7 @@ Patched parquets that have not passed both are not ready for a run.
 
 A dataset folder holds `patch.py` (the whole pipeline, filter and audit
 included), `rewards.py` (how an answer is graded locally and which nonsense
-answers to try), `published_digests.json` once published, and a short `README.md`
+answers to try), `published_<where>.task_hashes.json` once published, and a short `README.md`
 saying what the patch changes inside a task. Everything in `verify/` is dataset-agnostic and finds the
 plug-in from the task name prefix. Keep task IDs stable across versions
 (gaps where tasks were dropped) so results stay comparable to earlier runs.

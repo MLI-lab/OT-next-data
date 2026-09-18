@@ -52,7 +52,7 @@ report scores on both.
 For a published dataset, also prove it is reproducible:
 
 ```bash
-python verify/check_reproducible.py out-*.parquet --expect data/<dataset>/published_digests.json
+python verify/check_reproducible.py out-*.parquet --expect data/<dataset>/published_<where>.task_hashes.json
 ```
 
 ## 4. Oracle parity and isolation, on the cluster
