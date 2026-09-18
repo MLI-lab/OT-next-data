@@ -49,6 +49,8 @@ def main():
     ap.add_argument('--digests', action='store_true', help='write the digests instead of checking them')
     ap.add_argument('-o', '--out', type=Path, help='where --digests writes')
     ap.add_argument('--expect', type=Path, help='digest file to compare against')
+    ap.add_argument('--partial', action='store_true',
+                    help='checking one source of a multi-source dataset: only compare the tasks present here')
     a = ap.parse_args()
 
     digests = {}
@@ -63,6 +65,8 @@ def main():
         sys.exit('pass --expect <digest file>, or --digests to record one')
 
     expected = json.loads(a.expect.read_text())
+    if a.partial:
+        expected = {k: v for k, v in expected.items() if k in digests}
     missing = sorted(set(expected) - set(digests))
     extra = sorted(set(digests) - set(expected))
     changed = sorted(t for t in set(digests) & set(expected) if digests[t] != expected[t])
