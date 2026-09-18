@@ -32,8 +32,8 @@ grades an agent in production. The repo-level tests are elsewhere by design:
   report contents).
 - `verify/check_reward.py` — grades gold and nonsense with those per-task
   verifiers, over the whole dataset.
-- `verify/check_solvability.py` — re-derives the filter verdicts from the shipped
-  parquets and samples them for hand review.
+- `patch.py --review reviews/` — the filter's own audit: per-task verdicts and a
+  sample of dropped tasks, written by the same pass that does the filtering.
 
 ## Files here
 
