@@ -142,6 +142,15 @@ def start_with_anchor(self, payload):
     cmd = [worker.APPTAINER, 'exec', '--pwd', '/tmp',
            f'instance://{self.instance_name}', '/bin/bash', '-c']
     step = trial_step_prefix(payload, self.env_id)
+    # tmux does not create its own socket directory in this container: the instance gets a
+    # fresh per-instance /tmp bind instead of the host's 1777 /tmp, and every tmux call then
+    # dies with "error creating /tmp/tmux-<uid>/default (No such file or directory)". Creating
+    # the directory first is enough, verified by hand on h24-01 with and without --fakeroot
+    # (job 878099). Under --fakeroot `id -u` reports 0 while tmux still names the socket after
+    # the real host uid, so both names are created.
+    uid = os.getuid()
+    subprocess.run(cmd + [f'mkdir -p -m 700 /tmp/tmux-{uid} /tmp/tmux-0'],
+                   capture_output=True, timeout=60)
     self._helma_tmux_log = open(Path(self.staging_dir) / 'tmux-anchor.log', 'w')
     self._helma_tmux_anchor = subprocess.Popen(
         step + cmd + ['tmux new-session -d -s _pilot_anchor && exec sleep infinity'],
