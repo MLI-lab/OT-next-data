@@ -59,6 +59,3 @@ python verify/plot_pass_rates.py "Model=/path/to/run" -o pass_rates.png
 | [Qwen3-Coder-480B-A35B-Instruct-FP8](https://huggingface.co/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8) | FP8 | Completed four-task smoke test |
 | GLM-5.1-FP8 | FP8 | Failed during model loading |
 | [GLM-5.3](https://huggingface.co/zai-org/GLM-5.3) | FP8 | Served successfully; smoke evaluation incomplete |
-
-Based on the available September 2026 run records. Completed evaluations can
-include failed tasks or timeouts.
