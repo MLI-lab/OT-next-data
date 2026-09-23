@@ -1,0 +1,8 @@
+# For wherever you run the patcher, the checks and the analysis: a cluster login
+# node or your laptop. The task containers need none of it (each task's verifier
+# is standard library only), and the GPU side runs in hpc/<cluster>/runtime.def.
+pyarrow>=15
+pyyaml
+pytest
+matplotlib>=3.8        # verify/plot_pass_rates.py only
+huggingface_hub>=0.20  # downloading upstream datasets, opening a dataset PR

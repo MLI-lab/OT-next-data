@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+env.sh
+out/
+runs/
+*.parquet
+*.tar.gz
+
+# Local instructions, logs, and check outputs
+.agents/
+*.o[0-9]*
+slurm-*.out
+verify-out/
+.pytest_cache/

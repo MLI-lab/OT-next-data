@@ -1,0 +1,31 @@
+Bootstrap: docker
+From: vllm/vllm-openai:{{ VLLM_TAG }}
+
+# The serving runtime: vLLM plus what the trajectory generation needs. The vLLM
+# version is a build argument, because a model newer than the runtime fails to
+# load (GLM-5.1's attention-indexer weights on vLLM 0.20). Build one image per
+# version and let config/models.py say which model needs which.
+#
+#   hpc/helma/build_runtime.sh v0.20.0     -> images/runtime-v0.20.0.sif
+#   hpc/helma/build_runtime.sh v0.29.0     -> images/runtime-v0.29.0.sif
+
+%arguments
+    VLLM_TAG=v0.20.0
+
+%files
+    {{ REQUIREMENTS }} /opt/pilot-requirements.txt
+
+%post
+    export MAX_JOBS=2 UV_CONCURRENT_INSTALLS=2 UV_CONCURRENT_BUILDS=2 UV_CONCURRENT_DOWNLOADS=4
+    # vLLM and its torch come from the base image: installing our pins on top
+    # would downgrade them and undo the point of a newer image.
+    grep -vE '^(vllm|torch|transformers|accelerate)([=<>~ ]|$)' /opt/pilot-requirements.txt > /opt/pilot-requirements-nopin.txt
+    python3 -m pip install --no-cache-dir -r /opt/pilot-requirements-nopin.txt
+    python3 -m pip freeze > /opt/pilot-packages.txt
+    mkdir -p /opt/pilot-env/bin
+    ln -s $(command -v python3) /opt/pilot-env/bin/python
+    ln -s $(command -v harbor) /opt/pilot-env/bin/harbor
+    ln -s $(command -v ray) /opt/pilot-env/bin/ray
+
+%environment
+    export PATH=/opt/pilot-env/bin:$PATH

@@ -1,0 +1,32 @@
+pydantic>=2.0.0,<3.0.0
+pyyaml
+omegaconf
+wandb
+bs4
+numpy<=2.26.0
+huggingface_hub>=0.20.0,<2.0.0
+datasets>=2.0.0
+supabase>=2.22.3
+python-dotenv>=1.0.0
+dynamic-semaphore @ https://github.com/penfever/dynamic-semaphore/archive/4d5f49f290889f4826219b241e1aa42d6466163e.zip
+google-cloud-storage
+h5py
+certifi
+rapidfuzz
+huggingface_hub
+uv>=0.4.17
+socksio
+boto3
+gcsfs
+s3fs
+ray[default]>=2.50.0
+google-cloud-aiplatform>=1.67.0
+google-genai>=0.1.0
+transformers>=5.3.0,<=5.5.3
+torch==2.11.0
+accelerate==1.12.0
+trufflehog>=2.2.0
+pytest
+docker
+harbor[daytona] @ https://github.com/marin-community/harbor/archive/7faf878c14b6d72737579ec936ebf5f74ba3194d.zip
+vllm==0.20.0
