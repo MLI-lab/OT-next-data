@@ -2,7 +2,7 @@
 
 Build agent-task datasets and verify them by running teacher models on the
 resulting tasks. This repo keeps dataset patches, verification scripts, cluster
-launchers, and Harbor fixes together, and reports pass@k.
+launchers, and some Harbor patches, and reports pass@k.
 
 ## Setup
 
