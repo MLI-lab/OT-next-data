@@ -150,9 +150,9 @@ def check_model(a):
     if 'PILOT_ROOT' not in os.environ:
         return SKIP, 'PILOT_ROOT is not set (source env.sh)'
     otagent = os.environ.get('OTAGENT_ROOT') or str(Path(os.environ['PILOT_ROOT']) / 'code')
-    if not (Path(otagent) / 'data/teacher_ranking_proxy/generate_trajectories.py').exists():
-        return SKIP, (f'OTAGENT_ROOT={otagent} has no data/teacher_ranking_proxy/'
-                      'generate_trajectories.py (source env.sh, or set it to the checkout)')
+    if not (Path(otagent) / 'data/local/run_tracegen.py').exists():
+        return SKIP, (f'OTAGENT_ROOT={otagent} has no data/local/'
+                      'run_tracegen.py (source env.sh, or set it to the checkout)')
     # Resources are submit-time arguments, not header lines: config/clusters.py holds
     # them per cluster (Helma rejects a GPU-partition job without --gres).
     gpus = resolve(a.model)[1].gpus

@@ -42,10 +42,11 @@ mkdir -p "$TMPDIR/apptainer" "$TMPDIR/bridge" "$TMPDIR/runs" "$tasks_src" "$base
 # $base/code overwrite each other's Harbor config (869207 ran with 869209's).
 # The copy also keeps re-staging on /hnvme from changing code under a running job.
 # $OTAGENT_ROOT is the OpenThoughts-Agent checkout that setup.sh pins; this repo
-# only holds the pilot layer, so generation still runs OT-Agent's entry point.
+# holds the experiment wrapper, which calls the official core runner.
 : "${OTAGENT_ROOT:?Set OTAGENT_ROOT to the OpenThoughts-Agent checkout (setup.sh writes it into env.sh)}"
 cp -a "$OTAGENT_ROOT" "$TMPDIR/code"
 repo="$TMPDIR/code"
+cp -a "$here/teacher_traces" "$TMPDIR/teacher_traces"
 export OTAGENT_ROOT="$repo"
 export HARBOR_BRIDGE_VENV="$base/envs/prep"
 export TEACHER_PROXY_VENV="$HARBOR_BRIDGE_VENV"
@@ -259,7 +260,7 @@ common=(--runtime apptainer_bridge --dataset "$dataset" --manifest "$work/manife
 # timeout) before agent trials start. Keep it on; PILOT_ORACLE_CHECK=0 skips it.
 if [[ "${PILOT_ORACLE_CHECK:-1}" == 1 ]]; then
     printf '%s oracle\n' "$(date -Is)" >> "$run/phases.log"
-    TRP_BUILD_TIMEOUT_MULTIPLIER="$PILOT_BUILD_TIMEOUT_MULTIPLIER" python "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --parity-check --apptainer-only > "$run/oracle.log" 2>&1
+    TRP_BUILD_TIMEOUT_MULTIPLIER="$PILOT_BUILD_TIMEOUT_MULTIPLIER" python "$TMPDIR/teacher_traces/generate_trajectories.py" "${common[@]}" --parity-check --apptainer-only > "$run/oracle.log" 2>&1
     cp "$work/parity/parity_report.json" "$run/parity_report.json"
 fi
 attempts=1
@@ -318,7 +319,7 @@ if (( nodes > 1 )); then
         --env VLLM_HOST_IP="$head_ip" "$runtime_sif" \
         bash -c 'echo "serving container sees VLLM_HOST_IP=$VLLM_HOST_IP RAY_ADDRESS=${RAY_ADDRESS:-<unset>}"' >> "$run/ray.log" 2>&1 || true
 fi
-apptainer exec $pid_ns --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env ${RAY_ADDRESS:+--env VLLM_HOST_IP="$head_ip"} ${RAY_ADDRESS:+--env GLOO_SOCKET_IFNAME="$net_iface"} ${RAY_ADDRESS:+--env NCCL_SOCKET_IFNAME="$net_iface"} "$runtime_sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" ${RAY_ADDRESS:+"RAY_ADDRESS=$RAY_ADDRESS"} ${RAY_ADDRESS:+"VLLM_HOST_IP=$head_ip"} "TRP_BUILD_TIMEOUT_MULTIPLIER=$PILOT_BUILD_TIMEOUT_MULTIPLIER" python3 "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
+apptainer exec $pid_ns --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env ${RAY_ADDRESS:+--env VLLM_HOST_IP="$head_ip"} ${RAY_ADDRESS:+--env GLOO_SOCKET_IFNAME="$net_iface"} ${RAY_ADDRESS:+--env NCCL_SOCKET_IFNAME="$net_iface"} "$runtime_sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" ${RAY_ADDRESS:+"RAY_ADDRESS=$RAY_ADDRESS"} ${RAY_ADDRESS:+"VLLM_HOST_IP=$head_ip"} "TRP_BUILD_TIMEOUT_MULTIPLIER=$PILOT_BUILD_TIMEOUT_MULTIPLIER" python3 "$TMPDIR/teacher_traces/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
 generation_pid=$!
 while kill -0 "$generation_pid" 2>/dev/null; do
     if grep -q -E 'Engine core initialization failed|EngineCore failed to start|Fatal Python error:|api_server.py: error:' "$work"/traces/*/apptainer_bridge/experiments/logs/vllm_controller.log 2>/dev/null; then

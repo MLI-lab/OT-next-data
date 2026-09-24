@@ -6,13 +6,12 @@ from pathlib import Path
 import os
 import pytest
 
-# The generation half of the pipeline lives in the pinned OpenThoughts-Agent
-# checkout (see setup.sh); without it only the patcher tests can run.
+# The experiment wrapper is local; its core runner comes from upstream.
 HERE = Path(__file__).resolve().parents[1]
 OTAGENT = Path(os.environ.get('OTAGENT_ROOT', ''))
-if not (OTAGENT / 'data/teacher_ranking_proxy/generate_trajectories.py').exists():
+if not (OTAGENT / 'data/local/run_tracegen.py').exists():
     pytest.skip('set OTAGENT_ROOT to the OpenThoughts-Agent checkout', allow_module_level=True)
-sys.path.insert(0, str(OTAGENT / 'data/teacher_ranking_proxy'))
+sys.path.insert(0, str(HERE / 'teacher_traces'))
 from attempt_summary import summarize_attempts
 import generate_trajectories as gen
 
@@ -218,3 +217,47 @@ def test_archiver_batches_finished_trials_once_and_final_covers_the_rest(tmp_pat
     records = [json.loads(l) for l in out.read_text().splitlines()]
     assert {r['task_id'] for r in records} == {'crosscodeeval-java-1', 'crosscodeeval-java-2'}
     assert all(r['instruction'].startswith('do it') for r in records)
+
+
+def test_official_runner_infers_apptainer_from_wrapper_config(tmp_path, monkeypatch):
+    import argparse
+    import yaml
+
+    spec = importlib.util.spec_from_file_location('upstream_harbor_utils', OTAGENT / 'hpc/harbor_utils.py')
+    upstream = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(upstream)
+    spec = importlib.util.spec_from_file_location('upstream_arg_groups', OTAGENT / 'hpc/arg_groups.py')
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+    run = tmp_path / 'run'
+    run.mkdir()
+    tasks = tmp_path / 'tasks'
+    tasks.mkdir()
+    (tmp_path / 'bin').mkdir()
+    (tmp_path / 'bin/python').touch()
+    monkeypatch.setattr(gen, 'BRIDGE_VENV', tmp_path)
+    monkeypatch.setattr(gen, 'ensure_big_disk_env', lambda: None)
+    monkeypatch.setattr(gen, 'require_runtime', lambda *a: None)
+    monkeypatch.setattr(gen, 'link_sifs_for_bridge', lambda *a: None)
+    monkeypatch.setattr(gen, 'load_manifest', lambda *a: ({}, []))
+    monkeypatch.setattr(gen, 'resolve_sample', lambda *a: ('test', run, ['task']))
+    monkeypatch.setattr(gen, 'materialize_tasks', lambda *a: tasks)
+    monkeypatch.setattr(gen, 'build_harbor_config', lambda *a, **kw: {'environment': {'type': 'apptainer'}})
+    monkeypatch.setattr(gen, 'write_metadata', lambda *a: None)
+    commands = []
+    def launch(cmd, **kwargs):
+        commands.append(cmd)
+        parser = argparse.ArgumentParser()
+        cli.add_harbor_env_arg(parser, default=None)
+        parsed, _ = parser.parse_known_args(cmd[2:])
+        assert parsed.harbor_env is None
+        config = cmd[cmd.index('--harbor_config') + 1]
+        assert upstream.get_harbor_env_from_config(config) == 'apptainer'
+        assert Path(cmd[1]) == gen.REPO_ROOT / 'data/local/run_tracegen.py'
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(gen.subprocess, 'run', launch)
+    args = SimpleNamespace(runtime='apptainer_bridge', manifest='unused', model='test',
+        resume=False, attempts=1, agent='terminus-2', max_turns=None,
+        n_concurrent=1, gpus=1, dry_run=True)
+    assert gen.generate(args, tmp_path) == 0
+    assert len(commands) == 1

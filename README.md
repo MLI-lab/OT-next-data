@@ -11,7 +11,10 @@ launchers, and some Harbor patches, and reports pass@k.
 source env.sh
 ```
 
-Installs fixed versions of OpenThoughts-Agent and the Marin Harbor fork.
+Installs fixed versions of the official [OpenThoughts-Agent](https://github.com/open-thoughts/OpenThoughts-Agent)
+and the Marin Harbor fork. The experiment wrapper and attempt accounting live
+in `teacher_traces/`; no private OT-Agent checkout is required. For an existing
+workspace cloned from the private repository, use a fresh workspace directory.
 Teacher runs use Terminus-2 and require Slurm, Apptainer, model weights, and a
 built runtime image. Cluster scripts are in `hpc/<cluster>/`; Helma is supported.
 

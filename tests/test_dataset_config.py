@@ -66,7 +66,7 @@ def test_submission_forwards_config(tmp_path, monkeypatch, capsys):
     import verify_pipeline
     from types import SimpleNamespace
     checkout = tmp_path/'otagent'
-    entry = checkout/'data/teacher_ranking_proxy/generate_trajectories.py'
+    entry = checkout/'data/local/run_tracegen.py'
     entry.parent.mkdir(parents=True)
     entry.touch()
     monkeypatch.setenv('PILOT_ROOT', str(tmp_path))

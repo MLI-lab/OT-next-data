@@ -12,3 +12,6 @@ runs/
 slurm-*.out
 verify-out/
 .pytest_cache/
+
+# Local official upstream checkout
+external/
