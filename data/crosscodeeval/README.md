@@ -15,6 +15,7 @@ reward for a prefix match, which is what `patch.py` repairs.
 | `tests/test.sh` | **Replaced** to call that verifier. |
 | `tests/prompt.txt` | **Added** for python tasks (the code before the cursor, needed for python truncation). |
 | `instruction.md` | The stale sentence about the old scoring and its partial credit is **removed**; a note that context files exist is added. |
+| `environment/Dockerfile` | The pip install is **pinned** to the versions under which the tasks were validated: `pytest==9.1.1`, `pytest-timeout==2.4.0`. |
 | `solution/solve.sh` | **Added** — the oracle that writes the reference, so a run can prove the sandbox scores a correct answer. |
 
 Tasks are **dropped** when no retrieval variant makes every identifier of the

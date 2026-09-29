@@ -397,3 +397,17 @@ def test_trailing_lone_brace_line_is_optional(tmp_path):
     assert _score(tmp_path / "b3", "csharp", gold, "Mandalore __instance)")["reward"] == 0
     # A reference that is only "{" keeps it (nothing else to compare).
     assert _score(tmp_path / "b4", "typescript", "{", "{")["reward"] == 1
+
+
+def test_pip_installs_are_pinned_and_unknown_packages_fail():
+    dockerfile = ('FROM python:3.10-slim\nRUN apt-get update && apt-get install -y git\n'
+                  'RUN pip install --no-cache-dir pytest pytest-timeout\nRUN mkdir -p /logs/verifier\n')
+    files = {'environment/Dockerfile': dockerfile.encode()}
+    assert patcher.pin_pip_installs(files)
+    pinned = files['environment/Dockerfile'].decode()
+    assert 'RUN pip install --no-cache-dir pytest==9.1.1 pytest-timeout==2.4.0\n' in pinned
+    assert pinned.replace('pytest==9.1.1 pytest-timeout==2.4.0', 'pytest pytest-timeout') == dockerfile
+    assert not patcher.pin_pip_installs(files)          # already pinned: unchanged
+    assert not patcher.pin_pip_installs({'instruction.md': b'no environment'})
+    with pytest.raises(ValueError, match='requests'):
+        patcher.pin_pip_installs({'environment/Dockerfile': b'FROM x\nRUN pip install requests\n'})
