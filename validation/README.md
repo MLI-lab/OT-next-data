@@ -1,22 +1,6 @@
 # Task validation
 
-Combines two protocols:
-
-- The [Terminal-Bench task validation protocol](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/TASK_REVIEW_AUTOMATION.md) at commit `1dcda8716784`, which the stages adapt.
-- The [Agentic RL dataset validation protocol](https://gist.github.com/marianna13/f9bc94d2ecb39c302c6c9b540ea6100a), which adds the following:
-
-| From the Agentic RL protocol | Where |
-| --- | --- |
-| Freeze a validation contract before running: dataset revision, task list, expected rewards, execution profile, minimum task count | the contract, see [Quickstart](#quickstart) |
-| Oracle must pass and the negative control must be rejected, without infrastructure errors | stages 4 and 5 |
-| Preserve evidence, keep failed runs, do not drop failures silently | reports and evidence archive of each run |
-| Freeze how the agent is run: model, prompt, sampling, limits, timeouts, reward implementation | stage 6, run record |
-| pass@1, pass@k, reward distribution, zero-variance groups | stage 6, metrics |
-| Turns, tokens, context usage, latency, throughput, tool calls, terminations, errors, inference resource use | stage 7 |
-
-Not implemented from that protocol: re-testing a published package in a fresh location, and an exclusion ledger with one classified reason per excluded task.
-
-The stages and our changes are described below, followed by setup and usage.
+Combines the [Terminal-Bench task validation protocol](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/TASK_REVIEW_AUTOMATION.md) at commit `1dcda8716784` with the [Agentic RL dataset validation protocol](https://gist.github.com/marianna13/f9bc94d2ecb39c302c6c9b540ea6100a). The stages and our changes are described below, followed by setup and usage.
 
 ## Stage 1: static checks
 
