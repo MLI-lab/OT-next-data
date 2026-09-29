@@ -172,3 +172,10 @@ def test_path_check_ignores_file_names_inside_source_code(tmp_path):
     run_checks([task], out, 'portable')
     assert status(out)['check-task-absolute-path.sh'] == 'failed'
     assert (task / 'instruction.md').read_text().startswith('## Context')      # the task itself is unchanged
+
+
+def test_exclusion_records_its_reason():
+    _, checks, excluded = load_checks('training', exclude=['separate-verifier=shared by design, one file is read', 'nproc,pip-pinning'])
+    assert excluded['check-separate-verifier.sh'] == 'shared by design, one file is read'
+    assert excluded['check-nproc.sh'] == excluded['check-pip-pinning.sh'] == 'explicitly excluded'
+    assert not {'check-separate-verifier.sh', 'check-nproc.sh', 'check-pip-pinning.sh'} & set(checks)

@@ -31,6 +31,21 @@ def wait_ready(url, processes, timeout=120, workers=False):
     raise RuntimeError(f'service readiness timed out: {url}')
 
 
+def free_port(start, attempts=200):
+    """Nodes are shared: another job may already listen on the port derived from the job ID.
+    The model server uses port - 10000, so both must be free."""
+    import socket
+    for port in range(start, start + attempts):
+        try:
+            for candidate in (port, port - 10000):
+                with socket.socket() as probe:
+                    probe.bind(('127.0.0.1', candidate))
+            return port
+        except OSError:
+            continue
+    raise RuntimeError(f'no free port pair found from {start}')
+
+
 def trial_capacity(tasks, args):
     # Reserve both agent and verifier steps: an agent may stay alive while its
     # separate verifier starts, so filling every CPU with agents can deadlock.
@@ -135,7 +150,7 @@ def main(request):
         status['network_mode'] = getattr(args, 'network_mode', 'isolated')
         save(request.parent / 'execution.json', status)
         Path(os.environ['APPTAINER_TMPDIR']).mkdir()
-        port = 40000 + int(os.environ['SLURM_JOB_ID']) % 10000
+        port = free_port(40000 + int(os.environ['SLURM_JOB_ID']) % 10000)
         bridge = f'http://127.0.0.1:{port}'
         os.environ['APPTAINER_BRIDGE_URL'] = bridge
         args.environment_kwargs.update(bridge_url=bridge, sif_cache=str(base / 'images'))

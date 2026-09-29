@@ -901,3 +901,90 @@ def test_task_discovery_layouts_and_incomplete_tasks(tmp_path):
     assert discover_tasks(tasks / 'a') == [tasks / 'a']
     with pytest.raises(ValueError, match='no Harbor tasks'):
         discover_tasks(tasks / '.cache')
+
+
+def test_worker_skips_a_port_that_is_already_in_use():
+    import socket
+    from hpc.helma.validation_worker import free_port
+    with socket.socket() as busy:
+        busy.bind(('127.0.0.1', 0))
+        taken = busy.getsockname()[1]
+        chosen = free_port(taken)
+    assert chosen != taken and taken < chosen < taken + 200
+
+
+def publish_fixture(tmp_path):
+    import io, tarfile
+    import pyarrow as pa, pyarrow.parquet as pq
+    names = ['set-python-0001', 'set-python-0002', 'set-python-0003', 'set-java-0001', 'set-java-0002']
+    def blob(name):
+        data = io.BytesIO()
+        with tarfile.open(fileobj=data, mode='w:gz') as tar:
+            info = tarfile.TarInfo('instruction.md'); body = name.encode(); info.size = len(body)
+            tar.addfile(info, io.BytesIO(body))
+        return data.getvalue()
+    source = tmp_path / 'source'
+    source.mkdir()
+    pq.write_table(pa.table({'path': names, 'task_binary': [blob(n) for n in names]}), source / 'tasks.parquet')
+    contract = {'sha256': 'c' * 64, 'tasks': [{'task_id': n, 'sha256': (n[-1] * 64)} for n in names],
+        'arguments': {'tasks': str(source)}, 'stages': [1, 3, 4, 5],
+        'dataset': {'source': 'example/source', 'revision': 'abc'},
+        'execution_profile': {'backend': 'apptainer', 'architecture': 'x86_64', 'network': 'host'},
+        'success_criteria': {'static_checks': ['check-a.sh'], 'static_exclusions': {'check-b.sh': 'why'}}}
+    def report(stage, items):
+        return {'stage': stage, 'complete': True, 'dry_run': False, 'items': items}
+    check = lambda name, status: {'check': name, 'status': status}
+    reports = {
+        1: report(1, [{'task': n, 'status': 'passed', 'checks': [check('check-a.sh', 'passed')]} for n in names[:4]]
+                     + [{'task': names[4], 'status': 'failed', 'checks': [check('check-a.sh', 'failed')]}]),
+        3: report(3, [{'task': f'/tmp/x/{n}', 'status': 'passed'} for n in names[:4]]),
+        4: report(4, [{'task': '/tmp/x/' + names[0], 'status': 'passed', 'findings': [], 'rewards': [1]},
+                      {'task': '/tmp/x/' + names[1], 'status': 'failed', 'rewards': [0],
+                       'findings': ['t: expected reward 1, got 0']},
+                      {'task': '/tmp/x/' + names[2], 'status': 'failed', 'rewards': [],
+                       'findings': ["t: exception: {'exception_type': 'BridgeOutageError'}"]},
+                      {'task': '/tmp/x/' + names[3], 'status': 'skipped', 'reason': 'no solution/solve.sh'}]),
+        5: report(5, [{'task': '/tmp/x/' + names[0], 'status': 'passed', 'findings': [], 'rewards': [0]}])}
+    return names, contract, reports
+
+
+def test_publish_keeps_archives_and_never_archives_for_a_failed_run(tmp_path):
+    import pyarrow.parquet as pq
+    from validation import publish
+    names, contract, reports = publish_fixture(tmp_path)
+    tables, record, run_file = publish.build(contract, reports, {'set-python': 'set-python-v1'}, run_id='run-1')
+    files = publish.write(tables, record, run_file, tmp_path / 'out')
+    assert files == ['set-java/tasks.parquet', 'set-java/archive.parquet', 'set-python-v1/tasks.parquet',
+                     'set-python-v1/archive.parquet', 'runs/run-1.json']
+    rows = {r['path']: r for f in files[:4] for r in pq.read_table(tmp_path / 'out' / f).to_pylist()}
+    kept = {r['path'] for r in pq.read_table(tmp_path / 'out/set-python-v1/tasks.parquet').to_pylist()}
+    assert kept == {names[0], names[2]}
+    assert rows[names[0]]['stages_passed'] == '1,3,4,5' and rows[names[0]]['archive_stage'] is None
+    assert rows[names[1]]['archive_stage'] == 4 and rows[names[1]]['stages_passed'] == '1,3'
+    assert 'oracle reward [0] instead of 1' == rows[names[1]]['archive_reason']
+    assert rows[names[2]]['stages_passed'] == '1,3' and rows[names[2]]['archive_stage'] is None   # outage: not archived
+    assert rows[names[3]]['archive_stage'] is None                                               # no oracle: not archived
+    assert rows[names[4]]['archive_stage'] == 1 and 'check-a.sh' in rows[names[4]]['archive_reason']
+    assert rows[names[4]]['run'] == 'runs/run-1.json' and rows[names[4]]['content_sha256'] == '2' * 64
+    python = record['data_sources']['set-python-v1']
+    assert (python['tasks'], python['kept'], python['archived']) == (3, 2, 1)
+    assert python['not_run_by_stage'] == {'4': 1, '5': 1} and python['archived_by_stage'] == {'4': 1}
+    text = (tmp_path / 'out/pull-request.md').read_text()
+    assert '| set-python-v1 | 3 | 2 | 1 | 4: 1 |' in text and 'claude' not in text.lower()
+
+
+def test_publish_override_and_carry_over_of_published_state(tmp_path):
+    from validation import publish
+    names, contract, reports = publish_fixture(tmp_path)
+    tables, record, _ = publish.build(contract, reports, {}, not_required=['check-a.sh'], run_id='run-2')
+    assert not tables['set-java'][1] and record['not_required_checks'] == ['check-a.sh']
+    # Same content: an earlier archive decision stands and earlier stages carry over.
+    earlier = {names[0]: {'content_sha256': '1' * 64, 'stages_passed': '1,3', 'archive_stage': 3,
+                          'archive_reason': 'container did not build or start: x', 'run': 'runs/old.json'},
+               names[2]: {'content_sha256': 'changed', 'stages_passed': '1,3,4,5', 'archive_stage': None,
+                          'archive_reason': None, 'run': 'runs/old.json'}}
+    tables, _, _ = publish.build(contract, {1: reports[1]}, {}, previous=lambda folder: earlier, run_id='run-3')
+    archived = {r['path']: r for r in tables['set-python'][1]}
+    kept = {r['path']: r for r in tables['set-python'][0]}
+    assert archived[names[0]]['archive_stage'] == 3 and archived[names[0]]['run'] == 'runs/old.json'
+    assert kept[names[2]]['stages_passed'] == '1'          # changed content starts again

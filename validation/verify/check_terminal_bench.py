@@ -69,6 +69,8 @@ def load_checks(profile, upstream=None, exclude=()):
                 'rubric_review.py': 'LLM rubric review is opt-in via stage 2, never a default static check'}
     inactive = {'rubric_review.py', *CHECKER_UNIT_TESTS}
     for value in exclude:
+        # NAME=reason records why; a reason may contain commas, so it is one item.
+        value, _, reason = value.partition('=')
         for requested in value.split(','):
             requested = requested.strip()
             aliases = {'ai-detection': 'check_ai_detection.py', 'rubric-review': 'rubric_review.py'}
@@ -78,7 +80,7 @@ def load_checks(profile, upstream=None, exclude=()):
                 name = name if name.startswith('check-') else 'check-' + name
             if name not in names and name not in inactive:
                 raise ValueError(f'unknown static check: {requested}; use --list')
-            excluded[name] = ('explicitly excluded' if name in names else
+            excluded[name] = (reason.strip() or 'explicitly excluded' if name in names else
                 'upstream checker unit test, not dataset validation' if name in CHECKER_UNIT_TESTS else
                 'not part of the static suite (LLM review is opt-in)')
     return manifest, [n for n in names if n not in excluded], excluded
@@ -240,7 +242,7 @@ def main():
     ap.add_argument('--limit', type=int)
     ap.add_argument('--timeout', type=int, default=120, help='seconds per static script per task')
     ap.add_argument('--list', action='store_true', help='list included and excluded checks')
-    ap.add_argument('--exclude', action='append', default=[], help='check ID or filename; repeat or comma-separate')
+    ap.add_argument('--exclude', action='append', default=[], help='check ID or filename, optionally NAME=reason; repeat or comma-separate')
     ap.add_argument('--dry-run', action='store_true')
     a = ap.parse_args()
     try:

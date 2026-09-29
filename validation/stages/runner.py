@@ -54,7 +54,7 @@ def parser():
                     help='inclusive task-ID range in lexicographic order; both endpoints must exist')
     ap.add_argument('--static-profile', choices=['training', 'portable', 'terminal-bench'], default='training',
                     help='training skips benchmark submission conventions; terminal-bench explicitly enables them')
-    ap.add_argument('--exclude', action='append', default=[], help='static check ID/filename; repeat or comma-separate')
+    ap.add_argument('--exclude', action='append', default=[], help='static check ID/filename, optionally NAME=reason; repeat or comma-separate')
     ap.add_argument('--submit', choices=['auto', 'helma', 'never'], default='auto', help='submit container stages on Helma when no bridge is active')
     ap.add_argument('--time', help='required Slurm time limit, HH:MM:SS')
     ap.add_argument('--partition', choices=['auto', 'cpu', 'h100', 'h200'], default='auto', help='auto selects CPU for external models, GPU for local serving; CPU outages fall back to h200')
@@ -318,7 +318,9 @@ def run_stage(number, args):
         _, selected, excluded = load_checks(args.static_profile, upstream, args.exclude)
         if not selected:
             raise ValueError('no static checks selected')
-        report.update(checks=selected, excluded_checks=excluded)
+        from validation.verify.check_terminal_bench import ADAPTATIONS
+        report.update(checks=selected, excluded_checks=excluded,
+                      adaptations={name: text for name, text in ADAPTATIONS.items() if name in selected})
         if args.dry_run:
             report['items'] = [{'task': str(t), 'status': 'previewed'} for t in sources]
         else:

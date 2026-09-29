@@ -26,7 +26,7 @@ The path check (`task-absolute-path`) runs on a copy of each task whose `instruc
 
 Resource sizes are checked against upstream’s standard values: **1, 2, 4, 8 or 16 CPUs**, and **1, 2, 4, 8, 16 or 32 GiB RAM** per task/verifier environment. 
 
-Use repeatable `--exclude NAME` for further exclusions, or `--static-profile terminal-bench` for stricter upstream policies (PR changelog remains excluded).
+Use repeatable `--exclude NAME` for further exclusions, or `--exclude "NAME=reason"` to record why, or `--static-profile terminal-bench` for stricter upstream policies (PR changelog remains excluded).
 
 ## Stage 2: LLM rubric review
 
@@ -203,6 +203,32 @@ python validation/dataset_checks.py images /path/to/dataset
 | `isolation` | two containers running at once cannot see each other's files, cgroups or loopback | a bridge; outside a job it submits one |
 
 Under `all`, a failure does not stop later checks unless `--fail-fast` is given, and checks with missing prerequisites are reported as skipped. Outcomes are saved to `verify-out/pipeline-summary.json`. A submitted job is reported as submitted, not as passed.
+
+## Publishing results
+
+`publish.py` turns the reports of one run into a pull request on the dataset [FWeindel/validated-tasks](https://huggingface.co/datasets/FWeindel/validated-tasks). For each data source it writes `tasks.parquet` (kept) and `archive.parquet` (excluded, with the reason), plus one run file with the contract's settings and the counts. Nothing is merged; the pull request is reviewed first.
+
+```bash
+python validation/publish.py /path/to/submission/report \
+  --contract /path/to/contracts/check.json \
+  --folder crosscodeeval-python=crosscodeeval-python-v3 --dry-run
+```
+
+| Stage | Default rule |
+| --- | --- |
+| 1, static checks | archive if any check fails |
+| 3, build | archive if the container does not build or start |
+| 4 and 5, oracle and NOP | archive if the reward is wrong |
+| all others | never archive |
+
+- **A stage that could not run does not archive.** This covers a crashed or skipped trial and a missing or incomplete stage report. The task keeps the stages it has passed.
+- **Excluded checks are not run**, so they cannot archive. Exclude them when preparing the contract, with `--exclude "NAME=reason"`.
+- **`--not-required CHECK`** overrides the stage 1 rule for one check: its failure is recorded in the run file but does not archive.
+- **`--folder PREFIX=FOLDER`** names the data source folder for task IDs that start with `PREFIX`. The default is the task ID without its number.
+- **`--dry-run`** writes the files and the description next to the reports and opens no pull request.
+- **Published state carries over** for tasks whose content is unchanged: stages passed earlier are kept, and an earlier archive decision stands.
+
+Log in to Hugging Face first, with a token that has write access.
 
 ## Quickstart
 
