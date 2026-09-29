@@ -744,8 +744,17 @@ def main():
                     help='where --all downloads the pinned parquets')
     ap.add_argument('--outdir', type=Path, default=Path(os.environ.get('PILOT_ROOT', '.')) / 'patched',
                     help='where --all writes the repaired parquets')
-    ap.add_argument('--archive', required=True)
+    ap.add_argument('--archive', help='the upstream cceval archive; not needed with --pin-only')
+    ap.add_argument('--pin-only', action='store_true',
+                    help='only pin the pip installs of an already patched parquet (--input, --output)')
     a = ap.parse_args()
+    if a.pin_only:
+        if not (a.input and a.output):
+            raise SystemExit('--pin-only needs --input and --output')
+        print(json.dumps(pin_parquet(Path(a.input), Path(a.output))))
+        return
+    if not a.archive:
+        raise SystemExit('--archive is required')
     if a.all:
         originals = load_original(a.archive)
         for lang, (src, published) in fetch_upstream(a.upstream).items():
@@ -756,6 +765,25 @@ def main():
     if not (a.input and a.output):
         raise SystemExit('pass --all, or both --input and --output')
     patch_parquet(Path(a.input), Path(a.output), load_original(a.archive))
+
+
+def pin_parquet(input_path, output_path):
+    """Pin the pip installs of every task; all other files keep their bytes."""
+    table = pq.read_table(input_path)
+    rows = {n: [] for n in table.column_names}
+    pinned = 0
+    for row in table.to_pylist():
+        files = unpack(row['task_binary'])
+        if pin_pip_installs(files):
+            pinned += 1
+            row['task_binary'] = pack(files)
+        for n in rows:
+            rows[n].append(row[n])
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.table(rows, schema=table.schema), output_path)
+    return {'input': str(input_path), 'input_sha256': hashlib.sha256(input_path.read_bytes()).hexdigest(),
+            'output': str(output_path), 'output_sha256': hashlib.sha256(output_path.read_bytes()).hexdigest(),
+            'tasks': table.num_rows, 'pinned': pinned, 'pins': PIP_PINS}
 
 
 def patch_parquet(input_path, output_path, originals):
