@@ -1,0 +1,25 @@
+{
+  "status": "submitted",
+  "command": [
+    "sbatch",
+    "--parsable",
+    "--export=ALL",
+    "--partition=h200",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=8",
+    "--time=00:30:00",
+    "--signal=B:USR1@120",
+    "--output=/home/hpc/y500bb/y500bb12/OT_next_data/validation/results/crosscodeeval/local-qwen38-1-v4/submissions/01acd8dec5d2/slurm-%j.out",
+    "--gres=gpu:h200:1",
+    "/home/hpc/y500bb/y500bb12/OT_next_data/validation/results/crosscodeeval/local-qwen38-1-v4/submissions/01acd8dec5d2/code/hpc/helma/validation.sbatch",
+    "/home/hpc/y500bb/y500bb12/OT_next_data/validation/results/crosscodeeval/local-qwen38-1-v4/submissions/01acd8dec5d2/request.json"
+  ],
+  "allocation": {
+    "partition": "h200",
+    "gpus": 1,
+    "reason": "local model serving or explicit GPU request"
+  },
+  "code_snapshot": "validation/results/crosscodeeval/local-qwen38-1-v4/submissions/01acd8dec5d2/code.tar.gz",
+  "job_id": "915589"
+}

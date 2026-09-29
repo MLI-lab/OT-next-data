@@ -1,0 +1,42 @@
+[
+  {
+    "task_id": "crosscodeeval-csharp-0000",
+    "sha256": "1752822fa13f441ba02ca59aebc48dcf8d37104e1b1b753975043a401ac5bbcc"
+  },
+  {
+    "task_id": "crosscodeeval-csharp-0906",
+    "sha256": "356475a27bf2e279982019351f5a04884deefdb92035751b25a4e55278e07968"
+  },
+  {
+    "task_id": "crosscodeeval-csharp-1767",
+    "sha256": "a2f6fb6e9507ea968517cea3517b733c9748cbb13891af71d3ce860a1a43feb9"
+  },
+  {
+    "task_id": "crosscodeeval-java-0000",
+    "sha256": "3b44c66c72c0a4d17d7c4e8cea65d93047278ac24df58e7b2e4dc3f0bde02397"
+  },
+  {
+    "task_id": "crosscodeeval-java-1070",
+    "sha256": "f4db004cd76002b8ea2baa81180a402ce19dc59dca0709cda4658cc86fb4abb8"
+  },
+  {
+    "task_id": "crosscodeeval-java-2138",
+    "sha256": "e69c678388f8d396b866485ea20258a1c42a21d864ba4a0b6f2b89505d97b586"
+  },
+  {
+    "task_id": "crosscodeeval-python-0000",
+    "sha256": "1c17055bf3b76563623fc26c6b4e03893c634115534167139fe521df4d48aa68"
+  },
+  {
+    "task_id": "crosscodeeval-python-0499",
+    "sha256": "c87a0baf30e79ace254f66812b5f5ae260958b661ffc3eb0f0529860420f90b9"
+  },
+  {
+    "task_id": "crosscodeeval-typescript-0000",
+    "sha256": "7a242a172a8221f3f90b5cdf85be90c94afa763c5fc47c83b65f9febb00bef8a"
+  },
+  {
+    "task_id": "crosscodeeval-typescript-3355",
+    "sha256": "da32fa0180221887c2793832c25cf2f5b318d94e542da5e9d646e449abeefa14"
+  }
+]

@@ -5,3 +5,14 @@ out/
 runs/
 *.parquet
 *.tar.gz
+
+# Local instructions, logs, and check outputs
+.agents/
+*.o[0-9]*
+slurm-*.out
+verify-out/
+validation-out/
+.pytest_cache/
+
+# Local official upstream checkout
+external/

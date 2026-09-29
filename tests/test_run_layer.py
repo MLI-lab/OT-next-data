@@ -6,13 +6,12 @@ from pathlib import Path
 import os
 import pytest
 
-# The generation half of the pipeline lives in the pinned OpenThoughts-Agent
-# checkout (see setup.sh); without it only the patcher tests can run.
+# The experiment wrapper is local; its core runner comes from upstream.
 HERE = Path(__file__).resolve().parents[1]
 OTAGENT = Path(os.environ.get('OTAGENT_ROOT', ''))
-if not (OTAGENT / 'data/teacher_ranking_proxy/generate_trajectories.py').exists():
+if not (OTAGENT / 'data/local/run_tracegen.py').exists():
     pytest.skip('set OTAGENT_ROOT to the OpenThoughts-Agent checkout', allow_module_level=True)
-sys.path.insert(0, str(OTAGENT / 'data/teacher_ranking_proxy'))
+sys.path.insert(0, str(HERE / 'teacher_traces'))
 from attempt_summary import summarize_attempts
 import generate_trajectories as gen
 
@@ -129,12 +128,11 @@ def test_missing_oracles_warn_without_dropping_generation_tasks(tmp_path, monkey
         assert report['status'] == 'skipped_no_oracle_solutions'
 
 
-# --- Helma storage layout: selection rules, node-local trial archiving, exports ---
+# --- Helma storage layout: selection rules, node-local trial archiving ---
 NHR = HERE / 'run'
 sys.path.insert(0, str(NHR))
 import prepare_run
 import archive_trials
-import export_smoke_archive
 
 
 def _manifest():
@@ -212,9 +210,91 @@ def test_archiver_batches_finished_trials_once_and_final_covers_the_rest(tmp_pat
     final_members = {m.name for m in tarfile.open(dest / 'archives/final.tar.gz')}
     assert 'run-x/generation.log' in final_members and 'run-x/tasks/crosscodeeval-java-1/instruction.md' in final_members
     assert not any('__aaa' in m or '__bbb' in m for m in final_members)  # trials live only in batches
-    out = tmp_path / 'export.jsonl'
-    summary = export_smoke_archive.export(export_smoke_archive.expand([dest / 'archives']), out)
-    assert summary['records'] == 2 and sorted(summary['rewards']) == [0, 1]
-    records = [json.loads(l) for l in out.read_text().splitlines()]
-    assert {r['task_id'] for r in records} == {'crosscodeeval-java-1', 'crosscodeeval-java-2'}
-    assert all(r['instruction'].startswith('do it') for r in records)
+
+
+def test_official_runner_infers_apptainer_from_wrapper_config(tmp_path, monkeypatch):
+    import argparse
+    import yaml
+
+    spec = importlib.util.spec_from_file_location('upstream_harbor_utils', OTAGENT / 'hpc/harbor_utils.py')
+    upstream = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(upstream)
+    spec = importlib.util.spec_from_file_location('upstream_arg_groups', OTAGENT / 'hpc/arg_groups.py')
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+    run = tmp_path / 'run'
+    run.mkdir()
+    tasks = tmp_path / 'tasks'
+    tasks.mkdir()
+    (tmp_path / 'bin').mkdir()
+    (tmp_path / 'bin/python').touch()
+    monkeypatch.setattr(gen, 'BRIDGE_VENV', tmp_path)
+    monkeypatch.setattr(gen, 'ensure_big_disk_env', lambda: None)
+    monkeypatch.setattr(gen, 'require_runtime', lambda *a: None)
+    monkeypatch.setattr(gen, 'link_sifs_for_bridge', lambda *a: None)
+    monkeypatch.setattr(gen, 'load_manifest', lambda *a: ({}, []))
+    monkeypatch.setattr(gen, 'resolve_sample', lambda *a: ('test', run, ['task']))
+    monkeypatch.setattr(gen, 'materialize_tasks', lambda *a: tasks)
+    monkeypatch.setattr(gen, 'build_harbor_config', lambda *a, **kw: {'environment': {'type': 'apptainer'}})
+    monkeypatch.setattr(gen, 'write_metadata', lambda *a: None)
+    commands = []
+    def launch(cmd, **kwargs):
+        commands.append(cmd)
+        parser = argparse.ArgumentParser()
+        cli.add_harbor_env_arg(parser, default=None)
+        parsed, _ = parser.parse_known_args(cmd[2:])
+        assert parsed.harbor_env is None
+        config = cmd[cmd.index('--harbor_config') + 1]
+        assert upstream.get_harbor_env_from_config(config) == 'apptainer'
+        assert Path(cmd[1]) == gen.REPO_ROOT / 'data/local/run_tracegen.py'
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(gen.subprocess, 'run', launch)
+    args = SimpleNamespace(runtime='apptainer_bridge', manifest='unused', model='test',
+        resume=False, attempts=1, agent='terminus-2', max_turns=None,
+        n_concurrent=1, gpus=1, dry_run=True)
+    assert gen.generate(args, tmp_path) == 0
+    assert len(commands) == 1
+
+
+@pytest.mark.parametrize('protocol_fails', [False, True])
+def test_generation_requires_saved_protocol_before_launch(tmp_path, monkeypatch, protocol_fails):
+    import subprocess
+    from types import SimpleNamespace
+    run = tmp_path / 'run'
+    tasks = run / 'tasks'
+    tasks.mkdir(parents=True)
+    monkeypatch.setattr(gen, 'ensure_big_disk_env', lambda: None)
+    monkeypatch.setattr(gen, 'require_runtime', lambda *a: None)
+    monkeypatch.setattr(gen, 'VENV', Path(sys.executable).parent.parent)
+    monkeypatch.setattr(gen, 'load_manifest', lambda *a: ({}, []))
+    monkeypatch.setattr(gen, 'resolve_sample', lambda *a: ('test', run, ['task']))
+    monkeypatch.setattr(gen, 'materialize_tasks', lambda *a: tasks)
+    monkeypatch.setattr(gen, 'build_harbor_config', lambda *a, **kw: {'environment': {'type': 'docker'}})
+    monkeypatch.setattr(gen, 'write_metadata', lambda *a: None)
+    monkeypatch.delenv('TRP_PROTOCOL_DIR', raising=False)
+    calls = []
+    def launch(cmd, **kwargs):
+        if 'generation_protocol.py' in cmd[1]:
+            calls.append('protocol')
+            assert kwargs['check'] is True
+            if protocol_fails:
+                raise subprocess.CalledProcessError(1, cmd)
+            path = Path(cmd[cmd.index('--out') + 1])
+            path.mkdir(parents=True)
+            (path / 'protocol.json').write_text('{"sha256":"frozen"}')
+        else:
+            assert calls == ['protocol']
+            assert list(run.glob('traces/*/*/protocol-references/*.json'))
+            calls.append('generation')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(gen.subprocess, 'run', launch)
+    args = SimpleNamespace(runtime='docker', manifest='unused', model='test',
+        resume=False, attempts=1, agent='terminus-2', max_turns=None,
+        n_concurrent=1, gpus=1, dry_run=False, seed=42)
+    if protocol_fails:
+        with pytest.raises(subprocess.CalledProcessError):
+            gen.generate(args, tmp_path)
+        assert calls == ['protocol']
+    else:
+        assert gen.generate(args, tmp_path) == 0
+        assert calls == ['protocol', 'generation']

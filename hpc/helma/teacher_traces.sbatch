@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=cceval-pilot
+#SBATCH --job-name=teacher-traces
 #SBATCH --partition=h200
 # The GPU count is passed at submit time, because `strong` needs four and `weak` one:
 #   sbatch --gres=gpu:h200:1 hpc/helma/teacher_traces.sbatch weak diag
@@ -16,14 +16,21 @@ set -euo pipefail
 : "${PILOT_ROOT:?Use the Helma /hnvme workspace}"
 : "${TMPDIR:?Node-local SSD required}"
 # Slurm runs a copy of this script from /var/tmp, so the repo cannot be derived
-# from its own path: env.sh exports OT_NEXT_DATA, and verify_pipeline.py passes it.
+# from its own path: env.sh exports OT_NEXT_DATA, and teacher_traces/submit.py passes it.
 here=${OT_NEXT_DATA:?Set OT_NEXT_DATA to the OT_next_data checkout (source env.sh)}
 test -f "$here/run/prepare_run.py" || { echo "OT_NEXT_DATA=$here is not the repo" >&2; exit 2; }
 mode=${1:?model key or alias, see config/models.py}
 stage=${2:-smoke}
 case "$stage" in smoke|diag|sweep|full) ;; *) echo "unknown stage $stage" >&2; exit 2 ;; esac
 base=$PILOT_ROOT
-run_id="crosscodeeval-$mode-$stage-$SLURM_JOB_ID"
+dataset_config=${3:-${PILOT_DATASET_CONFIG:-}}
+prepare_args=()
+dataset=crosscodeeval
+if [[ -n "$dataset_config" ]]; then
+    dataset=$(PYTHONPATH="$here" python3 -c 'import sys; from run.dataset_config import load_dataset; print(load_dataset(sys.argv[1])["dataset"])' "$dataset_config")
+    prepare_args=(--dataset-config "$dataset_config")
+fi
+run_id="$dataset-$mode-$stage-$SLURM_JOB_ID"
 run="$base/runs/$run_id"
 work="$TMPDIR/runs/$run_id"
 tasks_src="$TMPDIR/tasks-src"
@@ -35,10 +42,11 @@ mkdir -p "$TMPDIR/apptainer" "$TMPDIR/bridge" "$TMPDIR/runs" "$tasks_src" "$base
 # $base/code overwrite each other's Harbor config (869207 ran with 869209's).
 # The copy also keeps re-staging on /hnvme from changing code under a running job.
 # $OTAGENT_ROOT is the OpenThoughts-Agent checkout that setup.sh pins; this repo
-# only holds the pilot layer, so generation still runs OT-Agent's entry point.
+# holds the experiment wrapper, which calls the official core runner.
 : "${OTAGENT_ROOT:?Set OTAGENT_ROOT to the OpenThoughts-Agent checkout (setup.sh writes it into env.sh)}"
 cp -a "$OTAGENT_ROOT" "$TMPDIR/code"
 repo="$TMPDIR/code"
+cp -a "$here/teacher_traces" "$TMPDIR/teacher_traces"
 export OTAGENT_ROOT="$repo"
 export HARBOR_BRIDGE_VENV="$base/envs/prep"
 export TEACHER_PROXY_VENV="$HARBOR_BRIDGE_VENV"
@@ -56,6 +64,11 @@ export APPTAINER_NO_MOUNT=hostfs,bind-paths,cwd
 # The runtime container gets its own PID namespace (--pid): `ray stop` in one
 # job otherwise kills the raylets of another job sharing the node (868633/868634).
 unset APPTAINER_BIND APPTAINER_BINDPATH SINGULARITY_BIND SINGULARITY_BINDPATH
+# Explicit cloud-agent networking uses the same Helma proxy as validation.
+# The common bridge worker forwards these variables and supplies container DNS.
+if [[ "${PILOT_NET_ISOLATION:-1}" == "0" ]]; then
+    source "$here/hpc/helma/proxy.sh"
+fi
 # Serving libraries need writable caches despite HOME being hidden in the image.
 export XDG_CACHE_HOME="$TMPDIR/serving-cache"
 export VLLM_CACHE_ROOT="$XDG_CACHE_HOME/vllm" TRITON_CACHE_DIR="$XDG_CACHE_HOME/triton"
@@ -132,16 +145,21 @@ for path in Path(sys.argv[1]).rglob('*.yaml'):
     if kept != lines:
         path.write_text(''.join(kept))
 PYFILTER
-python "$here/run/prepare_run.py" "$run_id" "$mode" "$stage" --work "$work" --tasks-src "$tasks_src" --concurrency "$PILOT_CONCURRENCY" --max-num-seqs "$PILOT_MAX_NUM_SEQS"
+python "$here/run/prepare_run.py" "$run_id" "$mode" "$stage" --work "$work" --tasks-src "$tasks_src" --concurrency "$PILOT_CONCURRENCY" --max-num-seqs "$PILOT_MAX_NUM_SEQS" "${prepare_args[@]}"
 # Extract only the selected tasks from the single compressed dataset.
 python - "$run/sampled_task_ids.json" > "$run/task-members.txt" <<'PY'
 import json, sys
 for task in json.load(open(sys.argv[1]))['task_ids']:
     print(f'tasks/{task}')
 PY
-tar -xzf "$base/tasks/selection1000.tar.gz" -C "$tasks_src" --strip-components=1 -T "$run/task-members.txt"
+task_archive=$(python -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["task_archive"])' "$run/manifest.jsonl")
+tar -xzf "$task_archive" -C "$tasks_src" --strip-components=1 -T "$run/task-members.txt"
 test "$(find "$tasks_src" -mindepth 1 -maxdepth 1 -type d | wc -l)" = "$(wc -l < "$run/task-members.txt")"
 export TRP_DATAGEN_YAML="$run/serving.yaml" TRP_HARBOR_TEMPLATE="$run/harbor-template.yaml"
+# Persist the prelaunch generation contract even if the node dies mid-run.
+export TRP_PROTOCOL_DIR="$run/generation-protocols"
+python "$here/teacher_traces/generation_protocol.py" --snapshot-launcher "$here" --out "$run/launcher-source.tar.gz"
+export TRP_LAUNCHER_RECORD="$run/launcher-source.tar.json"
 model=$(cat "$run/model-path")
 test -f "$model/download_complete.json" || { echo "$model has no download_complete.json: the weights are missing or the download did not finish (python config/models.py --download $mode)" >&2; exit 2; }
 # Check every weight shard referenced by the downloaded index before serving.
@@ -245,13 +263,13 @@ if (( nodes > 1 )) && [[ "${PILOT_EXTERNAL_WORKERS:-0}" == 0 ]]; then
     pids+=("$!")
     sleep 10   # let them register before the first trial is handed out
 fi
-python "$here/verify/check_bridge.py" "$work" > "$run/isolation.log" 2>&1
-common=(--runtime apptainer_bridge --dataset crosscodeeval --manifest "$work/manifest.jsonl" --sample-file "$work/sampled_task_ids.json" --run-id "$run_id")
+python "$here/validation/verify/check_bridge.py" "$work" > "$run/isolation.log" 2>&1
+common=(--runtime apptainer_bridge --dataset "$dataset" --manifest "$work/manifest.jsonl" --sample-file "$work/sampled_task_ids.json" --run-id "$run_id")
 # The oracle stage also warms the task container images (SIF build with an 8x
 # timeout) before agent trials start. Keep it on; PILOT_ORACLE_CHECK=0 skips it.
 if [[ "${PILOT_ORACLE_CHECK:-1}" == 1 ]]; then
     printf '%s oracle\n' "$(date -Is)" >> "$run/phases.log"
-    TRP_BUILD_TIMEOUT_MULTIPLIER="$PILOT_BUILD_TIMEOUT_MULTIPLIER" python "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --parity-check --apptainer-only > "$run/oracle.log" 2>&1
+    TRP_BUILD_TIMEOUT_MULTIPLIER="$PILOT_BUILD_TIMEOUT_MULTIPLIER" python "$TMPDIR/teacher_traces/generate_trajectories.py" "${common[@]}" --parity-check --apptainer-only > "$run/oracle.log" 2>&1
     cp "$work/parity/parity_report.json" "$run/parity_report.json"
 fi
 attempts=1
@@ -310,7 +328,7 @@ if (( nodes > 1 )); then
         --env VLLM_HOST_IP="$head_ip" "$runtime_sif" \
         bash -c 'echo "serving container sees VLLM_HOST_IP=$VLLM_HOST_IP RAY_ADDRESS=${RAY_ADDRESS:-<unset>}"' >> "$run/ray.log" 2>&1 || true
 fi
-apptainer exec $pid_ns --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env ${RAY_ADDRESS:+--env VLLM_HOST_IP="$head_ip"} ${RAY_ADDRESS:+--env GLOO_SOCKET_IFNAME="$net_iface"} ${RAY_ADDRESS:+--env NCCL_SOCKET_IFNAME="$net_iface"} "$runtime_sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" ${RAY_ADDRESS:+"RAY_ADDRESS=$RAY_ADDRESS"} ${RAY_ADDRESS:+"VLLM_HOST_IP=$head_ip"} "TRP_BUILD_TIMEOUT_MULTIPLIER=$PILOT_BUILD_TIMEOUT_MULTIPLIER" python3 "$repo/data/teacher_ranking_proxy/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
+apptainer exec $pid_ns --nv --home "$TMPDIR/serving-home:$HOME" --bind "$TMPDIR:$TMPDIR" --bind "$base:$base" --env HARBOR_BRIDGE_VENV=/opt/pilot-env --env TEACHER_PROXY_VENV=/opt/pilot-env ${RAY_ADDRESS:+--env VLLM_HOST_IP="$head_ip"} ${RAY_ADDRESS:+--env GLOO_SOCKET_IFNAME="$net_iface"} ${RAY_ADDRESS:+--env NCCL_SOCKET_IFNAME="$net_iface"} "$runtime_sif" env "APPTAINER_BRIDGE_URL=$APPTAINER_BRIDGE_URL" "TRP_RUNS_DIR=$TRP_RUNS_DIR" "TRP_API_PORT=$TRP_API_PORT" "TRP_RAY_PORT=$TRP_RAY_PORT" ${RAY_ADDRESS:+"RAY_ADDRESS=$RAY_ADDRESS"} ${RAY_ADDRESS:+"VLLM_HOST_IP=$head_ip"} "TRP_BUILD_TIMEOUT_MULTIPLIER=$PILOT_BUILD_TIMEOUT_MULTIPLIER" python3 "$TMPDIR/teacher_traces/generate_trajectories.py" "${common[@]}" --model "$model" --gpus "$gpus" --attempts "$attempts" --n-concurrent "$PILOT_CONCURRENCY" --agent "${PILOT_AGENT:-terminus-2}" > "$run/generation.log" 2>&1 &
 generation_pid=$!
 while kill -0 "$generation_pid" 2>/dev/null; do
     if grep -q -E 'Engine core initialization failed|EngineCore failed to start|Fatal Python error:|api_server.py: error:' "$work"/traces/*/apptainer_bridge/experiments/logs/vllm_controller.log 2>/dev/null; then

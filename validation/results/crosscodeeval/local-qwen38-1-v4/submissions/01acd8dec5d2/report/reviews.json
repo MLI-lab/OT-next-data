@@ -1,0 +1,169 @@
+{
+  "stage": 2,
+  "tasks": [
+    {
+      "task_id": "crosscodeeval-csharp-0000",
+      "status": "findings",
+      "implementation": {
+        "attempts": [
+          {
+            "criteria": {
+              "verifiable": {
+                "outcome": "pass",
+                "explanation": "The verifier (tests/cceval_verifier.py) is a deterministic, programmatic exact-match scorer with no network installs and no LLM-as-a-judge; re-running it on identical inputs always yields the same result. Minor caveat: test.sh references /tests/prompt.txt which is not shipped, but the verifier treats a missing prompt as an empty string for C# so behavior stays deterministic."
+              },
+              "solvable": {
+                "outcome": "fail",
+                "explanation": "A working solution is provided (solve.sh copies solution_snippet.txt to /app/solution.txt), but the reference fragment does NOT match what the instruction's target snippet requires. The instruction ends at 'public Dictionary<string,' inside ConfigProvider.GetLassoProfiles(), yet the reference answer is 'LassoProfile> GetLassoProfiles()\n{' \u2014 the completion of the interface declaration in context file 000, not of the shown class body. An agent following the instruction would write something like ' LassoProfile> GetLassoProfiles()' and fail the exact-match check, so the provided solution does not actually pass the task as instructed."
+              },
+              "difficult": {
+                "outcome": "fail",
+                "explanation": "This is a single-line C# completion whose answer is directly stated in the provided context (interface IConfigProvider declares 'Dictionary<string, LassoProfile> GetLassoProfiles();'). It requires only basic C# familiarity and pattern matching, well within what an average undergraduate can do in minutes, not the professional/domain expertise the rubric demands."
+              },
+              "interesting": {
+                "outcome": "fail",
+                "explanation": "The task is a synthetic benchmark-derivative exercise (a CrossCodeEval line-completion sample) wrapped in heavy bash-quoting hand-holding. There is no realistic professional scenario where someone gets paid to produce this specific 2-line continuation; it is a contrived evaluation artifact, not a real-world problem with marginal utility."
+              },
+              "outcome_verified": {
+                "outcome": "fail",
+                "explanation": "The instruction devotes most of its length to prescribing HOW to act \u2014 a step-by-step bash procedure, a mandated helper command (write_solution), and explicit WRONG/RIGHT examples \u2014 rather than simply stating the end state ('complete the cut-off fragment and write it to /app/solution.txt'). This is process over-specification; the tests verify the output file, but the instructions are dominated by procedural constraints instead of describing only the goal."
+              },
+              "anti_cheat_robustness": {
+                "outcome": "pass",
+                "explanation": "The ground-truth answer lives in tests/solution.txt, which is outside the agent's accessible paths (/app, /setup_files/context, environment image). The answer is also derivable from the provided context file 000, so there is no leaked oracle blob in the agent image and no trivial shortcut beyond solving the actual (easy) completion. No mutable external resources are involved."
+              },
+              "task_security": {
+                "outcome": "pass",
+                "explanation": "All files contain only legitimate code: the Dockerfile installs git/pytest, write_solution.sh writes one file, solve.sh copies a file, and the verifier computes a score. There is no credential exfiltration, network transmission, obfuscated payload, prompt injection, host escape, or destructive operation anywhere in the task."
+              },
+              "functional_verification": {
+                "outcome": "pass",
+                "explanation": "The verifier executes its metric code against the prediction and reference files and checks the resulting normalized statement lines (an outcome/content comparison), rather than grepping the agent's source for keywords or imports. Although the underlying metric is a string comparison, it operates on produced output artifacts, not on scanning source for patterns."
+              },
+              "deterministic_reproducible": {
+                "outcome": "pass",
+                "explanation": "The verifier uses only the Python standard library (ast, difflib, re, json, keyword), requires no live services, and performs no stochastic operations; given fixed prediction/reference inputs it produces identical results every run. No unpinned or mutable dependencies affect the outcome."
+              },
+              "essential_difficulty": {
+                "outcome": "fail",
+                "explanation": "The core challenge is reading a short C# interface/class excerpt and emitting the obvious next line \u2014 genuine reasoning content is minimal. Meanwhile the bulk of the instruction spends effort on formatting/clerical minutiae (bash quoting, escaping single quotes, avoiding literal \n), so most real failure risk comes from clerical details rather than the conceptual problem."
+              },
+              "test_instruction_alignment": {
+                "outcome": "fail",
+                "explanation": "There is a mismatch between what the instruction asks and what the test rewards: the instruction shows a target snippet ending at 'public Dictionary<string,' in the ConfigProvider class body, but the reference the test compares against completes the interface declaration (context file 000). A faithful completion of the shown snippet will not equal the reference, so the tested requirement does not align with the described one."
+              },
+              "novel": {
+                "outcome": "fail",
+                "explanation": "This is a standard textbook-style code-completion exercise drawn from a public benchmark (CrossCodeEval, commit pinned in the verifier). The pattern \u2014 complete the next line of a familiar C# method \u2014 is widely represented in training corpora and can be short-circuited by memorization/general competence rather than novel reasoning."
+              },
+              "agentic": {
+                "outcome": "fail",
+                "explanation": "The task is solvable in essentially one step: read the snippet, decide the one-line continuation, and write it to /app/solution.txt. It requires no multi-step environment exploration, debugging, tool orchestration, or iterative adaptation, so it does not exercise agentic capabilities beyond a single generation plus a file write."
+              },
+              "reviewable": {
+                "outcome": "fail",
+                "explanation": "A non-specialist reviewer cannot verify correctness because there is no README.md providing any explanation, and the expected answer is hardcoded (tests/solution.txt) without derivation. Worse, the reference does not obviously correspond to the instruction's target snippet, so even a careful reviewer cannot confirm the task is self-consistent without domain guesswork."
+              },
+              "instruction_concision": {
+                "outcome": "fail",
+                "explanation": "The instruction is long and bloated with unnecessary headings, a heavily prescriptive bash tutorial, multiple WRONG/RIGHT examples, and step-by-step procedures. It hints at the exact approach (use write_solution, single-quote the fragment) rather than concisely stating the goal, and reads more like generated scaffolding than a tight human-written brief."
+              },
+              "solution_quality": {
+                "outcome": "fail",
+                "explanation": "solve.sh simply copies a pre-written fragment (solution_snippet.txt) into /app/solution.txt; it does not derive the answer through any computation or reasoning an agent would perform. For a completion task the 'genuine computation' is the inference itself, and the solution bypasses it by echoing the final answer, while also failing to match the instruction's target snippet."
+              },
+              "separate_verifier_configured": {
+                "outcome": "not_applicable",
+                "explanation": "The task is not in separate-verifier mode: there is no tests/Dockerfile, no environment_mode setting, and no top-level artifacts list. The verifier runs in the shared container reading /app/solution.txt and /tests/*, so the separate-verifier conversion criteria (baked verifier tooling, declared artifacts, byte-matched duplicated assets) do not apply."
+              },
+              "environment_hygiene": {
+                "outcome": "fail",
+                "explanation": "The agent image (environment/Dockerfile) installs pytest and pytest-timeout, which are test-only dependencies that belong in a verifier image, not the agent's runtime. Additionally there is no tests/Dockerfile to own /tests/* and its deps, so the separation of agent vs verifier concerns is not honored. (apt handling itself is done correctly with update + list cleanup.)"
+              },
+              "structured_data_schema": {
+                "outcome": "not_applicable",
+                "explanation": "The expected output is a free-form C# code fragment written to /app/solution.txt, not a structured format such as JSON/CSV/API/database schema. There is no structured-output schema to document, so this criterion does not apply."
+              },
+              "typos": {
+                "outcome": "fail",
+                "explanation": "test.sh passes --prompt /tests/prompt.txt, but no prompt.txt file exists anywhere in the task (only cceval_verifier.py, solution.txt, and test.sh are present in tests/). This is a broken path reference in a critical command. (It is masked at runtime because the verifier tolerates a missing prompt for C#, but it is still a defect in a named path.)"
+              },
+              "difficulty_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "There is no README.md at all, so the required '## Difficulty explanation' section is entirely missing. A missing/empty template section counts as a missing explanation under the rubric."
+              },
+              "solution_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "There is no README.md, so the required '## Solution explanation' section is missing. No high-level strategy or key insight is documented for a reviewer to understand the approach behind solve.sh."
+              },
+              "verification_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "There is no README.md, so the required '## Verification explanation' section is missing. Nothing documents how the exact-match-on-first-statement check determines correctness or why that strategy is sufficient, despite the verifier having non-obvious truncation/comment-stripping behavior worth explaining."
+              },
+              "category_and_tags": {
+                "outcome": "fail",
+                "explanation": "category is set to 'sandbox', which is not one of the seven allowed domains (Science, Software, ML, Operations, Security, Hardware, Media); a C# coding task should be 'Software'. subcategory is absent, and tags = ['sandbox'] is generic and irrelevant rather than descriptive (e.g., csharp, code-completion)."
+              },
+              "task_name": {
+                "outcome": "fail",
+                "explanation": "The folder name 'crosscodeeval-csharp-0000' is four hyphen-separated tokens, exceeding the three-word maximum, and the trailing '-0000' index plus the benchmark-provenance prefix make it a generic batch identifier rather than a concise, descriptive slug of the actual challenge."
+              },
+              "resource_configuration": {
+                "outcome": "pass",
+                "explanation": "The configured timeouts (agent 900s, verifier 720s) are reasonable for a trivial task, and no excessive CPUs/memory/storage/GPUs are requested; difficulty clearly does not stem from computational intensity. The values are adequate for the task's actual (minimal) requirements."
+              },
+              "task_readme": {
+                "outcome": "fail",
+                "explanation": "No README.md exists in the task directory, so none of the required sections (Difficulty explanation, Solution explanation, Verification explanation, Relevant experience) nor a task metadata summary are present."
+              },
+              "expert_time_estimate": {
+                "outcome": "fail",
+                "explanation": "The expert_time_estimate_hours field is absent from task.toml (equivalent to the 0/default-unchanged case). No plausible best-case human time estimate is provided for the task."
+              },
+              "task_toml_schema": {
+                "outcome": "fail",
+                "explanation": "task.toml contains invented/non-standard fields: 'difficulty' and 'category=sandbox' under [metadata] (category is not a valid domain value and difficulty is not a recognized field), and 'restart_environment' under [verifier], which is not a valid Harbor field. These extra/invented fields violate the schema."
+              },
+              "no_extraneous_files": {
+                "outcome": "fail",
+                "explanation": "The hidden file .laion_v4_patched is leftover cruft that nothing references, and it is actively misleading \u2014 it claims a '4-tier forgiving verifier (exact / startswith / leading-identifier / non-empty-partial)' while the actual verifier performs exact-match only. metadata.json is also largely empty (blank task_id/repo/file_path) and unreferenced."
+              },
+              "artifact_efficiency": {
+                "outcome": "not_applicable",
+                "explanation": "The task is not in separate-verifier mode and defines no artifacts; the deliverable is inherently a tiny agent-produced file (/app/solution.txt). There is no large build-time-fixed tree or dependency directory being shipped, so the artifact-efficiency criteria do not apply."
+              },
+              "verifier_execution_isolation": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier never executes agent-produced code \u2014 it only reads and parses the text file /app/solution.txt and compares it to the reference. Because there is no execution of agent artifacts (no running a binary/script or importing agent modules), the unprivileged-execution and reward-channel-isolation requirements do not apply."
+              },
+              "ctrf_reporting": {
+                "outcome": "fail",
+                "explanation": "The verifier is a bespoke gate that performs a series of discrete, named checks (statement exact-match, edit similarity, identifier EM/precision/recall/F1) yet collapses them into a single bare reward and writes no CTRF report to /logs/verifier/ctrf.json. It does not use pytest (which is installed but unused), so per-test granularity is thrown away when it could be reported."
+              },
+              "do_not_modify_enforced": {
+                "outcome": "not_applicable",
+                "explanation": "The instruction contains no constraint forbidding modification of a concrete artifact (no 'do not modify', 'keep unchanged', 'read-only', etc. naming a specific file/config/table). It only constrains the format of the output fragment, which is out of scope for this criterion."
+              },
+              "binary_reward": {
+                "outcome": "pass",
+                "explanation": "Every reachable reward write emits exactly 0 or 1: reward.txt is written as the em value where em_label = int(pred_lines == gt_lines), and reward.json's 'reward' field is the same int. Continuous metrics (es, id_f1, etc.) are reported separately and never used as the reward value."
+              }
+            }
+          }
+        ]
+      },
+      "proposal": {
+        "status": "findings",
+        "decision": "Reject",
+        "reviews": [
+          {
+            "decision": "Reject",
+            "review": "Problem statement: Given a C# code snippet from LassoProcessManager's ConfigProvider class that ends mid-declaration on `public Dictionary<string,`, the agent must determine the correct short continuation (1-3 lines, 20-200 chars) by examining cross-file context provided under /setup_files/context/, and write that fragment to /app/solution.txt using a helper script.\n\nVerifiable: The task claims the verifier reads ONLY /app/solution.txt and checks the content. However, the exact expected output is not specified anywhere in the instruction. The verifier presumably does an exact or near-exact string match against a known-correct continuation. This raises serious concerns: (1) if the verifier requires exact string match including whitespace, capitalization, and formatting, then multiple valid completions (e.g., different generic type arguments, different method signatures that would compile) would be rejected; (2) if the verifier is more lenient (e.g., checking semantic equivalence), that approach is harder to make reliable. The instruction says the continuation is 'typically 1-3 lines and 20-200 characters' but does not specify what the correct answer IS. The worked example shows a DIFFERENT completion than what the actual snippet would require, which is confusing. Without seeing the actual verifier, it is unclear whether the verification is reliable and whether it would accept all correct solutions while rejecting incorrect ones. The absence of the context files in the current environment also makes it impossible to verify solvability. Judgement: Reject - the verification mechanism is not clearly defined and exact-match verification of code snippets is fragile.\n\nWell-specified: The instruction is overly long and repetitive for what is essentially a one-line code completion task. It spends enormous space on bash quoting pitfalls (WRONG vs RIGHT examples) rather than on specifying what the correct answer should be. The actual specification of the task - what the correct continuation is - depends entirely on the context files which are referenced but not included in the instruction itself. The instruction says 'Inspect them when deciding the missing continuation' but provides no guidance on how to use them. A well-specified task should allow two reasonable people to arrive at the same verification algorithm; here, without the context files and without explicit specification of the expected output format, this is uncertain. The instruction is also inconsistent: it shows a worked example with a different completion than what the actual snippet would produce, which could mislead the agent. Judgement: Reject - the core specification (what the correct answer is) is delegated to external context files, and the instruction is bloated with irrelevant bash-quoting guidance.\n\nSolvable: In principle, yes - if the context files contain enough information to determine the exact dictionary key/value types and method signature, an experienced C# developer could figure out the continuation. However, the solvability depends entirely on the quality and completeness of the context files, which are not present in this environment. The instruction acknowledges they 'may be incomplete and may begin or end in the middle of a file.' If the context is insufficient, the task becomes unsolvable or requires guessing. There is no compelling argument shown that the context is sufficient to uniquely determine the answer. Judgement: Uncertain - likely solvable if context is good, but unproven.\n\nDifficult: This is the most significant concern. Completing a single line of C# code given cross-file context is a routine task for any experienced C# developer. It is equivalent to what IDE auto-completion does. An average undergraduate who has taken an introductory C# course could likely solve this in minutes. The task does not require significant professional experience, PhD-level knowledge, or several years of domain expertise. The difficulty is primarily in reading the context files and understanding the codebase structure, which is a basic software engineering skill. The bash-quoting instructions add trivial mechanical complexity but do not constitute genuine difficulty. This is far below the bar of 'any task that could be solved by an average undergraduate student in under a few days is too easy.' Judgement: Strong Reject - this task is not sufficiently difficult.\n\nInteresting: Code completion is a real and valuable task in software development - it is literally what Copilot and similar tools do. However, as a benchmark task, completing a single line of a well-known open-source project's code is not particularly interesting. The real-world utility is minimal because modern IDEs and AI assistants already handle this trivially. The task does not test any deep reasoning, complex problem-solving, or novel capability. It is a straightforward pattern-matching exercise. Judgement: Reject - while code completion is useful in general, this specific instance is too trivial to be interesting as a benchmark task.\n\nOutcome-verified: The task asks for a specific output (the continuation fragment in /app/solution.txt), which is outcome-based rather than process-based. The agent is free to use any method to determine the answer. However, the heavy emphasis on HOW to write the file (using write_solution vs printf, single-quoting rules, etc.) borders on process verification. The instruction spends more time on the mechanics of writing the file than on the actual coding challenge. That said, the final check is on the file content, so it is technically outcome-verified. Judgement: Accept - the verification is on the output file content, though the instruction over-emphasizes the writing mechanism.\n\nFinal analysis: The primary fatal flaw is difficulty. This is a single-line C# code completion task that any experienced developer (or even a competent undergraduate) could solve in minutes given the right context. It does not meet the TB bar of requiring significant professional experience or domain expertise. Secondary concerns include: (1) the verification mechanism is not clearly specified - exact string matching of code is fragile; (2) the instruction is bloated with bash-quoting guidance that distracts from the actual task; (3) the worked example shows a different answer than the actual task, creating confusion; (4) the context files are not present, making solvability unverifiable. While the task is realistic (code completion is a real task) and technically verifiable, it fails the difficulty criterion decisively. A task that tests whether an agent can complete one line of a C# dictionary declaration is not 'very hard to solve' in any meaningful sense. This appears to be a template-generated task from the CrossCodeEval dataset, and while those datasets are useful for training, individual instances like this are too easy for TB.\n\nDecision: Reject"
+          }
+        ]
+      },
+      "findings": [],
+      "error": null
+    }
+  ]
+}

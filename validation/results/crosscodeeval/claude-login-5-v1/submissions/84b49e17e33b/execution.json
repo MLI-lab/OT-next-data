@@ -1,0 +1,8 @@
+{
+  "status": "findings",
+  "job_id": "915546",
+  "contract_sha256": "0911d0b5553d43eacf7a992e802e44223483d0c635042af886d52eaeca9b41dd",
+  "network_mode": "host",
+  "exit_code": 1,
+  "evidence": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/results/crosscodeeval/claude-login-5-v1/submissions/84b49e17e33b/evidence.tar.gz"
+}

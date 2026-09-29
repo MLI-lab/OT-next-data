@@ -1,0 +1,1135 @@
+{
+  "stage": 3,
+  "name": "build_validation",
+  "upstream": {
+    "terminal-bench": {
+      "url": "https://github.com/harbor-framework/terminal-bench.git",
+      "commit": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "sparse": [
+        "scripts",
+        "docs",
+        ".github"
+      ]
+    },
+    "harbor-validation": {
+      "url": "https://github.com/marin-community/harbor.git",
+      "commit": "7faf878c14b6d72737579ec936ebf5f74ba3194d",
+      "sparse": [
+        "src",
+        "packages"
+      ]
+    },
+    "harden-v0": {
+      "url": "https://github.com/few-sh/harden-v0.git",
+      "commit": "342b8474e0c0cf96e4a8313fd2e26c7a11d51193"
+    }
+  },
+  "backend": "apptainer",
+  "dry_run": false,
+  "items": [
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-java-0000/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_jagame__Arc.java | cut -c1-64)\" = 99e02eced58c0e7c5dade4fa9e1581143e8882725bb6fe83e77aeed897ab4ae4 && test \"$(sha256sum -- /setup_files/context/001_jagame__Draw.java | cut -c1-64)\" = 2da6d541b4e37bc7daab73c44ceb8bf597cfdcffd4797cd492261287062581eb && test \"$(sha256sum -- /setup_files/context/002_jagame__Ellipse.java | cut -c1-64)\" = a529daccd10dcffaaa7e771c6a70294181710eeb0a5e6ed4cd1033c8727f5cc8 && test \"$(sha256sum -- /setup_files/context/003_jagame__Image.java | cut -c1-64)\" = dcabdfc41a83c42fb858c841ea0618bcdde9f00da112b5a21e18f0150dcd96db && test \"$(sha256sum -- /setup_files/context/004_jagame__Rect.java | cut -c1-64)\" = 3d6de60bf95c174a7bdecab769525dfed595d92371ea956937927e9e77ed70fa",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-4",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/expected.txt | cut -c1-64)\" = edc27f35d35c17794d63035a4495e6f986ab818ff2b235cd68d014f16cee504b && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = 21f5a207ea8d89b9f1db7b80add4367f16b8093226988c9c0c7bc8a3def39d5f && test \"$(sha256sum -- /tests/test_solution.py | cut -c1-64)\" = ed2ca565c5765b8a8c908c563a70eee70d17f04a39944d0f340f71fea42a3615",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-java-0000",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00003-crosscodeeval-java-0000"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-csharp-1767/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_LootingBots__logics__FindLootLogic.cs | cut -c1-64)\" = 5e2ff59ee27303c083488bfb005cda676ff0bf11b860c3504c514548a482bfff && test \"$(sha256sum -- /setup_files/context/001_LootingBots__patches__SettingsAndCache.cs | cut -c1-64)\" = 3dd44a206adb255740d529c51075f270ca5defbd26bc548db949242dcef4235d && test \"$(sha256sum -- /setup_files/context/002_LootingBots__LootingLayer.cs | cut -c1-64)\" = 783c8e6cb290c144bbb0e1be91b048a0f2b2c1cbb932e1767832bf7cd73b4a20 && test \"$(sha256sum -- /setup_files/context/003_LootingBots__components__InventoryController.cs | cut -c1-64)\" = 741a21612e657ff4562e061e60e78d25e4e07c6f820900fcf75d73b8d030b836 && test \"$(sha256sum -- /setup_files/context/004_LootingBots__logics__LootingLogic.cs | cut -c1-64)\" = 9e86cf45ca5d1bf6cd0210036838f7f545daddd28a1fe88947a623c9a57537b5",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-3",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/solution.txt | cut -c1-64)\" = ece8dcd11a034d57670eea692afb279cd66d3e06af4f5e866be261267310c48f && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = b01a7b3bbbf9750707916c5afc184d018363f029fc7cb66a393c821cf325dfe3",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-csharp-1767",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00002-crosscodeeval-csharp-1767"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-csharp-0906/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_Standard.REST.RESTFulSense.Tests.Unit__Services__Foundations__StatusDetails__StatusDetailServiceTests.Exceptions.RetrieveStatusDetailByStatusCode.cs | cut -c1-64)\" = d586fca30220d061369b7dd8bf0d1e8e7d51d9b9c3e9281309549b58faabb0fb && test \"$(sha256sum -- /setup_files/context/001_Standard.REST.RESTFulSense.Tests.Unit__Services__Foundations__StatusDetails__StatusDetailServiceTests.Exceptions.RetrieveAll.cs | cut -c1-64)\" = ef5feb1359c1ee504b94027dbafe0b4a9de8b9823a1a3e01700ec27580d436e4 && test \"$(sha256sum -- /setup_files/context/002_Standard.REST.RESTFulSense__Services__Foundations__StatusDetails__StatusDetailService.Validations.cs | cut -c1-64)\" = 50bf69fe924376ccead3050caed0eda06e2e70e7d5e4f2c20b33c92a9588b05f && test \"$(sha256sum -- /setup_files/context/003_Standard.REST.RESTFulSense__Models__Foundations__StatusDetails__Exceptions__FailedStatusDetailServiceException.cs | cut -c1-64)\" = 4d8d9448c94027abe710a1fdf742fc2fe542b91c6c0d7763e1fb8858338c7841 && test \"$(sha256sum -- /setup_files/context/004_Standard.REST.RESTFulSense.Infrastructure.Build__Services__ScriptGenerationService.cs | cut -c1-64)\" = 416e036e3058900c687c86558ba34c88d6d00e8cb759ef72ad340f6c19ce11bd",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-3",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/solution.txt | cut -c1-64)\" = 1f46bedd5202ab1e2a12777a5ccb33996e6f66a3304d71bb5ab0f96a9da065e1 && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = b01a7b3bbbf9750707916c5afc184d018363f029fc7cb66a393c821cf325dfe3",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-csharp-0906",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00001-crosscodeeval-csharp-0906"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-csharp-0000/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-4",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_ProcessManager__Providers__IConfigProvider.cs | cut -c1-64)\" = c507052caa3ac6c46171cf151a513bd32e640f4b9795f5d1fac8b48388322929 && test \"$(sha256sum -- /setup_files/context/001_ProcessManager__Models__Configs__ManagerConfig.cs | cut -c1-64)\" = 546f060f47e1418c7c18f9bbfd69853d146327436e284572115ca4c05ef6522f && test \"$(sha256sum -- /setup_files/context/002_ProcessManager__Managers__LassoManager.cs | cut -c1-64)\" = 882250c538722521d74e3b81edf038a673fd13ee3d7dfce9932b3083af584686 && test \"$(sha256sum -- /setup_files/context/003_ProcessManager__Managers__LassoManager.cs | cut -c1-64)\" = 28dc338a9fa6221513c7499b2092d0c1389d35736ca6973a1988729f8582fbc3",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-3",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/solution.txt | cut -c1-64)\" = bf90cecc5223b3b030b1c183c204288ca9037eae9b6ee0484a3b14590a3f5ff9 && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = b01a7b3bbbf9750707916c5afc184d018363f029fc7cb66a393c821cf325dfe3",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-csharp-0000",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00000-crosscodeeval-csharp-0000"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-java-1070/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_m3color__src__main__java__com__kyant__m3color__hct__HctSolver.java | cut -c1-64)\" = a82f4a77a760a6b24ed02398523c2c2df95f797f4c716b158f85e24f59fae98e && test \"$(sha256sum -- /setup_files/context/001_m3color__src__main__java__com__kyant__m3color__hct__HctSolver.java | cut -c1-64)\" = 23ba6587eb7742a667bcef581874b8e5216c971f084074303197eea14b6f3f8a && test \"$(sha256sum -- /setup_files/context/002_m3color__src__main__java__com__kyant__m3color__temperature__TemperatureCache.java | cut -c1-64)\" = d7579af067afd7c0dbb316814569932ecc67c9a442df66d05ada615f5161a94a && test \"$(sha256sum -- /setup_files/context/003_m3color__src__main__java__com__kyant__m3color__hct__ViewingConditions.java | cut -c1-64)\" = 56e485ba417933237475eae1b7856f56be466c960183258f0a770162bbbdfd3c && test \"$(sha256sum -- /setup_files/context/004_m3color__src__main__java__com__kyant__m3color__hct__HctSolver.java | cut -c1-64)\" = 7d2db524d3bd8dd787e4440da24b76ef3e5970a425e2e9603940ab8273eb5dbb",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-4",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/expected.txt | cut -c1-64)\" = ab4bab2833fda7a66f59d26c0ba7949eb01dfce67e63d95c2b9f9981ee0ae553 && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = 21f5a207ea8d89b9f1db7b80add4367f16b8093226988c9c0c7bc8a3def39d5f && test \"$(sha256sum -- /tests/test_solution.py | cut -c1-64)\" = ed2ca565c5765b8a8c908c563a70eee70d17f04a39944d0f340f71fea42a3615",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-java-1070",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00004-crosscodeeval-java-1070"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-java-2138/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-4",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_hades-core__src__main__java__com__java3y__hades__core__utils__GroovyUtils.java | cut -c1-64)\" = 5cc14c5765888c6419d9db55f86660dda3644b3ebcd512a50365035d8a470582 && test \"$(sha256sum -- /setup_files/context/001_hades-core__src__main__java__com__java3y__hades__core__HadesClient.java | cut -c1-64)\" = 9c1153fc5e341c39f7e10e9db73450121353a940305d0841c97fb325d15b0f6e && test \"$(sha256sum -- /setup_files/context/002_hades-core__src__main__java__com__java3y__hades__core__HadesClient.java | cut -c1-64)\" = 232b01b8f2d7862fa8edb12752cbbd8af3fc4c70ce59461fc2e3df081f7d0a39 && test \"$(sha256sum -- /setup_files/context/003_hades-core__src__main__java__com__java3y__hades__core__service__bean__RegisterBeanService.java | cut -c1-64)\" = fb4d3810b6d0d00c46883772a21f7ae63098caac496c8752e5876903d87ca053",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-4",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/expected.txt | cut -c1-64)\" = 568408757ccf780d104cb945f67d527e2f396b77e1a0580871cb78f43e30aaa7 && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = 21f5a207ea8d89b9f1db7b80add4367f16b8093226988c9c0c7bc8a3def39d5f && test \"$(sha256sum -- /tests/test_solution.py | cut -c1-64)\" = ed2ca565c5765b8a8c908c563a70eee70d17f04a39944d0f340f71fea42a3615",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-java-2138",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00005-crosscodeeval-java-2138"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-python-0000/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_alt_generator.py | cut -c1-64)\" = d206a6069365437822902c55d3c81ce006c205042dd424fd819e8d75cd26e529 && test \"$(sha256sum -- /setup_files/context/001_alt_generator.py | cut -c1-64)\" = 57accb0c632383414267210c79e5e77794ed4605a96a22536b4120502ec443d0 && test \"$(sha256sum -- /setup_files/context/002_alt_generator.py | cut -c1-64)\" = 31a74e9871041c08e98f336e66941c6c6c71f8c341b8eadbc10ed72638738d40 && test \"$(sha256sum -- /setup_files/context/003_alt_generator.py | cut -c1-64)\" = 30df1f41cd78293816964859ca1da45e1478e8d96b326a8a033592d0d55f4248 && test \"$(sha256sum -- /setup_files/context/004_alt_generator.py | cut -c1-64)\" = b5c7580a5fd96e2bc95545ece3bb96b81a41408b26728eb3490172345a6b9e5a",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/prompt.txt | cut -c1-64)\" = 91e52afbe9ba826ca9f77f3a5feab42046bbe29dfdcbce32adc9ad3da7f611cb && test \"$(sha256sum -- /tests/solution.txt | cut -c1-64)\" = 9715c94d4566a8737cb1a3a791b6b8956dde27b767376b556ebb64c524c8d797 && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = 60e8e17c5376239f2a23dc6c4d8faee01f944b5de31017fb771c820bfc9c5944 && test \"$(sha256sum -- /tests/test_state.py | cut -c1-64)\" = 335184f930fd957094b86f8f5402465766c40674de9044e2feb6faf21d904789",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-python-0000",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00006-crosscodeeval-python-0000"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-python-0499/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_code__tests__ch07__ThreeTileStraightlineHexworld.py | cut -c1-64)\" = c7c13e9dad830be0c687a23795ab56e83665a707887904d4ad9782927bdc3035 && test \"$(sha256sum -- /setup_files/context/001_code__tests__ch05__test_are_markov_equivalent.py | cut -c1-64)\" = 616191c6b3088dac0e0fa861144093fd04e8a6781d3b1b851d7fb3410c44e940 && test \"$(sha256sum -- /setup_files/context/002_code__tests__ch05__test_graph_search_methods.py | cut -c1-64)\" = c1dad8da7ca9df90c8c46ef99b6ff3187bb852a3560883282cf78111f0f49eee && test \"$(sha256sum -- /setup_files/context/003_code__exercises__ch07_exercises.py | cut -c1-64)\" = 8bf93278880822ad11e02b4ced2ae6cacf2222c073af99b732a64c1e8a57ce88 && test \"$(sha256sum -- /setup_files/context/004_code__tests__ch07__test_lqp.py | cut -c1-64)\" = 649fd09f57feaf1a65daf856a15a65b4a1d530d6c6cba2ebc4d45fd154e6c0bf",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/prompt.txt | cut -c1-64)\" = 330302a0d8494548f8c4b49b370ca3c05da2a02cccf9b849c366f44225d5b45b && test \"$(sha256sum -- /tests/solution.txt | cut -c1-64)\" = 93266d3effae0c56690f3656d7c1c34dd61a4196cf21046b39104b32591b4084 && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = 60e8e17c5376239f2a23dc6c4d8faee01f944b5de31017fb771c820bfc9c5944 && test \"$(sha256sum -- /tests/test_state.py | cut -c1-64)\" = 335184f930fd957094b86f8f5402465766c40674de9044e2feb6faf21d904789",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-python-0499",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00007-crosscodeeval-python-0499"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-typescript-0000/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_src__apiDebug.ts | cut -c1-64)\" = f996ffc23161b7bb8b7fd6789bd456ad5c8e79e8571c65d2a910df64384d469b && test \"$(sha256sum -- /setup_files/context/001_src__apiDebug.ts | cut -c1-64)\" = 5f1bb9936e3ea1bdc7139487583cd0ac0c9108c5e943e3b19f099078f63659c8 && test \"$(sha256sum -- /setup_files/context/002_src__apiReport.ts | cut -c1-64)\" = c72cb8785dde44959b5d3012c9e83cc0e954b52e5378425654366097923b7a2c && test \"$(sha256sum -- /setup_files/context/003_src__apiCache.ts | cut -c1-64)\" = e07aecaac41f4a143ef7e20df32b954765c2767416649f5a53e024829dc2dd8b && test \"$(sha256sum -- /setup_files/context/004_src__apiReport.ts | cut -c1-64)\" = 71d1525f4c70dae5aba5a9bfb803d60a5f1cf65c836a0731d447ccef00d9dddf",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-4",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/solution.txt | cut -c1-64)\" = 1c3ffc9ad7b447586187d8ba1f334f926cbfda5a2333d55e6cdfe696d07a0b1e && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = c5d156d448e632d7a6354db99f16d9e5e94c44cad904390266532fc07357220a && test \"$(sha256sum -- /tests/test_state.py | cut -c1-64)\" = 335184f930fd957094b86f8f5402465766c40674de9044e2feb6faf21d904789",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-typescript-0000",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00008-crosscodeeval-typescript-0000"
+    },
+    {
+      "status": "passed",
+      "environments": [
+        {
+          "environment": "agent",
+          "context": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-typescript-3355/environment",
+          "status": "passed",
+          "checks": [
+            {
+              "check": "declared-workdir",
+              "status": "passed",
+              "command": "actual=$(pwd -P) && expected=$(cd /app && pwd -P) && printf \"%s\\n\" \"$actual\" && test \"$actual\" = \"$expected\"",
+              "exit_code": 0,
+              "stdout": "/app",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/setup_files",
+              "status": "passed",
+              "command": "chmod -R a+rX /setup_files",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/setup_files:0-5",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /setup_files/context/000_src__types__utilization-recommendations-types.ts | cut -c1-64)\" = 2ad484d197a1115a20107f2839a0763242c6d69a92ed7cd745d6c0a54eb272ce && test \"$(sha256sum -- /setup_files/context/001_src__types__utilization-recommendations-types.ts | cut -c1-64)\" = 19358032a392bf27d8cb1aa2abf666aad1b49f63ae8821d8ea388d398ba4d18b && test \"$(sha256sum -- /setup_files/context/002_src__widgets__utilization-recommendations-ui__recommendations-table.tsx | cut -c1-64)\" = 8e79c56f67c89f5b24110a9ebba7fb1ff451b6d13e102a4a02164719f27ca93f && test \"$(sha256sum -- /setup_files/context/003_src__widgets__utilization-recommendations-ui__confirm-recommendations.tsx | cut -c1-64)\" = 4f1af7176108476de3967ed6f4305bd3ddf6fbd929d15bac2abfda7990422ed6 && test \"$(sha256sum -- /setup_files/context/004_src__widgets__utilization-recommendations-ui__side-panel-related-resources.tsx | cut -c1-64)\" = dc42207424837922df813b7f84be74fe354fb893964a6ca2d7c43331e24c3a68",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-files-readable:/tests",
+              "status": "passed",
+              "command": "chmod -R a+rX /tests",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-file-content:/tests:0-4",
+              "status": "passed",
+              "command": "test \"$(sha256sum -- /tests/cceval_verifier.py | cut -c1-64)\" = d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8 && test \"$(sha256sum -- /tests/solution.txt | cut -c1-64)\" = e36a6522b7deaac64021a37dfb008437c0dee0bf5d00cb337ab994a0b061ce6f && test \"$(sha256sum -- /tests/test.sh | cut -c1-64)\" = c5d156d448e632d7a6354db99f16d9e5e94c44cad904390266532fc07357220a && test \"$(sha256sum -- /tests/test_state.py | cut -c1-64)\" = 335184f930fd957094b86f8f5402465766c40674de9044e2feb6faf21d904789",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "uploaded-verifier-entrypoint",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/app",
+              "status": "passed",
+              "command": "test -r /app",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/setup_files/context",
+              "status": "passed",
+              "command": "test -r /setup_files/context",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "required-path:/tests/test.sh",
+              "status": "passed",
+              "command": "test -r /tests/test.sh",
+              "exit_code": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:python",
+              "status": "passed",
+              "command": "python3 --version",
+              "exit_code": 0,
+              "stdout": "Python 3.10.21",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:git",
+              "status": "passed",
+              "command": "git --version",
+              "exit_code": 0,
+              "stdout": "git version 2.47.3",
+              "stderr": ""
+            },
+            {
+              "check": "runtime-probe:pytest-and-timeout-imports",
+              "status": "passed",
+              "command": "python3 -c 'import pytest, pytest_timeout; print(pytest.__version__)'",
+              "exit_code": 0,
+              "stdout": "9.1.1",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "task": "/tmp/915057.helma/validation-2d11ffe8dcf3/tasks/crosscodeeval-typescript-3355",
+      "output": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/00009-crosscodeeval-typescript-3355"
+    }
+  ],
+  "complete": true,
+  "has_findings": false,
+  "contract_sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669",
+  "contract_findings": []
+}

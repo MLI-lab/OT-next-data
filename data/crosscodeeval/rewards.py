@@ -2,7 +2,7 @@
 """CrossCodeEval's half of the reward checks: how to grade locally, and which
 nonsense answers are worth trying on top of the generic ones.
 
-verify/check_reward*.py are dataset-agnostic; they import this module as
+validation/verify/check_reward*.py are dataset-agnostic; they import this module as
 `data.<dataset>.rewards` when a task is called `<dataset>-...`. A new dataset
 needs its own module with the same four names.
 """

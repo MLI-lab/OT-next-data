@@ -1,0 +1,27 @@
+{
+  "stages": [
+    {
+      "stage": 1,
+      "report": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/summary.json",
+      "status": "findings"
+    },
+    {
+      "stage": 3,
+      "report": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_3_build_validation/6ff0cb678b50/summary.json",
+      "status": "completed"
+    },
+    {
+      "stage": 4,
+      "report": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_4_oracle_validation/22a849d50999/summary.json",
+      "status": "completed"
+    },
+    {
+      "stage": 5,
+      "report": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_5_nop_validation/f4ab5cc5054b/summary.json",
+      "status": "completed"
+    }
+  ],
+  "complete": true,
+  "dry_run": false,
+  "contract_sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669"
+}

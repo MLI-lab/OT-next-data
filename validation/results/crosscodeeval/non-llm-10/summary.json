@@ -1,0 +1,823 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/ten-task-results/submissions/2d11ffe8dcf3/evidence.tar.gz",
+  "contract_sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669",
+  "network_status": {
+    "requested": "isolated",
+    "effective": "host",
+    "reason": "ERROR  : Failed to create network namespace: maximum number of network namespaces exceeded, check /proc/sys/user/max_net_namespaces"
+  },
+  "instruction_fixup": null,
+  "contract_status": "bound",
+  "requested_stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "static_checks",
+      "complete": true,
+      "tasks": 10,
+      "counts": {
+        "failed": 10
+      },
+      "report": "results/stage_1_static_checks/52a4c71072c8/summary.json",
+      "contract_sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669"
+    },
+    {
+      "stage": 3,
+      "name": "build_validation",
+      "complete": true,
+      "tasks": 10,
+      "counts": {
+        "passed": 10
+      },
+      "report": "results/stage_3_build_validation/6ff0cb678b50/summary.json",
+      "contract_sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669"
+    },
+    {
+      "stage": 4,
+      "name": "oracle_validation",
+      "complete": true,
+      "tasks": 10,
+      "counts": {
+        "passed": 10
+      },
+      "report": "results/stage_4_oracle_validation/22a849d50999/summary.json",
+      "contract_sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669"
+    },
+    {
+      "stage": 5,
+      "name": "nop_validation",
+      "complete": true,
+      "tasks": 10,
+      "counts": {
+        "passed": 10
+      },
+      "report": "results/stage_5_nop_validation/f4ab5cc5054b/summary.json",
+      "contract_sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669"
+    }
+  ],
+  "failures": [
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-task-absolute-path.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0000/check-test-sh-sanity.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0906",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0906/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0906",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0906/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0906",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0906/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0906",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0906/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0906",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0906/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0906",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0906/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0906",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0906/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-0906",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-0906/check-test-sh-sanity.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-task-absolute-path.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-csharp-1767/check-test-sh-sanity.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-0000",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-0000/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-0000",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-0000/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-0000",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-0000/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-0000",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-0000/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-0000",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-0000/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-0000",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-0000/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-0000",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-0000/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-0000",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-0000/check-test-sh-sanity.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-1070",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-1070/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-1070",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-1070/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-1070",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-1070/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-1070",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-1070/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-1070",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-1070/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-1070",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-1070/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-1070",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-1070/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-1070",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-1070/check-test-sh-sanity.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-2138",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-2138/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-2138",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-2138/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-2138",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-2138/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-2138",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-2138/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-2138",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-2138/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-2138",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-2138/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-2138",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-2138/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-java-2138",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-java-2138/check-test-sh-sanity.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0000",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0000/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0000",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0000/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0000",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0000/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0000",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0000/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0000",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0000/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0000",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0000/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0000",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0000/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-task-absolute-path.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-python-0499",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-python-0499/check-test-sh-sanity.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-task-absolute-path.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-0000/check-test-sh-sanity.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-canary.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-canary.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-instruction-headings.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-instruction-headings.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-instruction-suffix.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-instruction-suffix.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-pip-pinning.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-separate-verifier.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-separate-verifier.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-task-absolute-path.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-task-fields.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-task-fields.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-task-package-name.sh",
+      "benchmark_policy": true,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-task-package-name.sh.log"
+    },
+    {
+      "stage": 1,
+      "task": "crosscodeeval-typescript-3355",
+      "status": "failed",
+      "check": "check-test-sh-sanity.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/915057.helma/validation-2d11ffe8dcf3/results/stage_1_static_checks/52a4c71072c8/static/tasks/crosscodeeval-typescript-3355/check-test-sh-sanity.sh.log"
+    }
+  ]
+}

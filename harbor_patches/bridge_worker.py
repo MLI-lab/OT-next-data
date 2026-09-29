@@ -40,6 +40,9 @@ removed (a fresh per-job $TMPDIR, so normally none); instances of this job
 die with the job's cgroup.
 """
 import glob
+import base64
+import hashlib
+import json
 import re
 import os
 import shutil
@@ -53,6 +56,7 @@ from harbor.environments.apptainer import worker
 _original_start = worker.ApptainerInstance.start
 _original_stop = worker.ApptainerInstance.stop
 _original_parse_copies = worker._parse_copies
+_original_pool_key = worker._pool_key_from_payload
 
 
 def parse_copies_docker_semantics(dockerfile_path):
@@ -137,7 +141,28 @@ def anchor_log_tail(env, lines=8):
     return ' | '.join(text) or '(tmux-anchor.log is empty)'
 
 
+def content_keyed_payload(payload):
+    """Protect all clients of this worker, including Dockerfile-only old drivers."""
+    files = payload.get('files_b64') or {}
+    if 'Dockerfile' not in files:
+        return payload
+    h = hashlib.sha256()
+    for name in sorted(files, key=Path):
+        rel = name.encode()
+        content = base64.b64decode(files[name], validate=True)
+        h.update(len(rel).to_bytes(4, 'big')); h.update(rel)
+        h.update(len(content).to_bytes(4, 'big')); h.update(content)
+    key = h.hexdigest()[:12]
+    result = dict(payload, dockerfile_hash=key)
+    old = payload.get('dockerfile_hash')
+    path = payload.get('sif_path') or ''
+    if old and Path(path).name.startswith('build_') and path.endswith('-' + old + '.sif'):
+        result['sif_path'] = path[:-len(old + '.sif')] + key + '.sif'
+    return result
+
+
 def start_with_anchor(self, payload):
+    payload = content_keyed_payload(payload)
     result = _original_start(self, payload)
     cmd = [worker.APPTAINER, 'exec', '--pwd', '/tmp',
            f'instance://{self.instance_name}', '/bin/bash', '-c']
@@ -231,20 +256,48 @@ NET_FLAGS = ['--net', '--network', 'none']
 
 
 def network_isolation_available(sif_cache):
-    """Can this node start a container in its own network namespace?"""
-    sifs = sorted(glob.glob(os.path.join(sif_cache or '', '*.sif')))
-    if os.environ.get('PILOT_NET_ISOLATION', '1') == '0' or not sifs:
-        return False
-    apptainer = worker.APPTAINER or worker.detect_apptainer()  # set by worker.main() only
-    probe = subprocess.run([apptainer, 'exec'] + NET_FLAGS + [sifs[0], 'true'],
-                           capture_output=True, text=True, timeout=120)
-    if probe.returncode != 0:
-        lines = [re.sub(r'\x1b\[[0-9;]*m', '', l).strip() for l in (probe.stderr or '').splitlines()]
-        reason = next((l for l in lines if 'ERROR' in l), next((l for l in reversed(lines) if l), 'no output'))
-        print(f'[worker] network isolation unavailable, instances share the host loopback: {reason}', flush=True)
-        return False
-    print('[worker] network isolation on: instances start with --net --network none', flush=True)
-    return True
+    """Probe isolation and visibly record any fallback; host access is not offline."""
+    requested = os.environ.get('PILOT_NET_ISOLATION', '1') != '0'
+    available, reason = False, 'host networking explicitly requested'
+    if requested:
+        sifs = sorted(glob.glob(os.path.join(sif_cache or '', '*.sif')))
+        reason = 'no cached SIF available to probe a network namespace'
+        if sifs:
+            apptainer = worker.APPTAINER or worker.detect_apptainer()
+            try:
+                probe = subprocess.run([apptainer, 'exec'] + NET_FLAGS + [sifs[0], 'true'],
+                                       capture_output=True, text=True, timeout=120)
+                available = probe.returncode == 0
+                lines = [re.sub(r'\x1b\[[0-9;]*m', '', l).strip() for l in (probe.stderr or '').splitlines()]
+                reason = 'namespace probe succeeded' if available else next(
+                    (l for l in lines if 'ERROR' in l), next((l for l in reversed(lines) if l), 'namespace probe failed'))
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                reason = str(exc)
+    status = {'requested': 'isolated' if requested else 'host',
+              'effective': 'network-none' if available else 'host', 'reason': reason}
+    print('[worker] network status: ' + json.dumps(status), flush=True)
+    if requested and not available:
+        print('WARNING: could not enable a separate network namespace; falling back to the HOST network. '
+              'Containers share host loopback and may access the internet. This run is NOT certified offline. '
+              'Reason: ' + reason, file=sys.stderr, flush=True)
+    path = os.environ.get('PILOT_NETWORK_STATUS_PATH')
+    if path:
+        Path(path).write_text(json.dumps(status, indent=2) + '\n')
+    return available
+
+
+def configure_explicit_host_network():
+    """Cloud-agent DNS/proxy setup for any Helma job using this common worker."""
+    if os.environ.get('PILOT_NET_ISOLATION', '1') != '0':
+        return
+    dns = '/etc/resolv.conf:/etc/resolv.conf:ro'
+    binds = [p for p in os.environ.get('APPTAINER_BINDPATH', '').split(',') if p]
+    if dns not in binds:
+        binds.append(dns)
+    os.environ['APPTAINER_BINDPATH'] = ','.join(binds)
+    for name in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'no_proxy', 'NO_PROXY'):
+        if os.environ.get(name):
+            os.environ['APPTAINERENV_' + name] = os.environ[name]
 
 
 def run_with_net_flags(original_run):
@@ -269,6 +322,8 @@ if __name__ == '__main__':
     for name in ('TMPDIR', 'TMP', 'TEMP'):
         os.environ[f'APPTAINERENV_{name}'] = '/tmp'
     worker._cleanup_stale_instances = cleanup_own_staging_only
+    configure_explicit_host_network()
+    worker._pool_key_from_payload = lambda payload: _original_pool_key(content_keyed_payload(payload))
     worker.ApptainerInstance.start = start_with_anchor
     worker.ApptainerInstance.stop = stop_with_anchor
     worker._parse_copies = parse_copies_docker_semantics

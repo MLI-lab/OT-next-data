@@ -5,14 +5,14 @@
 #
 # The workspace holds what must not live in the repo: the OpenThoughts-Agent
 # checkout, the python env, model weights, task archives and run outputs.
-# Writes env.sh next to this script; source it before using run/ or verify/.
+# Writes env.sh next to this script; source it before using run/ or validation/.
 set -euo pipefail
 
 # Pinned upstreams. Both are dependencies, not vendored code, so this repo stays
-# diffable against them. Bump deliberately and re-run the verification in
-# .agents/skills/verify-dataset/SKILL.md afterwards.
-OTAGENT_REPO=${OTAGENT_REPO:-https://github.com/franziweindel/OpenThoughts-Agent-trp.git}
-OTAGENT_PIN=${OTAGENT_PIN:-75a438d2047a3868de8a5364040e60667f6b6307}
+# easy to compare with them. Update deliberately and re-run the checks in
+# validation/dataset_checks.py afterwards.
+OTAGENT_REPO=${OTAGENT_REPO:-https://github.com/open-thoughts/OpenThoughts-Agent.git}
+OTAGENT_PIN=${OTAGENT_PIN:-3bd1917e62c9d03d73063b433f5c442c279c0563}
 HARBOR_PIN=${HARBOR_PIN:-7faf878c14b6d72737579ec936ebf5f74ba3194d}
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -20,10 +20,16 @@ ws=${1:?Usage: setup.sh <workspace dir>}
 mkdir -p "$ws"
 ws=$(cd "$ws" && pwd)
 
-# 1. OpenThoughts-Agent: provides the trajectory generation entry point
-#    (data/teacher_ranking_proxy/generate_trajectories.py) that run/ drives.
+# 1. Official OpenThoughts-Agent provides data/local/run_tracegen.py.
+#    The experiment wrapper lives here in teacher_traces/.
 if [[ ! -d "$ws/OpenThoughts-Agent/.git" ]]; then
     git clone "$OTAGENT_REPO" "$ws/OpenThoughts-Agent"
+fi
+# Preserve existing checkouts: an old private clone needs a separate workspace.
+actual_repo=$(git -C "$ws/OpenThoughts-Agent" remote get-url origin)
+if [[ "${actual_repo%.git}" != "${OTAGENT_REPO%.git}" ]]; then
+    echo "Existing checkout uses $actual_repo; expected $OTAGENT_REPO. Use a fresh workspace or set OTAGENT_REPO explicitly." >&2
+    exit 1
 fi
 git -C "$ws/OpenThoughts-Agent" fetch --quiet origin
 git -C "$ws/OpenThoughts-Agent" checkout --quiet "$OTAGENT_PIN"
@@ -49,5 +55,5 @@ echo "Installed. Workspace: $ws"
 echo "  OpenThoughts-Agent @ $OTAGENT_PIN"
 echo "  harbor             @ $HARBOR_PIN"
 echo "Next: source $here/env.sh"
-echo "Then: python $here/verify_pipeline.py tests   # 43 tests, no cluster needed"
+echo "Then: python -m pytest $here/tests -q   # unit tests, no cluster needed"
 echo "The GPU runtime image is built separately: hpc/<cluster>/build_runtime.sh (see README)."

@@ -16,6 +16,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config.models import resolve  # noqa: E402
+from run.dataset_config import load_dataset, select_groups, verify_archive
 
 LANGUAGES = ('csharp', 'java', 'python', 'typescript')
 # The four tasks used by every smoke (one per language). They were the
@@ -52,28 +53,47 @@ def select_tasks(manifest: dict, stage: str) -> dict[str, list[str]]:
 
 
 def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_src: Path,
-            concurrency: int = 16, max_num_seqs: int = 32) -> Path:
+            concurrency: int = 16, max_num_seqs: int = 32, dataset_config: Path | None = None) -> Path:
+    if dataset_config is not None:
+        manifest = load_dataset(dataset_config)
+        verify_archive(manifest)
+        chosen = select_groups(manifest, stage)
+        dataset = manifest['dataset']
+        archive_info = manifest
+        revision = manifest.get('task_revision', manifest['sha256'])
+        task_repo = manifest.get('task_repo', f'local-{dataset}')
+        artifacts = manifest['artifacts']
+    else:
+        dataset = 'crosscodeeval'
+        archive_info = json.loads((base / 'tasks' / 'selection1000.json').read_text())
+        manifest = json.loads((base / 'tasks' / 'selection1000-manifest.json').read_text())
+        chosen = select_tasks(manifest, stage)
+        revision = TASK_REVISION
+        task_repo = 'local-patched-crosscodeeval'
+        artifacts = ['/app/solution.txt']
     run = base / 'runs' / run_id
     run.mkdir(parents=True, exist_ok=False)
     work.mkdir(parents=True, exist_ok=True)
-    archive_info = json.loads((base / 'tasks' / 'selection1000.json').read_text())
-    manifest = json.loads((base / 'tasks' / 'selection1000-manifest.json').read_text())
-    chosen = select_tasks(manifest, stage)
-    tasks = [t for lang in LANGUAGES for t in chosen[lang]]
-    header = {'kind': 'task_manifest_header', 'dataset': 'crosscodeeval',
+    tasks = [task for ids in chosen.values() for task in ids]
+    header = {'kind': 'task_manifest_header', 'dataset': dataset,
               'local_tasks_dir': str(tasks_src),
               'task_archive': str(base / archive_info['archive']), 'task_archive_sha256': archive_info['sha256'],
-              'task_repo': 'local-patched-crosscodeeval', 'task_revision': TASK_REVISION,
+              'task_repo': task_repo, 'task_revision': revision,
               'traj_repo': None, 'traj_revision': None, 'pilot_manifest': manifest}
     manifest_text = json.dumps(header) + '\n' + ''.join(json.dumps({'task_id': t}) + '\n' for t in tasks)
-    sample_text = json.dumps({'task_ids': tasks, 'dataset': 'crosscodeeval'}, indent=2) + '\n'
+    sample_text = json.dumps({'task_ids': tasks, 'dataset': dataset}, indent=2) + '\n'
     for target in (run, work):
         (target / 'manifest.jsonl').write_text(manifest_text)
         (target / 'sampled_task_ids.json').write_text(sample_text)
-    (run / 'selection.json').write_text(json.dumps({
-        'stage': stage, 'tasks_per_language': STAGES[stage], 'total': len(tasks),
-        'rule': select_tasks.__doc__.strip(), 'smoke_tasks': SMOKE_TASKS, 'per_language': chosen,
-        'work_dir': str(work), 'tasks_src': str(tasks_src), 'concurrency': concurrency, 'max_num_seqs': max_num_seqs}, indent=2) + '\n')
+    selection = {
+        'dataset': dataset, 'stage': stage, 'total': len(tasks), 'groups': chosen,
+        'rule': 'Take the first 1/5/25/all tasks per group in configured order.',
+        'work_dir': str(work), 'tasks_src': str(tasks_src),
+        'concurrency': concurrency, 'max_num_seqs': max_num_seqs}
+    if dataset_config is None:
+        selection.update(tasks_per_language=STAGES[stage], rule=select_tasks.__doc__.strip(),
+                         smoke_tasks=SMOKE_TASKS, per_language=chosen)
+    (run / 'selection.json').write_text(json.dumps(selection, indent=2) + '\n')
     key, spec = resolve(mode)          # 'weak'/'strong' are aliases, see models.py
     strong = spec.thinking
     model = str(base / 'models' / spec.name)
@@ -103,7 +123,7 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
     config = {'job_name': run_id, 'jobs_dir': str(work / 'harbor_jobs'), 'n_attempts': 1,
         'orchestrator': {'type': 'local', 'n_concurrent_trials': concurrency, 'retry': {'max_retries': 0}},
         'environment': {'type': 'apptainer', 'force_build': False, 'delete': True, 'kwargs': {}},
-        'verifier': {'disable': False}, 'artifacts': ['/app/solution.txt'], 'datasets': [], 'tasks': [],
+        'verifier': {'disable': False}, 'artifacts': artifacts, 'datasets': [], 'tasks': [],
         'agents': [{'name': 'terminus-2', 'model_name': 'placeholder/runtime', 'kwargs': {
             'temperature': sampling['temperature'], 'max_tokens': 8192,
             'model_info': {'max_input_tokens': 32768, 'max_output_tokens': 8192, 'input_cost_per_token': 0, 'output_cost_per_token': 0},
@@ -124,5 +144,6 @@ if __name__ == '__main__':
     p.add_argument('--tasks-src', type=Path, required=True, help='node-local directory holding extracted tasks')
     p.add_argument('--concurrency', type=int, default=16, help='trials in flight (Harbor n_concurrent_trials)')
     p.add_argument('--max-num-seqs', type=int, default=32, help='vLLM max_num_seqs')
+    p.add_argument('--dataset-config', type=Path, help='JSON dataset description; default: legacy CrossCodeEval selection')
     a = p.parse_args()
-    print(prepare(Path(os.environ['PILOT_ROOT']), a.run_id, a.mode, a.stage, a.work, a.tasks_src, a.concurrency, a.max_num_seqs))
+    print(prepare(Path(os.environ['PILOT_ROOT']), a.run_id, a.mode, a.stage, a.work, a.tasks_src, a.concurrency, a.max_num_seqs, a.dataset_config))

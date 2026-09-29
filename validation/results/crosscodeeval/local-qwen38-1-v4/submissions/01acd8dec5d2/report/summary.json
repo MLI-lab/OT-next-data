@@ -1,0 +1,106 @@
+{
+  "archive": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/results/crosscodeeval/local-qwen38-1-v4/submissions/01acd8dec5d2/evidence.tar.gz",
+  "contract_sha256": "c7a399a6fb7d10d133acc87aa3a485932135d0fd094033d1c9dd61a296a02b5f",
+  "network_status": {
+    "requested": "host",
+    "effective": "host",
+    "reason": "host networking explicitly requested"
+  },
+  "instruction_fixup": null,
+  "contract_status": "bound",
+  "requested_stages": [
+    2
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 2,
+      "name": "llm_rubric_review",
+      "complete": true,
+      "tasks": 1,
+      "counts": {
+        "findings": 1
+      },
+      "report": "results/stage_2_llm_rubric_review/f0846ebbb411/summary.json",
+      "contract_sha256": "c7a399a6fb7d10d133acc87aa3a485932135d0fd094033d1c9dd61a296a02b5f",
+      "implementation_review_groups": {
+        "groups": {
+          "all_pass": [],
+          "pass_with_not_applicable": [],
+          "all_not_applicable": [],
+          "has_fail": [
+            "crosscodeeval-csharp-0000"
+          ],
+          "review_error": [],
+          "not_run": []
+        },
+        "counts": {
+          "all_pass": 0,
+          "pass_with_not_applicable": 0,
+          "all_not_applicable": 0,
+          "has_fail": 1,
+          "review_error": 0,
+          "not_run": 0
+        }
+      },
+      "proposal_review_groups": {
+        "Reject": [
+          "crosscodeeval-csharp-0000"
+        ]
+      }
+    }
+  ],
+  "review_groups": {
+    "implementation": {
+      "groups": {
+        "all_pass": [],
+        "pass_with_not_applicable": [],
+        "all_not_applicable": [],
+        "has_fail": [
+          "crosscodeeval-csharp-0000"
+        ],
+        "review_error": [],
+        "not_run": []
+      },
+      "counts": {
+        "all_pass": 0,
+        "pass_with_not_applicable": 0,
+        "all_not_applicable": 0,
+        "has_fail": 1,
+        "review_error": 0,
+        "not_run": 0
+      }
+    },
+    "proposal": {
+      "Reject": [
+        "crosscodeeval-csharp-0000"
+      ]
+    }
+  },
+  "pipelines": [
+    {
+      "stages": [
+        {
+          "stage": 2,
+          "report": "/tmp/915589.helma/validation-01acd8dec5d2/results/stage_2_llm_rubric_review/f0846ebbb411/summary.json",
+          "status": "findings"
+        }
+      ],
+      "complete": true,
+      "dry_run": false,
+      "contract_sha256": "c7a399a6fb7d10d133acc87aa3a485932135d0fd094033d1c9dd61a296a02b5f"
+    }
+  ],
+  "failures": [
+    {
+      "stage": 2,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "findings",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "failed criteria: agentic, category_and_tags, ctrf_reporting, difficult, difficulty_explanation_quality, environment_hygiene, essential_difficulty, expert_time_estimate, instruction_concision, interesting, no_extraneous_files, novel, outcome_verified, reviewable, solution_explanation_quality, solution_quality, solvable, task_name, task_readme, task_toml_schema, test_instruction_alignment, typos, verification_explanation_quality; proposal: Reject",
+      "evidence": "/tmp/915589.helma/validation-01acd8dec5d2/results/stage_2_llm_rubric_review/f0846ebbb411/00000-crosscodeeval-csharp-0000"
+    }
+  ]
+}

@@ -1,0 +1,825 @@
+{
+  "stage": 2,
+  "tasks": [
+    {
+      "task_id": "crosscodeeval-csharp-0000",
+      "status": "findings",
+      "implementation": {
+        "attempts": [
+          {
+            "criteria": {
+              "verifiable": {
+                "outcome": "pass",
+                "explanation": "tests/cceval_verifier.py is a deterministic, stdlib-only Python script that normalizes and compares the predicted and reference code fragments; no LLM-as-judge, no runtime network installs are needed at verify time, and repeated runs on the same input are deterministic."
+              },
+              "solvable": {
+                "outcome": "pass",
+                "explanation": "solution/solve.sh writes the exact reference fragment to /app/solution.txt, which will score an exact match (reward 1) against tests/solution.txt; trivially achievable by an expert in minutes."
+              },
+              "difficult": {
+                "outcome": "fail",
+                "explanation": "The required completion (`LassoProfile> GetLassoProfiles()\\n{`) is directly derivable from the IConfigProvider interface declaration already provided in setup_files/context/000_...cs, making this a simple pattern-matching exercise rather than something requiring professional or domain expertise."
+              },
+              "interesting": {
+                "outcome": "fail",
+                "explanation": "This is a direct import of one example from the CrossCodeEval research benchmark, graded on exact-text reproduction of an arbitrary original code fragment; there is no real-world deliverable or professional use case for guessing the literal original phrasing of an unseen code snippet."
+              },
+              "outcome_verified": {
+                "outcome": "pass",
+                "explanation": "The verifier only reads and grades the final content of /app/solution.txt; despite the instruction's heavy prescription of the `write_solution` helper, the test does not check which method or tool was used to create the file."
+              },
+              "anti_cheat_robustness": {
+                "outcome": "pass",
+                "explanation": "environment/Dockerfile does not COPY tests/ or solution/ into the agent image, so the ground-truth solution.txt is not accessible to the agent at runtime."
+              },
+              "task_security": {
+                "outcome": "pass",
+                "explanation": "No malicious code, exfiltration, obfuscation, or prompt injection was found in any task file."
+              },
+              "functional_verification": {
+                "outcome": "pass",
+                "explanation": "Grading is performed by tokenizing/parsing and comparing normalized code content (statement extraction, identifier matching), not by naive string/keyword grepping."
+              },
+              "deterministic_reproducible": {
+                "outcome": "pass",
+                "explanation": "The verifier uses only Python stdlib (ast, difflib, re) with a fixed reference file, so results are consistent across runs; no live services are involved."
+              },
+              "essential_difficulty": {
+                "outcome": "fail",
+                "explanation": "The binary reward requires the agent's completion to exactly match the one original phrasing recorded in tests/solution.txt; a semantically valid but differently-worded/named completion would score 0, so failures stem from exact-text precision rather than genuine reasoning errors."
+              },
+              "test_instruction_alignment": {
+                "outcome": "pass",
+                "explanation": "The single behavior instruction.md asks for (write the short code continuation to /app/solution.txt) is exactly what tests/test.sh and cceval_verifier.py check; no untested requirements or extraneous tested behavior."
+              },
+              "novel": {
+                "outcome": "fail",
+                "explanation": "The task is a verbatim instance drawn from the published CrossCodeEval benchmark (explicitly ported from amazon-science/cceval), a well-known public dataset likely represented in model training corpora."
+              },
+              "agentic": {
+                "outcome": "fail",
+                "explanation": "The task reduces to reading a handful of provided context files and writing one short code fragment to a file \u2014 solvable essentially zero-shot/single-turn without iterative exploration, debugging, or multi-step tool use."
+              },
+              "reviewable": {
+                "outcome": "pass",
+                "explanation": "A non-specialist reviewer can confirm the expected completion by reading setup_files/context/000_...IConfigProvider.cs, which shows the matching interface method signature."
+              },
+              "instruction_concision": {
+                "outcome": "fail",
+                "explanation": "instruction.md is dominated by an extensive, clearly LLM-generated tutorial on bash quoting pitfalls with multiple 'WRONG vs RIGHT' examples and mandates a specific `write_solution` helper tool, rather than concisely describing the goal and letting the agent choose its approach."
+              },
+              "solution_quality": {
+                "outcome": "fail",
+                "explanation": "solution/solve.sh simply does `cp /solution/solution_snippet.txt /app/solution.txt` \u2014 it copies the precomputed answer verbatim with no derivation or computation shown, which is exactly the bare echo/cat pattern the rubric flags."
+              },
+              "separate_verifier_configured": {
+                "outcome": "not_applicable",
+                "explanation": "The task does not use separate-verifier mode: there is no tests/Dockerfile, no environment_mode setting, and no artifacts declared in task.toml."
+              },
+              "environment_hygiene": {
+                "outcome": "not_applicable",
+                "explanation": "This criterion concerns the two-image separate-verifier architecture, which this task does not use (single environment/Dockerfile only)."
+              },
+              "task_toml_schema": {
+                "outcome": "fail",
+                "explanation": "task.toml contains invented/invalid fields: root-level `version` (valid field is `schema_version`), `difficulty` under [metadata] (not a recognized metadata field), and `restart_environment` under [verifier] (not a recognized verifier field)."
+              },
+              "no_extraneous_files": {
+                "outcome": "fail",
+                "explanation": "metadata.json (all fields empty/unused) and .laion_v4_patched (a leftover automated-patch log note) are not referenced by any Dockerfile, instruction, solve.sh, or test file."
+              },
+              "artifact_efficiency": {
+                "outcome": "not_applicable",
+                "explanation": "No [[artifacts]] or verifier.collect configuration is present; the task does not transfer artifacts between agent and verifier containers."
+              },
+              "verifier_execution_isolation": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier only reads and text-compares the agent's solution.txt file; it never executes agent-produced code."
+              },
+              "ctrf_reporting": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier is a bespoke one-shot scoring script producing a single binary reward outside any test framework (pytest is installed in the image but never invoked), with no discrete per-check structure to report."
+              },
+              "do_not_modify_enforced": {
+                "outcome": "not_applicable",
+                "explanation": "instruction.md contains no do-not-modify/preserve constraint on any concrete artifact."
+              },
+              "binary_reward": {
+                "outcome": "pass",
+                "explanation": "reward.txt is written as `f\"{metrics['em']}\\n\"` where em = int(pred_lines == gt_lines), and the process exit code is 0 or 1 \u2014 every reachable path writes exactly 0 or 1."
+              },
+              "category_and_tags": {
+                "outcome": "fail",
+                "explanation": "category = \"sandbox\" is not one of the seven valid taxonomy domains (Science, Software, ML, Operations, Security, Hardware, Media), subcategory is unset, and tags = [\"sandbox\"] is a generic, non-descriptive tag."
+              },
+              "task_name": {
+                "outcome": "fail",
+                "explanation": "\"crosscodeeval-csharp-0000\" reads as a batch-generated dataset index (source-language-sequence-number) rather than a descriptive slug conveying what the task actually requires (completing a cut-off C# code fragment)."
+              },
+              "resource_configuration": {
+                "outcome": "pass",
+                "explanation": "No [environment] overrides are set (defaults apply), which is reasonable for this lightweight text-completion task; agent timeout (900s) and verifier timeout (720s) are generous but not unreasonable for such a simple task."
+              },
+              "task_readme": {
+                "outcome": "fail",
+                "explanation": "No README.md file exists anywhere in the task directory, so none of the required Difficulty/Solution/Verification/Relevant-experience explanation sections are present."
+              },
+              "expert_time_estimate": {
+                "outcome": "fail",
+                "explanation": "task.toml's [metadata] table has no expert_time_estimate_hours field at all \u2014 it was never set."
+              },
+              "structured_data_schema": {
+                "outcome": "not_applicable",
+                "explanation": "The expected output is a short freeform code-fragment string, not structured data such as JSON/CSV/an API schema."
+              },
+              "typos": {
+                "outcome": "pass",
+                "explanation": "No typos were found in task-authored filenames, paths, commands, or variable names (the 'Geth' typo in setup_files/context/000_...cs is part of the verbatim original source excerpt, not authored task content)."
+              },
+              "difficulty_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists, so there is no Difficulty explanation section at all."
+              },
+              "solution_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists, so there is no Solution explanation section at all."
+              },
+              "verification_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists, so there is no Verification explanation section at all."
+              }
+            }
+          }
+        ]
+      },
+      "proposal": {
+        "status": "findings",
+        "decision": "Strong Reject",
+        "reviews": [
+          {
+            "decision": "Strong Reject",
+            "review": "Problem statement: This is a single CrossCodeEval-style line-completion instance. The agent is shown a C# source snippet (a `ConfigProvider` class) that is truncated mid-declaration at `public Dictionary<string, `. The agent must output the short (typically 1-3 line, 20-200 char) continuation that completes the cut-off fragment, writing it verbatim to /app/solution.txt (a `write_solution` helper is provided to dodge bash-quoting issues). Read-only cross-file context excerpts are said to be available. The verifier reads only solution.txt and presumably compares it against the original repository's reference continuation.\n\nVerifiable\nPositives: A file-based, deterministic exact-match or edit-similarity check against a stored ground-truth string is trivially reproducible and non-flaky; re-running it thousands of times yields identical results.\nNegatives: The fatal flaw of CrossCodeEval-style grading is that 'correct' is defined as 'the exact tokens the original author happened to write,' not 'a semantically valid completion.' For `public Dictionary<string, ...`, there are many genuinely correct completions (different value types, property vs. field, `=> ...` vs. `{ get; set; }`, differing names/whitespace). Exact-match verification will reject correct solutions, and even fuzzy edit-similarity thresholds are arbitrary and will both accept wrong answers and reject right ones. This fails the rubric's requirement that verification 'separates correct from incorrect solutions that would be universally agreed upon.'\nJudgement: reject\n\nWell-specified\nPositives: The mechanical output contract (write only the continuation, no fences/labels, to solution.txt) and the format constraints are stated clearly.\nNegatives: The actual thing being graded -- the exact target string -- is not derivable from the specification. Two reasonable engineers reading this would produce different continuations, and neither could reconstruct the specific reference the verifier holds. The problem description does not (and cannot) completely describe what the verifier looks for, so it is fundamentally underspecified.\nJudgement: strong reject\n\nSolvable\nPositives: Producing *a* plausible completion is trivial; cross-file context might narrow the value type.\nNegatives: Producing *the* reference completion is essentially guessing the original author's exact tokens, which is not reliably achievable even with the context. Solvability against the hidden ground truth is a matter of luck, not skill.\nJudgement: reject\n\nDifficult\nPositives: None substantive. \nNegatives: Completing a single truncated C# declaration is something a competent developer (or any IDE autocomplete) does in seconds -- far below the 'average undergraduate in a few days' floor, and nowhere near PhD/multi-year-expertise difficulty. Whatever residual difficulty exists comes from (a) guessing exact tokens (a lottery, not interesting difficulty) and (b) the heavily emphasized bash-quoting trap of writing punctuation-heavy C# into a file. The latter is precisely the kind of gimmick/LLM-failure-mode trick the rubric warns against; it is not an interesting or generalizable difficulty. This is disqualifying.\nJudgement: strong reject\n\nInteresting\nPositives: Code autocompletion in general is a real, economically valuable problem (Copilot, IDE completion), so the broad category has merit.\nNegatives: A single, arbitrary completion instance from one repository is not itself interesting, and the exact-match framing makes it a token-guessing exercise rather than a demonstration of engineering ability. It offers no marginal real-world utility beyond what a benchmark row provides.\nJudgement: reject\n\nOutcome-verified\nPositives: Grading is on the final file contents, not the process, and the format ask is simple.\nNegatives: The outcome that is graded (exact reference string) is the wrong outcome to grade for a task with many valid answers, and a large fraction of the instruction is devoted to process mechanics (bash quoting, helper usage) that hint the real challenge is procedural rather than substantive.\nJudgement: reject\n\nFinal analysis\nThis is a single line-completion benchmark instance repackaged as a TB task. It fails multiple independent, load-bearing criteria: it is far too easy in substance (seconds of work, well below the undergraduate-days floor); its verification cannot reliably separate correct from incorrect because many valid completions differ from the single hidden reference; it is not well-specified because the exact target string cannot be derived from the prompt; and to the extent any difficulty exists, it stems from a bash-quoting gimmick that the rubric explicitly disfavors. These flaws are inherent to the task's identity as an exact-match single-line completion and cannot be fixed without changing what the task is. There is no direct path to acceptance.\n\nDecision: Strong Reject"
+          }
+        ]
+      },
+      "findings": [],
+      "error": null
+    },
+    {
+      "task_id": "crosscodeeval-csharp-1767",
+      "status": "findings",
+      "implementation": {
+        "attempts": [
+          {
+            "criteria": {
+              "verifiable": {
+                "outcome": "pass",
+                "explanation": "tests/cceval_verifier.py is a deterministic, fast, self-contained exact-match comparator with no runtime network installs in test.sh; the missing /tests/prompt.txt is handled gracefully (falls back to an empty string) and doesn't affect the csharp scoring path."
+              },
+              "solvable": {
+                "outcome": "pass",
+                "explanation": "solution/solve.sh copies solution_snippet.txt to /app/solution.txt, which is byte-identical to tests/solution.txt, so it mechanically passes the verifier."
+              },
+              "difficult": {
+                "outcome": "fail",
+                "explanation": "The task is a single fill-in-the-blank code completion (complete `public static ConfigEntry<` given a handful of tiny 9-line context excerpts); an average undergraduate could solve it in minutes by pattern-matching the sibling ConfigEntry<BotType> fields and grepping the context for the identifier name."
+              },
+              "interesting": {
+                "outcome": "pass",
+                "explanation": "Cross-file code completion is a real capability that IDE autocomplete/code-assistant engineers and code-LLM researchers are paid to build and evaluate (this is explicitly modeled on the CrossCodeEval benchmark)."
+              },
+              "outcome_verified": {
+                "outcome": "pass",
+                "explanation": "The verifier only checks the resulting content of /app/solution.txt; the instruction explicitly allows either the `write_solution` helper or a raw `printf` command, so no particular tool/process is enforced."
+              },
+              "anti_cheat_robustness": {
+                "outcome": "fail",
+                "explanation": "The snippet and context are lifted verbatim from a real public mod (LootingBots for Escape from Tarkov); an agent can plausibly retrieve the exact ground truth via memorized training data or a web search of the identifier/class names rather than doing the intended cross-file reasoning, and task.toml has no [environment] section disabling internet access to mitigate this."
+              },
+              "task_security": {
+                "outcome": "pass",
+                "explanation": "No malicious code, exfiltration, obfuscation, or prompt injection found in any task file."
+              },
+              "functional_verification": {
+                "outcome": "pass",
+                "explanation": "The verifier executes real comparison logic (statement extraction, comment stripping, identifier extraction) over the actual file contents rather than grepping for keywords."
+              },
+              "deterministic_reproducible": {
+                "outcome": "fail",
+                "explanation": "environment/Dockerfile runs `pip install --no-cache-dir pytest pytest-timeout` with no version pins, violating the pinning requirement for PyPI packages even though neither package is actually invoked by tests/test.sh."
+              },
+              "essential_difficulty": {
+                "outcome": "pass",
+                "explanation": "The verifier normalizes whitespace/comments and truncates to the first statement before comparing, so the graded difficulty is centered on finding the right cross-file identifier rather than clerical formatting minutiae."
+              },
+              "test_instruction_alignment": {
+                "outcome": "pass",
+                "explanation": "The instruction's sole deliverable (write the short continuation to /app/solution.txt) is exactly what tests/test.sh and cceval_verifier.py check; no extra untested requirements or untested instruction content."
+              },
+              "novel": {
+                "outcome": "fail",
+                "explanation": "metadata.json declares `\"source\": \"crosscodeeval\"`, an existing public academic benchmark; the exact snippet is also traceable to a public, real GitHub mod (LootingBots), so the ground truth is at real risk of being memorized from training data rather than requiring genuine novel reasoning."
+              },
+              "agentic": {
+                "outcome": "fail",
+                "explanation": "The task can be completed by reading a few tiny (9-line) context files and issuing one write command; it doesn't require iterative debugging, multi-step exploration, or adaptation, making it closer to a single-shot completion task than an agentic one."
+              },
+              "reviewable": {
+                "outcome": "fail",
+                "explanation": "There is no README and metadata.json's provenance fields (task_id, repo, file_path, context_files_count) are all blank/zero despite 5 context files existing, so a non-specialist reviewer has no documented way to confirm the ground truth's origin or correctness beyond trusting the raw files."
+              },
+              "instruction_concision": {
+                "outcome": "fail",
+                "explanation": "instruction.md is dominated by verbose, prescriptive bash-quoting tutorials, repeated WRONG/RIGHT examples, and an unrelated generic worked example (a `Module`/`Kernel` snippet that has nothing to do with the actual ConfigEntry<BotType> task), rather than being a concise statement of what to produce."
+              },
+              "solution_quality": {
+                "outcome": "fail",
+                "explanation": "solution/solve.sh performs no computation at all \u2014 it is a bare `cp /solution/solution_snippet.txt /app/solution.txt` that copies a pre-written answer file identical to the verifier's reference, never touching the provided cross-file context."
+              },
+              "separate_verifier_configured": {
+                "outcome": "not_applicable",
+                "explanation": "The task has no tests/Dockerfile or environment_mode/artifacts configuration, so it runs in shared (non-separate-verifier) mode."
+              },
+              "environment_hygiene": {
+                "outcome": "not_applicable",
+                "explanation": "This criterion is framed around the two-image separate-verifier setup, which this task does not use; the single environment/Dockerfile does not copy tests/ or solution/ and applies apt cleanup correctly."
+              },
+              "structured_data_schema": {
+                "outcome": "not_applicable",
+                "explanation": "The expected output is a short freeform code fragment, not structured data such as JSON/CSV/API output requiring a formal schema."
+              },
+              "typos": {
+                "outcome": "pass",
+                "explanation": "No misspellings found in filenames, paths, commands, or identifiers across the task files."
+              },
+              "difficulty_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists, so there is no '## Difficulty explanation' section at all."
+              },
+              "solution_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists, so there is no '## Solution explanation' section at all."
+              },
+              "verification_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists, so there is no '## Verification explanation' section at all."
+              },
+              "category_and_tags": {
+                "outcome": "fail",
+                "explanation": "task.toml sets category = \"sandbox\" and tags = [\"sandbox\"], neither of which is one of the seven valid taxonomy domains (Science, Software, ML, Operations, Security, Hardware, Media) nor a specific/relevant tag; this looks like an unfilled template default."
+              },
+              "task_name": {
+                "outcome": "fail",
+                "explanation": "The folder name \"crosscodeeval-csharp-1767\" is a dataset/language/index identifier rather than a descriptive slug; it gives no indication that the task is about cross-file code line completion."
+              },
+              "resource_configuration": {
+                "outcome": "pass",
+                "explanation": "agent timeout_sec=900 and verifier timeout_sec=720 were deliberately changed from the 120s defaults; while generous for such a trivial task, this is not harmful and no [environment] resource section was needed given the minimal computational footprint."
+              },
+              "task_readme": {
+                "outcome": "fail",
+                "explanation": "No README.md file exists anywhere in the task directory."
+              },
+              "expert_time_estimate": {
+                "outcome": "fail",
+                "explanation": "task.toml's [metadata] section has no expert_time_estimate_hours field at all (not even the default 0), so no estimate was provided."
+              },
+              "task_toml_schema": {
+                "outcome": "fail",
+                "explanation": "task.toml contains invalid fields: root-level `version` (should be `schema_version`), `metadata.difficulty` (not a recognized metadata field; only `difficulty_explanation` is valid), and `verifier.restart_environment` (not a recognized verifier field)."
+              },
+              "no_extraneous_files": {
+                "outcome": "fail",
+                "explanation": "`.laion_v4_patched` is a leftover automated-patch marker note referenced by nothing, and solution/solution.txt is an unused duplicate of solution/solution_snippet.txt (solve.sh only reads solution_snippet.txt)."
+              },
+              "artifact_efficiency": {
+                "outcome": "not_applicable",
+                "explanation": "The task does not use the separate-verifier artifacts/collect mechanism."
+              },
+              "verifier_execution_isolation": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier only reads and textually compares the agent's solution.txt; it never executes, imports, or runs agent-produced code."
+              },
+              "ctrf_reporting": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier is a bespoke one-shot binary comparison script outside any test framework (pytest is installed but never invoked), with no per-test structure to report via CTRF."
+              },
+              "do_not_modify_enforced": {
+                "outcome": "not_applicable",
+                "explanation": "instruction.md contains no do-not-modify/preserve constraint on any concrete artifact."
+              },
+              "binary_reward": {
+                "outcome": "pass",
+                "explanation": "reward.txt is written as `metrics['em']`, which is always exactly 0 or 1 (an integer exact-match flag), with no partial-credit path."
+              }
+            }
+          }
+        ]
+      },
+      "proposal": {
+        "status": "findings",
+        "decision": "Strong Reject",
+        "reviews": [
+          {
+            "decision": "Strong Reject",
+            "review": "Problem statement: This is a CrossCodeEval-style single-line code-completion task. The agent is given a C# source snippet from the 'LootingBots' Escape-From-Tarkov mod that is cut off mid-declaration (the last line is `public static ConfigEntry<`), plus some optional cross-file context excerpts. The agent must output the short continuation (typically 1-3 lines, 20-200 chars) that completes the cut-off fragment, written to /app/solution.txt. The bulk of the instruction is boilerplate about how to correctly write the fragment to a file without tripping over bash metacharacters, using a provided `write_solution` helper. The verifier reads only /app/solution.txt and presumably compares it (exact match or edit similarity) against the original line from the source repository.\n\nVerifiable\nPositive: The mechanism is simple and deterministic -- read one file, compare to a stored ground-truth string. That is efficient and repeatable.\nNegative: The verification is fundamentally a comparison against 'whatever the original author happened to type on that line.' A line-completion has many syntactically and semantically valid continuations. An exact-match verifier will reject correct-but-different completions (fails the 'all-but-guaranteed to return valid for correct solutions' half of the criterion), while a fuzzy/similarity verifier will accept wrong answers and is subjective. There is no objective, universally-agreed separation of correct from incorrect for open-ended code completion.\nJudgement: Reject\n\nWell-specified\nPositive: The output location and format constraints are stated in exhaustive (over-)detail.\nNegative: The actual objective -- which specific continuation counts as correct -- is impossible to derive from the problem description. The 'right' answer is simply the private ground-truth line held by the verifier; nothing in the snippet uniquely determines that `ConfigEntry<` is followed by any particular type/identifier. The worked example (`public List<` -> `Module> Modules => GetModules();`) makes this explicit: it is unrecoverable without the hidden original file. Two reasonable people would write completely different verifiers/answers. This is the opposite of well-specified.\nJudgement: Strong Reject\n\nSolvable\nPositive: If the exact repo line were available, reproducing it is trivial.\nNegative: The task is 'solvable' only by guessing the exact tokens the original author wrote, which is not deducible from the given information. It is guess-the-hidden-string, not a problem with a demonstrable solution path.\nJudgement: Reject\n\nDifficult\nPositive: Essentially none. C# familiarity is barely required.\nNegative: This is single-line IDE autocomplete. A completion like `BotType> SomeSetting;` is producible in seconds and would be trivial for any junior developer, let alone an expert. The rubric explicitly rejects tasks solvable by an average undergraduate in a short time; this is far below even that bar. It requires no professional depth, no multi-step reasoning, no domain expertise. It is exactly the kind of benchmark-sample autocomplete the difficulty criterion excludes.\nJudgement: Strong Reject\n\nInteresting\nPositive: Code completion has real economic value in aggregate (IDE tooling), and cross-file completion is a genuine research area.\nNegative: A single isolated CrossCodeEval sample about a niche game-mod config field has no standalone interest. It is a datapoint lifted from an existing benchmark, not a task someone would independently wish solved. TB explicitly wants tasks distinct in kind and hard for a good reason; this is neither.\nJudgement: Reject\n\nOutcome-verified\nPositive: It does grade only the final output file, not the process, and the output format is a single fragment.\nNegative: While technically outcome-graded, the 'outcome' is matching a hidden string, so outcome-verification here just re-exposes the ill-posed target. Much of the instruction is spent prescribing HOW to write the file (use write_solution, single-quote, etc.), which drifts toward over-specified procedure.\nJudgement: Uncertain\n\nFinal analysis\nThis is a single-line code-completion sample drawn from the CrossCodeEval benchmark. It fails the two most important TB criteria decisively: it is not difficult (trivial one-line autocomplete, seconds of work, no expertise), and it is not well-specified/solvable (the correct answer is an unrecoverable hidden ground-truth string with many equally valid alternatives, and any exact-match verifier will falsely reject correct variants while a fuzzy verifier is subjective). The instruction's length comes entirely from bash-quoting boilerplate, not from meaningful task complexity. There is no path to fixing this within the task's identity -- making it well-specified or difficult would require replacing it with an entirely different task. This is exactly the class of low-difficulty, ill-posed benchmark-sample task TB is designed to exclude.\n\nDecision: Strong Reject"
+          }
+        ]
+      },
+      "findings": [],
+      "error": null
+    },
+    {
+      "task_id": "crosscodeeval-java-0000",
+      "status": "findings",
+      "implementation": {
+        "attempts": [
+          {
+            "criteria": {
+              "verifiable": {
+                "outcome": "pass",
+                "explanation": "The verifier is a deterministic text-normalization comparison (cceval_verifier.py) with no LLM-as-judge and no runtime network installs; it reliably writes 0/1 based on exact-match of the first statement."
+              },
+              "solvable": {
+                "outcome": "pass",
+                "explanation": "solution/solve.sh copies a file whose content exactly matches tests/expected.txt, demonstrating the task passes verification and is trivially solvable in minutes."
+              },
+              "difficult": {
+                "outcome": "fail",
+                "explanation": "This is a single-line code-completion guess, trivially solvable by any junior Java developer from the provided context in well under an hour; it requires no professional-level or multi-year domain expertise."
+              },
+              "interesting": {
+                "outcome": "pass",
+                "explanation": "Cross-file code completion mirrors real work done by code-completion/IDE tooling engineers and ML data curators, giving it a plausible (if niche) real-world analogue."
+              },
+              "outcome_verified": {
+                "outcome": "pass",
+                "explanation": "The instruction only specifies an output file and format; grading is based solely on the final content of /app/solution.txt, not on any required process or tool."
+              },
+              "anti_cheat_robustness": {
+                "outcome": "pass",
+                "explanation": "environment/Dockerfile does not copy tests/ or solution/ into the agent image, so the ground-truth answer in tests/expected.txt and solution/solution_snippet.txt is not accessible to the agent at task start."
+              },
+              "task_security": {
+                "outcome": "pass",
+                "explanation": "No malicious code, exfiltration, obfuscation, or prompt injection was found in any Dockerfile, script, or instruction file."
+              },
+              "functional_verification": {
+                "outcome": "pass",
+                "explanation": "The verifier executes real text-processing logic against the agent's actual output file (/app/solution.txt) rather than grepping source code for keywords."
+              },
+              "deterministic_reproducible": {
+                "outcome": "fail",
+                "explanation": "environment/Dockerfile installs `pytest pytest-timeout` via pip with no version pins, violating the pinning requirement for pip packages even though the ecosystem supports it."
+              },
+              "essential_difficulty": {
+                "outcome": "fail",
+                "explanation": "The provided cross-file context never actually shows Arc's getter methods, so the exact expected completion (`getStartAngle()`) cannot be derived with certainty; difficulty stems from guessing an arbitrary unshown naming detail under strict exact-match grading rather than genuine reasoning."
+              },
+              "test_instruction_alignment": {
+                "outcome": "fail",
+                "explanation": "The instruction claims the verifier merely strips trailing whitespace/blank lines, but cceval_verifier.py actually performs bracket-based statement truncation, comment removal, and multi-metric identifier analysis \u2014 a materially more complex and stricter process than described. tests/test_solution.py is also present but never invoked by test.sh and would fail if it were (it imports a nonexistent `solution` module)."
+              },
+              "novel": {
+                "outcome": "fail",
+                "explanation": "This task is a direct repackaging of an example from the public CrossCodeEval benchmark (amazon-science/cceval), a widely available academic dataset, so a solution could plausibly be memorized from training data."
+              },
+              "agentic": {
+                "outcome": "fail",
+                "explanation": "The task is solvable by reading a handful of short provided files and writing a single line \u2014 a zero-shot generation task with no real multi-step exploration, debugging, or tool use required."
+              },
+              "reviewable": {
+                "outcome": "fail",
+                "explanation": "metadata.json has blank repo/file_path/task_id fields, so a reviewer cannot trace the ground-truth completion back to an authentic source file to confirm it is correct rather than fabricated by the generation pipeline."
+              },
+              "instruction_concision": {
+                "outcome": "fail",
+                "explanation": "instruction.md contains a leftover internal pipeline artifact, the HTML comment `<!-- laion v3 repair: java line-completion contract -->`, indicating automated/patched generation rather than clean human authorship."
+              },
+              "solution_quality": {
+                "outcome": "fail",
+                "explanation": "solve.sh does nothing but `cp /solution/solution_snippet.txt /app/solution.txt`, directly writing the pre-baked final answer with no derivation or computation demonstrating the task is genuinely solvable through reasoning."
+              },
+              "separate_verifier_configured": {
+                "outcome": "not_applicable",
+                "explanation": "The task does not use separate-verifier mode: there is no tests/Dockerfile and task.toml sets no environment_mode."
+              },
+              "environment_hygiene": {
+                "outcome": "fail",
+                "explanation": "Test-only dependencies (pytest, pytest-timeout) are baked directly into the single environment/Dockerfile that the agent uses, rather than being isolated to a verifier-only image."
+              },
+              "structured_data_schema": {
+                "outcome": "not_applicable",
+                "explanation": "The expected output is a freeform code text fragment, not structured data like JSON/CSV/an API with a schema."
+              },
+              "typos": {
+                "outcome": "pass",
+                "explanation": "No misspellings were found in filenames, paths, commands, or variable names across the task files."
+              },
+              "difficulty_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists in the task directory, so there is no Difficulty explanation section at all."
+              },
+              "solution_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists, so there is no Solution explanation section, and no justification is given for the copy-only solve.sh approach."
+              },
+              "verification_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists, so there is no Verification explanation section describing the cceval_verifier.py logic."
+              },
+              "category_and_tags": {
+                "outcome": "fail",
+                "explanation": "task.toml sets category = \"sandbox\", which is not one of the seven valid taxonomy domains, and tags = [\"sandbox\"] is generic and non-descriptive rather than specific to Java or code completion."
+              },
+              "task_name": {
+                "outcome": "fail",
+                "explanation": "The folder name \"crosscodeeval-java-0000\" is a generic, index-based batch identifier that conveys only the source dataset and language, not what this specific task actually asks the agent to do."
+              },
+              "resource_configuration": {
+                "outcome": "pass",
+                "explanation": "Agent (900s) and verifier (720s) timeouts are reasonable for this lightweight text-completion task, and no excessive resources are requested."
+              },
+              "task_readme": {
+                "outcome": "fail",
+                "explanation": "No README.md file exists anywhere in the task directory, so none of the required explanation sections are present."
+              },
+              "expert_time_estimate": {
+                "outcome": "fail",
+                "explanation": "task.toml has no expert_time_estimate_hours field under [metadata] at all \u2014 it is entirely absent, not merely left at a default."
+              },
+              "task_toml_schema": {
+                "outcome": "fail",
+                "explanation": "task.toml contains invented fields not in the Harbor schema: root-level \"version\" (should be schema_version), metadata \"difficulty\" (valid field is difficulty_explanation), and verifier \"restart_environment\"."
+              },
+              "no_extraneous_files": {
+                "outcome": "fail",
+                "explanation": "tests/test_solution.py is dead code never invoked by test.sh (which execs cceval_verifier.py directly) and would fail if run since it imports a nonexistent `solution` Python module; metadata.json's fields are all blank and unused by any Dockerfile, test, or instruction."
+              },
+              "artifact_efficiency": {
+                "outcome": "not_applicable",
+                "explanation": "The task does not use the artifacts/[[verifier.collect]] mechanism; it is not in separate-verifier mode."
+              },
+              "verifier_execution_isolation": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier only performs text comparison on the agent's output file and never executes, imports, or compiles any agent-produced code."
+              },
+              "ctrf_reporting": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier is a bespoke one-shot binary comparison script run outside any test framework (test_solution.py is unused), so there is no per-test structure to report via CTRF."
+              },
+              "do_not_modify_enforced": {
+                "outcome": "not_applicable",
+                "explanation": "instruction.md contains no constraint telling the agent not to modify, delete, or preserve any concrete artifact."
+              },
+              "binary_reward": {
+                "outcome": "pass",
+                "explanation": "cceval_verifier.py writes reward.txt as metrics['em'], which is always exactly 0 or 1 (int cast of an equality comparison), with no fractional or weighted paths."
+              }
+            }
+          }
+        ]
+      },
+      "proposal": {
+        "status": "findings",
+        "decision": "Strong Reject",
+        "reviews": [
+          {
+            "decision": "Strong Reject",
+            "review": "Problem statement: This is a CrossCodeEval-style single-line code-completion task. The agent is given a truncated Java source file (a GraphicsPanel.paintComponent method whose if/else-if chain is cut off partway through the `Arc` branch) plus some read-only cross-file context, and must write to /app/solution.txt the short fragment of code that immediately continues from the cut point. The verifier compares the produced fragment against a single reference continuation after stripping trailing whitespace and blank lines.\n\nVerifiable\nPositive: A byte/line exact-match comparison against a stored reference is deterministic, efficient, and reproducible across hundreds of runs. Outcome (a text file) is easy to check.\nNegative: The verification is brittle and does NOT reliably separate correct from incorrect solutions. Natural-language/code next-line completion has many semantically-correct continuations (e.g. `g.setColor(((Arc) object).getColor());` vs. reformatted equivalents, variable extraction like the sibling branches do with width/height, differing spacing that survives or doesn't survive the strip rules, `g.fillArc(...)` with different but valid argument orderings). Exact string match against one reference will fail correct answers and is not a determination that would be 'universally agreed upon.' This fails the core verifiability requirement (all-but-guaranteed to return valid for correct solutions).\nJudgement: reject\n\nWell-specified\nPositive: The output contract (write only the fragment, don't repeat context, strip rules) is described.\nNegative: The task is fundamentally underspecified: 'infer the short continuation' does not tell the solver what the single canonical reference is, and cannot, because the true answer is whatever the original repository author happened to type. Two reasonable people would produce different-but-valid completions and different verifiers. The spec cannot enumerate what counts as correct.\nJudgement: reject\n\nSolvable\nPositive: A continuation clearly exists (the Arc branch mirrors the Rect/Ellipse branches), and it is trivial to produce a plausible one. The reference obviously existed in the original source.\nNegative: 'Solvable' here means matching the exact hidden reference, which depends on guessing an author's exact keystrokes rather than reasoning to a unique answer.\nJudgement: uncertain\n\nDifficult\nPositive: None of substance.\nNegative: This is the fatal flaw. Completing the next line of an obvious repeated if/else-if pattern is trivial for any programmer with weeks (not years) of Java experience, and takes seconds, not the required 'few days minimum for an average undergraduate.' It requires no professional expertise, no non-obvious algorithm, no domain depth. Single-line autocomplete is exactly the kind of benchmark datapoint that is easy for humans; it is not hard for an interesting reason. The format is inherently incapable of being difficult while remaining a one-line completion.\nJudgement: strong reject\n\nInteresting\nPositive: Code completion / autocomplete is a real, economically relevant activity.\nNegative: A single isolated line-completion instance mined from a benchmark has essentially no standalone real-world value; nobody would be paid to complete this specific line, and the pattern here is boilerplate.\nJudgement: reject\n\nOutcome-verified\nPositive: Grading is purely on the output file, not the process.\nNegative: While outcome-based, the outcome check itself is unreliable (see Verifiable).\nJudgement: uncertain\n\nFinal analysis\nThis is a repurposed CrossCodeEval single-line completion sample. It fails the two most important bars for TB. First, difficulty: predicting one obvious continuation line of a repeated boilerplate pattern is trivial for a novice and does not require expert skill or interesting reasoning \u2014 it is far below the 'undergraduate needs multiple days' threshold. Second, verifiability/specification: exact-match against a single hidden reference cannot reliably distinguish correct from incorrect completions, since many valid continuations exist and the 'true' answer is defined only by the original author's exact text. These are not incidental defects that better implementation could fix \u2014 they are inherent to the single-line-completion format. There is no direct path to acceptance.\n\nDecision: Strong Reject"
+          }
+        ]
+      },
+      "findings": [],
+      "error": null
+    },
+    {
+      "task_id": "crosscodeeval-python-0000",
+      "status": "findings",
+      "implementation": {
+        "attempts": [
+          {
+            "criteria": {
+              "verifiable": {
+                "outcome": "pass",
+                "explanation": "tests/cceval_verifier.py is a deterministic, self-contained AST/regex-based exact-match scorer with no network calls or runtime installs (pytest/pytest-timeout are baked into environment/Dockerfile), and it writes reward.txt deterministically from the comparison."
+              },
+              "solvable": {
+                "outcome": "pass",
+                "explanation": "solution/solve.sh copies the reference completion into /app/solution.txt, which the verifier scores as an exact match (em=1), so a working, trivially-fast solution exists and passes."
+              },
+              "difficult": {
+                "outcome": "fail",
+                "explanation": "The ground-truth continuation uses the identifier `sequence_actual`, which never appears anywhere in the shown prompt or in any of the setup_files/context/*.py excerpts (those use `self.sequence_ids` from a differently-refactored class). Producing the exact original line therefore requires having memorized the specific public GitHub file (turboderp/exllama) rather than exercising professional reasoning from the given materials."
+              },
+              "interesting": {
+                "outcome": "pass",
+                "explanation": "Cross-file code completion (the CrossCodeEval task family) mirrors real IDE/code-assistant functionality (e.g. Copilot-style completion), so the general problem class has clear real-world value even though this specific instance has execution issues noted elsewhere."
+              },
+              "outcome_verified": {
+                "outcome": "pass",
+                "explanation": "The verifier only inspects the final content of /app/solution.txt; it does not care which tool or approach the agent used to produce it."
+              },
+              "anti_cheat_robustness": {
+                "outcome": "pass",
+                "explanation": "environment/Dockerfile does not copy tests/ or solution/ into the agent image, so the ground-truth answer (tests/solution.txt, solution/solution_snippet.txt) is not embedded in the agent's image layers."
+              },
+              "task_security": {
+                "outcome": "pass",
+                "explanation": "All scripts (write_solution.sh, test.sh, cceval_verifier.py, solve.sh) perform only their stated, narrow functions; no exfiltration, obfuscation, or destructive operations were found."
+              },
+              "functional_verification": {
+                "outcome": "pass",
+                "explanation": "cceval_verifier.py performs real structural comparison (ast.parse-based statement truncation, comment stripping, identifier extraction, edit-similarity) on the actual file content rather than grepping for keywords."
+              },
+              "deterministic_reproducible": {
+                "outcome": "fail",
+                "explanation": "environment/Dockerfile runs `pip install --no-cache-dir pytest pytest-timeout` with no version pins, so the exact verifier-support toolchain can drift across builds even though pip supports pinning."
+              },
+              "essential_difficulty": {
+                "outcome": "fail",
+                "explanation": "Because the exact-match target hinges on reproducing an unintroduced identifier (`sequence_actual`) verbatim, a semantically equivalent and reasonable completion using different (but locally undeclared) variable names would score 0 \u2014 the pass/fail hinges on clerical exactness/memorization rather than genuine reasoning from the provided context."
+              },
+              "test_instruction_alignment": {
+                "outcome": "pass",
+                "explanation": "The instruction's sole requirement (write the short continuation to /app/solution.txt) is exactly what tests/cceval_verifier.py checks; the prompt shown in instruction.md matches tests/prompt.txt verbatim."
+              },
+              "novel": {
+                "outcome": "fail",
+                "explanation": "The snippet and its continuation are taken verbatim from the public GitHub repository turboderp/exllama (a well-known, indexed open-source project), and the underlying CrossCodeEval benchmark itself is a published, publicly available dataset \u2014 both plausibly present in LLM pretraining corpora, so the task risks being solved via memorization rather than novel reasoning."
+              },
+              "agentic": {
+                "outcome": "fail",
+                "explanation": "The task reduces to reading a short prompt (and, in principle, a few small context files) and writing a single short text completion via one helper command \u2014 a single-shot generation task with no real multi-step exploration, debugging, or iterative tool use."
+              },
+              "reviewable": {
+                "outcome": "fail",
+                "explanation": "There is no README or explanation anywhere in the task, and verifying that `sequence_actual[:, -max_stop_string:])[0]` is the uniquely correct continuation requires specialized familiarity with the exllama codebase's internals; a non-specialist reviewer has no way to confirm correctness or uniqueness of the reference answer."
+              },
+              "instruction_concision": {
+                "outcome": "fail",
+                "explanation": "The instruction carries clear signs of automated/pipeline generation (the `.laion_v2_patched` marker file, \"laion v2\" comments in the Dockerfile and helper script, and a stray `<!-- laion v2 instruction: line-completion-with-helper -->` HTML comment left in instruction.md), plus excessive scaffolding (multiple headings, a full worked example, repeated warnings about bash metacharacters) beyond what a concise, human-written instruction needs."
+              },
+              "solution_quality": {
+                "outcome": "fail",
+                "explanation": "solution/solve.sh is a bare `cp /solution/solution_snippet.txt /app/solution.txt` \u2014 it directly stages the precomputed final answer with no derivation or computation, and does not qualify for the precomputed-artifact exception (this isn't an expensive computation, the author simply omitted showing how the line would be derived)."
+              },
+              "separate_verifier_configured": {
+                "outcome": "not_applicable",
+                "explanation": "The task has no tests/Dockerfile and no environment_mode field in task.toml, so separate-verifier mode is not configured for this task."
+              },
+              "environment_hygiene": {
+                "outcome": "pass",
+                "explanation": "environment/Dockerfile does not copy tests/ or solution/ into the agent image, and apt usage (`apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*`) is unpinned and cleaned up correctly, as expected for apt packages."
+              },
+              "structured_data_schema": {
+                "outcome": "not_applicable",
+                "explanation": "The expected output is a short free-text code fragment written to a single file, not a structured format like JSON/CSV/an API schema."
+              },
+              "typos": {
+                "outcome": "fail",
+                "explanation": "environment/Dockerfile creates `/context` (`RUN mkdir -p /logs/verifier /context`), but instruction.md tells the agent the context files live at `/setup_files/context/` \u2014 a path mismatch, and neither Dockerfile nor any script actually copies setup_files/context/ into the image at all, so the promised path is never populated."
+              },
+              "difficulty_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists in the task directory, so the required Difficulty explanation section is entirely missing."
+              },
+              "solution_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists in the task directory, so the required Solution explanation section is entirely missing."
+              },
+              "verification_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "No README.md exists in the task directory, so the required Verification explanation section is entirely missing."
+              },
+              "category_and_tags": {
+                "outcome": "fail",
+                "explanation": "task.toml sets category = \"sandbox\", which is not one of the seven valid taxonomy domains (Science, Software, ML, Operations, Security, Hardware, Media), and tags = [\"sandbox\"] is a generic, non-descriptive tag rather than specific keywords about the skill/domain involved."
+              },
+              "task_name": {
+                "outcome": "fail",
+                "explanation": "\"crosscodeeval-python-0000\" only identifies the source benchmark, language, and a serial index; it gives no indication that the task is a line-completion task, and the numeric suffix pattern suggests many indistinguishable siblings, similar to the generic \"task-1\" style names the guidance flags."
+              },
+              "resource_configuration": {
+                "outcome": "pass",
+                "explanation": "There is no [environment] section, so build/cpu/memory/storage defaults apply, which is reasonable for this lightweight text-writing task; agent timeout (900s) and verifier timeout (720s) are generous but not clearly excessive for a task that includes reading several context files."
+              },
+              "task_readme": {
+                "outcome": "fail",
+                "explanation": "No README.md file exists anywhere in the task directory, so none of the required explanation sections or metadata summary are present."
+              },
+              "expert_time_estimate": {
+                "outcome": "fail",
+                "explanation": "task.toml's [metadata] section has no expert_time_estimate_hours field at all (only author_name, author_email, difficulty, category, tags are present), so no estimate was ever provided."
+              },
+              "task_toml_schema": {
+                "outcome": "fail",
+                "explanation": "task.toml contains multiple invented fields: root-level `version` (should be `schema_version`), `[metadata] difficulty` (not a valid metadata field; valid is `difficulty_explanation`), and `[verifier] restart_environment` (not in the valid verifier field list)."
+              },
+              "no_extraneous_files": {
+                "outcome": "fail",
+                "explanation": "`.laion_v2_patched` is a leftover pipeline marker file referenced by nothing, and solution/solution.py is an unused duplicate of solution/solution_snippet.txt (solve.sh only references solution_snippet.txt, never solution.py)."
+              },
+              "artifact_efficiency": {
+                "outcome": "not_applicable",
+                "explanation": "task.toml declares no [[artifacts]] entries and the task does not run in separate-verifier mode."
+              },
+              "verifier_execution_isolation": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier only reads and ast.parse()s the agent's prediction text for structural comparison; ast.parse builds a syntax tree without executing the code, so the verifier never executes agent-produced code."
+              },
+              "ctrf_reporting": {
+                "outcome": "pass",
+                "explanation": "tests/test_state.py follows the repository's standard reward.txt-check pytest pattern (single assertion against /logs/verifier/reward.txt), consistent with the harness's standard `pytest --ctrf ... test_state.py` invocation convention used across this benchmark's tasks."
+              },
+              "do_not_modify_enforced": {
+                "outcome": "not_applicable",
+                "explanation": "instruction.md contains no \"do not modify/preserve\" constraint naming a concrete artifact to protect."
+              },
+              "binary_reward": {
+                "outcome": "pass",
+                "explanation": "cceval_verifier.py writes `reward.txt` as `metrics['em']`, an integer exact-match flag that is always exactly 0 or 1 on every code path (missing-prediction case is also scored through the same em computation)."
+              }
+            }
+          }
+        ]
+      },
+      "proposal": {
+        "status": "findings",
+        "decision": "Strong Reject",
+        "reviews": [
+          {
+            "decision": "Strong Reject",
+            "review": "Problem statement: This is a CrossCodeEval-style single-line code-completion task. The agent is given a Python snippet from what appears to be the `exllama` websocket example server. The snippet is cut off mid-expression at `old_tail = tokenizer.decode(generator.`. The agent must write the short (typically 1-3 line, 20-200 char) continuation that completes the cut-off fragment to `/app/solution.txt`, optionally consulting read-only cross-file context under /setup_files/context/. The verifier reads only that file.\n\nVerifiable\nPositive: The output is a single small string in a fixed file, so mechanically it is trivial to read and compare. If graded by exact match against the original repository line, that is deterministic and cheap to run repeatedly.\nNegative: The fundamental problem is that a line-completion task of this form has many legitimately correct continuations. `tokenizer.decode(generator.X)` could be completed with numerous semantically-equivalent or equally-plausible expressions, but only the one string the original author happened to write will be scored correct. Exact-match (or an edit-similarity threshold, as the real CrossCodeEval uses) is therefore NOT all-but-guaranteed to accept correct solutions nor all-but-guaranteed to reject wrong ones \u2014 it rewards guessing a specific person's phrasing rather than producing a correct outcome. This is exactly the class of verifier the rubric warns against: it does not cleanly separate correct from incorrect in a way everyone would agree on.\nJudgement: reject\n\nWell-specified\nPositive: The mechanics (where to write, what format, common bash pitfalls) are described in detail and clearly.\nNegative: The task never states what the verifier actually checks \u2014 exact string match? normalized match? edit-distance threshold? The instruction only says a \"reasonable\" continuation, which is inherently subjective. Two reasonable people would not write the same verifier: one might do exact match, another an edit-similarity cutoff, and submissions passing one would fail the other. The success criterion is left to guessing.\nJudgement: reject\n\nSolvable\nPositive: A ground-truth line exists (it comes from a real repo), so a canonical answer is available and the task is in principle completable in seconds.\nNegative: 'Solvable' here collides with verifiability: producing a correct continuation is easy, but producing the exact string the verifier wants is a matter of luck for anything non-obvious.\nJudgement: uncertain\n\nDifficult\nPositive: One could argue cross-file reasoning is involved.\nNegative: This is the decisive failure. Single-line code completion is trivial for a human \u2014 an average developer (let alone the PhD/multi-year-expert bar the rubric sets) completes such a line in seconds to minutes, not the \"few days\" floor the rubric requires for even borderline tasks. The task is not hard for any 'good reason'; it is a next-token-prediction benchmark item. It is essentially a repackaged instance of an existing academic benchmark (CrossCodeEval), which is precisely what TB aims to differ from. Any difficulty that exists is memorization/guessing luck, not genuine reasoning or engineering.\nJudgement: strong reject\n\nInteresting\nPositive: Code autocompletion is broadly economically useful, and IDE completion is a real product area, so the general problem class has value.\nNegative: This particular instance \u2014 guess the exact continuation of one line from one repo \u2014 has essentially no marginal real-world utility beyond what an autocomplete model already does. Nobody is paid to reproduce a specific author's exact one-line phrasing.\nJudgement: reject\n\nOutcome-verified\nPositive: Grading is on the final file contents, not the process, and it does not mandate a particular tool.\nNegative: The 'outcome' being verified is a brittle string match, so while technically outcome-based, the outcome is not a meaningful correctness signal.\nJudgement: uncertain\n\nFinal analysis\nThis is a single-line, fill-in-the-blank code-completion item lifted from the CrossCodeEval benchmark. It fails the two most important TB requirements simultaneously. On difficulty: single-line completion is far below the TB bar \u2014 it is solvable by an average developer in seconds, requires no significant expertise, and is hard (if at all) only as a guessing/memorization exercise, which the rubric explicitly deems uninteresting. On verifiability/well-specification: correctness is judged against one canonical author-written string despite many equally valid continuations existing, and the instruction never even states the matching criterion. There is no path to fix these without changing the task into something entirely different; the core premise (guess-the-next-line, exact-match graded) is unsalvageable for TB. This is a clear case where nothing could save the task as conceived.\n\nDecision: Strong Reject"
+          }
+        ]
+      },
+      "findings": [],
+      "error": null
+    },
+    {
+      "task_id": "crosscodeeval-typescript-0000",
+      "status": "findings",
+      "implementation": {
+        "attempts": [
+          {
+            "criteria": {
+              "verifiable": {
+                "outcome": "pass",
+                "explanation": "The verifier is a deterministic Python text-comparison script that writes a binary reward with no runtime network installs; the one missing /tests/prompt.txt reference is handled gracefully via an is_file() check and doesn't affect determinism for the typescript language path."
+              },
+              "solvable": {
+                "outcome": "pass",
+                "explanation": "solution/solve.sh copies the reference snippet into /app/solution.txt, which satisfies the exact-match verifier, so a working solution exists that passes the tests."
+              },
+              "difficult": {
+                "outcome": "fail",
+                "explanation": "The task is a short (1-3 line, 20-200 character) code-completion guess repackaged from the public CrossCodeEval benchmark; it does not require professional-level expertise or multi-hour expert effort, only reading a small TypeScript snippet."
+              },
+              "interesting": {
+                "outcome": "pass",
+                "explanation": "Cross-file code completion is a real product/research problem (e.g. code-completion models like Copilot are evaluated on exactly this kind of benchmark), so there is a real-world audience for this kind of task."
+              },
+              "outcome_verified": {
+                "outcome": "pass",
+                "explanation": "The instruction only asks the agent to produce a final text file and the verifier grades that output; no particular tool or step-by-step procedure is mandated."
+              },
+              "anti_cheat_robustness": {
+                "outcome": "pass",
+                "explanation": "The ground-truth answer (tests/solution.txt, solution/solution_snippet.txt) is not copied into environment/Dockerfile or otherwise present in the agent image; it only becomes available during the separate verification step, so it is not trivially readable during the agent's turn."
+              },
+              "task_security": {
+                "outcome": "pass",
+                "explanation": "All scripts (Dockerfile, write_solution.sh, solve.sh, test.sh, cceval_verifier.py) perform only legitimate, non-obfuscated actions related to building, solving, and grading the task; no exfiltration, obfuscation, or destructive operations were found."
+              },
+              "functional_verification": {
+                "outcome": "fail",
+                "explanation": "Verification is pure text/string comparison against a single canonical reference completion (normalized-line exact match plus similarity metrics) rather than execution of the produced code, so a semantically valid but differently-worded completion would be scored as wrong."
+              },
+              "deterministic_reproducible": {
+                "outcome": "fail",
+                "explanation": "environment/Dockerfile installs `pytest pytest-timeout` via pip without version pins, even though pip supports pinning, so the built image is not fully reproducible across builds."
+              },
+              "essential_difficulty": {
+                "outcome": "fail",
+                "explanation": "The verifier requires the agent's completion to normalize-line-match one specific original author's phrasing; other syntactically and semantically valid completions would fail purely because they are not byte/line-identical to the single reference, making success depend on guessing exact wording rather than genuine reasoning."
+              },
+              "test_instruction_alignment": {
+                "outcome": "pass",
+                "explanation": "The instruction's single requirement (write the short completion to /app/solution.txt) is exactly what the verifier checks; no extra untested requirements or untested instructions are present."
+              },
+              "novel": {
+                "outcome": "fail",
+                "explanation": "The task is a direct port of the public CrossCodeEval benchmark (explicitly ported from amazon-science/cceval and 'laion v2' data), whose prompts and reference completions are published and could plausibly be present in training corpora."
+              },
+              "agentic": {
+                "outcome": "fail",
+                "explanation": "The task is solvable by a single generation step (predict a short code continuation and write it to a file); it requires no exploration, debugging, iteration, or multi-step terminal interaction with the environment."
+              },
+              "reviewable": {
+                "outcome": "fail",
+                "explanation": "metadata.json has empty task_id/repo/file_path fields and there is no README, so a reviewer has no way to trace the reference completion back to its original source repository to confirm the ground truth is actually correct."
+              },
+              "instruction_concision": {
+                "outcome": "fail",
+                "explanation": "The instruction contains a leaked internal HTML comment ('<!-- laion v2 instruction: line-completion-with-helper -->') and a vague/broken 'Target File: solution file' placeholder heading, both clear signs of unedited, pipeline-generated text rather than a concise human-written instruction."
+              },
+              "solution_quality": {
+                "outcome": "fail",
+                "explanation": "solution/solve.sh simply does `cp /solution/solution_snippet.txt /app/solution.txt`, i.e. it copies the pre-known final answer verbatim with no derivation or computation demonstrating the task is genuinely solvable through legitimate reasoning."
+              },
+              "separate_verifier_configured": {
+                "outcome": "not_applicable",
+                "explanation": "The task has no tests/Dockerfile and no environment_mode/artifacts configuration, so it does not use separate-verifier mode."
+              },
+              "environment_hygiene": {
+                "outcome": "not_applicable",
+                "explanation": "There is no separate verifier image (no tests/Dockerfile); the task uses a single shared environment/Dockerfile, so the two-image hygiene rules don't apply."
+              },
+              "structured_data_schema": {
+                "outcome": "not_applicable",
+                "explanation": "The expected output is a single plain-text snippet, not structured data like JSON/CSV/a schema-bound format."
+              },
+              "typos": {
+                "outcome": "fail",
+                "explanation": "tests/test.sh passes `--prompt /tests/solution.txt` no, actually `--prompt /tests/prompt.txt`, but no tests/prompt.txt file exists anywhere in the task directory, and metadata.json claims context_files_count: 0 while 5 files exist under setup_files/context/."
+              },
+              "difficulty_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "There is no README.md in the task directory at all, so no Difficulty explanation section exists."
+              },
+              "solution_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "There is no README.md in the task directory at all, so no Solution explanation section exists."
+              },
+              "verification_explanation_quality": {
+                "outcome": "fail",
+                "explanation": "There is no README.md in the task directory at all, so no Verification explanation section exists, despite the verifier using similarity/threshold-based metrics that would need justification."
+              },
+              "category_and_tags": {
+                "outcome": "fail",
+                "explanation": "task.toml sets category = \"sandbox\" and tags = [\"sandbox\"], neither of which is one of the seven valid taxonomy domains (Science, Software, ML, Operations, Security, Hardware, Media) nor a specific, discoverable tag; this looks like an unset placeholder."
+              },
+              "task_name": {
+                "outcome": "fail",
+                "explanation": "The folder name 'crosscodeeval-typescript-0000' uses a generic zero-padded numeric suffix that does not distinguish this task's specific content from sibling tasks (e.g. -0001, -0002) generated by the same batch pipeline."
+              },
+              "resource_configuration": {
+                "outcome": "pass",
+                "explanation": "Agent (900s) and verifier (720s) timeouts were deliberately customized away from defaults, and no excessive compute resources (cpus/memory/storage/gpus) are requested for this lightweight text-comparison task."
+              },
+              "task_readme": {
+                "outcome": "fail",
+                "explanation": "No README.md file exists anywhere in the task directory, so none of the required Difficulty/Solution/Verification/Relevant experience sections are present."
+              },
+              "expert_time_estimate": {
+                "outcome": "fail",
+                "explanation": "task.toml's [metadata] table has no expert_time_estimate_hours field at all, so it is effectively unset/default."
+              },
+              "task_toml_schema": {
+                "outcome": "fail",
+                "explanation": "task.toml contains invented fields not in the valid schema: [metadata].difficulty (only difficulty_explanation is valid) and [verifier].restart_environment (not a recognized verifier field)."
+              },
+              "no_extraneous_files": {
+                "outcome": "fail",
+                "explanation": "The directory contains unused leftovers: the root .laion_v2_patched marker file (nothing reads it), solution/solution.py (solve.sh never invokes it, only solution_snippet.txt is used), and tests/test_state.py (never invoked by tests/test.sh, which execs cceval_verifier.py directly)."
+              },
+              "artifact_efficiency": {
+                "outcome": "not_applicable",
+                "explanation": "The task does not use separate-verifier mode / artifacts transfer."
+              },
+              "verifier_execution_isolation": {
+                "outcome": "not_applicable",
+                "explanation": "The verifier (cceval_verifier.py) only reads and text-compares the agent's solution.txt; it never executes or imports agent-produced code."
+              },
+              "ctrf_reporting": {
+                "outcome": "not_applicable",
+                "explanation": "tests/test.sh runs a bespoke scoring script directly (not pytest) that computes a single exact-match reward with auxiliary metrics; there is no discrete per-test structure to report via CTRF."
+              },
+              "do_not_modify_enforced": {
+                "outcome": "not_applicable",
+                "explanation": "The instruction contains no constraint telling the agent not to modify or to preserve any concrete artifact."
+              },
+              "binary_reward": {
+                "outcome": "pass",
+                "explanation": "cceval_verifier.py writes reward.txt as f\"{metrics['em']}\\n\" and reward.json's \"reward\" field as metrics['em'], both of which are the integer 0 or 1 from `int(pred_lines == gt_lines)`; no fractional path exists."
+              }
+            }
+          }
+        ]
+      },
+      "proposal": {
+        "status": "findings",
+        "decision": "Reject",
+        "reviews": [
+          {
+            "decision": "Reject",
+            "review": "Problem statement: This is a CrossCodeEval-style single-line code-completion task. The agent is given a TypeScript file (an `apiWithLog` fetch-wrapper) that is truncated mid-body right after an `apiDebug({...})` call, plus some read-only cross-file context excerpts. The agent must output the short continuation (typically 1-3 lines, 20-200 chars) that completes the cut-off fragment, writing it to /app/solution.txt. The verifier reads only that file and compares it against a hidden canonical continuation.\n\nVerifiable\nPositives: There is a single artifact (/app/solution.txt) and grading is fully automated, deterministic, and cheap; outcomes are compared to a stored ground-truth string. Negatives: Line completion is intrinsically many-valued. A given cut-off fragment can be completed correctly in many semantically-equivalent ways (e.g. `return response;`, `return cloneResponse(response, text);`, differing whitespace, variable names, ordering). Exact-match (or even edit-similarity thresholds, the standard CrossCodeEval metric) will mark genuinely-correct completions as wrong and cannot 'all-but-guarantee' it returns valid for correct solutions. The verifier detects 'matches the author's original tokens', not 'is a correct completion', so it fails the core requirement that correct solutions reliably pass. Judgement: reject\n\nWell-specified\nPositives: The mechanical output format (write the fragment, no fences/labels/imports) is clearly described, and a worked example is given. Negatives: The essential thing the verifier looks for -- the exact expected continuation -- is a hidden string that is NOT derivable from the description. Two reasonable engineers reading this snippet would produce different continuations, and would write incompatible verifiers. The specification tells you HOW to submit but leaves the actual required content up to guessing the original author's tokens. This directly violates 'the problem description completely describes what the verification algorithm will look for.' Judgement: reject\n\nSolvable\nPositives: A ground-truth completion demonstrably exists (it was extracted from a real repository), so a solution exists and is short. Negatives: While a fragment exists, reliably reproducing THE canonical fragment from ambiguous context is not guaranteed even for an expert; solvability here is more about lucky token-matching than deterministic reasoning. Judgement: uncertain\n\nDifficult\nPositives: Cross-file context adds a little lookup work. Negatives: This is fundamentally trivial for a human software developer -- completing one cut-off line of idiomatic TypeScript takes seconds and requires no professional depth, no domain expertise, and certainly nothing like years of experience or a PhD. An average undergraduate would solve it in well under a minute. The only 'difficulty' is guessing the author's exact phrasing, which is an artifact-matching lottery, not interesting difficulty. This is far below the TB difficulty bar and is exactly the kind of course-project-or-easier autocomplete the rubric warns against. Judgement: strong reject\n\nInteresting\nPositives: Code completion (Copilot-style) is a real, economically valuable product area, so the general problem class has some interest. Negatives: A single isolated benchmark-dataset instance ('complete this one line') is a data point from an existing benchmark rather than a task someone would be paid to solve, and it carries no self-contained real-world scenario of marginal utility. Marginal at best. Judgement: reject\n\nOutcome-verified\nPositives: Grading is purely on the final output file with no process constraints, which fits the outcome-verified requirement well. Negatives: None significant on this axis. Judgement: accept\n\nFinal analysis\nThe task is mechanically simple to run and grade, but it fails the two most important bars. It is far too easy (a one-line autocomplete solvable in seconds by a novice), and it is not robustly verifiable or well-specified because the 'correct' answer is a single hidden author-original string against which many genuinely-correct completions will fail, and which reasonable people cannot reconstruct from the description. This is a repurposed CrossCodeEval dataset entry, not a hard, well-specified, reliably-verifiable TB task. These are fundamental properties of the line-completion format rather than incidental flaws, so it is unfit as presented, though the format is coherent enough that it is not beyond all salvage.\n\nDecision: Reject"
+          }
+        ]
+      },
+      "findings": [],
+      "error": null
+    }
+  ]
+}

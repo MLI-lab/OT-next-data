@@ -1,0 +1,8 @@
+{
+  "status": "findings",
+  "job_id": "915057",
+  "contract_sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669",
+  "network_mode": "isolated",
+  "exit_code": 1,
+  "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/ten-task-results/submissions/2d11ffe8dcf3/evidence.tar.gz"
+}

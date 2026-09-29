@@ -1,0 +1,8 @@
+{
+  "status": "findings",
+  "job_id": "915589",
+  "contract_sha256": "c7a399a6fb7d10d133acc87aa3a485932135d0fd094033d1c9dd61a296a02b5f",
+  "network_mode": "host",
+  "exit_code": 1,
+  "evidence": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/results/crosscodeeval/local-qwen38-1-v4/submissions/01acd8dec5d2/evidence.tar.gz"
+}

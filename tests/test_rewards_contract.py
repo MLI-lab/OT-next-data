@@ -1,4 +1,4 @@
-"""Every data/<dataset>/rewards.py must satisfy the contract verify/ relies on.
+"""Every data/<dataset>/rewards.py must satisfy the contract validation/verify/ relies on.
 
 A dataset plug-in is small but load-bearing: if it stops honouring this, the
 reward checks silently grade the wrong thing. The test builds a real task from

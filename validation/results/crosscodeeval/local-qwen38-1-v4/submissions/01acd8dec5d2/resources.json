@@ -1,0 +1,7 @@
+{
+  "requested_concurrency": 1,
+  "max_concurrency": 4,
+  "trial_cpu_budget": 4,
+  "reserved_cpus_per_trial": 1,
+  "effective_concurrency": 1
+}

@@ -1,7 +1,7 @@
 #!/bin/bash
-# The checks that need a real sandbox: verify/check_reward_harbor.py (does the
+# The checks that need a real sandbox: validation/verify/check_reward_harbor.py (does the
 # image build and does the task's own test.sh score correctly inside it?) and
-# verify/check_isolation.py (can two trial containers see each other?).
+# validation/verify/check_isolation.py (can two trial containers see each other?).
 #
 # They need a bridge server and a bridge worker, which only exist inside a job,
 # so this is the same environment teacher_traces.sbatch sets up - without the model.
@@ -58,10 +58,10 @@ echo "bridge ready on $APPTAINER_BRIDGE_URL" | tee "$out/phases.log"
 
 rc=0
 echo "== check_reward_harbor.py (first $limit tasks)" | tee -a "$out/phases.log"
-python "$here/verify/check_reward_harbor.py" "$tasks" "$out/sandbox" --limit "$limit" --extras \
+python "$here/validation/verify/check_reward_harbor.py" "$tasks" "$out/sandbox" --limit "$limit" --extras \
     2>&1 | tee "$out/check_reward_harbor.log" || rc=1
 echo "== check_isolation.py" | tee -a "$out/phases.log"
-python "$here/verify/check_isolation.py" "$(ls -d "$tasks"/tasks/* | head -1)" "$out/isolation" \
+python "$here/validation/verify/check_isolation.py" "$(ls -d "$tasks"/tasks/* | head -1)" "$out/isolation" \
     2>&1 | tee "$out/check_isolation.log" || rc=1
 echo "exit $rc" | tee -a "$out/phases.log"
 exit "$rc"
