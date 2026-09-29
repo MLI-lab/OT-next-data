@@ -89,7 +89,7 @@ def test_all_collects_failures_unless_fail_fast(tmp_path, monkeypatch, fail_fast
         calls.append('local')
         return 0
     monkeypatch.setattr(dataset_checks, 'CHECKS', {
-        'images': (upstream, lambda a: None), 'reward': (local, lambda a: None)})
+        'images': (upstream, lambda a: None), 'reproduce': (local, lambda a: None)})
     monkeypatch.setattr(sys, 'argv', ['dataset_checks.py', 'all', str(tmp_path), '--out', str(tmp_path / 'out')]
                         + (['--fail-fast'] if fail_fast else []))
     with pytest.raises(SystemExit) as exc:
@@ -108,7 +108,7 @@ def test_all_records_errors_skips_and_submissions(tmp_path, monkeypatch):
     monkeypatch.setattr(dataset_checks, 'CHECKS', {
         'images': (broken, lambda a: None),
         'reproduce': (lambda a: ('skip', 'no parquets'), lambda a: None),
-        'sandbox': (lambda a: 0, lambda a: None)})
+        'isolation': (lambda a: 0, lambda a: None)})
     monkeypatch.setattr(sys, 'argv', ['dataset_checks.py', 'all', '--out', str(tmp_path)])
     with pytest.raises(SystemExit):
         dataset_checks.main()

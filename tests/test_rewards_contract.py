@@ -1,7 +1,7 @@
-"""Every data/<dataset>/rewards.py must satisfy the contract validation/verify/ relies on.
+"""Every data/<dataset>/rewards.py grades the reference 1 and its wrong answers as claimed.
 
-A dataset plug-in is small but load-bearing: if it stops honouring this, the
-reward checks silently grade the wrong thing. The test builds a real task from
+A dataset plug-in is small but load-bearing: if it stops honouring this, a
+verifier that accepts wrong answers goes unnoticed. The test builds a real task from
 the dataset's own patcher output where possible, so it also fails when the task
 layout changes under the plug-in.
 """

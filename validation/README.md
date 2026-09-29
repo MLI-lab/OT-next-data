@@ -185,24 +185,22 @@ Run the hacker-fixer loop from [*Hardening Agent Benchmarks with Adversarial Hac
 
 We use the authors' implementation, [harden-v0](https://github.com/few-sh/harden-v0), pinned at commit `342b8474e0c0`. It runs on an editable copy of the task, with our interpreter and backend configuration instead of Modal-only dispatch. Requires a compatible model API endpoint.
 
-## Dataset-specific checks
+## Additional checks
 
-These checks depend on a dataset's own adapter (`data/<dataset>/rewards.py`) or on its published Parquets, so they are not part of the stages and need no contract. They need a directory containing `tasks/`.
+Three checks that the stages do not cover. They need no contract, and a directory containing `tasks/`.
 
 ```bash
 python validation/dataset_checks.py all /path/to/dataset
-python validation/dataset_checks.py reward /path/to/dataset --limit 20
+python validation/dataset_checks.py images /path/to/dataset
 ```
 
 | Check | What it does | Needs |
 | --- | --- | --- |
-| `reward` | each task's verifier gives the reference 1 and wrong answers the expected reward, on this machine | a rewards adapter |
 | `images` | counts the distinct container images a dataset needs | nothing |
 | `reproduce` | the patcher still produces exactly the published tasks | `--parquet` and `--reference` |
-| `sandbox` | the reward check inside the real container, including the dataset's near-miss answers | a bridge; outside a job it submits one |
-| `isolation` | two containers running at once cannot see each other's files, cgroups or loopback | runs in the same job as `sandbox` |
+| `isolation` | two containers running at once cannot see each other's files, cgroups or loopback | a bridge; outside a job it submits one |
 
-Under `all`, a failure does not stop later checks unless `--fail-fast` is given, and checks with missing prerequisites are reported as skipped. Outcomes are saved to `verify-out/pipeline-summary.json`. A submitted job is reported as submitted, not as passed. The scripts are in [`verify/`](verify/) and can also be run one by one.
+Under `all`, a failure does not stop later checks unless `--fail-fast` is given, and checks with missing prerequisites are reported as skipped. Outcomes are saved to `verify-out/pipeline-summary.json`. A submitted job is reported as submitted, not as passed.
 
 ## Quickstart
 
@@ -241,22 +239,25 @@ This writes `check.json` (the contract), `check.tasks.json` (the task list) and 
 python validation/run.py --contract /path/to/contracts/check.json
 ```
 
+This runs the stages that were selected when the contract was prepared. They cannot be changed at run time. To run a single stage, prepare a contract for it:
+
+```bash
+python validation/run.py /path/to/tasks --stages 3 \
+  --submit helma --time 00:30:00 \
+  --prepare-contract /path/to/contracts/build.json
+python validation/run.py --contract /path/to/contracts/build.json
+```
+
 Findings do not stop later stages, but count as failures in the report.
 
 ### 4. Read results
 
-Results go to `validation/results/` unless `--out` is given. The run prints its output directory. Helma jobs write their report to `report/` in that directory when they finish. To write it yourself, or to wait for a running job:
-
-```bash
-python validation/report.py /path/to/submission --wait --out /path/to/report
-```
-
-Saved runs are indexed in the [CrossCodeEval results](results/crosscodeeval/README.md).
+Results go to `validation/results/` unless `--out` is given. A Helma job writes its report to `submissions/ID/report/` when it finishes. Saved runs are indexed in the [CrossCodeEval results](results/crosscodeeval/README.md).
 
 ### Tested environment
 
-Stages 1, 3, 4 and 5 were run on ten CrossCodeEval tasks on Helma's `h200` partition, with Apptainer, Python 3.12.14 and host networking. The stage 3 network probe and the metrics of stages 6 and 7 have unit tests only.
+Stages 1, 3, 4 and 5 were run on ten CrossCodeEval tasks on Helma's `h200` partition, with Apptainer, Python 3.12.14 and host networking.
 
 - **Harbor:** Marin fork, commit `7faf878c14b6` (package `0.8.1`).
-- **Apptainer:** supplied by the cluster, not pinned.
+- **Apptainer:** 1.5.3, as installed on Helma (checked 2026-09-29). The cluster can update it, so each run records its version in `execution.json`.
 - **Other pins:** [upstream/upstream.lock.json](upstream/upstream.lock.json).

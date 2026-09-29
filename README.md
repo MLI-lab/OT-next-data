@@ -38,20 +38,17 @@ python validation/run.py /path/to/tasks --stages 1,3,4,5 \
 python validation/run.py --contract /path/to/contracts/check.json
 ```
 
-Checks that depend on a dataset's own adapter or its published Parquets are run
-separately, without a contract:
+Three checks that the stages do not cover are run separately, without a contract:
 
 ```bash
 python validation/dataset_checks.py all /path/to/dataset
-python validation/dataset_checks.py reward /path/to/dataset
+python validation/dataset_checks.py images /path/to/dataset
 ```
 
 | Check | What it does |
 | --- | --- |
-| `reward` | each task's verifier gives the reference 1 and wrong answers the expected reward |
 | `images` | counts the distinct container images a dataset needs |
 | `reproduce` | the patcher still produces exactly the published tasks |
-| `sandbox` | the reward check inside the real container, including the dataset's near-miss answers |
 | `isolation` | two containers running at once cannot see each other |
 
 Unit tests of this repository: `python -m pytest tests -q`.

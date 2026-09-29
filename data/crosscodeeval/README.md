@@ -30,8 +30,8 @@ grades an agent in production. The repo-level tests are elsewhere by design:
 - `tests/test_crosscodeeval_patch.py` — 34 pytest cases on the patch rules
   (truncation, comment handling per language, the solvability verdicts, the
   report contents).
-- `validation/verify/check_reward.py` — grades gold and nonsense with those per-task
-  verifiers, over the whole dataset.
+- `tests/test_rewards_contract.py` — grades the reference and wrong answers with
+  the task verifier, on one built task.
 - `patch.py --review reviews/` — the filter's own audit: per-task verdicts and a
   sample of dropped tasks, written by the same pass that does the filtering.
 
@@ -41,8 +41,8 @@ grades an agent in production. The repo-level tests are elsewhere by design:
   context selection, solvability rules and their audit (`--review`), oracle. One
   file on purpose: a filter that disagrees with the grader silently keeps
   unsolvable tasks, and a separate audit script can drift from the filter.
-- `rewards.py` — how an answer is graded locally and which nonsense answers the
-  reward checks should try. This is the plug-in `validation/verify/check_reward*.py` load.
+- `rewards.py` — how an answer is graded locally and which wrong answers to try.
+  Used by `tests/test_rewards_contract.py`.
 - `published_tasktrove_pr3.task_hashes.json` — a hash of every task's files as
   published in [TaskTrove PR #3](https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/3)
   (csharp-v5, java-v4, python-v3, typescript-v3, patched from TaskTrove revision

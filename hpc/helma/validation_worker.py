@@ -75,6 +75,11 @@ def main(request):
     for signum in (signal.SIGUSR1, signal.SIGTERM, signal.SIGINT):
         signal.signal(signum, stop)
     status = {'status': 'running', 'job_id': os.environ.get('SLURM_JOB_ID')}
+    try:
+        # The cluster installs Apptainer; record which version this run used.
+        status['apptainer_version'] = subprocess.check_output(['apptainer', '--version'], text=True).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        status['apptainer_version'] = f'not recorded: {exc}'
     save(request.parent / 'execution.json', status)
     try:
         if getattr(args, 'contract', None):
