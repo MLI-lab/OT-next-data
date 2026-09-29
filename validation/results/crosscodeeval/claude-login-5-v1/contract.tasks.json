@@ -1,0 +1,22 @@
+[
+  {
+    "task_id": "crosscodeeval-csharp-0000",
+    "sha256": "1752822fa13f441ba02ca59aebc48dcf8d37104e1b1b753975043a401ac5bbcc"
+  },
+  {
+    "task_id": "crosscodeeval-csharp-1767",
+    "sha256": "a2f6fb6e9507ea968517cea3517b733c9748cbb13891af71d3ce860a1a43feb9"
+  },
+  {
+    "task_id": "crosscodeeval-java-0000",
+    "sha256": "3b44c66c72c0a4d17d7c4e8cea65d93047278ac24df58e7b2e4dc3f0bde02397"
+  },
+  {
+    "task_id": "crosscodeeval-python-0000",
+    "sha256": "1c17055bf3b76563623fc26c6b4e03893c634115534167139fe521df4d48aa68"
+  },
+  {
+    "task_id": "crosscodeeval-typescript-0000",
+    "sha256": "7a242a172a8221f3f90b5cdf85be90c94afa763c5fc47c83b65f9febb00bef8a"
+  }
+]

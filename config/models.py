@@ -79,6 +79,12 @@ class Model:
 
 
 MODELS = {
+    'qwen38-27b': Model(
+        name='Qwen3.8-27B', hf_repo='Qwen/Qwen3.8-27B', gpus=1,
+        weights_gb=56, reasoning_parser='qwen3',
+        sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20,
+                  'presence_penalty': 1.5, 'repetition_penalty': 1.0},
+        extra_args=['--language-model-only']),
     'coder-30b': Model(
         name='Qwen3-Coder-30B-A3B-Instruct', hf_repo='Qwen/Qwen3-Coder-30B-A3B-Instruct',
         gpus=1, weights_gb=61,
@@ -143,10 +149,10 @@ if __name__ == '__main__':
         from huggingface_hub import HfApi
         dest = P(os.environ['PILOT_ROOT']) / 'models' / m.name
         print(f'{m.hf_repo} -> {dest}  ({m.weights_gb} GB)')
-        snapshot_download(m.hf_repo, local_dir=dest, max_workers=8)
         # The launcher refuses to serve a model without this marker, so a
         # half-finished download can never be mistaken for a complete one.
         revision = HfApi().model_info(m.hf_repo).sha
+        snapshot_download(m.hf_repo, revision=revision, local_dir=dest, max_workers=8)
         (dest / 'download_complete.json').write_text(
             json.dumps({'model': m.hf_repo, 'revision': revision}, indent=2) + '\n')
         print(f'wrote {dest}/download_complete.json (revision {revision})')

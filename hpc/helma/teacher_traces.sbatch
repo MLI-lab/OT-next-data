@@ -16,7 +16,7 @@ set -euo pipefail
 : "${PILOT_ROOT:?Use the Helma /hnvme workspace}"
 : "${TMPDIR:?Node-local SSD required}"
 # Slurm runs a copy of this script from /var/tmp, so the repo cannot be derived
-# from its own path: env.sh exports OT_NEXT_DATA, and verify_pipeline.py passes it.
+# from its own path: env.sh exports OT_NEXT_DATA, and teacher_traces/submit.py passes it.
 here=${OT_NEXT_DATA:?Set OT_NEXT_DATA to the OT_next_data checkout (source env.sh)}
 test -f "$here/run/prepare_run.py" || { echo "OT_NEXT_DATA=$here is not the repo" >&2; exit 2; }
 mode=${1:?model key or alias, see config/models.py}
@@ -64,6 +64,11 @@ export APPTAINER_NO_MOUNT=hostfs,bind-paths,cwd
 # The runtime container gets its own PID namespace (--pid): `ray stop` in one
 # job otherwise kills the raylets of another job sharing the node (868633/868634).
 unset APPTAINER_BIND APPTAINER_BINDPATH SINGULARITY_BIND SINGULARITY_BINDPATH
+# Explicit cloud-agent networking uses the same Helma proxy as validation.
+# The common bridge worker forwards these variables and supplies container DNS.
+if [[ "${PILOT_NET_ISOLATION:-1}" == "0" ]]; then
+    source "$here/hpc/helma/proxy.sh"
+fi
 # Serving libraries need writable caches despite HOME being hidden in the image.
 export XDG_CACHE_HOME="$TMPDIR/serving-cache"
 export VLLM_CACHE_ROOT="$XDG_CACHE_HOME/vllm" TRITON_CACHE_DIR="$XDG_CACHE_HOME/triton"
@@ -151,6 +156,10 @@ task_archive=$(python -c 'import json,sys; print(json.loads(open(sys.argv[1]).re
 tar -xzf "$task_archive" -C "$tasks_src" --strip-components=1 -T "$run/task-members.txt"
 test "$(find "$tasks_src" -mindepth 1 -maxdepth 1 -type d | wc -l)" = "$(wc -l < "$run/task-members.txt")"
 export TRP_DATAGEN_YAML="$run/serving.yaml" TRP_HARBOR_TEMPLATE="$run/harbor-template.yaml"
+# Persist the prelaunch generation contract even if the node dies mid-run.
+export TRP_PROTOCOL_DIR="$run/generation-protocols"
+python "$here/teacher_traces/generation_protocol.py" --snapshot-launcher "$here" --out "$run/launcher-source.tar.gz"
+export TRP_LAUNCHER_RECORD="$run/launcher-source.tar.json"
 model=$(cat "$run/model-path")
 test -f "$model/download_complete.json" || { echo "$model has no download_complete.json: the weights are missing or the download did not finish (python config/models.py --download $mode)" >&2; exit 2; }
 # Check every weight shard referenced by the downloaded index before serving.
@@ -254,7 +263,7 @@ if (( nodes > 1 )) && [[ "${PILOT_EXTERNAL_WORKERS:-0}" == 0 ]]; then
     pids+=("$!")
     sleep 10   # let them register before the first trial is handed out
 fi
-python "$here/verify/check_bridge.py" "$work" > "$run/isolation.log" 2>&1
+python "$here/validation/verify/check_bridge.py" "$work" > "$run/isolation.log" 2>&1
 common=(--runtime apptainer_bridge --dataset "$dataset" --manifest "$work/manifest.jsonl" --sample-file "$work/sampled_task_ids.json" --run-id "$run_id")
 # The oracle stage also warms the task container images (SIF build with an 8x
 # timeout) before agent trials start. Keep it on; PILOT_ORACLE_CHECK=0 skips it.

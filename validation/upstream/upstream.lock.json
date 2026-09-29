@@ -1,0 +1,23 @@
+{
+  "terminal-bench": {
+    "url": "https://github.com/harbor-framework/terminal-bench.git",
+    "commit": "1dcda8716784493721921c23e4bc7f7d988b4494",
+    "sparse": [
+      "scripts",
+      "docs",
+      ".github"
+    ]
+  },
+  "harbor-validation": {
+    "url": "https://github.com/marin-community/harbor.git",
+    "commit": "7faf878c14b6d72737579ec936ebf5f74ba3194d",
+    "sparse": [
+      "src",
+      "packages"
+    ]
+  },
+  "harden-v0": {
+    "url": "https://github.com/few-sh/harden-v0.git",
+    "commit": "342b8474e0c0cf96e4a8313fd2e26c7a11d51193"
+  }
+}

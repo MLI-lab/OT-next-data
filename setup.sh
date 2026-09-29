@@ -5,12 +5,12 @@
 #
 # The workspace holds what must not live in the repo: the OpenThoughts-Agent
 # checkout, the python env, model weights, task archives and run outputs.
-# Writes env.sh next to this script; source it before using run/ or verify/.
+# Writes env.sh next to this script; source it before using run/ or validation/.
 set -euo pipefail
 
 # Pinned upstreams. Both are dependencies, not vendored code, so this repo stays
 # easy to compare with them. Update deliberately and re-run the checks in
-# verify_pipeline.py afterwards.
+# validation/dataset_checks.py afterwards.
 OTAGENT_REPO=${OTAGENT_REPO:-https://github.com/open-thoughts/OpenThoughts-Agent.git}
 OTAGENT_PIN=${OTAGENT_PIN:-3bd1917e62c9d03d73063b433f5c442c279c0563}
 HARBOR_PIN=${HARBOR_PIN:-7faf878c14b6d72737579ec936ebf5f74ba3194d}
@@ -55,5 +55,5 @@ echo "Installed. Workspace: $ws"
 echo "  OpenThoughts-Agent @ $OTAGENT_PIN"
 echo "  harbor             @ $HARBOR_PIN"
 echo "Next: source $here/env.sh"
-echo "Then: python $here/verify_pipeline.py tests   # 43 tests, no cluster needed"
+echo "Then: python -m pytest $here/tests -q   # unit tests, no cluster needed"
 echo "The GPU runtime image is built separately: hpc/<cluster>/build_runtime.sh (see README)."

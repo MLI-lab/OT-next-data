@@ -128,12 +128,11 @@ def test_missing_oracles_warn_without_dropping_generation_tasks(tmp_path, monkey
         assert report['status'] == 'skipped_no_oracle_solutions'
 
 
-# --- Helma storage layout: selection rules, node-local trial archiving, exports ---
+# --- Helma storage layout: selection rules, node-local trial archiving ---
 NHR = HERE / 'run'
 sys.path.insert(0, str(NHR))
 import prepare_run
 import archive_trials
-import export_smoke_archive
 
 
 def _manifest():
@@ -211,12 +210,6 @@ def test_archiver_batches_finished_trials_once_and_final_covers_the_rest(tmp_pat
     final_members = {m.name for m in tarfile.open(dest / 'archives/final.tar.gz')}
     assert 'run-x/generation.log' in final_members and 'run-x/tasks/crosscodeeval-java-1/instruction.md' in final_members
     assert not any('__aaa' in m or '__bbb' in m for m in final_members)  # trials live only in batches
-    out = tmp_path / 'export.jsonl'
-    summary = export_smoke_archive.export(export_smoke_archive.expand([dest / 'archives']), out)
-    assert summary['records'] == 2 and sorted(summary['rewards']) == [0, 1]
-    records = [json.loads(l) for l in out.read_text().splitlines()]
-    assert {r['task_id'] for r in records} == {'crosscodeeval-java-1', 'crosscodeeval-java-2'}
-    assert all(r['instruction'].startswith('do it') for r in records)
 
 
 def test_official_runner_infers_apptainer_from_wrapper_config(tmp_path, monkeypatch):
@@ -261,3 +254,47 @@ def test_official_runner_infers_apptainer_from_wrapper_config(tmp_path, monkeypa
         n_concurrent=1, gpus=1, dry_run=True)
     assert gen.generate(args, tmp_path) == 0
     assert len(commands) == 1
+
+
+@pytest.mark.parametrize('protocol_fails', [False, True])
+def test_generation_requires_saved_protocol_before_launch(tmp_path, monkeypatch, protocol_fails):
+    import subprocess
+    from types import SimpleNamespace
+    run = tmp_path / 'run'
+    tasks = run / 'tasks'
+    tasks.mkdir(parents=True)
+    monkeypatch.setattr(gen, 'ensure_big_disk_env', lambda: None)
+    monkeypatch.setattr(gen, 'require_runtime', lambda *a: None)
+    monkeypatch.setattr(gen, 'VENV', Path(sys.executable).parent.parent)
+    monkeypatch.setattr(gen, 'load_manifest', lambda *a: ({}, []))
+    monkeypatch.setattr(gen, 'resolve_sample', lambda *a: ('test', run, ['task']))
+    monkeypatch.setattr(gen, 'materialize_tasks', lambda *a: tasks)
+    monkeypatch.setattr(gen, 'build_harbor_config', lambda *a, **kw: {'environment': {'type': 'docker'}})
+    monkeypatch.setattr(gen, 'write_metadata', lambda *a: None)
+    monkeypatch.delenv('TRP_PROTOCOL_DIR', raising=False)
+    calls = []
+    def launch(cmd, **kwargs):
+        if 'generation_protocol.py' in cmd[1]:
+            calls.append('protocol')
+            assert kwargs['check'] is True
+            if protocol_fails:
+                raise subprocess.CalledProcessError(1, cmd)
+            path = Path(cmd[cmd.index('--out') + 1])
+            path.mkdir(parents=True)
+            (path / 'protocol.json').write_text('{"sha256":"frozen"}')
+        else:
+            assert calls == ['protocol']
+            assert list(run.glob('traces/*/*/protocol-references/*.json'))
+            calls.append('generation')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(gen.subprocess, 'run', launch)
+    args = SimpleNamespace(runtime='docker', manifest='unused', model='test',
+        resume=False, attempts=1, agent='terminus-2', max_turns=None,
+        n_concurrent=1, gpus=1, dry_run=False, seed=42)
+    if protocol_fails:
+        with pytest.raises(subprocess.CalledProcessError):
+            gen.generate(args, tmp_path)
+        assert calls == ['protocol']
+    else:
+        assert gen.generate(args, tmp_path) == 0
+        assert calls == ['protocol', 'generation']

@@ -993,6 +993,28 @@ def generate(args, runs_root: Path) -> int:
             env["CUDA_VISIBLE_DEVICES"] = str(gpu)
             # make CUDA indices match the nvidia-smi/NVML indices picked from
             env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        if not args.dry_run:
+            # Run the inspector in the SAME interpreter that will run Harbor/vLLM,
+            # before the first generation call. Failure prevents collection.
+            from uuid import uuid4
+            protocol_root = Path(os.environ.get('TRP_PROTOCOL_DIR', str(trace_root / 'generation-protocols')))
+            protocol_dir = protocol_root / f'{job_name}-{uuid4().hex[:8]}'
+            protocol_request = {
+                'run_id': run_id, 'job_name': job_name, 'model': args.model,
+                'runtime': args.runtime, 'launcher_record': os.environ.get('TRP_LAUNCHER_RECORD'), 'task_ids': sorted(todo) if resume_batch else list(task_ids),
+                'tasks_dir': str(tasks_dir), 'harbor_config': str(cfg_path),
+                'serving_config': str(DATAGEN_YAML), 'repo_root': str(REPO_ROOT),
+                'dataset': header, 'command': cmd, 'attempts': args.attempts,
+                'selection_seed': args.seed, 'build_timeout_multiplier': cfg.get('environment_build_timeout_multiplier'),
+            }
+            subprocess.run([str(py), str(SCRIPT_DIR / 'generation_protocol.py'), '--out', str(protocol_dir)],
+                           input=json.dumps(protocol_request), text=True, check=True,
+                           env={**os.environ, **env}, cwd=str(REPO_ROOT))
+            frozen = json.loads((protocol_dir / 'protocol.json').read_text())
+            refs = trace_root / 'protocol-references'
+            refs.mkdir(exist_ok=True)
+            (refs / f'{protocol_dir.name}.json').write_text(json.dumps({
+                'path': str(protocol_dir / 'protocol.json'), 'sha256': frozen['sha256']}, indent=2) + '\n')
         print(f"[gen] {' '.join(cmd)}")
         log_path = trace_root / "run_tracegen.log"
         with open(log_path, "a") as log:
@@ -1084,6 +1106,7 @@ def write_metadata(args, header, run_id, task_ids, summary, meta_dir: Path,
                                  "import vllm;print(vllm.__version__)"),
         "container_backend": args.runtime,
         "agent": args.agent,
+        "generation_protocols": [json.loads(p.read_text()) for p in sorted((trace_root / "protocol-references").glob("*.json"))],
         "seed": args.seed,
         "run_id": run_id,
         "sampled_task_ids": task_ids,

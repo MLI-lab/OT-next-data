@@ -1,14 +1,13 @@
 #!/bin/bash
-# The checks that need a real sandbox: verify/check_reward_harbor.py (does the
-# image build and does the task's own test.sh score correctly inside it?) and
-# verify/check_isolation.py (can two trial containers see each other?).
+# The check that needs real containers: validation/verify/check_isolation.py (can two
+# trial containers see each other?).
 #
-# They need a bridge server and a bridge worker, which only exist inside a job,
+# It needs a bridge server and a bridge worker, which only exist inside a job,
 # so this is the same environment teacher_traces.sbatch sets up - without the model.
 # Helma's GPU partition refuses a job with no GPU, so one is requested and left
 # idle; a cluster with a CPU partition should use it instead.
 #
-#   sbatch --gres=gpu:h200:1 --time=00:30:00 hpc/helma/checks.sbatch <dir with tasks/> [limit]
+#   sbatch --gres=gpu:h200:1 --time=00:30:00 hpc/helma/checks.sbatch <dir with tasks/>
 #SBATCH --job-name=cceval-checks
 #SBATCH --partition=h200
 set -euo pipefail
@@ -17,7 +16,6 @@ set -euo pipefail
 : "${TMPDIR:?Node-local scratch required}"
 here=${OT_NEXT_DATA:?Set OT_NEXT_DATA to the OT_next_data checkout (source env.sh)}
 tasks=${1:?directory containing tasks/}
-limit=${2:-3}
 base=$PILOT_ROOT
 out=$base/runs/checks-$SLURM_JOB_ID
 mkdir -p "$out" "$TMPDIR/apptainer" "$TMPDIR/bridge"
@@ -57,11 +55,8 @@ done
 echo "bridge ready on $APPTAINER_BRIDGE_URL" | tee "$out/phases.log"
 
 rc=0
-echo "== check_reward_harbor.py (first $limit tasks)" | tee -a "$out/phases.log"
-python "$here/verify/check_reward_harbor.py" "$tasks" "$out/sandbox" --limit "$limit" --extras \
-    2>&1 | tee "$out/check_reward_harbor.log" || rc=1
 echo "== check_isolation.py" | tee -a "$out/phases.log"
-python "$here/verify/check_isolation.py" "$(ls -d "$tasks"/tasks/* | head -1)" "$out/isolation" \
+python "$here/validation/verify/check_isolation.py" "$(ls -d "$tasks"/tasks/* | head -1)" "$out/isolation" \
     2>&1 | tee "$out/check_isolation.log" || rc=1
 echo "exit $rc" | tee -a "$out/phases.log"
 exit "$rc"

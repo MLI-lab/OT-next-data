@@ -1,0 +1,27 @@
+# Validation contract
+
+Contract SHA-256: `0911d0b5553d43eacf7a992e802e44223483d0c635042af886d52eaeca9b41dd`
+
+Dataset: open-thoughts/TaskTrove
+Revision: 12df4483fe99c79ccbb4c923d76ab5a2b042e64a
+Instruction normalization: none
+Task count: 5; minimum acceptable: 5
+Selection: {'method': 'all', 'limit': None, 'task_id_range_inclusive': None, 'order': 'lexicographic IDs for ranges; otherwise sorted Parquet paths then row order, or sorted task directories', 'implementation': 'validation/contract.py:inventory (hash recorded in implementation)'}
+Task manifest: contract.tasks.json
+Task manifest SHA-256: `ea3e73a1421bc701d2f257c73b6eb55173d65eb502bdfe7f0217294039127a37`
+Stages: [2]
+Static exclusions: {'check-task-changelog.sh': 'training tasks do not require Terminal-Bench PR changelogs', 'check-allow-internet.sh': 'network policy is declared by the task and checked at runtime', 'check-no-allow-internet-true.sh': 'explicit task network policies are allowed', 'check-pytest-version.sh': 'training tasks may use other pinned pytest/CTRF versions', 'check-gpu-types.sh': 'Modal GPU naming conventions do not apply to the Helma execution profile', 'check-canary.sh': 'training tasks do not require a benchmark canary string', 'check-instruction-headings.sh': 'Markdown headings are allowed in training instructions', 'check-task-fields.sh': 'training tasks do not require TB author GitHub metadata, taxonomy or explanation sections', 'check-task-package-name.sh': 'training task package names need not use the terminal-bench namespace', 'check-task-slug.sh': 'training task names may contain more than three hyphen-separated tokens', 'rubric_review.py': 'LLM rubric review is opt-in via stage 2, never a default static check'}
+Oracle reward: 1; NOP reward: 0; attempts: 1
+Reward key: reward
+Backend: apptainer; architecture: x86_64
+Network: host networking through cluster HTTP proxy
+Privileges: fakeroot requested, host UID unprivileged; bridge may fall back without fakeroot
+Mounts: per-trial workdir, tests, logs, home and tmp; site hostfs/bind-paths/cwd disabled; baked verifier tests preserved; explicit read-only host DNS bind only in host network mode
+Dependencies: execute shipped Dockerfiles; mutable tags and unpinned installs are not rewritten; reuse content-keyed image cache unless force_build; installed agents may download dependencies
+Failure policy: continue collecting; selected check failures, infrastructure errors, missing/invalid rewards, skipped tasks and insufficient coverage fail acceptance.
+Real/adversarial agent rewards are measurements, not an all-rewards-must-equal-1 gate.
+A result supports only this declared execution profile. No Docker/offline/rootless equivalence is implied.
+
+The JSON contract binds the generated task manifest, runtime settings and implementation hashes.
+
+submitted: /home/hpc/y500bb/y500bb12/OT_next_data/validation/results/crosscodeeval/claude-login-5-v1/submissions/84b49e17e33b/submission.json

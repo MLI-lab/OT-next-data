@@ -30,7 +30,7 @@ otherwise the archive checksum identifies the task version. `artifacts` lists
 absolute paths inside each task container to save after an attempt.
 
 ```bash
-python verify_pipeline.py model --dataset-config /path/to/new-data.json \
+python teacher_traces/submit.py --dataset-config /path/to/new-data.json \
     --model coder-30b --stage smoke --attempts 8 --time 00:45:00
 ```
 

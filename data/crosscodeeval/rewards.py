@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""CrossCodeEval's half of the reward checks: how to grade locally, and which
-nonsense answers are worth trying on top of the generic ones.
-
-verify/check_reward*.py are dataset-agnostic; they import this module as
-`data.<dataset>.rewards` when a task is called `<dataset>-...`. A new dataset
-needs its own module with the same four names.
+"""How to grade a CrossCodeEval answer locally, and which wrong answers are worth
+trying. tests/test_rewards_contract.py imports this module as
+`data.<dataset>.rewards`; a new dataset needs its own module with the same names.
 """
 from __future__ import annotations
 import contextlib

@@ -9,7 +9,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from run.dataset_config import load_dataset, select_groups
 from run.prepare_run import prepare
-from verify.pass_at_k import groups_for_run
+from validation.verify.pass_at_k import groups_for_run
 
 
 def config(tmp_path):
@@ -63,7 +63,7 @@ def test_checksum_mismatch_creates_no_run(tmp_path):
 
 
 def test_submission_forwards_config(tmp_path, monkeypatch, capsys):
-    import verify_pipeline
+    from teacher_traces import submit
     from types import SimpleNamespace
     checkout = tmp_path/'otagent'
     entry = checkout/'data/local/run_tracegen.py'
@@ -75,19 +75,19 @@ def test_submission_forwards_config(tmp_path, monkeypatch, capsys):
     args = SimpleNamespace(dataset_config=path, dataset='new-source', cluster='helma',
                            model='coder-30b', gres=None, time='00:45:00', attempts=8,
                            stage='smoke', dry_run=True)
-    assert verify_pipeline.check_model(args) == 0
+    assert submit.submit(args) == 0
     assert f'coder-30b smoke {path}' in capsys.readouterr().out
 
 
 def test_custom_groups_report_and_plot(tmp_path, monkeypatch, capsys):
     import subprocess
-    from verify import plot_pass_rates
+    from validation.verify import plot_pass_rates
     run = tmp_path/'report'
     run.mkdir()
     (run/'selection.json').write_text(json.dumps({'groups': {'math': ['arbitrary-id']}}))
     (run/'validated_attempt_summary.json').write_text(json.dumps({'tasks': {
         'arbitrary-id': {'trials': [{}, {}, {}, {}], 'n_success': 2, 'n_timeouts': 0}}}))
-    report = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1]/'verify/pass_at_k.py'),
+    report = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1]/'validation/verify/pass_at_k.py'),
                              str(run), '--k', '1', '4'], check=True, capture_output=True, text=True)
     assert 'math' in report.stdout and '50.0%' in report.stdout
     rates, attempts, tasks = plot_pass_rates.rates([run])

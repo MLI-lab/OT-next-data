@@ -1,0 +1,47 @@
+### Starting TaskPrologue of job 872283 on h24-24 at Fri Sep 18 11:21:38 AM CEST 2026
+Running on cores 0-31 with governor performance
+Fri Sep 18 11:21:38 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 595.91.07              Driver Version: 595.91.07      CUDA Version: 13.2     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H200                    On  |   00000000:06:00.0 Off |                    0 |
+| N/A   35C    P0             76W /  600W |       0MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+### Finished TaskPrologue
+
+/var/tmp/slurmd_spool/job872283/slurm_script: line 36: OTAGENT_ROOT: Set OTAGENT_ROOT to the OpenThoughts-Agent checkout (setup.sh writes it into env.sh)
+=== JOB_STATISTICS ===
+=== current date     : Fri Sep 18 11:21:38 CEST 2026
+= Job-ID             : 872283 on helma
+= Job-Name           : cceval-pilot
+= Job-Command        : /home/hpc/y500bb/y500bb12/OT_next_data/hpc/helma/run_pilot.sbatch
+= Initial workdir    : /home/hpc/y500bb/y500bb12/OT_next_data
+= Queue/Partition    : h200
+= Slurm account      : y500bb with QOS=mq_y500bb
+= Features           : singlegpu
+= Requested resources: cpu=32,mem=175G,node=1,billing=32,gres/gpu=1,gres/gpu:h200=1 for 00:45:00
+= Elapsed runtime    : 00:00:14
+= Total RAM usage    : 0.0 GiB of assigned 175 GiB (0.0%)
+= Node list          : h24-24
+= Subm/Elig/Start/End: 2026-09-18T11:13:43 / 2026-09-18T11:13:43 / 2026-09-18T11:21:24 / 2026-09-18T11:21:38
+======================
+=== Quota infos ======
+    Path                 Used     SoftQ    HardQ    Gracetime  Filec    FileQ    FiHaQ    FileGrace    
+    /home/hpc              10.0G   104.9G   209.7G        N/A      71K     500K   1,000K        N/A    
+    /hnvme                313.6G     0.0K     0.0K        N/A  40,814       61K      81K        N/A    
+======================
+=== GPU utilization ==
+gpu_name, gpu_bus_id, pid, gpu_utilization [%], mem_utilization [%], max_memory_usage [MiB], time [ms]

@@ -1,0 +1,671 @@
+{
+  "schema_version": 2,
+  "created_at": "2026-09-29T14:17:27.332297+00:00",
+  "dataset": {
+    "source": "open-thoughts/TaskTrove",
+    "revision": "12df4483fe99c79ccbb4c923d76ab5a2b042e64a",
+    "source_files": [
+      {
+        "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/ten-task-sample/tasks.parquet",
+        "sha256": "42d8673750eadc64bf454bbdeb868c24110432776b93bd22c1ec8d61ba293479"
+      }
+    ],
+    "preselection": {
+      "method": "equal per source file (remainder to first files); evenly spaced row positions including endpoints",
+      "count": 10,
+      "script": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/select_smoke_sample.py",
+      "script_sha256": "739c48d00b026411c60da1319d6a3a2397e1994c2fcb69f2b806eebd6eb7bd3d",
+      "inputs": [
+        {
+          "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/parquets/laion__exp_rpt_crosscodeeval-csharp-v5.parquet",
+          "sha256": "af64d8440b259be7f496c9c2d53bfa5dc0d5cfc4ed4c0927c8259954ea229716",
+          "row_indices_zero_based": [
+            0,
+            676,
+            1352
+          ],
+          "task_ids": [
+            "crosscodeeval-csharp-0000",
+            "crosscodeeval-csharp-0906",
+            "crosscodeeval-csharp-1767"
+          ]
+        },
+        {
+          "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/parquets/laion__exp_rpt_crosscodeeval-java-v4.parquet",
+          "sha256": "55fb0cce44b874eca3a19bd79d384ccb884a02e29efc1d7f617cfc0132af1707",
+          "row_indices_zero_based": [
+            0,
+            947,
+            1894
+          ],
+          "task_ids": [
+            "crosscodeeval-java-0000",
+            "crosscodeeval-java-1070",
+            "crosscodeeval-java-2138"
+          ]
+        },
+        {
+          "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/parquets/laion__exp_rpt_crosscodeeval-python-v3.parquet",
+          "sha256": "8af7ea53c69fed06424dd78e61084071427e0c05f8a8826a0ae45a87c58de096",
+          "row_indices_zero_based": [
+            0,
+            431
+          ],
+          "task_ids": [
+            "crosscodeeval-python-0000",
+            "crosscodeeval-python-0499"
+          ]
+        },
+        {
+          "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/parquets/laion__exp_rpt_crosscodeeval-typescript-v3.parquet",
+          "sha256": "fb2b8d272a2ae1bd3586d8fefd472ef7a3711ba74c42a0b1562e85e7bce3188d",
+          "row_indices_zero_based": [
+            0,
+            3029
+          ],
+          "task_ids": [
+            "crosscodeeval-typescript-0000",
+            "crosscodeeval-typescript-3355"
+          ]
+        }
+      ]
+    },
+    "selection": {
+      "method": "all",
+      "limit": null,
+      "task_id_range_inclusive": null,
+      "order": "lexicographic IDs for ranges; otherwise sorted Parquet paths then row order, or sorted task directories",
+      "implementation": "validation/contract.py:inventory (hash recorded in implementation)"
+    }
+  },
+  "stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "success_criteria": {
+    "minimum_tasks": 10,
+    "oracle_reward": 1,
+    "nop_reward": 0,
+    "reward_key": "reward",
+    "attempts": 1,
+    "static_checks": [
+      "check-allow-internet.sh",
+      "check-canary.sh",
+      "check-compose-host-binds.sh",
+      "check-dockerfile-platform.sh",
+      "check-dockerfile-references.sh",
+      "check-dockerfile-sanity.sh",
+      "check-gpu-types.sh",
+      "check-instruction-headings.sh",
+      "check-instruction-suffix.sh",
+      "check-no-allow-internet-true.sh",
+      "check-no-cheat-dir.sh",
+      "check-nproc.sh",
+      "check-pip-pinning.sh",
+      "check-pytest-version.sh",
+      "check-resource-sizes.sh",
+      "check-separate-verifier.sh",
+      "check-task-absolute-path.sh",
+      "check-task-fields.sh",
+      "check-task-package-name.sh",
+      "check-task-slug.sh",
+      "check-task-timeout.sh",
+      "check-test-file-references.sh",
+      "check-test-sh-sanity.sh",
+      "check-trial-network-fetch.sh",
+      "check-verifier-tooling-baked.sh"
+    ],
+    "static_exclusions": {
+      "check-task-changelog.sh": "requires a base checkout and changed-task PR context"
+    },
+    "failure_policy": "collect all findings; fail acceptance on any selected failure/error/skip or insufficient coverage"
+  },
+  "execution_profile": {
+    "backend": "apptainer",
+    "architecture": "x86_64",
+    "scheduler_target": "Helma/Slurm",
+    "submission_host": "helma6",
+    "network": "isolated",
+    "network_guarantee": "isolation requested; existing bridge may fall back to host network; offline isolation is NOT established",
+    "privileges": "fakeroot requested, host UID unprivileged; bridge may fall back without fakeroot",
+    "mount_policy": "per-trial workdir, tests, logs, home and tmp; site hostfs/bind-paths/cwd disabled; baked verifier tests preserved; explicit read-only host DNS bind only in host network mode",
+    "profile_scope": "declared bridge policy including stated fallbacks; does not certify offline or rootless behavior",
+    "dependency_policy": "execute shipped Dockerfiles; mutable tags and unpinned installs are not rewritten; reuse content-keyed image cache unless force_build; installed agents may download dependencies",
+    "environment_kwargs": {},
+    "force_build": false,
+    "trial_cpus": null,
+    "trial_memory_mb": null,
+    "agent": "terminus-2",
+    "model": null,
+    "review_agent": "claude-code",
+    "review_model": null,
+    "agent_kwargs": {},
+    "serve_model": null,
+    "api_base": null,
+    "concurrency": 4,
+    "concurrency_policy": "cap at allocation CPU budget including separate verifiers; record effective value in resources.json",
+    "cpus": 8,
+    "gpus": 1,
+    "serve_cpus": 4,
+    "serve_memory_mb": 32768,
+    "max_num_seqs": null
+  },
+  "runtime_dependencies": {
+    "python": "3.12.14",
+    "packages": [
+      [
+        "Jinja2",
+        "3.1.6"
+      ],
+      [
+        "MarkupSafe",
+        "3.0.3"
+      ],
+      [
+        "PyJWT",
+        "2.15.1"
+      ],
+      [
+        "PyYAML",
+        "6.0.3"
+      ],
+      [
+        "Pygments",
+        "2.21.0"
+      ],
+      [
+        "StrEnum",
+        "0.4.15"
+      ],
+      [
+        "aiohappyeyeballs",
+        "2.7.1"
+      ],
+      [
+        "aiohttp",
+        "3.14.3"
+      ],
+      [
+        "aiosignal",
+        "1.4.0"
+      ],
+      [
+        "annotated-doc",
+        "0.0.5"
+      ],
+      [
+        "annotated-types",
+        "0.8.0"
+      ],
+      [
+        "anyio",
+        "4.15.1"
+      ],
+      [
+        "attrs",
+        "26.1.0"
+      ],
+      [
+        "boto3",
+        "1.43.104"
+      ],
+      [
+        "botocore",
+        "1.43.104"
+      ],
+      [
+        "certifi",
+        "2026.7.22"
+      ],
+      [
+        "cffi",
+        "2.1.1"
+      ],
+      [
+        "charset-normalizer",
+        "3.5.1"
+      ],
+      [
+        "click",
+        "8.5.0"
+      ],
+      [
+        "contourpy",
+        "1.4.0"
+      ],
+      [
+        "cryptography",
+        "50.0.1"
+      ],
+      [
+        "cycler",
+        "0.12.1"
+      ],
+      [
+        "deprecation",
+        "2.1.0"
+      ],
+      [
+        "dirhash",
+        "0.5.0"
+      ],
+      [
+        "distro",
+        "1.9.0"
+      ],
+      [
+        "fastapi",
+        "0.141.1"
+      ],
+      [
+        "fastuuid",
+        "0.14.0"
+      ],
+      [
+        "filelock",
+        "4.0.6"
+      ],
+      [
+        "fonttools",
+        "4.66.0"
+      ],
+      [
+        "frozenlist",
+        "1.8.0"
+      ],
+      [
+        "fsspec",
+        "2026.9.0"
+      ],
+      [
+        "h11",
+        "0.16.0"
+      ],
+      [
+        "h2",
+        "4.4.1"
+      ],
+      [
+        "harbor",
+        "0.8.1"
+      ],
+      [
+        "hf-xet",
+        "1.6.0"
+      ],
+      [
+        "hpack",
+        "4.2.0"
+      ],
+      [
+        "httpcore",
+        "1.0.9"
+      ],
+      [
+        "httpx",
+        "0.28.1"
+      ],
+      [
+        "huggingface_hub",
+        "1.33.0"
+      ],
+      [
+        "hyperframe",
+        "6.1.0"
+      ],
+      [
+        "idna",
+        "3.20"
+      ],
+      [
+        "importlib_metadata",
+        "8.9.0"
+      ],
+      [
+        "iniconfig",
+        "2.3.0"
+      ],
+      [
+        "jiter",
+        "0.17.0"
+      ],
+      [
+        "jmespath",
+        "1.1.0"
+      ],
+      [
+        "jsonschema",
+        "4.26.0"
+      ],
+      [
+        "jsonschema-specifications",
+        "2025.9.1"
+      ],
+      [
+        "kiwisolver",
+        "1.5.1"
+      ],
+      [
+        "litellm",
+        "1.103.0"
+      ],
+      [
+        "markdown-it-py",
+        "4.2.0"
+      ],
+      [
+        "matplotlib",
+        "3.11.2"
+      ],
+      [
+        "mdurl",
+        "0.1.2"
+      ],
+      [
+        "multidict",
+        "6.9.1"
+      ],
+      [
+        "numpy",
+        "2.5.3"
+      ],
+      [
+        "openai",
+        "2.54.0"
+      ],
+      [
+        "packaging",
+        "26.3"
+      ],
+      [
+        "pathlib_abc",
+        "0.5.2"
+      ],
+      [
+        "pathspec",
+        "1.1.1"
+      ],
+      [
+        "pillow",
+        "12.3.0"
+      ],
+      [
+        "pluggy",
+        "1.6.0"
+      ],
+      [
+        "postgrest",
+        "2.31.0"
+      ],
+      [
+        "propcache",
+        "0.5.4"
+      ],
+      [
+        "pyarrow",
+        "25.0.1"
+      ],
+      [
+        "pycparser",
+        "3.0"
+      ],
+      [
+        "pydantic",
+        "2.13.5"
+      ],
+      [
+        "pydantic-settings",
+        "2.15.0"
+      ],
+      [
+        "pydantic_core",
+        "2.46.5"
+      ],
+      [
+        "pyparsing",
+        "3.3.3"
+      ],
+      [
+        "pytest",
+        "9.1.1"
+      ],
+      [
+        "python-dateutil",
+        "2.9.0.post0"
+      ],
+      [
+        "python-dotenv",
+        "1.2.3"
+      ],
+      [
+        "realtime",
+        "2.31.0"
+      ],
+      [
+        "referencing",
+        "0.37.0"
+      ],
+      [
+        "regex",
+        "2026.9.29"
+      ],
+      [
+        "requests",
+        "2.34.2"
+      ],
+      [
+        "rich",
+        "15.0.0"
+      ],
+      [
+        "rpds-py",
+        "2026.6.3"
+      ],
+      [
+        "s3transfer",
+        "0.19.2"
+      ],
+      [
+        "scantree",
+        "0.0.4"
+      ],
+      [
+        "shellingham",
+        "1.5.4"
+      ],
+      [
+        "shortuuid",
+        "1.0.13"
+      ],
+      [
+        "six",
+        "1.17.0"
+      ],
+      [
+        "sniffio",
+        "1.3.1"
+      ],
+      [
+        "starlette",
+        "1.7.0"
+      ],
+      [
+        "storage3",
+        "2.31.0"
+      ],
+      [
+        "supabase",
+        "2.31.0"
+      ],
+      [
+        "supabase-auth",
+        "2.31.0"
+      ],
+      [
+        "supabase-functions",
+        "2.31.0"
+      ],
+      [
+        "tenacity",
+        "9.1.4"
+      ],
+      [
+        "tiktoken",
+        "0.14.0"
+      ],
+      [
+        "tokenizers",
+        "0.23.2"
+      ],
+      [
+        "toml",
+        "0.10.2"
+      ],
+      [
+        "tqdm",
+        "4.70.1"
+      ],
+      [
+        "typer",
+        "0.27.2"
+      ],
+      [
+        "typing-inspection",
+        "0.4.4"
+      ],
+      [
+        "typing_extensions",
+        "4.16.0"
+      ],
+      [
+        "universal_pathlib",
+        "0.3.10"
+      ],
+      [
+        "urllib3",
+        "2.8.0"
+      ],
+      [
+        "uvicorn",
+        "0.54.0"
+      ],
+      [
+        "websockets",
+        "15.0.1"
+      ],
+      [
+        "yarl",
+        "1.25.1"
+      ],
+      [
+        "zipp",
+        "4.1.0"
+      ]
+    ]
+  },
+  "runtime_probes_sha256": "c647453444c4807f2d5446e7c6f93fd2920fe732e3555849dd0e9fc02bdca39c",
+  "trajectory_input_sha256": null,
+  "upstream": {
+    "terminal-bench": {
+      "url": "https://github.com/harbor-framework/terminal-bench.git",
+      "commit": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "sparse": [
+        "scripts",
+        "docs",
+        ".github"
+      ]
+    },
+    "harbor-validation": {
+      "url": "https://github.com/marin-community/harbor.git",
+      "commit": "7faf878c14b6d72737579ec936ebf5f74ba3194d",
+      "sparse": [
+        "src",
+        "packages"
+      ]
+    },
+    "harden-v0": {
+      "url": "https://github.com/few-sh/harden-v0.git",
+      "commit": "342b8474e0c0cf96e4a8313fd2e26c7a11d51193"
+    }
+  },
+  "implementation": {
+    "config/clusters.py": "4318d67976d202fbe0c87fd4ffce4d91ea4dd1a11bbd015c3afefc55837f2bac",
+    "config/models.py": "35f1a63ce61a6eb9f7ff857a270c20e3fd4c3d158bc2b90f63d76e107afba61a",
+    "harbor_patches/bridge_worker.py": "a6766d4bf28ecc8cc9eb95731d2820b53708f5465ecbbd4d8539eb9aa887b3fd",
+    "hpc/helma/proxy.sh": "ab27bb020a914f87e7ceaa592c00d505828e9808a5dbf33231421bbf392e9c5b",
+    "hpc/helma/validation.sbatch": "b0311fbae67e960cdfca5c71855819f565737832f294ab1f0e0410f526971aac",
+    "validation/__init__.py": "c2d3352077872dbacd12b4a3746f052fa69d2a7b17235762f5390f1fa9e14488",
+    "validation/adapters.py": "a0b0817ca51316a06acddda3972ee659be9b6046d989cbed42f3c30c1117270e",
+    "validation/contract.py": "d503b8a68f408f5c088f66b8c09639d19e522b80c673c850685255abf9125c07",
+    "validation/environment_checks.py": "aa59f82857dd594d77739dba044d1ba07dda705e39645d876493fbd14ad15191",
+    "validation/harden_entry.py": "3b1cdfe0e68d5c4f430f6424fac6936a1b0265e41482fdfd2ec139d77bdc584e",
+    "validation/helma_worker.py": "8bc0100f983094797c00895c70428713cf829d9e372b84cc036184e1a9eecb01",
+    "validation/materialize.py": "9dd88ecaede899a23505a6e5a4c35e4ea9487587f422f07de48095a71f92d0a5",
+    "validation/report.py": "043f6d3f057aee325b4d62bac2ff2c8bdf4931402fefe3c1b5ad0792b2ad267a",
+    "validation/run.py": "b6e66b11c2c829184937c20ab7f514c9ab690e28e8aa58a5d201db43f00e8137",
+    "validation/runtime.py": "d9a41c60094aedb0f30eb3d61486c2583d3d26cababd0ddb76c80c76926218df",
+    "validation/select_smoke_sample.py": "739c48d00b026411c60da1319d6a3a2397e1994c2fcb69f2b806eebd6eb7bd3d",
+    "validation/selection.py": "b5341f2ec05c28b7e3f3160ce20fc7a9382be0e30076e3c8696f70002fd15eed",
+    "validation/slurm.py": "79b6d24b1d9dda75115c4d56e8098bda655d2178adfb65ffcf51527d2c0831ef",
+    "validation/stage_1_static_checks.py": "1f089c6d59cc0de366072c919c1d0cf9de492e149804dc0f95945267afc0a87a",
+    "validation/stage_2_llm_rubric_review.py": "b941850647585bab0b4abdc8047e36b8efef8f792f4c8684c5c3767de1a5b3e3",
+    "validation/stage_3_build_validation.py": "a68eeaae7a68a0375901ef55d7cf3c3d2a37d4822050f0a5b3d77590883b6a0f",
+    "validation/stage_4_oracle_validation.py": "674edbdf425af0cc8a1242a03bfd0fb28d709156c702a17b6002ba7a5e375140",
+    "validation/stage_5_nop_validation.py": "3ffff956100ae7fb9a0367dede017fc90b9845793b8b3c8ce870bd94eae422c4",
+    "validation/stage_6_agent_trials.py": "6f73981d573dbf04c15630cceed680d9f12303e7f3ade8a9d7773d3babb94a69",
+    "validation/stage_7_trajectory_analysis.py": "e05d1282812e05ad6714ab416709c19ceefbc48ef161c1894805600a17bd7dc9",
+    "validation/stage_8_cheat_trials.py": "4aea3c78e128321a1a4fbfe99cf0f9b7dc2ad6b7dca3465c1109b1019cbb6930",
+    "validation/stage_9_hacker_fixer_loop.py": "48f13633b2699b1831e81e912f1e86aa0585eb6739bfddf56813e168e1b9976e",
+    "validation/stages.py": "5b39a3bf4d7b602509c8a317b24d3e3432e6d9c735208f0dab60920dd5a59f50",
+    "validation/upstream.py": "a17dbedfbd07d015580fafefdff4137e21ac8d40e36fed54d312f84e2a1f91fd",
+    "validation/watch.py": "2f8ca0663a325f019a0a014bc1b8f5bf2f21955264993dd37f87ed655a0eee00",
+    "verify/check_terminal_bench.py": "c1c1b65955cb2ff0ceaf52a2a3c651ba49c59afd13062619f6132ce0705c36b9"
+  },
+  "arguments": {
+    "tasks": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/ten-task-sample",
+    "dataset_source": null,
+    "dataset_revision": null,
+    "min_tasks": null,
+    "out": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/ten-task-results",
+    "backend": "apptainer",
+    "environment_kwargs": {},
+    "agent": "terminus-2",
+    "review_agent": "claude-code",
+    "model": null,
+    "review_model": null,
+    "agent_kwargs": {},
+    "attempts": 1,
+    "concurrency": 4,
+    "limit": null,
+    "task_id_range": null,
+    "exclude": [],
+    "submit": "helma",
+    "time": "00:20:00",
+    "cpus": 8,
+    "gpus": 1,
+    "memory": null,
+    "trial_cpus": null,
+    "trial_memory_mb": null,
+    "serve_model": null,
+    "serve_cpus": 4,
+    "serve_memory_mb": 32768,
+    "max_num_seqs": null,
+    "api_base": null,
+    "network_mode": "isolated",
+    "runtime_probes": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/ten-task-runtime-probes.json",
+    "reward_key": "reward",
+    "trials": null,
+    "max_iterations": 10,
+    "timeout_minutes": 120,
+    "force_build": false,
+    "dry_run": false
+  },
+  "task_manifest": {
+    "path": "ten-task-runtime.tasks.json",
+    "count": 10,
+    "sha256": "bd889404ab5b91e608731a33ef186719358d5949de48278f3b019327633f942c"
+  },
+  "sha256": "23c9092c176b2a63a5c4f41ebcbaa5d912d04d77df41c2f1013b46c07b3bc669"
+}

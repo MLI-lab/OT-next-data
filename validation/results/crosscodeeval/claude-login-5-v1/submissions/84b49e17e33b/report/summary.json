@@ -1,0 +1,162 @@
+{
+  "archive": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/results/crosscodeeval/claude-login-5-v1/submissions/84b49e17e33b/evidence.tar.gz",
+  "contract_sha256": "0911d0b5553d43eacf7a992e802e44223483d0c635042af886d52eaeca9b41dd",
+  "network_status": {
+    "requested": "host",
+    "effective": "host",
+    "reason": "host networking explicitly requested"
+  },
+  "instruction_fixup": null,
+  "contract_status": "bound",
+  "requested_stages": [
+    2
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 2,
+      "name": "llm_rubric_review",
+      "complete": true,
+      "tasks": 5,
+      "counts": {
+        "findings": 5
+      },
+      "report": "results/stage_2_llm_rubric_review/54088dc1cbe6/summary.json",
+      "contract_sha256": "0911d0b5553d43eacf7a992e802e44223483d0c635042af886d52eaeca9b41dd",
+      "implementation_review_groups": {
+        "groups": {
+          "all_pass": [],
+          "pass_with_not_applicable": [],
+          "all_not_applicable": [],
+          "has_fail": [
+            "crosscodeeval-csharp-0000",
+            "crosscodeeval-csharp-1767",
+            "crosscodeeval-java-0000",
+            "crosscodeeval-python-0000",
+            "crosscodeeval-typescript-0000"
+          ],
+          "review_error": [],
+          "not_run": []
+        },
+        "counts": {
+          "all_pass": 0,
+          "pass_with_not_applicable": 0,
+          "all_not_applicable": 0,
+          "has_fail": 5,
+          "review_error": 0,
+          "not_run": 0
+        }
+      },
+      "proposal_review_groups": {
+        "Strong Reject": [
+          "crosscodeeval-csharp-0000",
+          "crosscodeeval-csharp-1767",
+          "crosscodeeval-java-0000",
+          "crosscodeeval-python-0000"
+        ],
+        "Reject": [
+          "crosscodeeval-typescript-0000"
+        ]
+      }
+    }
+  ],
+  "review_groups": {
+    "implementation": {
+      "groups": {
+        "all_pass": [],
+        "pass_with_not_applicable": [],
+        "all_not_applicable": [],
+        "has_fail": [
+          "crosscodeeval-csharp-0000",
+          "crosscodeeval-csharp-1767",
+          "crosscodeeval-java-0000",
+          "crosscodeeval-python-0000",
+          "crosscodeeval-typescript-0000"
+        ],
+        "review_error": [],
+        "not_run": []
+      },
+      "counts": {
+        "all_pass": 0,
+        "pass_with_not_applicable": 0,
+        "all_not_applicable": 0,
+        "has_fail": 5,
+        "review_error": 0,
+        "not_run": 0
+      }
+    },
+    "proposal": {
+      "Strong Reject": [
+        "crosscodeeval-csharp-0000",
+        "crosscodeeval-csharp-1767",
+        "crosscodeeval-java-0000",
+        "crosscodeeval-python-0000"
+      ],
+      "Reject": [
+        "crosscodeeval-typescript-0000"
+      ]
+    }
+  },
+  "pipelines": [
+    {
+      "stages": [
+        {
+          "stage": 2,
+          "report": "/tmp/915546.helma/validation-84b49e17e33b/results/stage_2_llm_rubric_review/54088dc1cbe6/summary.json",
+          "status": "findings"
+        }
+      ],
+      "complete": true,
+      "dry_run": false,
+      "contract_sha256": "0911d0b5553d43eacf7a992e802e44223483d0c635042af886d52eaeca9b41dd"
+    }
+  ],
+  "failures": [
+    {
+      "stage": 2,
+      "task": "crosscodeeval-csharp-0000",
+      "status": "findings",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "failed criteria: agentic, category_and_tags, difficult, difficulty_explanation_quality, essential_difficulty, expert_time_estimate, instruction_concision, interesting, no_extraneous_files, novel, solution_explanation_quality, solution_quality, task_name, task_readme, task_toml_schema, verification_explanation_quality; proposal: Strong Reject",
+      "evidence": "/tmp/915546.helma/validation-84b49e17e33b/results/stage_2_llm_rubric_review/54088dc1cbe6/00000-crosscodeeval-csharp-0000"
+    },
+    {
+      "stage": 2,
+      "task": "crosscodeeval-csharp-1767",
+      "status": "findings",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "failed criteria: agentic, anti_cheat_robustness, category_and_tags, deterministic_reproducible, difficult, difficulty_explanation_quality, expert_time_estimate, instruction_concision, no_extraneous_files, novel, reviewable, solution_explanation_quality, solution_quality, task_name, task_readme, task_toml_schema, verification_explanation_quality; proposal: Strong Reject",
+      "evidence": "/tmp/915546.helma/validation-84b49e17e33b/results/stage_2_llm_rubric_review/54088dc1cbe6/00001-crosscodeeval-csharp-1767"
+    },
+    {
+      "stage": 2,
+      "task": "crosscodeeval-java-0000",
+      "status": "findings",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "failed criteria: agentic, category_and_tags, deterministic_reproducible, difficult, difficulty_explanation_quality, environment_hygiene, essential_difficulty, expert_time_estimate, instruction_concision, no_extraneous_files, novel, reviewable, solution_explanation_quality, solution_quality, task_name, task_readme, task_toml_schema, test_instruction_alignment, verification_explanation_quality; proposal: Strong Reject",
+      "evidence": "/tmp/915546.helma/validation-84b49e17e33b/results/stage_2_llm_rubric_review/54088dc1cbe6/00002-crosscodeeval-java-0000"
+    },
+    {
+      "stage": 2,
+      "task": "crosscodeeval-python-0000",
+      "status": "findings",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "failed criteria: agentic, category_and_tags, deterministic_reproducible, difficult, difficulty_explanation_quality, essential_difficulty, expert_time_estimate, instruction_concision, no_extraneous_files, novel, reviewable, solution_explanation_quality, solution_quality, task_name, task_readme, task_toml_schema, typos, verification_explanation_quality; proposal: Strong Reject",
+      "evidence": "/tmp/915546.helma/validation-84b49e17e33b/results/stage_2_llm_rubric_review/54088dc1cbe6/00003-crosscodeeval-python-0000"
+    },
+    {
+      "stage": 2,
+      "task": "crosscodeeval-typescript-0000",
+      "status": "findings",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "failed criteria: agentic, category_and_tags, deterministic_reproducible, difficult, difficulty_explanation_quality, essential_difficulty, expert_time_estimate, functional_verification, instruction_concision, no_extraneous_files, novel, reviewable, solution_explanation_quality, solution_quality, task_name, task_readme, task_toml_schema, typos, verification_explanation_quality; proposal: Reject",
+      "evidence": "/tmp/915546.helma/validation-84b49e17e33b/results/stage_2_llm_rubric_review/54088dc1cbe6/00004-crosscodeeval-typescript-0000"
+    }
+  ]
+}
