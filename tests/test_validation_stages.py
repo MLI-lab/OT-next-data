@@ -978,6 +978,13 @@ def test_publish_override_and_carry_over_of_published_state(tmp_path):
     names, contract, reports = publish_fixture(tmp_path)
     tables, record, _ = publish.build(contract, reports, {}, not_required=['check-a.sh'], run_id='run-2')
     assert not tables['set-java'][1] and record['not_required_checks'] == ['check-a.sh']
+    assert publish.judge(1, {'task': 'x', 'status': 'error', 'error': 'whitespace in paths'})[0] == 'not_run'
+    assert publish.judge(3, {'status': 'error', 'environments': [{'status': 'error', 'error': 'tmux has-session timed out after 30 seconds'}]})[0] == 'not_run'
+    assert publish.judge(3, {'status': 'error', 'environments': [{'status': 'error', 'error': 'build failed: no such package'}]})[0] == 'archive'
+    crashed = {'task': 'x', 'status': 'failed', 'checks': [{'check': 'check-a.sh', 'status': 'error'}]}
+    assert publish.judge(1, crashed)[0] == 'not_run'
+    crashed['checks'].append({'check': 'check-c.sh', 'status': 'failed'})
+    assert publish.judge(1, crashed) == ('archive', 'static checks failed: check-c.sh')
     # Same content: an earlier archive decision stands and earlier stages carry over.
     earlier = {names[0]: {'content_sha256': '1' * 64, 'stages_passed': '1,3', 'archive_stage': 3,
                           'archive_reason': 'container did not build or start: x', 'run': 'runs/old.json'},

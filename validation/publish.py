@@ -34,6 +34,8 @@ from validation.contract import read, task_records
 from validation.data.materialize import parquet_files
 
 GATES = (1, 3, 4, 5)
+# Start failures that come from the node or the bridge, not from the task's image.
+NODE_FAILURE = re.compile(r'timed out after|No space left on device|no LD_PRELOAD in fakeroot|BridgeOutage|workers? (?:are )?dead', re.I)
 COLUMNS = ('path', 'task_binary', 'content_sha256', 'stages_passed', 'archive_stage', 'archive_reason', 'run')
 
 
@@ -49,25 +51,31 @@ def stage_reports(source):
     return found
 
 
-def failed_checks(item, not_required=()):
+def failed_checks(item, not_required=(), status='failed'):
     return sorted(c['check'] for c in item.get('checks', [])
-                  if c['status'] not in ('passed', 'skipped') and c['check'] not in not_required)
+                  if c['status'] == status and c['check'] not in not_required)
 
 
 def judge(stage, item, not_required=()):
     """(outcome, reason): outcome is 'passed', 'archive' or 'not_run'."""
     status = item.get('status')
     if stage == 1:
-        if status == 'error':
-            return 'archive', 'invalid task: ' + str(item.get('error', 'static checks could not read it'))
+        if status == 'error':          # the checks could not be run on this task at all
+            return 'not_run', 'static checks could not run: ' + str(item.get('error', 'unknown'))[:300]
         failed = failed_checks(item, not_required)
-        return ('archive', 'static checks failed: ' + ', '.join(failed)) if failed else ('passed', '')
+        if failed:
+            return 'archive', 'static checks failed: ' + ', '.join(failed)
+        # A check that timed out or crashed has not judged the task.
+        errors = failed_checks(item, not_required, 'error')
+        return ('not_run', 'static checks did not finish: ' + ', '.join(errors)) if errors else ('passed', '')
     if status == 'passed':
         return 'passed', ''
     if stage == 3:
         reason = item.get('reason') or '; '.join(
             str(e.get('error') or [c['check'] for c in e.get('checks', []) if c.get('status') in ('failed', 'error')])
             for e in item.get('environments', []) if e.get('status') != 'passed')
+        if NODE_FAILURE.search(reason or ''):
+            return 'not_run', 'node or bridge failure: ' + reason[:300]
         return 'archive', 'container did not build or start: ' + (reason or status or 'unknown')[:300]
     findings = [str(f) for f in item.get('findings', [])]
     # A crashed or skipped trial says nothing about the task's reward.
