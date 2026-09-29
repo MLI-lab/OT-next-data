@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -99,6 +100,58 @@ def validate_input(task):
             raise ValueError(f'upstream shell checks do not support whitespace/globs in paths: {path}')
 
 
+PATH_CHECK = 'check-task-absolute-path.sh'
+SHELL_FENCES = {'', 'bash', 'sh', 'shell', 'zsh', 'console', 'text', 'txt'}
+ADAPTATIONS = {PATH_CHECK: 'runs on a copy of the task whose instruction.md has its source-code blocks removed '
+                           '(fenced blocks tagged with a programming language); shell and untagged blocks are kept'}
+
+
+def without_source_code(instruction):
+    """Drop fenced blocks tagged with a programming language: file names inside code
+    to read or complete are not paths the task tells the agent to use.
+
+    Source code can itself contain Markdown fences and '#' lines, so the first bare
+    fence is not always the end of the block. The block ends at the first bare fence
+    that is followed by a heading or by the end of the text; if there is none before
+    the next tagged block, it ends at the first bare fence."""
+    lines, kept, i = instruction.split('\n'), [], 0
+    fence = lambda line: re.fullmatch(r'\s*```\s*([A-Za-z0-9_+#.-]*)\s*', line)
+    def before_heading(j):
+        following = next((l for l in lines[j + 1:] if l.strip()), None)
+        return following is None or re.match(r'#{1,6} ', following) is not None
+    while i < len(lines):
+        match = fence(lines[i])
+        if not match or match.group(1).lower() in SHELL_FENCES:
+            kept.append(lines[i])
+            i += 1
+            continue
+        bare = []
+        for j in range(i + 1, len(lines)):
+            inner = fence(lines[j])
+            if inner and inner.group(1):
+                break                # the next tagged block starts here
+            if inner:
+                bare.append(j)
+        closing = next((j for j in bare if before_heading(j)), bare[0] if bare else None)
+        if closing is None:          # unterminated block: leave the text for the check to see
+            kept.append(lines[i])
+            i += 1
+            continue
+        kept.append(f'[{match.group(1)} source code removed for the path check]')
+        i = closing + 1
+    return '\n'.join(kept)
+
+
+def path_check_copy(task, scratch):
+    copy = Path(scratch) / 'path-check' / task.name
+    (copy / 'environment').mkdir(parents=True, exist_ok=True)
+    (copy / 'instruction.md').write_text(without_source_code((task / 'instruction.md').read_text(errors='replace')))
+    for name in ('task.toml', 'environment/Dockerfile'):
+        if (task / name).is_file():
+            shutil.copyfile(task / name, copy / name)
+    return copy
+
+
 def run_checks(tasks, out, profile='training', timeout=120, upstream=None, exclude=(), concurrency=1):
     if concurrency < 1:
         raise ValueError('concurrency must be positive')
@@ -114,6 +167,7 @@ def run_checks(tasks, out, profile='training', timeout=120, upstream=None, exclu
     report = {'upstream': manifest['repository'], 'commit': manifest['commit'],
               'profile': profile, 'selected_tasks': [str(t) for t in tasks],
               'checks': checks, 'excluded_checks': excluded, 'tasks': [],
+              'adaptations': {name: text for name, text in ADAPTATIONS.items() if name in checks},
               'checker_unit_tests_not_run': list(CHECKER_UNIT_TESTS),
               'conditional_checks': {AI_CHECK: 'runs only when GPTZERO_API_KEY is configured; missing key is a non-failing skip'},
               'complete': False, 'passed': False}
@@ -147,9 +201,10 @@ def run_checks(tasks, out, profile='training', timeout=120, upstream=None, exclu
                             'reason': 'no GPTZERO_API_KEY configured', 'exit_code': None, 'log': None})
                         continue
                     log = logs / (name + '.log')
+                    target = path_check_copy(task, scratch) if name == PATH_CHECK else task
                     with log.open('w') as stream:
                         try:
-                            result = subprocess.run([sys.executable if name.endswith('.py') else 'bash', str((upstream or VENDOR) / 'scripts/checks' / name), str(task)],
+                            result = subprocess.run([sys.executable if name.endswith('.py') else 'bash', str((upstream or VENDOR) / 'scripts/checks' / name), str(target)],
                                 cwd=scratch, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
                             status = 'passed' if result.returncode == 0 else 'failed'
                             rc = result.returncode

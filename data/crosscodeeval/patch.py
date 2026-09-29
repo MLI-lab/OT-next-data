@@ -534,6 +534,31 @@ def add_oracle(files, language, original=None):
     return source
 
 
+# Versions installed when the images were built and oracle/no-answer were validated
+# (python:3.10-slim, Python 3.10.21, 2026-09-29). Packages they pull in are not pinned.
+PIP_PINS = {'pytest': '9.1.1', 'pytest-timeout': '2.4.0'}
+
+
+def pin_pip_installs(files):
+    """Pin the packages named in the Dockerfile's pip installs; an unknown one is an error."""
+    name = 'environment/Dockerfile'
+    if name not in files:
+        return False
+    def pin(line):
+        words = line.group(0).split()
+        for i, word in enumerate(words[3:], 3):
+            if word.startswith('-') or '==' in word:
+                continue
+            if word not in PIP_PINS:
+                raise ValueError(f'No pinned version for pip package {word!r}; add it to PIP_PINS')
+            words[i] = f'{word}=={PIP_PINS[word]}'
+        return ' '.join(words)
+    before = files[name].decode('utf-8')
+    after = re.sub(r'^RUN pip install [^\n]*$', pin, before, flags=re.M)
+    files[name] = after.encode('utf-8')
+    return after != before
+
+
 def benchmark_verifier(files, language, prompt_text=None):
     """Install the scorer and return the new tests/test.sh."""
     files['tests/cceval_verifier.py'] = VERIFIER.encode('utf-8')
@@ -737,7 +762,7 @@ def patch_parquet(input_path, output_path, originals):
     table = pq.read_table(input_path)
     stats = dict.fromkeys(('rows', 'unique', 'unmatched', 'ambiguous', 'kept', 'dropped', 'dropped_no_identifiers',
                            'oracle_upstream', 'oracle_packaged_gold', 'context_chunks', 'kept_chunks',
-                           'dropped_empty', 'dropped_target', 'dropped_gold'), 0)
+                           'dropped_empty', 'dropped_target', 'dropped_gold', 'pinned_pip_installs'), 0)
     stats.update(unmatched_task_ids=[], ambiguous_task_ids=[], dropped_task_ids=[], dropped_no_identifiers_task_ids=[],
                  context_source={r: 0 for r in RETRIEVERS}, context_source_task_ids={r: [] for r in RETRIEVERS},
                  missing_by_retriever={}, identifier_verdicts={}, common_repos=COMMON_REPOS,
@@ -814,6 +839,7 @@ def patch_parquet(input_path, output_path, originals):
             files['tests/test.sh'] = benchmark_verifier(files, lang, p)
         files['instruction.md'] = correct_grading_instruction(files['instruction.md'].decode('utf-8')).encode('utf-8')
         stats[f'oracle_{add_oracle(files, lang, match)}'] += 1
+        stats['pinned_pip_installs'] += pin_pip_installs(files)
         row['task_binary'] = pack(files)
         for n in rows:
             rows[n].append(row[n])

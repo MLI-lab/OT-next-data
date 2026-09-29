@@ -151,3 +151,24 @@ def test_configured_ai_check_uses_python_without_real_api_calls(tmp_path, monkey
     run_checks([task], out, 'training', exclude=[n for n in checks if n != checker.AI_CHECK])
     assert len(calls) == 1 and calls[0][0] == sys.executable
     assert json.loads((out / 'summary.json').read_text())['passed']
+
+
+def test_path_check_ignores_file_names_inside_source_code(tmp_path):
+    from validation.verify.check_terminal_bench import without_source_code
+    task = make_task(tmp_path, 'code-task')
+    code = ('## Context\n\n```python\n\"\"\"Example:\n```\nrun()\n```\n\"\"\"\n## Class hierarchy\n'
+            'config = json.load(open("config.json"))\n```\n\n## Your Task\n\n')
+    (task / 'instruction.md').write_text(code + 'Write the answer to `/app/solution.txt`.\n\n```bash\nprintf x > /app/solution.txt\n```\n')
+    cleaned = without_source_code((task / 'instruction.md').read_text())
+    assert 'config.json' not in cleaned and 'printf x > /app/solution.txt' in cleaned and '## Your Task' in cleaned
+    out = tmp_path / 'ok'
+    run_checks([task], out, 'portable')
+    status = lambda o: {c['check']: c['status'] for c in json.loads((o / 'summary.json').read_text())['tasks'][0]['checks']}
+    assert status(out)['check-task-absolute-path.sh'] == 'passed'
+    assert 'check-task-absolute-path.sh' in json.loads((out / 'summary.json').read_text())['adaptations']
+    # A relative path in the task's own text or in a shell example still fails.
+    (task / 'instruction.md').write_text(code + 'Save the answer in "results.json".\n')
+    out = tmp_path / 'relative'
+    run_checks([task], out, 'portable')
+    assert status(out)['check-task-absolute-path.sh'] == 'failed'
+    assert (task / 'instruction.md').read_text().startswith('## Context')      # the task itself is unchanged
