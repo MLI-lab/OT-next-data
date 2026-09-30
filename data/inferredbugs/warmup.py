@@ -6,6 +6,8 @@
                                          tasks read it when INFERREDBUGS_DOWNLOAD_CACHE names it
   python warmup.py --repositories DIR    clone every kept task's repository into DIR/<owner>/<repo>.git;
                                          tasks read it when INFERREDBUGS_REPOSITORY_CACHE names it
+  python warmup.py --source DIR          check out microsoft/InferredBugs at the pinned commit (about 1 GB): the
+                                         buggy and fixed files the patch script and the check harness package from
 
 The environment variables must be visible inside the task container (the check harness passes
 them through). Build dependencies (Maven, NuGet) are cached in the container's /cache: within one
@@ -115,12 +117,26 @@ def repositories(directory, workers):
     print(len(names), 'repositories')
 
 
+def source(directory):
+    if (directory / 'inferredbugs').is_dir():
+        print('exists', directory)
+        return
+    directory.mkdir(parents=True, exist_ok=True)
+    for command in (['git', 'init', '-q', str(directory)],
+                    ['git', '-C', str(directory), 'remote', 'add', 'origin', 'https://github.com/microsoft/InferredBugs.git'],
+                    ['git', '-C', str(directory), 'fetch', '-q', '--depth=1', 'origin', patcher.SOURCE_COMMIT],
+                    ['git', '-C', str(directory), 'checkout', '-q', '--detach', 'FETCH_HEAD']):
+        subprocess.run(command, check=True)
+    print('checked out microsoft/InferredBugs at', patcher.SOURCE_COMMIT[:12], 'into', directory)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--images', type=Path)
     ap.add_argument('--docker', action='store_true', help='build Docker images instead of apptainer files')
     ap.add_argument('--downloads', type=Path)
     ap.add_argument('--repositories', type=Path)
+    ap.add_argument('--source', type=Path)
     ap.add_argument('--workers', type=int, default=4)
     a = ap.parse_args()
     if a.images or a.docker:
@@ -129,6 +145,8 @@ def main():
         downloads(a.downloads)
     if a.repositories:
         repositories(a.repositories, a.workers)
+    if a.source:
+        source(a.source)
 
 
 if __name__ == '__main__':

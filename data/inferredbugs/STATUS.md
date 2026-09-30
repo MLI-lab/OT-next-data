@@ -17,9 +17,25 @@ the reasons, not for the state.
 | Keys the verifier compares with | still the audit's; to be replaced by the verifier's own (step 2) |
 | Parquet | not regenerated |
 
-## What is left, in order
+## Setting up on another cluster
 
-The runs happen on another cluster; nothing here needs Helma.
+Everything comes from public sources; nothing has to be copied from Helma.
+
+| Need | How to get it |
+|---|---|
+| The repository | `git clone https://github.com/MLI-lab/OT-next-data.git` (branch `main`) |
+| Python with `pyarrow` | any venv, or `uv run --with pyarrow python ...` |
+| `git`, `apptainer` (or Docker), outbound network to GitHub, Maven Central, NuGet, python.org | cluster setup; a proxy goes into the Slurm script like `hpc/helma/proxy.sh` |
+| The buggy and fixed files of the tasks | `python3 data/inferredbugs/warmup.py --source DIR`: microsoft/InferredBugs at the pinned commit, about 1 GB. The harness takes it as `--inferredbugs-root DIR` (`CHECK_SOURCE=DIR` in the Slurm script); Helma used its `inputs.sqlite` instead |
+| The eight images | `warmup.py --images DIR` (`CHECK_IMAGES=DIR`); the Java ones include Python 2.7 |
+| Optional caches | `warmup.py --downloads DIR` (analyzer releases, 1.5 GB) and `--repositories DIR` (bare clones, tens of GB); export `INFERREDBUGS_DOWNLOAD_CACHE` and `INFERREDBUGS_REPOSITORY_CACHE` for the Slurm job |
+| The Slurm script | `hpc/helma/inferredbugs_verifier_check.sbatch`: set partition, proxy, `CHECK_RUN` (output directory with `ids.txt`), `CHECK_SOURCE`, `CHECK_IMAGES`; `CHECK_VARIANTS=buggy,full`; as an array job with `CHECK_SHARDS` |
+
+The task ids for the run (`ids.txt`): the `kept = yes` rows of `task-provenance.csv`, 5,877 tasks
+with the 300 s limit already applied, or all 6,086 of `EMBEDDED_WARNINGS` to measure the slow ones
+again: `awk -F, '$4 == "yes" {print $1}' data/inferredbugs/task-provenance.csv > ids.txt`.
+
+## What is left, in order
 
 1. **Warm the caches** (`warmup.py`): build the eight images, download the analyzer releases,
    clone the repositories. Optional, but it removes GitHub and download failures from the runs.

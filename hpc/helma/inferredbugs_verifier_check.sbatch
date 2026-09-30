@@ -18,7 +18,9 @@ export APPTAINER_NO_MOUNT=hostfs,bind-paths,cwd
 export INFERREDBUGS_CENTRAL_MIRROR=https://maven-central.storage-download.googleapis.com/maven2
 scratch="${TMPDIR:?}/ib-verifier-check"
 mkdir -p "$scratch"
-cp "$repo/runs/inferredbugs-20260927/final-inputs2/inputs.sqlite" "$scratch/inputs.sqlite"
+# The buggy and fixed files: Helma's inputs.sqlite, or a checkout of microsoft/InferredBugs (warmup.py --source)
+if [ -n "${CHECK_SOURCE:-}" ]; then inputs=(--inferredbugs-root "$CHECK_SOURCE"); else
+  cp "$repo/runs/inferredbugs-20260927/final-inputs2/inputs.sqlite" "$scratch/inputs.sqlite"; inputs=(--inputs "$scratch/inputs.sqlite"); fi
 # As an array job (a full run): one shard per array task, one summary line per verification.
 extra=()
 if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
@@ -27,7 +29,7 @@ fi
 # CHECK_LOAD=N: N busy processes beside the check, to see what a loaded node does to the analysis
 for i in $(seq 1 "${CHECK_LOAD:-0}"); do ( while :; do :; done ) & done
 "$base/venv/bin/python" -u "$repo/hpc/helma/inferredbugs_verifier_check.py" \
-  --inputs "$scratch/inputs.sqlite" --images "$base/images" --scratch "$scratch/tasks" --output "$run" \
+  "${inputs[@]}" --images "${CHECK_IMAGES:-$base/images}" --scratch "$scratch/tasks" --output "$run" \
   --ids-file "$run/ids.txt" --proxy-helper "$repo/hpc/helma/configure_maven_proxy.py" \
   --workers "${CHECK_WORKERS:-8}" --variants "${CHECK_VARIANTS:-buggy,gold}" --step-timeout "${CHECK_STEP_TIMEOUT:-2400}" --timeout "${CHECK_TIMEOUT:-7200}" "${extra[@]}"
 kill $(jobs -p) 2>/dev/null || true
