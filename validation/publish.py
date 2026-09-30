@@ -254,11 +254,13 @@ def run_llm(prompt, model='sonnet', timeout=600):
                             capture_output=True, text=True, timeout=timeout)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout).strip()[-500:] or f'exit {result.returncode}')
-    text = json.loads(result.stdout).get('result', '')
-    match = re.search(r'\{.*\}', text, re.S)
+    output = json.loads(result.stdout)
+    match = re.search(r'\{.*\}', output.get('result', ''), re.S)
     if not match:
         raise ValueError('the model did not answer with JSON')
-    return json.loads(match.group(0))
+    answer = json.loads(match.group(0))
+    answer['model'] = ', '.join(sorted(output.get('modelUsage') or {})) or model
+    return answer
 
 
 def analyse(record, tables, model='sonnet', call=run_llm):
@@ -271,7 +273,8 @@ def analyse(record, tables, model='sonnet', call=run_llm):
         answer = call(ANALYSIS_PROMPT + json.dumps(digest, indent=1), model)
         groups = answer['groups']
         assert isinstance(groups, list) and all({'name', 'action', 'cause'} <= set(g) for g in groups)
-        return {'status': 'done', 'digest': digest, 'groups': groups, 'summary': str(answer.get('summary', ''))}
+        return {'status': 'done', 'model': str(answer.get('model', model)), 'prompt': ANALYSIS_PROMPT,
+                'digest': digest, 'groups': groups, 'summary': str(answer.get('summary', ''))}
     except Exception as exc:
         return {'status': 'skipped', 'reason': f'{type(exc).__name__}: {str(exc)[:300]}', 'digest': digest}
 
@@ -279,7 +282,7 @@ def analyse(record, tables, model='sonnet', call=run_llm):
 def analysis_text(analysis):
     if not analysis or analysis.get('status') != 'done':
         return ''
-    lines = ['', '## Analysis (model-written, advisory)', '', analysis['summary'], '',
+    lines = ['', f"## Analysis (written by {analysis.get('model', 'a model')}, advisory)", '', analysis['summary'], '',
              '| Group | Tasks | Stages | Cause | Suggested action |', '| --- | --- | --- | --- | --- |']
     for g in analysis['groups']:
         stages = ', '.join(str(s) for s in g.get('stages', [])) or '-'
