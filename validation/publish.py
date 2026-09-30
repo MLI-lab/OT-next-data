@@ -259,31 +259,39 @@ def main():
     ap.add_argument('--run-id', help='default: date and contract hash')
     ap.add_argument('--dry-run', action='store_true', help='write the files and the description, open no pull request')
     a = ap.parse_args()
-    contract = read(a.contract)
-    reports = stage_reports(a.reports)
+    result = publish(a.reports, a.contract, a.repo, a.folder, a.not_required, a.out, a.run_id, a.dry_run)
+    print(result['description'])
+    print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
+          if a.dry_run else f"Pull request: {result['pull_request']}")
+
+
+def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=None, run_id=None, dry_run=False):
+    """Build the files for one run and open the pull request; returns what was done."""
+    contract = read(contract_path)
+    reports = stage_reports(reports_dir)
     for stage, report in reports.items():
         if report.get('contract_sha256') not in (None, contract['sha256']):
-            raise SystemExit(f'stage {stage} report belongs to another contract')
-    mapping = dict(item.split('=', 1) for item in a.folder)
-    checks = [c if c.endswith('.sh') else f"check-{c.removeprefix('check-')}.sh" for c in a.not_required]
+            raise ValueError(f'stage {stage} report belongs to another contract')
+    mapping = dict(item.split('=', 1) for item in folders)
+    checks = [c if c.endswith('.sh') else f"check-{c.removeprefix('check-')}.sh" for c in not_required]
     cache = {}
     def previous(folder):
         if folder not in cache:
-            cache[folder] = {} if a.dry_run and not a.repo else previous_rows(a.repo, folder)
+            cache[folder] = {} if dry_run and not repo else previous_rows(repo, folder)
         return cache[folder]
-    tables, record, run_file = build(contract, reports, mapping, checks, previous, a.run_id)
-    out = a.out or a.reports / 'publish'
+    tables, record, run_file = build(contract, reports, mapping, checks, previous, run_id)
+    out = Path(out) if out else Path(reports_dir) / 'publish'
     files = write(tables, record, run_file, out)
-    print(description(record))
-    if a.dry_run:
-        print(f'Dry run: {len(files)} files written to {out}; no pull request opened.')
-        return
+    result = {'run': record['run'], 'files': files, 'out': str(out), 'description': description(record)}
+    if dry_run:
+        return result
     from huggingface_hub import CommitOperationAdd, HfApi
     commit = HfApi().create_commit(
-        repo_id=a.repo, repo_type='dataset', create_pr=True,
+        repo_id=repo, repo_type='dataset', create_pr=True,
         operations=[CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(out / name)) for name in files],
         commit_message=f"Validation run {record['run']}", commit_description=description(record))
-    print(f'Pull request: {commit.pr_url}')
+    result['pull_request'] = commit.pr_url
+    return result
 
 
 if __name__ == '__main__':
