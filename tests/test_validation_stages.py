@@ -1020,12 +1020,13 @@ def test_publish_analysis_is_advisory_and_skipped_on_failure(tmp_path):
     def model(prompt, name):
         seen['prompt'] = prompt
         return {'groups': [{'name': 'oracle reward 0', 'tasks': 1, 'stages': [4], 'cause': 'task',
-                            'action': 'investigate', 'reasoning': 'one task'}], 'summary': 'One task failed oracle.'}
+                            'action': 'investigate', 'reasoning': 'one task'}], 'summary': 'One task failed oracle.',
+                'model': 'test-model'}
     analysis = publish.analyse(record, tables, 'sonnet', model)
     assert analysis['status'] == 'done' and 'set-python-0002' in seen['prompt'] and 'task_binary' not in seen['prompt']
     record['analysis'] = analysis
     text = publish.description(record)
-    assert '## Analysis (model-written, advisory)' in text and '| oracle reward 0 | 1 | 4 | task | investigate |' in text
+    assert '## Analysis (written by test-model, advisory)' in text and analysis['model'] == 'test-model' and '| oracle reward 0 | 1 | 4 | task | investigate |' in text
     def broken(prompt, name):
         raise RuntimeError('not logged in')
     failed = publish.analyse(record, tables, 'sonnet', broken)
