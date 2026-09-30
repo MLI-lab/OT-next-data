@@ -379,6 +379,9 @@ def test_excerpt_file_names_count_as_visible(tmp_path, monkeypatch, capsys):
     patcher.main()
     report = json.loads(capsys.readouterr().out)
     assert report["kept"] == 1 and report["context_source"]["rg1_bm25"] == 1
+    files = patcher.unpack(pq.read_table(output).to_pylist()[0]["task_binary"])
+    assert files["setup_files/context/README.txt"].decode().splitlines()[1] == "000_src__GeneralSettings.cs\tsrc/GeneralSettings.cs"
+    assert "README.txt there lists the original repository path" in files["instruction.md"].decode()
 
 
 def test_curated_known_names():
