@@ -5,7 +5,7 @@ Submits hpc/<cluster>/teacher_traces.sbatch with this cluster's GPU request and
 concurrency. --time HH:MM:SS is required, because a job that reserves more than
 it needs waits longer in the queue. --dry-run prints the command instead.
 
-  python teacher_traces/submit.py --model coder-30b --stage smoke --time 00:45:00
+  python teacher_traces/submit.py --model coder-30b --tasks-per-group 1 --time 00:45:00
   python teacher_traces/submit.py --dataset-config /path/to/dataset.json ...
 """
 from __future__ import annotations
@@ -83,7 +83,7 @@ def submit(a):
         measured = resolve(a.model)[1].concurrency.get(cluster.hardware)
         env['PILOT_CONCURRENCY'] = str(measured.trials if measured else cluster.trials_in_flight(
             gpus, int(os.environ.get('PILOT_TRIAL_CPUS', 1))))
-    cmd = ['sbatch', *extra, sbatch, a.model, a.stage]
+    cmd = ['sbatch', *extra, sbatch, a.model, a.tasks_per_group]
     if dataset_config:
         cmd.append(dataset_config)
     if a.dry_run:
@@ -106,11 +106,13 @@ def main():
     ap.add_argument('--dataset-config', type=Path, help='JSON dataset inputs; default is the CrossCodeEval setup')
     ap.add_argument('--model', default='coder-30b', help='model key, see config/models.py')
     ap.add_argument('--attempts', type=int, default=8, help='attempts per task (default 8)')
-    ap.add_argument('--stage', default='diag', choices=['smoke', 'diag', 'sweep', 'full'], help='1, 5, 25 or all tasks per group')
+    ap.add_argument('--tasks-per-group', default='all', help='how many tasks of each group to run, from the start of the group; a number or all (default)')
     ap.add_argument('--gres', help="override the cluster's GPU request, e.g. '--gres=gpu:h200:2'")
     ap.add_argument('--time', help='sbatch time limit, HH:MM:SS - required to submit')
     ap.add_argument('--dry-run', action='store_true', help='print the submit command instead of running it')
     a = ap.parse_args()
+    if not (a.tasks_per_group == 'all' or a.tasks_per_group.isdigit() and int(a.tasks_per_group) > 0):
+        ap.error('--tasks-per-group must be a positive number or all')
     try:
         rc = submit(a)
     except ValueError as exc:

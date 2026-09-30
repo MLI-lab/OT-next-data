@@ -136,25 +136,19 @@ import archive_trials
 
 
 def _manifest():
-    langs = {}
-    for lang, smoke in prepare_run.SMOKE_TASKS.items():
-        ids = [f'crosscodeeval-{lang}-{i:04d}' for i in range(5000, 5250)]  # no clash with real smoke IDs
-        ids[7] = smoke  # the smoke task sits somewhere inside the first 20
-        langs[lang] = {'task_ids': ids}
-    return {'languages': langs}
+    return {'languages': {lang: {'task_ids': [f'crosscodeeval-{lang}-{i:04d}' for i in range(5000, 5250)]}
+                          for lang in prepare_run.LANGUAGES}}
 
 
-def test_stage_selection_is_fixed_and_nested():
+def test_selection_takes_the_first_tasks_of_each_group():
     m = _manifest()
-    smoke = prepare_run.select_tasks(m, 'smoke')
-    diag = prepare_run.select_tasks(m, 'diag')
-    full = prepare_run.select_tasks(m, 'full')
+    one, five, every = (prepare_run.select_tasks(m, n) for n in (1, 5, None))
     for lang in prepare_run.LANGUAGES:
-        assert smoke[lang] == [prepare_run.SMOKE_TASKS[lang]]
-        assert len(diag[lang]) == 5 and diag[lang][0] == prepare_run.SMOKE_TASKS[lang]
-        assert diag[lang][1:] == [t for t in m['languages'][lang]['task_ids'][:20] if t != prepare_run.SMOKE_TASKS[lang]][:4]
-        assert len(set(diag[lang])) == 5 and set(diag[lang]) <= set(m['languages'][lang]['task_ids'][:20])
-        assert full[lang] == m['languages'][lang]['task_ids']
+        ranked = m['languages'][lang]['task_ids']
+        assert one[lang] == ranked[:1] and five[lang] == ranked[:5] and every[lang] == ranked
+    assert prepare_run.tasks_per_group_value('all') is None and prepare_run.tasks_per_group_value('25') == 25
+    with pytest.raises(ValueError):
+        prepare_run.tasks_per_group_value('0')
 
 
 def test_prepare_run_keeps_shared_storage_small(tmp_path):
@@ -163,7 +157,7 @@ def test_prepare_run_keeps_shared_storage_small(tmp_path):
     (base / 'tasks/selection1000.json').write_text(json.dumps({'archive': 'tasks/selection1000.tar.gz', 'sha256': 'abc'}))
     (base / 'tasks/selection1000-manifest.json').write_text(json.dumps(_manifest()))
     work = tmp_path / 'local/runs/r1'
-    run = prepare_run.prepare(base, 'r1', 'weak', 'diag', work, tmp_path / 'local/tasks-src')
+    run = prepare_run.prepare(base, 'r1', 'weak', 5, work, tmp_path / 'local/tasks-src')
     header = json.loads((run / 'manifest.jsonl').read_text().splitlines()[0])
     assert header['local_tasks_dir'] == str(tmp_path / 'local/tasks-src')
     assert header['task_archive_sha256'] == 'abc'

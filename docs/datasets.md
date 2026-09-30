@@ -22,20 +22,19 @@ Archive paths are relative to the configuration file; absolute paths also work.
 Use `sha256sum tasks/new-data.tar.gz` to get the checksum. Preparation verifies
 it before creating the run. Each task ID must appear in exactly one group.
 Choose group names other than `total` (reserved for the summary), or use one
-`all` group. List tasks in your desired order:
-`smoke`, `diag`, and `sweep` take the first 1, 5, and 25 tasks per group (or all
-available tasks if fewer); `full` takes every listed task. There is no 250-task
-requirement. Optional `task_repo` and `task_revision` record the source version;
+`all` group. List tasks in your desired order: `--tasks-per-group N` takes the
+first N tasks of each group (or all of them if a group has fewer), and `all`,
+the default, takes every listed task. Optional `task_repo` and `task_revision` record the source version;
 otherwise the archive checksum identifies the task version. `artifacts` lists
 absolute paths inside each task container to save after an attempt.
 
 ```bash
 python teacher_traces/submit.py --dataset-config /path/to/new-data.json \
-    --model coder-30b --stage smoke --attempts 8 --time 00:45:00
+    --model coder-30b --tasks-per-group 1 --attempts 8 --time 00:45:00
 ```
 
 Add `--dry-run` to inspect the submission. Direct Slurm submissions accept the
-configuration path as a third argument after the model and stage. Task groups
+configuration path as a third argument after the model and the tasks per group. Task groups
 are saved with each run and used by pass@k reporting and plots. New datasets
 still need valid Harbor task environments and scoring scripts; this option does
 not convert raw data into tasks. The same Slurm/Apptainer runtime is required.

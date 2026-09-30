@@ -59,11 +59,12 @@ Unit tests of this repository: `python -m pytest tests -q`.
 python config/models.py                         # list models
 python config/models.py --download coder-30b
 python teacher_traces/submit.py --dataset-config /path/to/dataset.json \
-    --model coder-30b --stage smoke --attempts 8 --time 00:45:00
+    --model coder-30b --tasks-per-group 5 --attempts 8 --time 00:45:00
 ```
 
-See [dataset configuration](docs/datasets.md). Stages are `smoke`, `diag`,
-`sweep`, and `full`. Add `--dry-run` to preview the submission.
+See [dataset configuration](docs/datasets.md). `--tasks-per-group` takes the
+first N tasks of each group, or all of them by default; start with a small
+number to try a model. Add `--dry-run` to preview the submission.
 Omitting `--dataset-config` uses the existing CrossCodeEval setup.
 The run itself is described in [teacher traces](teacher_traces/README.md).
 
