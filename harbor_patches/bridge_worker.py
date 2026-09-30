@@ -201,11 +201,54 @@ def start_with_anchor(self, payload):
         raise
 
 
+def leaked_message_queues(listing, uid=None, alive=None):
+    """IDs of this user's SysV message queues whose last sender and receiver are gone.
+
+    Apptainer's --fakeroot runs a `faked` helper per session, and each one owns a message
+    queue. A killed session (instance stop, the tmux anchor) leaves its queue behind, and
+    the node's fixed number of queues runs out after about 10,000 container starts
+    (job 916252: "creating message channels: No space left on device"). Instances run in
+    the host PID namespace, so the recorded PIDs can be checked for life."""
+    uid = os.getuid() if uid is None else uid
+    alive = alive or (lambda pid: os.path.exists(f'/proc/{pid}'))
+    owner = str(uid)
+    try:
+        import pwd
+        owner = pwd.getpwuid(uid).pw_name
+    except KeyError:
+        pass
+    leaked = []
+    for line in listing.splitlines():
+        parts = line.split()
+        if len(parts) < 4 or not parts[0].isdigit():
+            continue
+        msqid, name, lspid, lrpid = parts[0], parts[1], parts[2], parts[3]
+        pids = [int(p) for p in (lspid, lrpid) if p.isdigit() and int(p) > 0]
+        if name == owner and pids and not any(alive(p) for p in pids):
+            leaked.append(msqid)
+    return leaked
+
+
+def sweep_message_queues(tag):
+    try:
+        listing = subprocess.run(['ipcs', '-q', '-p'], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return 0
+    removed = 0
+    for msqid in leaked_message_queues(listing):
+        if subprocess.run(['ipcrm', '-q', msqid], capture_output=True, timeout=30).returncode == 0:
+            removed += 1
+    if removed:
+        print(f'[{tag}] Removed {removed} leaked fakeroot message queues', flush=True)
+    return removed
+
+
 def stop_with_anchor(self, payload):
     try:
         return _original_stop(self, payload)
     finally:
         stop_anchor(self)
+        sweep_message_queues(self.env_id)
 
 
 _baked_tests = {}
@@ -322,6 +365,7 @@ if __name__ == '__main__':
     for name in ('TMPDIR', 'TMP', 'TEMP'):
         os.environ[f'APPTAINERENV_{name}'] = '/tmp'
     worker._cleanup_stale_instances = cleanup_own_staging_only
+    sweep_message_queues('startup')
     configure_explicit_host_network()
     worker._pool_key_from_payload = lambda payload: _original_pool_key(content_keyed_payload(payload))
     worker.ApptainerInstance.start = start_with_anchor

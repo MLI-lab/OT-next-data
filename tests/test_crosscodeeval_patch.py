@@ -411,3 +411,8 @@ def test_pip_installs_are_pinned_and_unknown_packages_fail():
     assert not patcher.pin_pip_installs({'instruction.md': b'no environment'})
     with pytest.raises(ValueError, match='requests'):
         patcher.pin_pip_installs({'environment/Dockerfile': b'FROM x\nRUN pip install requests\n'})
+
+
+def test_context_file_names_have_no_whitespace():
+    assert patcher.context_file_name('Clase 4/Lunes/Lista Circular.java') == 'Clase_4__Lunes__Lista_Circular.java'
+    assert patcher.context_file_name('src/a.py') == 'src__a.py' and patcher.context_file_name('') == ''

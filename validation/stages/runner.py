@@ -324,7 +324,7 @@ def run_stage(number, args):
         if args.dry_run:
             report['items'] = [{'task': str(t), 'status': 'previewed'} for t in sources]
         else:
-            run_checks(sources, out / 'static', profile=args.static_profile, upstream=upstream, exclude=args.exclude, concurrency=args.concurrency)
+            run_checks(sources, out / 'static', profile=args.static_profile, upstream=upstream, exclude=args.exclude, concurrency=min(args.concurrency, 8))
             report['items'] = json.loads((out / 'static/summary.json').read_text())['tasks']
     elif number == 3 and not args.dry_run:
         async def builds():

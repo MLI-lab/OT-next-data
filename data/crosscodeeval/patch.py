@@ -569,6 +569,12 @@ def benchmark_verifier(files, language, prompt_text=None):
             f' --reference /{gold_path(language)} --prompt /tests/prompt.txt --out /logs/verifier\n').encode()
 
 
+def context_file_name(name):
+    """Repository paths become one file name: '/' -> '__', whitespace -> '_'.
+    Upstream static checks split paths at spaces, so a space would hide the file."""
+    return re.sub(r'\s+', '_', name.replace('/', '__'))
+
+
 def whole_word(ident, text):
     return re.search(r'(?<![A-Za-z0-9_])' + re.escape(ident) + r'(?![A-Za-z0-9_])', text) is not None
 
@@ -856,7 +862,7 @@ def patch_parquet(input_path, output_path, originals):
             for v in verdicts.values():
                 stats['identifier_verdicts'][v] = stats['identifier_verdicts'].get(v, 0) + 1
             for i, (name, text) in enumerate(kept):
-                files[f'setup_files/context/{i:03d}_{name.replace("/", "__") or f"context_{i}.txt"}'] = text.encode()
+                files[f'setup_files/context/{i:03d}_{context_file_name(name) or f"context_{i}.txt"}'] = text.encode()
             instruction = files['instruction.md'].decode('utf8', 'replace')
             if kept and '/setup_files/context/' not in instruction:
                 files['instruction.md'] = (instruction.rstrip() + CONTEXT_NOTE).encode()

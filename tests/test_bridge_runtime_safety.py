@@ -48,3 +48,16 @@ def test_explicit_host_mode_supplies_dns_and_proxy(patch, monkeypatch):
     import os
     assert '/etc/resolv.conf:/etc/resolv.conf:ro' in os.environ['APPTAINER_BINDPATH']
     assert os.environ['APPTAINERENV_https_proxy'] == 'http://proxy.example:8080'
+
+
+def test_only_dead_fakeroot_queues_of_this_user_are_swept(patch):
+    listing = ('\n------ Message Queues PIDs --------\n'
+               'msqid      owner      lspid      lrpid\n'
+               '54       me         1001       1002\n'      # both dead: leaked
+               '55       me         1001       2000\n'      # receiver alive: in use
+               '56       other      1001       1002\n'      # another user's queue
+               '57       me         0          0\n')        # never used yet: too new to judge
+    import os, pwd
+    alive = lambda pid: pid == 2000
+    listing = listing.replace('me ', pwd.getpwuid(os.getuid()).pw_name + ' ')
+    assert patch.leaked_message_queues(listing, alive=alive) == ['54']
