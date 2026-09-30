@@ -206,28 +206,28 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
 
 
 ANALYSIS_PROMPT = """You review the outcome of a validation run over a dataset of agent tasks.
-Below is a digest: for each data source, how many tasks were kept or archived, the archive
-reasons with counts and example task IDs, and the reasons why some stages did not run.
+The run summary at the end lists, for each data source, how many tasks were kept or archived,
+the archive reasons with counts and example task IDs, and the reasons why some stages did not run.
 Stage 1 = static checks, 3 = container build, 4 = oracle solution must get reward 1,
 5 = doing nothing must get reward 0.
 
 Group the archived and not-run tasks by cause and say, for each group, whether it looks like
 (a) a defect of the tasks, (b) an infrastructure or tooling failure, or (c) a check that does
 not fit this dataset. Recommend one action per group: rerun, exclude-check, fix-tasks,
-keep-archived or investigate, with one or two sentences of reasoning based only on the digest.
-Do not invent facts that are not in the digest.
+keep-archived or investigate, with one or two sentences of reasoning based only on the run summary.
+Do not invent facts that are not in it.
 
 Answer with JSON only, of this form:
 {"groups": [{"name": "...", "tasks": <count>, "stages": [..], "cause": "task|infrastructure|check|unclear",
              "action": "rerun|exclude-check|fix-tasks|keep-archived|investigate", "reasoning": "..."}],
- "summary": "two or three sentences"}
+ "overview": "two or three sentences"}
 
-Digest:
+Run summary:
 """
 
 
-def analysis_digest(record, tables):
-    """Compact input for the analysis: counts, reasons and a few example IDs, no task content."""
+def run_summary(record, tables):
+    """Input for the analysis: counts, reasons and a few example IDs, no task content or logs."""
     digest = {'data_sources': {}}
     for folder, (kept, archived) in sorted(tables.items()):
         examples = {}
@@ -266,7 +266,7 @@ def run_llm(prompt, model='sonnet', timeout=600):
 def analyse(record, tables, model='sonnet', call=run_llm):
     """Optional: a model groups the archived and not-run tasks and suggests what to do.
     Any failure (no login, no quota, bad answer) skips the step and is recorded."""
-    digest = analysis_digest(record, tables)
+    digest = run_summary(record, tables)
     if not any(s['archived'] or s['not_run_by_stage'] for s in digest['data_sources'].values()):
         return {'status': 'skipped', 'reason': 'nothing was archived or left unrun'}
     try:
@@ -274,15 +274,15 @@ def analyse(record, tables, model='sonnet', call=run_llm):
         groups = answer['groups']
         assert isinstance(groups, list) and all({'name', 'action', 'cause'} <= set(g) for g in groups)
         return {'status': 'done', 'model': str(answer.get('model', model)), 'prompt': ANALYSIS_PROMPT,
-                'digest': digest, 'groups': groups, 'summary': str(answer.get('summary', ''))}
+                'run_summary': digest, 'groups': groups, 'overview': str(answer.get('overview', answer.get('summary', '')))}
     except Exception as exc:
-        return {'status': 'skipped', 'reason': f'{type(exc).__name__}: {str(exc)[:300]}', 'digest': digest}
+        return {'status': 'skipped', 'reason': f'{type(exc).__name__}: {str(exc)[:300]}', 'run_summary': digest}
 
 
 def analysis_text(analysis):
     if not analysis or analysis.get('status') != 'done':
         return ''
-    lines = ['', f"## Analysis (written by {analysis.get('model', 'a model')}, advisory)", '', analysis['summary'], '',
+    lines = ['', f"## Analysis (written by {analysis.get('model', 'a model')}, advisory)", '', analysis['overview'], '',
              '| Group | Tasks | Stages | Cause | Suggested action |', '| --- | --- | --- | --- | --- |']
     for g in analysis['groups']:
         stages = ', '.join(str(s) for s in g.get('stages', [])) or '-'
