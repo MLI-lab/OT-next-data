@@ -416,3 +416,4 @@ def test_pip_installs_are_pinned_and_unknown_packages_fail():
 def test_context_file_names_have_no_whitespace():
     assert patcher.context_file_name('Clase 4/Lunes/Lista Circular.java') == 'Clase_4__Lunes__Lista_Circular.java'
     assert patcher.context_file_name('src/a.py') == 'src__a.py' and patcher.context_file_name('') == ''
+    assert patcher.context_file_name('src/pages/api/[trpc].ts') == 'src__pages__api___trpc_.ts'

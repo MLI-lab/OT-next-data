@@ -570,9 +570,10 @@ def benchmark_verifier(files, language, prompt_text=None):
 
 
 def context_file_name(name):
-    """Repository paths become one file name: '/' -> '__', whitespace -> '_'.
-    Upstream static checks split paths at spaces, so a space would hide the file."""
-    return re.sub(r'\s+', '_', name.replace('/', '__'))
+    """Repository paths become one file name: '/' -> '__'; whitespace and the shell
+    glob characters *?[] -> '_'. Upstream static checks split paths at spaces and
+    expand globs, so such a name would hide the file or match another one."""
+    return re.sub(r'[\s*?\[\]]+', '_', name.replace('/', '__'))
 
 
 def whole_word(ident, text):
