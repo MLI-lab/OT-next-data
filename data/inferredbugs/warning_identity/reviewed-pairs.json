@@ -1,0 +1,2665 @@
+[
+ {
+  "task_id": "inferredbugs-0263",
+  "rule": "csharp_allocation",
+  "pair": [
+   "Src/ConsoleTableApp/Program.cs",
+   11,
+   "Void Program.Main(String[])",
+   "Leaked resource table of type System.Data.DataTable, Leaked resource (returned from System.Data.DataTable ConsoleTableApp.Program::GetTable() at Line 71) of type System.Data.DataTable, Leaked resource (returned from System.Data.DataTable ConsoleTableApp.Program::GetTable() at Line 24) of type System.Data.DataTable in method \"Void Program.Main(String[])\".",
+   "a677201451662b5ba1e1b48224eef41e",
+   "Leaked resource table of type System.Data.DataTable, Leaked resource (returned from System.Data.DataTable ConsoleTableApp.Program::GetTable() at Line 71) of type System.Data.DataTable, Leaked resource (returned from System.Data.DataTable ConsoleTableApp.Program::GetTable() at Line 25) of type System.Data.DataTable in method \"Void Program.Main(String[])\"."
+  ],
+  "before_sha256": "8ee8f65a2e425cc7845758bee9c05c4fabc44af2f0405145c314481058c76951",
+  "proof": [
+   {
+    "signature": "System.Data.DataTable ConsoleTableApp.Program::GetTable()",
+    "statement_start_line": 24,
+    "call_start_line": 25,
+    "statement": "ConsoleTableBuilder\n                .From(GetTable())\n                .WithColumn(new List<string> {\"1\", null, null})\n                .AddRow(null, null, \"3\", null, \"5\", \"6\", \"7\")\n                .AddRow(new List<object>{ null, 1, \"2\" })\n                .AddRow(row)\n                .AddRow(new List<List<object>>\n                {\n                    new List<object>{\"1\",2,3,4},\n                    new List<object>{\"x\", \"y\", 999}\n                })\n                .WithFormat(ConsoleTableBuilderFormat.Alternative)\n                .WithOptions(new ConsoleTableBuilderOption {TrimColumn = true})\n                .ExportAndWriteLine();",
+    "call": "GetTable()"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-0279",
+  "rule": "csharp_allocation",
+  "pair": [
+   "Cowboy.Hosting.Self/SelfHost.cs",
+   172,
+   "Request SelfHost.ConvertRequest(HttpListenerRequest)",
+   "Leaked resource return of type Cowboy.Request, Leaked resource (returned from Cowboy.RequestStream Cowboy.RequestStream::FromStream(System.IO.Stream,System.Int64,System.Boolean) at Line 212) of type Cowboy.RequestStream in method \"Request SelfHost.ConvertRequest(HttpListenerRequest)\".",
+   "5cc4dfdb7a51d16643b7050bbec24efc",
+   "Leaked resource return of type Cowboy.Request, Leaked resource (returned from Cowboy.RequestStream Cowboy.RequestStream::FromStream(System.IO.Stream,System.Int64,System.Boolean) at Line 215) of type Cowboy.RequestStream in method \"Request SelfHost.ConvertRequest(HttpListenerRequest)\"."
+  ],
+  "before_sha256": "2629b1df33052de50fd1c6d47428a21ed6c055bd574eb6717b4ef15362bbe248",
+  "proof": [
+   {
+    "signature": "Cowboy.RequestStream Cowboy.RequestStream::FromStream(System.IO.Stream,System.Int64,System.Boolean)",
+    "statement_start_line": 212,
+    "call_start_line": 215,
+    "statement": "return new Request(\n                httpRequest.HttpMethod,\n                url,\n                RequestStream.FromStream(httpRequest.InputStream, expectedRequestLength, false),\n                httpRequest.Headers.ToDictionary(),\n                (httpRequest.RemoteEndPoint != null) ? httpRequest.RemoteEndPoint.Address.ToString() : null,\n                certificate,\n                protocolVersion);",
+    "call": "RequestStream.FromStream(httpRequest.InputStream, expectedRequestLength, false)"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-0280",
+  "rule": "csharp_allocation",
+  "pair": [
+   "Cowboy.Hosting.Self/SelfHost.cs",
+   172,
+   "Request SelfHost.ConvertRequest(HttpListenerRequest)",
+   "Leaked resource return of type Cowboy.Request, Leaked resource (returned from Cowboy.RequestStream Cowboy.RequestStream::FromStream(System.IO.Stream,System.Int64,System.Boolean) at Line 200) of type Cowboy.RequestStream in method \"Request SelfHost.ConvertRequest(HttpListenerRequest)\".",
+   "4bdd792424ec2ef63951463a58772805",
+   "Leaked resource return of type Cowboy.Request, Leaked resource (returned from Cowboy.RequestStream Cowboy.RequestStream::FromStream(System.IO.Stream,System.Int64,System.Boolean) at Line 203) of type Cowboy.RequestStream in method \"Request SelfHost.ConvertRequest(HttpListenerRequest)\"."
+  ],
+  "before_sha256": "7afa475b565ad1045ab5a319605c46d0ee9c6716405f022e781932b383b50406",
+  "proof": [
+   {
+    "signature": "Cowboy.RequestStream Cowboy.RequestStream::FromStream(System.IO.Stream,System.Int64,System.Boolean)",
+    "statement_start_line": 200,
+    "call_start_line": 203,
+    "statement": "return new Request(\n                httpRequest.HttpMethod,\n                url,\n                RequestStream.FromStream(httpRequest.InputStream, expectedRequestLength, false),\n                httpRequest.Headers.ToDictionary(),\n                (httpRequest.RemoteEndPoint != null) ? httpRequest.RemoteEndPoint.Address.ToString() : null,\n                protocolVersion);",
+    "call": "RequestStream.FromStream(httpRequest.InputStream, expectedRequestLength, false)"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-0382",
+  "rule": "csharp_allocation",
+  "pair": [
+   "DryIoc/Container.cs",
+   89,
+   "Container Container.CreateReuseScope()",
+   "Leaked resource return of type DryIoc.Container, Leaked resource (output of DryIoc.Scope::.ctor() at Line 90) of type DryIoc.Scope in method \"Container Container.CreateReuseScope()\".",
+   "fa032722eaa78b1f28a3bc6dbd376967",
+   "Leaked resource return of type DryIoc.Container, Leaked resource (output of DryIoc.Scope::.ctor() at Line 92) of type DryIoc.Scope in method \"Container Container.CreateReuseScope()\"."
+  ],
+  "before_sha256": "815301a98728983289f7f01a366e30e4cf41ef6d8b4711aae21fa0c5b5d707d6",
+  "proof": [
+   {
+    "signature": "DryIoc.Scope::.ctor()",
+    "statement_start_line": 90,
+    "call_start_line": 92,
+    "statement": "return new Container(ResolutionRules.Value,\r\n                _factories.Value, _decorators.Value, _genericWrappers.Value,\r\n                _singletonScope, currentScope: new Scope());",
+    "call": "new Scope()"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-0587",
+  "rule": "csharp_allocation",
+  "pair": [
+   "HangFire/Server/JobServer.cs",
+   78,
+   "Void JobServer.StartServer()",
+   "Leaked resource this.HangFire.Server.JobServer._serverWatchdog of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._schedulePoller of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._manager of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._fetchedJobsWatcher of type HangFire.Server.ThreadWrapper, Leaked resource (output of HangFire.Server.ServerWatchdog::.ctor() at Line 87) of type HangFire.Server.ServerWatchdog, Leaked resource (output of HangFire.Server.DequeuedJobsWatcher::.ctor() at Line 86) of type HangFire.Server.DequeuedJobsWatcher, Leaked resource (output of HangFire.Server.SchedulePoller::.ctor() at Line 85) of type HangFire.Server.SchedulePoller, Leaked resource (output of HangFire.Server.JobManager::.ctor() at Line 79) of type HangFire.Server.JobManager, Leaked resource (output of HangFire.Server.PrioritizedJobFetcher::.ctor() at Line 79) of type HangFire.Server.PrioritizedJobFetcher in method \"Void JobServer.StartServer()\".",
+   "2b791a55395ae9f855876dfe9c82362c",
+   "Leaked resource this.HangFire.Server.JobServer._serverWatchdog of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._schedulePoller of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._manager of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._fetchedJobsWatcher of type HangFire.Server.ThreadWrapper, Leaked resource (output of HangFire.Server.ServerWatchdog::.ctor() at Line 87) of type HangFire.Server.ServerWatchdog, Leaked resource (output of HangFire.Server.DequeuedJobsWatcher::.ctor() at Line 86) of type HangFire.Server.DequeuedJobsWatcher, Leaked resource (output of HangFire.Server.SchedulePoller::.ctor() at Line 85) of type HangFire.Server.SchedulePoller, Leaked resource (output of HangFire.Server.JobManager::.ctor() at Line 79) of type HangFire.Server.JobManager, Leaked resource (output of HangFire.Server.PrioritizedJobFetcher::.ctor() at Line 80) of type HangFire.Server.PrioritizedJobFetcher in method \"Void JobServer.StartServer()\"."
+  ],
+  "before_sha256": "4f276ecf99261160bca913899e7d2dd03d0074906224e1beaae72c21d8768eeb",
+  "proof": [
+   {
+    "signature": "HangFire.Server.PrioritizedJobFetcher::.ctor()",
+    "statement_start_line": 79,
+    "call_start_line": 80,
+    "statement": "_manager = new ThreadWrapper(new JobManager(\n                new PrioritizedJobFetcher(_redisManager, _queues, _workerCount, _fetchTimeout),\n                _redisManager, \n                _context, \n                _workerCount));",
+    "call": "new PrioritizedJobFetcher(_redisManager, _queues, _workerCount, _fetchTimeout)"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-0590",
+  "rule": "csharp_allocation",
+  "pair": [
+   "HangFire/Server/JobServer.cs",
+   78,
+   "Void JobServer.StartServer()",
+   "Leaked resource this.HangFire.Server.JobServer._serverWatchdog of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._schedulePoller of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._manager of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._fetchedJobsWatcher of type HangFire.Server.ThreadWrapper, Leaked resource (output of HangFire.Server.ServerWatchdog::.ctor() at Line 87) of type HangFire.Server.ServerWatchdog, Leaked resource (output of HangFire.Server.DequeuedJobsWatcher::.ctor() at Line 86) of type HangFire.Server.DequeuedJobsWatcher, Leaked resource (output of HangFire.Server.SchedulePoller::.ctor() at Line 85) of type HangFire.Server.SchedulePoller, Leaked resource (output of HangFire.Server.WorkerManager::.ctor() at Line 79) of type HangFire.Server.WorkerManager, Leaked resource (output of HangFire.Server.PrioritizedJobFetcher::.ctor() at Line 79) of type HangFire.Server.PrioritizedJobFetcher in method \"Void JobServer.StartServer()\".",
+   "db9f6bb16868af14267a5cd6268dfff8",
+   "Leaked resource this.HangFire.Server.JobServer._serverWatchdog of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._schedulePoller of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._manager of type HangFire.Server.ThreadWrapper, Leaked resource this.HangFire.Server.JobServer._fetchedJobsWatcher of type HangFire.Server.ThreadWrapper, Leaked resource (output of HangFire.Server.ServerWatchdog::.ctor() at Line 87) of type HangFire.Server.ServerWatchdog, Leaked resource (output of HangFire.Server.DequeuedJobsWatcher::.ctor() at Line 86) of type HangFire.Server.DequeuedJobsWatcher, Leaked resource (output of HangFire.Server.SchedulePoller::.ctor() at Line 85) of type HangFire.Server.SchedulePoller, Leaked resource (output of HangFire.Server.WorkerManager::.ctor() at Line 79) of type HangFire.Server.WorkerManager, Leaked resource (output of HangFire.Server.PrioritizedJobFetcher::.ctor() at Line 80) of type HangFire.Server.PrioritizedJobFetcher in method \"Void JobServer.StartServer()\"."
+  ],
+  "before_sha256": "327c5f38e0ff1f76aa18ed47b78b174c286b8917ea31f520532452e3bc116b4d",
+  "proof": [
+   {
+    "signature": "HangFire.Server.PrioritizedJobFetcher::.ctor()",
+    "statement_start_line": 79,
+    "call_start_line": 80,
+    "statement": "_manager = new ThreadWrapper(new WorkerManager(\n                new PrioritizedJobFetcher(_redisManager, _queues, _workerCount, _fetchTimeout),\n                _redisManager, \n                _context, \n                _workerCount));",
+    "call": "new PrioritizedJobFetcher(_redisManager, _queues, _workerCount, _fetchTimeout)"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-0841",
+  "rule": "csharp_allocation",
+  "pair": [
+   "src/NPoco.Tests/SnapshotterTests.cs",
+   16,
+   "Void SnapshotterTests.Setup()",
+   "Leaked resource (output of NPoco.Database::.ctor() at Line 18) of type NPoco.Database in method \"Void SnapshotterTests.Setup()\".",
+   "f882ea25dc0900590d02f78a2d729c98",
+   "Leaked resource (output of NPoco.Database::.ctor() at Line 19) of type NPoco.Database in method \"Void SnapshotterTests.Setup()\"."
+  ],
+  "before_sha256": "801cbeac2011d50f9a7a798416c3c51afa108e99a8365112b6d36e970afd79b7",
+  "proof": [
+   {
+    "signature": "NPoco.Database::.ctor()",
+    "statement_start_line": 18,
+    "call_start_line": 19,
+    "statement": "dbfactory\r\n                .UsingDatabase(new Database(\"\"))\r\n                .WithFluentConfig(FluentMappingConfiguration.Configure(new MyMappings()));",
+    "call": "new Database(\"\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-10433",
+  "rule": "java_field_path",
+  "pair": [
+   "external/elasticsearch/src/main/java/com/digitalpebble/stormcrawler/elasticsearch/persistence/AggregationSpout.java",
+   103,
+   "void AggregationSpout.populateBuffer()",
+   "Unprotected write. Non-private method `com.digitalpebble.stormcrawler.elasticsearch.persistence.AggregationSpout.populateBuffer` writes to field `this.com.digitalpebble.stormcrawler.elasticsearch.persistence.AbstractSpout.lastDate` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "b8bb6af9878cb5859a2c0ea42bb28fd4",
+   "Unprotected write. Non-private method `void AggregationSpout.populateBuffer()` writes to field `this.lastDate` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "c9abd0702cb447e06d63a9c15af2ad5ef7567e08de4da0eb42fab0861da868ff",
+  "field_chain": [
+   {
+    "receiver": "com.digitalpebble.stormcrawler.elasticsearch.persistence.AggregationSpout",
+    "declaring_class": "com.digitalpebble.stormcrawler.elasticsearch.persistence.AbstractSpout",
+    "field": "lastDate",
+    "type": "Date",
+    "inheritance_checked": [
+     "com.digitalpebble.stormcrawler.elasticsearch.persistence.AbstractSpout",
+     "com.digitalpebble.stormcrawler.elasticsearch.persistence.AggregationSpout"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "external/elasticsearch/src/main/java/com/digitalpebble/stormcrawler/elasticsearch/persistence/AggregationSpout.java": "c9abd0702cb447e06d63a9c15af2ad5ef7567e08de4da0eb42fab0861da868ff",
+   "external/elasticsearch/src/main/java/com/digitalpebble/stormcrawler/elasticsearch/persistence/AbstractSpout.java": "d1bd0f1e27777c1cf7d46ac5aefe1814f993a02f7d26614a193b94d3858dc40a"
+  },
+  "source_revision": "283c47fc3c46b43b8e2bf4504c28cabb02a4d50c",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-10433",
+  "rule": "java_field_path",
+  "pair": [
+   "external/elasticsearch/src/main/java/com/digitalpebble/stormcrawler/elasticsearch/persistence/AggregationSpout.java",
+   103,
+   "void AggregationSpout.populateBuffer()",
+   "Unprotected write. Non-private method `com.digitalpebble.stormcrawler.elasticsearch.persistence.AggregationSpout.populateBuffer` writes to field `this.com.digitalpebble.stormcrawler.elasticsearch.persistence.AbstractSpout.lastDate` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "bfd60b749214f21534311492f3a7a35e",
+   "Unprotected write. Non-private method `void AggregationSpout.populateBuffer()` writes to field `this.lastDate` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "c9abd0702cb447e06d63a9c15af2ad5ef7567e08de4da0eb42fab0861da868ff",
+  "field_chain": [
+   {
+    "receiver": "com.digitalpebble.stormcrawler.elasticsearch.persistence.AggregationSpout",
+    "declaring_class": "com.digitalpebble.stormcrawler.elasticsearch.persistence.AbstractSpout",
+    "field": "lastDate",
+    "type": "Date",
+    "inheritance_checked": [
+     "com.digitalpebble.stormcrawler.elasticsearch.persistence.AbstractSpout",
+     "com.digitalpebble.stormcrawler.elasticsearch.persistence.AggregationSpout"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "external/elasticsearch/src/main/java/com/digitalpebble/stormcrawler/elasticsearch/persistence/AggregationSpout.java": "c9abd0702cb447e06d63a9c15af2ad5ef7567e08de4da0eb42fab0861da868ff",
+   "external/elasticsearch/src/main/java/com/digitalpebble/stormcrawler/elasticsearch/persistence/AbstractSpout.java": "d1bd0f1e27777c1cf7d46ac5aefe1814f993a02f7d26614a193b94d3858dc40a"
+  },
+  "source_revision": "283c47fc3c46b43b8e2bf4504c28cabb02a4d50c",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-11056",
+  "rule": "java_field_path",
+  "pair": [
+   "source/de/anomic/plasma/plasmaWordIndexRAMCache.java",
+   211,
+   "int plasmaWordIndexRAMCache.addEntryToIndexMem(String,plasmaWordIndexEntry)",
+   "Read/Write race. Non-private method `de.anomic.plasma.plasmaWordIndexRAMCache.addEntryToIndexMem` indirectly reads with synchronization from `this.de.anomic.plasma.plasmaWordIndexRAMCache.hashScore.de.anomic.kelondro.kelondroMScoreCluster.gcount`. Potentially races with unsynchronized write in method `plasmaWordIndexRAMCache.addEntryToIndexMem(...)`.\n Reporting because this access may occur on a background thread.",
+   "19569a858b204ef96af5c943e456f4fd",
+   "Read/Write race. Non-private method `int plasmaWordIndexRAMCache.addEntryToIndexMem(String,plasmaWordIndexEntry)` indirectly reads with synchronization from `this.hashScore.gcount`. Potentially races with unsynchronized write in method `plasmaWordIndexRAMCache.addEntryToIndexMem(...)`.\n Reporting because this access may occur on a background thread."
+  ],
+  "before_sha256": "a526f70487cd100ff6e3fee61d921ca75311a094a07c6f8b4f39f8b99d792647",
+  "field_chain": [
+   {
+    "receiver": "de.anomic.plasma.plasmaWordIndexRAMCache",
+    "declaring_class": "de.anomic.plasma.plasmaWordIndexRAMCache",
+    "field": "hashScore",
+    "type": "kelondroMScoreCluster",
+    "inheritance_checked": [
+     "de.anomic.plasma.plasmaWordIndexRAMCache"
+    ]
+   },
+   {
+    "receiver": "de.anomic.kelondro.kelondroMScoreCluster",
+    "declaring_class": "de.anomic.kelondro.kelondroMScoreCluster",
+    "field": "gcount",
+    "type": "long",
+    "inheritance_checked": [
+     "de.anomic.kelondro.kelondroMScoreCluster"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "source/de/anomic/plasma/plasmaWordIndexRAMCache.java": "a526f70487cd100ff6e3fee61d921ca75311a094a07c6f8b4f39f8b99d792647",
+   "source/de/anomic/kelondro/kelondroMScoreCluster.java": "9affd865843a71695bff44942e26d1b2caf83b6b95659a23cd3236b5db2190a3"
+  },
+  "source_revision": "f99930c04b945fef3450082530c7482b4f2ef64a",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-11056",
+  "rule": "java_field_path",
+  "pair": [
+   "source/de/anomic/plasma/plasmaWordIndexRAMCache.java",
+   211,
+   "int plasmaWordIndexRAMCache.addEntryToIndexMem(String,plasmaWordIndexEntry)",
+   "Read/Write race. Non-private method `de.anomic.plasma.plasmaWordIndexRAMCache.addEntryToIndexMem` indirectly reads with synchronization from `this.de.anomic.plasma.plasmaWordIndexRAMCache.hashScore.de.anomic.kelondro.kelondroMScoreCluster.gcount`. Potentially races with unsynchronized write in method `plasmaWordIndexRAMCache.addEntryToIndexMem(...)`.\n Reporting because this access may occur on a background thread.",
+   "eb27f8e3ee1172b040db522b9493dca0",
+   "Read/Write race. Non-private method `int plasmaWordIndexRAMCache.addEntryToIndexMem(String,plasmaWordIndexEntry)` indirectly reads with synchronization from `this.hashScore.gcount`. Potentially races with unsynchronized write in method `plasmaWordIndexRAMCache.addEntryToIndexMem(...)`.\n Reporting because this access may occur on a background thread."
+  ],
+  "before_sha256": "a526f70487cd100ff6e3fee61d921ca75311a094a07c6f8b4f39f8b99d792647",
+  "field_chain": [
+   {
+    "receiver": "de.anomic.plasma.plasmaWordIndexRAMCache",
+    "declaring_class": "de.anomic.plasma.plasmaWordIndexRAMCache",
+    "field": "hashScore",
+    "type": "kelondroMScoreCluster",
+    "inheritance_checked": [
+     "de.anomic.plasma.plasmaWordIndexRAMCache"
+    ]
+   },
+   {
+    "receiver": "de.anomic.kelondro.kelondroMScoreCluster",
+    "declaring_class": "de.anomic.kelondro.kelondroMScoreCluster",
+    "field": "gcount",
+    "type": "long",
+    "inheritance_checked": [
+     "de.anomic.kelondro.kelondroMScoreCluster"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "source/de/anomic/plasma/plasmaWordIndexRAMCache.java": "a526f70487cd100ff6e3fee61d921ca75311a094a07c6f8b4f39f8b99d792647",
+   "source/de/anomic/kelondro/kelondroMScoreCluster.java": "9affd865843a71695bff44942e26d1b2caf83b6b95659a23cd3236b5db2190a3"
+  },
+  "source_revision": "f99930c04b945fef3450082530c7482b4f2ef64a",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-1371",
+  "rule": "csharp_allocation",
+  "pair": [
+   "Simple.Web.Tests/GetHandlerTests.cs",
+   15,
+   "Void GetHandlerTests.GetRootWithHtmlReturnsHtml()",
+   "Leaked resource (output of System.IO.StringWriter::.ctor() at Line 18) of type System.IO.StringWriter in method \"Void GetHandlerTests.GetRootWithHtmlReturnsHtml()\".",
+   "8a447ad487aafeb4866d5b6cff476cc4",
+   "Leaked resource (output of System.IO.StringWriter::.ctor() at Line 28) of type System.IO.StringWriter in method \"Void GetHandlerTests.GetRootWithHtmlReturnsHtml()\"."
+  ],
+  "before_sha256": "e85c1cc798f3442c8b95af968ddb470c60f8c3e8b194dc2042fb4d30aeddfc1d",
+  "proof": [
+   {
+    "signature": "System.IO.StringWriter::.ctor()",
+    "statement_start_line": 18,
+    "call_start_line": 28,
+    "statement": "var context = new MockContext\r\n                              {\r\n                                  Request = new MockRequest\r\n                                                {\r\n                                                    Url = new Uri(\"http://test.com/\"),\r\n                                                    AcceptTypes = new[] { \"text/html\" },\r\n                                                    HttpMethod = \"GET\",\r\n                                                },\r\n                                  Response = new MockResponse\r\n                                                 {\r\n                                                     Output = new StringWriter(strb)\r\n                                                 }\r\n                              };",
+    "call": "new StringWriter(strb)"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-1935",
+  "rule": "csharp_allocation",
+  "pair": [
+   "Src/Couchbase/CouchbaseBucket.cs",
+   1914,
+   "IBucketManager CouchbaseBucket.CreateManager(String,String)",
+   "Leaked resource (output of System.Net.Http.HttpClient::.ctor() at Line 1915) of type System.Net.Http.HttpClient in method \"IBucketManager CouchbaseBucket.CreateManager(String,String)\".",
+   "426bfdfeac2f0701f59d4b04face6642",
+   "Leaked resource (output of System.Net.Http.HttpClient::.ctor() at Line 1918) of type System.Net.Http.HttpClient in method \"IBucketManager CouchbaseBucket.CreateManager(String,String)\"."
+  ],
+  "before_sha256": "7fa6c86419ce58543f1975d5479a14b39e3442b67c2ee3fe3e7ab8006eea162d",
+  "proof": [
+   {
+    "signature": "System.Net.Http.HttpClient::.ctor()",
+    "statement_start_line": 1915,
+    "call_start_line": 1918,
+    "statement": "return new BucketManager(Name,\n                _configInfo.ClientConfig,\n                _clusterManager,\n                new HttpClient(),\n                new JsonDataMapper(_configInfo.ClientConfig),\n                username,\n                password);",
+    "call": "new HttpClient()"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2536",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   171,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 190) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\".",
+   "11638e085b3b4cd60967732837136f69",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 192) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\"."
+  ],
+  "before_sha256": "032953b10b9d22ab14a33c0dce774f1fd9bd6768ac5b27f3b437033e6da0bf88",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 190,
+    "call_start_line": 192,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/Test\", \"HTTP\"),\r\n                Parameters = { ExpectedRequest = expectedRequest, ExpectedResponse = expectedResponse }\r\n            };",
+    "call": "new Request(\"GET\", \"/Test\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2537",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   145,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 153) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\".",
+   "08705ab4afc2764e9d46cfb08e15641f",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 155) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\"."
+  ],
+  "before_sha256": "032953b10b9d22ab14a33c0dce774f1fd9bd6768ac5b27f3b437033e6da0bf88",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 153,
+    "call_start_line": 155,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\"),\r\n                Parameters = { ExpectedRequest = expectedRequest, ExpectedResponse = expectedResponse }\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2538",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   116,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 125) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()\".",
+   "037143d2105e9f0f4290c115cefe853b",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 127) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()\"."
+  ],
+  "before_sha256": "032953b10b9d22ab14a33c0dce774f1fd9bd6768ac5b27f3b437033e6da0bf88",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 125,
+    "call_start_line": 127,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\"),\r\n                Parameters = { ExpectedRequest = expectedRequest, ExpectedResponse = expectedResponse }\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2539",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   90,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 98) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()\".",
+   "c0111844cfe0e3a0f808049b5c07bb2d",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 100) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()\"."
+  ],
+  "before_sha256": "032953b10b9d22ab14a33c0dce774f1fd9bd6768ac5b27f3b437033e6da0bf88",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 98,
+    "call_start_line": 100,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\"),\r\n                Parameters = {  ExpectedRequest = expectedRequest, ExpectedResponse = expectedResponse }\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2544",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   156,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 164) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\".",
+   "ca2253cddc860adcd67ade86a8320f5e",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 166) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\"."
+  ],
+  "before_sha256": "fe0d4cdf58249a0fad6ca2b191082e891ad574dcb7b119f40be57dd8b2632ac8",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 164,
+    "call_start_line": 166,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\"),\r\n                Parameters = new ExpandoObject()\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2546",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   125,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 134) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()\".",
+   "884df64cd05d5366f37ca4de68a1269b",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 136) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()\"."
+  ],
+  "before_sha256": "fe0d4cdf58249a0fad6ca2b191082e891ad574dcb7b119f40be57dd8b2632ac8",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 134,
+    "call_start_line": 136,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\"),\r\n                Parameters = new ExpandoObject()\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2547",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   97,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 105) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()\".",
+   "a683e58b660713b9399484373ddcded3",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 107) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()\"."
+  ],
+  "before_sha256": "fe0d4cdf58249a0fad6ca2b191082e891ad574dcb7b119f40be57dd8b2632ac8",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 105,
+    "call_start_line": 107,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\"),\r\n                Parameters = new ExpandoObject()\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2551",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   178,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 197) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\".",
+   "23ee4d57a96327504fca4ce49ce55b13",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 199) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\"."
+  ],
+  "before_sha256": "e221238d5db760ab64c100aea0feee31bbc4164fb88bc75138c74303cf013398",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 197,
+    "call_start_line": 199,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/Test\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/Test\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2552",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   151,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 159) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\".",
+   "620a66251051487ab927aee589709554",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 161) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\"."
+  ],
+  "before_sha256": "e221238d5db760ab64c100aea0feee31bbc4164fb88bc75138c74303cf013398",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 159,
+    "call_start_line": 161,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2559",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   218,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 237) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\".",
+   "00ee55b9ca60077580a36cb67eb833bd",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 239) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\"."
+  ],
+  "before_sha256": "223b2e62cc34649923cad8ce9e301510e4dfb9fe52ecd4cc1f0400b95b1dd80f",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 237,
+    "call_start_line": 239,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/Test\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/Test\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2560",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   181,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 188) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\".",
+   "4ced2f43bb423ae903c51fb983d144f0",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 190) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\"."
+  ],
+  "before_sha256": "223b2e62cc34649923cad8ce9e301510e4dfb9fe52ecd4cc1f0400b95b1dd80f",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 188,
+    "call_start_line": 190,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2561",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   146,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 155) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()\".",
+   "4334a65ab194d74d41e1f7021655e7b3",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 157) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()\"."
+  ],
+  "before_sha256": "223b2e62cc34649923cad8ce9e301510e4dfb9fe52ecd4cc1f0400b95b1dd80f",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 155,
+    "call_start_line": 157,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2562",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/MockProviderNancyRequestDispatcherTests.cs",
+   109,
+   "Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 116) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()\".",
+   "8f7a50539499fa33da1f9a2e9eaf3bd4",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 118) of type Nancy.Request in method \"Void MockProviderNancyRequestDispatcherTests.Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()\"."
+  ],
+  "before_sha256": "223b2e62cc34649923cad8ce9e301510e4dfb9fe52ecd4cc1f0400b95b1dd80f",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 116,
+    "call_start_line": 118,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2564",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/Nancy/MockProviderNancyRequestHandlerTests.cs",
+   176,
+   "Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 194) of type Nancy.Request in method \"Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\".",
+   "adb714eb4e62ea0bbaa4b17d58708749",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 196) of type Nancy.Request in method \"Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\"."
+  ],
+  "before_sha256": "49ff63c395c4d47a2bbb60a9b6817072a16536dfd5f8062632583b20614ec9c9",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 194,
+    "call_start_line": 196,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/Test\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/Test\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2566",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/Nancy/MockProviderNancyRequestHandlerTests.cs",
+   110,
+   "Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContext_CompareIsCalledOnTheProviderServiceRequestComparer()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 119) of type Nancy.Request in method \"Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContext_CompareIsCalledOnTheProviderServiceRequestComparer()\".",
+   "f5ed1f65225dcebedbe8037f7008a203",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 121) of type Nancy.Request in method \"Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContext_CompareIsCalledOnTheProviderServiceRequestComparer()\"."
+  ],
+  "before_sha256": "49ff63c395c4d47a2bbb60a9b6817072a16536dfd5f8062632583b20614ec9c9",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 119,
+    "call_start_line": 121,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2568",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/Nancy/MockProviderNancyRequestHandlerTests.cs",
+   76,
+   "Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnThProviderServiceRequestMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 83) of type Nancy.Request in method \"Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnThProviderServiceRequestMapper()\".",
+   "7fc999451655bfa98e26e53a406f0af3",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 85) of type Nancy.Request in method \"Void MockProviderNancyRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnThProviderServiceRequestMapper()\"."
+  ],
+  "before_sha256": "49ff63c395c4d47a2bbb60a9b6817072a16536dfd5f8062632583b20614ec9c9",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 83,
+    "call_start_line": 85,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2573",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/Nancy/MockProviderRequestHandlerTests.cs",
+   184,
+   "Void MockProviderRequestHandlerTests.Handle_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 202) of type Nancy.Request in method \"Void MockProviderRequestHandlerTests.Handle_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\".",
+   "9aa7658110c41d4ffaa9c81e696c527a",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource nancyResponse of type Nancy.Response, Leaked resource (output of Nancy.Request::.ctor() at Line 204) of type Nancy.Request in method \"Void MockProviderRequestHandlerTests.Handle_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()\"."
+  ],
+  "before_sha256": "59664acba8b25e83fd8fc3c727f8cda8c335eb0b2e3a6bf7fb3ff421c0913984",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 202,
+    "call_start_line": 204,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/Test\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/Test\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2574",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/Nancy/MockProviderRequestHandlerTests.cs",
+   150,
+   "Void MockProviderRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 157) of type Nancy.Request in method \"Void MockProviderRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\".",
+   "61f5e711a0cace7945b421513d124006",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 159) of type Nancy.Request in method \"Void MockProviderRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()\"."
+  ],
+  "before_sha256": "59664acba8b25e83fd8fc3c727f8cda8c335eb0b2e3a6bf7fb3ff421c0913984",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 157,
+    "call_start_line": 159,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2575",
+  "rule": "csharp_allocation",
+  "pair": [
+   "PactNet.Tests/Mocks/MockHttpService/Nancy/MockProviderRequestHandlerTests.cs",
+   82,
+   "Void MockProviderRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnThProviderServiceRequestMapper()",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 89) of type Nancy.Request in method \"Void MockProviderRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnThProviderServiceRequestMapper()\".",
+   "0312d5c042ac867620733bf644e61657",
+   "Leaked resource nancyContext of type Nancy.NancyContext, Leaked resource (output of Nancy.Request::.ctor() at Line 91) of type Nancy.Request in method \"Void MockProviderRequestHandlerTests.Handle_WithNancyContext_ConvertIsCalledOnThProviderServiceRequestMapper()\"."
+  ],
+  "before_sha256": "59664acba8b25e83fd8fc3c727f8cda8c335eb0b2e3a6bf7fb3ff421c0913984",
+  "proof": [
+   {
+    "signature": "Nancy.Request::.ctor()",
+    "statement_start_line": 89,
+    "call_start_line": 91,
+    "statement": "var nancyContext = new NancyContext\r\n            {\r\n                Request = new Request(\"GET\", \"/\", \"HTTP\")\r\n            };",
+    "call": "new Request(\"GET\", \"/\", \"HTTP\")"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2689",
+  "rule": "csharp_allocation",
+  "pair": [
+   "src/DocumentTable/ReadSessionFactory.cs",
+   30,
+   "IReadSession ReadSessionFactory.OpenReadSession(Int64)",
+   "Leaked resource return of type DocumentTable.ReadSession, Leaked resource (output of DocumentTable.DocHashReader::.ctor() at Line 33) of type DocumentTable.DocHashReader in method \"IReadSession ReadSessionFactory.OpenReadSession(Int64)\".",
+   "1eb4f59c8577c3e96aa0b945a8c3230d",
+   "Leaked resource return of type DocumentTable.ReadSession, Leaked resource (output of DocumentTable.DocHashReader::.ctor() at Line 35) of type DocumentTable.DocHashReader in method \"IReadSession ReadSessionFactory.OpenReadSession(Int64)\"."
+  ],
+  "before_sha256": "855855247e1d93c0ea7cb3fb019099484a6efa1ea35432da4e079576bf7317bd",
+  "proof": [
+   {
+    "signature": "DocumentTable.DocHashReader::.ctor()",
+    "statement_start_line": 33,
+    "call_start_line": 35,
+    "statement": "return new ReadSession(\n                ix,\n                new DocHashReader(_compoundFile, ix.DocHashOffset),\n                new DocumentAddressReader(_compoundFile, ix.DocAddressesOffset),\n                _compoundFile);",
+    "call": "new DocHashReader(_compoundFile, ix.DocHashOffset)"
+   }
+  ],
+  "hash_from_run": [
+   "csharp-allocation-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2969",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/main/java/com/appium/manager/RemoteAppiumManager.java",
+   55,
+   "void RemoteAppiumManager.startAppiumServer(String)",
+   "object returned by `__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?URL=\").append(serverPath).append(\"&PORT=\").append(serverPort).toString()).body()`  at line 55.",
+   "03e68f8c966735ef536a63320158473c",
+   "object returned by `__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?URL=\").append(serverPath).append(\"&PORT=\").append(serverPort).toString()).body()` could be null and is dereferenced at line 55."
+  ],
+  "before_sha256": "3226a7cb77485a1ab8ef9e3445c743742ca10f082b5214d24e65931b1bd7bfd3",
+  "proof": [
+   {
+    "rule": "same complete returned expression and dereference line; omitted null boilerplate",
+    "expression": "__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?URL=\").append(serverPath).append(\"&PORT=\").append(serverPort).toString()).body()",
+    "line": 55
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2970",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/main/java/com/appium/manager/RemoteAppiumManager.java",
+   60,
+   "void RemoteAppiumManager.startAppiumServer(String)",
+   "object returned by `__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?URL=\").append(serverPath).toString()).body()`  at line 60.",
+   "7d3804fedd8d376ff4627a6f012e819c",
+   "object returned by `__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?URL=\").append(serverPath).toString()).body()` could be null and is dereferenced at line 60."
+  ],
+  "before_sha256": "3226a7cb77485a1ab8ef9e3445c743742ca10f082b5214d24e65931b1bd7bfd3",
+  "proof": [
+   {
+    "rule": "same complete returned expression and dereference line; omitted null boilerplate",
+    "expression": "__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?URL=\").append(serverPath).toString()).body()",
+    "line": 60
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-2971",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/main/java/com/appium/manager/RemoteAppiumManager.java",
+   64,
+   "void RemoteAppiumManager.startAppiumServer(String)",
+   "object returned by `__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?PORT=\").append(serverPort).toString()).body()`  at line 64.",
+   "760b9af08e6fa99195f8bbdeb7d95ba6",
+   "object returned by `__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?PORT=\").append(serverPort).toString()).body()` could be null and is dereferenced at line 64."
+  ],
+  "before_sha256": "3226a7cb77485a1ab8ef9e3445c743742ca10f082b5214d24e65931b1bd7bfd3",
+  "proof": [
+   {
+    "rule": "same complete returned expression and dereference line; omitted null boilerplate",
+    "expression": "__new(com.appium.utils.Api).getResponse(__new(java.lang.StringBuilder).append(\"http://\").append(host).append(\":4567/appium/start?PORT=\").append(serverPort).toString()).body()",
+    "line": 64
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-3190",
+  "rule": "java_field_path",
+  "pair": [
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java",
+   171,
+   "boolean AbstractLocatorHandler.loaded()",
+   "Read/Write race. Non-private method `org.fluentlenium.core.proxy.AbstractLocatorHandler.loaded` indirectly reads without synchronization from `this.org.fluentlenium.core.proxy.AbstractLocatorHandler.proxyResultHolder.org.fluentlenium.core.proxy.ProxyResultHolder.result`. Potentially races with write in method `AbstractLocatorHandler.getLocatorResult()`.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "1bc9eea413b1a0f1b6a67b77ac9bb0f2",
+   "Read/Write race. Non-private method `boolean AbstractLocatorHandler.loaded()` indirectly reads without synchronization from `this.proxyResultHolder.result`. Potentially races with write in method `AbstractLocatorHandler.getLocatorResult()`.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "8e1bee33115fc5c86432b97c43e4830c8b3bba1fcdf41b34c74c4b075614d4b2",
+  "field_chain": [
+   {
+    "receiver": "org.fluentlenium.core.proxy.AbstractLocatorHandler",
+    "declaring_class": "org.fluentlenium.core.proxy.AbstractLocatorHandler",
+    "field": "proxyResultHolder",
+    "type": "ProxyResultHolder<T>",
+    "inheritance_checked": [
+     "org.fluentlenium.core.proxy.AbstractLocatorHandler"
+    ]
+   },
+   {
+    "receiver": "org.fluentlenium.core.proxy.ProxyResultHolder",
+    "declaring_class": "org.fluentlenium.core.proxy.ProxyResultHolder",
+    "field": "result",
+    "type": "T",
+    "inheritance_checked": [
+     "org.fluentlenium.core.proxy.ProxyResultHolder"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java": "8e1bee33115fc5c86432b97c43e4830c8b3bba1fcdf41b34c74c4b075614d4b2",
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/ProxyResultHolder.java": "e5dcc62694aec54f59822dde9d6ffa3bce4bad0d0bb51cdcdbffb418c4b61fd6"
+  },
+  "source_revision": "69f35ce4a7adedff891cb3f8003a6877d0d88786",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-3190",
+  "rule": "java_field_path",
+  "pair": [
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java",
+   171,
+   "boolean AbstractLocatorHandler.loaded()",
+   "Read/Write race. Non-private method `org.fluentlenium.core.proxy.AbstractLocatorHandler.loaded` indirectly reads without synchronization from `this.org.fluentlenium.core.proxy.AbstractLocatorHandler.proxyResultHolder.org.fluentlenium.core.proxy.ProxyResultHolder.result`. Potentially races with write in method `AbstractLocatorHandler.getLocatorResult()`.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "8b3d80344a61961117f0c08663c54c30",
+   "Read/Write race. Non-private method `boolean AbstractLocatorHandler.loaded()` indirectly reads without synchronization from `this.proxyResultHolder.result`. Potentially races with write in method `AbstractLocatorHandler.getLocatorResult()`.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "8e1bee33115fc5c86432b97c43e4830c8b3bba1fcdf41b34c74c4b075614d4b2",
+  "field_chain": [
+   {
+    "receiver": "org.fluentlenium.core.proxy.AbstractLocatorHandler",
+    "declaring_class": "org.fluentlenium.core.proxy.AbstractLocatorHandler",
+    "field": "proxyResultHolder",
+    "type": "ProxyResultHolder<T>",
+    "inheritance_checked": [
+     "org.fluentlenium.core.proxy.AbstractLocatorHandler"
+    ]
+   },
+   {
+    "receiver": "org.fluentlenium.core.proxy.ProxyResultHolder",
+    "declaring_class": "org.fluentlenium.core.proxy.ProxyResultHolder",
+    "field": "result",
+    "type": "T",
+    "inheritance_checked": [
+     "org.fluentlenium.core.proxy.ProxyResultHolder"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java": "8e1bee33115fc5c86432b97c43e4830c8b3bba1fcdf41b34c74c4b075614d4b2",
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/ProxyResultHolder.java": "e5dcc62694aec54f59822dde9d6ffa3bce4bad0d0bb51cdcdbffb418c4b61fd6"
+  },
+  "source_revision": "69f35ce4a7adedff891cb3f8003a6877d0d88786",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-3191",
+  "rule": "java_field_path",
+  "pair": [
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java",
+   186,
+   "void AbstractLocatorHandler.reset()",
+   "Unprotected write. Non-private method `org.fluentlenium.core.proxy.AbstractLocatorHandler.reset` indirectly writes to field `this.org.fluentlenium.core.proxy.AbstractLocatorHandler.proxyResultHolder.org.fluentlenium.core.proxy.ProxyResultHolder.result` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "42e8c82d3d49a0c040c373ac0649184d",
+   "Unprotected write. Non-private method `void AbstractLocatorHandler.reset()` indirectly writes to field `this.proxyResultHolder.result` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "8e1bee33115fc5c86432b97c43e4830c8b3bba1fcdf41b34c74c4b075614d4b2",
+  "field_chain": [
+   {
+    "receiver": "org.fluentlenium.core.proxy.AbstractLocatorHandler",
+    "declaring_class": "org.fluentlenium.core.proxy.AbstractLocatorHandler",
+    "field": "proxyResultHolder",
+    "type": "ProxyResultHolder<T>",
+    "inheritance_checked": [
+     "org.fluentlenium.core.proxy.AbstractLocatorHandler"
+    ]
+   },
+   {
+    "receiver": "org.fluentlenium.core.proxy.ProxyResultHolder",
+    "declaring_class": "org.fluentlenium.core.proxy.ProxyResultHolder",
+    "field": "result",
+    "type": "T",
+    "inheritance_checked": [
+     "org.fluentlenium.core.proxy.ProxyResultHolder"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java": "8e1bee33115fc5c86432b97c43e4830c8b3bba1fcdf41b34c74c4b075614d4b2",
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/ProxyResultHolder.java": "e5dcc62694aec54f59822dde9d6ffa3bce4bad0d0bb51cdcdbffb418c4b61fd6"
+  },
+  "source_revision": "69f35ce4a7adedff891cb3f8003a6877d0d88786",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-3191",
+  "rule": "java_field_path",
+  "pair": [
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java",
+   186,
+   "void AbstractLocatorHandler.reset()",
+   "Unprotected write. Non-private method `org.fluentlenium.core.proxy.AbstractLocatorHandler.reset` indirectly writes to field `this.org.fluentlenium.core.proxy.AbstractLocatorHandler.proxyResultHolder.org.fluentlenium.core.proxy.ProxyResultHolder.result` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "c667a0855fd95f2e4982af0f5ce45a71",
+   "Unprotected write. Non-private method `void AbstractLocatorHandler.reset()` indirectly writes to field `this.proxyResultHolder.result` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "8e1bee33115fc5c86432b97c43e4830c8b3bba1fcdf41b34c74c4b075614d4b2",
+  "field_chain": [
+   {
+    "receiver": "org.fluentlenium.core.proxy.AbstractLocatorHandler",
+    "declaring_class": "org.fluentlenium.core.proxy.AbstractLocatorHandler",
+    "field": "proxyResultHolder",
+    "type": "ProxyResultHolder<T>",
+    "inheritance_checked": [
+     "org.fluentlenium.core.proxy.AbstractLocatorHandler"
+    ]
+   },
+   {
+    "receiver": "org.fluentlenium.core.proxy.ProxyResultHolder",
+    "declaring_class": "org.fluentlenium.core.proxy.ProxyResultHolder",
+    "field": "result",
+    "type": "T",
+    "inheritance_checked": [
+     "org.fluentlenium.core.proxy.ProxyResultHolder"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java": "8e1bee33115fc5c86432b97c43e4830c8b3bba1fcdf41b34c74c4b075614d4b2",
+   "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/ProxyResultHolder.java": "e5dcc62694aec54f59822dde9d6ffa3bce4bad0d0bb51cdcdbffb418c4b61fd6"
+  },
+  "source_revision": "69f35ce4a7adedff891cb3f8003a6877d0d88786",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-3602",
+  "rule": "java_null_resource",
+  "pair": [
+   "frontend/src/test/java/de/metanome/frontend/client/results/GwtTestResultsPage.java",
+   128,
+   "void GwtTestResultsPage.testUpdateOnSuccess()",
+   "object `null` could be null and is dereferenced by call to `updateOnSuccess(...)` at line 128.",
+   "e3ab71b01cb85b649b8dca5e2f01cab5",
+   "object `null` is dereferenced by call to `updateOnSuccess(...)` at line 128."
+  ],
+  "before_sha256": "59f313700e025a247a66c5895303f00e1a35a5fadba3290424a5804bcc4510b8",
+  "proof": [
+   {
+    "rule": "same literal null and complete dereference-call text"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-3964",
+  "rule": "java_null_resource",
+  "pair": [
+   "acme4j-client/src/test/java/org/shredzone/acme4j/RegistrationTest.java",
+   318,
+   "void RegistrationTest.testAuthorizeBadDomain()",
+   "object `null` could be null and is dereferenced by call to `authorizeDomain(...)` at line 318.",
+   "5507e39d4820b3a979dffce34e0a7304",
+   "object `null` is dereferenced by call to `authorizeDomain(...)` at line 318."
+  ],
+  "before_sha256": "a10b027a73635f424a78e9756c6000a9c4d018dbbaaeeec78845682bc2ef7f3c",
+  "proof": [
+   {
+    "rule": "same literal null and complete dereference-call text"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-4057",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/com/omertron/themoviedbapi/methods/TmdbChangesTest.java",
+   63,
+   "void TmdbChangesTest.testGetMovieChangesList()",
+   "object `null` could be null and is dereferenced by call to `getChangeList(...)` at line 63.",
+   "8b7b10405e230f44af04741b40ca616f",
+   "object `null` is dereferenced by call to `getChangeList(...)` at line 63."
+  ],
+  "before_sha256": "82ea938f4e209b4e5ef6e1a9d30d63c9a342d8bb20143a6206e5ca87109d5f40",
+  "proof": [
+   {
+    "rule": "same literal null and complete dereference-call text"
+   }
+  ],
+  "hash_from_run": [
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-4058",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/com/omertron/themoviedbapi/methods/TmdbChangesTest.java",
+   75,
+   "void TmdbChangesTest.testGetPersonChangesList()",
+   "object `null` could be null and is dereferenced by call to `getChangeList(...)` at line 75.",
+   "b5af85e6221e82d9fcee534f94dc63c4",
+   "object `null` is dereferenced by call to `getChangeList(...)` at line 75."
+  ],
+  "before_sha256": "82ea938f4e209b4e5ef6e1a9d30d63c9a342d8bb20143a6206e5ca87109d5f40",
+  "proof": [
+   {
+    "rule": "same literal null and complete dereference-call text"
+   }
+  ],
+  "hash_from_run": [
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-4853",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/main/java/org/apache/sanselan/common/ZLibInflater.java",
+   40,
+   "byte[] ZLibInflater.deflate(byte[])",
+   "resource of type `java.util.zip.DeflaterInputStream` acquired to `zIn` by call to `new()` at line 39 is not released after line 40.\n**Note**: potential exception at line 40",
+   "8659c82a0a16ce5abc1a62f27e01e0d7",
+   "resource of type `java.util.zip.DeflaterInputStream` acquired by call to `new()` at line 39 is not released after line 40.\n**Note**: potential exception at line 40"
+  ],
+  "before_sha256": "073918c7250fd1574760b852d200c8c7966f8751da432d21094e8819aec02bf0",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "java.util.zip.DeflaterInputStream",
+    "allocation_line": 39,
+    "call": "new DeflaterInputStream(in)"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-5355",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/com/zerocracy/radars/github/RbPingArchitectTest.java",
+   67,
+   "void RbPingArchitectTest.handlesPullRequest()",
+   "resource of type `com.zerocracy.farm.fake.FkFarm` acquired to `farm` by call to `FkFarm(...)` at line 62 is not released after line 67.",
+   "de0136b323af7de00d5242eac600fed1",
+   "resource of type `com.zerocracy.farm.fake.FkFarm` acquired by call to `FkFarm(...)` at line 62 is not released after line 67."
+  ],
+  "before_sha256": "51697c1de2acae971784cad9e704b93ac6ac56a0fb08c18c2de570ff10dd7db1",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "com.zerocracy.farm.fake.FkFarm",
+    "allocation_line": 62,
+    "call": "new FkFarm(pkt.pid(), pkt)"
+   }
+  ],
+  "hash_from_run": [
+   "java016-remaining-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-5369",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/main/java/com/zerocracy/claims/proc/FootprintProc.java",
+   73,
+   "void FootprintProc.exec(Message)",
+   "resource of type `com.zerocracy.claims.Footprint` acquired to `footprint` by call to `Footprint(...)` at line 57 is not released after line 73.",
+   "f1147f85a862bd76aa185208e9941a15",
+   "resource of type `com.zerocracy.claims.Footprint` acquired by call to `Footprint(...)` at line 57 is not released after line 73."
+  ],
+  "before_sha256": "352b0a85f7e579a34b4c7decbc22d4239a5692b01aa0b8b15b614be2b1414665",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "com.zerocracy.claims.Footprint",
+    "allocation_line": 57,
+    "call": "new Footprint(\n            this.farm, new SqsProject(this.farm, input)\n        )"
+   }
+  ],
+  "hash_from_run": [
+   "java016-remaining-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-5547",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/com/owlike/genson/stream/JsonReaderTest.java",
+   302,
+   "void JsonReaderTest.testIllegalReadObjectInstedOfArray()",
+   "resource of type `com.owlike.genson.stream.JsonReader` acquired to `reader` by call to `new()` at line 300 is not released after line 302.",
+   "151c80e8a0354564c38ba98beb3c7d61",
+   "resource of type `com.owlike.genson.stream.JsonReader` acquired by call to `new()` at line 300 is not released after line 302."
+  ],
+  "before_sha256": "6b20f1083eb4a00c8103f1203136731ebffb581a1a489acbd1caf91977859714",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "com.owlike.genson.stream.JsonReader",
+    "allocation_line": 300,
+    "call": "new JsonReader(new StringReader(src))"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-5551",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/com/owlike/genson/stream/JsonReaderTest.java",
+   325,
+   "void JsonReaderTest.testIncompleteSource()",
+   "resource of type `com.owlike.genson.stream.JsonReader` acquired to `reader` by call to `new()` at line 321 is not released after line 325.",
+   "dce7c0d5a82d2b8e3144789fe2305cb2",
+   "resource of type `com.owlike.genson.stream.JsonReader` acquired by call to `new()` at line 321 is not released after line 325."
+  ],
+  "before_sha256": "6b20f1083eb4a00c8103f1203136731ebffb581a1a489acbd1caf91977859714",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "com.owlike.genson.stream.JsonReader",
+    "allocation_line": 321,
+    "call": "new JsonReader(new StringReader(src))"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-5603",
+  "rule": "java_field_path",
+  "pair": [
+   "src/main/java/org/apache/giraph/graph/BspServiceMaster.java",
+   745,
+   "void BspServiceMaster.setup()",
+   "Unprotected write. Non-private method `org.apache.giraph.graph.BspServiceMaster.setup` indirectly writes to field `this.org.apache.giraph.graph.BspService.cachedApplicationAttempt` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "346970275489febb661a41207d3eaf80",
+   "Unprotected write. Non-private method `void BspServiceMaster.setup()` indirectly writes to field `this.cachedApplicationAttempt` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "b5597c5417f987b428098c243396dc1481e5886d356afa7d91c5906335b39f28",
+  "field_chain": [
+   {
+    "receiver": "org.apache.giraph.graph.BspServiceMaster",
+    "declaring_class": "org.apache.giraph.graph.BspService",
+    "field": "cachedApplicationAttempt",
+    "type": "long",
+    "inheritance_checked": [
+     "org.apache.giraph.graph.BspService",
+     "org.apache.giraph.graph.BspServiceMaster"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/main/java/org/apache/giraph/graph/BspServiceMaster.java": "b5597c5417f987b428098c243396dc1481e5886d356afa7d91c5906335b39f28",
+   "src/main/java/org/apache/giraph/graph/BspService.java": "17219840131b564f55ed364ace699315e843d92a157f1749bbe023492ba25730"
+  },
+  "source_revision": "bdf0ca1e0b7aa48234dcd0241ba95036030a5d0c",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-5603",
+  "rule": "java_field_path",
+  "pair": [
+   "src/main/java/org/apache/giraph/graph/BspServiceMaster.java",
+   745,
+   "void BspServiceMaster.setup()",
+   "Unprotected write. Non-private method `org.apache.giraph.graph.BspServiceMaster.setup` indirectly writes to field `this.org.apache.giraph.graph.BspService.cachedApplicationAttempt` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "a6a514c5fa97aea8b9fa6161b12015df",
+   "Unprotected write. Non-private method `void BspServiceMaster.setup()` indirectly writes to field `this.cachedApplicationAttempt` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "b5597c5417f987b428098c243396dc1481e5886d356afa7d91c5906335b39f28",
+  "field_chain": [
+   {
+    "receiver": "org.apache.giraph.graph.BspServiceMaster",
+    "declaring_class": "org.apache.giraph.graph.BspService",
+    "field": "cachedApplicationAttempt",
+    "type": "long",
+    "inheritance_checked": [
+     "org.apache.giraph.graph.BspService",
+     "org.apache.giraph.graph.BspServiceMaster"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/main/java/org/apache/giraph/graph/BspServiceMaster.java": "b5597c5417f987b428098c243396dc1481e5886d356afa7d91c5906335b39f28",
+   "src/main/java/org/apache/giraph/graph/BspService.java": "17219840131b564f55ed364ace699315e843d92a157f1749bbe023492ba25730"
+  },
+  "source_revision": "bdf0ca1e0b7aa48234dcd0241ba95036030a5d0c",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-5669",
+  "rule": "java_null_resource",
+  "pair": [
+   "graphviz-java/src/test/java/guru/nidi/graphviz/engine/EngineTest.java",
+   185,
+   "void EngineTest.cmdLineOutputDotFile()",
+   "resource of type `guru.nidi.graphviz.engine.GraphvizCmdLineEngine` acquired to `engine` by call to `GraphvizCmdLineEngine(...)` at line 182 is not released after line 185.",
+   "9778e4adcb4fc633a89667a345082a5b",
+   "resource of type `guru.nidi.graphviz.engine.GraphvizCmdLineEngine` acquired by call to `GraphvizCmdLineEngine(...)` at line 182 is not released after line 185."
+  ],
+  "before_sha256": "3619d70987d3e3f61bbf0a1c10e1f318efb21af49e1d3a2e030c70a731bc3967",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "guru.nidi.graphviz.engine.GraphvizCmdLineEngine",
+    "allocation_line": 182,
+    "call": "new GraphvizCmdLineEngine(envPath, cmdExecutor)"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-5688",
+  "rule": "java_null_resource",
+  "pair": [
+   "greenmail-core/src/test/java/com/icegreen/greenmail/test/commands/POP3CommandTest.java",
+   57,
+   "void POP3CommandTest.authPlain()",
+   "resource of type `java.io.PrintStream` acquired to `printStream` by call to `new()` at line 41 is not released after line 57.",
+   "3d9e16688b723f185bcadf6d261a36f2",
+   "resource of type `java.io.PrintStream` acquired by call to `new()` at line 41 is not released after line 57."
+  ],
+  "before_sha256": "931e68e4ced2a43c951306601f30bfc7664b69579b2c15e23ec238ad0f1e9cc4",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "java.io.PrintStream",
+    "allocation_line": 41,
+    "call": "new PrintStream(socket.getOutputStream())"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-6259",
+  "rule": "java_field_path",
+  "pair": [
+   "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/SM2.java",
+   126,
+   "byte[] SM2.encrypt(byte[],KeyType)",
+   "Read/Write race. Non-private method `cn.hutool.crypto.asymmetric.SM2.encrypt` indirectly reads without synchronization from `this.cn.hutool.crypto.asymmetric.BaseAsymmetric.privateKey`. Potentially races with write in method `SM2.init(...)`.\n Reporting because this access may occur on a background thread.",
+   "57a76c0f67ce0586539def0b9cad1d6a",
+   "Read/Write race. Non-private method `byte[] SM2.encrypt(byte[],KeyType)` indirectly reads without synchronization from `this.privateKey`. Potentially races with write in method `SM2.init(...)`.\n Reporting because this access may occur on a background thread."
+  ],
+  "before_sha256": "63c9fa987ce8bcdad25019cbc0923d8f39184f47336dc8df9d43e49d242bac75",
+  "field_chain": [
+   {
+    "receiver": "cn.hutool.crypto.asymmetric.SM2",
+    "declaring_class": "cn.hutool.crypto.asymmetric.BaseAsymmetric",
+    "field": "privateKey",
+    "type": "PrivateKey",
+    "inheritance_checked": [
+     "cn.hutool.crypto.asymmetric.AbstractAsymmetricCrypto",
+     "cn.hutool.crypto.asymmetric.BaseAsymmetric",
+     "cn.hutool.crypto.asymmetric.SM2"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/SM2.java": "63c9fa987ce8bcdad25019cbc0923d8f39184f47336dc8df9d43e49d242bac75",
+   "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/AbstractAsymmetricCrypto.java": "f9ca2a673104785387515d8b4205ad2fc24fd0bbfbe9532d67659dcfbc0fa72e",
+   "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/BaseAsymmetric.java": "d1782e65b4a3993c2500a283d664a3dfe3c40efbaf2114dcfdecaa87841a111b"
+  },
+  "source_revision": "5cde1375178ae0a054934f93ee3bfb14ada8a351",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-6260",
+  "rule": "java_field_path",
+  "pair": [
+   "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/SM2.java",
+   152,
+   "byte[] SM2.decrypt(byte[],KeyType)",
+   "Read/Write race. Non-private method `cn.hutool.crypto.asymmetric.SM2.decrypt` indirectly reads without synchronization from `this.cn.hutool.crypto.asymmetric.BaseAsymmetric.privateKey`. Potentially races with write in method `SM2.init(...)`.\n Reporting because this access may occur on a background thread.",
+   "ae423da33c2d1f5ff713ef600ac8a554",
+   "Read/Write race. Non-private method `byte[] SM2.decrypt(byte[],KeyType)` indirectly reads without synchronization from `this.privateKey`. Potentially races with write in method `SM2.init(...)`.\n Reporting because this access may occur on a background thread."
+  ],
+  "before_sha256": "63c9fa987ce8bcdad25019cbc0923d8f39184f47336dc8df9d43e49d242bac75",
+  "field_chain": [
+   {
+    "receiver": "cn.hutool.crypto.asymmetric.SM2",
+    "declaring_class": "cn.hutool.crypto.asymmetric.BaseAsymmetric",
+    "field": "privateKey",
+    "type": "PrivateKey",
+    "inheritance_checked": [
+     "cn.hutool.crypto.asymmetric.AbstractAsymmetricCrypto",
+     "cn.hutool.crypto.asymmetric.BaseAsymmetric",
+     "cn.hutool.crypto.asymmetric.SM2"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/SM2.java": "63c9fa987ce8bcdad25019cbc0923d8f39184f47336dc8df9d43e49d242bac75",
+   "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/AbstractAsymmetricCrypto.java": "f9ca2a673104785387515d8b4205ad2fc24fd0bbfbe9532d67659dcfbc0fa72e",
+   "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/BaseAsymmetric.java": "d1782e65b4a3993c2500a283d664a3dfe3c40efbaf2114dcfdecaa87841a111b"
+  },
+  "source_revision": "5cde1375178ae0a054934f93ee3bfb14ada8a351",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7043",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/main/java/org/jboss/modules/maven/MavenArtifactUtil.java",
+   194,
+   "ResourceLoader MavenArtifactUtil.createMavenArtifactLoader(MavenResolver,String)",
+   "resource of type `java.util.jar.JarFile` acquired to `jarFile` by call to `JarFile(...)` at line 193 is not released after line 194.",
+   "f8f83822bac64f2f8d8f1419e9bb2fb0",
+   "resource of type `java.util.jar.JarFile` acquired by call to `JarFile(...)` at line 193 is not released after line 194."
+  ],
+  "before_sha256": "9d25ac71de45c75f3529cb683e605427eb349e2b10f8968983f617d6d4e8240d",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "java.util.jar.JarFile",
+    "allocation_line": 193,
+    "call": "new JarFile(fp, true)"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-inventory-recheck-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7133",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/org/zeromq/TestZMQ.java",
+   492,
+   "void TestZMQ.testSocketDoubleClose()",
+   "resource of type `org.zeromq.ZMQ$Context` acquired to `ctx` by call to `context(...)` at line 491 is not released after line 492.",
+   "9597315419232c54ad6ae36c9ba93837",
+   "resource of type `org.zeromq.ZMQ$Context` acquired by call to `context(...)` at line 491 is not released after line 492."
+  ],
+  "before_sha256": "476ca920a3d5aabbe6764d078ed78dd5d55bb026fc9159f56d48ae081e9a3c1f",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "org.zeromq.ZMQ$Context",
+    "allocation_line": 491,
+    "call": "ZMQ.context(1)"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7292",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/jnr/posix/FileTest.java",
+   295,
+   "void FileTest.fcntlDupfdTest()",
+   "resource of type `java.io.RandomAccessFile` acquired to `raf` by call to `RandomAccessFile(...)` at line 287 is not released after line 295.",
+   "93cbfcf663f1c9063a96beb31f5ced99",
+   "resource of type `java.io.RandomAccessFile` acquired by call to `RandomAccessFile(...)` at line 287 is not released after line 295."
+  ],
+  "before_sha256": "b6be720c996789a4740228f7375bc475073d4c965246d6600ceecdd9b7e9685e",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "java.io.RandomAccessFile",
+    "allocation_line": 287,
+    "call": "new RandomAccessFile(tmp, \"rw\")"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7461",
+  "rule": "java_null_resource",
+  "pair": [
+   "slack-api-client/src/test/java/test_with_remote_apis/methods/rtm_Test.java",
+   154,
+   "void rtm_Test.rtmStart()",
+   "resource of type `com.slack.api.Slack` acquired to `slack` by call to `getInstance(...)` at line 141 is not released after line 154.",
+   "ca62e84c007d7134943a72ee7ebf74d1",
+   "resource of type `com.slack.api.Slack` acquired by call to `getInstance(...)` at line 141 is not released after line 154."
+  ],
+  "before_sha256": "3c04d98306b0a023c0d3c884d82604bdbbd7e2d05b8367d3924d56eea7ec42c0",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "com.slack.api.Slack",
+    "allocation_line": 141,
+    "call": "Slack.getInstance(config)"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7746",
+  "rule": "java_field_path",
+  "pair": [
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java",
+   410,
+   "void BaseObjectEnabler.beginTransaction()",
+   "Unprotected write. Non-private method `org.eclipse.leshan.client.resource.BaseObjectEnabler.beginTransaction` indirectly writes to field `this.org.eclipse.leshan.client.resource.BaseObjectEnabler.listener.org.eclipse.leshan.client.resource.TransactionalObjectListener.inTransaction` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "cf13f9b91a471d2acd92bcc0bdc359a5",
+   "Unprotected write. Non-private method `void BaseObjectEnabler.beginTransaction()` indirectly writes to field `this.listener.inTransaction` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "760b3d131bc3ed5edce8c5c7ec8372e98a502015bb315f5b745edc6c8fe1244a",
+  "field_chain": [
+   {
+    "receiver": "org.eclipse.leshan.client.resource.BaseObjectEnabler",
+    "declaring_class": "org.eclipse.leshan.client.resource.BaseObjectEnabler",
+    "field": "listener",
+    "type": "TransactionalObjectListener",
+    "inheritance_checked": [
+     "org.eclipse.leshan.client.resource.BaseObjectEnabler"
+    ]
+   },
+   {
+    "receiver": "org.eclipse.leshan.client.resource.TransactionalObjectListener",
+    "declaring_class": "org.eclipse.leshan.client.resource.TransactionalObjectListener",
+    "field": "inTransaction",
+    "type": "boolean",
+    "inheritance_checked": [
+     "org.eclipse.leshan.client.resource.TransactionalObjectListener"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java": "760b3d131bc3ed5edce8c5c7ec8372e98a502015bb315f5b745edc6c8fe1244a",
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/TransactionalObjectListener.java": "30a0b874821a9beee1d9772e02f9a35e8bf828e4dc58be8e8ffbaa29ec191fb9"
+  },
+  "source_revision": "b687e5cb806685c5fdb444cf5b89764b80a21b0c",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7746",
+  "rule": "java_field_path",
+  "pair": [
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java",
+   410,
+   "void BaseObjectEnabler.beginTransaction()",
+   "Unprotected write. Non-private method `org.eclipse.leshan.client.resource.BaseObjectEnabler.beginTransaction` indirectly writes to field `this.org.eclipse.leshan.client.resource.BaseObjectEnabler.listener.org.eclipse.leshan.client.resource.TransactionalObjectListener.inTransaction` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "d1df42f9c87ea8f39982985b6f8de405",
+   "Unprotected write. Non-private method `void BaseObjectEnabler.beginTransaction()` indirectly writes to field `this.listener.inTransaction` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "760b3d131bc3ed5edce8c5c7ec8372e98a502015bb315f5b745edc6c8fe1244a",
+  "field_chain": [
+   {
+    "receiver": "org.eclipse.leshan.client.resource.BaseObjectEnabler",
+    "declaring_class": "org.eclipse.leshan.client.resource.BaseObjectEnabler",
+    "field": "listener",
+    "type": "TransactionalObjectListener",
+    "inheritance_checked": [
+     "org.eclipse.leshan.client.resource.BaseObjectEnabler"
+    ]
+   },
+   {
+    "receiver": "org.eclipse.leshan.client.resource.TransactionalObjectListener",
+    "declaring_class": "org.eclipse.leshan.client.resource.TransactionalObjectListener",
+    "field": "inTransaction",
+    "type": "boolean",
+    "inheritance_checked": [
+     "org.eclipse.leshan.client.resource.TransactionalObjectListener"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java": "760b3d131bc3ed5edce8c5c7ec8372e98a502015bb315f5b745edc6c8fe1244a",
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/TransactionalObjectListener.java": "30a0b874821a9beee1d9772e02f9a35e8bf828e4dc58be8e8ffbaa29ec191fb9"
+  },
+  "source_revision": "b687e5cb806685c5fdb444cf5b89764b80a21b0c",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7747",
+  "rule": "java_field_path",
+  "pair": [
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java",
+   416,
+   "void BaseObjectEnabler.endTransaction()",
+   "Unprotected write. Non-private method `org.eclipse.leshan.client.resource.BaseObjectEnabler.endTransaction` indirectly writes to field `this.org.eclipse.leshan.client.resource.BaseObjectEnabler.listener.org.eclipse.leshan.client.resource.TransactionalObjectListener.inTransaction` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "342a9f1c928c06aa381b6931b2d951fd",
+   "Unprotected write. Non-private method `void BaseObjectEnabler.endTransaction()` indirectly writes to field `this.listener.inTransaction` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "760b3d131bc3ed5edce8c5c7ec8372e98a502015bb315f5b745edc6c8fe1244a",
+  "field_chain": [
+   {
+    "receiver": "org.eclipse.leshan.client.resource.BaseObjectEnabler",
+    "declaring_class": "org.eclipse.leshan.client.resource.BaseObjectEnabler",
+    "field": "listener",
+    "type": "TransactionalObjectListener",
+    "inheritance_checked": [
+     "org.eclipse.leshan.client.resource.BaseObjectEnabler"
+    ]
+   },
+   {
+    "receiver": "org.eclipse.leshan.client.resource.TransactionalObjectListener",
+    "declaring_class": "org.eclipse.leshan.client.resource.TransactionalObjectListener",
+    "field": "inTransaction",
+    "type": "boolean",
+    "inheritance_checked": [
+     "org.eclipse.leshan.client.resource.TransactionalObjectListener"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java": "760b3d131bc3ed5edce8c5c7ec8372e98a502015bb315f5b745edc6c8fe1244a",
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/TransactionalObjectListener.java": "30a0b874821a9beee1d9772e02f9a35e8bf828e4dc58be8e8ffbaa29ec191fb9"
+  },
+  "source_revision": "b687e5cb806685c5fdb444cf5b89764b80a21b0c",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7747",
+  "rule": "java_field_path",
+  "pair": [
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java",
+   416,
+   "void BaseObjectEnabler.endTransaction()",
+   "Unprotected write. Non-private method `org.eclipse.leshan.client.resource.BaseObjectEnabler.endTransaction` indirectly writes to field `this.org.eclipse.leshan.client.resource.BaseObjectEnabler.listener.org.eclipse.leshan.client.resource.TransactionalObjectListener.inTransaction` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "6c29e212b2821fd86783299ea5382137",
+   "Unprotected write. Non-private method `void BaseObjectEnabler.endTransaction()` indirectly writes to field `this.listener.inTransaction` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "760b3d131bc3ed5edce8c5c7ec8372e98a502015bb315f5b745edc6c8fe1244a",
+  "field_chain": [
+   {
+    "receiver": "org.eclipse.leshan.client.resource.BaseObjectEnabler",
+    "declaring_class": "org.eclipse.leshan.client.resource.BaseObjectEnabler",
+    "field": "listener",
+    "type": "TransactionalObjectListener",
+    "inheritance_checked": [
+     "org.eclipse.leshan.client.resource.BaseObjectEnabler"
+    ]
+   },
+   {
+    "receiver": "org.eclipse.leshan.client.resource.TransactionalObjectListener",
+    "declaring_class": "org.eclipse.leshan.client.resource.TransactionalObjectListener",
+    "field": "inTransaction",
+    "type": "boolean",
+    "inheritance_checked": [
+     "org.eclipse.leshan.client.resource.TransactionalObjectListener"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java": "760b3d131bc3ed5edce8c5c7ec8372e98a502015bb315f5b745edc6c8fe1244a",
+   "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/TransactionalObjectListener.java": "30a0b874821a9beee1d9772e02f9a35e8bf828e4dc58be8e8ffbaa29ec191fb9"
+  },
+  "source_revision": "b687e5cb806685c5fdb444cf5b89764b80a21b0c",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7972",
+  "rule": "java_field_path",
+  "pair": [
+   "component/src/main/java/org/mobicents/media/server/component/audio/AudioMixer.java",
+   171,
+   "void AudioMixer.startMixer()",
+   "Unprotected write. Non-private method `org.mobicents.media.server.component.audio.AudioMixer.startMixer` indirectly writes to field `this.org.mobicents.media.server.component.audio.AudioMixer.output.org.mobicents.media.server.component.audio.AudioMixer$Output.buffer.org.mobicents.media.server.scheduler.ConcurrentLinkedList.cacheHead.org.mobicents.media.server.scheduler.ConcurrentLinkedList$Node.next` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "af697fe28efe3cd4cc849cb23e8093a8",
+   "Unprotected write. Non-private method `void AudioMixer.startMixer()` indirectly writes to field `this.output.buffer.cacheHead.next` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "077d65e384cb51033f125a0a56b885ee15db187b7e831ab8d4aa528760234b6e",
+  "field_chain": [
+   {
+    "receiver": "org.mobicents.media.server.component.audio.AudioMixer",
+    "declaring_class": "org.mobicents.media.server.component.audio.AudioMixer",
+    "field": "output",
+    "type": "Output",
+    "inheritance_checked": [
+     "org.mobicents.media.server.component.audio.AudioMixer"
+    ]
+   },
+   {
+    "receiver": "org.mobicents.media.server.component.audio.AudioMixer$Output",
+    "declaring_class": "org.mobicents.media.server.component.audio.AudioMixer$Output",
+    "field": "buffer",
+    "type": "ConcurrentLinkedList<Frame>",
+    "inheritance_checked": [
+     "org.mobicents.media.server.component.audio.AudioMixer$Output"
+    ]
+   },
+   {
+    "receiver": "org.mobicents.media.server.scheduler.ConcurrentLinkedList",
+    "declaring_class": "org.mobicents.media.server.scheduler.ConcurrentLinkedList",
+    "field": "cacheHead",
+    "type": "Node<E>",
+    "inheritance_checked": [
+     "org.mobicents.media.server.scheduler.ConcurrentLinkedList"
+    ]
+   },
+   {
+    "receiver": "org.mobicents.media.server.scheduler.ConcurrentLinkedList$Node",
+    "declaring_class": "org.mobicents.media.server.scheduler.ConcurrentLinkedList$Node",
+    "field": "next",
+    "type": "Node<E>",
+    "inheritance_checked": [
+     "org.mobicents.media.server.scheduler.ConcurrentLinkedList$Node"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "component/src/main/java/org/mobicents/media/server/component/audio/AudioMixer.java": "077d65e384cb51033f125a0a56b885ee15db187b7e831ab8d4aa528760234b6e",
+   "scheduler/src/main/java/org/mobicents/media/server/scheduler/ConcurrentLinkedList.java": "35462911169115487d17ca6f0c74cb17469a0682ad85a8f597b126d148831f36"
+  },
+  "source_revision": "ed5a53a3612d23b55fb1429944c82097a01e1be6",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-7972",
+  "rule": "java_field_path",
+  "pair": [
+   "component/src/main/java/org/mobicents/media/server/component/audio/AudioMixer.java",
+   171,
+   "void AudioMixer.startMixer()",
+   "Unprotected write. Non-private method `org.mobicents.media.server.component.audio.AudioMixer.startMixer` indirectly writes to field `this.org.mobicents.media.server.component.audio.AudioMixer.output.org.mobicents.media.server.component.audio.AudioMixer$Output.buffer.org.mobicents.media.server.scheduler.ConcurrentLinkedList.cacheHead.org.mobicents.media.server.scheduler.ConcurrentLinkedList$Node.next` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "fac36d2b2c597f9dfda870357d55ed13",
+   "Unprotected write. Non-private method `void AudioMixer.startMixer()` indirectly writes to field `this.output.buffer.cacheHead.next` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "077d65e384cb51033f125a0a56b885ee15db187b7e831ab8d4aa528760234b6e",
+  "field_chain": [
+   {
+    "receiver": "org.mobicents.media.server.component.audio.AudioMixer",
+    "declaring_class": "org.mobicents.media.server.component.audio.AudioMixer",
+    "field": "output",
+    "type": "Output",
+    "inheritance_checked": [
+     "org.mobicents.media.server.component.audio.AudioMixer"
+    ]
+   },
+   {
+    "receiver": "org.mobicents.media.server.component.audio.AudioMixer$Output",
+    "declaring_class": "org.mobicents.media.server.component.audio.AudioMixer$Output",
+    "field": "buffer",
+    "type": "ConcurrentLinkedList<Frame>",
+    "inheritance_checked": [
+     "org.mobicents.media.server.component.audio.AudioMixer$Output"
+    ]
+   },
+   {
+    "receiver": "org.mobicents.media.server.scheduler.ConcurrentLinkedList",
+    "declaring_class": "org.mobicents.media.server.scheduler.ConcurrentLinkedList",
+    "field": "cacheHead",
+    "type": "Node<E>",
+    "inheritance_checked": [
+     "org.mobicents.media.server.scheduler.ConcurrentLinkedList"
+    ]
+   },
+   {
+    "receiver": "org.mobicents.media.server.scheduler.ConcurrentLinkedList$Node",
+    "declaring_class": "org.mobicents.media.server.scheduler.ConcurrentLinkedList$Node",
+    "field": "next",
+    "type": "Node<E>",
+    "inheritance_checked": [
+     "org.mobicents.media.server.scheduler.ConcurrentLinkedList$Node"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "component/src/main/java/org/mobicents/media/server/component/audio/AudioMixer.java": "077d65e384cb51033f125a0a56b885ee15db187b7e831ab8d4aa528760234b6e",
+   "scheduler/src/main/java/org/mobicents/media/server/scheduler/ConcurrentLinkedList.java": "35462911169115487d17ca6f0c74cb17469a0682ad85a8f597b126d148831f36"
+  },
+  "source_revision": "ed5a53a3612d23b55fb1429944c82097a01e1be6",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8029",
+  "rule": "java_field_path",
+  "pair": [
+   "sshd-core/src/main/java/org/apache/sshd/client/session/ClientSessionImpl.java",
+   404,
+   "void ClientSessionImpl.doHandleMessage(Buffer)",
+   "Unprotected write. Non-private method `org.apache.sshd.client.session.ClientSessionImpl.doHandleMessage` writes to field `this.org.apache.sshd.common.session.AbstractSession.authed` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "1fa70ad8acf2eec0c0739cbde0eb7b80",
+   "Unprotected write. Non-private method `void ClientSessionImpl.doHandleMessage(Buffer)` writes to field `this.authed` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "c6b27165dbab87d3ba882d816b1f0899b43a720f4e1182e35a7fd3dd60e25e5e",
+  "field_chain": [
+   {
+    "receiver": "org.apache.sshd.client.session.ClientSessionImpl",
+    "declaring_class": "org.apache.sshd.common.session.AbstractSession",
+    "field": "authed",
+    "type": "boolean",
+    "inheritance_checked": [
+     "org.apache.sshd.client.session.ClientSessionImpl",
+     "org.apache.sshd.common.session.AbstractSession"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "sshd-core/src/main/java/org/apache/sshd/client/session/ClientSessionImpl.java": "c6b27165dbab87d3ba882d816b1f0899b43a720f4e1182e35a7fd3dd60e25e5e",
+   "sshd-core/src/main/java/org/apache/sshd/common/session/AbstractSession.java": "1a63d9932bab57a8a011e49247950af039ef0394bcfbb063beb11b268a7d3d40"
+  },
+  "source_revision": "eaef1c30d456974294cfc9c03426fa0c7bdee27c",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8029",
+  "rule": "java_field_path",
+  "pair": [
+   "sshd-core/src/main/java/org/apache/sshd/client/session/ClientSessionImpl.java",
+   404,
+   "void ClientSessionImpl.doHandleMessage(Buffer)",
+   "Unprotected write. Non-private method `org.apache.sshd.client.session.ClientSessionImpl.doHandleMessage` writes to field `this.org.apache.sshd.common.session.AbstractSession.authed` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "c4579522a65a72c881e17ffae2dc0d1f",
+   "Unprotected write. Non-private method `void ClientSessionImpl.doHandleMessage(Buffer)` writes to field `this.authed` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "c6b27165dbab87d3ba882d816b1f0899b43a720f4e1182e35a7fd3dd60e25e5e",
+  "field_chain": [
+   {
+    "receiver": "org.apache.sshd.client.session.ClientSessionImpl",
+    "declaring_class": "org.apache.sshd.common.session.AbstractSession",
+    "field": "authed",
+    "type": "boolean",
+    "inheritance_checked": [
+     "org.apache.sshd.client.session.ClientSessionImpl",
+     "org.apache.sshd.common.session.AbstractSession"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "sshd-core/src/main/java/org/apache/sshd/client/session/ClientSessionImpl.java": "c6b27165dbab87d3ba882d816b1f0899b43a720f4e1182e35a7fd3dd60e25e5e",
+   "sshd-core/src/main/java/org/apache/sshd/common/session/AbstractSession.java": "1a63d9932bab57a8a011e49247950af039ef0394bcfbb063beb11b268a7d3d40"
+  },
+  "source_revision": "eaef1c30d456974294cfc9c03426fa0c7bdee27c",
+  "hash_from_run": [
+   "java016-remaining-cached-retry-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8533",
+  "rule": "java_field_path",
+  "pair": [
+   "consensus-impl/src/main/java/io/nuls/consensus/manager/PackingRoundManager.java",
+   207,
+   "ValidateResult PackingRoundManager.validate(BlockHeader,List)",
+   "Read/Write race. Non-private method `io.nuls.consensus.manager.PackingRoundManager.validate` indirectly reads without synchronization from `this.io.nuls.consensus.manager.PackingRoundManager.currentRound.io.nuls.consensus.entity.meeting.PocMeetingRound.preRound`. Potentially races with write in method `PackingRoundManager.calc(...)`.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "7b1805ac9afa6fb85f6df0d7771029aa",
+   "Read/Write race. Non-private method `ValidateResult PackingRoundManager.validate(BlockHeader,List)` indirectly reads without synchronization from `this.currentRound.preRound`. Potentially races with write in method `PackingRoundManager.calc(...)`.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "43620356017d3fd1d06e4d29f52c29fae31161717cac898454372ca449b7460d",
+  "field_chain": [
+   {
+    "receiver": "io.nuls.consensus.manager.PackingRoundManager",
+    "declaring_class": "io.nuls.consensus.manager.PackingRoundManager",
+    "field": "currentRound",
+    "type": "PocMeetingRound",
+    "inheritance_checked": [
+     "io.nuls.consensus.manager.PackingRoundManager"
+    ]
+   },
+   {
+    "receiver": "io.nuls.consensus.entity.meeting.PocMeetingRound",
+    "declaring_class": "io.nuls.consensus.entity.meeting.PocMeetingRound",
+    "field": "preRound",
+    "type": "PocMeetingRound",
+    "inheritance_checked": [
+     "io.nuls.consensus.entity.meeting.PocMeetingRound"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "consensus-impl/src/main/java/io/nuls/consensus/manager/PackingRoundManager.java": "43620356017d3fd1d06e4d29f52c29fae31161717cac898454372ca449b7460d",
+   "consensus-impl/src/main/java/io/nuls/consensus/entity/meeting/PocMeetingRound.java": "d10cb28b7c87c1f93cdc6bd195ce711eb035bbf2fdfc0b9715a67e52ba1c28c3"
+  },
+  "source_revision": "54cc138762399cf88f381d3dceddd053689eef64",
+  "hash_from_run": [
+   "java016-remaining-cached-retry-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8533",
+  "rule": "java_field_path",
+  "pair": [
+   "consensus-impl/src/main/java/io/nuls/consensus/manager/PackingRoundManager.java",
+   207,
+   "ValidateResult PackingRoundManager.validate(BlockHeader,List)",
+   "Read/Write race. Non-private method `io.nuls.consensus.manager.PackingRoundManager.validate` indirectly reads without synchronization from `this.io.nuls.consensus.manager.PackingRoundManager.currentRound.io.nuls.consensus.entity.meeting.PocMeetingRound.preRound`. Potentially races with write in method `PackingRoundManager.calc(...)`.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "875087cb971137b35f7d1573ad98f8b8",
+   "Read/Write race. Non-private method `ValidateResult PackingRoundManager.validate(BlockHeader,List)` indirectly reads without synchronization from `this.currentRound.preRound`. Potentially races with write in method `PackingRoundManager.calc(...)`.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "43620356017d3fd1d06e4d29f52c29fae31161717cac898454372ca449b7460d",
+  "field_chain": [
+   {
+    "receiver": "io.nuls.consensus.manager.PackingRoundManager",
+    "declaring_class": "io.nuls.consensus.manager.PackingRoundManager",
+    "field": "currentRound",
+    "type": "PocMeetingRound",
+    "inheritance_checked": [
+     "io.nuls.consensus.manager.PackingRoundManager"
+    ]
+   },
+   {
+    "receiver": "io.nuls.consensus.entity.meeting.PocMeetingRound",
+    "declaring_class": "io.nuls.consensus.entity.meeting.PocMeetingRound",
+    "field": "preRound",
+    "type": "PocMeetingRound",
+    "inheritance_checked": [
+     "io.nuls.consensus.entity.meeting.PocMeetingRound"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "consensus-impl/src/main/java/io/nuls/consensus/manager/PackingRoundManager.java": "43620356017d3fd1d06e4d29f52c29fae31161717cac898454372ca449b7460d",
+   "consensus-impl/src/main/java/io/nuls/consensus/entity/meeting/PocMeetingRound.java": "d10cb28b7c87c1f93cdc6bd195ce711eb035bbf2fdfc0b9715a67e52ba1c28c3"
+  },
+  "source_revision": "54cc138762399cf88f381d3dceddd053689eef64",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8847",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   141,
+   "void UrlManager.deleteUrl(String)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.deleteUrl` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "672d1a236a13089c6afa419e919eac34",
+   "Unprotected write. Non-private method `void UrlManager.deleteUrl(String)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8847",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   141,
+   "void UrlManager.deleteUrl(String)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.deleteUrl` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "ec2e44e2a735494bc2701ca65bf0bb02",
+   "Unprotected write. Non-private method `void UrlManager.deleteUrl(String)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8848",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   162,
+   "void UrlManager.deleteUrls(Collection)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.deleteUrls` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "2d959720d9e6a9e515138b7216019ff1",
+   "Unprotected write. Non-private method `void UrlManager.deleteUrls(Collection)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8848",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   162,
+   "void UrlManager.deleteUrls(Collection)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.deleteUrls` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "d2309ede2a535b75cc9a3a3fb34620d9",
+   "Unprotected write. Non-private method `void UrlManager.deleteUrls(Collection)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8850",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   345,
+   "void UrlManager.getOldUrlToFetch(NamedItem,Date,long,List)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.getOldUrlToFetch` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "2685bfbd53eff832ae465dc43e7eb821",
+   "Unprotected write. Non-private method `void UrlManager.getOldUrlToFetch(NamedItem,Date,long,List)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8850",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   345,
+   "void UrlManager.getOldUrlToFetch(NamedItem,Date,long,List)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.getOldUrlToFetch` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "30604ef411ba06ea1fdc2e46cc2390ad",
+   "Unprotected write. Non-private method `void UrlManager.getOldUrlToFetch(NamedItem,Date,long,List)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8851",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   361,
+   "void UrlManager.getNewUrlToFetch(NamedItem,long,List)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.getNewUrlToFetch` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "3a7a749f69d1002bb57e6d6e7de6001a",
+   "Unprotected write. Non-private method `void UrlManager.getNewUrlToFetch(NamedItem,long,List)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8851",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   361,
+   "void UrlManager.getNewUrlToFetch(NamedItem,long,List)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.getNewUrlToFetch` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "b05128dc0553de58e9260c70ca28aa81",
+   "Unprotected write. Non-private method `void UrlManager.getNewUrlToFetch(NamedItem,long,List)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java016-remaining-cached-retry-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8852",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   483,
+   "long UrlManager.getUrls(SearchRequest,UrlManager$Field,boolean,long,long,List)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.getUrls` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "58e0d7a6c9d71e45d82f18162ab57465",
+   "Unprotected write. Non-private method `long UrlManager.getUrls(SearchRequest,UrlManager$Field,boolean,long,long,List)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java016-remaining-cached-retry-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8852",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   483,
+   "long UrlManager.getUrls(SearchRequest,UrlManager$Field,boolean,long,long,List)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.getUrls` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "d75f555d7b18c275eae8ebb327dd944e",
+   "Unprotected write. Non-private method `long UrlManager.getUrls(SearchRequest,UrlManager$Field,boolean,long,long,List)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8857",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   574,
+   "void UrlManager.updateUrlItems(List)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.updateUrlItems` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "370e2d863023b1a8a8d80e93e08832cb",
+   "Unprotected write. Non-private method `void UrlManager.updateUrlItems(List)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java016-remaining-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8857",
+  "rule": "java_field_path",
+  "pair": [
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+   574,
+   "void UrlManager.updateUrlItems(List)",
+   "Unprotected write. Non-private method `com.jaeksoft.searchlib.crawler.web.database.UrlManager.updateUrlItems` indirectly writes to field `this.com.jaeksoft.searchlib.crawler.web.database.UrlManager.client.com.jaeksoft.searchlib.config.Config.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not.",
+   "f307156cc7ab8a4a44b499a8f21bfc30",
+   "Unprotected write. Non-private method `void UrlManager.updateUrlItems(List)` indirectly writes to field `this.client.statisticsList` outside of synchronization.\n Reporting because another access to the same memory occurs on a background thread, although this access may not."
+  ],
+  "before_sha256": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+  "field_chain": [
+   {
+    "receiver": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "declaring_class": "com.jaeksoft.searchlib.crawler.web.database.UrlManager",
+    "field": "client",
+    "type": "Client",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.crawler.web.database.UrlManager"
+    ]
+   },
+   {
+    "receiver": "com.jaeksoft.searchlib.Client",
+    "declaring_class": "com.jaeksoft.searchlib.config.Config",
+    "field": "statisticsList",
+    "type": "StatisticsList",
+    "inheritance_checked": [
+     "com.jaeksoft.searchlib.Client",
+     "com.jaeksoft.searchlib.config.Config"
+    ]
+   }
+  ],
+  "source_sha256": {
+   "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java": "cec845d2871baccbbeb7f9c7a4e54115ddb2216b039d079b93654ab2c96e9115",
+   "src/java/com/jaeksoft/searchlib/Client.java": "29752d1a35d018c5b7eee23124df6db7b6053e62db9ec86c1e551ac8a293775a",
+   "src/java/com/jaeksoft/searchlib/config/Config.java": "e18400e50a6a9a9d92e5cf8ce749c6edda512cc97bdad7a9bfbfe6409a20d25c"
+  },
+  "source_revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "hash_from_run": [
+   "java-field-path-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-8986",
+  "rule": "java_null_resource",
+  "pair": [
+   "panda/src/main/java/org/panda_lang/panda/framework/language/interpreter/parser/expression/subparsers/ArrayValueExpressionParser.java",
+   66,
+   "Tokens ArrayValueExpressionParser.read(ExpressionParser,Tokens)",
+   "object returned by `matchable.current()`  at line 66.",
+   "6b5a854038df7de459f9c2448cebdb50",
+   "object returned by `matchable.current()` could be null and is dereferenced at line 66."
+  ],
+  "before_sha256": "eb3757a7e45bb26c2d0f72cb87cbc80de6132a4369b3f1e529fa7ded13a86c2c",
+  "proof": [
+   {
+    "rule": "same complete returned expression and dereference line; omitted null boilerplate",
+    "expression": "matchable.current()",
+    "line": 66
+   }
+  ],
+  "hash_from_run": [
+   "java016-remaining-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-9048",
+  "rule": "java_null_resource",
+  "pair": [
+   "phoenix-core/src/main/java/org/apache/phoenix/query/ConnectionQueryServicesImpl.java",
+   979,
+   "void ConnectionQueryServicesImpl.modifyTable(byte[],HTableDescriptor)",
+   "resource of type `org.apache.hadoop.hbase.client.HBaseAdmin` acquired to `admin` by call to `new()` at line 975 is not released after line 979.",
+   "03d354f8f704f63620be1abaac3c644e",
+   "resource of type `org.apache.hadoop.hbase.client.HBaseAdmin` acquired by call to `new()` at line 975 is not released after line 979."
+  ],
+  "before_sha256": "826e0015489b36231368d61579d1b32a6a3e4f24937edc018ca610de7e7fe000",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "org.apache.hadoop.hbase.client.HBaseAdmin",
+    "allocation_line": 975,
+    "call": "new HBaseAdmin(config)"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-9312",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/main/java/com/moilioncircle/redis/replicator/rdb/DefaultRdbVisitor.java",
+   354,
+   "Event DefaultRdbVisitor.applyListZipList(RedisInputStream,DB,int)",
+   "resource of type `com.moilioncircle.redis.replicator.io.RedisInputStream` acquired to `stream` by call to `RedisInputStream(...)` at line 345 is not released after line 354.\n**Note**: potential exception at line 354",
+   "c6e36cb3ff4d5bc0721901af5393f6e7",
+   "resource of type `com.moilioncircle.redis.replicator.io.RedisInputStream` acquired by call to `RedisInputStream(...)` at line 345 is not released after line 354.\n**Note**: potential exception at line 354"
+  ],
+  "before_sha256": "3bb5a3b12cfc90ec401c4bc67bf12b1131ead66da7606be95ef9d2702a5996d6",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "com.moilioncircle.redis.replicator.io.RedisInputStream",
+    "allocation_line": 345,
+    "call": "new RedisInputStream(new ByteArrayInputStream(aux))"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-9392",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/net/rithms/test/UtilTest.java",
+   73,
+   "void UtilTest.testJoinString()",
+   "object `null` could be null and is dereferenced by call to `joinString(...)` at line 73.",
+   "7b8695e5510b8db06082b83737037bef",
+   "object `null` is dereferenced by call to `joinString(...)` at line 73."
+  ],
+  "before_sha256": "e164885b43d94da8ac2828da61175a6dfafc73fcb8de30c7739af4e920a59aa9",
+  "proof": [
+   {
+    "rule": "same literal null and complete dereference-call text"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ },
+ {
+  "task_id": "inferredbugs-9536",
+  "rule": "java_null_resource",
+  "pair": [
+   "src/test/java/com/github/davidmoten/rtree/fbs/SerializerFlatBuffersTest.java",
+   55,
+   "void SerializerFlatBuffersTest.roundTrip(InternalStructure,boolean)",
+   "resource of type `java.io.FileOutputStream` acquired to `os` by call to `FileOutputStream(...)` at line 52 is not released after line 55.\n**Note**: potential exception at line 55",
+   "b69500a3dec2b8e3600148118fe88edc",
+   "resource of type `java.io.FileOutputStream` acquired by call to `FileOutputStream(...)` at line 52 is not released after line 55.\n**Note**: potential exception at line 55"
+  ],
+  "before_sha256": "c871b4942a2b821465e1c693818f82d8d0f7e91d9324a38c33b9997883b51f23",
+  "proof": [
+   {
+    "rule": "same resource type, unique source allocation/call, allocation and leak lines, and exception note; one variable label omitted",
+    "resource_type": "java.io.FileOutputStream",
+    "allocation_line": 52,
+    "call": "new FileOutputStream(file)"
+   }
+  ],
+  "hash_from_run": [
+   "java-null-resource-matches",
+   "java110-full-null-resource-matches"
+  ]
+ }
+]
