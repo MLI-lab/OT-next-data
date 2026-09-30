@@ -154,7 +154,7 @@ def path_check_copy(task, scratch):
     return copy
 
 
-def run_checks(tasks, out, profile='training', timeout=120, upstream=None, exclude=(), concurrency=1):
+def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclude=(), concurrency=1):
     if concurrency < 1:
         raise ValueError('concurrency must be positive')
     if sys.version_info < (3, 11):
@@ -205,14 +205,18 @@ def run_checks(tasks, out, profile='training', timeout=120, upstream=None, exclu
                     log = logs / (name + '.log')
                     target = path_check_copy(task, scratch) if name == PATH_CHECK else task
                     with log.open('w') as stream:
-                        try:
-                            result = subprocess.run([sys.executable if name.endswith('.py') else 'bash', str((upstream or VENDOR) / 'scripts/checks' / name), str(target)],
-                                cwd=scratch, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
-                            status = 'passed' if result.returncode == 0 else 'failed'
-                            rc = result.returncode
-                        except subprocess.TimeoutExpired:
-                            status, rc = 'error', None
-                            stream.write(f'\nTimed out after {timeout} seconds\n')
+                        # The scripts take under a second; a timeout means the node or the
+                        # file system stalled (job 916252), so one more attempt is made.
+                        for attempt in (1, 2):
+                            try:
+                                result = subprocess.run([sys.executable if name.endswith('.py') else 'bash', str((upstream or VENDOR) / 'scripts/checks' / name), str(target)],
+                                    cwd=scratch, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
+                                status = 'passed' if result.returncode == 0 else 'failed'
+                                rc = result.returncode
+                                break
+                            except subprocess.TimeoutExpired:
+                                status, rc = 'error', None
+                                stream.write(f'\nTimed out after {timeout} seconds (attempt {attempt})\n')
                     if name == AI_CHECK and rc == 0 and ('skipped' in log.read_text().lower() or 'No files to check' in log.read_text()):
                         status = 'skipped'
                     entry['checks'].append({'check': name, 'status': status, 'optional': name == AI_CHECK, 'exit_code': rc,
