@@ -241,7 +241,8 @@ def main(request):
             try:
                 from validation.publish import publish
                 result = publish(request.parent / 'report', args.contract, args.publish_repo,
-                                 getattr(args, 'publish_folder', None) or [], out=request.parent / 'publish')
+                                 getattr(args, 'publish_folder', None) or [], out=request.parent / 'publish',
+                                 analysis=bool(getattr(args, 'publish_analysis', False)))
                 save(request.parent / 'publish.json', {k: v for k, v in result.items() if k != 'description'})
                 status['pull_request'] = result.get('pull_request')
             except Exception as exc:

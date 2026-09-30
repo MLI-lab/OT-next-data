@@ -232,6 +232,8 @@ Log in to Hugging Face first, with a token that has write access.
 
 To open the pull request automatically when a Helma job ends, prepare the contract with `--publish-repo FWeindel/validated-tasks` and `--publish-folder PREFIX=FOLDER` as needed. The job then runs the same script on its own reports; the link is written to `execution.json` as `pull_request`, and a failure to `publish-error.json`. Without `--publish-repo`, run the script by hand after the job.
 
+`--analysis` (or `--publish-analysis` when preparing the contract) adds an advisory section to the pull request: a model reads a digest of the archived and not-run tasks, counts, reasons and a few task IDs, groups them by likely cause (task defect, infrastructure, a check that does not fit the dataset) and suggests an action per group: rerun, exclude a check, fix the tasks, keep archived or investigate. It uses the Claude Code login of the machine and is skipped, with the reason recorded in the run file, when the call fails, for example without login or quota. It changes no decision; kept and archived are decided by the rules above.
+
 ## Quickstart
 
 Run from the repository root.
