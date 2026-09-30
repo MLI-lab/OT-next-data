@@ -95,17 +95,41 @@ def validate_input(task):
         raise ValueError('missing environment/')
     with (task / 'task.toml').open('rb') as stream:
         tomllib.load(stream)
-    # Several upstream scripts split paths as shell words. Fail explicitly
-    # rather than let those scripts skip files and return a misleading pass.
-    for path in [task, *task.rglob('*')]:
-        if any(c.isspace() or c in '*?[]' for c in str(path)):
-            raise ValueError(f'upstream shell checks do not support whitespace/globs in paths: {path}')
+    if any(c.isspace() or c in '*?[]' for c in str(task)):
+        raise ValueError(f'task directory path must not contain whitespace or glob characters: {task}')
+
+
+UNSAFE = re.compile(r'[\s*?\[\]]')
+
+
+def safe_copy(task, scratch):
+    """Several upstream scripts split paths as shell words and expand globs, so a file
+    named `Clase 4/[id].ts` would be skipped or misread and the check could pass wrongly.
+    Such tasks are checked on a copy whose offending names have those characters
+    replaced by '_'. The task itself is unchanged. Returns (copy, renamed) or (task, [])."""
+    renamed = sorted(str(p.relative_to(task)) for p in task.rglob('*') if UNSAFE.search(str(p.relative_to(task))))
+    if not renamed:
+        return task, []
+    copy = Path(scratch) / 'renamed' / task.name
+    if copy.exists():
+        shutil.rmtree(copy)
+    for path in task.rglob('*'):
+        target = copy / UNSAFE.sub('_', str(path.relative_to(task)))
+        if path.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
+    return copy, renamed
 
 
 PATH_CHECK = 'check-task-absolute-path.sh'
 SHELL_FENCES = {'', 'bash', 'sh', 'shell', 'zsh', 'console', 'text', 'txt'}
 ADAPTATIONS = {PATH_CHECK: 'runs on a copy of the task whose instruction.md has its source-code blocks removed '
-                           '(fenced blocks tagged with a programming language); shell and untagged blocks are kept'}
+                           '(fenced blocks tagged with a programming language); shell and untagged blocks are kept',
+               'file names': 'a task with whitespace or *?[] in a file name is checked on a copy where those characters '
+                             'are replaced by _, because the upstream scripts split paths at spaces and expand globs; '
+                             'the renamed files are listed per task'}
 
 
 def without_source_code(instruction):
@@ -169,7 +193,7 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
     report = {'upstream': manifest['repository'], 'commit': manifest['commit'],
               'profile': profile, 'selected_tasks': [str(t) for t in tasks],
               'checks': checks, 'excluded_checks': excluded, 'tasks': [],
-              'adaptations': {name: text for name, text in ADAPTATIONS.items() if name in checks},
+              'adaptations': {name: text for name, text in ADAPTATIONS.items() if name in checks or name == 'file names'},
               'checker_unit_tests_not_run': list(CHECKER_UNIT_TESTS),
               'conditional_checks': {AI_CHECK: 'runs only when GPTZERO_API_KEY is configured; missing key is a non-failing skip'},
               'complete': False, 'passed': False}
@@ -197,6 +221,9 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
             else:
                 logs = out / 'tasks' / task.name
                 logs.mkdir(parents=True, exist_ok=True)
+                task, renamed = safe_copy(task, scratch)
+                if renamed:
+                    entry['renamed_for_checks'] = renamed
                 for name in checks:
                     if name == AI_CHECK and not os.environ.get('GPTZERO_API_KEY', '').strip():
                         entry['checks'].append({'check': name, 'status': 'skipped', 'optional': True,

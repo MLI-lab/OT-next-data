@@ -179,3 +179,14 @@ def test_exclusion_records_its_reason():
     assert excluded['check-separate-verifier.sh'] == 'shared by design, one file is read'
     assert excluded['check-nproc.sh'] == excluded['check-pip-pinning.sh'] == 'explicitly excluded'
     assert not {'check-separate-verifier.sh', 'check-nproc.sh', 'check-pip-pinning.sh'} & set(checks)
+
+
+def test_unsafe_file_names_are_checked_on_a_renamed_copy(tmp_path):
+    task = make_task(tmp_path, 'spaces')
+    (task / 'setup_files/context').mkdir(parents=True)
+    (task / 'setup_files/context/000_Clase 4__[id].ts').write_text('export const x = 1\n')
+    out = tmp_path / 'report'
+    assert run_checks([task], out, 'portable') == 0
+    entry = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert entry['status'] == 'passed' and entry['renamed_for_checks'] == ['setup_files/context/000_Clase 4__[id].ts']
+    assert (task / 'setup_files/context/000_Clase 4__[id].ts').exists()      # the task itself is unchanged

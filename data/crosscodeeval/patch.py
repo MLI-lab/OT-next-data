@@ -50,7 +50,6 @@ CONTEXT_NOTE = ("\n\nAdditional read-only cross-file context is available under:
                 "  /setup_files/context/\n\n"
                 "These files are retrieved excerpts from related repository files.\n"
                 "They may be incomplete and may begin or end in the middle of a file.\n"
-                "README.txt there lists the original repository path of each file.\n"
                 "Inspect them when deciding the missing continuation.\n")
 
 # Written into every task as tests/cceval_verifier.py (python3 standard library only).
@@ -571,10 +570,9 @@ def benchmark_verifier(files, language, prompt_text=None):
 
 
 def context_file_name(name):
-    """Repository paths become one file name: '/' -> '__'; whitespace and the shell
-    glob characters *?[] -> '_'. Upstream static checks split paths at spaces and
-    expand globs, so such a name would hide the file or match another one."""
-    return re.sub(r'[\s*?\[\]]+', '_', name.replace('/', '__'))
+    """Repository paths become one file name: '/' -> '__'. Other characters stay as
+    they are; the static checks work on a renamed copy when a name needs it."""
+    return name.replace('/', '__')
 
 
 def whole_word(ident, text):
@@ -863,17 +861,8 @@ def patch_parquet(input_path, output_path, originals):
                 stats[n] += c
             for v in verdicts.values():
                 stats['identifier_verdicts'][v] = stats['identifier_verdicts'].get(v, 0) + 1
-            listing = []
             for i, (name, text) in enumerate(kept):
-                stored = f'{i:03d}_{context_file_name(name) or f"context_{i}.txt"}'
-                files[f'setup_files/context/{stored}'] = text.encode()
-                listing.append(f'{stored}\t{name or "(unnamed excerpt)"}')
-            if listing:
-                # The stored names avoid characters that shell tools mishandle; the
-                # original paths still carry meaning (e.g. Next.js routes like [id].ts).
-                files['setup_files/context/README.txt'] = (
-                    'Original repository path of each excerpt (file name <TAB> path):\n'
-                    + '\n'.join(listing) + '\n').encode()
+                files[f'setup_files/context/{i:03d}_{context_file_name(name) or f"context_{i}.txt"}'] = text.encode()
             instruction = files['instruction.md'].decode('utf8', 'replace')
             if kept and '/setup_files/context/' not in instruction:
                 files['instruction.md'] = (instruction.rstrip() + CONTEXT_NOTE).encode()

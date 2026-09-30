@@ -22,7 +22,7 @@ Runs pinned upstream checks. The default `training` profile disables:
 | `check_ai_detection.py` | Skipped without `GPTZERO_API_KEY`; runs when a key is configured. Missing credentials do not fail validation. |
 | Upstream `test-*` files | Unit tests of the checkers themselves, not checks to run against datasets. |
 
-The path check (`task-absolute-path`) runs on a copy of each task whose `instruction.md` has its source-code blocks removed, because file names inside code to read or complete are not paths the task tells the agent to use. Shell and untagged blocks are kept, and the upstream script is unchanged.
+A task with whitespace or `*?[]` in a file name is checked on a copy where those characters are replaced by `_`, because the upstream scripts split paths at spaces and expand globs; the task itself is unchanged and the renamed files are listed in the report. The path check (`task-absolute-path`) runs on a copy of each task whose `instruction.md` has its source-code blocks removed, because file names inside code to read or complete are not paths the task tells the agent to use. Shell and untagged blocks are kept, and the upstream script is unchanged.
 
 Resource sizes are checked against upstream’s standard values: **1, 2, 4, 8 or 16 CPUs**, and **1, 2, 4, 8, 16 or 32 GiB RAM** per task/verifier environment. 
 
