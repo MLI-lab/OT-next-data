@@ -27,10 +27,10 @@ def config(tmp_path):
 def test_new_dataset_preparation_and_reporting(tmp_path):
     path = config(tmp_path)
     cfg = load_dataset(path)
-    assert select_groups(cfg, 'smoke') == {'coding': ['task-one'], 'math': ['task-three']}
-    assert select_groups(cfg, 'diag') == cfg['groups']
-    assert select_groups(cfg, 'full') == cfg['groups']
-    run = prepare(tmp_path, 'custom', 'coder-30b', 'full', tmp_path/'work',
+    assert select_groups(cfg, 1) == {'coding': ['task-one'], 'math': ['task-three']}
+    assert select_groups(cfg, 5) == cfg['groups']
+    assert select_groups(cfg) == cfg['groups']
+    run = prepare(tmp_path, 'custom', 'coder-30b', None, tmp_path/'work',
                   tmp_path/'tasks', dataset_config=path)
     header = json.loads((run/'manifest.jsonl').read_text().splitlines()[0])
     assert header['dataset'] == 'new-source'
@@ -57,7 +57,7 @@ def test_checksum_mismatch_creates_no_run(tmp_path):
     path = config(tmp_path)
     (tmp_path/'tasks.tar.gz').write_bytes(b'changed')
     with pytest.raises(ValueError, match='SHA-256'):
-        prepare(tmp_path, 'bad', 'coder-30b', 'smoke', tmp_path/'work',
+        prepare(tmp_path, 'bad', 'coder-30b', 1, tmp_path/'work',
                 tmp_path/'tasks', dataset_config=path)
     assert not (tmp_path/'runs/bad').exists()
 
@@ -74,9 +74,9 @@ def test_submission_forwards_config(tmp_path, monkeypatch, capsys):
     path = config(tmp_path)
     args = SimpleNamespace(dataset_config=path, dataset='new-source', cluster='helma',
                            model='coder-30b', gres=None, time='00:45:00', attempts=8,
-                           stage='smoke', dry_run=True)
+                           tasks_per_group='1', dry_run=True)
     assert submit.submit(args) == 0
-    assert f'coder-30b smoke {path}' in capsys.readouterr().out
+    assert f'coder-30b 1 {path}' in capsys.readouterr().out
 
 
 def test_custom_groups_report_and_plot(tmp_path, monkeypatch, capsys):

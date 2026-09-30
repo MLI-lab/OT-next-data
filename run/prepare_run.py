@@ -19,45 +19,30 @@ from config.models import resolve  # noqa: E402
 from run.dataset_config import load_dataset, select_groups, verify_archive
 
 LANGUAGES = ('csharp', 'java', 'python', 'typescript')
-# The four tasks used by every smoke (one per language). They were the
-# alphabetically first task of each language within the original 80-task
-# sample; crosscodeeval-csharp-0030 was dropped by the recoverability filter
-# on 2026-09-16 (its reference names a new field) and is replaced by the
-# highest-ranked C# task that was already in the old top 20.
-SMOKE_TASKS = {'csharp': 'crosscodeeval-csharp-1218', 'java': 'crosscodeeval-java-0235',
-               'python': 'crosscodeeval-python-0037', 'typescript': 'crosscodeeval-typescript-0003'}
-STAGES = {'smoke': 1, 'diag': 5, 'sweep': 25, 'full': 250}  # tasks per language
 TASK_REVISION = '02923004846e4e73862c20962f823a6d05100e7a'
 
 
-def select_tasks(manifest: dict, stage: str) -> dict[str, list[str]]:
-    """Per-language task lists. Rank order = ascending SHA256 in the manifest.
-
-    smoke: the fixed SMOKE_TASKS. diag: the smoke task plus the next four
-    tasks in rank order (from the original 80-task sample). sweep: the smoke
-    task plus the next 24 (throughput/utilization measurements). full: all 250.
-    """
-    per_lang = STAGES[stage]
-    chosen = {}
-    for lang in LANGUAGES:
-        ranked = manifest['languages'][lang]['task_ids']
-        assert len(ranked) == 250, lang
-        smoke = SMOKE_TASKS[lang]
-        assert smoke in ranked[:20], f'{smoke} is not in the original 80-task sample'
-        if stage == 'full':
-            chosen[lang] = list(ranked)
-        else:
-            chosen[lang] = [smoke] + [t for t in ranked if t != smoke][:per_lang - 1]
-        assert len(chosen[lang]) == per_lang and len(set(chosen[lang])) == per_lang
-    return chosen
+def tasks_per_group_value(text):
+    """'all', or a positive number of tasks to take from the start of each group."""
+    if text == 'all':
+        return None
+    if not text.isdigit() or int(text) < 1:
+        raise ValueError(f'tasks per group must be a positive number or all, not {text!r}')
+    return int(text)
 
 
-def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_src: Path,
+def select_tasks(manifest: dict, per_group) -> dict[str, list[str]]:
+    """Per-language task lists: the first `per_group` tasks of each language in the
+    manifest's rank order (ascending SHA256), or all of them for None."""
+    return {lang: list(manifest['languages'][lang]['task_ids'][:per_group]) for lang in LANGUAGES}
+
+
+def prepare(base: Path, run_id: str, mode: str, per_group, work: Path, tasks_src: Path,
             concurrency: int = 16, max_num_seqs: int = 32, dataset_config: Path | None = None) -> Path:
     if dataset_config is not None:
         manifest = load_dataset(dataset_config)
         verify_archive(manifest)
-        chosen = select_groups(manifest, stage)
+        chosen = select_groups(manifest, per_group)
         dataset = manifest['dataset']
         archive_info = manifest
         revision = manifest.get('task_revision', manifest['sha256'])
@@ -67,7 +52,7 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
         dataset = 'crosscodeeval'
         archive_info = json.loads((base / 'tasks' / 'selection1000.json').read_text())
         manifest = json.loads((base / 'tasks' / 'selection1000-manifest.json').read_text())
-        chosen = select_tasks(manifest, stage)
+        chosen = select_tasks(manifest, per_group)
         revision = TASK_REVISION
         task_repo = 'local-patched-crosscodeeval'
         artifacts = ['/app/solution.txt']
@@ -86,13 +71,12 @@ def prepare(base: Path, run_id: str, mode: str, stage: str, work: Path, tasks_sr
         (target / 'manifest.jsonl').write_text(manifest_text)
         (target / 'sampled_task_ids.json').write_text(sample_text)
     selection = {
-        'dataset': dataset, 'stage': stage, 'total': len(tasks), 'groups': chosen,
-        'rule': 'Take the first 1/5/25/all tasks per group in configured order.',
+        'dataset': dataset, 'tasks_per_group': per_group, 'total': len(tasks), 'groups': chosen,
+        'rule': 'Take the first tasks_per_group tasks of each group in configured order; None means all.',
         'work_dir': str(work), 'tasks_src': str(tasks_src),
         'concurrency': concurrency, 'max_num_seqs': max_num_seqs}
     if dataset_config is None:
-        selection.update(tasks_per_language=STAGES[stage], rule=select_tasks.__doc__.strip(),
-                         smoke_tasks=SMOKE_TASKS, per_language=chosen)
+        selection.update(rule=select_tasks.__doc__.strip(), per_language=chosen)
     (run / 'selection.json').write_text(json.dumps(selection, indent=2) + '\n')
     key, spec = resolve(mode)          # 'weak'/'strong' are aliases, see models.py
     strong = spec.thinking
@@ -139,11 +123,11 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('run_id')
     p.add_argument('mode', help='model key or alias, see config/models.py')
-    p.add_argument('stage', choices=sorted(STAGES))
+    p.add_argument('tasks_per_group', type=tasks_per_group_value, help='a number, or all')
     p.add_argument('--work', type=Path, required=True, help='node-local wrapper run directory')
     p.add_argument('--tasks-src', type=Path, required=True, help='node-local directory holding extracted tasks')
     p.add_argument('--concurrency', type=int, default=16, help='trials in flight (Harbor n_concurrent_trials)')
     p.add_argument('--max-num-seqs', type=int, default=32, help='vLLM max_num_seqs')
     p.add_argument('--dataset-config', type=Path, help='JSON dataset description; default: legacy CrossCodeEval selection')
     a = p.parse_args()
-    print(prepare(Path(os.environ['PILOT_ROOT']), a.run_id, a.mode, a.stage, a.work, a.tasks_src, a.concurrency, a.max_num_seqs, a.dataset_config))
+    print(prepare(Path(os.environ['PILOT_ROOT']), a.run_id, a.mode, a.tasks_per_group, a.work, a.tasks_src, a.concurrency, a.max_num_seqs, a.dataset_config))

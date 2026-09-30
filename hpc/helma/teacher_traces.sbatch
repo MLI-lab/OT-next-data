@@ -2,7 +2,7 @@
 #SBATCH --job-name=teacher-traces
 #SBATCH --partition=h200
 # The GPU count is passed at submit time, because `strong` needs four and `weak` one:
-#   sbatch --gres=gpu:h200:1 hpc/helma/teacher_traces.sbatch weak diag
+#   sbatch --gres=gpu:h200:1 hpc/helma/teacher_traces.sbatch coder-30b 5    # 5 tasks per group; 'all' for every task
 # --nodes comes from the submit line (config/clusters.py derives it from the model).
 #SBATCH --time=12:00:00
 #SBATCH --signal=B:USR1@900
@@ -20,8 +20,8 @@ set -euo pipefail
 here=${OT_NEXT_DATA:?Set OT_NEXT_DATA to the OT_next_data checkout (source env.sh)}
 test -f "$here/run/prepare_run.py" || { echo "OT_NEXT_DATA=$here is not the repo" >&2; exit 2; }
 mode=${1:?model key or alias, see config/models.py}
-stage=${2:-smoke}
-case "$stage" in smoke|diag|sweep|full) ;; *) echo "unknown stage $stage" >&2; exit 2 ;; esac
+per_group=${2:-all}
+[[ "$per_group" == all || "$per_group" =~ ^[1-9][0-9]*$ ]] || { echo "tasks per group must be a number or all, not $per_group" >&2; exit 2; }
 base=$PILOT_ROOT
 dataset_config=${3:-${PILOT_DATASET_CONFIG:-}}
 prepare_args=()
@@ -30,7 +30,7 @@ if [[ -n "$dataset_config" ]]; then
     dataset=$(PYTHONPATH="$here" python3 -c 'import sys; from run.dataset_config import load_dataset; print(load_dataset(sys.argv[1])["dataset"])' "$dataset_config")
     prepare_args=(--dataset-config "$dataset_config")
 fi
-run_id="$dataset-$mode-$stage-$SLURM_JOB_ID"
+run_id="$dataset-$mode-$per_group-$SLURM_JOB_ID"
 run="$base/runs/$run_id"
 work="$TMPDIR/runs/$run_id"
 tasks_src="$TMPDIR/tasks-src"
@@ -145,7 +145,7 @@ for path in Path(sys.argv[1]).rglob('*.yaml'):
     if kept != lines:
         path.write_text(''.join(kept))
 PYFILTER
-python "$here/run/prepare_run.py" "$run_id" "$mode" "$stage" --work "$work" --tasks-src "$tasks_src" --concurrency "$PILOT_CONCURRENCY" --max-num-seqs "$PILOT_MAX_NUM_SEQS" "${prepare_args[@]}"
+python "$here/run/prepare_run.py" "$run_id" "$mode" "$per_group" --work "$work" --tasks-src "$tasks_src" --concurrency "$PILOT_CONCURRENCY" --max-num-seqs "$PILOT_MAX_NUM_SEQS" "${prepare_args[@]}"
 # Extract only the selected tasks from the single compressed dataset.
 python - "$run/sampled_task_ids.json" > "$run/task-members.txt" <<'PY'
 import json, sys
@@ -272,13 +272,11 @@ if [[ "${PILOT_ORACLE_CHECK:-1}" == 1 ]]; then
     TRP_BUILD_TIMEOUT_MULTIPLIER="$PILOT_BUILD_TIMEOUT_MULTIPLIER" python "$TMPDIR/teacher_traces/generate_trajectories.py" "${common[@]}" --parity-check --apptainer-only > "$run/oracle.log" 2>&1
     cp "$work/parity/parity_report.json" "$run/parity_report.json"
 fi
-attempts=1
 gpus=$(python -c "import sys; sys.path.insert(0, '$here/config'); from models import resolve; print(resolve('$mode')[1].gpus)")
 (( gpus <= nodes * gpus_per_node )) || { echo "$mode needs $gpus GPUs, allocation has $((nodes * gpus_per_node))" >&2; exit 1; }
-[[ "$stage:$mode" != full:weak ]] || attempts=16
 # PILOT_ATTEMPTS splits a pass@k run across jobs (e.g. two jobs of 8 attempts);
 # each job has its own run id, results are merged afterwards.
-attempts=${PILOT_ATTEMPTS:-$attempts}
+attempts=${PILOT_ATTEMPTS:-1}
 if (( nodes > 1 )); then
     # OT-Agent's controller connects to RAY_ADDRESS instead of starting a head, so
     # the head is ours to run: --block in the background (it would otherwise exit

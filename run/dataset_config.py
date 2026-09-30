@@ -36,10 +36,9 @@ def load_dataset(path):
     return cfg
 
 
-def select_groups(cfg, stage):
-    counts = {'smoke': 1, 'diag': 5, 'sweep': 25, 'full': None}
-    count = counts[stage]
-    return {group: ids[:count] for group, ids in cfg['groups'].items()}
+def select_groups(cfg, per_group=None):
+    """The first `per_group` tasks of every group, or all of them for None."""
+    return {group: ids[:per_group] for group, ids in cfg['groups'].items()}
 
 
 def verify_archive(cfg):
