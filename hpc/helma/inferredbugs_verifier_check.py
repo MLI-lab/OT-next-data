@@ -136,8 +136,10 @@ def run_variant(a, task_id, row, meta, files, before, after, variant):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    for name in ('inputs', 'images', 'scratch', 'output', 'ids-file', 'proxy-helper'):
+    for name in ('images', 'scratch', 'output', 'ids-file', 'proxy-helper'):
         ap.add_argument('--' + name, required=True)
+    ap.add_argument('--inputs', help="the audit's inputs.sqlite (Helma); or --inferredbugs-root")
+    ap.add_argument('--inferredbugs-root', help='a checkout of microsoft/InferredBugs at the pinned commit (warmup.py --source DIR)')
     ap.add_argument('--variants', default='buggy,gold')
     ap.add_argument('--workers', type=int, default=6)
     ap.add_argument('--timeout', type=int, default=7200, help='seconds for one test.sh')
@@ -153,11 +155,17 @@ def main():
             row = json.loads(line)
             DONE[row['task_id'], row['variant']] = row
     rows = {r['task_id']: r for r in patcher.embedded_recipes()}
-    db = sqlite3.connect('file:%s?immutable=1' % a.inputs, uri=True)
+    db = sqlite3.connect('file:%s?immutable=1' % a.inputs, uri=True) if a.inputs else None
     jobs = []
     for task_id in ids:
-        metadata, before, after = db.execute('SELECT metadata,before,after FROM tasks WHERE id=?', (task_id,)).fetchone()
-        row, meta = rows[task_id], json.loads(metadata)
+        row = rows[task_id]
+        if db:
+            metadata, before, after = db.execute('SELECT metadata,before,after FROM tasks WHERE id=?', (task_id,)).fetchone()
+            meta = json.loads(metadata)
+        else:
+            record = Path(a.inferredbugs_root) / 'inferredbugs' / row['language'] / row['project'] / str(row['bug_id'])
+            before, after = (record / 'file_before.txt').read_bytes(), (record / 'file_after.txt').read_bytes()
+            meta = {'runtime_key': patcher.resolve_image(row['image'], row['language']).removeprefix('inferredbugs-').replace(':', '-')}
         record = Path(a.scratch) / 'records' / task_id
         record.mkdir(parents=True, exist_ok=True)
         (record / 'file_before.txt').write_bytes(before)
@@ -166,7 +174,8 @@ def main():
         files = patcher.package({}, task, patcher.row_proposal(row), patcher.resolve_image(row['image'], row['language']), row, {},
                                 SimpleNamespace(vendor_dir=None, vendor_url=patcher.DEFAULT_VENDOR_URL, verify_timeout=a.step_timeout))
         jobs += [(a, task_id, row, meta, files, before, after, v) for v in a.variants.split(',')]
-    db.close()
+    if db:
+        db.close()
     with ThreadPoolExecutor(max_workers=a.workers) as pool:
         results = list(pool.map(lambda j: run_variant(*j), jobs))
     print(json.dumps(dict(collections.Counter((r['variant'], r['reward'], r['status']) for r in results).most_common()), default=str, indent=1)
