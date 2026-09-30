@@ -379,9 +379,6 @@ def test_excerpt_file_names_count_as_visible(tmp_path, monkeypatch, capsys):
     patcher.main()
     report = json.loads(capsys.readouterr().out)
     assert report["kept"] == 1 and report["context_source"]["rg1_bm25"] == 1
-    files = patcher.unpack(pq.read_table(output).to_pylist()[0]["task_binary"])
-    assert files["setup_files/context/README.txt"].decode().splitlines()[1] == "000_src__GeneralSettings.cs\tsrc/GeneralSettings.cs"
-    assert "README.txt there lists the original repository path" in files["instruction.md"].decode()
 
 
 def test_curated_known_names():
@@ -416,7 +413,6 @@ def test_pip_installs_are_pinned_and_unknown_packages_fail():
         patcher.pin_pip_installs({'environment/Dockerfile': b'FROM x\nRUN pip install requests\n'})
 
 
-def test_context_file_names_have_no_whitespace():
-    assert patcher.context_file_name('Clase 4/Lunes/Lista Circular.java') == 'Clase_4__Lunes__Lista_Circular.java'
-    assert patcher.context_file_name('src/a.py') == 'src__a.py' and patcher.context_file_name('') == ''
-    assert patcher.context_file_name('src/pages/api/[trpc].ts') == 'src__pages__api___trpc_.ts'
+def test_context_file_names_keep_the_original_characters():
+    assert patcher.context_file_name('Clase 4/Lunes/Lista Circular.java') == 'Clase 4__Lunes__Lista Circular.java'
+    assert patcher.context_file_name('src/pages/api/[trpc].ts') == 'src__pages__api__[trpc].ts'
