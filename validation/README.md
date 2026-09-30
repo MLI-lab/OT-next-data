@@ -93,13 +93,13 @@ dependencies or a verifier that never executes its tests acceptable.
 
 The **implementation review** reads `instruction.md` together with the tests, solution and environment files: does the implemented task match its instructions? It writes `verdicts.json`, with `pass`, `fail` or `not_applicable` and an explanation for each criterion.
 
-The separate **proposal review** reads the instruction text to judge the task idea (clarity, likely solvability, difficulty and value). To run it as well, add `--proposal-review` when preparing a stage-2 contract. It uses the rubric from [`task-proposal.md`](../external/terminal-bench/docs/prompts/task-proposal.md) and the pinned model default from [`rubric_review.py`](../external/terminal-bench/scripts/checks/rubric_review.py): `claude-opus-4-8` (`--proposal-model` overrides it). Our adaptation runs this review through Harbor too, so Claude Code login is sufficient for both reviews; the upstream script’s separate direct-API call is not used. Its acceptance decision is reported separately from implementation criteria.
+The separate **proposal review** reads the instruction text to judge the task idea (clarity, likely solvability, difficulty and value). To run it as well, add `--proposal-review` when preparing a stage-2 contract. It uses the rubric from [`task-proposal.md`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/task-proposal.md) and the pinned model default from [`rubric_review.py`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/rubric_review.py): `claude-opus-4-8` (`--proposal-model` overrides it). Our adaptation runs this review through Harbor too, so Claude Code login is sufficient for both reviews; the upstream script’s separate direct-API call is not used. Its acceptance decision is reported separately from implementation criteria.
 
 Upstream files (paths from the repository root):
 
-- Prompt template: [`external/terminal-bench/scripts/rubric-regression/templates/instruction.md`](../external/terminal-bench/scripts/rubric-regression/templates/instruction.md).
-- Rubric: [`external/terminal-bench/docs/prompts/task-implementation.toml`](../external/terminal-bench/docs/prompts/task-implementation.toml).
-- Review setup: [`external/terminal-bench/scripts/review/stage_task.py`](../external/terminal-bench/scripts/review/stage_task.py), which creates the reviewer’s `instruction.md` by combining the template and rubric, plus its environment and output-file check.
+- Prompt template: [`external/terminal-bench/scripts/rubric-regression/templates/instruction.md`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/rubric-regression/templates/instruction.md).
+- Rubric: [`external/terminal-bench/docs/prompts/task-implementation.toml`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/task-implementation.toml).
+- Review setup: [`external/terminal-bench/scripts/review/stage_task.py`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/review/stage_task.py), which creates the reviewer’s `instruction.md` by combining the template and rubric, plus its environment and output-file check.
 
 Terminal-Bench's GitHub workflow fetches the task from a specified repository commit. Our version supplies the local dataset task instead. Harbor runs both reviewers inside Apptainer in a Slurm allocation. `--partition auto` requests CPU nodes for external/API models and GPUs for local serving. If CPU nodes are unavailable, it falls back to `h200` and records why in `submission.json`. Explicit `--partition cpu` disables that fallback.
 
@@ -254,11 +254,11 @@ Except for model-server requests, only errors that ended a trial are counted.
 
 An LLM judge reads each trial (the agent's trajectory and its result) together with the task and judges it against a rubric of six criteria: `task_specification`, `reward_hacking`, `difficulty_crux`, `near_miss`, `refusals` and `low_timeout`. For each criterion it writes `pass`, `fail` or `not_applicable` with an explanation to `analysis.json`.
 
-Prompt, rubric and verifier come from upstream Terminal-Bench (paths from the repository root):
+Prompt, rubric and verifier come from upstream Terminal-Bench at the pinned commit (local paths after `python -m validation.upstream setup`):
 
-- Prompt: [`external/terminal-bench/docs/prompts/trial-analysis.txt`](../external/terminal-bench/docs/prompts/trial-analysis.txt).
-- Rubric: [`external/terminal-bench/docs/prompts/trial-analysis.toml`](../external/terminal-bench/docs/prompts/trial-analysis.toml).
-- Verifier, which checks that the judge's output is complete and valid: [`external/terminal-bench/scripts/ci/stage_hosted_analysis.py`](../external/terminal-bench/scripts/ci/stage_hosted_analysis.py).
+- Prompt: [`external/terminal-bench/docs/prompts/trial-analysis.txt`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.txt).
+- Rubric: [`external/terminal-bench/docs/prompts/trial-analysis.toml`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.toml).
+- Verifier, which checks that the judge's output is complete and valid: [`external/terminal-bench/scripts/ci/stage_hosted_analysis.py`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/ci/stage_hosted_analysis.py).
 
 Upstream fetches trials from its hosted service. Our version supplies the local task and trial files instead. The judge and model defaults are the same as in stage 2.
 
@@ -285,7 +285,7 @@ pilot finding rates are not dataset-wide defect estimates.
 
 ## Stage 9: adversarial trials
 
-Prepend upstream's cheat prompt ([`hack-trial-prompt.md`](../external/terminal-bench/docs/prompts/hack-trial-prompt.md)) to a copy of the task, then run Harbor trials. Reward 1 alone does not establish cheating; stage 8 reviews the evidence.
+Prepend upstream's cheat prompt ([`hack-trial-prompt.md`](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/hack-trial-prompt.md)) to a copy of the task, then run Harbor trials. Reward 1 alone does not establish cheating; stage 8 reviews the evidence.
 
 ## Stage 10: hacker/fixer
 
