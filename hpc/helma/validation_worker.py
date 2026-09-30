@@ -236,6 +236,18 @@ def main(request):
             write_report(archive, request.parent / 'report')
         except Exception as exc:
             save(request.parent / 'report-error.json', {'error': str(exc), 'archive': str(archive)})
+        if getattr(args, 'publish_repo', None) and getattr(args, 'contract', None) and (request.parent / 'report').is_dir():
+            # The pull request is a proposal; the reports stay the record if this fails.
+            try:
+                from validation.publish import publish
+                result = publish(request.parent / 'report', args.contract, args.publish_repo,
+                                 getattr(args, 'publish_folder', None) or [], out=request.parent / 'publish')
+                save(request.parent / 'publish.json', {k: v for k, v in result.items() if k != 'description'})
+                status['pull_request'] = result.get('pull_request')
+            except Exception as exc:
+                status['pull_request_error'] = str(exc)
+                save(request.parent / 'publish-error.json', {'error': str(exc)})
+            save(request.parent / 'execution.json', status)
         try:
             from hpc.helma.validation_submit import archive_code_snapshot
             archive_code_snapshot(request.parent)

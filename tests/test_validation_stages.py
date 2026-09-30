@@ -995,3 +995,18 @@ def test_publish_override_and_carry_over_of_published_state(tmp_path):
     kept = {r['path']: r for r in tables['set-python'][0]}
     assert archived[names[0]]['archive_stage'] == 3 and archived[names[0]]['run'] == 'runs/old.json'
     assert kept[names[2]]['stages_passed'] == '1'          # changed content starts again
+
+
+def test_publish_function_dry_run_writes_files_and_description(tmp_path, monkeypatch):
+    import json as _json
+    from validation import contract as contract_module, publish
+    names, contract, reports = publish_fixture(tmp_path)
+    monkeypatch.setattr(publish, 'read', lambda path: contract)
+    reports_dir = tmp_path / 'report'
+    reports_dir.mkdir()
+    for stage, report in reports.items():
+        (reports_dir / f'stage-{stage}-x.json').write_text(_json.dumps(report))
+    result = publish.publish(reports_dir, tmp_path / 'contract.json', 'x/y', ['set-python=set-python-v1'], run_id='r', dry_run=True)
+    assert 'runs/r.json' in result['files'] and 'pull_request' not in result
+    assert (tmp_path / 'report/publish/set-python-v1/tasks.parquet').is_file()
+    assert '| set-python-v1 | 3 | 2 | 1 |' in result['description']

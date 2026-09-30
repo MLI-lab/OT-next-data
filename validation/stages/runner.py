@@ -77,6 +77,8 @@ def parser():
     ap.add_argument('--trials', type=Path, help='Harbor job directory for stages 7 and 8; one level of trial dirs')
     ap.add_argument('--max-iterations', type=int, default=10)
     ap.add_argument('--timeout-minutes', type=float, default=120)
+    ap.add_argument('--publish-repo', help='open a pull request on this Hugging Face dataset when the Helma job ends, e.g. FWeindel/validated-tasks')
+    ap.add_argument('--publish-folder', action='append', default=[], metavar='PREFIX=FOLDER', help='data source folder for task IDs starting with PREFIX (see publish.py)')
     ap.add_argument('--force-build', action='store_true', help='rebuild rather than reuse valid cached images')
     ap.add_argument('--dry-run', action='store_true', help='stage inputs/configs without starting environments/models')
     return ap

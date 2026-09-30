@@ -230,6 +230,8 @@ python validation/publish.py /path/to/submission/report \
 
 Log in to Hugging Face first, with a token that has write access.
 
+To open the pull request automatically when a Helma job ends, prepare the contract with `--publish-repo FWeindel/validated-tasks` and `--publish-folder PREFIX=FOLDER` as needed. The job then runs the same script on its own reports; the link is written to `execution.json` as `pull_request`, and a failure to `publish-error.json`. Without `--publish-repo`, run the script by hand after the job.
+
 ## Quickstart
 
 Run from the repository root.
