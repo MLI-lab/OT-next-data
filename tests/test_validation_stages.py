@@ -1035,3 +1035,21 @@ def test_publish_analysis_is_advisory_and_skipped_on_failure(tmp_path):
     assert 'Analysis' not in publish.description(record)
     clean = {**record, 'data_sources': {'x': {'tasks': 1, 'kept': 1, 'archived': 0, 'archived_by_stage': {}, 'archive_reasons': {}, 'not_run_by_stage': {}}}}
     assert publish.analyse(clean, {'x': ([], [])}, 'sonnet', broken)['status'] == 'skipped'
+
+
+def test_publish_reads_tasks_from_a_directory_of_task_folders(tmp_path):
+    import io, tarfile
+    from validation import publish
+    names, contract, reports = publish_fixture(tmp_path)
+    tasks = tmp_path / 'tasks'
+    for name in names:
+        (tasks / name / 'tests').mkdir(parents=True)
+        (tasks / name / 'instruction.md').write_text(name)
+        (tasks / name / 'tests/test.sh').write_text('exit 0')
+    contract['arguments']['tasks'] = str(tasks)
+    tables, record, _ = publish.build(contract, reports, {}, run_id='dir')
+    kept = {r['path']: r for r in tables['set-python'][0]}
+    with tarfile.open(fileobj=io.BytesIO(kept[names[0]]['task_binary'])) as tar:
+        assert sorted(tar.getnames()) == ['instruction.md', 'tests/test.sh']
+        assert tar.extractfile('instruction.md').read() == names[0].encode()
+    assert record['data_sources']['set-python']['tasks'] == 3
