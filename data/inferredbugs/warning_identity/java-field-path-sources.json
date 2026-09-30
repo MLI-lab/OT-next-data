@@ -1,0 +1,128 @@
+{
+ "inferredbugs-10433": {
+  "repository": "AaronNGray/storm-crawler-new",
+  "commit": "74d4740c41283895b24df089676071385066d065",
+  "revision": "283c47fc3c46b43b8e2bf4504c28cabb02a4d50c",
+  "target": "external/elasticsearch/src/main/java/com/digitalpebble/stormcrawler/elasticsearch/persistence/AggregationSpout.java",
+  "directory": "AaronNGray--storm-crawler-new-74d4740c4128"
+ },
+ "inferredbugs-11056": {
+  "repository": "Fangrn/yacy_search_server",
+  "commit": "d0010ff0b079a68d4a12b49041fad7e3cb58b0e0",
+  "revision": "f99930c04b945fef3450082530c7482b4f2ef64a",
+  "target": "source/de/anomic/plasma/plasmaWordIndexRAMCache.java",
+  "directory": "Fangrn--yacy_search_server-d0010ff0b079"
+ },
+ "inferredbugs-3190": {
+  "repository": "FluentLenium/FluentLenium",
+  "commit": "8ff3d46fd5f12decf962ffa6b374c13909eb4703",
+  "revision": "69f35ce4a7adedff891cb3f8003a6877d0d88786",
+  "target": "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java",
+  "directory": "FluentLenium--FluentLenium-8ff3d46fd5f1"
+ },
+ "inferredbugs-3191": {
+  "repository": "FluentLenium/FluentLenium",
+  "commit": "8ff3d46fd5f12decf962ffa6b374c13909eb4703",
+  "revision": "69f35ce4a7adedff891cb3f8003a6877d0d88786",
+  "target": "fluentlenium-core/src/main/java/org/fluentlenium/core/proxy/AbstractLocatorHandler.java",
+  "directory": "FluentLenium--FluentLenium-8ff3d46fd5f1"
+ },
+ "inferredbugs-5603": {
+  "repository": "aljoscha/giraph",
+  "commit": "7fc6783ee689472a614df5b354b9494559a93a36",
+  "revision": "bdf0ca1e0b7aa48234dcd0241ba95036030a5d0c",
+  "target": "src/main/java/org/apache/giraph/graph/BspServiceMaster.java",
+  "directory": "aljoscha--giraph-7fc6783ee689"
+ },
+ "inferredbugs-6259": {
+  "repository": "bamboolife/hutool",
+  "commit": "60f3970b04cb0e74382da07cbb967a4814f8923c",
+  "revision": "5cde1375178ae0a054934f93ee3bfb14ada8a351",
+  "target": "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/SM2.java",
+  "directory": "bamboolife--hutool-60f3970b04cb"
+ },
+ "inferredbugs-6260": {
+  "repository": "bamboolife/hutool",
+  "commit": "60f3970b04cb0e74382da07cbb967a4814f8923c",
+  "revision": "5cde1375178ae0a054934f93ee3bfb14ada8a351",
+  "target": "hutool-crypto/src/main/java/cn/hutool/crypto/asymmetric/SM2.java",
+  "directory": "bamboolife--hutool-60f3970b04cb"
+ },
+ "inferredbugs-7746": {
+  "repository": "eclipse-leshan/leshan",
+  "commit": "735ea1ec9d23a0af610a9cadf440d946031b9383",
+  "revision": "b687e5cb806685c5fdb444cf5b89764b80a21b0c",
+  "target": "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java",
+  "directory": "eclipse-leshan--leshan-735ea1ec9d23"
+ },
+ "inferredbugs-7747": {
+  "repository": "eclipse-leshan/leshan",
+  "commit": "735ea1ec9d23a0af610a9cadf440d946031b9383",
+  "revision": "b687e5cb806685c5fdb444cf5b89764b80a21b0c",
+  "target": "leshan-client-core/src/main/java/org/eclipse/leshan/client/resource/BaseObjectEnabler.java",
+  "directory": "eclipse-leshan--leshan-735ea1ec9d23"
+ },
+ "inferredbugs-7972": {
+  "repository": "RestComm/media-core",
+  "commit": "202f3af288e6302a77cea7cfde872ab192412962",
+  "revision": "ed5a53a3612d23b55fb1429944c82097a01e1be6",
+  "target": "component/src/main/java/org/mobicents/media/server/component/audio/AudioMixer.java",
+  "directory": "RestComm--media-core-202f3af288e6"
+ },
+ "inferredbugs-8029": {
+  "repository": "AnyWareGroup/mina-sshd",
+  "commit": "2382d6060d6e490fe8cdba670e053f4b4bc4c710",
+  "revision": "eaef1c30d456974294cfc9c03426fa0c7bdee27c",
+  "target": "sshd-core/src/main/java/org/apache/sshd/client/session/ClientSessionImpl.java",
+  "directory": "AnyWareGroup--mina-sshd-2382d6060d6e"
+ },
+ "inferredbugs-8533": {
+  "repository": "nuls-io/nuls-v1",
+  "commit": "2c53e29331f0a5ef5503c87cb2735eb52e2e6c23",
+  "revision": "54cc138762399cf88f381d3dceddd053689eef64",
+  "target": "consensus-impl/src/main/java/io/nuls/consensus/manager/PackingRoundManager.java",
+  "directory": "nuls-io--nuls-v1-2c53e29331f0"
+ },
+ "inferredbugs-8847": {
+  "repository": "jaeksoft/opensearchserver",
+  "commit": "825f4fc6ca293ff3dcd1e9fb5a415ef9c4e43098",
+  "revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "target": "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+  "directory": "jaeksoft--opensearchserver-825f4fc6ca29"
+ },
+ "inferredbugs-8848": {
+  "repository": "jaeksoft/opensearchserver",
+  "commit": "825f4fc6ca293ff3dcd1e9fb5a415ef9c4e43098",
+  "revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "target": "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+  "directory": "jaeksoft--opensearchserver-825f4fc6ca29"
+ },
+ "inferredbugs-8850": {
+  "repository": "jaeksoft/opensearchserver",
+  "commit": "825f4fc6ca293ff3dcd1e9fb5a415ef9c4e43098",
+  "revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "target": "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+  "directory": "jaeksoft--opensearchserver-825f4fc6ca29"
+ },
+ "inferredbugs-8851": {
+  "repository": "jaeksoft/opensearchserver",
+  "commit": "825f4fc6ca293ff3dcd1e9fb5a415ef9c4e43098",
+  "revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "target": "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+  "directory": "jaeksoft--opensearchserver-825f4fc6ca29"
+ },
+ "inferredbugs-8852": {
+  "repository": "jaeksoft/opensearchserver",
+  "commit": "825f4fc6ca293ff3dcd1e9fb5a415ef9c4e43098",
+  "revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "target": "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+  "directory": "jaeksoft--opensearchserver-825f4fc6ca29"
+ },
+ "inferredbugs-8857": {
+  "repository": "jaeksoft/opensearchserver",
+  "commit": "825f4fc6ca293ff3dcd1e9fb5a415ef9c4e43098",
+  "revision": "22ea08efefa05e362efde2bbb56064a35e8a2804",
+  "target": "src/java/com/jaeksoft/searchlib/crawler/web/database/UrlManager.java",
+  "directory": "jaeksoft--opensearchserver-825f4fc6ca29"
+ }
+}
