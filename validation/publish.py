@@ -151,7 +151,8 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
                 folder = folder_of(task, mapping)
                 kept, archived = tables.setdefault(folder, ([], []))
                 count = counts.setdefault(folder, {'tasks': 0, 'kept': 0, 'archived': 0,
-                    'archived_by_stage': Counter(), 'archive_reasons': Counter(), 'not_run_by_stage': Counter()})
+                    'archived_by_stage': Counter(), 'archive_reasons': Counter(), 'not_run_by_stage': Counter(),
+                    'not_run_reasons': Counter(), 'not_run_examples': {}})
                 decision = decisions[task]
                 before = (previous(folder) if previous else {}).get(task)
                 passed, archive = list(decision['passed']), decision['archive']
@@ -177,8 +178,13 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
                 if archive:
                     count['archived_by_stage'][str(archive[0])] += 1
                     count['archive_reasons'][re.sub(r'\[.*?\]', '[..]', archive[1])[:160]] += 1
-                for stage in decision['not_run']:
+                for stage, reason in decision['not_run'].items():
                     count['not_run_by_stage'][str(stage)] += 1
+                    key = f"{stage}: {re.sub(r'[0-9a-f]{12,}|\\d{3,}', 'N', str(reason))[:200]}"
+                    count['not_run_reasons'][key] += 1
+                    count['not_run_examples'].setdefault(key, [])
+                    if len(count['not_run_examples'][key]) < 3:
+                        count['not_run_examples'][key].append(task)
     profile = contract['execution_profile']
     record = {
         'run': run_id, 'created_at': datetime.now(timezone.utc).isoformat(),
@@ -197,6 +203,89 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
                          for folder, count in sorted(counts.items())},
     }
     return tables, record, run_file
+
+
+ANALYSIS_PROMPT = """You review the outcome of a validation run over a dataset of agent tasks.
+Below is a digest: for each data source, how many tasks were kept or archived, the archive
+reasons with counts and example task IDs, and the reasons why some stages did not run.
+Stage 1 = static checks, 3 = container build, 4 = oracle solution must get reward 1,
+5 = doing nothing must get reward 0.
+
+Group the archived and not-run tasks by cause and say, for each group, whether it looks like
+(a) a defect of the tasks, (b) an infrastructure or tooling failure, or (c) a check that does
+not fit this dataset. Recommend one action per group: rerun, exclude-check, fix-tasks,
+keep-archived or investigate, with one or two sentences of reasoning based only on the digest.
+Do not invent facts that are not in the digest.
+
+Answer with JSON only, of this form:
+{"groups": [{"name": "...", "tasks": <count>, "stages": [..], "cause": "task|infrastructure|check|unclear",
+             "action": "rerun|exclude-check|fix-tasks|keep-archived|investigate", "reasoning": "..."}],
+ "summary": "two or three sentences"}
+
+Digest:
+"""
+
+
+def analysis_digest(record, tables):
+    """Compact input for the analysis: counts, reasons and a few example IDs, no task content."""
+    digest = {'data_sources': {}}
+    for folder, (kept, archived) in sorted(tables.items()):
+        examples = {}
+        for row in archived:
+            examples.setdefault((row['archive_stage'], re.sub(r'\[.*?\]', '[..]', row['archive_reason'] or '')[:160]), []).append(row['path'])
+        counts = record['data_sources'][folder]
+        digest['data_sources'][folder] = {
+            'tasks': counts['tasks'], 'kept': counts['kept'], 'archived': counts['archived'],
+            'archived': [{'stage': stage, 'reason': reason, 'tasks': len(ids), 'examples': ids[:3]}
+                         for (stage, reason), ids in sorted(examples.items(), key=lambda kv: -len(kv[1]))],
+            'not_run_by_stage': counts['not_run_by_stage'],
+            'not_run': [{'stage_and_reason': key, 'tasks': n, 'examples': counts.get('not_run_examples', {}).get(key, [])}
+                        for key, n in sorted(counts.get('not_run_reasons', {}).items(), key=lambda kv: -kv[1])[:12]]}
+    digest['static_checks_run'] = record['static_checks']
+    digest['static_checks_excluded'] = record['static_exclusions']
+    digest['stages_reported'] = record['stages_reported']
+    return digest
+
+
+def run_llm(prompt, model='sonnet', timeout=600):
+    """One non-interactive call through the Claude Code login on this machine."""
+    import subprocess
+    result = subprocess.run(['claude', '-p', prompt, '--model', model, '--output-format', 'json'],
+                            capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout).strip()[-500:] or f'exit {result.returncode}')
+    text = json.loads(result.stdout).get('result', '')
+    match = re.search(r'\{.*\}', text, re.S)
+    if not match:
+        raise ValueError('the model did not answer with JSON')
+    return json.loads(match.group(0))
+
+
+def analyse(record, tables, model='sonnet', call=run_llm):
+    """Optional: a model groups the archived and not-run tasks and suggests what to do.
+    Any failure (no login, no quota, bad answer) skips the step and is recorded."""
+    digest = analysis_digest(record, tables)
+    if not any(s['archived'] or s['not_run_by_stage'] for s in digest['data_sources'].values()):
+        return {'status': 'skipped', 'reason': 'nothing was archived or left unrun'}
+    try:
+        answer = call(ANALYSIS_PROMPT + json.dumps(digest, indent=1), model)
+        groups = answer['groups']
+        assert isinstance(groups, list) and all({'name', 'action', 'cause'} <= set(g) for g in groups)
+        return {'status': 'done', 'digest': digest, 'groups': groups, 'summary': str(answer.get('summary', ''))}
+    except Exception as exc:
+        return {'status': 'skipped', 'reason': f'{type(exc).__name__}: {str(exc)[:300]}', 'digest': digest}
+
+
+def analysis_text(analysis):
+    if not analysis or analysis.get('status') != 'done':
+        return ''
+    lines = ['', '## Analysis (model-written, advisory)', '', analysis['summary'], '',
+             '| Group | Tasks | Stages | Cause | Suggested action |', '| --- | --- | --- | --- | --- |']
+    for g in analysis['groups']:
+        stages = ', '.join(str(s) for s in g.get('stages', [])) or '-'
+        lines.append(f"| {g['name']} | {g.get('tasks', '?')} | {stages} | {g['cause']} | {g['action']} |")
+    lines += [''] + [f"- **{g['name']}:** {g.get('reasoning', '')}" for g in analysis['groups']]
+    return '\n'.join(lines) + '\n'
 
 
 def description(record):
@@ -221,7 +310,7 @@ def description(record):
         lines += ['', f"Static checks excluded by the contract: {len(excluded)}. "
                       f"Recorded but not required: {', '.join(record['not_required_checks']) or 'none'}. "
                       'Reasons are in the run file.']
-    return '\n'.join(lines) + '\n'
+    return '\n'.join(lines) + '\n' + analysis_text(record.get('analysis'))
 
 
 def write(tables, record, run_file, out):
@@ -258,14 +347,18 @@ def main():
     ap.add_argument('--out', type=Path, help='where the files are written; default next to the reports')
     ap.add_argument('--run-id', help='default: date and contract hash')
     ap.add_argument('--dry-run', action='store_true', help='write the files and the description, open no pull request')
+    ap.add_argument('--analysis', action='store_true', help='let a model group the archived tasks and suggest actions (Claude Code login); skipped on any failure')
+    ap.add_argument('--analysis-model', default='sonnet')
     a = ap.parse_args()
-    result = publish(a.reports, a.contract, a.repo, a.folder, a.not_required, a.out, a.run_id, a.dry_run)
+    result = publish(a.reports, a.contract, a.repo, a.folder, a.not_required, a.out, a.run_id, a.dry_run,
+                     analysis=a.analysis, analysis_model=a.analysis_model)
     print(result['description'])
     print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
           if a.dry_run else f"Pull request: {result['pull_request']}")
 
 
-def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=None, run_id=None, dry_run=False):
+def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=None, run_id=None, dry_run=False,
+            analysis=False, analysis_model='sonnet', call=run_llm):
     """Build the files for one run and open the pull request; returns what was done."""
     contract = read(contract_path)
     reports = stage_reports(reports_dir)
@@ -280,9 +373,12 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             cache[folder] = {} if dry_run and not repo else previous_rows(repo, folder)
         return cache[folder]
     tables, record, run_file = build(contract, reports, mapping, checks, previous, run_id)
+    if analysis:
+        record['analysis'] = analyse(record, tables, analysis_model, call)
     out = Path(out) if out else Path(reports_dir) / 'publish'
     files = write(tables, record, run_file, out)
-    result = {'run': record['run'], 'files': files, 'out': str(out), 'description': description(record)}
+    result = {'run': record['run'], 'files': files, 'out': str(out), 'description': description(record),
+              'analysis': (record.get('analysis') or {}).get('status')}
     if dry_run:
         return result
     from huggingface_hub import CommitOperationAdd, HfApi

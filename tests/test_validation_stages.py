@@ -1010,3 +1010,27 @@ def test_publish_function_dry_run_writes_files_and_description(tmp_path, monkeyp
     assert 'runs/r.json' in result['files'] and 'pull_request' not in result
     assert (tmp_path / 'report/publish/set-python-v1/tasks.parquet').is_file()
     assert '| set-python-v1 | 3 | 2 | 1 |' in result['description']
+
+
+def test_publish_analysis_is_advisory_and_skipped_on_failure(tmp_path):
+    from validation import publish
+    names, contract, reports = publish_fixture(tmp_path)
+    tables, record, _ = publish.build(contract, reports, {}, run_id='r')
+    seen = {}
+    def model(prompt, name):
+        seen['prompt'] = prompt
+        return {'groups': [{'name': 'oracle reward 0', 'tasks': 1, 'stages': [4], 'cause': 'task',
+                            'action': 'investigate', 'reasoning': 'one task'}], 'summary': 'One task failed oracle.'}
+    analysis = publish.analyse(record, tables, 'sonnet', model)
+    assert analysis['status'] == 'done' and 'set-python-0002' in seen['prompt'] and 'task_binary' not in seen['prompt']
+    record['analysis'] = analysis
+    text = publish.description(record)
+    assert '## Analysis (model-written, advisory)' in text and '| oracle reward 0 | 1 | 4 | task | investigate |' in text
+    def broken(prompt, name):
+        raise RuntimeError('not logged in')
+    failed = publish.analyse(record, tables, 'sonnet', broken)
+    assert failed['status'] == 'skipped' and 'not logged in' in failed['reason']
+    record['analysis'] = failed
+    assert 'Analysis' not in publish.description(record)
+    clean = {**record, 'data_sources': {'x': {'tasks': 1, 'kept': 1, 'archived': 0, 'archived_by_stage': {}, 'archive_reasons': {}, 'not_run_by_stage': {}}}}
+    assert publish.analyse(clean, {'x': ([], [])}, 'sonnet', broken)['status'] == 'skipped'
