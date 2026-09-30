@@ -1,5 +1,7 @@
 """Write task-provenance.csv: for every one of the 9,659 original tasks, whether it is in the
 output and at which stage and for which reason it was left out (python with pyarrow).
+The reason/reason_code columns group related outcomes for reporting; detail_reason
+and detail_reason_code retain the original audit classification.
 
   python provenance.py [--max-verify-seconds 300]
 
@@ -26,11 +28,30 @@ spec.loader.exec_module(patcher)
 REASONS = {
     'reference_retains_warning': ('warning-audit', 'Infer still reports the warning after the historical fix, so the fix is not a solution'),
     'reference_same_warning_key': ('warning-audit', 'after the historical fix Infer reports a warning with the same key, so a fixed file could not be told from the buggy one'),
-    'buggy_never_compiles': ('warning-audit', 'the buggy file does not compile in any version of the project'),
-    'warning_not_reproduced': ('warning-audit', 'Infer does not report the warning on the buggy file, with any of its releases'),
+    'buggy_never_compiles': ('warning-audit', 'the buggy file did not compile in any of the project snapshots tried'),
+    'warning_not_reproduced': ('warning-audit', 'Infer did not report the warning on the buggy file with the releases tried'),
     'reference_not_analyzed': ('warning-audit', 'Infer reports the warning on the buggy file, but the project after the fix could not be analyzed'),
     'build_or_analysis_failure': ('warning-audit', 'the project with the buggy file could not be built or analyzed'),
     'verifier_accepts_buggy_file': ('verifier-run', 'the packaged verifier gave the buggy file reward 1: Infer did not report the warning in that run'),
+}
+
+GROUPS = {
+    'reference_retains_warning': 'warning_remains_in_reference',
+    'reference_same_warning_key': 'warning_remains_in_reference',
+    'buggy_never_compiles': 'buggy_build_or_analysis_failure',
+    'build_or_analysis_failure': 'buggy_build_or_analysis_failure',
+    'warning_not_reproduced': 'warning_not_reproduced',
+    'reference_not_analyzed': 'reference_not_analyzed',
+    'verifier_accepts_buggy_file': 'verifier_accepts_buggy_file',
+    'verification_too_slow': 'verification_too_slow',
+}
+
+GROUP_REASONS = {
+    'warning_remains_in_reference': 'warning remains in the historical fix (exact match or same Infer issue key)',
+    'buggy_build_or_analysis_failure': 'the buggy file or project could not be compiled or analyzed',
+    'warning_not_reproduced': 'the original warning could not be reproduced on the buggy code',
+    'reference_not_analyzed': 'the historical fix could not be analyzed with Infer',
+    'verifier_accepts_buggy_file': 'the packaged verifier accepted the buggy code',
 }
 
 
@@ -39,23 +60,30 @@ def main():
     ap.add_argument('--max-verify-seconds', type=int, default=300)
     ap.add_argument('--output', default=str(here.parent / 'task-provenance.csv'))
     a = ap.parse_args()
+    group_reasons = dict(GROUP_REASONS, verification_too_slow=
+                        'building and analyzing the project takes more than %d seconds' % a.max_verify_seconds)
     rows = []
     for r in patcher.embedded_recipes():
         task = r['task_id']
         times = patcher.verification_times(task)
         if task in patcher.DISCARDED:
-            stage, reason = REASONS[patcher.DISCARDED[task]]
+            detail_code = patcher.DISCARDED[task]
+            stage, detail_reason = REASONS[detail_code]
             kept = 'no'
         elif a.max_verify_seconds and times and times['build'] + times['analyze'] > a.max_verify_seconds:
-            stage, reason, kept = 'verification-time', 'building and analyzing the project takes more than %d seconds' % a.max_verify_seconds, 'no'
+            stage, detail_reason, kept = 'verification-time', group_reasons['verification_too_slow'], 'no'
+            detail_code = 'verification_too_slow'
         else:
-            stage, reason, kept = '', '', 'yes'
+            stage, detail_reason, detail_code, kept = '', '', '', 'yes'
+        reason_code = GROUPS[detail_code] if detail_code else ''
+        reason = group_reasons[reason_code] if reason_code else ''
         rows.append({'task_id': task, 'language': r['language'], 'project': r['project'], 'kept': kept, 'dropped_at': stage,
                      'reason': reason, 'analyzer': patcher.task_analyzer(SimpleNamespace(task_id=task, language=r['language'])),
-                     'build_seconds': times['build'] if times else '', 'analysis_seconds': times['analyze'] if times else ''})
+                     'build_seconds': times['build'] if times else '', 'analysis_seconds': times['analyze'] if times else '',
+                     'reason_code': reason_code, 'detail_reason_code': detail_code, 'detail_reason': detail_reason})
     rows.sort(key=lambda r: r['task_id'])
     with open(a.output, 'w', newline='') as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w = csv.DictWriter(f, fieldnames=list(rows[0]), lineterminator='\n')
         w.writeheader()
         w.writerows(rows)
     import collections

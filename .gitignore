@@ -16,3 +16,6 @@ validation-out/
 
 # Local official upstream checkout
 external/
+
+# Separate companion repository
+/agentic-data-papers/

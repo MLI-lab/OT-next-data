@@ -5,12 +5,16 @@ import asyncio
 import json
 import math
 import os
+import re
 from pathlib import Path
 import tomllib
+import time
 from uuid import uuid4
 
 
 def install_runtime_patches():
+    from validation.stages.container_reuse import install
+    install()
     # The pinned bridge keys images only by Dockerfile text. Include COPY
     # payloads as well, or distinct review tasks can reuse stale baked evidence.
     from harbor.environments.apptainer import apptainer as bridge
@@ -87,6 +91,33 @@ def trial_results(job_dir):
     return results
 
 
+def nop_execution_problem(path, verifier):
+    """Recognize runner failures that wrappers sometimes turn into reward zero.
+
+    This is deliberately conservative: arbitrary verifiers need not use pytest,
+    and assertion failures (including missing task outputs) are valid NOP results.
+    """
+    outputs = [verifier.get('stdout') or '', verifier.get('stderr') or '']
+    for name in ('test-stdout.txt', 'test-stderr.txt'):
+        log = path / 'verifier' / name
+        if log.is_file():
+            outputs.append(log.read_text(errors='replace'))
+    output = re.sub(r'\x1b\[[0-9;]*m', '', '\n'.join(outputs))
+    if re.search(r'^\S*python[\w.]*: No module named [\'"]?pytest\b', output, re.M):
+        return 'verifier did not run: pytest is not installed'
+    if re.search(r'^(?:[^\n]*: )?(?:\S*/)?pytest: (?:command )?not found\s*$', output, re.M):
+        return 'verifier did not run: pytest command not found'
+    if re.search(r'^=+.*\b\d+ errors? during collection\b.*=+\s*$', output, re.M):
+        return 'verifier could not collect tests'
+    # Match pytest summaries, not traceback source lines or application messages.
+    summaries = re.findall(r'^(?:=+ )?((?:\d+ (?:passed|failed|skipped|deselected|xfailed|xpassed|errors?)'
+                           r'(?:, )?)+|no tests ran) in [\d.]+s(?: .*?)?(?: =+)?\s*$', output, re.M)
+    for summary in summaries:
+        if not re.search(r'\b[1-9]\d* (?:passed|failed|xfailed|xpassed)\b', summary):
+            return 'verifier executed no tests (empty, skipped, or setup errors)'
+    return None
+
+
 def assess_trials(results, expected_count, expected_reward=None, reward_key='reward'):
     findings = []
     if len(results) != expected_count:
@@ -96,7 +127,12 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
         if result.get('exception_info'):
             findings.append(f'{path.name}: exception: {result["exception_info"]}')
             continue
-        rewards = (result.get('verifier_result') or {}).get('rewards') or {}
+        verifier = result.get('verifier_result') or {}
+        if expected_reward == 0:
+            problem = nop_execution_problem(path, verifier)
+            if problem:
+                findings.append(f'{path.name}: {problem}')
+        rewards = verifier.get('rewards') or {}
         score = rewards.get(reward_key)
         if not isinstance(score, (int, float)) or isinstance(score, bool) or not math.isfinite(score):
             findings.append(f'{path.name}: missing numeric reward {reward_key!r}')
@@ -138,23 +174,31 @@ async def build_task(task_path, out, args):
         paths = TrialPaths(out / label)
         paths.mkdir()
         environment = None
-        entry = {'environment': label, 'context': str(context)}
+        entry = {'environment': label, 'context': str(context), 'timings_seconds': {}}
+        phase = 'start'
+        started = time.monotonic()
         try:
             environment = EnvironmentFactory.create_environment(
                 type=EnvironmentType(args.backend), environment_dir=context,
                 environment_name=f'{task.short_name}-{label}', session_id=f'validate-{uuid4().hex[:12]}',
                 trial_paths=paths, task_env_config=spec, **config['kwargs'])
             await asyncio.wait_for(environment.start(force_build=args.force_build), timeout=spec.build_timeout_sec)
+            entry['timings_seconds']['start'] = time.monotonic() - started
+            phase, started = 'inspect', time.monotonic()
             from validation.checks.environment import inspect_environment
             inspection = await inspect_environment(environment, task, context, label)
             entry.update(inspection)
         except Exception as exc:
             entry.update(status='error', error=str(exc))
         finally:
+            entry['timings_seconds'][phase] = time.monotonic() - started
             if environment is not None:
+                stopped = time.monotonic()
                 try:
                     await environment.stop(delete=True)
                 except Exception as exc:
                     entry.update(status='error', cleanup_error=str(exc))
+                finally:
+                    entry['timings_seconds']['stop'] = time.monotonic() - stopped
         results.append(entry)
     return {'status': 'passed' if all(e['status'] == 'passed' for e in results) else 'error', 'environments': results}

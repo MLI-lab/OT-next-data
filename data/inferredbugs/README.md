@@ -7,7 +7,7 @@
 | `FAILURE_REPAIRS.md` | the history: the audit round by round, what went wrong, what was decided |
 | `warning_identity/` | proofs and generators behind the patcher's warning tables; `verifier_keys.py` rebuilds the keys from the verifier's own runs |
 | `warmup.py` | builds the eight images and fills the analyzer and repository caches before a run over many tasks |
-| `task-provenance.csv` | every one of the 9,659 original tasks: kept, or the stage and reason it was dropped (`warning_identity/provenance.py`) |
+| `task-provenance.csv` | every one of the 9,659 original tasks: kept, or the stage and grouped reason it was dropped; `detail_reason_code` and `detail_reason` retain the original audit outcome (`warning_identity/provenance.py`). Counts are in `STATUS.md`. |
 
 What is embedded and why: the build recipes (found by agent repair sessions against caches of
 artifacts that no longer exist online - not derivable again), each task's resolved GitHub

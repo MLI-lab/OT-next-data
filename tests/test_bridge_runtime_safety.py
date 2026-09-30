@@ -61,3 +61,26 @@ def test_only_dead_fakeroot_queues_of_this_user_are_swept(patch):
     alive = lambda pid: pid == 2000
     listing = listing.replace('me ', pwd.getpwuid(os.getuid()).pw_name + ' ')
     assert patch.leaked_message_queues(listing, alive=alive) == ['54']
+
+
+def test_container_start_gate_spaces_starts_and_releases_after_error(patch):
+    now = [10.0]
+    delays = []
+    def sleep(delay):
+        delays.append(delay)
+        now[0] += delay
+    gate = patch.ContainerStartGate(1, .25, clock=lambda: now[0], sleep=sleep)
+    with gate:
+        pass
+    with pytest.raises(RuntimeError):
+        with gate:
+            raise RuntimeError('start failed')
+    with gate:
+        pass
+    assert delays == [.25, .25]
+    assert gate.semaphore.acquire(blocking=False)
+    assert not gate.semaphore.acquire(blocking=False)
+    gate.semaphore.release()
+    for interval in (-1, float('nan'), float('inf')):
+        with pytest.raises(ValueError):
+            patch.ContainerStartGate(1, interval)

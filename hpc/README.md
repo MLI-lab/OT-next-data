@@ -7,7 +7,7 @@ launcher here only stages data, serves the model and calls
 | Folder | State |
 | --- | --- |
 | `helma/` | Working. NHR@FAU, H200 partition, apptainer, node-local `$TMPDIR`, Lustre file-count quota. All results so far were produced here. |
-| `zih/` | Skeleton only — `teacher_traces.sbatch` lists what has to be decided per cluster and exits 2. |
+| `zih/` | InferredBugs CPU warmup, verifier array, and packaging scripts for `barnard`; see [submission instructions](zih/README.md). CPU execution still needs a pilot. `teacher_traces.sbatch` remains a GPU skeleton and exits 2. |
 
 Porting checklist: partition and `--gres`, container runtime, scratch paths,
 quota guard, and whether user network namespaces are allowed. Keep the

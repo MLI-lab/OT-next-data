@@ -842,8 +842,9 @@ def test_cpu_submission_has_no_gpu_request(source, tmp_path, monkeypatch):
 def test_job_code_snapshot_is_independent(tmp_path, monkeypatch):
     from hpc.helma import validation_submit
     root = tmp_path / 'repo'
-    for name in ('validation', 'config', 'harbor_patches', 'external', 'hpc/helma'):
+    for name in ('validation', 'config', 'harbor_patches', 'external', 'hpc/helma', 'data/annotate_dataset'):
         (root/name).mkdir(parents=True)
+    prompt = root/'data/annotate_dataset/prompt_template.txt'; prompt.write_text('frozen prompt')
     original = root/'validation/run.py'; original.write_text('original')
     (root/'validation/results').mkdir()
     (root/'validation/results/ignored.py').write_text('not code')
@@ -853,7 +854,9 @@ def test_job_code_snapshot_is_independent(tmp_path, monkeypatch):
     monkeypatch.setattr(validation_submit, 'ROOT', root)
     snapshot = validation_submit.snapshot_code(folder)
     original.write_text('edited')
+    prompt.write_text('edited prompt')
     assert (snapshot/'validation/run.py').read_text() == 'original'
+    assert (snapshot/'data/annotate_dataset/prompt_template.txt').read_text() == 'frozen prompt'
     assert not (snapshot/'validation/results').exists()
 
 
@@ -861,8 +864,9 @@ def test_finished_job_code_archive_preserves_snapshot(tmp_path, monkeypatch):
     from hpc.helma import validation_submit
     import tarfile
     root = tmp_path / 'repo'
-    for name in ('validation', 'config', 'harbor_patches', 'external', 'hpc/helma'):
+    for name in ('validation', 'config', 'harbor_patches', 'external', 'hpc/helma', 'data/annotate_dataset'):
         (root/name).mkdir(parents=True)
+    (root/'data/annotate_dataset/prompt_template.txt').write_text('frozen prompt')
     (root/'validation/run.py').write_text('frozen implementation')
     for name in ('validation.sbatch', 'validation_submit.py', 'validation_worker.py', 'proxy.sh'):
         (root/'hpc/helma'/name).write_text('launcher')
@@ -874,6 +878,7 @@ def test_finished_job_code_archive_preserves_snapshot(tmp_path, monkeypatch):
     assert validation_submit.archive_code_snapshot(folder) == archive
     with tarfile.open(archive, 'r:gz') as saved:
         assert saved.extractfile('code/validation/run.py').read() == b'frozen implementation'
+        assert saved.extractfile('code/data/annotate_dataset/prompt_template.txt').read() == b'frozen prompt'
         assert saved.getmember('code/external').issym()
 
 
@@ -1053,3 +1058,62 @@ def test_publish_reads_tasks_from_a_directory_of_task_folders(tmp_path):
         assert sorted(tar.getnames()) == ['instruction.md', 'tests/test.sh']
         assert tar.extractfile('instruction.md').read() == names[0].encode()
     assert record['data_sources']['set-python']['tasks'] == 3
+
+
+@pytest.mark.parametrize('requested,override,allocated,affinity,expected', [
+    (112, None, 128, 128, 112),
+    (112, 16, 128, 128, 16),
+    (112, None, 32, 128, 32),
+    (112, None, 128, 24, 24),
+])
+def test_static_concurrency_follows_job_budget(monkeypatch, requested, override, allocated, affinity, expected):
+    monkeypatch.setenv('SLURM_CPUS_PER_TASK', str(allocated))
+    monkeypatch.setattr(stages.os, 'sched_getaffinity', lambda _: set(range(affinity)))
+    options = stages.parser().parse_args(['--concurrency', str(requested), '--cpus', '128'])
+    options.static_concurrency = override
+    assert stages.static_concurrency(options) == expected
+    options.static_concurrency = 0
+    with pytest.raises(ValueError, match='positive'):
+        stages.check_args(options)
+
+
+def test_stage_one_passes_configured_concurrency_to_checker(source, tmp_path, monkeypatch, upstream):
+    from validation.verify import check_terminal_bench as checker
+    monkeypatch.setenv('SLURM_CPUS_PER_TASK', '128')
+    monkeypatch.setattr(stages.os, 'sched_getaffinity', lambda _: set(range(128)))
+    options = args(source, tmp_path)
+    options.dry_run = False
+    options.concurrency = 112
+    called = []
+    def checks(tasks, out, **kwargs):
+        called.append(kwargs['concurrency'])
+        stages.save(out / 'summary.json', {'tasks': [{'task': t.name, 'status': 'passed', 'checks': []} for t in tasks]})
+    monkeypatch.setattr(checker, 'run_checks', checks)
+    _, report = stages.run_stage(1, options)
+    assert called == [112]
+    assert report['static_concurrency'] == 112
+
+
+def test_stage_three_journals_outcomes_without_periodic_report_rewrites(source, tmp_path, monkeypatch, upstream):
+    selected = [source.parent / f'task-{i}' for i in range(60)]
+    monkeypatch.setattr(stages, 'select_paths', lambda tasks, args: selected)
+    monkeypatch.setattr(runtime, 'check_runtime_task', lambda *args: None)
+    async def build(task, out, args):
+        await asyncio.sleep(0)
+        return {'status': 'passed', 'environments': []}
+    monkeypatch.setattr(runtime, 'build_task', build)
+    written = []
+    original_save = stages.save
+    def save(path, data):
+        if path.name == 'summary.json':
+            written.append(len(data['items']))
+        original_save(path, data)
+    monkeypatch.setattr(stages, 'save', save)
+    options = args(source, tmp_path)
+    options.dry_run = False
+    options.concurrency = 12
+    path, report = stages.run_stage(3, options)
+    journal = [json.loads(line) for line in (path.parent / 'outcomes.jsonl').read_text().splitlines()]
+    assert written == [0, 60]
+    assert len(journal) == 60 and report['complete']
+    assert {item['task'] for item in journal} == {str(task) for task in selected}

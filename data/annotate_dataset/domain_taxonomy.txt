@@ -1,0 +1,31 @@
+"""
+CLI-Universe domain taxonomy.
+
+Reference: Hua et al. (2026), CLI-Universe: Towards Verifiable Task Synthesis
+Engine for Terminal Agents, arXiv:2606.22883v1, Appendix A.1, Table 3.
+Paper: https://arxiv.org/abs/2606.22883v1
+Taxonomy: https://arxiv.org/html/2606.22883v1#A1.SS1
+Retrieved: 2026-09-30.
+
+All 17 domain names are preserved. Descriptions below are condensed paraphrases,
+not quotations. This file adopts only the domain axis; the paper's skill types,
+capabilities, and engineering pillars are separate axes.
+"""
+
+Software Engineering: Creating or changing general-purpose application code.
+Debugging: Diagnosing failures and repairing existing artifacts.
+System Administration: Managing operating systems, services, permissions, and processes.
+File Operations: Recovering or transforming files and storage formats.
+Security: Investigating vulnerabilities, exploitation, and defensive configurations.
+Data Processing: Cleaning, reconciling, and transforming heterogeneous data.
+Data Querying: Expressing retrieval intent through structured query languages.
+Data Science: Combining data preparation, statistical analysis, and interpretation.
+Scientific Computing: Computing solutions grounded in scientific models.
+Mathematics: Solving problems through derivations or proofs.
+Optimization: Encoding constraints and solving optimization problems.
+Machine Learning: Developing, evaluating, and running learned models.
+Model Training: Operating training runs, checkpoints, and fine-tuning workflows.
+Video Processing: Analyzing frames and coordinating audiovisual transformations.
+Web & API Tooling: Automating browsers and integrating web services.
+Games: Searching possible moves under game rules.
+Personal Assistant: Organizing user requests, preferences, and schedules.

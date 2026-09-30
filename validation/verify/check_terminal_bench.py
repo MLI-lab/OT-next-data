@@ -9,7 +9,7 @@ Neither profile runs build/oracle/nop validation or the GitHub PR workflow.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
@@ -19,6 +19,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from validation.data.selection import discover_tasks
@@ -42,6 +44,8 @@ POLICY = {
 }
 PR_ONLY = {'check-task-changelog.sh': 'training tasks do not require Terminal-Bench PR changelogs'}
 TRAINING_EXCLUSIONS = {
+    'check-test-sh-sanity.sh': 'training permits shared system Python and image-installed verifier dependencies; uv is not required, and stages 4/5 check execution',
+    'check-separate-verifier.sh': 'training permits grading in the agent environment, including installed packages and changed system state; separate verification is optional',
     'check-allow-internet.sh': 'network policy is declared by the task and checked at runtime',
     'check-no-allow-internet-true.sh': 'explicit task network policies are allowed',
     'check-pytest-version.sh': 'training tasks may use other pinned pytest/CTRF versions',
@@ -126,7 +130,9 @@ def safe_copy(task, scratch):
 PATH_CHECK = 'check-task-absolute-path.sh'
 SHELL_FENCES = {'', 'bash', 'sh', 'shell', 'zsh', 'console', 'text', 'txt'}
 ADAPTATIONS = {PATH_CHECK: 'runs on a copy of the task whose instruction.md has its source-code blocks removed '
-                           '(fenced blocks tagged with a programming language); shell and untagged blocks are kept',
+                           '(fenced blocks tagged with a programming language); masks complete absolute paths '
+                           'and JavaScript console calls/sed substitutions so their substrings are not mistaken for paths; '
+                           'shell examples and relative file references are otherwise kept',
                'file names': 'a task with whitespace or *?[] in a file name is checked on a copy where those characters '
                              'are replaced by _, because the upstream scripts split paths at spaces and expand globs; '
                              'the renamed files are listed per task'}
@@ -168,17 +174,73 @@ def without_source_code(instruction):
     return '\n'.join(kept)
 
 
+def path_check_text(instruction):
+    """Adapt known lexical false positives without changing pinned upstream code."""
+    text = without_source_code(instruction)
+    # Consume the WHOLE absolute token, including @ and hyphens in systemd units.
+    # Replacing tokens individually also prevents upstream's global substring
+    # filter from excusing a relative path merely because an absolute one exists.
+    text = re.sub(r'''(?<![\w./])/(?!/)[^\s`"'<>|;]+''', '[absolute path]', text)
+    lines = []
+    method = r'console\.(?:log|warn|error|info|debug|trace|table)'
+    for line in text.splitlines(keepends=True):
+        code_context = re.search(r'\b(?:JavaScript|regex|calls?|references?|strings?|literals?|statements?)\b', line, re.I)
+        def inline(match):
+            value = match.group(1)
+            # A sed substitution is an expression, not a directory reference.
+            if re.fullmatch(r's/[^\n]*/[^\n]*/[gip0-9]*', value):
+                return '`[sed expression]`'
+            if re.search(method + r'\s*\(', value) or (code_context and re.fullmatch(method, value)):
+                return '`' + re.sub(method, '[JavaScript method]', value) + '`'
+            return match.group(0)
+        line = re.sub(r'`([^`\n]+)`', inline, line)
+        if code_context:
+            line = re.sub(r'(["\'])(' + method + r')\1', '[JavaScript method]', line)
+        lines.append(line)
+    return ''.join(lines)
+
+
 def path_check_copy(task, scratch):
     copy = Path(scratch) / 'path-check' / task.name
     (copy / 'environment').mkdir(parents=True, exist_ok=True)
-    (copy / 'instruction.md').write_text(without_source_code((task / 'instruction.md').read_text(errors='replace')))
+    (copy / 'instruction.md').write_text(path_check_text((task / 'instruction.md').read_text(errors='replace')))
     for name in ('task.toml', 'environment/Dockerfile'):
         if (task / name).is_file():
             shutil.copyfile(task / name, copy / name)
     return copy
 
 
-def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclude=(), concurrency=1):
+def rebuild_summary(out):
+    """Reconstruct completed outcomes; ignore only an unfinished final journal line."""
+    out = Path(out)
+    summary = out / 'summary.json'
+    report = json.loads(summary.read_text())
+    expected = [Path(path).name for path in report['selected_tasks']]
+    expected_names = set(expected)
+    entries = {}
+    incomplete_tail = False
+    with (out / 'outcomes.jsonl').open() as stream:
+        for line in stream:
+            if not line.endswith('\n'):
+                incomplete_tail = True
+                break
+            entry = json.loads(line)
+            name = entry['task']
+            if name not in expected_names or name in entries:
+                raise ValueError(f'unknown or duplicate journal task: {name}')
+            entries[name] = entry
+    report['tasks'] = [entries[name] for name in expected if name in entries]
+    report['complete'] = len(entries) == len(expected) and not incomplete_tail
+    report['passed'] = report['complete'] and all(t['status'] == 'passed' for t in report['tasks'])
+    report['incomplete_journal_tail'] = incomplete_tail
+    pending = summary.with_suffix('.json.tmp')
+    pending.write_text(json.dumps(report, indent=2) + '\n')
+    pending.replace(summary)
+    return report
+
+
+def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclude=(), concurrency=1,
+               resume=None, resume_record=None, accept_previous_path_check=False):
     if concurrency < 1:
         raise ValueError('concurrency must be positive')
     if sys.version_info < (3, 11):
@@ -190,20 +252,32 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
         if not shutil.which(command):
             raise ValueError(f'missing required executable: {command}')
     out.mkdir(parents=True, exist_ok=True)
+    if (out / 'outcomes.jsonl').exists():
+        raise ValueError('output already has task outcomes; use a new output directory or --rebuild-summary')
     report = {'upstream': manifest['repository'], 'commit': manifest['commit'],
-              'profile': profile, 'selected_tasks': [str(t) for t in tasks],
+              'concurrency': concurrency, 'profile': profile, 'selected_tasks': [str(t) for t in tasks],
               'checks': checks, 'excluded_checks': excluded, 'tasks': [],
               'adaptations': {name: text for name, text in ADAPTATIONS.items() if name in checks or name == 'file names'},
               'checker_unit_tests_not_run': list(CHECKER_UNIT_TESTS),
               'conditional_checks': {AI_CHECK: 'runs only when GPTZERO_API_KEY is configured; missing key is a non-failing skip'},
               'complete': False, 'passed': False}
+    imported = {}
+    if resume:
+        from validation.static_resume import load
+        imported, report['resumed_from'] = load(resume, tasks, manifest, checks, profile, resume_record,
+                                               accept_previous_path_check)
+        print(f"Static checkpoint: importing {report['resumed_from']['imported_checks']} checks; "
+              f"rerunning changed checks {report['resumed_from']['rerun_changed_checks']}", flush=True)
     for name, reason in excluded.items():
         print(f'SKIP {name}: {reason}', flush=True)
     if AI_CHECK in checks and not os.environ.get('GPTZERO_API_KEY', '').strip():
         print('SKIP check_ai_detection.py: no GPTZERO_API_KEY configured (not a failure)', flush=True)
     summary = out / 'summary.json'
     summary.write_text(json.dumps(report, indent=2) + '\n')
-    with tempfile.TemporaryDirectory(prefix='tb-checks-', dir='/tmp') as scratch:
+    log = out / 'checks.log'
+    log_lock = threading.Lock()
+    with tempfile.TemporaryDirectory(prefix='tb-checks-', dir='/tmp') as scratch, \
+            log.open('w') as combined_log, (out / 'outcomes.jsonl').open('x') as journal:
         # Upstream invokes python3. Use this interpreter, not an unrelated
         # system Python that may lack tomllib. No dependency installation needed.
         bindir = Path(scratch) / 'bin'
@@ -219,19 +293,27 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
             except (ValueError, OSError) as exc:
                 entry.update(status='error', error=str(exc))
             else:
-                logs = out / 'tasks' / task.name
-                logs.mkdir(parents=True, exist_ok=True)
-                task, renamed = safe_copy(task, scratch)
+                pending_checks = set(checks) - set(imported.get(task.name, {}))
+                if not pending_checks or (pending_checks <= {AI_CHECK} and not os.environ.get('GPTZERO_API_KEY', '').strip()):
+                    # Complete checkpointed tasks need no staging copy or subprocesses.
+                    # The optional AI check is still handled below using current credentials.
+                    renamed = []
+                else:
+                    task, renamed = safe_copy(task, scratch)
                 if renamed:
                     entry['renamed_for_checks'] = renamed
                 for name in checks:
+                    if name in imported.get(task.name, {}):
+                        entry['checks'].append(imported[task.name][name])
+                        continue
                     if name == AI_CHECK and not os.environ.get('GPTZERO_API_KEY', '').strip():
                         entry['checks'].append({'check': name, 'status': 'skipped', 'optional': True,
                             'reason': 'no GPTZERO_API_KEY configured', 'exit_code': None, 'log': None})
                         continue
-                    log = logs / (name + '.log')
+                    started = time.monotonic()
                     target = path_check_copy(task, scratch) if name == PATH_CHECK else task
-                    with log.open('w') as stream:
+                    # Buffer each check separately so parallel outputs never interleave.
+                    with tempfile.TemporaryFile(mode='w+', encoding='utf-8', errors='replace', dir=scratch) as stream:
                         # The scripts take under a second; a timeout means the node or the
                         # file system stalled (job 916252), so one more attempt is made.
                         for attempt in (1, 2):
@@ -244,23 +326,32 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             except subprocess.TimeoutExpired:
                                 status, rc = 'error', None
                                 stream.write(f'\nTimed out after {timeout} seconds (attempt {attempt})\n')
-                    if name == AI_CHECK and rc == 0 and ('skipped' in log.read_text().lower() or 'No files to check' in log.read_text()):
-                        status = 'skipped'
+                                stream.flush()
+                        stream.seek(0)
+                        if name == AI_CHECK and rc == 0:
+                            text = stream.read()
+                            if 'skipped' in text.lower() or 'No files to check' in text:
+                                status = 'skipped'
+                            stream.seek(0)
+                        with log_lock:
+                            combined_log.write(f'\n=== {entry["task"]} / {name} ===\n')
+                            shutil.copyfileobj(stream, combined_log)
+                            combined_log.write(f'\n=== result: {status}, exit_code: {rc} ===\n')
+                            combined_log.flush()
                     entry['checks'].append({'check': name, 'status': status, 'optional': name == AI_CHECK, 'exit_code': rc,
-                                            'log': str(log.resolve())})
+                                            'log': str(log.resolve()), 'duration_seconds': round(time.monotonic() - started, 3)})
                     if status != 'passed':
                         print(f'{task.name}: {name}: {status} (see {log})', flush=True)
                 entry['status'] = 'passed' if all(c['status'] == 'passed' or (c['status'] == 'skipped' and c.get('optional')) for c in entry['checks']) else 'failed'
             return entry
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
-            for entry in pool.map(check_task, tasks):
-                report['tasks'].append(entry)
+            futures = [pool.submit(check_task, task) for task in tasks]
+            for future in as_completed(futures):
+                entry = future.result()
+                journal.write(json.dumps(entry) + '\n')
+                journal.flush()
                 print(f"{entry['task']}: {entry['status']}", flush=True)
-                report['complete'] = len(report['tasks']) == len(tasks)
-                report['passed'] = report['complete'] and all(t['status'] == 'passed' for t in report['tasks'])
-                # Avoid quadratic writes of a large 25-check-per-task report.
-                if len(report['tasks']) % 50 == 0 or report['complete']:
-                    summary.write_text(json.dumps(report, indent=2) + '\n')
+    report = rebuild_summary(out)
     print(f'{len(checks)} upstream checks per task; {len(excluded)} explicitly excluded. Report: {summary}')
     return 0 if report['passed'] else 1
 
@@ -271,12 +362,18 @@ def main():
     ap.add_argument('--profile', choices=('training', 'portable', 'terminal-bench'), default='training')
     ap.add_argument('--out', type=Path, default=Path('verify-out/terminal-bench'))
     ap.add_argument('--limit', type=int)
+    ap.add_argument('--concurrency', type=int, default=1, help='parallel static tasks')
     ap.add_argument('--timeout', type=int, default=120, help='seconds per static script per task')
     ap.add_argument('--list', action='store_true', help='list included and excluded checks')
     ap.add_argument('--exclude', action='append', default=[], help='check ID or filename, optionally NAME=reason; repeat or comma-separate')
     ap.add_argument('--dry-run', action='store_true')
+    ap.add_argument('--rebuild-summary', action='store_true', help='reconstruct --out/summary.json from saved task outcomes without rerunning checks')
     a = ap.parse_args()
     try:
+        if a.rebuild_summary:
+            report = rebuild_summary(a.out)
+            print(f"Recovered {len(report['tasks'])} task outcomes; complete={report['complete']}")
+            return 0 if report['passed'] else 1
         if a.timeout <= 0 or (a.limit is not None and a.limit <= 0):
             raise ValueError('--limit and --timeout must be positive')
         manifest, checks, excluded = load_checks(a.profile, exclude=a.exclude)
@@ -297,7 +394,7 @@ def main():
             for task in tasks:
                 print(f'Would check {task}')
             return 0
-        return run_checks(tasks, a.out, a.profile, a.timeout, exclude=a.exclude)
+        return run_checks(tasks, a.out, a.profile, a.timeout, exclude=a.exclude, concurrency=a.concurrency)
     except (ValueError, OSError) as exc:
         ap.exit(1, f'{exc}\n')
 

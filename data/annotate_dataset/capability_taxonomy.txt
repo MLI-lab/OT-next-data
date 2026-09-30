@@ -1,0 +1,24 @@
+"""
+CLI-Universe capability taxonomy.
+
+Reference: Hua et al. (2026), CLI-Universe: Towards Verifiable Task Synthesis
+Engine for Terminal Agents, arXiv:2606.22883v1, Appendix A.3, Table 5.
+Paper: https://arxiv.org/abs/2606.22883v1
+Taxonomy: https://arxiv.org/html/2606.22883v1#A1.SS3
+Retrieved: 2026-09-30.
+
+All 11 capability names are preserved; descriptions are condensed paraphrases.
+The paper applies behavioral criteria to trajectories, permitting multiple labels.
+"""
+
+Exploration: Discovering an unmapped workspace before choosing an approach.
+Decomposition: Explicitly listing subgoals before irreversible execution; vague intentions are insufficient.
+Error Recovery: Diagnosing reported failures and adapting, rather than blindly repeating.
+Specification Adherence: Rechecking the original contract late to catch output drift.
+Working Memory: Preserving at least five interdependent facts across 10+ turns.
+Long-Horizon Planning: Maintaining dependent steps beyond ten meaningful turns despite consequential early choices.
+Constraint Satisfaction: Reconciling at least two competing hard requirements.
+Modality Translation: Transferring meaning between modalities, such as diagrams and code.
+Reverse Engineering: Inferring concealed structure or purpose from opaque artifacts.
+Mathematical Derivation: Establishing a formula or proof before implementation.
+Adversarial Reasoning: Seeking ways around intended controls or exploitable weaknesses.

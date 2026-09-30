@@ -41,6 +41,7 @@ def snapshot_code(folder):
     for name in ('validation', 'config', 'harbor_patches'):
         shutil.copytree(ROOT / name, target / name,
                         ignore=shutil.ignore_patterns('__pycache__', 'results', 'runs', '*.pyc'))
+    shutil.copytree(ROOT / 'data/annotate_dataset', target / 'data/annotate_dataset')
     (target / 'hpc/helma').mkdir(parents=True)
     for name in ('validation.sbatch', 'validation_submit.py', 'validation_worker.py', 'proxy.sh'):
         shutil.copyfile(ROOT / 'hpc/helma' / name, target / 'hpc/helma' / name)

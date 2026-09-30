@@ -80,6 +80,7 @@ def implementation():
     paths = [*code, ROOT / 'harbor_patches/bridge_worker.py', ROOT / 'hpc/helma/validation.sbatch',
              ROOT / 'hpc/helma/validation_submit.py', ROOT / 'hpc/helma/validation_worker.py',
              ROOT / 'hpc/helma/proxy.sh', ROOT / 'config/models.py', ROOT / 'config/clusters.py']
+    paths.extend((ROOT / 'data/annotate_dataset').glob('*.txt'))
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
 
 
@@ -146,6 +147,11 @@ def profile(args):
         'serve_context': getattr(args, 'serve_context', 32768),
         'local_model_assets': local_model_assets(args),
         'serve_model': args.serve_model, 'api_base': args.api_base,
+        'validation_container_reuse': 'same-task stages 3,5,4; logs cleared, filesystem state retained' if getattr(args, 'reuse_validation_containers', False) else 'fresh instance per phase',
+        'container_start_concurrency': getattr(args, 'container_start_concurrency', 8),
+        'container_start_interval': getattr(args, 'container_start_interval', 0),
+        'static_concurrency': getattr(args, 'static_concurrency', None) or args.concurrency,
+        'static_concurrency_policy': 'cap at allocated CPU budget; no separate verifier reservation',
         'concurrency': args.concurrency, 'concurrency_policy': 'cap at allocation CPU budget including separate verifiers; record effective value in resources.json',
         'cpus': args.cpus, 'gpus': args.gpus,
         'serve_cpus': args.serve_cpus, 'serve_memory_mb': args.serve_memory_mb,
@@ -164,10 +170,13 @@ def protocol(contract):
         f"Task manifest: {contract.get('task_manifest', {}).get('path', 'embedded (legacy)')}",
         f"Task manifest SHA-256: `{contract.get('task_manifest', {}).get('sha256', digest(task_records(contract)))}`",
         f"Stages: {contract['stages']}", f"Static exclusions: {criteria['static_exclusions']}",
+        f"Imported static checkpoint: {contract.get('static_checkpoint') or 'none'}",
+        f"Accept previous path-check adaptation: {contract.get('arguments', {}).get('static_resume_accept_previous_path_check', False)}",
         f"Oracle reward: {criteria['oracle_reward']}; NOP reward: {criteria['nop_reward']}; attempts: {criteria['attempts']}",
         f"Reward key: {criteria['reward_key']}", f"Backend: {execution['backend']}; architecture: {execution['architecture']}",
         f"Network: {execution['network_guarantee']}", f"Privileges: {execution['privileges']}",
         f"Mounts: {execution['mount_policy']}", f"Dependencies: {execution['dependency_policy']}",
+        f"Container reuse: {execution.get('validation_container_reuse', 'fresh instance per phase')}",
         'Failure policy: continue collecting; selected check failures, infrastructure errors, missing/invalid rewards, skipped tasks and insufficient coverage fail acceptance.',
         'Real/adversarial agent rewards are measurements, not an all-rewards-must-equal-1 gate.',
         'A result supports only this declared execution profile. No Docker/offline/rootless equivalence is implied.',
@@ -213,6 +222,11 @@ def create(args, numbers, destination):
         'upstream': PINS, 'implementation': implementation(),
         'arguments': frozen,
     }
+    if getattr(args, 'static_resume', None):
+        from validation.static_resume import checkpoint_record
+        if 1 not in numbers:
+            raise ValueError('--static-resume requires stage 1')
+        contract['static_checkpoint'] = checkpoint_record(args.static_resume)
     destination = destination.resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     manifest_path = destination.with_suffix('.tasks.json')

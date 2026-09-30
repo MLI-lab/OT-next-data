@@ -40,7 +40,24 @@ def run_selected(args, numbers):
     summary = args.out.resolve() / f'pipeline-{uuid4().hex[:12]}.json'
     analysis_jobs, given_trials = [], args.trials
     save(summary, report)
+    bundled = {n for n in numbers if n in (3, 4, 5)} if getattr(args, 'reuse_validation_containers', False) else set()
+    if len(bundled) < 2:
+        bundled = set()  # Standalone stages retain ordinary fresh-start behavior.
+    bundle_finished = False
     for number in numbers:
+        if number in bundled:
+            if not bundle_finished:
+                from validation.stages.paired import run_validation_bundle
+                try:
+                    for stage, path, result in run_validation_bundle(args, bundled):
+                        report['stages'].append({'stage': stage, 'report': str(path),
+                                                'status': 'findings' if result['has_findings'] else 'completed'})
+                except Exception as exc:
+                    for stage in sorted(bundled):
+                        report['stages'].append({'stage': stage, 'status': 'error', 'reason': str(exc)})
+                bundle_finished = True
+                save(summary, report)
+            continue
         # With all, review both ordinary and adversarial trajectories. An explicit
         # --trials remains authoritative for a standalone analysis selection.
         jobs = analysis_jobs if number in (7, 8) and not given_trials else [given_trials]

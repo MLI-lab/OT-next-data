@@ -49,6 +49,16 @@ def parser():
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
     ap.add_argument('--attempts', type=int, default=1)
     ap.add_argument('--concurrency', type=int, default=1)
+    ap.add_argument('--static-concurrency', type=int, help='stage 1 parallel tasks; defaults to --concurrency, capped by allocated CPUs')
+    ap.add_argument('--static-resume', help='preserved static checkpoint directory; import unchanged successful checks')
+    ap.add_argument('--static-resume-accept-previous-path-check', action='store_true',
+                    help='explicitly retain successful path checks under the checkpoint adaptation; record mixed provenance')
+    ap.add_argument('--reuse-validation-containers', action='store_true',
+                    help='reuse same-task Apptainer instances through selected stages 3,5,4; filesystem state persists')
+    ap.add_argument('--container-start-concurrency', type=int, default=8,
+                    help='simultaneous Apptainer starts; independent of active trial concurrency')
+    ap.add_argument('--container-start-interval', type=float, default=0,
+                    help='minimum seconds between Apptainer starts; default no added delay')
     ap.add_argument('--limit', type=int)
     ap.add_argument('--task-id-range', nargs=2, metavar=('FIRST', 'LAST'),
                     help='inclusive task-ID range in lexicographic order; both endpoints must exist')
@@ -78,7 +88,13 @@ def parser():
     ap.add_argument('--max-iterations', type=int, default=10)
     ap.add_argument('--timeout-minutes', type=float, default=120)
     ap.add_argument('--publish-repo', help='open a pull request on this Hugging Face dataset when the Helma job ends, e.g. FWeindel/validated-tasks')
+    ap.add_argument('--publish-require-complete', action='store_true', help='publish only after all tasks have outcomes for stages 1,3,4,5')
     ap.add_argument('--publish-folder', action='append', default=[], metavar='PREFIX=FOLDER', help='data source folder for task IDs starting with PREFIX (see publish.py)')
+    ap.add_argument('--publish-readme', action='store_true', help='generate dataset READMEs when publishing')
+    ap.add_argument('--publish-readme-model', default='claude-fable-5-1')
+    ap.add_argument('--publish-readme-seed', type=int, default=0, help='seed for sampling up to ten kept tasks per dataset')
+    ap.add_argument('--publish-readme-evidence', action='append', default=[], metavar='FOLDER=PATH',
+                    help='evidence file accessible on the publishing worker; repeatable')
     ap.add_argument('--publish-analysis', action='store_true', help='with --publish-repo: a model groups the archived tasks and suggests actions; skipped if the model call fails')
     ap.add_argument('--force-build', action='store_true', help='rebuild rather than reuse valid cached images')
     ap.add_argument('--dry-run', action='store_true', help='stage inputs/configs without starting environments/models')
@@ -111,7 +127,29 @@ def resolve_review_defaults(args, numbers):
         'file': '.github/harbor-run-defaults.yml', 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
+def static_concurrency(args):
+    """Honor job parallelism without exceeding the process's allocation."""
+    requested = getattr(args, 'static_concurrency', None)
+    requested = args.concurrency if requested is None else requested
+    if requested < 1:
+        raise ValueError('--static-concurrency must be positive')
+    budget = int(os.environ.get('SLURM_CPUS_PER_TASK') or args.cpus)
+    if hasattr(os, 'sched_getaffinity'):
+        budget = min(budget, len(os.sched_getaffinity(0)))
+    budget -= args.serve_cpus if getattr(args, 'serve_model', None) else 0
+    if budget < 1:
+        raise ValueError('no CPU budget available for static checks')
+    return min(requested, budget)
+
+
 def check_args(a):
+    if getattr(a, 'publish_readme', False) and getattr(a, 'network_mode', 'isolated') != 'host':
+        raise ValueError('--publish-readme requires --network-mode host for Claude Code')
+    if getattr(a, 'static_resume_accept_previous_path_check', False) and not getattr(a, 'static_resume', None):
+        raise ValueError('--static-resume-accept-previous-path-check requires --static-resume')
+    if getattr(a, 'reuse_validation_containers', False):
+        if a.backend != 'apptainer' or a.attempts != 1 or a.force_build:
+            raise ValueError('--reuse-validation-containers requires Apptainer, --attempts 1, and no --force-build')
     if getattr(a, 'review_local', False) and not a.serve_model:
         raise ValueError('--review-local requires --serve-model')
     for field in ('attempts', 'concurrency', 'max_iterations', 'timeout_minutes', 'serve_context'):
@@ -120,6 +158,12 @@ def check_args(a):
     for field in ('cpus', 'gpus', 'trial_cpus', 'trial_memory_mb', 'serve_cpus', 'serve_memory_mb', 'max_num_seqs'):
         if getattr(a, field) is not None and getattr(a, field) <= 0:
             raise ValueError(f'--{field.replace("_", "-")} must be positive')
+    if getattr(a, 'container_start_concurrency', 8) < 1:
+        raise ValueError('--container-start-concurrency must be positive')
+    if not 0 <= getattr(a, 'container_start_interval', 0) < float('inf'):
+        raise ValueError('--container-start-interval must be finite and nonnegative')
+    if getattr(a, 'static_concurrency', None) is not None and a.static_concurrency < 1:
+        raise ValueError('--static-concurrency must be positive')
     if a.serve_model and a.api_base and not getattr(a, '_local_server_ready', False):
         raise ValueError('choose --serve-model or --api-base')
     if getattr(a, 'task_id_range', None) and a.limit is not None:
@@ -327,8 +371,18 @@ def run_stage(number, args):
         if args.dry_run:
             report['items'] = [{'task': str(t), 'status': 'previewed'} for t in sources]
         else:
-            run_checks(sources, out / 'static', profile=args.static_profile, upstream=upstream, exclude=args.exclude, concurrency=min(args.concurrency, 8))
-            report['items'] = json.loads((out / 'static/summary.json').read_text())['tasks']
+            report['static_concurrency'] = static_concurrency(args)
+            resume_options = {}
+            if getattr(args, 'static_resume', None):
+                resume_options = {'resume': args.static_resume,
+                                  'resume_record': contract.get('static_checkpoint') if contract else None,
+                                  'accept_previous_path_check': args.static_resume_accept_previous_path_check}
+            run_checks(sources, out / 'static', profile=args.static_profile, upstream=upstream, exclude=args.exclude,
+                       concurrency=report['static_concurrency'], **resume_options)
+            static = json.loads((out / 'static/summary.json').read_text())
+            report['items'] = static['tasks']
+            if 'resumed_from' in static:
+                report['resumed_from'] = static['resumed_from']
     elif number == 3 and not args.dry_run:
         async def builds():
             semaphore = asyncio.Semaphore(args.concurrency)
@@ -343,11 +397,12 @@ def run_stage(number, args):
                         result = {'status': 'error', 'reason': str(exc)}
                 result.update(task=str(source), output=str(item_dir))
                 report['items'].append(result)
-                if len(report['items']) % 50 == 0 or len(report['items']) == len(sources):
-                    save(report_path, report)
+                outcomes.write(json.dumps(result) + '\n')
+                outcomes.flush()
                 print(f"stage 3 {source.name}: {result['status']}", flush=True)
             await asyncio.gather(*(one(i, source) for i, source in enumerate(sources)))
-        asyncio.run(builds())
+        with (out / 'outcomes.jsonl').open('x') as outcomes:
+            asyncio.run(builds())
     elif number in (4, 5, 6, 9):
         report['items'] = run_trial_batch(number, sources, out, args, upstream, report, contract)
         if number == 6:

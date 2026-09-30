@@ -11,6 +11,7 @@ import re
 
 from validation.verify.pass_at_k import group_of
 from validation.checks.reward_metrics import trial_reward
+from validation.checks.command_metrics import profile, mean_distribution
 
 PARSE_ERROR = 'Previous response had parsing errors'
 OUTPUT_CAP = 'NONE of the actions you just requested were performed'
@@ -99,6 +100,7 @@ def trial_metrics(trial, result, context_limit=None, key='reward'):
         errors['verifier'].append('no reward and no recorded exception')
     return {
         'trial': Path(trial).parent.parent.name if Path(trial).parent.name == 'attempts' else Path(trial).name,
+        'trial_path': str(Path(trial).resolve()),
         'reward': reward, 'trajectory_found': steps is not None,
         'turns': metadata.get('n_episodes') or (len(agent_steps) if steps is not None else None),
         'input_tokens': agent.get('n_input_tokens'), 'output_tokens': agent.get('n_output_tokens'),
@@ -111,6 +113,7 @@ def trial_metrics(trial, result, context_limit=None, key='reward'):
         'trial_seconds': seconds(result),
         'tool_steps': tool_steps, 'tool_steps_without_output': no_output, 'tool_steps_with_error_text': error_text,
         'tool_calls': dict(tools), 'tool_failures': dict(failures), 'tool_calls_with_known_outcome': dict(judged),
+        'command_profile': profile(steps),
         'termination': termination,
         'output_cap_events': sum(OUTPUT_CAP in t for t in text) if steps is not None else None,
         'malformed_tool_calls': sum(PARSE_ERROR in t for t in text) if steps is not None else None,
@@ -149,6 +152,7 @@ def aggregate(rows, wall_hours=None):
         'tool_steps_with_error_text': total('tool_steps_with_error_text'),
         'tool_steps_with_error_text_rate': total('tool_steps_with_error_text') / total('tool_steps') if total('tool_steps') else None,
         'terminations': dict(sorted(Counter(r['termination'] for r in rows).items())),
+        'command_distribution': mean_distribution(r.get('command_profile') for r in rows),
         'output_cap_events': total('output_cap_events'),
         'malformed_tool_calls': total('malformed_tool_calls'),
         'trajectories_with_malformed_tool_calls': sum(bool(r['malformed_tool_calls']) for r in rows),
@@ -224,7 +228,7 @@ def summarize(results, task_of, context_limit=None, key='reward', gpu_log=None, 
     # Saved per-trajectory rows keep a latency summary instead of every call time.
     for row in rows:
         row['model_call_seconds'] = distribution(row['model_call_seconds'] or [])
-    return {**summary, 'trajectories': rows,
+    return {**summary, 'trajectories': rows, 'reward_key': key,
             'model_server_requests': server_requests(server_log) if server_log else None,
             'inference_resources': {'gpus': gpu_peaks(gpu_log) if gpu_log else None,
                 'scope': 'GPU memory and utilization sampled every 10 s while the local model was served, idle time included'}}

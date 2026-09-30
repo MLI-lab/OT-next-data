@@ -15,11 +15,70 @@ the reasons, not for the state.
 | Verifier | multi-file, grades by Infer's issue keys; checked on 97 tasks buggy/fixed-file and on 48 tasks with the complete historical fix |
 | Analyzer install, images, instruction, timeouts (agent 1800 s, verifier 900 s) | done |
 | Keys the verifier compares with | still the audit's; to be replaced by the verifier's own (step 2) |
-| Parquet | not regenerated |
+| Parquet | preliminary 5,877-task parquet generated on Julia; final regeneration follows verifier-key rebuilding |
+
+### ZIH run — 2026-09-30
+
+Data root: `/data/horse/ws/frwe188h-trp-shared/inferredbugs`.
+Warmup job 137301 completed on Julia: all eight images and analyzer downloads
+are ready; one repository (`ant-design-blazor/ant-design-blazor`, retained task
+`inferredbugs-1676`) could not be cached. Its task will attempt the normal fetch
+path; any fetch failure needs investigation separately from warning outcomes.
+
+Package job 137305 produced `tasks.preliminary.parquet` (5,877 tasks). Pilot
+137306 read that artifact and finished all 16 checks in 11m27s: all eight buggy
+versions rejected for the original warning, seven references passed, and
+`inferredbugs-0001`'s reference removed the original warning but was rejected for
+two warnings in another changed file. The preliminary artifact has no
+`allowed_elsewhere` entries for those reference warnings; rebuilding the keys
+must populate them before final validation.
+
+Full evidence-collection array **137315** was submitted on Julia: 32 shards,
+initially eight active; the limit was raised to 13 so spare CPUs can be used as
+other jobs finish. Eight verifications per shard means 64 checks with eight
+active shards, up to 104 with thirteen. Resources are
+32 CPUs and 128 GiB per shard, 12-hour shard limit. It runs buggy/full on all
+5,877 retained tasks using `tasks.preliminary.parquet`. Results, the exact task
+list, code snapshot, and checksums are under `runs/full-20260930/` in the data
+root. This run supplies step 3's warning tables; it is not final artifact
+acceptance. A reference rejected only for missing allowed warnings is not
+automatically discarded. Review complete evidence, rebuild keys, regenerate
+the parquet, and repeat final oracle/NOP checks afterward.
+
+### Why 3,782 tasks are excluded
+
+These are the previous audit's exclusions, applied by the preliminary packaging
+run. The new Julia pilot does not determine these counts.
+
+| Reporting category | Tasks |
+|---|---:|
+| Warning remains in historical fix: exact match or same Infer issue key | 1,897 |
+| Original warning could not be reproduced on buggy code | 1,600 |
+| Build plus analysis exceeds 300 seconds | 209 |
+| Buggy file or project could not be compiled or analyzed | 70 |
+| Historical fix could not be analyzed with Infer | 5 |
+| Packaged verifier accepted buggy code | 1 |
+| **Total excluded** | **3,782** |
+
+`task-provenance.csv` uses these grouped categories in `reason` and `reason_code`.
+Its `detail_reason` and `detail_reason_code` preserve the finer audit outcomes:
+1,897 combines 446 exact matches and 1,451 same-key cases; 70 combines 47
+compilation/snapshot failures and 23 other build or analysis failures. Compilation
+failure means no tested recovery succeeded, not that compilation is impossible.
+Same-key cases do not establish an exact warning match; they still prevent the
+hash-based verifier from distinguishing the reference from the buggy code.
+Packaging reports and the patcher's internal discard tables retain those detailed
+codes. This reporting change does not alter task selection or verifier behavior.
 
 ## Setting up on another cluster
 
 Everything comes from public sources; nothing has to be copied from Helma.
+
+For ZIH CPU jobs, use the warmup, verifier-check array, and packaging
+scripts in [`hpc/zih/`](../../hpc/zih/README.md). They preserve every variant's
+verifier evidence for step 3. Execution was proven by the Julia pilot above;
+Barnard defaults can be overridden with `--partition=julia` when submitting
+from Julia.
 
 | Need | How to get it |
 |---|---|

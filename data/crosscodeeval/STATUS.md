@@ -1,5 +1,30 @@
 # CrossCodeEval: where validation stands, and what is left — 2026-09-30
 
+## ZIH continuation (2026-09-30)
+
+Julia job **137299** passed stages 1, 3, 4 and 5 on all ten smoke tasks.
+The pending Barnard job **38901549** was cancelled. After the smoke passed,
+the 32-CPU Julia allocation was stopped and replaced with Julia job **137304**
+for the full 6,710 tasks: **128 CPUs, 512 GB RAM, 112 concurrent tasks and an
+eight-hour limit**, with no GPUs. Static checks remain capped at eight and
+container startups retain the existing throttle. A roughly one-hour run is
+a target, not a measured estimate or guarantee.
+
+The existing Horse workspace is `/data/horse/ws/frwe188h-trp-shared` (expires
+2026-11-18). This run uses its `crosscodeeval/` subdirectory. Published inputs
+were downloaded at revision `12df4483fe99c79ccbb4c923d76ab5a2b042e64a` and
+the patcher's pip-only update applied; hashes are in `parquets-pinned/source.json`.
+The smoke evidence is saved in `runs/137299/smoke/`. The replacement code
+snapshot is under `submissions/20260930-115202-wide/code`; full-run reports
+will be under `runs/137304/full/`, and the log is `logs/cce-validation-137304.out`.
+No automatic publication is configured. See [ZIH commands](../../hpc/zih/crosscodeeval.md).
+
+Local checks: 158 tests passed and two skipped on the full run; the remaining
+plotting test passed after installing its missing matplotlib dependency.
+Bridge imports and ten-task contract preparation/reload also passed.
+
+## Prior Helma handoff
+
 `README.md` describes what the patch script produces and how the verifier grades. This file
 is the plan. The runs move to another cluster; the Helma job that is still queued (917298,
 stages 1, 3, 4, 5 with an automatic pull request) can be cancelled with `scancel 917298` or
@@ -119,3 +144,31 @@ Replace `$TASKS` with the directory that holds the four Parquets.
 - Tasks whose context file names contain spaces or `[]` (65 tasks) are checked on a renamed
   copy; the tasks themselves keep the original names.
 - The Helma worker picks a free port; nodes are shared.
+
+### Julia checkpoint restart (2026-09-30)
+
+Job **137304** was cancelled after preserving and verifying its last complete
+static checkpoint: **5,450 / 6,710 tasks passed**, leaving **1,260** without saved
+complete outcomes. Checkpoint inputs, original contract/manifest, checker source,
+static summary and compressed check logs are in:
+`/data/horse/ws/frwe188h-trp-shared/crosscodeeval/recovery/137304-stage1`.
+All 6,710 copied task hashes match the old contract.
+
+Replacement job **137324** uses the frozen code under
+`submissions/20260930-150335-resume-137304/code` in the same workspace. It requests
+128 CPUs, 512 GB, 12 hours; static concurrency 128, container-task concurrency 112,
+start concurrency 8, start spacing 0.25 seconds. A fresh ten-task smoke gate runs
+before the full resumed stages 1 → 3 → 5 → 4. Completed static checks retain their
+original path-check adaptation, explicitly accepted by the user; unfinished
+checks use the current wrapper. No task contents were changed for this restart.
+
+After complete validation outcomes, it is configured to open a PR on
+`FWeindel/validated-tasks` with the four language/version folders. It does not
+merge. Hugging Face credentials are loaded at runtime from the user-specified
+secret file; no token is stored in the snapshot/contract. Model-generated README
+creation is disabled for this submission because the Claude OAuth session could
+not refresh. Log: `logs/cce-resume-137324.out`; results: `runs/137324/{smoke,full}`.
+
+Resume/reuse/publishing-gate tests passed (28 targeted tests); static/resume
+regressions passed (36 tests). Queue submission alone is not a passing smoke or
+full validation result; consult the execution and stage reports.

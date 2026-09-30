@@ -1,0 +1,49 @@
+Evaluation suite snapshot
+Source: https://github.com/marin-community/marin/issues/9409
+Issue title: Marin Eval Policy (2026-09-24)
+Issue updated at: 2026-09-28T13:46:31Z
+Retrieved at: 2026-09-30T10:22:52.729781+00:00
+Full issue body SHA-256: 79be7affba4cc416291cd76708bdc92e1d8b624b3698cf1323d376054b37ebdb
+
+
+Scope: Benchmark descriptions and source links from the issue. Labels follow
+the evaluation table, including specific variants. Operational settings and
+ID/OOD development policy are omitted. Metadata above stays out of the prompt.
+
+--- BEGIN SOURCE EXCERPT ---
+### In Distribution
+
+- **MATH-500.** OpenAI's [May 2023 process-supervision release](https://openai.com/index/improving-mathematical-reasoning-with-process-supervision/) used a 500-problem subset of the original MATH competition-math benchmark. The campaign scores one zero-shot generated solution per problem by final-answer accuracy.
+- **HumanEval+.** The [May 2023 EvalPlus paper](https://arxiv.org/abs/2305.01210) introduced expanded tests for HumanEval programs to catch incorrect code that passes sparse original tests. The campaign executes one zero-shot completion per problem against the stronger tests.
+- **MBPP+.** The [November 24, 2023 EvalPlus release](https://github.com/evalplus/evalplus/releases/tag/v0.2.0) extends MBPP with additional functional tests. The campaign's pinned config is zero-shot and scores one generated program per problem.
+- **OlympiadBench (30-question subset).** The [February 2024 paper](https://arxiv.org/abs/2402.14008) introduced bilingual, multimodal Olympiad-level math and science problems. This campaign uses Evalchemy's 30-question text subset, ten sampled solutions per question, and the configured answer judge.
+- **GSM8K.** The [October 2021 paper](https://arxiv.org/abs/2110.14168) introduced grade-school math word problems requiring multi-step arithmetic. The campaign uses the zero-shot `gsm8k-0shot` completion route and scores the extracted final answer.
+- **PIQA.** The [November 2019 paper](https://arxiv.org/abs/1911.11641) introduced two-choice questions about physical commonsense. The campaign selects the answer by length-normalized log-likelihood with no examples in the prompt.
+- **WinoGrande.** The [July 2019 paper](https://arxiv.org/abs/1907.10641) introduced adversarial pronoun/coreference choices designed to reduce superficial cues. The campaign uses five-shot multiple-choice scoring.
+- **BoolQ.** The [May 2019 paper](https://arxiv.org/abs/1905.10044) introduced naturally occurring yes/no questions paired with evidence passages. The campaign scores zero-shot choice accuracy.
+- **TruthfulQA.** The [September 2021 paper](https://arxiv.org/abs/2109.07958) introduced questions that elicit common misconceptions from language models. The campaign's MC2 metric sums probability mass on all true answers within each question's candidate set, rather than counting a single selected answer.
+- **TriviaQA.** The [May 2017 paper](https://arxiv.org/abs/1705.03551) introduced trivia questions with independently collected evidence documents. The campaign runs five-shot answer generation and reports answer accuracy.
+- **AIME24.** The [Mathematical Association of America's 2024 AIME](https://maa.org/maa-invitational-competitions/) supplies the contest problems; AIME24 is a year-specific evaluation set, not a separately introduced research benchmark. Evalchemy samples ten solutions per question through the benchmark's built-in repeat loop and scores the integer final answers. The campaign ran that 30-question, ten-repeat protocol ten times, for 3,000 generations per model. The preserved launch records have `evalchemy.seed: null`, so the outer launches were not ten distinct random seeds; every launch used the same benchmark-internal repeat seed schedule.
+- **MMLU-Pro.** The [June 2024 paper](https://arxiv.org/abs/2406.01574) introduced harder, more reasoning-focused multiple-choice questions across fourteen subjects. The campaign runs zero-shot generation with a 65,536-token cap and reports micro-averaged accuracy.
+- **GPQA Diamond.** The [November 2023 paper](https://arxiv.org/abs/2311.12022) introduced expert-written graduate-level science questions, including the Diamond subset. The campaign averages accuracy over three generated answers per question.
+- **CRUXEval (output).** The [January 2024 paper](https://arxiv.org/abs/2401.03065) introduced input- and output-prediction tasks for short Python programs. The tracker reports the output-prediction direction, scored on one generated answer per item.
+- **FinanceBench.** The [November 2023 paper](https://arxiv.org/abs/2311.11944) introduced questions grounded in public financial filings. The campaign scores one generated answer per question with its pinned LLM judge.
+- **IFBench.** The [July 2025 paper](https://arxiv.org/abs/2507.02833) introduced verifiable constraints that test generalization in precise instruction following. The campaign reports strict prompt-level accuracy, requiring every constraint to hold in the raw response.
+- **MRCR.** [Gemini's September 2024 report](https://arxiv.org/abs/2409.12640) introduced multi-round coreference resolution; [OpenAI's public MRCR release (April 2025)](https://huggingface.co/datasets/openai/mrcr) supplies the corrected multi-needle data used here. The campaign scores nonce-gated sequence similarity and selects only context-length bins that fit the served model.
+- **NUPA (full tracker protocol).** The [November 2024 Number Cookbook paper](https://arxiv.org/abs/2411.03766) introduced tests of numerical understanding and processing across representations and tasks. Existing tracker scores use the full Evalchemy protocol of 238,926 selected prompts.
+- **SWE-bench Verified random-100.** OpenAI's [August 13, 2024 release](https://openai.com/index/introducing-swe-bench-verified/) introduced a human-validated subset of repository-issue repair tasks. The campaign evaluates a fixed random 100-task subset of this existing subset, with one Terminus-2 trial per issue and executable verification.
+- **OpenThoughts-TBLite 2.0.** The [February 18, 2026 release](https://www.openthoughts.ai/blog/openthoughts-tblite) introduced a 100-task, faster-running terminal-agent panel calibrated against Terminal-Bench 2. The campaign runs its pinned `openthoughts-tblite@2.0` tasks with Terminus-2 and reports verifier success.
+- **Terminal-Bench 2.0.** The [November 7, 2025 release](https://www.tbench.ai/news/announcement-2-0) introduced a harder, more thoroughly verified terminal-agent task set alongside Harbor. The campaign uses the pinned TB2 dataset through Harbor with one Terminus-2 trial per task.
+- **DS-1000 mini-200.** The [November 2022 paper](https://arxiv.org/abs/2211.11501) introduced data-science code-generation problems spanning seven Python libraries. The campaign evaluates a fixed seed-42 200-task Harbor subset with Terminus-2, building task images from the pinned Dockerfiles.
+- **BFCL-Parity @ Pi.** Berkeley's [February 2024 BFCL release](https://gorilla.cs.berkeley.edu/blogs/8_berkeley_function_calling_leaderboard.html) introduced executable function-calling evaluation. This campaign uses the Harbor `bfcl_parity@1.0` adaptation with the Pi agent, so its score is the pinned adaptation's verified solve rate rather than an unqualified BFCL leaderboard score.
+- **BixBench CLI corrections @ Pi.** The [February 2025 BixBench paper](https://arxiv.org/abs/2503.00096) introduced multi-step computational-biology analysis tasks. This campaign uses Pi on 205 `bixbench-cli-marin-corrections@3` tasks and reports binary answer-equivalence reward, which is distinct from canonical BixBench CLI v1.5.
+- **τ³-bench @ Pi.** Sierra's [March 18, 2026 τ³-Bench launch](https://sierra.ai/blog/bench-advancing-agent-benchmarking-to-knowledge-and-voice) introduced knowledge and voice tracks alongside corrections to the existing airline and retail tasks. The campaign runs pinned `tau3-bench@1.0.1` in Harbor through the Pi ACP relay and scores task verification.
+- **SOTOPIA-hard.** The [October 2023 SOTOPIA paper](https://arxiv.org/abs/2310.11667) introduced interactive social-agent evaluation and identified a hard scenario subset. The campaign runs the 100 hard episodes against a fixed `openai/gpt-oss-120b` counterpart and judge, then normalizes goal achievement from 0–10 to 0–1.
+
+### Out of Distribution
+
+* AAII 4.3
+* Harbor-Index
+* Terminal-Bench Science
+* DeepSWE 1.1 (deep-swe-litecontainer@1.1)
+--- END SOURCE EXCERPT ---

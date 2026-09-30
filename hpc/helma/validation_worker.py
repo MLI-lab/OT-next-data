@@ -123,9 +123,13 @@ def main(request):
             for task in tasks:
                 shutil.copytree(task, args.tasks / task.name)
             tasks = discover_tasks(args.tasks)
+        # Static checks do not reserve separate agent/verifier containers.
+        from validation.stages.runner import static_concurrency
+        args.static_concurrency = static_concurrency(args)
         budget = trial_capacity(tasks, args)
         args.concurrency = min(args.concurrency, budget['max_concurrency'])
-        save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency})
+        save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency,
+                                               'static_concurrency': args.static_concurrency})
         args.out = scratch / 'results'
         if args.trials:
             shutil.copytree(args.trials, scratch / 'input-trials')
@@ -137,6 +141,8 @@ def main(request):
             APPTAINER_CACHEDIR=str(base / 'cache/apptainer'),
             APPTAINER_NO_MOUNT='hostfs,bind-paths,cwd', BRIDGE_USE_FAKEROOT='1',
             BRIDGE_INSTANCE_REUSE='0', BRIDGE_WORKERS_DEAD_TIMEOUT='60',
+            BRIDGE_START_CONCURRENCY=str(getattr(args, 'container_start_concurrency', 8)),
+            BRIDGE_START_INTERVAL=str(getattr(args, 'container_start_interval', 0)),
             HARBOR_SIF_CACHE=str(base / 'images'))
         os.environ['PILOT_NET_ISOLATION'] = '0' if getattr(args, 'network_mode', 'isolated') == 'host' else '1'
         if getattr(args, 'network_mode', 'isolated') == 'host':
@@ -212,43 +218,53 @@ def main(request):
         # Stop new work before archiving. Slurm also tears down remaining steps.
         for signum in (signal.SIGUSR1, signal.SIGTERM, signal.SIGINT):
             signal.signal(signum, signal.SIG_IGN)
-        for process in reversed(processes):
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGTERM)
-        for process in reversed(processes):
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-        for log in logs:
-            log.close()
-        archive = request.parent / 'evidence.tar.gz'
-        # Do not archive container overlays/cache; only task inputs, logs and results.
-        with tarfile.open(archive.with_suffix('.tmp'), 'w:gz') as tar:
-            for path in scratch.iterdir():
-                if path.name in ('results', 'tasks', 'input-trials') or path.suffix in ('.log', '.json', '.md'):
-                    tar.add(path, arcname=path.name)
-        archive.with_suffix('.tmp').replace(archive)
-        status['evidence'] = str(archive)
-        save(request.parent / 'execution.json', status)
+        # Keep bridge services alive until the annotation job and publish finish.
         try:
-            from validation.report import write_report
-            write_report(archive, request.parent / 'report')
-        except Exception as exc:
-            save(request.parent / 'report-error.json', {'error': str(exc), 'archive': str(archive)})
-        if getattr(args, 'publish_repo', None) and getattr(args, 'contract', None) and (request.parent / 'report').is_dir():
-            # The pull request is a proposal; the reports stay the record if this fails.
-            try:
-                from validation.publish import publish
-                result = publish(request.parent / 'report', args.contract, args.publish_repo,
-                                 getattr(args, 'publish_folder', None) or [], out=request.parent / 'publish',
-                                 analysis=bool(getattr(args, 'publish_analysis', False)))
-                save(request.parent / 'publish.json', {k: v for k, v in result.items() if k != 'description'})
-                status['pull_request'] = result.get('pull_request')
-            except Exception as exc:
-                status['pull_request_error'] = str(exc)
-                save(request.parent / 'publish-error.json', {'error': str(exc)})
+            archive = request.parent / 'evidence.tar.gz'
+            # Do not archive container overlays/cache; only task inputs, logs and results.
+            with tarfile.open(archive.with_suffix('.tmp'), 'w:gz') as tar:
+                for path in scratch.iterdir():
+                    if path.name in ('results', 'tasks', 'input-trials') or path.suffix in ('.log', '.json', '.md'):
+                        tar.add(path, arcname=path.name)
+            archive.with_suffix('.tmp').replace(archive)
+            status['evidence'] = str(archive)
             save(request.parent / 'execution.json', status)
+            try:
+                from validation.report import write_report
+                write_report(archive, request.parent / 'report')
+            except Exception as exc:
+                save(request.parent / 'report-error.json', {'error': str(exc), 'archive': str(archive)})
+            if getattr(args, 'publish_repo', None) and getattr(args, 'contract', None) and (request.parent / 'report').is_dir():
+                # The pull request is a proposal; the reports stay the record if this fails.
+                try:
+                    from validation.publish import publish
+                    if getattr(args, 'publish_require_complete', False):
+                        from validation.publish import require_complete
+                        require_complete(request.parent / 'report', args.contract)
+                    result = publish(request.parent / 'report', args.contract, args.publish_repo,
+                                     getattr(args, 'publish_folder', None) or [], out=request.parent / 'publish',
+                                     analysis=bool(getattr(args, 'publish_analysis', False)),
+                                     readme=bool(getattr(args, 'publish_readme', False)),
+                                     readme_model=getattr(args, 'publish_readme_model', 'claude-fable-5-1'),
+                                     readme_seed=getattr(args, 'publish_readme_seed', 0),
+                                     readme_evidence=getattr(args, 'publish_readme_evidence', ()))
+                    save(request.parent / 'publish.json', {k: v for k, v in result.items() if k != 'description'})
+                    status['pull_request'] = result.get('pull_request')
+                except Exception as exc:
+                    status['pull_request_error'] = str(exc)
+                    save(request.parent / 'publish-error.json', {'error': str(exc)})
+                save(request.parent / 'execution.json', status)
+        finally:
+            for process in reversed(processes):
+                if process.poll() is None:
+                    os.killpg(process.pid, signal.SIGTERM)
+            for process in reversed(processes):
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+            for log in logs:
+                log.close()
         try:
             from hpc.helma.validation_submit import archive_code_snapshot
             archive_code_snapshot(request.parent)

@@ -57,6 +57,21 @@ def failed_checks(item, not_required=(), status='failed'):
                   if c['status'] == status and c['check'] not in not_required)
 
 
+def require_complete(reports_dir, contract_path):
+    """Prevent an interrupted automatic run from opening a partial-data PR."""
+    frozen = read(contract_path)
+    expected = {t['task_id'] for t in task_records(frozen)}
+    reports = stage_reports(reports_dir)
+    for stage in GATES:
+        report = reports.get(stage, {})
+        items = report.get('items', [])
+        if (not report.get('complete') or report.get('dry_run') or
+                report.get('contract_sha256') != frozen['sha256'] or
+                len(items) != len(expected) or {Path(i['task']).name for i in items} != expected or
+                any(judge(stage, item)[0] == 'not_run' for item in items)):
+            raise ValueError(f'automatic PR deferred: stage {stage} lacks complete task outcomes')
+
+
 def judge(stage, item, not_required=()):
     """(outcome, reason): outcome is 'passed', 'archive' or 'not_run'."""
     status = item.get('status')
@@ -218,7 +233,9 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
         'contract_sha256': contract['sha256'], 'dataset': contract['dataset']['source'],
         'dataset_revision': contract['dataset']['revision'], 'stages_in_contract': contract['stages'],
         'stages_reported': sorted(s for s, r in reports.items() if r.get('complete') and not r.get('dry_run')),
-        'execution_profile': {k: profile.get(k) for k in ('backend', 'architecture', 'network', 'network_guarantee', 'privileges')},
+        'execution_profile': {k: profile.get(k) for k in ('backend', 'architecture', 'network', 'network_guarantee', 'privileges', 'validation_container_reuse')},
+        'static_checkpoint': contract.get('static_checkpoint'),
+        'static_resume': reports.get(1, {}).get('resumed_from'),
         'static_checks': contract['success_criteria']['static_checks'],
         'static_exclusions': contract['success_criteria']['static_exclusions'],
         'not_required_checks': sorted(not_required),
@@ -277,8 +294,8 @@ def run_summary(record, tables):
 def run_llm(prompt, model='sonnet', timeout=600):
     """One non-interactive call through the Claude Code login on this machine."""
     import subprocess
-    result = subprocess.run(['claude', '-p', prompt, '--model', model, '--output-format', 'json'],
-                            capture_output=True, text=True, timeout=timeout)
+    command = ['claude', '-p', '--model', model, '--output-format', 'json', '--tools', '']
+    result = subprocess.run(command, input=prompt, capture_output=True, text=True, timeout=timeout)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout).strip()[-500:] or f'exit {result.returncode}')
     output = json.loads(result.stdout)
@@ -340,10 +357,13 @@ def description(record):
         lines += ['', f"Static checks excluded by the contract: {len(excluded)}. "
                       f"Recorded but not required: {', '.join(record['not_required_checks']) or 'none'}. "
                       'Reasons are in the run file.']
+    if record.get('dataset_cards'):
+        lines += ['', 'Dataset cards (source, taxonomy labels, and transfer hypotheses):', '']
+        lines += [f'- [{folder}]({card["readme"]})' for folder, card in record['dataset_cards'].items()]
     return '\n'.join(lines) + '\n' + analysis_text(record.get('analysis'))
 
 
-def write(tables, record, run_file, out):
+def write(tables, record, run_file, out, cards=None):
     import pyarrow as pa
     import pyarrow.parquet as pq
     out = Path(out)
@@ -358,6 +378,12 @@ def write(tables, record, run_file, out):
             rows = sorted(rows, key=lambda r: r['path'])
             pq.write_table(pa.table({c: [r[c] for r in rows] for c in COLUMNS}, schema=schema), path)
             files.append(f'{folder}/{name}')
+    for folder, card in sorted((cards or {}).items()):
+        directory = out / folder
+        (directory / 'README.md').write_text(card['readme'])
+        (directory / 'annotation.json').write_text(json.dumps(
+            {k: v for k, v in card.items() if k != 'readme'}, indent=2) + '\n')
+        files.extend([f'{folder}/README.md', f'{folder}/annotation.json'])
     path = out / run_file
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2) + '\n')
@@ -379,16 +405,26 @@ def main():
     ap.add_argument('--dry-run', action='store_true', help='write the files and the description, open no pull request')
     ap.add_argument('--analysis', action='store_true', help='let a model group the archived tasks and suggest actions (Claude Code login); skipped on any failure')
     ap.add_argument('--analysis-model', default='sonnet')
+    ap.add_argument('--readme', action='store_true', help='generate dataset cards through Claude Code in Harbor/Apptainer before publishing')
+    ap.add_argument('--readme-model', default='claude-fable-5-1')
+    ap.add_argument('--readme-seed', type=int, default=0, help='seed for sampling up to ten kept tasks per dataset')
+    ap.add_argument('--readme-work-dir', type=Path, help='cluster workspace for annotation inputs and Harbor jobs; defaults under --out')
+    ap.add_argument('--readme-evidence', action='append', default=[], metavar='FOLDER=PATH',
+                    help='generator script, source documentation, or patch excerpt to stage for an output folder; repeatable')
     a = ap.parse_args()
     result = publish(a.reports, a.contract, a.repo, a.folder, a.not_required, a.out, a.run_id, a.dry_run,
-                     analysis=a.analysis, analysis_model=a.analysis_model)
+                     analysis=a.analysis, analysis_model=a.analysis_model,
+                     readme=a.readme, readme_model=a.readme_model, readme_evidence=a.readme_evidence,
+                     readme_seed=a.readme_seed, readme_work_dir=a.readme_work_dir)
     print(result['description'])
     print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
           if a.dry_run else f"Pull request: {result['pull_request']}")
 
 
 def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=None, run_id=None, dry_run=False,
-            analysis=False, analysis_model='sonnet', call=run_llm):
+            analysis=False, analysis_model='sonnet', call=run_llm,
+            readme=False, readme_model='claude-fable-5-1', readme_evidence=(),
+            readme_seed=0, readme_work_dir=None, annotation_runner=None):
     """Build the files for one run and open the pull request; returns what was done."""
     contract = read(contract_path)
     reports = stage_reports(reports_dir)
@@ -406,7 +442,25 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
     if analysis:
         record['analysis'] = analyse(record, tables, analysis_model, call)
     out = Path(out) if out else Path(reports_dir) / 'publish'
-    files = write(tables, record, run_file, out)
+    cards = None
+    if readme_evidence and not readme:
+        raise ValueError('--readme-evidence requires --readme')
+    if readme:
+        from validation.annotation import generate
+        evidence = {}
+        for item in readme_evidence:
+            folder, path = item.split('=', 1)
+            evidence.setdefault(folder, []).append(path)
+        from uuid import uuid4
+        work = Path(readme_work_dir) if readme_work_dir else out / 'annotation-runs'
+        if work.resolve().is_relative_to('/home'):
+            raise ValueError('annotation inputs and jobs must be outside /home; set --readme-work-dir to a cluster workspace')
+        cards = generate(tables, readme_model, annotation_runner, work / uuid4().hex,
+                         evidence, seed=readme_seed)
+        record['dataset_cards'] = {folder: {'readme': f'{folder}/README.md',
+            'annotation': f'{folder}/annotation.json', 'model': card['annotation']['model'],
+            'prompt_sha256': card['provenance']['prompt_sha256']} for folder, card in cards.items()}
+    files = write(tables, record, run_file, out, cards)
     result = {'run': record['run'], 'files': files, 'out': str(out), 'description': description(record),
               'analysis': (record.get('analysis') or {}).get('status')}
     if dry_run:

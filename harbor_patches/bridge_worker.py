@@ -50,6 +50,7 @@ import socket
 import subprocess
 import sys
 import time
+import threading
 from pathlib import Path
 from harbor.environments.apptainer import worker
 
@@ -57,6 +58,35 @@ _original_start = worker.ApptainerInstance.start
 _original_stop = worker.ApptainerInstance.stop
 _original_parse_copies = worker._parse_copies
 _original_pool_key = worker._pool_key_from_payload
+
+
+class ContainerStartGate:
+    """Bound startup concurrency and optionally space out admissions."""
+
+    def __init__(self, concurrency, interval=0, clock=time.monotonic, sleep=time.sleep):
+        if concurrency < 1 or not 0 <= interval < float('inf'):
+            raise ValueError('startup concurrency must be positive and interval finite/nonnegative')
+        self.semaphore = threading.BoundedSemaphore(concurrency)
+        self.lock = threading.Lock()
+        self.interval, self.clock, self.sleep = interval, clock, sleep
+        self.last_start = None
+
+    def __enter__(self):
+        self.semaphore.acquire()
+        try:
+            with self.lock:
+                if self.last_start is not None:
+                    delay = self.last_start + self.interval - self.clock()
+                    if delay > 0:
+                        self.sleep(delay)
+                self.last_start = self.clock()
+        except BaseException:
+            self.semaphore.release()
+            raise
+        return self
+
+    def __exit__(self, *exc):
+        self.semaphore.release()
 
 
 def parse_copies_docker_semantics(dockerfile_path):
@@ -364,6 +394,9 @@ if __name__ == '__main__':
     # APPTAINERENV changes only the container environment, not worker staging.
     for name in ('TMPDIR', 'TMP', 'TEMP'):
         os.environ[f'APPTAINERENV_{name}'] = '/tmp'
+    worker._INSTANCE_START_SEM = ContainerStartGate(
+        int(os.environ.get('BRIDGE_START_CONCURRENCY', '8')),
+        float(os.environ.get('BRIDGE_START_INTERVAL', '0')))
     worker._cleanup_stale_instances = cleanup_own_staging_only
     sweep_message_queues('startup')
     configure_explicit_host_network()

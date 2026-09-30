@@ -140,6 +140,7 @@ def main():
         ap.add_argument('--' + name, required=True)
     ap.add_argument('--inputs', help="the audit's inputs.sqlite (Helma); or --inferredbugs-root")
     ap.add_argument('--inferredbugs-root', help='a checkout of microsoft/InferredBugs at the pinned commit (warmup.py --source DIR)')
+    ap.add_argument('--parquet', help='check the tasks already packaged in this parquet instead of packaging them in memory')
     ap.add_argument('--variants', default='buggy,gold')
     ap.add_argument('--workers', type=int, default=6)
     ap.add_argument('--timeout', type=int, default=7200, help='seconds for one test.sh')
@@ -155,6 +156,16 @@ def main():
             row = json.loads(line)
             DONE[row['task_id'], row['variant']] = row
     rows = {r['task_id']: r for r in patcher.embedded_recipes()}
+    packaged = {}
+    if a.parquet:
+        selected = set(ids)
+        for batch in patcher.pq.ParquetFile(a.parquet).iter_batches(batch_size=64, columns=['path', 'task_binary']):
+            for item in batch.to_pylist():
+                if item['path'] in selected:
+                    packaged[item['path']] = patcher.unpack(item['task_binary'])
+        missing = selected - packaged.keys()
+        if missing:
+            raise ValueError('Selected tasks missing from parquet: ' + ', '.join(sorted(missing)))
     db = sqlite3.connect('file:%s?immutable=1' % a.inputs, uri=True) if a.inputs else None
     jobs = []
     for task_id in ids:
@@ -171,8 +182,9 @@ def main():
         (record / 'file_before.txt').write_bytes(before)
         task = patcher.Task(task_id, row['language'], row['project'], str(row['bug_id']), record, row['commit'], row['target_file'],
                             row['file_after_sha256'], row['repository'], file_before_sha256=row.get('file_before_sha256', ''), parent=row.get('parent', ''))
-        files = patcher.package({}, task, patcher.row_proposal(row), patcher.resolve_image(row['image'], row['language']), row, {},
-                                SimpleNamespace(vendor_dir=None, vendor_url=patcher.DEFAULT_VENDOR_URL, verify_timeout=a.step_timeout))
+        files = packaged[task_id] if a.parquet else patcher.package(
+            {}, task, patcher.row_proposal(row), patcher.resolve_image(row['image'], row['language']), row, {},
+            SimpleNamespace(vendor_dir=None, vendor_url=patcher.DEFAULT_VENDOR_URL, verify_timeout=a.step_timeout))
         jobs += [(a, task_id, row, meta, files, before, after, v) for v in a.variants.split(',')]
     if db:
         db.close()

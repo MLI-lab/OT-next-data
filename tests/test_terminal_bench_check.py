@@ -122,6 +122,12 @@ def test_training_defaults_and_missing_ai_key_are_non_failing(tmp_path, capsys):
     _, checks, excluded = load_checks('training')
     assert set(TRAINING_EXCLUSIONS) <= set(excluded)
     assert 'check-task-changelog.sh' in excluded
+    assert 'check-separate-verifier.sh' in excluded
+    assert 'check-separate-verifier.sh' not in checks
+    assert 'check-test-sh-sanity.sh' not in checks
+    assert 'check-test-sh-sanity.sh' in load_checks('terminal-bench')[1]
+    assert {'check-pip-pinning.sh', 'check-verifier-tooling-baked.sh'} <= set(checks)
+    assert 'check-separate-verifier.sh' in load_checks('terminal-bench')[1]
     assert AI_CHECK in checks and 'rubric_review.py' not in checks
     task = make_task(tmp_path)
     # Portable fixture passes its checks; missing API credentials must not fail it.
@@ -181,6 +187,28 @@ def test_exclusion_records_its_reason():
     assert not {'check-separate-verifier.sh', 'check-nproc.sh', 'check-pip-pinning.sh'} & set(checks)
 
 
+@pytest.mark.parametrize('instruction, expected', [
+    ('Edit `/etc/systemd/system/serial-getty@ttyS0.service.d/override.conf`.', 'passed'),
+    ('The JavaScript string "console.log" and sed pattern `s/console.log(.*)//` must be preserved.', 'passed'),
+    ('Remove `console.log("debug")` calls.', 'passed'),
+    ('Save output to "console.log".', 'failed'),
+    ('Save output to "results.json".', 'failed'),
+    ('Edit `service.d/override.conf`.', 'failed'),
+    ('Read `/app/results.json`, then write "results.json".', 'failed'),
+    ('```bash\ncat ./results.json\n```', 'failed'),
+])
+def test_path_adapter_preserves_real_relative_path_failures(tmp_path, instruction, expected):
+    task = make_task(tmp_path)
+    (task / 'instruction.md').write_text(instruction)
+    _, checks, _ = load_checks('training')
+    run_checks([task], tmp_path / 'report', 'training',
+               exclude=[n for n in checks if n != 'check-task-absolute-path.sh'])
+    result = json.loads((tmp_path / 'report/summary.json').read_text())
+    check = next(c for c in result['tasks'][0]['checks'] if c['check'] == 'check-task-absolute-path.sh')
+    assert check['status'] == expected
+    assert (task / 'instruction.md').read_text() == instruction
+
+
 def test_unsafe_file_names_are_checked_on_a_renamed_copy(tmp_path):
     task = make_task(tmp_path, 'spaces')
     (task / 'setup_files/context').mkdir(parents=True)
@@ -190,3 +218,52 @@ def test_unsafe_file_names_are_checked_on_a_renamed_copy(tmp_path):
     entry = json.loads((out / 'summary.json').read_text())['tasks'][0]
     assert entry['status'] == 'passed' and entry['renamed_for_checks'] == ['setup_files/context/000_Clase 4__[id].ts']
     assert (task / 'setup_files/context/000_Clase 4__[id].ts').exists()      # the task itself is unchanged
+
+
+def test_parallel_checks_share_one_log_and_preserve_failures(tmp_path):
+    good = make_task(tmp_path, 'parallel-good')
+    bad = make_task(tmp_path, 'parallel-bad')
+    (bad / 'environment/Dockerfile').write_text('FROM python:3.12-slim\nRUN pip install requests\n')
+    out = tmp_path / 'parallel-report'
+    assert run_checks([good, bad], out, 'portable', concurrency=12) == 1
+    report = json.loads((out / 'summary.json').read_text())
+    assert report['concurrency'] == 12 and report['complete']
+    for entry in report['tasks']:
+        checks = [c for c in entry['checks'] if c['log']]
+        assert len({c['log'] for c in checks}) == 1
+        content = Path(checks[0]['log']).read_text()
+        assert all(f'=== {entry["task"]} / {c["check"]} ===' in content for c in checks)
+        assert all(c['duration_seconds'] >= 0 for c in checks)
+    failure = next(c for c in report['tasks'][1]['checks'] if c['check'] == 'check-pip-pinning.sh')
+    assert failure['status'] == 'failed'
+    assert 'requests' in Path(failure['log']).read_text()
+    assert not (out / 'summary.json.tmp').exists()
+    assert len(list(out.rglob('*.log'))) == 1
+    outcomes = [json.loads(line) for line in (out / 'outcomes.jsonl').read_text().splitlines()]
+    assert {entry['task'] for entry in outcomes} == {good.name, bad.name}
+    from validation.verify.check_terminal_bench import rebuild_summary
+    assert rebuild_summary(out)['tasks'] == report['tasks']
+
+
+def test_summary_recovery_retains_completed_tasks_and_rejects_corruption(tmp_path):
+    from validation.verify.check_terminal_bench import rebuild_summary
+    (tmp_path / 'summary.json').write_text(json.dumps({
+        'selected_tasks': ['/tasks/first', '/tasks/second'], 'tasks': [],
+        'complete': False, 'passed': False}))
+    first = {'task': 'first', 'status': 'passed', 'checks': []}
+    second = {'task': 'second', 'status': 'failed', 'checks': []}
+    journal = tmp_path / 'outcomes.jsonl'
+    journal.write_text(json.dumps(first) + '\n' + '{"task": "sec')
+    result = rebuild_summary(tmp_path)
+    assert result['tasks'] == [first]
+    assert result['incomplete_journal_tail'] and not result['complete'] and not result['passed']
+    journal.write_text(json.dumps(second) + '\n' + json.dumps(first) + '\n')
+    result = rebuild_summary(tmp_path)
+    assert result['tasks'] == [first, second]
+    assert result['complete'] and not result['passed']
+    journal.write_text(json.dumps(first) + '\n' + 'broken\n')
+    with pytest.raises(ValueError):
+        rebuild_summary(tmp_path)
+    journal.write_text((json.dumps(first) + '\n') * 2)
+    with pytest.raises(ValueError, match='duplicate'):
+        rebuild_summary(tmp_path)

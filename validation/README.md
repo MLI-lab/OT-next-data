@@ -1,8 +1,54 @@
 # Task validation
 
-Combines the [Terminal-Bench task validation protocol](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/TASK_REVIEW_AUTOMATION.md) at commit `1dcda8716784` with the [Agentic RL dataset validation protocol](https://gist.github.com/marianna13/f9bc94d2ecb39c302c6c9b540ea6100a). The stages and our changes are described below, followed by setup and usage.
+Combines the [Terminal-Bench task validation protocol](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/TASK_REVIEW_AUTOMATION.md) at commit `1dcda8716784` with the [Agentic RL dataset validation protocol](https://gist.github.com/marianna13/f9bc94d2ecb39c302c6c9b540ea6100a). Start with the recommended workflow below; the stage descriptions explain our adaptations and default exclusions, followed by setup and usage.
+
+## Recommended workflow
+
+1. **Stages 1, 3, 4 and 5 with 10 tasks.** Choose a diverse sample and repeat
+   until all pilot tasks pass. Collect the dataset fixes in
+   `data/<dataset>/patch.py` so they can be applied to the full dataset,
+   documenting the source PR/commit and changes.
+
+2. **Validate the full patched dataset.** Run stages **1, 3, 4 and 5** on all tasks.
+   Resolve failures and missing results before generating teacher trajectories.
+
+3. **Pilot teacher generation.** Run stage **6** on a small sample, then inspect
+   the stage-**7** report and a few trajectories. Check scores, errors, timeouts
+   and recording; the teacher need not solve every task.
+
+4. **Run teacher generation at full scale.** Use the chosen number of attempts
+   per task and generate the stage-**7** report for the full run.
+
+5. **Pilot LLM reviews in stages 2 and 8.** Use
+   [`create_pilot.py`](create_pilot.py) to sample from the earlier results across
+   reward groups, trajectory lengths, task families and termination reasons.
+   Review the pilot results before expanding coverage. Sampling details are
+   in the stage-2 and stage-8 sections below.
 
 ## Stage 1: static checks
+
+Stage 1 uses `--concurrency`, bounded by the allocation's CPUs and process CPU
+affinity; there is no fixed eight-task cap. Use `--static-concurrency N` to tune
+static checks independently of container trials. For example, with 128 allocated
+CPUs and `--concurrency 112`, static checks can run 112 tasks concurrently.
+The effective value is recorded in stage reports and worker `resources.json`.
+Shared-storage throughput can still limit scaling; measure a pilot before
+increasing concurrency further. All check output goes into one `static/checks.log`,
+with task/check headings and non-interleaved sections. Each completed task is
+appended and flushed to `static/outcomes.jsonl`, including check statuses, errors,
+and durations. `static/summary.json` starts with run metadata and is populated
+with all outcomes once at the end, using atomic replacement. After an interrupted
+run, reconstruct this static summary without rerunning checks:
+
+```bash
+python validation/verify/check_terminal_bench.py --rebuild-summary --out PATH/TO/static
+```
+
+Recovery preserves completed tasks, ignores an unfinished final JSONL line, and
+marks missing tasks incomplete. It does not resume work or mark the whole
+validation pipeline complete. While a job runs, use `outcomes.jsonl` for progress.
+An in-flight task may need rerunning after interruption. These settings apply to new runs, not
+already-submitted code snapshots.
 
 Extends the upstream suffix check: if missing, append “You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.” to the saved validation copy's `instruction.md`, using `[agent].timeout_sec` from that task’s `task.toml`. If the correct sentence is already at the end, nothing is appended. If its timeout differs, the existing sentence is updated. Use `--no-fix-instruction-suffix` to disable the fix-up.
 
@@ -16,6 +62,8 @@ Runs pinned upstream checks. The default `training` profile disables:
 | `task-fields` | TB author metadata, taxonomy and explanation sections are not required. |
 | `task-package-name`, `task-slug` | TB package names and three-token name limits are not required. |
 | `pytest-version` | Other pinned pytest/CTRF versions are valid. |
+| `test-sh-sanity` | Shared system Python and image-installed test dependencies are allowed; `uv` is not required. Stages 4 and 5 check verifier execution. |
+| `separate-verifier` | Some tasks require the agent to install packages or modify the environment; grading must inspect that resulting state. Training therefore permits shared verification with tests uploaded after the agent phase and does not require a separate verifier container. |
 | `gpu-types` | Modal GPU names do not describe Helma allocations. |
 | `allow-internet`, `no-allow-internet-true` | Explicit online/offline policies are allowed; stage 3 probes them. |
 | `rubric_review.py` | Instruction-only proposal review is optional in stage 2 (`--proposal-review`), alongside implementation review. |
@@ -26,7 +74,20 @@ A task with whitespace or `*?[]` in a file name is checked on a copy where those
 
 Resource sizes are checked against upstream’s standard values: **1, 2, 4, 8 or 16 CPUs**, and **1, 2, 4, 8, 16 or 32 GiB RAM** per task/verifier environment. 
 
+The path-check adapter also masks complete absolute path tokens, including
+systemd paths containing `@` and dots, and recognizes JavaScript console calls
+and inline sed substitutions. This prevents substrings such as `d/override.conf`
+and expressions such as `s/console.log(.*)//` from being mistaken for relative
+paths. Real relative file references remain checked; the pinned checker itself
+is unchanged.
+
 Use repeatable `--exclude NAME` for further exclusions, or `--exclude "NAME=reason"` to record why, or `--static-profile terminal-bench` for stricter upstream policies (PR changelog remains excluded).
+
+Shared verification uploads trusted tests after the agent phase and grades in
+the resulting agent environment. The strict `terminal-bench` profile still
+requires a separate verifier. Dependency, test-script and reward checks remain
+enabled for training; accepting shared verification does not make missing test
+dependencies or a verifier that never executes its tests acceptable.
 
 ## Stage 2: LLM rubric review
 
@@ -55,6 +116,30 @@ The summary also records contract/network status and pipeline errors. Full trial
 
 **Stage 2 runs only when explicitly selected**, e.g. `--stages 2` or `--stages all`. The default is stage 1 only. The pinned judge is Claude Code with `anthropic/claude-sonnet-5`; overrides are recorded in the contract.
 
+**Smaller, diverse pilot.** After stage 7, [`create_pilot.py`](create_pilot.py)
+samples tasks through **reward group → short/medium/long → language/family**,
+allocating equally at each level and redistributing unused quota. Reward groups
+are `all_solved`, `all_zero`, `constant_partial`, `varying`, and `no_reward`.
+Length buckets split each reward group into thirds by each task's mean trajectory
+turns. Within each final bucket, pick one task randomly, then choose each remaining
+task whose command distribution is furthest from its nearest already-selected
+task, using Jensen–Shannon distance, until the quota is filled. Distributions are
+averaged across each task's trajectories. Break ties uniformly at random and never
+select a task twice. Stage-7 metrics must contain usable command distributions.
+
+```bash
+python validation/create_pilot.py /path/to/tasks \
+  --trace-metrics /path/to/stage7/trace-metrics.json \
+  --stage 2 --size 120 --family-from-id --seed 42 \
+  --out /data/horse/ws/YOUR-WORKSPACE/pilot-stage2
+```
+
+`--size` sets the task budget; `--trace-metrics` supplies stage-7 metrics;
+`--seed` makes selection reproducible. Families come from `--families mapping.json`,
+task metadata, or `--family-from-id` for IDs shaped `<dataset>-<family>-<number>`.
+`--out` writes a selection manifest (`pilot.json`) and copied `tasks/` for stage 2.
+Use a new directory in cluster workspace storage. No LLM calls are made.
+
 ## Stage 3: build and runtime validation
 
 Upstream checks image construction. [`stages/harbor.py`](stages/harbor.py) calls Harbor's environment factory and `start()`, selecting **Apptainer** by default: the bridge reuses a cached SIF or builds one, then starts the environment. It covers the agent and any separate verifier environments, and stops them afterwards.
@@ -73,7 +158,7 @@ Our additional checks in [`checks/environment.py`](checks/environment.py) and [`
 Both stages run a Harbor trial through our backend and check the verifier's reward.
 
 - **Stage 4, oracle:** run `solution/solve.sh`, then the verifier; the reward must be **1**. Tasks without a solution are reported as skipped.
-- **Stage 5, NOP:** run the verifier without any solving agent; the reward must be **0**. A missing reward or a runtime error fails.
+- **Stage 5, NOP:** run the verifier without any solving agent; the reward must be **0**. A missing reward or a runtime error fails. Recognized pytest startup/collection failures and summaries with no executed tests also fail, even if the wrapper writes reward 0.
 
 ## Stage 6: agent trials
 
@@ -177,6 +262,27 @@ Prompt, rubric and verifier come from upstream Terminal-Bench (paths from the re
 
 Upstream fetches trials from its hosted service. Our version supplies the local task and trial files instead. The judge and model defaults are the same as in stage 2.
 
+**Smaller, diverse pilot.** [`create_pilot.py`](create_pilot.py) selects trajectories
+through **task reward group → short/medium/long → language/family → termination
+reason**, with equal allocation and redistribution as in stage 2. Length uses
+individual trajectory turns. Within each final bucket, pick one trajectory randomly,
+then repeatedly select the furthest command distribution, with random tie-breaking,
+as in stage 2. The same trajectory is never selected twice.
+
+```bash
+python validation/create_pilot.py /path/to/tasks \
+  --trace-metrics /path/to/stage7/trace-metrics.json \
+  --trials /path/to/teacher/jobs/job \
+  --stage 8 --size 240 --family-from-id --seed 42 \
+  --out /data/horse/ws/YOUR-WORKSPACE/pilot-stage8
+```
+
+`--size` caps **trajectories**; `--trials` supplies the original teacher evidence.
+Other arguments follow stage 2, with command diversity using individual trajectory
+distributions. Output: `pilot.json`, `tasks/`, and selected `trials/`. Pass the latter
+two to stage 8 as its tasks input and `--trials`. Selection makes no LLM calls;
+pilot finding rates are not dataset-wide defect estimates.
+
 ## Stage 9: adversarial trials
 
 Prepend upstream's cheat prompt ([`hack-trial-prompt.md`](../external/terminal-bench/docs/prompts/hack-trial-prompt.md)) to a copy of the task, then run Harbor trials. Reward 1 alone does not establish cheating; stage 8 reviews the evidence.
@@ -233,6 +339,67 @@ Log in to Hugging Face first, with a token that has write access.
 To open the pull request automatically when a Helma job ends, prepare the contract with `--publish-repo FWeindel/validated-tasks` and `--publish-folder PREFIX=FOLDER` as needed. The job then runs the same script on its own reports; the link is written to `execution.json` as `pull_request`, and a failure to `publish-error.json`. Without `--publish-repo`, run the script by hand after the job.
 
 `--analysis` (or `--publish-analysis` when preparing the contract) adds an advisory section to the pull request: a model reads a digest of the archived and not-run tasks, counts, reasons and a few task IDs, groups them by likely cause (task defect, infrastructure, a check that does not fit the dataset) and suggests an action per group: rerun, exclude a check, fix the tasks, keep archived or investigate. It uses the Claude Code login of the machine and is skipped, with the reason recorded in the run file, when the call fails, for example without login or quota. It changes no decision; kept and archived are decided by the rules above.
+
+To include a dataset card in the same PR, add `--readme`. This runs one Harbor
+annotation task per output folder, using Claude Code inside Apptainer (default
+`--readme-model claude-fable-5-1`). It randomly samples up to ten kept tasks already
+loaded by publishing; no second dataset download is needed. `--readme-seed`
+(default 0) makes the sample reproducible. Full sampled task directories are
+staged through Harbor's `setup_files` upload and exposed at `/evidence/tasks/`.
+They are copies, not host bind mounts; their contents are not inlined in the
+prompt or baked into the image. Claude reads all supplied examples, including
+instructions and verifier code, without executing them or building their images.
+The prompt, evaluation snapshot, and CLI-Universe taxonomies come from
+`data/annotate_dataset/`.
+
+Supply optional generator scripts, upstream documentation, or patch excerpts with
+repeatable `--readme-evidence FOLDER=PATH` options. These files are available under
+`/evidence/source/`; they are inspected, not executed. Without source evidence the
+model may correctly report an unknown original datasource.
+
+Manual publishing requires an active network-enabled Apptainer bridge
+(`APPTAINER_BRIDGE_URL`), `HARBOR_SIF_CACHE` in cluster workspace storage, and
+`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` for the installed Claude agent.
+Use a workspace under `/data/horse`, `/data/ws`, or `/data/cat` for outputs and
+caches after checking mounts and `ws_list`. Annotation inputs and Harbor logs
+default to `OUT/annotation-runs/`; override with `--readme-work-dir`. Paths under
+`/home` are rejected for annotation staging.
+
+```bash
+python validation/publish.py /path/to/report --contract /path/to/contract.json \
+  --folder crosscodeeval-python=crosscodeeval-python-v3 \
+  --readme --readme-evidence crosscodeeval-python-v3=data/crosscodeeval/README.md \
+  --out /path/to/cluster-workspace/publish \
+  --dry-run
+```
+
+The dry run runs the Harbor annotation jobs but opens no PR. Inspect each folder's `README.md`
+and `annotation.json` in the output directory. A live publish includes both files
+alongside the parquets and links the cards in the PR description. Annotation JSON
+preserves the sampled task IDs, seed, evidence hashes and container paths, model,
+Harbor job/trial paths, snapshot metadata, and prompt/codebook hashes. Harbor keeps
+the staged evidence, agent logs, and trajectories in the annotation work directory.
+Claude Code can read/search files, use the shell, write its annotation, and use
+WebFetch and WebSearch to consult linked papers and official documentation.
+It writes `/app/annotation.json`; a container verifier checks its schema and
+labels, then publishing independently validates the collected artifact.
+The prompt receives the benchmark
+descriptions and links, without snapshot headers, settings tables, or development
+policy; taxonomy reference
+docstrings are omitted; taxonomy inputs contain only labels and definitions.
+Shared labeling instructions live in the prompt template. Multiple labels are
+separate JSON entries and are displayed comma-separated in the README. Structural validation
+rejects unknown labels, benchmarks, and malformed output; it does not prove
+that a model's scientific transfer hypothesis is correct. Generation or validation
+failure stops publishing. Without `--readme`, publishing behaves as before.
+
+For automatic Helma publishing, add `--publish-readme`, optionally
+`--publish-readme-model`, `--publish-readme-seed`, and repeatable
+`--publish-readme-evidence FOLDER=PATH`. Evidence files must be readable on the
+worker. Set `--network-mode host` for the installed Claude agent. The worker keeps
+bridge services alive through annotation and publishing. Budget Slurm wall time for the extra
+annotation jobs (up to 20 minutes of agent time per dataset, plus setup).
+Existing submitted jobs are not changed by these options.
 
 ## Quickstart
 
@@ -293,3 +460,62 @@ Stages 1, 3, 4 and 5 were run on ten CrossCodeEval tasks on Helma's `h200` parti
 - **Harbor:** Marin fork, commit `7faf878c14b6` (package `0.8.1`).
 - **Apptainer:** 1.5.3, as installed on Helma (checked 2026-09-29). The cluster can update it, so each run records its version in `execution.json`.
 - **Other pins:** [upstream/upstream.lock.json](upstream/upstream.lock.json).
+
+
+### Container validation throughput (new submissions)
+
+Stage 3 appends each finished task to `outcomes.jsonl` and writes its full stage
+summary only at completion (an initial empty summary records that it started).
+Its environment results include start, inspection, and stop durations.
+Stages 4 and 5 retain Harbor's individual trial results and use fresh containers
+unless the option below is enabled.
+Harbor's upstream aggregate progress snapshots are unchanged.
+
+For allocation-worker jobs, `--container-start-concurrency` controls simultaneous
+Apptainer starts (default 8), separately from active task concurrency.
+`--container-start-interval 0.25` spaces admissions by at least a quarter-second;
+the default is 0 (no added spacing). These controls apply to container starts,
+not cold image compilation. Benchmark changes on a pilot before raising the cap;
+staggering is not proof that a higher cap is safe or faster. Controls are frozen
+in the contract and passed to the bridge by the worker. Directly managed bridges
+use `BRIDGE_START_CONCURRENCY` and `BRIDGE_START_INTERVAL` instead.
+
+With `--reuse-validation-containers`, selecting two or more of stages 3, 4 and 5
+groups them per task in order **3 → 5 → 4** (omitting unselected stages). Each task
+keeps its Apptainer instances until its selected phases finish. `--concurrency`
+bounds concurrent task groups. A standalone stage starts normally, using the
+existing image cache or building the image if needed. Incompatible environment
+contexts/configurations also start separate instances.
+
+The grouped path appends stage outcomes to `outcomes.jsonl` and writes full stage
+summaries initially and at completion. Harbor's trial artifacts and upstream
+progress snapshots remain unchanged. Reports record actual starts and reuses.
+
+Between phases, downloaded trial artifacts are retained and container agent and
+verifier logs are cleared. Other filesystem changes persist, including changes
+made by the no-op verifier. The contract records this execution profile; it does
+not establish fresh-container oracle parity. This option requires Apptainer,
+one attempt, and no `--force-build`. Existing submitted code snapshots are
+unaffected. The orchestration has mock-based tests; live-cluster performance and
+parity still need a pilot.
+
+### Resuming static checks
+
+`--static-resume CHECKPOINT_DIR` imports successful checks from a preserved
+checkpoint. It verifies the checkpoint files, original contract, task hashes,
+upstream revision and input transformations. Failed or missing checks run again;
+changed adaptations run again by default. The explicit
+`--static-resume-accept-previous-path-check` exception retains earlier successful
+path checks and records their original adaptation in the new report. The new
+contract hashes the checkpoint; imported checks retain their evidence references.
+
+`hpc/zih/recover_static_checkpoint.py` preserves normalized tasks, the old static
+summary, original contract and manifest, checker source, and compressed check
+logs before an old allocation is cancelled. `hpc/zih/crosscodeeval_resume.sbatch`
+uses this checkpoint, runs a fresh ten-task smoke gate, then completes stages
+1, 3, 5 and 4. The full run uses `--publish-require-complete`: it only attempts a
+Hugging Face PR when all four stages have task outcomes. Validation findings can
+archive tasks; incomplete execution prevents publishing. Credentials are loaded
+from `CCE_SECRETS_FILE` (default `/home/frwe188h/secrets.env`) into the process
+environment, never into contracts or reports. Set `CCE_STATIC_RESUME` to the
+checkpoint directory and `OT_DATA_REPO` to a frozen code snapshot before submission.
