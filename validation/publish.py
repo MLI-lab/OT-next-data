@@ -32,6 +32,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from validation.contract import read, task_records
 from validation.data.materialize import parquet_files
+from validation.data.selection import discover_tasks
 
 GATES = (1, 3, 4, 5)
 # Start failures that come from the node or the bridge, not from the task's image.
@@ -134,57 +135,83 @@ def previous_rows(repo, folder, token=None):
     return rows
 
 
+def pack_task(task_dir):
+    """A task directory as the gzip tar TaskTrove stores in task_binary (relative paths, no owner info)."""
+    import io, tarfile
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode='w:gz') as tar:
+        for path in sorted(p for p in Path(task_dir).rglob('*') if p.is_file()):
+            info = tar.gettarinfo(path, arcname=path.relative_to(task_dir).as_posix())
+            info.uid = info.gid = 0
+            info.uname = info.gname = ''
+            with path.open('rb') as stream:
+                tar.addfile(info, stream)
+    return buffer.getvalue()
+
+
+def task_rows(source):
+    """(task_id, task_binary) from Parquets, or from a directory of task directories."""
+    import pyarrow.parquet as pq
+    parquets = parquet_files(source)
+    if parquets:
+        for path in parquets:
+            for batch in pq.ParquetFile(path).iter_batches(batch_size=64):
+                for row in batch.to_pylist():
+                    yield row['path'], row['task_binary']
+    else:
+        for task in discover_tasks(Path(source)):
+            yield task.name, pack_task(task)
+
+
 def build(contract, reports, mapping, not_required=(), previous=None, run_id=None):
     """Tables per data source and the run record. `previous(folder)` returns published rows."""
-    import pyarrow.parquet as pq
     hashes = {t['task_id']: t['sha256'] for t in task_records(contract)}
     decisions = decide(reports, hashes, not_required)
     run_id = run_id or f"{datetime.now(timezone.utc):%Y-%m-%d}-{contract['sha256'][:12]}"
     run_file = f'runs/{run_id}.json'
     tables, counts = {}, {}
-    for source in parquet_files(contract['arguments']['tasks']):
-        for batch in pq.ParquetFile(source).iter_batches(batch_size=64):
-            for row in batch.to_pylist():
-                task = row['path']
-                if task not in hashes:
-                    continue
-                folder = folder_of(task, mapping)
-                kept, archived = tables.setdefault(folder, ([], []))
-                count = counts.setdefault(folder, {'tasks': 0, 'kept': 0, 'archived': 0,
-                    'archived_by_stage': Counter(), 'archive_reasons': Counter(), 'not_run_by_stage': Counter(),
-                    'not_run_reasons': Counter(), 'not_run_examples': {}})
-                decision = decisions[task]
-                before = (previous(folder) if previous else {}).get(task)
-                passed, archive = list(decision['passed']), decision['archive']
-                # Results carry over only for unchanged content; an earlier archive decision stands.
-                if before and before.get('content_sha256') == hashes[task]:
-                    passed = sorted({*passed, *(int(s) for s in (before.get('stages_passed') or '').split(',') if s)})
-                    if before.get('archive_stage') is not None and archive is None:
-                        archive = (before['archive_stage'], before['archive_reason'])
-                        run_of_row = before['run']
-                    else:
-                        run_of_row = run_file
-                else:
-                    run_of_row = run_file
-                if archive:
-                    passed = [s for s in passed if s < archive[0]]
-                record = {'path': task, 'task_binary': row['task_binary'], 'content_sha256': hashes[task],
-                          'stages_passed': ','.join(str(s) for s in passed),
-                          'archive_stage': archive[0] if archive else None,
-                          'archive_reason': archive[1] if archive else None, 'run': run_of_row}
-                (archived if archive else kept).append(record)
-                count['tasks'] += 1
-                count['archived' if archive else 'kept'] += 1
-                if archive:
-                    count['archived_by_stage'][str(archive[0])] += 1
-                    count['archive_reasons'][re.sub(r'\[.*?\]', '[..]', archive[1])[:160]] += 1
-                for stage, reason in decision['not_run'].items():
-                    count['not_run_by_stage'][str(stage)] += 1
-                    key = f"{stage}: {re.sub(r'[0-9a-f]{12,}|\\d{3,}', 'N', str(reason))[:200]}"
-                    count['not_run_reasons'][key] += 1
-                    count['not_run_examples'].setdefault(key, [])
-                    if len(count['not_run_examples'][key]) < 3:
-                        count['not_run_examples'][key].append(task)
+    for task, task_binary in task_rows(contract['arguments']['tasks']):
+        row = {'path': task, 'task_binary': task_binary}
+        if task not in hashes:
+            continue
+        folder = folder_of(task, mapping)
+        kept, archived = tables.setdefault(folder, ([], []))
+        count = counts.setdefault(folder, {'tasks': 0, 'kept': 0, 'archived': 0,
+            'archived_by_stage': Counter(), 'archive_reasons': Counter(), 'not_run_by_stage': Counter(),
+            'not_run_reasons': Counter(), 'not_run_examples': {}})
+        decision = decisions[task]
+        before = (previous(folder) if previous else {}).get(task)
+        passed, archive = list(decision['passed']), decision['archive']
+        # Results carry over only for unchanged content; an earlier archive decision stands.
+        if before and before.get('content_sha256') == hashes[task]:
+            passed = sorted({*passed, *(int(s) for s in (before.get('stages_passed') or '').split(',') if s)})
+            if before.get('archive_stage') is not None and archive is None:
+                archive = (before['archive_stage'], before['archive_reason'])
+                run_of_row = before['run']
+            else:
+                run_of_row = run_file
+        else:
+            run_of_row = run_file
+        if archive:
+            passed = [s for s in passed if s < archive[0]]
+        record = {'path': task, 'task_binary': row['task_binary'], 'content_sha256': hashes[task],
+                  'stages_passed': ','.join(str(s) for s in passed),
+                  'archive_stage': archive[0] if archive else None,
+                  'archive_reason': archive[1] if archive else None, 'run': run_of_row}
+        (archived if archive else kept).append(record)
+        count['tasks'] += 1
+        count['archived' if archive else 'kept'] += 1
+        if archive:
+            count['archived_by_stage'][str(archive[0])] += 1
+            count['archive_reasons'][re.sub(r'\[.*?\]', '[..]', archive[1])[:160]] += 1
+        for stage, reason in decision['not_run'].items():
+            count['not_run_by_stage'][str(stage)] += 1
+            short = re.sub(r'[0-9a-f]{12,}|[0-9]{3,}', 'N', str(reason))[:200]
+            key = f'{stage}: {short}'
+            count['not_run_reasons'][key] += 1
+            count['not_run_examples'].setdefault(key, [])
+            if len(count['not_run_examples'][key]) < 3:
+                count['not_run_examples'][key].append(task)
     profile = contract['execution_profile']
     record = {
         'run': run_id, 'created_at': datetime.now(timezone.utc).isoformat(),
