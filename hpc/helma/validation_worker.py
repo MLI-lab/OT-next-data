@@ -264,6 +264,7 @@ def main(request):
                                      getattr(args, 'publish_folder', None) or [], out=request.parent / 'publish',
                                      analysis=bool(getattr(args, 'publish_analysis', False)),
                                      readme=bool(getattr(args, 'publish_readme', False)),
+                                     readme_force=bool(getattr(args, 'publish_readme_force', False)),
                                      readme_model=getattr(args, 'publish_readme_model', 'claude-fable-5-1'),
                                      readme_seed=getattr(args, 'publish_readme_seed', 0),
                                      readme_evidence=getattr(args, 'publish_readme_evidence', ()))

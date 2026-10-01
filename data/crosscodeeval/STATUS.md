@@ -172,3 +172,45 @@ not refresh. Log: `logs/cce-resume-137324.out`; results: `runs/137324/{smoke,ful
 Resume/reuse/publishing-gate tests passed (28 targeted tests); static/resume
 regressions passed (36 tests). Queue submission alone is not a passing smoke or
 full validation result; consult the execution and stage reports.
+
+
+## Staged-storage resume submitted 2026-10-01
+
+Julia job **137374**, released from its submission hold. Latest check: pending;
+Julia had 124 idle CPUs against this job's 128-CPU request. Requests 512 GiB and
+48 hours. Static and container-task concurrency are 32; container startup cap 8.
+Frozen code: `submissions/20261001-110303-staged-resume/code` under the Horse
+CrossCodeEval workspace. Log: `logs/cce-staged-137374.out`.
+
+Fresh 10-task smoke gates the full run. Reuse the verified 5,450-task checkpoint
+and recheck 1,260 tasks (879 prior timeout tasks plus 381 passes whose detailed
+newer evidence is missing). Full stages 3 -> 5 -> 4 cover all 6,710 tasks, using
+cached images and same-task container reuse. Durable results remain on Horse;
+static working copies and Python are staged locally by the shared ZIH helper.
+
+Automatic publication to `FWeindel/validated-tasks` is gated on complete results
+for all four required stages; interrupted/error outcomes defer the PR. Existing
+folder READMEs are preserved and missing cards generated before one final PR.
+HF authentication and `claude-fable-5-1` preflight passed. All four destination
+folder READMEs already existed at submission, so this run exercises preservation.
+Regression suite: 117 passed; final publication-gate subset: 11 passed.
+
+
+### Resource adjustment and README regeneration
+
+Replacement Julia job **137376** supersedes cancelled held job 137374. It requests
+**124 CPUs**, 512 GiB and 48 hours, with **16 static/container tasks concurrently**.
+The new snapshot is `submissions/20261001-124cpu-readme-regenerate/code`.
+`CCE_FORCE_README=1` enables `--publish-readme-force`: regenerate all four cards
+and replace them only in the final PR; the published cards are not deleted.
+README generation/preservation tests: 19 passed. Other validation/resume gates
+remain unchanged. Log: `logs/cce-staged-137376.out`.
+
+
+Final resource correction: **Julia job 137377**, **64 CPUs**, supersedes cancelled
+pending job 137376. Julia reserves 28 of its 448 CPUs: `CPUEfctv=420`, so the
+reported 92 idle CPUs meant only 64 schedulable CPUs after `CPUAlloc=356`.
+Concurrency remains 16; memory 512 GiB and limit 48 hours unchanged. Same code
+snapshot and forced README regeneration; actual CPU count comes from the sbatch
+override and `SLURM_CPUS_PER_TASK`, not the snapshot directory's older name.
+Final log: `logs/cce-staged-137377.out`.

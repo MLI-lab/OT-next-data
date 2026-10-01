@@ -59,10 +59,16 @@ def load(directory, tasks, manifest, checks, profile, expected=None, accept_prev
     for name in list(reusable):
         if old.get('adaptations', {}).get(name) != checker.ADAPTATIONS.get(name):
             reusable.remove(name)
-    # Path adaptation helpers can change independently of their description.
-    if any(previous.get(name) != current.get(name) for name in
-           ('without_source_code', 'path_check_copy', 'path_check_text')):
-        reusable.discard(checker.PATH_CHECK)
+    # Adaptation helpers can change independently of their descriptions.
+    dependencies = {
+        checker.PATH_CHECK: ('without_source_code', 'without_urls', 'path_check_copy', 'path_check_text'),
+        'check-test-file-references.sh': ('without_urls', 'reference_check_text', 'adapted_check_copy'),
+        'check-pip-pinning.sh': ('pip_check_text', 'adapted_check_copy'),
+        'check-nproc.sh': ('nproc_check_text', 'adapted_check_copy'),
+    }
+    for check, helpers in dependencies.items():
+        if any(previous.get(name) != current.get(name) for name in helpers):
+            reusable.discard(check)
     if accept_previous_path_check and checker.PATH_CHECK in checks and checker.PATH_CHECK in old['checks']:
         reusable.add(checker.PATH_CHECK)
     if old.get('adaptations', {}).get('file names') != checker.ADAPTATIONS.get('file names'):

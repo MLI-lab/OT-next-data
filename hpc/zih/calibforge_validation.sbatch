@@ -20,14 +20,6 @@ done
 source "$run/code/hpc/zih/storage.sh"
 zih_storage_init "$PILOT_ROOT" /data/horse/ws/frwe188h-trp-shared/seta/venv
 trap zih_storage_cleanup EXIT
-export UV_CACHE_DIR="$PILOT_ROOT/cache/uv"
-export UV_PYTHON_INSTALL_DIR="$PILOT_ROOT/cache/python"
-export HF_HOME="$PILOT_ROOT/cache/huggingface"
-export HF_HUB_CACHE="$HF_HOME/hub"
-export HF_DATASETS_CACHE="$HF_HOME/datasets"
-export XDG_CACHE_HOME="$PILOT_ROOT/cache/xdg"
-export PIP_CACHE_DIR="$PILOT_ROOT/cache/pip"
-export PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 export LITELLM_LOCAL_MODEL_COST_MAP=True
 unset GPTZERO_API_KEY
 cd "$run/code"

@@ -55,3 +55,43 @@ def test_patch_rejects_archive_symlinks():
         archive.addfile(member)
     with pytest.raises(ValueError, match='Unsafe archive'):
         unpack(buf.getvalue())
+
+
+def test_required_cli_interface_is_disclosed_without_changing_grading():
+    from data.seta.patch import INSTRUCTION_REPAIRS
+    old, _ = INSTRUCTION_REPAIRS['ask_ubuntu__synth__284']
+    files = {'instruction.md': (old.encode(), 0o644),
+             'tests/test_outputs.py': (b'original assertions', 0o644),
+             'solution/solve.sh': (b'original solution', 0o755)}
+    original = pack(files)
+    output = patch_task(original, 'ask_ubuntu__synth__284')
+    assert output == patch_task(original, 'ask_ubuntu__synth__284')
+    result = unpack(output)
+    assert b'/app/package_report.sh' in result['instruction.md'][0]
+    assert b'--list' in result['instruction.md'][0] and b'--json' in result['instruction.md'][0]
+    assert result['tests/test_outputs.py'] == files['tests/test_outputs.py']
+    assert result['solution/solve.sh'] == files['solution/solve.sh']
+    with pytest.raises(ValueError, match='anchor'):
+        patch_task(output, 'ask_ubuntu__synth__284')
+
+
+def test_build_workers_follow_declared_task_budget():
+    files = {'task.toml': (b'[environment]\ncpus=2\n', 0o644),
+             'solution/solve.sh': (b'make -j$(nproc)\n', 0o755),
+             'tests/test_outputs.py': (b'original assertions', 0o644)}
+    result = unpack(patch_task(pack(files), 'ask_ubuntu__synth__1060'))
+    assert result['solution/solve.sh'] == (b'make -j2\n', 0o755)
+    assert result['tests/test_outputs.py'] == files['tests/test_outputs.py']
+
+
+def test_user_home_is_explicit_without_relocating_the_task():
+    from data.seta.patch import INSTRUCTION_REPAIRS
+    name = 'ask_ubuntu__synth__1293'
+    old, _ = INSTRUCTION_REPAIRS[name]
+    files = {'instruction.md': (old.encode(), 0o644),
+             'setup_files/context.sh': (b'cd /app\n', 0o644),
+             'tests/test_outputs.py': (b'original assertions', 0o644)}
+    result = unpack(patch_task(pack(files), name))
+    assert b'/home/testuser' in result['instruction.md'][0]
+    assert result['setup_files/context.sh'] == files['setup_files/context.sh']
+    assert result['tests/test_outputs.py'] == files['tests/test_outputs.py']

@@ -985,6 +985,7 @@ def test_publish_override_and_carry_over_of_published_state(tmp_path):
     assert not tables['set-java'][1] and record['not_required_checks'] == ['check-a.sh']
     assert publish.judge(1, {'task': 'x', 'status': 'error', 'error': 'whitespace in paths'})[0] == 'not_run'
     assert publish.judge(3, {'status': 'error', 'environments': [{'status': 'error', 'error': 'tmux has-session timed out after 30 seconds'}]})[0] == 'not_run'
+    assert publish.judge(3, {'status': 'error', 'reason': 'FileNotFoundError: missing trial directory'})[0] == 'not_run'
     assert publish.judge(3, {'status': 'error', 'environments': [{'status': 'error', 'error': 'build failed: no such package'}]})[0] == 'archive'
     crashed = {'task': 'x', 'status': 'failed', 'checks': [{'check': 'check-a.sh', 'status': 'error'}]}
     assert publish.judge(1, crashed)[0] == 'not_run'

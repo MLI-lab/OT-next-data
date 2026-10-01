@@ -78,8 +78,17 @@ The path-check adapter also masks complete absolute path tokens, including
 systemd paths containing `@` and dots, and recognizes JavaScript console calls
 and inline sed substitutions. This prevents substrings such as `d/override.conf`
 and expressions such as `s/console.log(.*)//` from being mistaken for relative
-paths. Real relative file references remain checked; the pinned checker itself
-is unchanged.
+paths. It also recognizes complete URLs, quoted absolute paths with spaces,
+and commands with an explicit working directory on the same line. Unresolved
+relative file references remain checked; the pinned checker itself is unchanged.
+
+The test-file-reference adapter removes URLs, XML hostnames and complete system
+paths already excluded by upstream, avoiding false filename fragments. The pip
+adapter ignores file-descriptor redirections and caller arguments in generated
+offline installers, while checking concrete package installations. In the
+training profile, the `nproc` adapter permits measurement variables used only in
+JSON output or load alerts; build parallelism and unrecognized uses still fail.
+These are static heuristics, not proofs of runtime behavior or resource isolation.
 
 Use repeatable `--exclude NAME` for further exclusions, or `--exclude "NAME=reason"` to record why, or `--static-profile terminal-bench` for stricter upstream policies (PR changelog remains excluded).
 

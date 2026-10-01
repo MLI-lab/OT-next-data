@@ -165,6 +165,8 @@ def test_training_defaults_and_missing_ai_key_are_non_failing(tmp_path, capsys):
 
 def test_configured_ai_check_uses_python_without_real_api_calls(tmp_path, monkeypatch):
     import validation.verify.check_terminal_bench as checker
+    # Exercise the default interpreter, independently of an HPC/local override.
+    monkeypatch.delenv('ZIH_STATIC_PYTHON', raising=False)
     monkeypatch.setenv('GPTZERO_API_KEY', 'test-only-not-a-real-key')
     task = make_task(tmp_path)
     _, checks, _ = load_checks('training')
@@ -220,6 +222,11 @@ def test_exclusion_records_its_reason():
     ('Edit `service.d/override.conf`.', 'failed'),
     ('Read `/app/results.json`, then write "results.json".', 'failed'),
     ('```bash\ncat ./results.json\n```', 'failed'),
+    ('Import `https://nginx.org/keys/nginx_signing.key`.', 'passed'),
+    ('Use `mirror://mirrors.ubuntu.com/mirrors.txt` and mirrors.ubuntu.com/mirrors.txt.', 'passed'),
+    ('Run `./deploy.sh` from `/app/deployment/`.', 'passed'),
+    ('Edit `/opt/devtools/bin/dev editor/run.sh`.', 'passed'),
+    ('Read https://example.org/x.json then write "results.json".', 'failed'),
 ])
 def test_path_adapter_preserves_real_relative_path_failures(tmp_path, instruction, expected):
     task = make_task(tmp_path)
@@ -291,3 +298,33 @@ def test_summary_recovery_retains_completed_tasks_and_rejects_corruption(tmp_pat
     journal.write_text((json.dumps(first) + '\n') * 2)
     with pytest.raises(ValueError, match='duplicate'):
         rebuild_summary(tmp_path)
+
+@pytest.mark.parametrize('check,source,expected', [
+    ('check-pip-pinning.sh', 'pip install pytest==8.4.1 2>&1\n', 'passed'),
+    ('check-pip-pinning.sh', 'pip install requests 2>&1\n', 'failed'),
+    ('check-pip-pinning.sh', '''cat > install.sh <<'EOF'
+pip install --no-index --find-links="$SCRIPT_DIR" "$@"
+EOF
+''', 'passed'),
+    ('check-pip-pinning.sh', 'pip install --no-index --find-links="$SCRIPT_DIR" "$@"\n', 'failed'),
+    ('check-nproc.sh', 'N=$(nproc)\n{"cores":$N}\n', 'passed'),
+    ('check-nproc.sh', 'N=$(nproc)\nmake -j$N\n', 'failed'),
+    ('check-nproc.sh', 'N=$(nproc)\n{"cores":$N}\nmake -j$N\n', 'failed'),
+    ('check-nproc.sh', 'make -j$(nproc)\n', 'failed'),
+    ('check-test-file-references.sh', 'x = "sqlite:///database.db"\ny = "<host>proxy.internal.example.com</host>"\n', 'passed'),
+    ('check-test-file-references.sh', 'x = "/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml"\n', 'passed'),
+    ('check-test-file-references.sh', 'x = "/app/required.json"\n', 'failed'),
+    ('check-test-file-references.sh', 'x = "file:///app/required.json"\n', 'failed'),
+])
+def test_stage1_adaptations_keep_real_failures(tmp_path, check, source, expected):
+    task = make_task(tmp_path)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(source)
+    if check == 'check-test-file-references.sh':
+        (task / 'tests/test_outputs.py').write_text(source)
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[n for n in checks if n != check])
+    row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert row['checks'][0]['status'] == expected
+    assert (task / 'solution/solve.sh').read_text() == source

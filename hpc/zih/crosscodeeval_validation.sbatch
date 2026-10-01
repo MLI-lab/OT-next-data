@@ -17,12 +17,6 @@ case "$PILOT_ROOT" in
 esac
 source "$repo/hpc/zih/storage.sh"
 zih_storage_init "$PILOT_ROOT" "$PILOT_ROOT/venv"
-export UV_CACHE_DIR="$PILOT_ROOT/cache/uv"
-export UV_PYTHON_INSTALL_DIR="$PILOT_ROOT/python"
-export PIP_CACHE_DIR="$PILOT_ROOT/cache/pip"
-export HF_HOME="$PILOT_ROOT/cache/huggingface"
-export XDG_CACHE_HOME="$PILOT_ROOT/cache/xdg"
-export PYTHONUNBUFFERED=1
 cd "$repo"
 trap zih_storage_cleanup EXIT
 "$ZIH_PYTHON" hpc/zih/crosscodeeval_validation.py

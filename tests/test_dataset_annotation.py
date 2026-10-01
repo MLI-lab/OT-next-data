@@ -36,6 +36,7 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
     monkeypatch.setattr(publish, 'read', lambda _: contract)
     monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
     monkeypatch.setattr(publish, 'previous_rows', lambda *args: {})
+    monkeypatch.setattr(publish, 'readme_exists', lambda *args: False)
     prompts = []
     def call(task, model):
         prompt = (task / 'instruction.md').read_text()
@@ -82,6 +83,37 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match='unknown'):
         publish.publish(tmp_path, tmp_path / 'contract', 'test/repo', **{**kwargs, 'annotation_runner': broken})
     assert len(commits) == 1
+
+
+def test_existing_readme_is_preserved_without_model_call(tmp_path, monkeypatch):
+    _, contract, reports = publish_fixture(tmp_path)
+    monkeypatch.setattr(publish, 'read', lambda _: contract)
+    monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
+    monkeypatch.setattr(publish, 'previous_rows', lambda *args: {})
+    monkeypatch.setattr(publish, 'readme_exists', lambda *args: True)
+    def forbidden(*args, **kwargs):
+        raise AssertionError('Existing READMEs must not be regenerated')
+    result = publish.publish(tmp_path, tmp_path / 'contract', 'test/repo',
+        dry_run=True, readme=True, annotation_runner=forbidden, out=tmp_path / 'out')
+    assert not any(p.endswith(('README.md', 'annotation.json')) for p in result['files'])
+    assert 'set-python/README.md' in result['description']
+
+
+def test_force_readme_regenerates_existing_cards_in_proposed_files(tmp_path, monkeypatch):
+    _, contract, reports = publish_fixture(tmp_path)
+    monkeypatch.setattr(publish, 'read', lambda _: contract)
+    monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
+    monkeypatch.setattr(publish, 'previous_rows', lambda *args: {})
+    monkeypatch.setattr(publish, 'readme_exists', lambda *args: True)
+    calls = []
+    def call(task, model):
+        calls.append(task)
+        return answer(), {'backend': 'test'}
+    result = publish.publish(tmp_path, tmp_path / 'contract', 'test/repo', dry_run=True,
+        readme=True, readme_force=True, annotation_runner=call, out=tmp_path / 'out')
+    assert len(calls) == 2
+    assert 'set-python/README.md' in result['files']
+    assert 'set-java/README.md' in result['files']
 
 
 def test_annotation_validation_and_exact_catalog():

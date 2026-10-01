@@ -15,8 +15,36 @@ REPOSITORY = 'open-thoughts/TaskTrove'
 DISCUSSION = 'https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/4'
 REVISION = '9262d5628e13ec20ac75b7d897f94b93f6be0594'
 UPSTREAM_PATH = 'camel-ai__SETA-Env/tasks.parquet'
-PATCH_VERSION = 'seta-shared-verifier-v2'
+PATCH_VERSION = 'seta-stage1-v3'
 TARGET = 'nl2bash__synth__001'
+INSTRUCTION_REPAIRS = {
+    'ask_ubuntu__synth__1293': (
+        "All paths must be relative to the user's home directory (~).",
+        'Configure the existing account `testuser`. In these requirements, `~` '
+        'means `/home/testuser`, not the home directory of the shell running the '
+        'agent. Place all user service files, scripts, hooks and event data '
+        'under `/home/testuser`, with ownership and permissions suitable for `testuser`.'),
+    'ask_ubuntu__synth__284': (
+        'The solution should be implemented as a bash script that can be executed directly and accepts command-line arguments for filtering options.',
+        'Create the executable Bash script `/app/package_report.sh`. Support `--list` '
+        'to print one package name per line and `--json` to print a JSON array of '
+        'objects with `package_name`, `version`, and `timestamp` fields. Both modes '
+        'write to stdout and exit successfully on valid input.'),
+    'ask_ubuntu__synth__102': (
+        "Create a script called 'bug-triage.sh' that accepts arguments for the type of issue and the affected application/service name, then generates a comprehensive diagnostic report saved as 'bug-report.json'.",
+        'Create `/app/bug-triage.sh`, accepting arguments for the type of issue and '
+        'the affected application/service name. Save its diagnostic report as `/app/bug-report.json`.'),
+    'ask_ubuntu__synth__160': (
+        "Create a script named 'monitor_memory.sh'", 'Create a script at `/app/monitor_memory.sh`'),
+    'ask_ubuntu__synth__207': (
+        'a script called "disk_analysis.sh"', 'a script at `/app/disk_analysis.sh`'),
+    'ask_ubuntu__synth__294': (
+        'a JSON file named "results.json"', 'the JSON file `/app/results.json`'),
+    'ask_ubuntu__synth__299': (
+        "a script named 'sync_timestamps.py'", 'a script at `/app/sync_timestamps.py`'),
+}
+BUILD_REPAIRS = {'ask_ubuntu__evolve__1060__d1', 'ask_ubuntu__synth__1060'}
+TARGETS = {TARGET, *INSTRUCTION_REPAIRS, *BUILD_REPAIRS}
 
 TEST_SH = '''#!/bin/bash
 set -uo pipefail
@@ -59,8 +87,33 @@ def pack(files):
     return out.getvalue()
 
 
-def patch_task(blob):
+def patch_task(blob, task_id=TARGET):
     files = unpack(blob)
+    if task_id in INSTRUCTION_REPAIRS:
+        old, new = INSTRUCTION_REPAIRS[task_id]
+        text = files['instruction.md'][0].decode()
+        if text.count(old) != 1:
+            raise ValueError(f'{task_id}: expected original instruction anchor exactly once')
+        text = text.replace(old, new)
+        if task_id == 'ask_ubuntu__synth__160':
+            text = text.replace("a file named 'memory_log.csv'", 'the file `/app/memory_log.csv`')
+        if task_id == 'ask_ubuntu__synth__207':
+            text = text.replace('a file called "disk_report.txt"', 'the file `/app/disk_report.txt`')
+        files['instruction.md'] = (text.encode(), files['instruction.md'][1])
+        return pack(files)
+    if task_id in BUILD_REPAIRS:
+        config = tomllib.loads(files['task.toml'][0].decode())
+        cpus = config['environment']['cpus']
+        if type(cpus) is not int or cpus < 1:
+            raise ValueError(f'{task_id}: expected positive integer CPU budget')
+        text = files['solution/solve.sh'][0].decode()
+        if text.count('make -j$(nproc)') != 1:
+            raise ValueError(f'{task_id}: expected original build command exactly once')
+        text = text.replace('make -j$(nproc)', f'make -j{cpus}')
+        files['solution/solve.sh'] = (text.encode(), files['solution/solve.sh'][1])
+        return pack(files)
+    if task_id != TARGET:
+        raise ValueError(f'Unreviewed target: {task_id}')
     config = tomllib.loads(files['task.toml'][0].decode())
     if config.get('verifier', {}).get('environment_mode') not in (None, 'shared'):
         raise ValueError('Expected a shared-verifier task')
@@ -198,24 +251,29 @@ def main():
         for batch in source.iter_batches(batch_size=32):
             rows = batch.to_pylist()
             for row in rows:
-                if row['path'] == TARGET:
+                if row['path'] in TARGETS:
+                    task_id = row['path']
                     before = hashlib.sha256(row['task_binary']).hexdigest()
-                    row['task_binary'] = patch_task(row['task_binary'])
-                    report['patched'].append({'task_id': TARGET, 'before_sha256': before,
+                    row['task_binary'] = patch_task(row['task_binary'], task_id)
+                    changes = (['preinstall pytest and pytest-json-ctrf in the shared image',
+                                'no zero reward on pytest infrastructure errors'] if task_id == TARGET else
+                               ['document required output paths and CLI interface'] if task_id in INSTRUCTION_REPAIRS else
+                               ['bound oracle make parallelism to task.toml CPU budget'])
+                    report['patched'].append({'task_id': task_id, 'before_sha256': before,
                          'after_sha256': hashlib.sha256(row['task_binary']).hexdigest(),
-                         'changes': ['preinstall pytest and pytest-json-ctrf in the shared image',
-                                     'no zero reward on pytest infrastructure errors']})
-                    pilot = dict(row)
+                         'changes': changes})
+                    if task_id == TARGET:
+                        pilot = dict(row)
                 else:
                     report['unchanged'].append({'task_id': row['path'], 'reason': 'outside this targeted repair'})
             writer.write_table(pa.Table.from_pylist(rows, schema=source.schema_arrow))
-    if len(report['patched']) != 1:
-        raise ValueError('Expected exactly one reviewed target')
+    if {r['task_id'] for r in report['patched']} != TARGETS or len(report['patched']) != len(TARGETS):
+        raise ValueError('Expected every reviewed target exactly once')
     if args.pilot_output:
         pq.write_table(pa.Table.from_pylist([pilot], schema=source.schema_arrow), args.pilot_output)
     report['output_sha256'] = digest(args.output)
     args.output.with_suffix('.report.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(f'Patched 1 task; preserved 3152 unchanged; dropped 0. Report: {args.output.with_suffix(".report.json")}')
+    print(f'Patched {len(report["patched"])} tasks; preserved {len(report["unchanged"])} unchanged; dropped 0. Report: {args.output.with_suffix(".report.json")}')
 
 
 if __name__ == '__main__':

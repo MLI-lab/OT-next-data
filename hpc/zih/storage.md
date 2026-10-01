@@ -95,10 +95,50 @@ installation, not just its venv symlink. Its libraries are needed for relocation
 
 ## Implemented launch support
 
-`storage.sh` now provides `zih_storage_init DATA_ROOT VENV` and
+The single source of cluster/partition policies and persistent path names is
+[`storage_paths.sh`](storage_paths.sh). `storage.sh` consumes that mapping and
+resolves job-local paths after inspecting the allocated node. Supported pairs
+are `barnard:barnard`, `romeo:romeo`, and `julia:julia`; an unknown pair fails
+instead of guessing. Add new partition policies in that one file.
+
+After `zih_storage_init DATA_ROOT VENV`, use these exported names:
+
+| Variable | Meaning |
+| --- | --- |
+| `$ZIH_DATA_ROOT` | Dataset's persistent data workspace directory |
+| `$ZIH_RUNTIME_DIR` | Prepared Python bases, venv launchers and runtime archives |
+| `$ZIH_CACHE_DIR` | Persistent tool/download caches |
+| `$ZIH_RUNS_DIR` | Persistent run directory convention |
+| `$ZIH_LOG_DIR` | Persistent batch-log directory convention |
+| `$ZIH_SCRATCH_DIR` | Parent for durable job working directories |
+| `$ZIH_DURABLE_SCRATCH` / `$TMPDIR` | This job's durable pipeline working directory |
+| `$ZIH_STATIC_TMPDIR` | Automatically selected private static-check scratch |
+| `$ZIH_PYTHON` | Corrected data-resident pipeline interpreter |
+| `$ZIH_STATIC_PYTHON` | Locally staged interpreter for checks |
+
+Tool variables (`UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`, `PIP_CACHE_DIR`,
+`HF_HOME`, `HF_HUB_CACHE`, `HF_DATASETS_CACHE`, `XDG_CACHE_HOME`) are set from
+this mapping. Existing dataset input layouts under the data root are preserved.
+Jobs record resolved paths in `$ZIH_DATA_ROOT/storage-records/JOB_ID.json`.
+
+Example inside a ZIH allocation:
+
+```bash
+source "$repo/hpc/zih/storage.sh"
+zih_storage_init "$PILOT_ROOT" "$PILOT_ROOT/venv"
+trap zih_storage_cleanup EXIT
+"$ZIH_PYTHON" validation/run.py "$PILOT_ROOT/inputs" --out "$ZIH_RUNS_DIR/example"
+```
+
+The input path and run name in this example are placeholders; use the dataset's
+actual input and unique run directory. For a read-only preview of persistent
+paths, source `storage_paths.sh` and call `zih_storage_paths DATA_ROOT` instead;
+it does not create directories or prepare runtimes.
+
+`storage.sh` provides `zih_storage_init DATA_ROOT VENV` and
 `zih_storage_cleanup`. CrossCodeEval's normal/resume jobs, SETA validation and
-CalibForge validation use it. SETA/CalibForge submission snapshots include both
-helper files. Manually frozen CrossCodeEval submissions must include these too.
+CalibForge validation use it. SETA/CalibForge submission snapshots include the
+helper files, including `storage_paths.sh`. Manually frozen CrossCodeEval submissions must include these too.
 Existing snapshots and running jobs are not changed.
 
 `runtime_storage.py` copies the standalone Python base into a versioned data
@@ -128,8 +168,8 @@ Container stages need a separate capacity/performance test for image extraction
 and writable overlays before using local staging. No full dataset resubmission
 is part of this change.
 
-Verification of the implemented helper: 38 static/resume tests plus two runtime
-cache/path tests passed. Live integration smokes passed all eight tasks on
+Verification of the implemented helper: 38 static/resume tests plus six runtime
+cache/path/mapping tests passed. Live integration smokes passed all eight tasks on
 Barnard (38932538, `/dev/shm`), Romeo (8997898, SSD `/tmp`) and Julia (137373,
 `/dev/shm`), each using the full selected 14 executable static checks plus the
 optional AI skip. Reports are under `crosscodeeval/storage-smoke/JOB/` on Horse.

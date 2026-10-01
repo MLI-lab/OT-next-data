@@ -1,0 +1,408 @@
+task,check,status,dataset_patched,log
+ask_ubuntu__evolve__1027__d1,check-task-absolute-path.sh,passed,False,
+ask_ubuntu__evolve__1036__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1036__b1/path-check/ask_ubuntu__evolve__1036__b1/instruction.md: relative paths used (should be absolute under /app): ./file_access_manager.sh, ./file_access_manager.sh, ./file_access_manager.sh, ./file_access_manager.sh, ./file_access_manager.sh, ./file_access_manager.sh
+"
+ask_ubuntu__evolve__1043__b1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1043__b1/check-pip-pinning.sh/ask_ubuntu__evolve__1043__b1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1043__b1/check-pip-pinning.sh/ask_ubuntu__evolve__1043__b1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1043__b1/check-pip-pinning.sh/ask_ubuntu__evolve__1043__b1/tests/test.sh: unpinned ['psutil'] in `uvx    -p 3.13    -w pytest==8.4.1    -w pytest-json-ctrf==0.3.5    -w psutil    pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__evolve__1044__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1044__b1/path-check/ask_ubuntu__evolve__1044__b1/instruction.md: relative paths used (should be absolute under /app): data/config.txt, data/app.log, data/config.txt, data/large_data.bin, data/app.log, data/subdir/nested.txt, data/subdir/data.json
+"
+ask_ubuntu__evolve__1050__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1050__d1/path-check/ask_ubuntu__evolve__1050__d1/instruction.md: relative paths used (should be absolute under /app): ./memory_analyzer.sh, ./memory_analyzer.sh
+"
+ask_ubuntu__evolve__1052__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1052__d1/path-check/ask_ubuntu__evolve__1052__d1/instruction.md: relative paths used (should be absolute under /app): ./service_wrapper.sh
+"
+ask_ubuntu__evolve__1053__b1,check-pip-pinning.sh,passed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1053__b1/check-pip-pinning.sh/ask_ubuntu__evolve__1053__b1...
+All pip / uv pip / uvx --with installs are pinned
+"
+ask_ubuntu__evolve__1053__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1053__b1/path-check/ask_ubuntu__evolve__1053__b1/instruction.md: relative paths used (should be absolute under /app): ./offline, ./pip, ./pip, ./pip, ./pip
+"
+ask_ubuntu__evolve__1060__d1,check-nproc.sh,passed,True,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1060__d1/check-nproc.sh/ask_ubuntu__evolve__1060__d1...
+All scripts avoid bare nproc
+"
+ask_ubuntu__evolve__1060__d1,check-task-absolute-path.sh,failed,True,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1060__d1/path-check/ask_ubuntu__evolve__1060__d1/instruction.md: relative paths used (should be absolute under /app): ./configure
+"
+ask_ubuntu__evolve__1062__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1062__d1/path-check/ask_ubuntu__evolve__1062__d1/instruction.md: relative paths used (should be absolute under /app): ./convert_dmg.sh, ./convert_dmg.sh
+"
+ask_ubuntu__evolve__1085__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1085__d1/path-check/ask_ubuntu__evolve__1085__d1/instruction.md: relative paths used (should be absolute under /app): ./image_processor, ../test_image.png
+"
+ask_ubuntu__evolve__1116__b1,check-task-absolute-path.sh,passed,False,
+ask_ubuntu__evolve__1123__d1,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1123__d1/check-test-file-references.sh/ask_ubuntu__evolve__1123__d1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/ssl.conf
+"
+ask_ubuntu__evolve__1143__d1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1143__d1/check-pip-pinning.sh/ask_ubuntu__evolve__1143__d1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1143__d1/check-pip-pinning.sh/ask_ubuntu__evolve__1143__d1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1143__d1/check-pip-pinning.sh/ask_ubuntu__evolve__1143__d1/tests/test.sh: unpinned ['pyyaml'] in `uvx    -p 3.13    -w pytest==8.4.1    -w pytest-json-ctrf==0.3.5    -w pyyaml    pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__evolve__1158__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1158__d1/path-check/ask_ubuntu__evolve__1158__d1/instruction.md: relative paths used (should be absolute under /app): ../..
+"
+ask_ubuntu__evolve__1164__b1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1164__b1/check-pip-pinning.sh/ask_ubuntu__evolve__1164__b1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1164__b1/check-pip-pinning.sh/ask_ubuntu__evolve__1164__b1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1164__b1/check-pip-pinning.sh/ask_ubuntu__evolve__1164__b1/solution/solve.sh: unpinned ['astropy', 'pillow', 'numpy'] in `pip install astropy pillow numpy`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__evolve__1211__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1211__d1/path-check/ask_ubuntu__evolve__1211__d1/instruction.md: relative paths used (should be absolute under /app): ./reload_bashrc.sh
+"
+ask_ubuntu__evolve__1231__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1231__d1/path-check/ask_ubuntu__evolve__1231__d1/instruction.md: relative paths used (should be absolute under /app): ./disk_monitor.sh
+"
+ask_ubuntu__evolve__1237__d1,check-nproc.sh,passed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1237__d1/check-nproc.sh/ask_ubuntu__evolve__1237__d1...
+All scripts avoid bare nproc
+"
+ask_ubuntu__evolve__1238__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1238__d1/path-check/ask_ubuntu__evolve__1238__d1/instruction.md: relative paths used (should be absolute under /app): ./gsettings, ./gsettings, ./gsettings, ./gsettings, ./gsettings
+"
+ask_ubuntu__evolve__1268__d1,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1268__d1/check-test-file-references.sh/ask_ubuntu__evolve__1268__d1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/utils/dev_helpers.py, /app/utils/enhanced_io.py
+"
+ask_ubuntu__evolve__1269__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1269__b1/path-check/ask_ubuntu__evolve__1269__b1/instruction.md: relative paths used (should be absolute under /app): photo_cmyk.tiff, ./process_images.sh
+"
+ask_ubuntu__evolve__1315__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1315__d1/path-check/ask_ubuntu__evolve__1315__d1/instruction.md: relative paths used (should be absolute under /app): ./systemd, d/override.conf, d/override.conf
+"
+ask_ubuntu__evolve__1324__d1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1324__d1/check-pip-pinning.sh/ask_ubuntu__evolve__1324__d1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1324__d1/check-pip-pinning.sh/ask_ubuntu__evolve__1324__d1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1324__d1/check-pip-pinning.sh/ask_ubuntu__evolve__1324__d1/tests/test.sh: unpinned ['Pillow'] in `uvx    -p 3.13    -w pytest==8.4.1    -w pytest-json-ctrf==0.3.5    -w Pillow    pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__evolve__132__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__132__d1/path-check/ask_ubuntu__evolve__132__d1/instruction.md: relative paths used (should be absolute under /app): app.conf, database.conf
+"
+ask_ubuntu__evolve__1357__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1357__d1/path-check/ask_ubuntu__evolve__1357__d1/instruction.md: relative paths used (should be absolute under /app): .tar.gz, .tar.gz
+"
+ask_ubuntu__evolve__160__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__160__d1/path-check/ask_ubuntu__evolve__160__d1/instruction.md: relative paths used (should be absolute under /app): ./monitor_memory.sh
+"
+ask_ubuntu__evolve__174__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__174__d1/path-check/ask_ubuntu__evolve__174__d1/instruction.md: relative paths used (should be absolute under /app): worker-manager.sh
+"
+ask_ubuntu__evolve__182__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__182__b1/path-check/ask_ubuntu__evolve__182__b1/instruction.md: relative paths used (should be absolute under /app): src/main.py, src/utils/helpers.py, config/settings.json, data/data.csv, assets/data_link.csv, data/data.csv
+"
+ask_ubuntu__evolve__188__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__188__b1/path-check/ask_ubuntu__evolve__188__b1/instruction.md: relative paths used (should be absolute under /app): project/src/main.py, project/src/utils/helper.py, project/src/components/component.py, project/config/settings.py, project/config/production.conf, project/src/utils/config_link.py, project/src/utils/config_link.py
+"
+ask_ubuntu__evolve__1__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__1__d1/path-check/ask_ubuntu__evolve__1__d1/instruction.md: relative paths used (should be absolute under /app): test1.zip
+"
+ask_ubuntu__evolve__216__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__216__d1/path-check/ask_ubuntu__evolve__216__d1/instruction.md: relative paths used (should be absolute under /app): ./mount_lookup.sh
+"
+ask_ubuntu__evolve__219__d1,check-nproc.sh,passed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__219__d1/check-nproc.sh/ask_ubuntu__evolve__219__d1...
+All scripts avoid bare nproc
+"
+ask_ubuntu__evolve__232__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__232__d1/path-check/ask_ubuntu__evolve__232__d1/instruction.md: relative paths used (should be absolute under /app): ./hash_util.sh, ./hash_util.sh
+"
+ask_ubuntu__evolve__246__d1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__246__d1/check-pip-pinning.sh/ask_ubuntu__evolve__246__d1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__246__d1/check-pip-pinning.sh/ask_ubuntu__evolve__246__d1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__246__d1/check-pip-pinning.sh/ask_ubuntu__evolve__246__d1/solution/solve.sh: unpinned ['Pillow', '2>/dev/null'] in `pip3 install --break-system-packages Pillow 2>/dev/null || true`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__evolve__250__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__250__d1/path-check/ask_ubuntu__evolve__250__d1/instruction.md: relative paths used (should be absolute under /app): templates/contact.html, config/logging.conf
+"
+ask_ubuntu__evolve__257__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__257__d1/path-check/ask_ubuntu__evolve__257__d1/instruction.md: relative paths used (should be absolute under /app): linux/usbdevice_fs.h
+"
+ask_ubuntu__evolve__267__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__267__d1/path-check/ask_ubuntu__evolve__267__d1/instruction.md: relative paths used (should be absolute under /app): resized/image1.jpg, resized/image2.jpg
+"
+ask_ubuntu__evolve__276__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__276__d1/path-check/ask_ubuntu__evolve__276__d1/instruction.md: relative paths used (should be absolute under /app): sample.pdf
+"
+ask_ubuntu__evolve__27__d1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__27__d1/check-pip-pinning.sh/ask_ubuntu__evolve__27__d1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__27__d1/check-pip-pinning.sh/ask_ubuntu__evolve__27__d1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__27__d1/check-pip-pinning.sh/ask_ubuntu__evolve__27__d1/tests/test.sh: unpinned ['uv'] in `pip install uv --break-system-packages`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__evolve__299__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__299__d1/path-check/ask_ubuntu__evolve__299__d1/instruction.md: relative paths used (should be absolute under /app): level1/level2/level3/file.txt
+"
+ask_ubuntu__evolve__29__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__29__d1/path-check/ask_ubuntu__evolve__29__d1/instruction.md: relative paths used (should be absolute under /app): src/myproject/operations.py, src/myproject/calculator_wrapper.py, src/myproject/display.py, src/myproject/main.py, tests/test_calculator.py, tests/test_math_ops.py, tests/test_data_processor.py, src/myproject/math_ops.py, src/myproject/user_manager.py
+"
+ask_ubuntu__evolve__333__d1,check-task-absolute-path.sh,passed,False,
+ask_ubuntu__evolve__348__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__348__d1/path-check/ask_ubuntu__evolve__348__d1/instruction.md: relative paths used (should be absolute under /app): configs/database/db.conf, configs/database/db.conf, configs/database/connection.ini, configs/api/api.cfg, configs/api/auth.conf, configs/logging/logging.ini, configs/logging/format.cfg, configs/network/network.conf, configs/security/ssl.ini, configs/security/firewall.cfg
+"
+ask_ubuntu__evolve__361__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__361__d1/path-check/ask_ubuntu__evolve__361__d1/instruction.md: relative paths used (should be absolute under /app): ./setup_env.sh
+"
+ask_ubuntu__evolve__370__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__370__d1/path-check/ask_ubuntu__evolve__370__d1/instruction.md: relative paths used (should be absolute under /app): config/app.conf, config/app.conf, manual/README.txt, src/lib/config.cfg
+"
+ask_ubuntu__evolve__377__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__377__d1/path-check/ask_ubuntu__evolve__377__d1/instruction.md: relative paths used (should be absolute under /app): error_diagnosis_report.txt
+"
+ask_ubuntu__evolve__383__d1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__383__d1/check-pip-pinning.sh/ask_ubuntu__evolve__383__d1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__383__d1/check-pip-pinning.sh/ask_ubuntu__evolve__383__d1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__383__d1/check-pip-pinning.sh/ask_ubuntu__evolve__383__d1/solution/solve.sh: unpinned ['yt-dlp'] in `pip3 install --break-system-packages yt-dlp`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__evolve__394__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__394__d1/path-check/ask_ubuntu__evolve__394__d1/instruction.md: relative paths used (should be absolute under /app): hidden_dir/secret.txt
+"
+ask_ubuntu__evolve__402__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__402__d1/path-check/ask_ubuntu__evolve__402__d1/instruction.md: relative paths used (should be absolute under /app): config/secrets.conf, config/settings/editor.json
+"
+ask_ubuntu__evolve__411__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__411__b1/path-check/ask_ubuntu__evolve__411__b1/instruction.md: relative paths used (should be absolute under /app): worker.sh
+"
+ask_ubuntu__evolve__429__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__429__d1/path-check/ask_ubuntu__evolve__429__d1/instruction.md: relative paths used (should be absolute under /app): config_backup.tar.gz, tar.gz
+"
+ask_ubuntu__evolve__441__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__441__b1/path-check/ask_ubuntu__evolve__441__b1/instruction.md: relative paths used (should be absolute under /app): ./scripts/disk_analyzer.py
+"
+ask_ubuntu__evolve__454__d1,check-task-absolute-path.sh,passed,False,
+ask_ubuntu__evolve__486__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__486__d1/path-check/ask_ubuntu__evolve__486__d1/instruction.md: relative paths used (should be absolute under /app): service_manager.py
+"
+ask_ubuntu__evolve__493__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__493__d1/path-check/ask_ubuntu__evolve__493__d1/instruction.md: relative paths used (should be absolute under /app): ./generate_previews.sh
+"
+ask_ubuntu__evolve__503__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__503__d1/path-check/ask_ubuntu__evolve__503__d1/instruction.md: relative paths used (should be absolute under /app): secret_config.dat, secret_config.dat, secret_config.dat
+"
+ask_ubuntu__evolve__547__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__547__d1/path-check/ask_ubuntu__evolve__547__d1/instruction.md: relative paths used (should be absolute under /app): ./record_loopback.sh
+"
+ask_ubuntu__evolve__559__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__559__b1/path-check/ask_ubuntu__evolve__559__b1/instruction.md: relative paths used (should be absolute under /app): scripts/lint.sh, scripts/build.sh, scripts/test.sh, scripts/package.sh, scripts/test.sh
+"
+ask_ubuntu__evolve__568__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__568__d1/path-check/ask_ubuntu__evolve__568__d1/instruction.md: relative paths used (should be absolute under /app): HOME/.shell_sync/.lock
+"
+ask_ubuntu__evolve__584__d1,check-nproc.sh,passed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__584__d1/check-nproc.sh/ask_ubuntu__evolve__584__d1...
+All scripts avoid bare nproc
+"
+ask_ubuntu__evolve__601__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__601__d1/path-check/ask_ubuntu__evolve__601__d1/instruction.md: relative paths used (should be absolute under /app): ./config_manager.sh, ./config_manager.sh, ./config_manager.sh, ./config_manager.sh
+"
+ask_ubuntu__evolve__650__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__650__d1/path-check/ask_ubuntu__evolve__650__d1/instruction.md: relative paths used (should be absolute under /app): ./app/settings/database.yml, d/ssl_certificates.conf, d/ssl_certificates.conf
+"
+ask_ubuntu__evolve__656__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__656__d1/path-check/ask_ubuntu__evolve__656__d1/instruction.md: relative paths used (should be absolute under /app): ./session_manager.sh, ./session_manager.sh, ./session_manager.sh
+"
+ask_ubuntu__evolve__70__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__70__d1/path-check/ask_ubuntu__evolve__70__d1/instruction.md: relative paths used (should be absolute under /app): ./alias_check.sh
+"
+ask_ubuntu__evolve__731__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__731__d1/path-check/ask_ubuntu__evolve__731__d1/instruction.md: relative paths used (should be absolute under /app): vendor_a_data/reports/details.csv, vendor_a_data/reports/summary.txt, vendor_b_logs/logs/app.log, vendor_b_logs/logs/error.log, vendor_c_bundle/src/main.py, vendor_c_bundle/src/utils.py, vendor_d_config/config/settings.yaml
+"
+ask_ubuntu__evolve__746__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__746__b1/path-check/ask_ubuntu__evolve__746__b1/instruction.md: relative paths used (should be absolute under /app): ./printer_uri_analyzer.sh, ./printer_uri_analyzer.sh
+"
+ask_ubuntu__evolve__768__d1,check-test-file-references.sh,passed,False,
+ask_ubuntu__evolve__777__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__777__d1/path-check/ask_ubuntu__evolve__777__d1/instruction.md: relative paths used (should be absolute under /app): config/main_config.json, config/system_settings.json, data/users.csv, data/products.csv, subdir1/app_config.json, subdir1/level3_archive.tar, subdir2/inventory.csv
+"
+ask_ubuntu__evolve__788__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__788__b1/path-check/ask_ubuntu__evolve__788__b1/instruction.md: relative paths used (should be absolute under /app): ./package.json, ./node_modules
+"
+ask_ubuntu__evolve__808__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__808__b1/path-check/ask_ubuntu__evolve__808__b1/instruction.md: relative paths used (should be absolute under /app): ../conf, ../conf, ../mods
+"
+ask_ubuntu__evolve__833__b1,check-pip-pinning.sh,passed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__833__b1/check-pip-pinning.sh/ask_ubuntu__evolve__833__b1...
+All pip / uv pip / uvx --with installs are pinned
+"
+ask_ubuntu__evolve__833__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__833__b1/path-check/ask_ubuntu__evolve__833__b1/instruction.md: relative paths used (should be absolute under /app): server/server.conf, keys/ca.crt, keys/server.key, client/client1.key
+"
+ask_ubuntu__evolve__847__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__847__b1/path-check/ask_ubuntu__evolve__847__b1/instruction.md: relative paths used (should be absolute under /app): tests/conftest.py, tests/unit/test_app.py
+"
+ask_ubuntu__evolve__851__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__851__d1/path-check/ask_ubuntu__evolve__851__d1/instruction.md: relative paths used (should be absolute under /app): corrupted_files/archive.zip
+"
+ask_ubuntu__evolve__877__d1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__877__d1/check-pip-pinning.sh/ask_ubuntu__evolve__877__d1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__877__d1/check-pip-pinning.sh/ask_ubuntu__evolve__877__d1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__877__d1/check-pip-pinning.sh/ask_ubuntu__evolve__877__d1/solution/solve.sh: unpinned ['pyyaml'] in `pip3 install pyyaml --break-system-packages`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__evolve__877__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__877__d1/path-check/ask_ubuntu__evolve__877__d1/instruction.md: relative paths used (should be absolute under /app): build/output.txt, generated/config.h
+"
+ask_ubuntu__evolve__883__d1,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__883__d1/check-test-file-references.sh/ask_ubuntu__evolve__883__d1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/config/init_env.sh
+"
+ask_ubuntu__evolve__887__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__887__d1/path-check/ask_ubuntu__evolve__887__d1/instruction.md: relative paths used (should be absolute under /app): boot/initrd.img, isolinux/isolinux.cfg, isolinux/isolinux.bin
+"
+ask_ubuntu__evolve__899__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__899__b1/path-check/ask_ubuntu__evolve__899__b1/instruction.md: relative paths used (should be absolute under /app): src/app.py, src/utils.py, src/components/widget.py, src/components/render.py, docs/setup_guide.txt, src/debug.log, docs/build.log
+"
+ask_ubuntu__evolve__908__b1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__908__b1/path-check/ask_ubuntu__evolve__908__b1/instruction.md: relative paths used (should be absolute under /app): modules/mod_appmetrics.so, conf/appmetrics.conf, modules/mod_appmetrics.so, modules/mod_appmetrics.so
+"
+ask_ubuntu__evolve__917__d1,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__917__d1/path-check/ask_ubuntu__evolve__917__d1/instruction.md: relative paths used (should be absolute under /app): ./data
+"
+ask_ubuntu__evolve__945__b1,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__945__b1/check-pip-pinning.sh/ask_ubuntu__evolve__945__b1...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__945__b1/check-pip-pinning.sh/ask_ubuntu__evolve__945__b1: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__evolve__945__b1/check-pip-pinning.sh/ask_ubuntu__evolve__945__b1/solution/solve.sh: unpinned ['Pillow'] in `pip install Pillow --break-system-packages`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__synth__1,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1/check-test-file-references.sh/ask_ubuntu__synth__1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/archives/manifest.json, /app/extraction_report.json
+"
+ask_ubuntu__synth__1006,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1006/path-check/ask_ubuntu__synth__1006/instruction.md: relative paths used (should be absolute under /app): myapp/src/main.py
+"
+ask_ubuntu__synth__1011,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1011/path-check/ask_ubuntu__synth__1011/instruction.md: relative paths used (should be absolute under /app): error/constitute.c
+"
+ask_ubuntu__synth__1011,check-test-file-references.sh,passed,False,
+ask_ubuntu__synth__102,check-task-absolute-path.sh,passed,True,
+ask_ubuntu__synth__1027,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1027/path-check/ask_ubuntu__synth__1027/instruction.md: relative paths used (should be absolute under /app): ./deploy.sh, ./deploy.sh
+"
+ask_ubuntu__synth__1036,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1036/path-check/ask_ubuntu__synth__1036/instruction.md: relative paths used (should be absolute under /app): ./process_manager.sh, ./process_manager.sh, ./process_manager.sh, ./process_manager.sh, ./process_manager.sh, ./process_manager.sh
+"
+ask_ubuntu__synth__1040,check-task-absolute-path.sh,passed,False,
+ask_ubuntu__synth__1042,check-task-absolute-path.sh,passed,False,
+ask_ubuntu__synth__1047,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1047/path-check/ask_ubuntu__synth__1047/instruction.md: relative paths used (should be absolute under /app): ./transcode.sh
+"
+ask_ubuntu__synth__1050,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1050/path-check/ask_ubuntu__synth__1050/instruction.md: relative paths used (should be absolute under /app): ./memory_analyzer.sh, ./memory_analyzer.sh
+"
+ask_ubuntu__synth__1052,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1052/path-check/ask_ubuntu__synth__1052/instruction.md: relative paths used (should be absolute under /app): ./service_wrapper.sh
+"
+ask_ubuntu__synth__1053,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1053/path-check/ask_ubuntu__synth__1053/instruction.md: relative paths used (should be absolute under /app): ./offline, ./pkg, ./pkg, ./pkg
+"
+ask_ubuntu__synth__1060,check-nproc.sh,passed,True,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1060/check-nproc.sh/ask_ubuntu__synth__1060...
+All scripts avoid bare nproc
+"
+ask_ubuntu__synth__1062,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1062/path-check/ask_ubuntu__synth__1062/instruction.md: relative paths used (should be absolute under /app): ./convert_dmg.sh
+"
+ask_ubuntu__synth__1065,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1065/check-test-file-references.sh/ask_ubuntu__synth__1065/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/config_loader.sh, /app/db_migrate.sh, /app/generate_report.sh, /app/restart_services.sh, /app/setup_env.sh
+"
+ask_ubuntu__synth__1131,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1131/path-check/ask_ubuntu__synth__1131/instruction.md: relative paths used (should be absolute under /app): ./sysinfo_aggregator.sh
+"
+ask_ubuntu__synth__1141,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1141/path-check/ask_ubuntu__synth__1141/instruction.md: relative paths used (should be absolute under /app): ./build.sh, benchmarks/timing_report.txt, benchmarks/timing_report.txt
+"
+ask_ubuntu__synth__1142,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1142/path-check/ask_ubuntu__synth__1142/instruction.md: relative paths used (should be absolute under /app): ./log_aggregator.sh
+"
+ask_ubuntu__synth__1158,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1158/path-check/ask_ubuntu__synth__1158/instruction.md: relative paths used (should be absolute under /app): ../..
+"
+ask_ubuntu__synth__116,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__116/check-test-file-references.sh/ask_ubuntu__synth__116/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/test_app.sh
+"
+ask_ubuntu__synth__1161,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1161/path-check/ask_ubuntu__synth__1161/instruction.md: relative paths used (should be absolute under /app): ./upgrade.sh, ./verify.sh
+"
+ask_ubuntu__synth__1164,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1164/check-pip-pinning.sh/ask_ubuntu__synth__1164...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1164/check-pip-pinning.sh/ask_ubuntu__synth__1164: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1164/check-pip-pinning.sh/ask_ubuntu__synth__1164/solution/solve.sh: unpinned ['pydicom', 'pillow', 'numpy'] in `pip install pydicom pillow numpy`
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1164/check-pip-pinning.sh/ask_ubuntu__synth__1164: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1164/check-pip-pinning.sh/ask_ubuntu__synth__1164/solution/solve.sh: unpinned ['pydicom"")'] in `print(""Error: pydicom not installed. Run: pip install pydicom"")`
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1164/check-pip-pinning.sh/ask_ubuntu__synth__1164: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1164/check-pip-pinning.sh/ask_ubuntu__synth__1164/solution/solve.sh: unpinned ['pillow"")'] in `print(""Error: Pillow not installed. Run: pip install pillow"")`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__synth__1180,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1180/path-check/ask_ubuntu__synth__1180/instruction.md: relative paths used (should be absolute under /app): ./build/Release/test_addon
+"
+ask_ubuntu__synth__1195,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1195/path-check/ask_ubuntu__synth__1195/instruction.md: relative paths used (should be absolute under /app): ./service_manager.sh, ./service_manager.sh, ./service_manager.sh, ./service_manager.sh
+"
+ask_ubuntu__synth__1231,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1231/path-check/ask_ubuntu__synth__1231/instruction.md: relative paths used (should be absolute under /app): ./disk_monitor.sh
+"
+ask_ubuntu__synth__1237,check-nproc.sh,passed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1237/check-nproc.sh/ask_ubuntu__synth__1237...
+All scripts avoid bare nproc
+"
+ask_ubuntu__synth__1238,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1238/path-check/ask_ubuntu__synth__1238/instruction.md: relative paths used (should be absolute under /app): gsettings-manager.sh, gsettings-manager.sh, ./gsettings, ./gsettings, ./gsettings
+"
+ask_ubuntu__synth__124,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__124/check-test-file-references.sh/ask_ubuntu__synth__124/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/gpu_info.sh
+"
+ask_ubuntu__synth__125,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__125/check-test-file-references.sh/ask_ubuntu__synth__125/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/data/app.db, /app/data/output.txt, /app/scripts/backup.sh, /app/scripts/deploy.sh, /app/scripts/process_data.sh
+"
+ask_ubuntu__synth__1269,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1269/path-check/ask_ubuntu__synth__1269/instruction.md: relative paths used (should be absolute under /app): ./process_audio.sh
+"
+ask_ubuntu__synth__1271,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1271/check-test-file-references.sh/ask_ubuntu__synth__1271/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /lib/firmware/netaccel/netaccel_fw_ver3.bin
+"
+ask_ubuntu__synth__1275,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1275/path-check/ask_ubuntu__synth__1275/instruction.md: relative paths used (should be absolute under /app): ./byteconv, ./byteconv, ./byteconv, ./byteconv
+"
+ask_ubuntu__synth__1293,check-test-file-references.sh,passed,True,
+ask_ubuntu__synth__1295,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1295/path-check/ask_ubuntu__synth__1295/instruction.md: relative paths used (should be absolute under /app): ./autogen.sh, ./configure
+"
+ask_ubuntu__synth__1315,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1315/path-check/ask_ubuntu__synth__1315/instruction.md: relative paths used (should be absolute under /app): ./systemd, ./systemd, d/override.conf
+"
+ask_ubuntu__synth__133,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__133/check-test-file-references.sh/ask_ubuntu__synth__133/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/install_package.sh
+"
+ask_ubuntu__synth__1357,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1357/path-check/ask_ubuntu__synth__1357/instruction.md: relative paths used (should be absolute under /app): tar.gz, .tar.gz
+"
+ask_ubuntu__synth__1360,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1360/path-check/ask_ubuntu__synth__1360/instruction.md: relative paths used (should be absolute under /app): ./build.sh, ./build.sh, scripts/validate.py, scripts/compile.sh, scripts/utils/helper.sh
+"
+ask_ubuntu__synth__1363,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1363/path-check/ask_ubuntu__synth__1363/instruction.md: relative paths used (should be absolute under /app): ./migrate.sh, ./migrate.sh
+"
+ask_ubuntu__synth__1373,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__1373/path-check/ask_ubuntu__synth__1373/instruction.md: relative paths used (should be absolute under /app): ./desktop, ./desktop, ./desktop, ./desktop
+"
+ask_ubuntu__synth__138,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__138/check-test-file-references.sh/ask_ubuntu__synth__138/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/migrate_repos.sh
+"
+ask_ubuntu__synth__140,check-test-file-references.sh,passed,False,
+ask_ubuntu__synth__157,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__157/check-test-file-references.sh/ask_ubuntu__synth__157/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/recovery.json, /root/.local/share/Trash/recovery.json
+"
+ask_ubuntu__synth__160,check-task-absolute-path.sh,failed,True,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__160/path-check/ask_ubuntu__synth__160/instruction.md: relative paths used (should be absolute under /app): ./monitor_memory.sh, ./monitor_memory.sh
+"
+ask_ubuntu__synth__162,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__162/check-test-file-references.sh/ask_ubuntu__synth__162/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/hashcheck.py
+"
+ask_ubuntu__synth__165,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__165/check-test-file-references.sh/ask_ubuntu__synth__165/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /opt/scripts/backup.sh
+"
+ask_ubuntu__synth__174,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__174/path-check/ask_ubuntu__synth__174/instruction.md: relative paths used (should be absolute under /app): dm-manager.sh
+"
+ask_ubuntu__synth__182,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__182/path-check/ask_ubuntu__synth__182/instruction.md: relative paths used (should be absolute under /app): project.zip
+"
+ask_ubuntu__synth__188,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__188/path-check/ask_ubuntu__synth__188/instruction.md: relative paths used (should be absolute under /app): deployment.zip
+"
+ask_ubuntu__synth__190,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__190/check-test-file-references.sh/ask_ubuntu__synth__190/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/manifest.json
+"
+ask_ubuntu__synth__191,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__191/check-test-file-references.sh/ask_ubuntu__synth__191/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/virtual_disk.img
+"
+ask_ubuntu__synth__198,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__198/check-test-file-references.sh/ask_ubuntu__synth__198/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/session_manager.sh
+"
+ask_ubuntu__synth__202,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__202/check-test-file-references.sh/ask_ubuntu__synth__202/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/demos, /app/shell_comparison.sh, /app/terminal_devices.sh
+"
+ask_ubuntu__synth__203,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__203/check-test-file-references.sh/ask_ubuntu__synth__203/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/check_maintenance.sh
+"
+ask_ubuntu__synth__206,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__206/path-check/ask_ubuntu__synth__206/instruction.md: relative paths used (should be absolute under /app): ./switch
+"
+ask_ubuntu__synth__207,check-task-absolute-path.sh,passed,True,
+ask_ubuntu__synth__21,check-test-file-references.sh,passed,False,
+ask_ubuntu__synth__212,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__212/check-test-file-references.sh/ask_ubuntu__synth__212/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/system_inventory.json
+"
+ask_ubuntu__synth__219,check-nproc.sh,passed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__219/check-nproc.sh/ask_ubuntu__synth__219...
+All scripts avoid bare nproc
+"
+ask_ubuntu__synth__222,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__222/path-check/ask_ubuntu__synth__222/instruction.md: relative paths used (should be absolute under /app): service-wrapper.sh
+"
+ask_ubuntu__synth__231,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__231/check-test-file-references.sh/ask_ubuntu__synth__231/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /boot/grub/grub.cfg, /boot/initrd.img
+"
+ask_ubuntu__synth__232,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__232/path-check/ask_ubuntu__synth__232/instruction.md: relative paths used (should be absolute under /app): ./hash_util.sh, ./hash_util.sh, ./hash_util.sh
+"
+ask_ubuntu__synth__233,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__233/check-test-file-references.sh/ask_ubuntu__synth__233/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/output.pdf
+"
+ask_ubuntu__synth__238,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__238/check-test-file-references.sh/ask_ubuntu__synth__238/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/compatibility_report.json, /app/report.json
+"
+ask_ubuntu__synth__242,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__242/check-test-file-references.sh/ask_ubuntu__synth__242/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/process_monitor.py
+"
+ask_ubuntu__synth__250,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__250/path-check/ask_ubuntu__synth__250/instruction.md: relative paths used (should be absolute under /app): changes.log
+"
+ask_ubuntu__synth__255,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__255/path-check/ask_ubuntu__synth__255/instruction.md: relative paths used (should be absolute under /app): pdf_tools_comparison.json
+"
+ask_ubuntu__synth__264,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__264/check-test-file-references.sh/ask_ubuntu__synth__264/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/myapp
+"
+ask_ubuntu__synth__276,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__276/check-test-file-references.sh/ask_ubuntu__synth__276/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/metadata.json, /app/sample_pdf_output.txt, /app/utility.log
+"
+ask_ubuntu__synth__28,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__28/check-test-file-references.sh/ask_ubuntu__synth__28/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/apt_comparison_report.json
+"
+ask_ubuntu__synth__280,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__280/check-test-file-references.sh/ask_ubuntu__synth__280/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/system_monitor.log
+"
+ask_ubuntu__synth__284,check-test-file-references.sh,passed,True,
+ask_ubuntu__synth__287,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__287/check-test-file-references.sh/ask_ubuntu__synth__287/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/file-opener, /app/file-opener.conf
+"
+ask_ubuntu__synth__29,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__29/check-test-file-references.sh/ask_ubuntu__synth__29/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/__init__.py
+"
+ask_ubuntu__synth__292,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__292/path-check/ask_ubuntu__synth__292/instruction.md: relative paths used (should be absolute under /app): ./find_hidden.sh
+"
+ask_ubuntu__synth__294,check-task-absolute-path.sh,passed,True,
+ask_ubuntu__synth__297,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__297/path-check/ask_ubuntu__synth__297/instruction.md: relative paths used (should be absolute under /app): sample_video.mp4, segments.txt
+"
+ask_ubuntu__synth__299,check-task-absolute-path.sh,passed,True,
+ask_ubuntu__synth__30,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__30/check-test-file-references.sh/ask_ubuntu__synth__30/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/cleanup_report.txt
+"
+ask_ubuntu__synth__300,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__300/check-test-file-references.sh/ask_ubuntu__synth__300/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/check_sessions.sh, /app/screen_demo.log, /app/screen_guide.txt
+"
+ask_ubuntu__synth__301,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__301/check-test-file-references.sh/ask_ubuntu__synth__301/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/differences.txt
+"
+ask_ubuntu__synth__318,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__318/check-test-file-references.sh/ask_ubuntu__synth__318/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/history_manager.sh
+"
+ask_ubuntu__synth__324,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__324/path-check/ask_ubuntu__synth__324/instruction.md: relative paths used (should be absolute under /app): ./script
+"
+ask_ubuntu__synth__333,check-test-file-references.sh,passed,False,
+ask_ubuntu__synth__344,check-pip-pinning.sh,failed,False,"Checking /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__344/check-pip-pinning.sh/ask_ubuntu__synth__344...
+FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__344/check-pip-pinning.sh/ask_ubuntu__synth__344: /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__344/check-pip-pinning.sh/ask_ubuntu__synth__344/tests/test.sh: unpinned ['pyyaml'] in `pip3 install --break-system-packages pytest==8.4.1 pyyaml`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+"
+ask_ubuntu__synth__357,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__357/check-test-file-references.sh/ask_ubuntu__synth__357/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/logger.sh
+"
+ask_ubuntu__synth__361,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__361/path-check/ask_ubuntu__synth__361/instruction.md: relative paths used (should be absolute under /app): ./init.sh, ./script.sh
+"
+ask_ubuntu__synth__365,check-test-file-references.sh,passed,False,
+ask_ubuntu__synth__366,check-test-file-references.sh,passed,False,
+ask_ubuntu__synth__377,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__377/path-check/ask_ubuntu__synth__377/instruction.md: relative paths used (should be absolute under /app): disk_usage_report.txt
+"
+ask_ubuntu__synth__379,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__379/check-test-file-references.sh/ask_ubuntu__synth__379/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/disk_report.json
+"
+ask_ubuntu__synth__385,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__385/check-test-file-references.sh/ask_ubuntu__synth__385/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/audit_tool.py
+"
+ask_ubuntu__synth__394,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__394/check-test-file-references.sh/ask_ubuntu__synth__394/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/search.sh
+"
+ask_ubuntu__synth__396,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__396/check-test-file-references.sh/ask_ubuntu__synth__396/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/test_images
+"
+ask_ubuntu__synth__405,check-test-file-references.sh,passed,False,
+ask_ubuntu__synth__429,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__429/path-check/ask_ubuntu__synth__429/instruction.md: relative paths used (should be absolute under /app): tar.gz
+"
+ask_ubuntu__synth__441,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__441/path-check/ask_ubuntu__synth__441/instruction.md: relative paths used (should be absolute under /app): ./scripts/disk_analyzer.sh
+"
+ask_ubuntu__synth__454,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__454/path-check/ask_ubuntu__synth__454/instruction.md: relative paths used (should be absolute under /app): ./build.sh
+"
+ask_ubuntu__synth__466,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__466/check-test-file-references.sh/ask_ubuntu__synth__466/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/output/extracted.txt, /app/output/filtered.txt
+"
+ask_ubuntu__synth__483,check-test-file-references.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__483/check-test-file-references.sh/ask_ubuntu__synth__483/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/deploy_marker.txt
+"
+ask_ubuntu__synth__493,check-task-absolute-path.sh,failed,False,"FAIL /tmp/seta-stage1-review-8stijg4c/checks/ask_ubuntu__synth__493/path-check/ask_ubuntu__synth__493/instruction.md: relative paths used (should be absolute under /app): ./generate_previews.sh
+"

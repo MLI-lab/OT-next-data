@@ -4425,6 +4425,21 @@ fetch https://github.com/microsoft/infersharp/releases/download/v{version}/infer
 tar -xzf "$work/infersharp.tgz" -C /opt && echo {version} > /opt/infersharp/VERSION
 /opt/infersharp/infer/lib/infer/infer/bin/infer --version | head -1
 '''
+# Cilsil, the translator of InferSharp 1.2 and 1.3, runs on .NET 5 (1.4 and 1.5: .NET 6, which
+# takes OpenSSL 3). That runtime loads OpenSSL 1.x
+# as soon as an assembly makes it hash or verify something, and aborts without it ("No usable
+# version of libssl was found"); the Debian 12 images carry only OpenSSL 3. The two libraries come
+# from Debian 11's package, by hash (LIBSSL1), and are only added: nothing of the image is replaced.
+LIBSSL1 = ('https://snapshot.debian.org/archive/debian/20231003T205808Z/pool/main/o/openssl/libssl1.1_1.1.1w-0+deb11u1_amd64.deb',
+           'aadf8b4b197335645b230c2839b4517aa444fd2e8f434e5438c48a18857988f7')
+_INSTALL_LIBSSL1 = r'''# Its translator runs on .NET 5, which needs OpenSSL 1.x (this image has only OpenSSL 3).
+if ! ls /usr/lib/x86_64-linux-gnu/libssl.so.1.* /usr/lib64/libssl.so.1.* >/dev/null 2>&1; then
+  fetch {url} {sha256} "$work/libssl1.1.deb"
+  dpkg-deb -x "$work/libssl1.1.deb" "$work/libssl1.1"
+  mkdir -p /usr/lib/x86_64-linux-gnu
+  cp -a "$work/libssl1.1/usr/lib/x86_64-linux-gnu/libssl.so.1.1" "$work/libssl1.1/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1" /usr/lib/x86_64-linux-gnu/
+fi
+'''
 
 
 def analyzer_release(analyzer: str) -> str:
@@ -4440,6 +4455,8 @@ def install_analyzer_script(analyzer: str) -> bytes:
         body += (_INSTALL_PYTHON2 if version.startswith('0.') else '') + _INSTALL_INFER.format(version=version, sha256=ANALYZERS[release])
     else:
         body += _INSTALL_INFERSHARP.format(version=version, sha256=ANALYZERS[release])
+        if tuple(map(int, version.split('.'))) < (1, 4):
+            body += _INSTALL_LIBSSL1.format(url=LIBSSL1[0], sha256=LIBSSL1[1])
     return (body + 'echo "' + release + '" > "$STAMP"\n').encode()
 
 

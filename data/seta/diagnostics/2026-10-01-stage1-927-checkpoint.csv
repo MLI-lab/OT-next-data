@@ -1,0 +1,655 @@
+task,check,triage,reason,source_task,check_output
+ask_ubuntu__evolve__1027__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1027__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1027__d1/instruction.md: relative paths used (should be absolute under /app): ./deploy.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1036__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1036__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1036__b1/instruction.md: relative paths used (should be absolute under /app): ./file_access_manager.sh, ./file_access_manager.sh, ./file_access_manager.sh, ./file_access_manager.sh, ./file_access_manager.sh, ./file_access_manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1043__b1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1043__b1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1043__b1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1043__b1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1043__b1/tests/test.sh: unpinned ['psutil'] in `uvx    -p 3.13    -w pytest==8.4.1    -w pytest-json-ctrf==0.3.5    -w psutil    pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1044__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1044__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1044__b1/instruction.md: relative paths used (should be absolute under /app): data/config.txt, data/app.log, data/config.txt, data/large_data.bin, data/app.log, data/subdir/nested.txt, data/subdir/data.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1050__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1050__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1050__d1/instruction.md: relative paths used (should be absolute under /app): ./memory_analyzer.sh, ./memory_analyzer.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1052__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1052__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1052__d1/instruction.md: relative paths used (should be absolute under /app): ./service_wrapper.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1053__b1,check-pip-pinning.sh,checker,Generic offline installer forwards user package arguments; not a fixed dependency install.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1053__b1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1053__b1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1053__b1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1053__b1/solution/solve.sh: unpinned ['""$@""'] in `pip install --no-index --find-links=""$SCRIPT_DIR"" ""$@""`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1053__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1053__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1053__b1/instruction.md: relative paths used (should be absolute under /app): ./offline, ./pip, ./pip, ./pip, ./pip
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1060__d1,check-nproc.sh,dataset,make parallelism uses nproc; bound build workers to allocated resources.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1060__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1060__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1060__d1: bare nproc, /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1060__d1/solution/solve.sh:53: make -j$(nproc)
+
+Some tasks call bare nproc. nproc inside a container returns the host
+CPU count, not the container's cpu limit. Use nproc --all if you
+really want the host value, or replace with the cpu count configured
+in task.toml (e.g. a literal integer matching [environment].cpus).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1060__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1060__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1060__d1/instruction.md: relative paths used (should be absolute under /app): ./configure
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1062__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1062__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1062__d1/instruction.md: relative paths used (should be absolute under /app): ./convert_dmg.sh, ./convert_dmg.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1085__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1085__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1085__d1/instruction.md: relative paths used (should be absolute under /app): ./image_processor, ../test_image.png
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1116__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1116__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1116__b1/instruction.md: relative paths used (should be absolute under /app): org/keys/nginx_signing.key
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1123__d1,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1123__d1,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1123__d1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/ssl.conf, /ssl.conf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1143__d1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1143__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1143__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1143__d1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1143__d1/tests/test.sh: unpinned ['pyyaml'] in `uvx    -p 3.13    -w pytest==8.4.1    -w pytest-json-ctrf==0.3.5    -w pyyaml    pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1158__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1158__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1158__d1/instruction.md: relative paths used (should be absolute under /app): ../..
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1164__b1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1164__b1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1164__b1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1164__b1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1164__b1/solution/solve.sh: unpinned ['astropy', 'pillow', 'numpy'] in `pip install astropy pillow numpy`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1211__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1211__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1211__d1/instruction.md: relative paths used (should be absolute under /app): ./reload_bashrc.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1231__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1231__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1231__d1/instruction.md: relative paths used (should be absolute under /app): ./disk_monitor.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1237__d1,check-nproc.sh,checker,nproc measures CPU count for monitoring/inventory rather than choosing build parallelism.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1237__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1237__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1237__d1: bare nproc, /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1237__d1/solution/solve.sh:33: CPU_CORES=$(nproc)
+
+Some tasks call bare nproc. nproc inside a container returns the host
+CPU count, not the container's cpu limit. Use nproc --all if you
+really want the host value, or replace with the cpu count configured
+in task.toml (e.g. a literal integer matching [environment].cpus).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1238__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1238__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1238__d1/instruction.md: relative paths used (should be absolute under /app): ./gsettings, ./gsettings, ./gsettings, ./gsettings, ./gsettings
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1268__d1,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1268__d1,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1268__d1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/utils/dev_helpers.py, /app/utils/enhanced_io.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1269__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1269__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1269__b1/instruction.md: relative paths used (should be absolute under /app): photo_cmyk.tiff, ./process_images.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1315__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1315__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1315__d1/instruction.md: relative paths used (should be absolute under /app): ./systemd, d/override.conf, d/override.conf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1324__d1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1324__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1324__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1324__d1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__1324__d1/tests/test.sh: unpinned ['Pillow'] in `uvx    -p 3.13    -w pytest==8.4.1    -w pytest-json-ctrf==0.3.5    -w Pillow    pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__132__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__132__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__132__d1/instruction.md: relative paths used (should be absolute under /app): app.conf, database.conf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1357__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1357__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1357__d1/instruction.md: relative paths used (should be absolute under /app): .tar.gz, .tar.gz
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__160__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__160__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__160__d1/instruction.md: relative paths used (should be absolute under /app): ./monitor_memory.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__174__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__174__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__174__d1/instruction.md: relative paths used (should be absolute under /app): worker-manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__182__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__182__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__182__b1/instruction.md: relative paths used (should be absolute under /app): src/main.py, src/utils/helpers.py, config/settings.json, data/data.csv, assets/data_link.csv, data/data.csv
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__188__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__188__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__188__b1/instruction.md: relative paths used (should be absolute under /app): project/src/main.py, project/src/utils/helper.py, project/src/components/component.py, project/config/settings.py, project/config/production.conf, project/src/utils/config_link.py, project/src/utils/config_link.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__1__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__1__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__1__d1/instruction.md: relative paths used (should be absolute under /app): test1.zip
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__216__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__216__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__216__d1/instruction.md: relative paths used (should be absolute under /app): ./mount_lookup.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__219__d1,check-nproc.sh,checker,nproc measures CPU count for monitoring/inventory rather than choosing build parallelism.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__219__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__219__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__219__d1: bare nproc, /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__219__d1/solution/solve.sh:36: num_cores=$(nproc)
+
+Some tasks call bare nproc. nproc inside a container returns the host
+CPU count, not the container's cpu limit. Use nproc --all if you
+really want the host value, or replace with the cpu count configured
+in task.toml (e.g. a literal integer matching [environment].cpus).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__232__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__232__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__232__d1/instruction.md: relative paths used (should be absolute under /app): ./hash_util.sh, ./hash_util.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__246__d1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__246__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__246__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__246__d1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__246__d1/solution/solve.sh: unpinned ['Pillow', '2>/dev/null'] in `pip3 install --break-system-packages Pillow 2>/dev/null || true`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__250__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__250__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__250__d1/instruction.md: relative paths used (should be absolute under /app): templates/contact.html, config/logging.conf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__257__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__257__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__257__d1/instruction.md: relative paths used (should be absolute under /app): linux/usbdevice_fs.h
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__267__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__267__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__267__d1/instruction.md: relative paths used (should be absolute under /app): resized/image1.jpg, resized/image2.jpg
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__276__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__276__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__276__d1/instruction.md: relative paths used (should be absolute under /app): sample.pdf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__27__d1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__27__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__27__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__27__d1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__27__d1/tests/test.sh: unpinned ['uv'] in `pip install uv --break-system-packages`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__299__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__299__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__299__d1/instruction.md: relative paths used (should be absolute under /app): level1/level2/level3/file.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__29__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__29__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__29__d1/instruction.md: relative paths used (should be absolute under /app): src/myproject/operations.py, src/myproject/calculator_wrapper.py, src/myproject/display.py, src/myproject/main.py, tests/test_calculator.py, tests/test_math_ops.py, tests/test_data_processor.py, src/myproject/math_ops.py, src/myproject/user_manager.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__333__d1,check-task-absolute-path.sh,checker,Mirror URL parsed as relative filesystem path.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__333__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__333__d1/instruction.md: relative paths used (should be absolute under /app): com/mirrors.txt, com/mirrors.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__348__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__348__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__348__d1/instruction.md: relative paths used (should be absolute under /app): configs/database/db.conf, configs/database/db.conf, configs/database/connection.ini, configs/api/api.cfg, configs/api/auth.conf, configs/logging/logging.ini, configs/logging/format.cfg, configs/network/network.conf, configs/security/ssl.ini, configs/security/firewall.cfg
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__361__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__361__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__361__d1/instruction.md: relative paths used (should be absolute under /app): ./setup_env.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__370__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__370__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__370__d1/instruction.md: relative paths used (should be absolute under /app): config/app.conf, config/app.conf, manual/README.txt, src/lib/config.cfg
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__377__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__377__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__377__d1/instruction.md: relative paths used (should be absolute under /app): error_diagnosis_report.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__383__d1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__383__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__383__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__383__d1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__383__d1/solution/solve.sh: unpinned ['yt-dlp'] in `pip3 install --break-system-packages yt-dlp`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__394__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__394__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__394__d1/instruction.md: relative paths used (should be absolute under /app): hidden_dir/secret.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__402__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__402__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__402__d1/instruction.md: relative paths used (should be absolute under /app): config/secrets.conf, config/settings/editor.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__411__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__411__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__411__b1/instruction.md: relative paths used (should be absolute under /app): worker.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__429__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__429__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__429__d1/instruction.md: relative paths used (should be absolute under /app): config_backup.tar.gz, tar.gz
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__441__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__441__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__441__b1/instruction.md: relative paths used (should be absolute under /app): ./scripts/disk_analyzer.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__454__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__454__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__454__d1/instruction.md: relative paths used (should be absolute under /app): ./build.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__486__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__486__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__486__d1/instruction.md: relative paths used (should be absolute under /app): service_manager.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__493__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__493__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__493__d1/instruction.md: relative paths used (should be absolute under /app): ./generate_previews.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__503__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__503__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__503__d1/instruction.md: relative paths used (should be absolute under /app): secret_config.dat, secret_config.dat, secret_config.dat
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__547__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__547__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__547__d1/instruction.md: relative paths used (should be absolute under /app): ./record_loopback.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__559__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__559__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__559__b1/instruction.md: relative paths used (should be absolute under /app): scripts/lint.sh, scripts/build.sh, scripts/test.sh, scripts/package.sh, scripts/test.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__568__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__568__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__568__d1/instruction.md: relative paths used (should be absolute under /app): HOME/.shell_sync/.lock
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__584__d1,check-nproc.sh,checker,nproc measures CPU count for monitoring/inventory rather than choosing build parallelism.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__584__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__584__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__584__d1: bare nproc, /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__584__d1/solution/solve.sh:18: logical_processors=""$(nproc)""
+
+Some tasks call bare nproc. nproc inside a container returns the host
+CPU count, not the container's cpu limit. Use nproc --all if you
+really want the host value, or replace with the cpu count configured
+in task.toml (e.g. a literal integer matching [environment].cpus).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__601__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__601__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__601__d1/instruction.md: relative paths used (should be absolute under /app): ./config_manager.sh, ./config_manager.sh, ./config_manager.sh, ./config_manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__650__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__650__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__650__d1/instruction.md: relative paths used (should be absolute under /app): ./app/settings/database.yml, d/ssl_certificates.conf, d/ssl_certificates.conf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__656__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__656__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__656__d1/instruction.md: relative paths used (should be absolute under /app): ./session_manager.sh, ./session_manager.sh, ./session_manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__70__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__70__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__70__d1/instruction.md: relative paths used (should be absolute under /app): ./alias_check.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__731__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__731__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__731__d1/instruction.md: relative paths used (should be absolute under /app): vendor_a_data/reports/details.csv, vendor_a_data/reports/summary.txt, vendor_b_logs/logs/app.log, vendor_b_logs/logs/error.log, vendor_c_bundle/src/main.py, vendor_c_bundle/src/utils.py, vendor_d_config/config/settings.yaml
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__746__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__746__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__746__b1/instruction.md: relative paths used (should be absolute under /app): ./printer_uri_analyzer.sh, ./printer_uri_analyzer.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__768__d1,check-test-file-references.sh,checker,Text/URL fragment misidentified as required output file.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__768__d1,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__768__d1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /dev/tcp/attacker.c
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__777__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__777__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__777__d1/instruction.md: relative paths used (should be absolute under /app): config/main_config.json, config/system_settings.json, data/users.csv, data/products.csv, subdir1/app_config.json, subdir1/level3_archive.tar, subdir2/inventory.csv
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__788__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__788__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__788__b1/instruction.md: relative paths used (should be absolute under /app): ./package.json, ./node_modules
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__808__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__808__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__808__b1/instruction.md: relative paths used (should be absolute under /app): ../conf, ../conf, ../mods
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__833__b1,check-pip-pinning.sh,checker,Redirection parsed as package,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__833__b1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__833__b1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__833__b1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__833__b1/tests/test.sh: unpinned ['2>&1'] in `pip3 install --break-system-packages pytest==8.4.1 pytest-json-ctrf==0.3.5 2>&1`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__833__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__833__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__833__b1/instruction.md: relative paths used (should be absolute under /app): server/server.conf, keys/ca.crt, keys/server.key, client/client1.key
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__847__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__847__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__847__b1/instruction.md: relative paths used (should be absolute under /app): tests/conftest.py, tests/unit/test_app.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__851__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__851__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__851__d1/instruction.md: relative paths used (should be absolute under /app): corrupted_files/archive.zip
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__877__d1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__877__d1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__877__d1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__877__d1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__877__d1/solution/solve.sh: unpinned ['pyyaml'] in `pip3 install pyyaml --break-system-packages`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__877__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__877__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__877__d1/instruction.md: relative paths used (should be absolute under /app): build/output.txt, generated/config.h
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__883__d1,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__883__d1,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__883__d1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/config/init_env.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__887__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__887__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__887__d1/instruction.md: relative paths used (should be absolute under /app): boot/initrd.img, isolinux/isolinux.cfg, isolinux/isolinux.bin
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__899__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__899__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__899__b1/instruction.md: relative paths used (should be absolute under /app): src/app.py, src/utils.py, src/components/widget.py, src/components/render.py, docs/setup_guide.txt, src/debug.log, docs/build.log
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__908__b1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__908__b1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__908__b1/instruction.md: relative paths used (should be absolute under /app): modules/mod_appmetrics.so, conf/appmetrics.conf, modules/mod_appmetrics.so, modules/mod_appmetrics.so
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__917__d1,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__917__d1,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__evolve__917__d1/instruction.md: relative paths used (should be absolute under /app): ./data
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__evolve__945__b1,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__evolve__945__b1,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__945__b1...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__945__b1: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__evolve__945__b1/solution/solve.sh: unpinned ['Pillow'] in `pip install Pillow --break-system-packages`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/archives/manifest.json, /app/extraction_report.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1006,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1006,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1006/instruction.md: relative paths used (should be absolute under /app): myapp/src/main.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1011,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1011,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1011/instruction.md: relative paths used (should be absolute under /app): error/constitute.c
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1011,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1011,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1011/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /policy.xml
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__102,check-task-absolute-path.sh,dataset_clarification,Filename is supplied but /app output location is implicit; patch now states location required by tests. Other relative examples may still trigger checker.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__102,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__102/instruction.md: relative paths used (should be absolute under /app): bug-triage.sh, bug-report.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1027,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1027,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1027/instruction.md: relative paths used (should be absolute under /app): ./deploy.sh, ./deploy.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1036,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1036,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1036/instruction.md: relative paths used (should be absolute under /app): ./process_manager.sh, ./process_manager.sh, ./process_manager.sh, ./process_manager.sh, ./process_manager.sh, ./process_manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1040,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1040,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1040/instruction.md: relative paths used (should be absolute under /app): editor/run.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1042,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1042,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1042/instruction.md: relative paths used (should be absolute under /app): 10/preseed.cfg
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1047,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1047,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1047/instruction.md: relative paths used (should be absolute under /app): ./transcode.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1050,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1050,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1050/instruction.md: relative paths used (should be absolute under /app): ./memory_analyzer.sh, ./memory_analyzer.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1052,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1052,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1052/instruction.md: relative paths used (should be absolute under /app): ./service_wrapper.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1053,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1053,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1053/instruction.md: relative paths used (should be absolute under /app): ./offline, ./pkg, ./pkg, ./pkg
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1060,check-nproc.sh,dataset,make parallelism uses nproc; bound build workers to allocated resources.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1060,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1060...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1060: bare nproc, /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1060/solution/solve.sh:154: make -j$(nproc)
+
+Some tasks call bare nproc. nproc inside a container returns the host
+CPU count, not the container's cpu limit. Use nproc --all if you
+really want the host value, or replace with the cpu count configured
+in task.toml (e.g. a literal integer matching [environment].cpus).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1062,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1062,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1062/instruction.md: relative paths used (should be absolute under /app): ./convert_dmg.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1065,check-test-file-references.sh,checker,"Tests join helper basenames to /opt/deploy/lib, matching supplied setup and documented directory; checker invents /app paths. Still needs contextual path adapter repair.",/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1065,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1065/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/config_loader.sh, /app/db_migrate.sh, /app/generate_report.sh, /app/restart_services.sh, /app/setup_env.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1131,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1131,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1131/instruction.md: relative paths used (should be absolute under /app): ./sysinfo_aggregator.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1141,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1141,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1141/instruction.md: relative paths used (should be absolute under /app): ./build.sh, benchmarks/timing_report.txt, benchmarks/timing_report.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1142,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1142,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1142/instruction.md: relative paths used (should be absolute under /app): ./log_aggregator.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1158,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1158,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1158/instruction.md: relative paths used (should be absolute under /app): ../..
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__116,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__116,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__116/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/test_app.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1161,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1161,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1161/instruction.md: relative paths used (should be absolute under /app): ./upgrade.sh, ./verify.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1164,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1164,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1164...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1164: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1164/solution/solve.sh: unpinned ['pydicom', 'pillow', 'numpy'] in `pip install pydicom pillow numpy`
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1164: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1164/solution/solve.sh: unpinned ['pydicom"")'] in `print(""Error: pydicom not installed. Run: pip install pydicom"")`
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1164: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1164/solution/solve.sh: unpinned ['pillow"")'] in `print(""Error: Pillow not installed. Run: pip install pillow"")`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1180,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1180,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1180/instruction.md: relative paths used (should be absolute under /app): ./build/Release/test_addon
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1195,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1195,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1195/instruction.md: relative paths used (should be absolute under /app): ./service_manager.sh, ./service_manager.sh, ./service_manager.sh, ./service_manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1231,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1231,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1231/instruction.md: relative paths used (should be absolute under /app): ./disk_monitor.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1237,check-nproc.sh,checker,nproc measures CPU count for monitoring/inventory rather than choosing build parallelism.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1237,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1237...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1237: bare nproc, /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1237/solution/solve.sh:33: CPU_CORES=$(nproc)
+
+Some tasks call bare nproc. nproc inside a container returns the host
+CPU count, not the container's cpu limit. Use nproc --all if you
+really want the host value, or replace with the cpu count configured
+in task.toml (e.g. a literal integer matching [environment].cpus).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1238,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1238,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1238/instruction.md: relative paths used (should be absolute under /app): gsettings-manager.sh, gsettings-manager.sh, ./gsettings, ./gsettings, ./gsettings
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__124,check-test-file-references.sh,dataset_interface_review,Read instructions and test entry points: required script/output filename is absent from instructions. Full CLI/schema review still needed before patching.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__124,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__124/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/gpu_info.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__125,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__125,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__125/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/data/app.db, /app/data/output.txt, /app/scripts/backup.sh, /app/scripts/deploy.sh, /app/scripts/process_data.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1269,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1269,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1269/instruction.md: relative paths used (should be absolute under /app): ./process_audio.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1271,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1271,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1271/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /lib/firmware/netaccel/netaccel_fw_ver3.bin
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1275,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1275,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1275/instruction.md: relative paths used (should be absolute under /app): ./byteconv, ./byteconv, ./byteconv, ./byteconv
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1293,check-test-file-references.sh,dataset,Instructions say ~ but tests require /home/testuser and context does not switch user or HOME; patch now names target account/home.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1293,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__1293/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /home/testuser
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1295,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1295,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1295/instruction.md: relative paths used (should be absolute under /app): ./autogen.sh, ./configure
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1315,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1315,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1315/instruction.md: relative paths used (should be absolute under /app): ./systemd, ./systemd, d/override.conf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__133,check-test-file-references.sh,context_review,"install_package.sh is supplied by setup, not an undisclosed new output. Review context discoverability and mock Java contract; do not blindly add a create-script requirement.",/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__133,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__133/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/install_package.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1357,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1357,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1357/instruction.md: relative paths used (should be absolute under /app): tar.gz, .tar.gz
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1360,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1360,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1360/instruction.md: relative paths used (should be absolute under /app): ./build.sh, ./build.sh, scripts/validate.py, scripts/compile.sh, scripts/utils/helper.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1363,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1363,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1363/instruction.md: relative paths used (should be absolute under /app): ./migrate.sh, ./migrate.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__1373,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__1373,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__1373/instruction.md: relative paths used (should be absolute under /app): ./desktop, ./desktop, ./desktop, ./desktop
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__138,check-test-file-references.sh,dataset_interface_review,Read instructions and test entry points: required script/output filename is absent from instructions. Full CLI/schema review still needed before patching.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__138,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__138/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/migrate_repos.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__140,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__140,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__140/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /override.conf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__157,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__157,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__157/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/recovery.json, /root/.local/share/Trash/recovery.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__160,check-task-absolute-path.sh,dataset_clarification,Filename is supplied but /app output location is implicit; patch now states location required by tests. Other relative examples may still trigger checker.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__160,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__160/instruction.md: relative paths used (should be absolute under /app): monitor_memory.sh, memory_log.csv, ./monitor_memory.sh, ./monitor_memory.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__162,check-test-file-references.sh,dataset_interface_review,Read instructions and test entry points: required script/output filename is absent from instructions. Full CLI/schema review still needed before patching.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__162,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__162/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/hashcheck.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__165,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__165,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__165/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /opt/scripts/backup.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__174,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__174,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__174/instruction.md: relative paths used (should be absolute under /app): dm-manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__182,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__182,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__182/instruction.md: relative paths used (should be absolute under /app): project.zip
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__188,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__188,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__188/instruction.md: relative paths used (should be absolute under /app): deployment.zip
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__190,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__190,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__190/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/manifest.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__191,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__191,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__191/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/virtual_disk.img
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__198,check-test-file-references.sh,dataset_interface_review,Read instructions and test entry points: required script/output filename is absent from instructions. Full CLI/schema review still needed before patching.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__198,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__198/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/session_manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__202,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__202,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__202/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/demos, /app/shell_comparison.sh, /app/terminal_devices.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__203,check-test-file-references.sh,dataset_interface_review,Read instructions and test entry points: required script/output filename is absent from instructions. Full CLI/schema review still needed before patching.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__203,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__203/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/check_maintenance.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__206,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__206,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__206/instruction.md: relative paths used (should be absolute under /app): ./switch
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__207,check-task-absolute-path.sh,dataset_clarification,Filename is supplied but /app output location is implicit; patch now states location required by tests. Other relative examples may still trigger checker.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__207,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__207/instruction.md: relative paths used (should be absolute under /app): disk_analysis.sh, disk_report.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__21,check-test-file-references.sh,checker,Text/URL fragment misidentified as required output file.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__21,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__21/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: ///database.db
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__212,check-test-file-references.sh,dataset_interface_review,Read instructions and test entry points: required script/output filename is absent from instructions. Full CLI/schema review still needed before patching.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__212,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__212/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/system_inventory.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__219,check-nproc.sh,checker,nproc measures CPU count for monitoring/inventory rather than choosing build parallelism.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__219,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__219...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__219: bare nproc, /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__219/solution/solve.sh:37: num_cores=$(nproc)
+
+Some tasks call bare nproc. nproc inside a container returns the host
+CPU count, not the container's cpu limit. Use nproc --all if you
+really want the host value, or replace with the cpu count configured
+in task.toml (e.g. a literal integer matching [environment].cpus).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__222,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__222,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__222/instruction.md: relative paths used (should be absolute under /app): service-wrapper.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__231,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__231,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__231/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /boot/grub/grub.cfg, /boot/initrd.img
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__232,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__232,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__232/instruction.md: relative paths used (should be absolute under /app): ./hash_util.sh, ./hash_util.sh, ./hash_util.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__233,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__233,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__233/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/output.pdf, /policy.xml
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__238,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__238,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__238/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/compatibility_report.json, /app/report.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__242,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__242,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__242/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/process_monitor.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__250,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__250,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__250/instruction.md: relative paths used (should be absolute under /app): changes.log
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__255,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__255,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__255/instruction.md: relative paths used (should be absolute under /app): pdf_tools_comparison.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__264,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__264,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__264/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/myapp
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__276,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__276,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__276/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/metadata.json, /app/sample_pdf_output.txt, /app/utility.log
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__28,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__28,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__28/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/apt_comparison_report.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__280,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__280,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__280/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/system_monitor.log
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__284,check-test-file-references.sh,dataset,Tests execute /app/package_report.sh but instructions omit required script filename.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__284,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__284/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/package_report.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__287,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__287,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__287/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/file-opener, /app/file-opener.conf
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__29,check-test-file-references.sh,checker,Tests look for __init__.py inside any package below src; checker invents /app/__init__.py. Do not add that incorrect required output.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__29,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__29/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/__init__.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__292,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__292,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__292/instruction.md: relative paths used (should be absolute under /app): ./find_hidden.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__294,check-task-absolute-path.sh,dataset_clarification,Filename is supplied but /app output location is implicit; patch now states location required by tests. Other relative examples may still trigger checker.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__294,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__294/instruction.md: relative paths used (should be absolute under /app): results.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__297,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__297,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__297/instruction.md: relative paths used (should be absolute under /app): sample_video.mp4, segments.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__299,check-task-absolute-path.sh,dataset_clarification,Filename is supplied but /app output location is implicit; patch now states location required by tests. Other relative examples may still trigger checker.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__299,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__299/instruction.md: relative paths used (should be absolute under /app): sync_timestamps.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__30,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__30,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__30/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/cleanup_report.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__300,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__300,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__300/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/check_sessions.sh, /app/screen_demo.log, /app/screen_guide.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__301,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__301,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__301/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/differences.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__318,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__318,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__318/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/history_manager.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__324,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__324,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__324/instruction.md: relative paths used (should be absolute under /app): ./script
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__333,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__333,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__333/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /mirrors.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__344,check-pip-pinning.sh,dataset,Actual unpinned package install; select and validate compatible versions.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__344,"Checking /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__344...
+FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__344: /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__344/tests/test.sh: unpinned ['pyyaml'] in `pip3 install --break-system-packages pytest==8.4.1 pyyaml`
+
+Some tasks have unpinned pip / uv pip / uvx --with installs.
+Pin every package to ==<version>, or use a manifest (-r requirements.txt).
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__357,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__357,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__357/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/logger.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__361,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__361,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__361/instruction.md: relative paths used (should be absolute under /app): ./init.sh, ./script.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__365,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__365,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__365/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /xsettings.xml
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__366,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__366,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__366/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /gtk.c
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__377,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__377,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__377/instruction.md: relative paths used (should be absolute under /app): disk_usage_report.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__379,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__379,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__379/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/disk_report.json
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__385,check-test-file-references.sh,dataset_interface_review,Read instructions and test entry points: required script/output filename is absent from instructions. Full CLI/schema review still needed before patching.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__385,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__385/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/audit_tool.py
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__394,check-test-file-references.sh,dataset_interface_review,Read instructions and test entry points: required script/output filename is absent from instructions. Full CLI/schema review still needed before patching.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__394,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__394/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/search.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__396,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__396,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__396/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/test_images
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__405,check-test-file-references.sh,checker,Text/URL fragment misidentified as required output file.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__405,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__405/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/>proxy.internal.example.c
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__429,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__429,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__429/instruction.md: relative paths used (should be absolute under /app): tar.gz
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__441,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__441,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__441/instruction.md: relative paths used (should be absolute under /app): ./scripts/disk_analyzer.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__454,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__454,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__454/instruction.md: relative paths used (should be absolute under /app): ./build.sh
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__466,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__466,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__466/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/output/extracted.txt, /app/output/filtered.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__483,check-test-file-references.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__483,"FAIL /data/horse/ws/frwe188h-trp-shared/seta/scratch/validation-8996335-IP2unG/validation-20260930T131511Z/tasks/ask_ubuntu__synth__483/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/deploy_marker.txt
+
+=== result: failed, exit_code: 1 ==="
+ask_ubuntu__synth__493,check-task-absolute-path.sh,context_review,Review instruction context and actual verifier requirements before changing dataset.,/data/horse/ws/frwe188h-trp-shared/seta/checkpoints/8996335-preserved/tasks/ask_ubuntu__synth__493,"FAIL /tmp/tb-checks-opq9phaf/path-check/ask_ubuntu__synth__493/instruction.md: relative paths used (should be absolute under /app): ./generate_previews.sh
+
+=== result: failed, exit_code: 1 ==="

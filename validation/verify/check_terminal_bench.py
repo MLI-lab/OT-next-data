@@ -132,7 +132,11 @@ SHELL_FENCES = {'', 'bash', 'sh', 'shell', 'zsh', 'console', 'text', 'txt'}
 ADAPTATIONS = {PATH_CHECK: 'runs on a copy of the task whose instruction.md has its source-code blocks removed '
                            '(fenced blocks tagged with a programming language); masks complete absolute paths '
                            'and JavaScript console calls/sed substitutions so their substrings are not mistaken for paths; '
-                           'shell examples and relative file references are otherwise kept',
+                           'masks complete non-file URLs, quoted absolute paths with spaces, and commands with an explicit same-line working directory; '
+                           'shell examples and unresolved relative file references are otherwise kept',
+               'check-test-file-references.sh': 'masks complete non-file URLs, XML hostnames and complete system paths already excluded by upstream before filename extraction',
+               'check-pip-pinning.sh': 'masks shell fd redirections and argument forwarding in generated offline installer heredocs, retaining actual package installations',
+               'check-nproc.sh': 'training permits CPU measurements used only in JSON output or load-alert expressions; unknown uses and worker selection remain checked',
                'file names': 'a task with whitespace or *?[] in a file name is checked on a copy where those characters '
                              'are replaced by _, because the upstream scripts split paths at spaces and expand globs; '
                              'the renamed files are listed per task'}
@@ -174,9 +178,100 @@ def without_source_code(instruction):
     return '\n'.join(kept)
 
 
+def without_urls(text):
+    # Mask whole tokens before upstream extracts filename-like suffixes.
+    text = re.sub(r'\b(?![Ff][Ii][Ll][Ee]://)[A-Za-z][A-Za-z0-9+.-]*://[^\s`\"\'<>]+', '[URL]', text)
+    # Bare host/path form, e.g. mirrors.ubuntu.com/mirrors.txt.
+    return re.sub(r'\b(?:[A-Za-z0-9-]+\.)+(?:com|org|net|edu|gov|io)/[^\s`\"\'<>]+', '[URL]', text)
+
+
+def reference_check_text(text):
+    text = without_urls(text)
+    text = re.sub(r'<host>[^<\n]+</host>', '<host>[hostname]</host>', text)
+    # Upstream deliberately excludes these system roots, but its second regex
+    # can truncate a hyphenated path into e.g. /xsettings.xml and flag it again.
+    return re.sub(r'/(?:tests|tmp|usr|var|etc)/[^\s`\"\'<>;]+', '[system path]', text)
+
+
+def pip_check_text(text):
+    # Strip fd duplication, not arbitrary arguments or commands after redirects.
+    text = re.sub(r'(?<!\S)\d*[<>]&(?:\d+|-)(?=\s|$)', '', text)
+    # Generated offline installers are tools accepting user-specified packages,
+    # not an unpinned install into the task environment. Only exempt forwarding
+    # inside a quoted heredoc; retain concrete installs inside those heredocs.
+    lines, delimiter = [], None
+    for line in text.splitlines(keepends=True):
+        if delimiter and line.strip() == delimiter:
+            delimiter = None
+        elif delimiter and re.fullmatch(
+                r'\s*pip3? install --no-index --find-links="\$SCRIPT_DIR" "\$@"\s*', line):
+            line = '# generated offline installer forwards caller arguments\n'
+        if delimiter is None:
+            match = re.search(r"<<\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]", line)
+            if match:
+                delimiter = match.group(1)
+        lines.append(line)
+    return ''.join(lines)
+
+
+def nproc_check_text(text):
+    """Conservatively recognize measurement-only variables; not a shell parser.
+
+    Unknown uses (including aliases, arithmetic assignments and build flags)
+    retain the original check. Do not exempt based merely on variable names.
+    """
+    lines = text.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        assignment = re.fullmatch(r'\s*([A-Za-z_]\w*)="?\$\(nproc\)"?\s*', line)
+        if not assignment:
+            continue
+        var = assignment.group(1)
+        refs = re.compile(r'\$(?:' + re.escape(var) + r'\b|\{' + re.escape(var) + r'\})')
+        uses = [s.strip() for s in lines if refs.search(s) and not s.lstrip().startswith('#')]
+        def measurement(s):
+            # JSON fields: no command substitutions, backticks or shell chains.
+            if s.startswith(('{"', '"')) and not re.search(r'\$\(|`|[;&|]', s):
+                return True
+            if re.fullmatch(r'if \(\( \$\(echo "\$\w+ > \$' + re.escape(var) + r'" \| bc -l\) \)\); then', s):
+                return True
+            return bool(re.fullmatch(r'alerts(?:\+)?=\(?"[^\n]*"\)?', s)) and not re.search(r'\$\(|`|[;&|]', s)
+        if uses and all(measurement(s) for s in uses):
+            lines[i] = line.replace('$(nproc)', 'CPU_MEASUREMENT')
+    return ''.join(lines)
+
+
+def adapted_check_copy(task, scratch, name, profile):
+    transforms = {'check-test-file-references.sh': reference_check_text,
+                  'check-pip-pinning.sh': pip_check_text}
+    if profile == 'training':
+        transforms['check-nproc.sh'] = nproc_check_text
+    if name not in transforms:
+        return task
+    copy = Path(scratch) / name / task.name
+    # Only files consumed by these checks. Avoid copying potentially large setup
+    # archives for each adaptation.
+    paths = ['instruction.md', 'task.toml', 'environment/Dockerfile',
+             'tests/Dockerfile', 'tests/test.sh', 'solution/solve.sh']
+    paths.extend(str(p.relative_to(task)) for p in (task / 'tests').rglob('test_*.py'))
+    for relative in paths:
+        source = task / relative
+        if source.is_file():
+            target = copy / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            text = source.read_text(errors='replace')
+            target.write_text(transforms[name](text) if relative not in ('instruction.md', 'task.toml') else text)
+    return copy
+
+
 def path_check_text(instruction):
     """Adapt known lexical false positives without changing pinned upstream code."""
     text = without_source_code(instruction)
+    text = without_urls(text)
+    # A relative command with an explicit working directory on the same line
+    # is unambiguous. Do not infer a global cwd from unrelated absolute paths.
+    text = re.sub(r'`(\./[^`\n]+)`(?= from `/[^`\n]+`)', '[rooted command]', text)
+    # Quoted absolute paths can contain spaces; consume before bare tokens.
+    text = re.sub(r'`/[^`\n]+`', '`[absolute path]`', text)
     # Consume the WHOLE absolute token, including @ and hyphens in systemd units.
     # Replacing tokens individually also prevents upstream's global substring
     # filter from excusing a relative path merely because an absolute one exists.
@@ -322,7 +417,7 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             'reason': 'no GPTZERO_API_KEY configured', 'exit_code': None, 'log': None})
                         continue
                     started = time.monotonic()
-                    target = path_check_copy(task, scratch) if name == PATH_CHECK else task
+                    target = path_check_copy(task, scratch) if name == PATH_CHECK else adapted_check_copy(task, scratch, name, profile)
                     # Buffer each check separately so parallel outputs never interleave.
                     with tempfile.TemporaryFile(mode='w+', encoding='utf-8', errors='replace', dir=scratch) as stream:
                         # The scripts take under a second; a timeout means the node or the

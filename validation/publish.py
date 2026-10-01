@@ -90,7 +90,7 @@ def judge(stage, item, not_required=()):
         reason = item.get('reason') or '; '.join(
             str(e.get('error') or [c['check'] for c in e.get('checks', []) if c.get('status') in ('failed', 'error')])
             for e in item.get('environments', []) if e.get('status') != 'passed')
-        if NODE_FAILURE.search(reason or ''):
+        if (status == 'error' and not item.get('environments')) or NODE_FAILURE.search(reason or ''):
             return 'not_run', 'node or bridge failure: ' + reason[:300]
         return 'archive', 'container did not build or start: ' + (reason or status or 'unknown')[:300]
     findings = [str(f) for f in item.get('findings', [])]
@@ -406,6 +406,7 @@ def main():
     ap.add_argument('--analysis', action='store_true', help='let a model group the archived tasks and suggest actions (Claude Code login); skipped on any failure')
     ap.add_argument('--analysis-model', default='sonnet')
     ap.add_argument('--readme', action='store_true', help='generate dataset cards through Claude Code in Harbor/Apptainer before publishing')
+    ap.add_argument('--readme-force', action='store_true', help='regenerate existing cards in the PR instead of preserving them')
     ap.add_argument('--readme-model', default='claude-fable-5-1')
     ap.add_argument('--readme-seed', type=int, default=0, help='seed for sampling up to ten kept tasks per dataset')
     ap.add_argument('--readme-work-dir', type=Path, help='cluster workspace for annotation inputs and Harbor jobs; defaults under --out')
@@ -415,16 +416,24 @@ def main():
     result = publish(a.reports, a.contract, a.repo, a.folder, a.not_required, a.out, a.run_id, a.dry_run,
                      analysis=a.analysis, analysis_model=a.analysis_model,
                      readme=a.readme, readme_model=a.readme_model, readme_evidence=a.readme_evidence,
-                     readme_seed=a.readme_seed, readme_work_dir=a.readme_work_dir)
+                     readme_seed=a.readme_seed, readme_work_dir=a.readme_work_dir, readme_force=a.readme_force)
     print(result['description'])
     print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
           if a.dry_run else f"Pull request: {result['pull_request']}")
 
 
+def readme_exists(repo, folder):
+    """Preserve a dataset card already present in the destination repository."""
+    if not repo:
+        return False
+    from huggingface_hub import HfApi
+    return HfApi().file_exists(repo_id=repo, repo_type='dataset', filename=f'{folder}/README.md')
+
+
 def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=None, run_id=None, dry_run=False,
             analysis=False, analysis_model='sonnet', call=run_llm,
             readme=False, readme_model='claude-fable-5-1', readme_evidence=(),
-            readme_seed=0, readme_work_dir=None, annotation_runner=None):
+            readme_seed=0, readme_work_dir=None, annotation_runner=None, readme_force=False):
     """Build the files for one run and open the pull request; returns what was done."""
     contract = read(contract_path)
     reports = stage_reports(reports_dir)
@@ -445,8 +454,12 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
     cards = None
     if readme_evidence and not readme:
         raise ValueError('--readme-evidence requires --readme')
+    if readme_force and not readme:
+        raise ValueError('--readme-force requires --readme')
     if readme:
         from validation.annotation import generate
+        existing = set() if readme_force else {folder for folder in tables if readme_exists(repo, folder)}
+        missing = {folder: rows for folder, rows in tables.items() if folder not in existing}
         evidence = {}
         for item in readme_evidence:
             folder, path = item.split('=', 1)
@@ -455,11 +468,13 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
         work = Path(readme_work_dir) if readme_work_dir else out / 'annotation-runs'
         if work.resolve().is_relative_to('/home'):
             raise ValueError('annotation inputs and jobs must be outside /home; set --readme-work-dir to a cluster workspace')
-        cards = generate(tables, readme_model, annotation_runner, work / uuid4().hex,
-                         evidence, seed=readme_seed)
+        cards = generate(missing, readme_model, annotation_runner, work / uuid4().hex,
+                         evidence, seed=readme_seed) if missing else {}
         record['dataset_cards'] = {folder: {'readme': f'{folder}/README.md',
             'annotation': f'{folder}/annotation.json', 'model': card['annotation']['model'],
             'prompt_sha256': card['provenance']['prompt_sha256']} for folder, card in cards.items()}
+        record['dataset_cards'].update({folder: {'readme': f'{folder}/README.md',
+            'status': 'preserved_existing'} for folder in sorted(existing)})
     files = write(tables, record, run_file, out, cards)
     result = {'run': record['run'], 'files': files, 'out': str(out), 'description': description(record),
               'analysis': (record.get('analysis') or {}).get('status')}

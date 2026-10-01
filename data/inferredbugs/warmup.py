@@ -4,8 +4,10 @@
                                          or `--docker` for local Docker images) from the patch script's Dockerfiles
   python warmup.py --downloads DIR       fetch every analyzer release into DIR, named by SHA-256;
                                          tasks read it when INFERREDBUGS_DOWNLOAD_CACHE names it
-  python warmup.py --repositories DIR    clone every kept task's repository into DIR/<owner>/<repo>.git;
-                                         tasks read it when INFERREDBUGS_REPOSITORY_CACHE names it
+  python warmup.py --repositories DIR    clone every kept task's repository into DIR/<owner>/<repo>.git
+                                         and make sure it holds every commit the tasks fetch (rerun it
+                                         to repair an existing cache); tasks read it when
+                                         INFERREDBUGS_REPOSITORY_CACHE names it
   python warmup.py --source DIR          check out microsoft/InferredBugs at the pinned commit (about 1 GB): the
                                          buggy and fixed files the patch script and the check harness package from
 
@@ -92,29 +94,71 @@ def downloads(directory):
             raise RuntimeError('checksum mismatch: ' + url)
         partial.rename(target)
         print('fetched', analyzer, flush=True)
+    # OpenSSL 1.1 for the translator of InferSharp 1.2 and 1.3 (install_analyzer.sh fetches it by hash)
+    url, digest = patcher.LIBSSL1
+    target = directory / digest
+    if not target.exists():
+        partial = directory / (digest + '.partial')
+        with urllib.request.urlopen(url, timeout=120) as response, partial.open('wb') as out:
+            shutil.copyfileobj(response, out)
+        if hashlib.sha256(partial.read_bytes()).hexdigest() != digest:
+            partial.unlink()
+            raise RuntimeError('checksum mismatch: ' + url)
+        partial.rename(target)
+        print('fetched', url.rsplit('/', 1)[1], flush=True)
 
 
 def repositories(directory, workers):
     kept = [r for r in patcher.embedded_recipes() if r['task_id'] not in patcher.DISCARDED]
-    names = sorted({r['repository'] for r in kept})
+    # what fetch_repository.sh asks the cache for: the fixing commit (with its parent, --depth=2)
+    # and, where the parent never compiled, the older snapshot holding the buggy file
+    wanted = {}
+    for r in kept:
+        commits = wanted.setdefault(r['repository'], set())
+        commits.add(r['commit'])
+        if patcher.BUGGY_SNAPSHOT.get(r['task_id']):
+            commits.add(patcher.BUGGY_SNAPSHOT[r['task_id']])
+    names = sorted(wanted)
+    env = {**__import__('os').environ, 'GIT_TERMINAL_PROMPT': '0'}
 
     def clone(name):
         target = directory / (name + '.git')
-        if (target / 'HEAD').exists():
-            return name, 'exists'
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=str(target.parent)) as temp:
-            proc = subprocess.run(['git', '-c', 'credential.helper=', 'clone', '-q', '--bare', 'https://github.com/%s.git' % name, temp + '/repo.git'],
-                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env={**__import__('os').environ, 'GIT_TERMINAL_PROMPT': '0'})
-            if proc.returncode:
-                return name, 'failed: ' + proc.stdout.decode(errors='replace').strip()[-200:]
-            shutil.move(temp + '/repo.git', str(target))
-        return name, 'cloned'
+        state = 'exists'
+        if not (target / 'HEAD').exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(dir=str(target.parent)) as temp:
+                proc = subprocess.run(['git', '-c', 'credential.helper=', 'clone', '-q', '--bare', 'https://github.com/%s.git' % name, temp + '/repo.git'],
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+                if proc.returncode:
+                    return name, 'failed: ' + proc.stdout.decode(errors='replace').strip()[-200:]
+                shutil.move(temp + '/repo.git', str(target))
+            state = 'cloned'
+        # A clone holds what the branches and tags reach. A task's commit may be reachable from none
+        # of them (a rewritten or deleted branch, a pull request, a fork's history): GitHub still
+        # serves it by hash, the clone does not have it, and a task that finds the repository in
+        # the cache does not ask GitHub. Fetch such commits with their history and keep each under
+        # a ref of its own, so that no gc prunes it.
+        has = lambda commit: subprocess.run(['git', '-C', str(target), 'cat-file', '-e', commit + '^{commit}'],
+                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        missing = [c for c in sorted(wanted[name]) if not has(c)]
+        failed = []
+        for commit in missing:
+            proc = subprocess.run(['git', '-C', str(target), '-c', 'credential.helper=', 'fetch', '-q', 'https://github.com/%s.git' % name,
+                                   '+%s:refs/inferredbugs/%s' % (commit, commit)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+            if proc.returncode or not has(commit):
+                failed.append(commit[:12] + ' ' + proc.stdout.decode(errors='replace').strip()[-120:])
+        if failed:
+            return name, '%s; %d of %d missing commits NOT fetched: %s' % (state, len(failed), len(missing), '; '.join(failed))
+        if missing:
+            state += '; fetched %d missing commit%s' % (len(missing), '' if len(missing) == 1 else 's')
+        return name, state
 
+    incomplete = 0
     with ThreadPoolExecutor(workers) as pool:
         for name, state in pool.map(clone, names):
+            incomplete += 'failed' in state or 'NOT fetched' in state
             print(name, state, flush=True)
-    print(len(names), 'repositories')
+    print(len(names), 'repositories,', sum(map(len, wanted.values())), 'commits;', incomplete, 'repositories incomplete')
 
 
 def source(directory):

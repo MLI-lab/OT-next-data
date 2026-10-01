@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=128
 #SBATCH --mem=512G
-#SBATCH --time=12:00:00
+#SBATCH --time=48:00:00
 #SBATCH --signal=B:USR1@300
 set -euo pipefail
 repo=${OT_DATA_REPO:?}
@@ -15,12 +15,6 @@ case "$PILOT_ROOT" in /data/horse/*|/data/ws/*|/data/cat/*) ;; *) exit 2 ;; esac
 source "$repo/hpc/zih/storage.sh"
 zih_storage_init "$PILOT_ROOT" "$PILOT_ROOT/venv"
 scratch=$TMPDIR
-export UV_CACHE_DIR="$PILOT_ROOT/cache/uv"
-export UV_PYTHON_INSTALL_DIR="$PILOT_ROOT/python"
-export PIP_CACHE_DIR="$PILOT_ROOT/cache/pip"
-export HF_HOME="$PILOT_ROOT/cache/huggingface"
-export XDG_CACHE_HOME="$PILOT_ROOT/cache/xdg"
-export PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 cd "$repo"
 # Evidence stays on Horse; only private local static-check scratch is cleaned.
 finish() {
@@ -31,4 +25,8 @@ finish() {
     exit "$status"
 }
 trap finish EXIT
-"$ZIH_PYTHON" hpc/zih/crosscodeeval_resume.py
+"$ZIH_PYTHON" hpc/zih/crosscodeeval_resume.py &
+child=$!
+# Let the worker preserve partial evidence before Slurm's hard time limit.
+trap 'kill -TERM "$child" 2>/dev/null || true; wait "$child" || true; exit 143' USR1 TERM INT
+wait "$child"

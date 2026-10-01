@@ -91,6 +91,7 @@ def parser():
     ap.add_argument('--publish-require-complete', action='store_true', help='publish only after all tasks have outcomes for stages 1,3,4,5')
     ap.add_argument('--publish-folder', action='append', default=[], metavar='PREFIX=FOLDER', help='data source folder for task IDs starting with PREFIX (see publish.py)')
     ap.add_argument('--publish-readme', action='store_true', help='generate dataset READMEs when publishing')
+    ap.add_argument('--publish-readme-force', action='store_true', help='regenerate existing dataset READMEs in the proposed PR')
     ap.add_argument('--publish-readme-model', default='claude-fable-5-1')
     ap.add_argument('--publish-readme-seed', type=int, default=0, help='seed for sampling up to ten kept tasks per dataset')
     ap.add_argument('--publish-readme-evidence', action='append', default=[], metavar='FOLDER=PATH',
@@ -145,6 +146,8 @@ def static_concurrency(args):
 def check_args(a):
     if getattr(a, 'publish_readme', False) and getattr(a, 'network_mode', 'isolated') != 'host':
         raise ValueError('--publish-readme requires --network-mode host for Claude Code')
+    if getattr(a, 'publish_readme_force', False) and not getattr(a, 'publish_readme', False):
+        raise ValueError('--publish-readme-force requires --publish-readme')
     if getattr(a, 'static_resume_accept_previous_path_check', False) and not getattr(a, 'static_resume', None):
         raise ValueError('--static-resume-accept-previous-path-check requires --static-resume')
     if getattr(a, 'reuse_validation_containers', False):

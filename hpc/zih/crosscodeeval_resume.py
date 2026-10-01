@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 
@@ -11,6 +12,21 @@ sys.path.insert(0, str(ROOT))
 from validation.contract import bind, read
 from validation.stages.runner import parser, save
 from validation.static_resume import checkpoint_record
+
+
+def run_worker(request):
+    process = subprocess.Popen([sys.executable, str(ROOT / 'hpc/helma/validation_worker.py'), str(request)])
+    def forward(signum, frame):
+        if process.poll() is None:
+            process.send_signal(signal.SIGTERM)
+        process.wait()
+        raise SystemExit(128 + signum)
+    previous = {sig: signal.signal(sig, forward) for sig in (signal.SIGUSR1, signal.SIGTERM, signal.SIGINT)}
+    try:
+        return process.wait()
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
 
 
 def main():
@@ -38,14 +54,14 @@ def main():
             shutil.copytree(task, sample / task.name)
     for name, source, count, concurrency in (
             ('smoke', sample, 10, 4),
-            ('full', checkpoint / 'tasks', 6710, int(os.environ.get('CCE_CONCURRENCY', '112')))):
+            ('full', checkpoint / 'tasks', 6710, int(os.environ.get('CCE_CONCURRENCY', '32')))):
         result = run / name
         result.mkdir()
         argv = [str(source), '--out', str(result), '--static-profile', 'training',
                 '--dataset-source', old['dataset']['source'], '--dataset-revision', old['dataset']['revision'],
                 '--backend', 'apptainer', '--submit', 'never', '--network-mode', 'host',
                 '--cpus', os.environ['SLURM_CPUS_PER_TASK'], '--concurrency', str(concurrency),
-                '--static-concurrency', os.environ['SLURM_CPUS_PER_TASK'],
+                '--static-concurrency', os.environ.get('CCE_STATIC_CONCURRENCY', '32') if name == 'full' else '4',
                 '--attempts', '1', '--min-tasks', str(count), '--no-fix-instruction-suffix',
                 '--reuse-validation-containers', '--container-start-concurrency', '8',
                 '--container-start-interval', '0.25']
@@ -56,8 +72,10 @@ def main():
                          '--publish-repo', 'FWeindel/validated-tasks', '--publish-require-complete'])
             for language, version in (('csharp', 5), ('java', 4), ('python', 3), ('typescript', 3)):
                 argv.extend(['--publish-folder', f'crosscodeeval-{language}=crosscodeeval-{language}-v{version}'])
-            if os.environ.get('CCE_PUBLISH_README') == '1':
+            if os.environ.get('CCE_PUBLISH_README', '1') == '1':
                 argv.append('--publish-readme')
+                if os.environ.get('CCE_FORCE_README') == '1':
+                    argv.append('--publish-readme-force')
         contract_path = result / 'contract.json'
         subprocess.run([sys.executable, str(ROOT / 'validation/run.py'), *argv,
                         '--stages', '1,3,4,5', '--prepare-contract', str(contract_path)], check=True)
@@ -65,7 +83,7 @@ def main():
         stages = bind(args, [1])
         request = result / 'request.json'
         save(request, {'args': vars(args), 'stages': stages, 'static_checkpoint': provenance})
-        rc = subprocess.call([sys.executable, str(ROOT / 'hpc/helma/validation_worker.py'), str(request)])
+        rc = run_worker(request)
         execution = json.loads((result / 'execution.json').read_text())
         if rc:
             raise RuntimeError(f'{name} validation returned {rc}; inspect {result}')
