@@ -13,6 +13,10 @@ incremental outcomes stay on data storage. Verify the Python base as well as the
 venv path; a Horse venv can still execute a home-resident interpreter. Use
 `hpc/zih/storage.sh` rather than duplicating storage guesses in new job scripts.
 
+On Helma, mounts, quotas and measured access times per storage location are in
+`.agents/HELMA.md`: bulk job files go to `$TMPDIR`, shared data to `/hnvme`,
+archives to `$HPCVAULT` (not mounted on GPU nodes), and `$HOME` holds code only.
+
 # Git branches
 
 The only branch is `main`, locally and on `origin`

@@ -1043,6 +1043,25 @@ def test_publish_analysis_is_advisory_and_skipped_on_failure(tmp_path):
     assert publish.analyse(clean, {'x': ([], [])}, 'sonnet', broken)['status'] == 'skipped'
 
 
+def test_publish_reports_stage_timing_node_and_per_task_times(tmp_path):
+    from validation import publish
+    names, contract, reports = publish_fixture(tmp_path)
+    reports[1]['timing'] = {'node': 'h34-06', 'slurm_job_id': '1', 'started_at': '2026-10-01T10:00:00+00:00',
+                            'wall_seconds': 3725.4, 'concurrency': 28}
+    for seconds, item in zip((2.0, 4.0, 6.0, 8.0, 10.0), reports[1]['items']):
+        item['checks'][0]['duration_seconds'] = seconds
+    reports[4]['timing'] = {**reports[1]['timing'], 'wall_seconds': 59, 'concurrency': 4, 'shared_with_stages': [3, 5, 4]}
+    _, record, _ = publish.build(contract, reports, {}, run_id='r')
+    assert record['stage_timings']['1']['task_seconds'] == {'median': 6.0, 'p90': 10.0, 'max': 10.0}
+    assert record['stage_timings']['4']['tasks_timed'] == 0 and '3' not in record['stage_timings']
+    text = publish.description(record)
+    assert '| 1 | h34-06 | 28 | 1:02:05 | 5 | 6.0 s | 10.0 s |' in text
+    assert '| 4 | h34-06 | 4 | 0:00:59 | 4 | - | - |' in text and 'Stages 3, 4, 5 ran task by task' in text
+    trial = {'started_at': '2026-09-30T21:55:13.5', 'finished_at': '2026-09-30T21:55:27.5'}
+    assert runtime.assess_trials([(tmp_path, trial), (tmp_path, {})], 2)['trial_seconds'] == [14.0, None]
+    assert publish.task_seconds(3, {'environments': [{'timings_seconds': {'start': 5, 'inspect': 1, 'stop': 2}}]}) == 8
+
+
 def test_publish_reads_tasks_from_a_directory_of_task_folders(tmp_path):
     import io, tarfile
     from validation import publish

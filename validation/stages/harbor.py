@@ -118,6 +118,16 @@ def nop_execution_problem(path, verifier):
     return None
 
 
+def trial_seconds(result):
+    """Harbor's own start-to-finish time of one trial, or None when it recorded none."""
+    from datetime import datetime
+    try:
+        return round((datetime.fromisoformat(result['finished_at'])
+                      - datetime.fromisoformat(result['started_at'])).total_seconds(), 1)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def assess_trials(results, expected_count, expected_reward=None, reward_key='reward'):
     findings = []
     if len(results) != expected_count:
@@ -140,7 +150,8 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
         scores.append(score)
         if expected_reward is not None and score != expected_reward:
             findings.append(f'{path.name}: expected reward {expected_reward}, got {score}')
-    return {'status': 'failed' if findings else 'completed', 'findings': findings, 'rewards': scores}
+    return {'status': 'failed' if findings else 'completed', 'findings': findings, 'rewards': scores,
+            'trial_seconds': [trial_seconds(result) for _, result in results]}
 
 
 async def build_task(task_path, out, args):

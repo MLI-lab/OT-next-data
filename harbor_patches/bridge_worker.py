@@ -38,6 +38,19 @@ kill the task containers of any other job already running there. Here only
 the stale staging directories under this worker's own --staging-base are
 removed (a fresh per-job $TMPDIR, so normally none); instances of this job
 die with the job's cgroup.
+
+Instance records off $HOME: every `apptainer instance start` leaves an .out and
+an .err file under ~/.apptainer/instances/logs/<host>/<user>/ and nothing ever
+removes them; three days of jobs left 99,000 files there and took $HOME over
+its file quota (2026-10-01). APPTAINER_CONFIGDIR is therefore pointed at
+<staging-base>/apptainer-config, which is node-local and goes with the job. A
+value already set in the environment is kept.
+
+Stalled node: in job 917298 fourteen trivial commands in different containers
+timed out within three minutes (the 10 s tmux readiness probe, upstream's 30 s
+`mkdir -p` before an upload) and twelve trials were lost before any task code
+ran. A timed-out readiness probe is now repeated, and so is a command that only
+creates directories, each for at most BRIDGE_STALL_BUDGET seconds (default 300).
 """
 import glob
 import base64
@@ -58,6 +71,7 @@ _original_start = worker.ApptainerInstance.start
 _original_stop = worker.ApptainerInstance.stop
 _original_parse_copies = worker._parse_copies
 _original_pool_key = worker._pool_key_from_payload
+STALL_BUDGET = float(os.environ.get('BRIDGE_STALL_BUDGET', '300'))
 
 
 class ContainerStartGate:
@@ -213,12 +227,21 @@ def start_with_anchor(self, payload):
         stderr=subprocess.STDOUT, start_new_session=True)
     # With a step wrapper the anchor may queue for a free core; wait longer.
     deadline = time.monotonic() + (float(os.environ.get('PILOT_TRIAL_STEP_WAIT', '3600')) if step else 15.0)
+    stalled_since = None
     try:
         while time.monotonic() < deadline:
             if self._helma_tmux_anchor.poll() is not None:
                 raise RuntimeError('Persistent tmux owner exited: ' + anchor_log_tail(self))
-            check = subprocess.run(cmd + ['tmux has-session -t _pilot_anchor'],
-                                   capture_output=True, timeout=10)
+            try:
+                check = subprocess.run(cmd + ['tmux has-session -t _pilot_anchor'],
+                                       capture_output=True, timeout=10)
+            except subprocess.TimeoutExpired:
+                # A stalled node, not a broken container: probe again (see module docstring).
+                stalled_since = stalled_since or time.monotonic()
+                if time.monotonic() - stalled_since > STALL_BUDGET:
+                    raise
+                continue
+            stalled_since = None
             if check.returncode == 0:
                 print(f'[{self.env_id}] Helma persistent tmux owner ready'
                       + (f' (Slurm step: {" ".join(step[2:6])})' if step else ''), flush=True)
@@ -229,6 +252,30 @@ def start_with_anchor(self, payload):
         stop_anchor(self)
         _original_stop(self, {})
         raise
+
+
+def only_creates_directories(cmd):
+    """`apptainer exec ... -c 'mkdir -p <paths>'` and nothing else, so it can safely run twice."""
+    return (isinstance(cmd, list) and len(cmd) > 3 and cmd[1] == 'exec' and cmd[-2] == '-c'
+            and re.fullmatch(r'mkdir -p [^;&|<>$`\n]+', str(cmd[-1])) is not None)
+
+
+def run_retrying_stalled_mkdir(original_run, clock=time.monotonic):
+    """Repeat a directory creation that timed out, for up to STALL_BUDGET seconds.
+
+    Upstream creates upload targets with `mkdir -p` under a fixed 30 s timeout and a timeout
+    fails the trial (see module docstring). Anything that does more than create directories is
+    not repeated."""
+    def run(cmd, *args, **kwargs):
+        start = clock()
+        while True:
+            try:
+                return original_run(cmd, *args, **kwargs)
+            except subprocess.TimeoutExpired:
+                if not only_creates_directories(cmd) or clock() - start > STALL_BUDGET:
+                    raise
+                print(f'[worker] {cmd[-1]!r} timed out; trying again', flush=True)
+    return run
 
 
 def leaked_message_queues(listing, uid=None, alive=None):
@@ -389,6 +436,21 @@ def cleanup_own_staging_only(hostname, staging_base):
                 print(f'[{hostname}] Cleaned stale staging: {entry}', flush=True)
 
 
+def keep_instance_records_off_home(staging_base):
+    """Give apptainer a per-job directory for its instance registry and logs (see module docstring).
+
+    Without --staging-base the worker stages in /tmp, which is shared, so the default is kept."""
+    if staging_base and 'APPTAINER_CONFIGDIR' not in os.environ:
+        os.environ['APPTAINER_CONFIGDIR'] = os.path.join(staging_base, 'apptainer-config')
+    if os.environ.get('APPTAINER_CONFIGDIR'):
+        os.makedirs(os.environ['APPTAINER_CONFIGDIR'], exist_ok=True)
+
+
+def cli_value(flag):
+    return next((a.split('=', 1)[1] if '=' in a else sys.argv[i + 1]
+                 for i, a in enumerate(sys.argv) if a.startswith(flag)), '')
+
+
 if __name__ == '__main__':
     # Slurm's host TMPDIR is not mounted inside isolated task containers.
     # APPTAINERENV changes only the container environment, not worker staging.
@@ -398,6 +460,7 @@ if __name__ == '__main__':
         int(os.environ.get('BRIDGE_START_CONCURRENCY', '8')),
         float(os.environ.get('BRIDGE_START_INTERVAL', '0')))
     worker._cleanup_stale_instances = cleanup_own_staging_only
+    keep_instance_records_off_home(cli_value('--staging-base'))
     sweep_message_queues('startup')
     configure_explicit_host_network()
     worker._pool_key_from_payload = lambda payload: _original_pool_key(content_keyed_payload(payload))
@@ -405,8 +468,7 @@ if __name__ == '__main__':
     worker.ApptainerInstance.stop = stop_with_anchor
     worker._parse_copies = parse_copies_docker_semantics
     worker.subprocess.run = run_keeping_baked_tests(worker.subprocess.run)
-    sif_cache = next((a.split('=', 1)[1] if '=' in a else sys.argv[i + 1]
-                      for i, a in enumerate(sys.argv) if a.startswith('--sif-cache')), '')
-    if network_isolation_available(sif_cache):
+    worker.subprocess.run = run_retrying_stalled_mkdir(worker.subprocess.run)
+    if network_isolation_available(cli_value('--sif-cache')):
         worker.subprocess.run = run_with_net_flags(worker.subprocess.run)
     worker.main()

@@ -63,6 +63,69 @@ def test_only_dead_fakeroot_queues_of_this_user_are_swept(patch):
     assert patch.leaked_message_queues(listing, alive=alive) == ['54']
 
 
+def test_instance_records_go_to_staging_unless_configured(patch, monkeypatch, tmp_path):
+    import os
+    monkeypatch.delenv('APPTAINER_CONFIGDIR', raising=False)
+    patch.keep_instance_records_off_home('')
+    assert 'APPTAINER_CONFIGDIR' not in os.environ
+    patch.keep_instance_records_off_home(str(tmp_path))
+    assert os.environ['APPTAINER_CONFIGDIR'] == str(tmp_path / 'apptainer-config')
+    assert (tmp_path / 'apptainer-config').is_dir()
+    monkeypatch.setenv('APPTAINER_CONFIGDIR', str(tmp_path / 'chosen'))
+    patch.keep_instance_records_off_home(str(tmp_path / 'other'))
+    assert os.environ['APPTAINER_CONFIGDIR'] == str(tmp_path / 'chosen')
+
+
+def test_timed_out_mkdir_is_repeated_but_other_commands_are_not(patch):
+    import subprocess
+    calls = []
+    def stalled_twice(cmd, *args, **kwargs):
+        calls.append(cmd)
+        if len(calls) < 3:
+            raise subprocess.TimeoutExpired(cmd, 30)
+        return 'done'
+    run = patch.run_retrying_stalled_mkdir(stalled_twice)
+    mkdir = ['apptainer', 'exec', 'instance://hb_env_1', 'bash', '-c', 'mkdir -p /setup_files']
+    assert run(mkdir, timeout=30) == 'done' and len(calls) == 3
+    # An upload that also copies, and a mkdir past the budget, fail as before.
+    for cmd, now in ((mkdir[:-1] + ['mkdir -p /a; cp /workspace/x /a/x'], [0]), (mkdir, [0, 400])):
+        calls.clear()
+        with pytest.raises(subprocess.TimeoutExpired):
+            patch.run_retrying_stalled_mkdir(stalled_twice, clock=lambda: now.pop(0) if len(now) > 1 else now[0])(cmd)
+        assert len(calls) == 1
+
+
+def test_slow_readiness_probe_is_repeated_until_the_stall_budget(patch, monkeypatch, tmp_path):
+    import subprocess
+    from types import SimpleNamespace
+    probes, stopped = [], []
+    class Anchor:
+        def poll(self): return None
+        def terminate(self): pass
+        def wait(self, timeout=None): return 0
+    def run(cmd, *args, **kwargs):
+        if 'has-session' in cmd[-1]:
+            probes.append(cmd)
+            if len(probes) < slow_probes:
+                raise subprocess.TimeoutExpired(cmd, 10)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(patch, '_original_start', lambda self, payload: {'started': True})
+    monkeypatch.setattr(patch, '_original_stop', lambda self, payload: stopped.append(self.env_id))
+    monkeypatch.setattr(patch, 'trial_step_prefix', lambda payload, env_id: [])
+    monkeypatch.setattr(patch.worker, 'APPTAINER', 'apptainer', raising=False)
+    monkeypatch.setattr(patch.subprocess, 'run', run)
+    monkeypatch.setattr(patch.subprocess, 'Popen', lambda *a, **k: Anchor())
+    env = SimpleNamespace(instance_name='hb_env_1', env_id='env-1', staging_dir=str(tmp_path))
+    slow_probes = 3
+    assert patch.start_with_anchor(env, {}) == {'started': True}
+    assert len(probes) == 3 and not stopped
+    probes.clear()
+    monkeypatch.setattr(patch, 'STALL_BUDGET', -1)
+    with pytest.raises(subprocess.TimeoutExpired):
+        patch.start_with_anchor(env, {})
+    assert stopped == ['env-1']
+
+
 def test_container_start_gate_spaces_starts_and_releases_after_error(patch):
     now = [10.0]
     delays = []

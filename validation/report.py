@@ -82,7 +82,7 @@ def summarize(archive):
             counts = Counter(item['status'] for item in items)
             stages.append({'stage': number, 'name': report['name'], 'complete': report['complete'],
                            'tasks': len(items), 'counts': dict(counts), 'report': str(path),
-                           'contract_sha256': report.get('contract_sha256')})
+                           'contract_sha256': report.get('contract_sha256'), 'timing': report.get('timing')})
             if number == 2:
                 from validation.checks.review_results import group_reviews
                 stages[-1]['implementation_review_groups'] = report.get('implementation_review_groups') or group_reviews(items)

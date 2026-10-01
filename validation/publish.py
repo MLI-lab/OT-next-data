@@ -129,6 +129,34 @@ def decide(reports, task_ids, not_required=()):
     return decisions
 
 
+def task_seconds(stage, item):
+    """Measured time of one task in a stage: its checks, its container start, inspection and stop,
+    or its trials. None when the report recorded no times."""
+    if stage == 1:
+        values = [c.get('duration_seconds') for c in item.get('checks', [])]
+    elif stage == 3:
+        values = [v for e in item.get('environments', []) for v in (e.get('timings_seconds') or {}).values()]
+    else:
+        values = item.get('trial_seconds') or []
+    values = [v for v in values if isinstance(v, (int, float))]
+    return sum(values) if values else None
+
+
+def stage_timings(reports):
+    """Per stage: node, concurrency and wall time from the report, and the spread of per-task times."""
+    timings = {}
+    for stage, report in sorted(reports.items()):
+        if not report.get('timing') or not report.get('complete') or report.get('dry_run'):
+            continue
+        seconds = sorted(s for s in (task_seconds(stage, item) for item in report['items']) if s is not None)
+        timings[str(stage)] = {**report['timing'], 'tasks': len(report['items']), 'tasks_timed': len(seconds)}
+        if seconds:
+            timings[str(stage)]['task_seconds'] = {
+                'median': round(seconds[len(seconds) // 2], 1), 'p90': round(seconds[int(len(seconds) * .9)], 1),
+                'max': round(seconds[-1], 1)}
+    return timings
+
+
 def folder_of(task, mapping):
     prefix = re.sub(r'-\d+$', '', task)
     return mapping.get(prefix, prefix)
@@ -243,6 +271,7 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
                   '4': 'archive if the oracle reward is not 1', '5': 'archive if the no-answer reward is not 0',
                   'other': 'never archive'},
         'validation_code': 'https://github.com/MLI-lab/OT-next-data/tree/main/validation',
+        'stage_timings': stage_timings(reports),
         'data_sources': {folder: {k: (dict(v) if isinstance(v, Counter) else v) for k, v in count.items()}
                          for folder, count in sorted(counts.items())},
     }
@@ -347,6 +376,19 @@ def description(record):
         by_stage = ', '.join(f'{s}: {n}' for s, n in sorted(c['archived_by_stage'].items())) or '-'
         not_run = ', '.join(f'{s}: {n}' for s, n in sorted(c['not_run_by_stage'].items())) or '-'
         lines.append(f"| {folder} | {c['tasks']} | {c['kept']} | {c['archived']} | {by_stage} | {not_run} |")
+    timings = record.get('stage_timings') or {}
+    if timings:
+        clock = lambda s: f'{int(s) // 3600}:{int(s) % 3600 // 60:02d}:{int(s) % 60:02d}'
+        lines += ['', '| Stage | Node | Tasks at once | Wall time | Tasks | Per task, median | Per task, p90 |',
+                  '| --- | --- | --- | --- | --- | --- | --- |']
+        for stage, t in timings.items():
+            per = t.get('task_seconds') or {}
+            lines.append(f"| {stage} | {t['node']} | {t['concurrency']} | {clock(t['wall_seconds'])} | {t['tasks']} | "
+                         + ' | '.join(f'{per[k]} s' if k in per else '-' for k in ('median', 'p90')) + ' |')
+        shared = sorted({s for t in timings.values() for s in t.get('shared_with_stages', [])})
+        if shared:
+            lines += ['', f"Stages {', '.join(map(str, shared))} ran task by task in the same containers; "
+                          'their wall time is the time for all of them together.']
     reasons = Counter()
     for c in record['data_sources'].values():
         reasons.update(c['archive_reasons'])

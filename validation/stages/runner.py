@@ -4,11 +4,14 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import asyncio
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import socket
 import subprocess
 import sys
+import time
 import tomllib
 from uuid import uuid4
 
@@ -180,6 +183,19 @@ def check_args(a):
 def save(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, default=str) + '\n')
+
+
+def stage_clock():
+    return datetime.now(timezone.utc), time.monotonic()
+
+
+def stage_timing(clock, concurrency):
+    """Where a stage ran, how long it took and how many tasks ran at once."""
+    started_at, started = clock
+    return {'node': os.environ.get('SLURMD_NODENAME') or socket.gethostname().split('.')[0],
+            'slurm_job_id': os.environ.get('SLURM_JOB_ID'),
+            'started_at': started_at.isoformat(timespec='seconds'),
+            'wall_seconds': round(time.monotonic() - started, 1), 'concurrency': concurrency}
 
 
 def run_trial_stage(number, source, item_dir, args, upstream):
@@ -363,6 +379,7 @@ def run_stage(number, args):
               'backend': args.backend, 'dry_run': args.dry_run, 'items': [], 'complete': False}
     report_path = out / 'summary.json'
     save(report_path, report)
+    clock = stage_clock()
     if number == 1:
         from validation.verify.check_terminal_bench import run_checks, load_checks
         _, selected, excluded = load_checks(args.static_profile, upstream, args.exclude)
@@ -474,6 +491,10 @@ def run_stage(number, args):
             save(report_path, report)
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
     report['complete'] = True
+    if not args.dry_run:
+        # Tasks at once: the other stages work through their tasks one by one.
+        report['timing'] = stage_timing(clock, report['static_concurrency'] if number == 1 else
+                                        args.concurrency if number in (3, 4, 5, 6, 9) else 1)
     if number == 2:
         from validation.checks.review_results import group_reviews
         report['implementation_review_groups'] = group_reviews(report['items'])

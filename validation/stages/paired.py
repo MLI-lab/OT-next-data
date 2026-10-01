@@ -9,7 +9,7 @@ from validation.stages.container_reuse import ReuseScope
 
 
 def run_validation_bundle(args, numbers):
-    from validation.stages.runner import check_args, save, NAMES
+    from validation.stages.runner import check_args, save, stage_clock, stage_timing, NAMES
     from validation.contract import verify_materialized, assess_stage
     from validation.data.selection import discover_tasks, select_paths
     from validation.upstream import PINS
@@ -74,12 +74,16 @@ def run_validation_bundle(args, numbers):
                         print(f'stage {stage} {task.name}: {result["status"]}', flush=True)
         await asyncio.gather(*(one(i, task) for i, task in enumerate(sources)))
 
+    clock = stage_clock()
     with ExitStack() as stack:
         journals = {stage: stack.enter_context((out / 'outcomes.jsonl').open('x')) for stage, out in outputs.items()}
         asyncio.run(run(journals))
     results = []
     for stage in order:
         report = reports[stage]
+        if not args.dry_run:
+            # The phases alternate task by task, so the wall time belongs to all of them together.
+            report['timing'] = {**stage_timing(clock, args.concurrency), 'shared_with_stages': order}
         report['items'].sort(key=lambda item: item['task'])
         report['complete'] = True
         report['has_findings'] = any(item['status'] in ('failed', 'findings', 'error') for item in report['items'])

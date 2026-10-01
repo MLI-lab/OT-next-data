@@ -321,7 +321,7 @@ Under `all`, a failure does not stop later checks unless `--fail-fast` is given,
 
 ## Publishing results
 
-`publish.py` turns the reports of one run into a pull request on the dataset [FWeindel/validated-tasks](https://huggingface.co/datasets/FWeindel/validated-tasks). For each data source it writes `tasks.parquet` (kept) and `archive.parquet` (excluded, with the reason), plus one run file with the contract's settings and the counts. Nothing is merged; the pull request is reviewed first.
+`publish.py` turns the reports of one run into a pull request on [FWeindel/validated-tasks](https://huggingface.co/datasets/FWeindel/validated-tasks); nothing is merged. For each data source it writes `tasks.parquet` (kept) and `archive.parquet` (excluded, with the reason), plus one run file with the settings, the counts and, per stage, the node, the number of tasks at once, the wall time and the median and 90th-percentile time per task.
 
 ```bash
 python validation/publish.py /path/to/submission/report \
@@ -329,50 +329,26 @@ python validation/publish.py /path/to/submission/report \
   --folder crosscodeeval-python=crosscodeeval-python-v3 --dry-run
 ```
 
-| Stage | Default rule |
+| Stage | A task is archived if |
 | --- | --- |
-| 1, static checks | archive if any check fails |
-| 3, build | archive if the container does not build or start |
-| 4 and 5, oracle and NOP | archive if the reward is wrong |
-| all others | never archive |
+| 1, static checks | any check fails |
+| 3, build | the container does not build or start |
+| 4 and 5, oracle and NOP | the reward is wrong |
+| all others | never |
 
-- **A stage that could not run does not archive.** This covers a crashed or skipped trial and a missing or incomplete stage report. The task keeps the stages it has passed.
-- **Excluded checks are not run**, so they cannot archive. Exclude them when preparing the contract, with `--exclude "NAME=reason"`.
-- **`--not-required CHECK`** overrides the stage 1 rule for one check: its failure is recorded in the run file but does not archive.
-- **`--folder PREFIX=FOLDER`** names the data source folder for task IDs that start with `PREFIX`. The default is the task ID without its number.
-- **`--dry-run`** writes the files and the description next to the reports and opens no pull request.
-- **Published state carries over** for tasks whose content is unchanged: stages passed earlier are kept, and an earlier archive decision stands.
+A stage that could not run (crashed or skipped trial, missing report) does not archive; the task keeps the stages it passed. Checks excluded in the contract are not run. For tasks whose content is unchanged, earlier published results carry over.
 
-Log in to Hugging Face first, with a token that has write access.
+| Option | Effect |
+| --- | --- |
+| `--folder PREFIX=FOLDER` | folder for task IDs starting with `PREFIX`; default is the ID without its number |
+| `--not-required CHECK` | record a failing static check without archiving for it |
+| `--dry-run` | write the files and the description next to the reports; open no pull request |
+| `--analysis` | add an advisory section in which a model groups the archived and not-run tasks by likely cause; skipped if the Claude Code login fails; changes no decision |
+| `--readme` | add a dataset card per folder, written by Claude Code in Apptainer from up to ten sampled kept tasks; prompt and taxonomies are in `data/annotate_dataset/`. `--readme-evidence FOLDER=PATH` supplies source documentation, `--readme-seed` fixes the sample |
 
-To open the pull request automatically when a Helma job ends, prepare the contract with `--publish-repo FWeindel/validated-tasks` and `--publish-folder PREFIX=FOLDER` as needed. The job then runs the same script on its own reports; the link is written to `execution.json` as `pull_request`, and a failure to `publish-error.json`. Without `--publish-repo`, run the script by hand after the job.
+Requirements: a Hugging Face login with write access. `--readme` also needs a running bridge with network access (`APPTAINER_BRIDGE_URL`, `HARBOR_SIF_CACHE`), `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, and a work directory outside `/home` (`--readme-work-dir`). An invalid annotation stops publishing.
 
-`--analysis` (or `--publish-analysis` when preparing the contract) adds an advisory section to the pull request: a model reads a digest of the archived and not-run tasks, counts, reasons and a few task IDs, groups them by likely cause (task defect, infrastructure, a check that does not fit the dataset) and suggests an action per group: rerun, exclude a check, fix the tasks, keep archived or investigate. It uses the Claude Code login of the machine and is skipped, with the reason recorded in the run file, when the call fails, for example without login or quota. It changes no decision; kept and archived are decided by the rules above.
-
-To include a dataset card in the same PR, add `--readme`. This runs one Harbor
-annotation task per output folder, using Claude Code inside Apptainer (default
-`--readme-model claude-fable-5-1`). It randomly samples up to ten kept tasks already
-loaded by publishing; no second dataset download is needed. `--readme-seed`
-(default 0) makes the sample reproducible. Full sampled task directories are
-staged through Harbor's `setup_files` upload and exposed at `/evidence/tasks/`.
-They are copies, not host bind mounts; their contents are not inlined in the
-prompt or baked into the image. Claude reads all supplied examples, including
-instructions and verifier code, without executing them or building their images.
-The prompt, evaluation snapshot, and CLI-Universe taxonomies come from
-`data/annotate_dataset/`.
-
-Supply optional generator scripts, upstream documentation, or patch excerpts with
-repeatable `--readme-evidence FOLDER=PATH` options. These files are available under
-`/evidence/source/`; they are inspected, not executed. Without source evidence the
-model may correctly report an unknown original datasource.
-
-Manual publishing requires an active network-enabled Apptainer bridge
-(`APPTAINER_BRIDGE_URL`), `HARBOR_SIF_CACHE` in cluster workspace storage, and
-`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` for the installed Claude agent.
-Use a workspace under `/data/horse`, `/data/ws`, or `/data/cat` for outputs and
-caches after checking mounts and `ws_list`. Annotation inputs and Harbor logs
-default to `OUT/annotation-runs/`; override with `--readme-work-dir`. Paths under
-`/home` are rejected for annotation staging.
+To publish automatically when a Helma job ends, prepare the contract with `--publish-repo FWeindel/validated-tasks` and, as needed, `--publish-folder`, `--publish-analysis`, `--publish-readme` (with `--network-mode host` and about 20 minutes more wall time per dataset) and `--publish-require-complete`. The link is written to `execution.json` as `pull_request`, a failure to `publish-error.json`.
 
 ```bash
 python validation/publish.py /path/to/report --contract /path/to/contract.json \
@@ -382,33 +358,27 @@ python validation/publish.py /path/to/report --contract /path/to/contract.json \
   --dry-run
 ```
 
-The dry run runs the Harbor annotation jobs but opens no PR. Inspect each folder's `README.md`
-and `annotation.json` in the output directory. A live publish includes both files
-alongside the parquets and links the cards in the PR description. Annotation JSON
-preserves the sampled task IDs, seed, evidence hashes and container paths, model,
-Harbor job/trial paths, snapshot metadata, and prompt/codebook hashes. Harbor keeps
-the staged evidence, agent logs, and trajectories in the annotation work directory.
-Claude Code can read/search files, use the shell, write its annotation, and use
-WebFetch and WebSearch to consult linked papers and official documentation.
-It writes `/app/annotation.json`; a container verifier checks its schema and
-labels, then publishing independently validates the collected artifact.
-The prompt receives the benchmark
-descriptions and links, without snapshot headers, settings tables, or development
-policy; taxonomy reference
-docstrings are omitted; taxonomy inputs contain only labels and definitions.
-Shared labeling instructions live in the prompt template. Multiple labels are
-separate JSON entries and are displayed comma-separated in the README. Structural validation
-rejects unknown labels, benchmarks, and malformed output; it does not prove
-that a model's scientific transfer hypothesis is correct. Generation or validation
-failure stops publishing. Without `--readme`, publishing behaves as before.
+## Where to store what
 
-For automatic Helma publishing, add `--publish-readme`, optionally
-`--publish-readme-model`, `--publish-readme-seed`, and repeatable
-`--publish-readme-evidence FOLDER=PATH`. Evidence files must be readable on the
-worker. Set `--network-mode host` for the installed Claude agent. The worker keeps
-bridge services alive through annotation and publishing. Budget Slurm wall time for the extra
-annotation jobs (up to 20 minutes of agent time per dataset, plus setup).
-Existing submitted jobs are not changed by these options.
+Clusters offer the same few kinds of storage under different names. Decide by kind, then look up the path on your cluster.
+
+| Kind | Properties | Helma | ZIH |
+| --- | --- | --- | --- |
+| Home | backed up, small quota, slow with many small files | `$HOME` (500K files, 100 GB) | `/home` (50 GB; over quota blocks job submission) |
+| Workspace | shared, readable from the nodes that run jobs; good for large files, how well it handles many small files depends on the cluster; limited by file count or expiry | `/hnvme/workspace/<user>-<name>` from `ws_allocate` (fast for small files too; 61K files per user) | `/data/horse/ws/<user>-<name>` from `ws_allocate` (Lustre, slow with many small files; expires after 100 days, 10 extensions) |
+| Archive | large quota for few large files; may be missing or read-only on compute nodes | `$HPCVAULT` (200K files, 1 TB; not mounted on GPU nodes) | `/data/walrus/ws/...` (read-only on compute nodes; 365 days, 2 extensions) |
+| Node temp | fastest, local to the node, deleted when the job ends | `$TMPDIR` | `/tmp` (95 to 3,500 GB by node type; missing on some Barnard nodes) |
+
+What a validation run needs, where to keep it, and what the job does with it. Sizes are from the CrossCodeEval run with 6,710 tasks and stages 1, 3, 4 and 5.
+
+| What | Size and shape | Keep it on | During the job |
+| --- | --- | --- | --- |
+| This repository (OT-next-data, the validation code; not the repositories that tasks clone inside their containers) | code | Home | read in place; the job runs a code snapshot taken at submission |
+| Setup folder `$PILOT_ROOT`: the folder you pass to `./setup.sh FOLDER`, exported by `env.sh` | `envs/prep`: Python environment of this repository (Harbor and what the validation code imports), about 20,000 small files. `images/`: one SIF file per distinct container image, 25 files, 3.7 GB. `cache/apptainer`: layer cache for image builds, small. `models/`: weights for `--serve-model`, tens of GB | Workspace: every node that runs jobs must be able to read it, and it is too large for home | read in place; newly built images are added |
+| Dataset | Parquet (4 files, 128 MB) or one directory per task (about 25 files and folders each) | any storage the job's nodes can read; prefer Parquet | unpacked into node temp at the start (under a minute) |
+| Contract from `--prepare-contract`: the files that freeze the task list, stages and settings of a run ([Quickstart, step 2](#2-prepare-a-contract)) | a few JSON and Markdown files plus the frozen Parquets | Home or workspace | read in place |
+| Earlier trials for stages 7 and 8, `--trials` | a Harbor job directory | Workspace | copied into node temp at the start |
+| Results, `--out` (default `validation/results/`) | while running: 538,000 small files (stage outputs, container working directories, Apptainer's temporary files and instance records). Kept per submission: `evidence.tar.gz` (99 MB), `report/` with one JSON per stage, the Slurm log | Home or workspace; move finished runs to the archive | the small files are created in node temp and deleted with the job; before it ends, the job packs tasks, results and logs into `evidence.tar.gz` and writes it and the reports to `--out` |
 
 ## Quickstart
 
