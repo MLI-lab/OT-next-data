@@ -276,17 +276,24 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
     summary.write_text(json.dumps(report, indent=2) + '\n')
     log = out / 'checks.log'
     log_lock = threading.Lock()
-    with tempfile.TemporaryDirectory(prefix='tb-checks-', dir='/tmp') as scratch, \
+    static_root = os.environ.get('ZIH_STATIC_TMPDIR')
+    with tempfile.TemporaryDirectory(prefix='tb-checks-', dir=static_root or '/tmp') as scratch, \
             log.open('w') as combined_log, (out / 'outcomes.jsonl').open('x') as journal:
         # Upstream invokes python3. Use this interpreter, not an unrelated
         # system Python that may lack tomllib. No dependency installation needed.
         bindir = Path(scratch) / 'bin'
         bindir.mkdir()
-        (bindir / 'python3').symlink_to(sys.executable)
+        check_python = os.environ.get('ZIH_STATIC_PYTHON', sys.executable)
+        (bindir / 'python3').symlink_to(check_python)
+        scripts = (upstream or VENDOR) / 'scripts/checks'
+        if static_root:
+            local_scripts = Path(scratch) / 'scripts'
+            shutil.copytree(scripts, local_scripts)
+            scripts = local_scripts
         env = {**os.environ, 'PATH': str(bindir) + os.pathsep + os.environ.get('PATH', '')}
         for key in ('FIX_DIRS', 'BASE_DIR', 'BASH_ENV', 'ENV'):
             env.pop(key, None)
-        def check_task(task):
+        def check_task_body(task, scratch):
             entry = {'task': task.name, 'path': str(task), 'checks': []}
             try:
                 validate_input(task)
@@ -299,6 +306,10 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                     # The optional AI check is still handled below using current credentials.
                     renamed = []
                 else:
+                    if static_root:
+                        staged = Path(scratch) / 'input' / task.name
+                        shutil.copytree(task, staged)
+                        task = staged
                     task, renamed = safe_copy(task, scratch)
                 if renamed:
                     entry['renamed_for_checks'] = renamed
@@ -318,7 +329,7 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                         # file system stalled (job 916252), so one more attempt is made.
                         for attempt in (1, 2):
                             try:
-                                result = subprocess.run([sys.executable if name.endswith('.py') else 'bash', str((upstream or VENDOR) / 'scripts/checks' / name), str(target)],
+                                result = subprocess.run([check_python if name.endswith('.py') else 'bash', str(scripts / name), str(target)],
                                     cwd=scratch, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
                                 status = 'passed' if result.returncode == 0 else 'failed'
                                 rc = result.returncode
@@ -344,6 +355,23 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                         print(f'{task.name}: {name}: {status} (see {log})', flush=True)
                 entry['status'] = 'passed' if all(c['status'] == 'passed' or (c['status'] == 'skipped' and c.get('optional')) for c in entry['checks']) else 'failed'
             return entry
+        def check_task(task):
+            if not static_root:
+                return check_task_body(task, scratch)
+            # Bound live task copies in RAM; oversized tasks use durable scratch.
+            # Allow for staging plus renamed/path-check copies per concurrent task.
+            parent = scratch
+            try:
+                validate_input(task)
+                size = sum(p.stat().st_size for p in task.rglob('*') if p.is_file())
+                limit = int(os.environ.get('ZIH_STATIC_MAX_BYTES', '1073741824')) // (3 * concurrency)
+                if size > limit:
+                    parent = os.environ['TMPDIR']
+            except (ValueError, OSError) as exc:
+                return {'task': task.name, 'path': str(task), 'checks': [], 'status': 'error', 'error': str(exc)}
+            # Delete only this task's temporary copies immediately after its checks.
+            with tempfile.TemporaryDirectory(prefix='static-task-', dir=parent) as task_scratch:
+                return check_task_body(task, task_scratch)
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
             futures = [pool.submit(check_task, task) for task in tasks]
             for future in as_completed(futures):

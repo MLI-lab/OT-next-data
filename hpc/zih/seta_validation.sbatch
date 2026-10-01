@@ -18,8 +18,9 @@ for path in "$PILOT_ROOT" "$run"; do
         *) echo 'SETA data and results must be in a data workspace.' >&2; exit 2 ;;
     esac
 done
-mkdir -p "$PILOT_ROOT/scratch"
-export TMPDIR=$(mktemp -d "$PILOT_ROOT/scratch/validation-${SLURM_JOB_ID}-XXXXXX")
+source "$run/code/hpc/zih/storage.sh"
+zih_storage_init "$PILOT_ROOT" "$PILOT_ROOT/venv"
+trap zih_storage_cleanup EXIT
 export UV_CACHE_DIR="$PILOT_ROOT/cache/uv"
 export UV_PYTHON_INSTALL_DIR="$PILOT_ROOT/cache/python"
 export HF_HOME="$PILOT_ROOT/cache/huggingface"
@@ -29,7 +30,6 @@ export XDG_CACHE_HOME="$PILOT_ROOT/cache/xdg"
 export PIP_CACHE_DIR="$PILOT_ROOT/cache/pip"
 export PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 export LITELLM_LOCAL_MODEL_COST_MAP=True
-export PATH="$PILOT_ROOT/venv/bin:$PATH"
 unset GPTZERO_API_KEY
 cd "$run/code"
 # Preserve scratch on failures/time limits for diagnosis and partial evidence.

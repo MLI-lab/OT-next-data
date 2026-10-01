@@ -54,6 +54,30 @@ def test_real_upstream_scripts_pass_and_catch_unpinned_dependency(tmp_path):
     assert 'requests' in Path(failure['log']).read_text()
 
 
+@pytest.mark.parametrize('budget', ['1', '1073741824'])
+def test_zih_staging_preserves_verdicts_and_sources(tmp_path, monkeypatch, budget):
+    local = tmp_path / 'local'
+    durable = tmp_path / 'durable'
+    local.mkdir()
+    durable.mkdir()
+    good = make_task(tmp_path, 'good')
+    bad = make_task(tmp_path, 'bad')
+    (bad / 'environment/Dockerfile').write_text('FROM python:3.12-slim\nRUN pip install requests\n')
+    before = {str(p): p.read_bytes() for t in (good, bad) for p in t.rglob('*') if p.is_file()}
+    monkeypatch.setenv('ZIH_STATIC_TMPDIR', str(local))
+    monkeypatch.setenv('ZIH_STATIC_PYTHON', sys.executable)
+    monkeypatch.setenv('ZIH_STATIC_MAX_BYTES', budget)
+    monkeypatch.setenv('TMPDIR', str(durable))
+    out = durable / 'report'
+    assert run_checks([good, bad], out, 'portable', concurrency=2) == 1
+    rows = json.loads((out / 'summary.json').read_text())['tasks']
+    assert {r['task']: r['status'] for r in rows} == {'good': 'passed', 'bad': 'failed'}
+    assert all(r['path'] == str(tmp_path / r['task']) for r in rows)
+    assert before == {str(p): p.read_bytes() for t in (good, bad) for p in t.rglob('*') if p.is_file()}
+    assert not list(local.iterdir())
+    assert not list(durable.glob('static-task-*'))
+
+
 def test_strict_policy_runs_and_reports_failures(tmp_path):
     task = make_task(tmp_path)
     out = tmp_path / 'report'

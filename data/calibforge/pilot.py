@@ -73,7 +73,7 @@ def main():
     (code / 'data/calibforge').mkdir(parents=True)
     shutil.copy2(__file__, code / 'data/calibforge/pilot.py')
     (code / 'hpc/zih').mkdir(parents=True)
-    for name in ['calibforge_validation.py', 'calibforge_validation.sbatch']:
+    for name in ['calibforge_validation.py', 'calibforge_validation.sbatch', 'storage.sh', 'runtime_storage.py']:
         shutil.copy2(ROOT / 'hpc/zih' / name, code / 'hpc/zih' / name)
     command = ['sbatch', '--parsable', f'--partition={options.cluster}',
                f'--chdir={code}', f'--output={run}/slurm-%j.out',

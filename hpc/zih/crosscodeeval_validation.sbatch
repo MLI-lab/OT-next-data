@@ -15,16 +15,14 @@ case "$PILOT_ROOT" in
   /data/horse/*|/data/ws/*|/data/cat/*) ;;
   *) echo 'CCE_ROOT must be in an available data workspace.' >&2; exit 2 ;;
 esac
-mkdir -p "$PILOT_ROOT/scratch"
-scratch=$(mktemp -d "$PILOT_ROOT/scratch/cce-${SLURM_JOB_ID}-XXXXXX")
-export TMPDIR=$scratch
+source "$repo/hpc/zih/storage.sh"
+zih_storage_init "$PILOT_ROOT" "$PILOT_ROOT/venv"
 export UV_CACHE_DIR="$PILOT_ROOT/cache/uv"
 export UV_PYTHON_INSTALL_DIR="$PILOT_ROOT/python"
 export PIP_CACHE_DIR="$PILOT_ROOT/cache/pip"
 export HF_HOME="$PILOT_ROOT/cache/huggingface"
 export XDG_CACHE_HOME="$PILOT_ROOT/cache/xdg"
 export PYTHONUNBUFFERED=1
-export PATH="$PILOT_ROOT/venv/bin:$PATH"
 cd "$repo"
-trap 'rm -rf -- "$scratch"' EXIT
-"$PILOT_ROOT/venv/bin/python" hpc/zih/crosscodeeval_validation.py
+trap zih_storage_cleanup EXIT
+"$ZIH_PYTHON" hpc/zih/crosscodeeval_validation.py

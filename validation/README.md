@@ -368,7 +368,7 @@ default to `OUT/annotation-runs/`; override with `--readme-work-dir`. Paths unde
 ```bash
 python validation/publish.py /path/to/report --contract /path/to/contract.json \
   --folder crosscodeeval-python=crosscodeeval-python-v3 \
-  --readme --readme-evidence crosscodeeval-python-v3=data/crosscodeeval/README.md \
+  --readme \
   --out /path/to/cluster-workspace/publish \
   --dry-run
 ```

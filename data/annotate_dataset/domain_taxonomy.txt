@@ -1,5 +1,5 @@
 """
-CLI-Universe domain taxonomy.
+x
 
 Reference: Hua et al. (2026), CLI-Universe: Towards Verifiable Task Synthesis
 Engine for Terminal Agents, arXiv:2606.22883v1, Appendix A.1, Table 3.

@@ -34,5 +34,4 @@ cd "$repo"
 exec /data/horse/ws/frwe188h-trp-shared/crosscodeeval/venv/bin/python \
     hpc/zih/annotation_smoke.py \
     /data/horse/ws/frwe188h-trp-shared/crosscodeeval/parquets-pinned/python-v3.parquet \
-    "$run" --model "${ANNOTATION_MODEL:-claude-fable-5-1}" \
-    --evidence "$repo/data/crosscodeeval/README.md"
+    "$run" --model "${ANNOTATION_MODEL:-claude-fable-5-1}"

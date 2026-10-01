@@ -12,24 +12,23 @@ set -euo pipefail
 repo=${OT_DATA_REPO:?}
 export PILOT_ROOT=${CCE_ROOT:-/data/horse/ws/frwe188h-trp-shared/crosscodeeval}
 case "$PILOT_ROOT" in /data/horse/*|/data/ws/*|/data/cat/*) ;; *) exit 2 ;; esac
-mkdir -p "$PILOT_ROOT/scratch"
-scratch=$(mktemp -d "$PILOT_ROOT/scratch/cce-resume-${SLURM_JOB_ID}-XXXXXX")
-export TMPDIR=$scratch
+source "$repo/hpc/zih/storage.sh"
+zih_storage_init "$PILOT_ROOT" "$PILOT_ROOT/venv"
+scratch=$TMPDIR
 export UV_CACHE_DIR="$PILOT_ROOT/cache/uv"
 export UV_PYTHON_INSTALL_DIR="$PILOT_ROOT/python"
 export PIP_CACHE_DIR="$PILOT_ROOT/cache/pip"
 export HF_HOME="$PILOT_ROOT/cache/huggingface"
 export XDG_CACHE_HOME="$PILOT_ROOT/cache/xdg"
 export PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
-export PATH="$PILOT_ROOT/venv/bin:$PATH"
 cd "$repo"
-# Keep scratch on abnormal termination; never erase the sole remaining evidence.
+# Evidence stays on Horse; only private local static-check scratch is cleaned.
 finish() {
     status=$?
     trap - EXIT
-    if [ "$status" -eq 0 ]; then rm -rf -- "$scratch";
-    else echo "Retained scratch after failure: $scratch"; fi
+    zih_storage_cleanup
+    echo "Retained durable evidence: $scratch"
     exit "$status"
 }
 trap finish EXIT
-"$PILOT_ROOT/venv/bin/python" hpc/zih/crosscodeeval_resume.py
+"$ZIH_PYTHON" hpc/zih/crosscodeeval_resume.py

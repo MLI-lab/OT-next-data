@@ -1,5 +1,9 @@
 # InferredBugs on ZIH CPU nodes
 
+For validation jobs, see [storage placement and automatic staging](storage.md).
+New ZIH validation launchers should source `storage.sh` and use its Python paths;
+a venv located on Horse can otherwise still point to a Python installation in home.
+
 The CPU partition reported by this cluster is `barnard` (checked with `sinfo`
 and `scontrol show partition barnard` on 2026-09-30). Apptainer 1.4.5 and `uv`
 are installed. These scripts request no GPUs. The unrelated teacher launcher

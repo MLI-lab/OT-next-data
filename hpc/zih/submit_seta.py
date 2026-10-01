@@ -36,7 +36,8 @@ def main():
     (base / 'logs').mkdir(exist_ok=True)
     code = snapshot_code(run)
     (code / 'hpc/zih').mkdir()
-    for name in ('seta_validation.py', 'seta_validation.sbatch', 'download_seta.py', 'submit_seta.py'):
+    for name in ('seta_validation.py', 'seta_validation.sbatch', 'download_seta.py', 'submit_seta.py',
+                 'storage.sh', 'runtime_storage.py'):
         shutil.copy2(ROOT / 'hpc/zih' / name, code / 'hpc/zih' / name)
     shutil.copy2(base / 'upstream/tasks.manifest.json', run / 'source.json')
     count = 3153

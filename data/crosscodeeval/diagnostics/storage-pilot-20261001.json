@@ -1,0 +1,2334 @@
+{
+  "date": "2026-10-01",
+  "scope": "Eight affected TypeScript tasks, four static checks; not full validation or 128-worker scalability test.",
+  "total_check_executions": 2360,
+  "nonzero_check_exits": 0,
+  "input_manifest": {
+    "task_ids": [
+      "crosscodeeval-typescript-1951",
+      "crosscodeeval-typescript-2091",
+      "crosscodeeval-typescript-2523",
+      "crosscodeeval-typescript-2658",
+      "crosscodeeval-typescript-2801",
+      "crosscodeeval-typescript-2947",
+      "crosscodeeval-typescript-3101",
+      "crosscodeeval-typescript-3355"
+    ],
+    "original_python": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12",
+    "original_checks": "/home/h3/frwe188h/OT-next-data/external/terminal-bench/scripts/checks",
+    "python_name": "python3.12",
+    "prepare": {
+      "copy_bundle_seconds": 93.95076520199655,
+      "tar_seconds": 2.7504336579877418,
+      "gzip_seconds": 1.562885068997275
+    },
+    "archive_bytes": {
+      "bundle.tar": 116008960,
+      "bundle.tar.gz": 40782549
+    },
+    "sha256": {
+      "bundle.tar": "c911747fbb4f07e945805236cbf1348272c1a4ae60d8343f69c74318c003ce15",
+      "bundle.tar.gz": "c3ab82157faca05c0918fbeb5cc64899b28e1c28f821cdcafda9d10b19ba2fe0"
+    },
+    "check_sha256": {
+      "check-instruction-suffix.sh": "71470461d67710c9a1ecd357a93a0b8a19fafb7c27b5056a289cb95492332206",
+      "check-nproc.sh": "302c073877da7a52fff4ce4906a27e1562a45097ce3adcdf7405da32ca47afc5",
+      "check-resource-sizes.sh": "60f888b7571e5d97ebf2bfa371659e10539abd748e887565695b00c84b1d97b4",
+      "check-task-timeout.sh": "279d4a835e4b7d9a5e2c4d761c2d36b5b81e8f1b950acf36fcd6113eb0de8b18"
+    }
+  },
+  "runs": [
+    {
+      "source": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/result-barnard-38931764/summary.json",
+      "measurements": [
+        {
+          "kind": "host",
+          "hostname": "n1628",
+          "cluster": "barnard",
+          "job": "38931764",
+          "affinity": [
+            14,
+            17,
+            18,
+            22,
+            26,
+            90,
+            91,
+            92,
+            118,
+            121,
+            122,
+            126,
+            130,
+            194,
+            195,
+            196
+          ],
+          "storage": "/tmp",
+          "mount": {
+            "seconds": 0.018,
+            "returncode": 0,
+            "timeout": false,
+            "output": "/dev/nvme0n1p1 ext4   rw,relatime,stripe=64\n"
+          },
+          "space": {
+            "seconds": 0.0144,
+            "returncode": 0,
+            "timeout": false,
+            "output": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/nvme0n1p1  1.8T  3.4M  1.7T   1% /tmp\n"
+          },
+          "note": "Small warm-cache pilot; order/caching affect results. No global cache flush."
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar",
+          "bytes": 116008960,
+          "copy_seconds": 0.1595409170113271,
+          "extraction": {
+            "seconds": 0.2205,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar.gz",
+          "bytes": 40782549,
+          "copy_seconds": 0.06474436199641787,
+          "extraction": {
+            "seconds": 1.1191,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "direct_task_copy",
+          "seconds": 0.30198386299889535,
+          "note": "Tasks only, unlike archives which include Python/checks."
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "seconds": 1.0047,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "concurrency": 1,
+          "wall_seconds": 5.849065859001712,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "concurrency": 8,
+          "wall_seconds": 3.692261359989061,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "seconds": 0.203,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "concurrency": 1,
+          "wall_seconds": 0.6040984239953104,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "concurrency": 8,
+          "wall_seconds": 0.3459760090045165,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "seconds": 0.0524,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "concurrency": 1,
+          "wall_seconds": 0.5406197880074615,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "concurrency": 8,
+          "wall_seconds": 0.34643450200383086,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "seconds": 0.0324,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/tmp/ot-storage-38931764-7vy_7u5f/bundle-tar/bundle/python/bin/python3.12\n/tmp/ot-storage-38931764-7vy_7u5f/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "concurrency": 1,
+          "wall_seconds": 0.3784765129967127,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "concurrency": 8,
+          "wall_seconds": 0.23560290700697806,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "seconds": 0.0325,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/tmp/ot-storage-38931764-7vy_7u5f/bundle-tar/bundle/python/bin/python3.12\n/tmp/ot-storage-38931764-7vy_7u5f/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "concurrency": 1,
+          "wall_seconds": 0.36234051900100894,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "concurrency": 8,
+          "wall_seconds": 0.23164580200682394,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "complete",
+          "complete": true
+        }
+      ]
+    },
+    {
+      "source": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/result-barnard-38931840/summary.json",
+      "measurements": [
+        {
+          "kind": "host",
+          "hostname": "n1039",
+          "cluster": "barnard",
+          "job": "38931840",
+          "affinity": [
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            156,
+            157,
+            158,
+            159,
+            160,
+            161,
+            162,
+            163
+          ],
+          "storage": "/dev/shm",
+          "mount": {
+            "seconds": 0.0199,
+            "returncode": 0,
+            "timeout": false,
+            "output": "tmpfs  tmpfs  rw,nosuid,nodev,inode64\n"
+          },
+          "space": {
+            "seconds": 0.0065,
+            "returncode": 0,
+            "timeout": false,
+            "output": "Filesystem      Size  Used Avail Use% Mounted on\ntmpfs           252G   75M  252G   1% /dev/shm\n"
+          },
+          "note": "Small warm-cache pilot; order/caching affect results. No global cache flush."
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar",
+          "bytes": 116008960,
+          "copy_seconds": 0.06571249099943088,
+          "extraction": {
+            "seconds": 0.0872,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar.gz",
+          "bytes": 40782549,
+          "copy_seconds": 0.025495709000097122,
+          "extraction": {
+            "seconds": 0.685,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "direct_task_copy",
+          "seconds": 7.245137231000626,
+          "note": "Tasks only, unlike archives which include Python/checks."
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "round": 1,
+          "seconds": 0.87,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 5.115125689999331,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 3.5407880890015804,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "round": 1,
+          "seconds": 0.183,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.40724017600041407,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.24693208200005756,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "round": 1,
+          "seconds": 0.0396,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.3766708050006855,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.2395257859989215,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "round": 1,
+          "seconds": 0.0211,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-38931840-r_p1su2f/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-38931840-r_p1su2f/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.22245647700037807,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.13756305300012173,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "round": 1,
+          "seconds": 0.0206,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-38931840-r_p1su2f/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-38931840-r_p1su2f/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.21104388400090102,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.12250706200029526,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "round": 2,
+          "seconds": 0.0202,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-38931840-r_p1su2f/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-38931840-r_p1su2f/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.21187043899954006,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.12329223699998693,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "round": 2,
+          "seconds": 0.0204,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-38931840-r_p1su2f/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-38931840-r_p1su2f/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.22393480699975044,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.13988636500107532,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "round": 2,
+          "seconds": 0.0404,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.3846871009991446,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.23523528100122348,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "round": 2,
+          "seconds": 0.0399,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.39110510899990913,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.24352696100140747,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "round": 2,
+          "seconds": 0.5105,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 4.625843412000904,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 3.164733821999107,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "complete",
+          "complete": true
+        }
+      ]
+    },
+    {
+      "source": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/result-julia-137359/summary.json",
+      "measurements": [
+        {
+          "kind": "host",
+          "hostname": "julia.hpc.tu-dresden.de",
+          "cluster": "julia",
+          "job": "137359",
+          "affinity": [
+            420,
+            421,
+            422,
+            423,
+            424,
+            425,
+            426,
+            427
+          ],
+          "storage": "/dev/shm",
+          "mount": {
+            "seconds": 0.0083,
+            "returncode": 0,
+            "timeout": false,
+            "output": "tmpfs  tmpfs  rw,nosuid,nodev,seclabel,inode64\n"
+          },
+          "space": {
+            "seconds": 0.0061,
+            "returncode": 0,
+            "timeout": false,
+            "output": "Filesystem      Size  Used Avail Use% Mounted on\ntmpfs            12T   24G   12T   1% /dev/shm\n"
+          },
+          "note": "Small warm-cache pilot; order/caching affect results. No global cache flush."
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar",
+          "bytes": 116008960,
+          "copy_seconds": 0.1678903780411929,
+          "extraction": {
+            "seconds": 0.1736,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar.gz",
+          "bytes": 40782549,
+          "copy_seconds": 0.0606210739351809,
+          "extraction": {
+            "seconds": 0.9753,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "direct_task_copy",
+          "seconds": 0.3721901159733534,
+          "note": "Tasks only, unlike archives which include Python/checks."
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "seconds": 0.6797,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "concurrency": 1,
+          "wall_seconds": 6.237397211021744,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "concurrency": 8,
+          "wall_seconds": 4.7023284279275686,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "seconds": 0.2552,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "concurrency": 1,
+          "wall_seconds": 0.6410747970221564,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "concurrency": 8,
+          "wall_seconds": 0.34223390091210604,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "seconds": 0.0661,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "concurrency": 1,
+          "wall_seconds": 0.6087622310733423,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "concurrency": 8,
+          "wall_seconds": 0.3369070029584691,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "seconds": 0.0363,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137359-234x1hi2/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137359-234x1hi2/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "concurrency": 1,
+          "wall_seconds": 0.37618765502702445,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "concurrency": 8,
+          "wall_seconds": 0.23714406101498753,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "seconds": 0.0356,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137359-234x1hi2/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137359-234x1hi2/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "concurrency": 1,
+          "wall_seconds": 0.36084807896986604,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "concurrency": 8,
+          "wall_seconds": 0.22317740903235972,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "complete",
+          "complete": true
+        }
+      ]
+    },
+    {
+      "source": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/result-julia-137360/summary.json",
+      "measurements": [
+        {
+          "kind": "host",
+          "hostname": "julia.hpc.tu-dresden.de",
+          "cluster": "julia",
+          "job": "137360",
+          "affinity": [
+            420,
+            421,
+            422,
+            423,
+            424,
+            425,
+            426,
+            427
+          ],
+          "storage": "/dev/shm",
+          "mount": {
+            "seconds": 0.0089,
+            "returncode": 0,
+            "timeout": false,
+            "output": "tmpfs  tmpfs  rw,nosuid,nodev,seclabel,inode64\n"
+          },
+          "space": {
+            "seconds": 0.0065,
+            "returncode": 0,
+            "timeout": false,
+            "output": "Filesystem      Size  Used Avail Use% Mounted on\ntmpfs            12T   24G   12T   1% /dev/shm\n"
+          },
+          "note": "Small warm-cache pilot; order/caching affect results. No global cache flush."
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar",
+          "bytes": 116008960,
+          "copy_seconds": 0.1045194580219686,
+          "extraction": {
+            "seconds": 0.173,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar.gz",
+          "bytes": 40782549,
+          "copy_seconds": 0.03720478096511215,
+          "extraction": {
+            "seconds": 0.9463,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "direct_task_copy",
+          "seconds": 0.15219802490901202,
+          "note": "Tasks only, unlike archives which include Python/checks."
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "round": 1,
+          "seconds": 0.5893,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 5.320048816036433,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 3.3801436320645735,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "round": 1,
+          "seconds": 0.0666,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.6153634149814025,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.339261980028823,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "round": 1,
+          "seconds": 0.0659,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.6116362769389525,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.34113655204419047,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "round": 1,
+          "seconds": 0.0364,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137360-zkljmk62/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137360-zkljmk62/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.3687300360761583,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.24309264705516398,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "round": 1,
+          "seconds": 0.0358,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137360-zkljmk62/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137360-zkljmk62/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.3555951090529561,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.23165475798305124,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "round": 2,
+          "seconds": 0.0347,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137360-zkljmk62/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137360-zkljmk62/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.3589199889684096,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.22772159206215292,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "round": 2,
+          "seconds": 0.0347,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137360-zkljmk62/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137360-zkljmk62/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.36685096693690866,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.23576837696600705,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "round": 2,
+          "seconds": 0.0664,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.6051809740019962,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.33716058009304106,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "round": 2,
+          "seconds": 0.0672,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.6228271420113742,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.3478361020097509,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "round": 2,
+          "seconds": 0.5809,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 5.769649402005598,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 3.7656528319930658,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "complete",
+          "complete": true
+        }
+      ]
+    },
+    {
+      "source": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/result-julia-137362/summary.json",
+      "measurements": [
+        {
+          "kind": "host",
+          "hostname": "julia.hpc.tu-dresden.de",
+          "cluster": "julia",
+          "job": "137362",
+          "affinity": [
+            420,
+            421,
+            422,
+            423,
+            424,
+            425,
+            426,
+            427
+          ],
+          "storage": "/dev/shm",
+          "mount": {
+            "seconds": 0.009,
+            "returncode": 0,
+            "timeout": false,
+            "output": "tmpfs  tmpfs  rw,nosuid,nodev,seclabel,inode64\n"
+          },
+          "space": {
+            "seconds": 0.0062,
+            "returncode": 0,
+            "timeout": false,
+            "output": "Filesystem      Size  Used Avail Use% Mounted on\ntmpfs            12T   24G   12T   1% /dev/shm\n"
+          },
+          "note": "Small warm-cache pilot; order/caching affect results. No global cache flush."
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar",
+          "bytes": 116008960,
+          "copy_seconds": 0.10315480292774737,
+          "extraction": {
+            "seconds": 0.1696,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar.gz",
+          "bytes": 40782549,
+          "copy_seconds": 0.0372546260477975,
+          "extraction": {
+            "seconds": 0.9442,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "direct_task_copy",
+          "seconds": 0.15370832406915724,
+          "note": "Tasks only, unlike archives which include Python/checks."
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "round": 1,
+          "seconds": 0.5673,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 4.714948878041469,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 3.021395656047389,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "home_python_only",
+          "round": 1,
+          "seconds": 0.4946,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "home_python_only",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 5.979905863059685,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "home_python_only",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 3.7876781129743904,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "home_checks_only",
+          "round": 1,
+          "seconds": 0.0684,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "home_checks_only",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.9574130839901045,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "home_checks_only",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.4363467249786481,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "round": 1,
+          "seconds": 0.0684,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.8756461689481512,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.3918809749884531,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "round": 1,
+          "seconds": 0.0677,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.8880124790593982,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.414172715973109,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "round": 1,
+          "seconds": 0.0364,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137362-dc4_gwnu/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137362-dc4_gwnu/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.3696679520653561,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.24228721403051168,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "round": 1,
+          "seconds": 0.0361,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137362-dc4_gwnu/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137362-dc4_gwnu/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.35936261794995517,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.2332524519879371,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "round": 2,
+          "seconds": 0.0346,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137362-dc4_gwnu/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137362-dc4_gwnu/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.3575426919851452,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.22317105007823557,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "round": 2,
+          "seconds": 0.0356,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/dev/shm/ot-storage-137362-dc4_gwnu/bundle-tar/bundle/python/bin/python3.12\n/dev/shm/ot-storage-137362-dc4_gwnu/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.37941375805530697,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.22271927900146693,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "round": 2,
+          "seconds": 0.1423,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.792435399023816,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.3507040550466627,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "round": 2,
+          "seconds": 0.0664,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.9600212440127507,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.3886689649662003,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "home_checks_only",
+          "round": 2,
+          "seconds": 0.0657,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "home_checks_only",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.9082852030405775,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "home_checks_only",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.47041272500064224,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "home_python_only",
+          "round": 2,
+          "seconds": 0.5234,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "home_python_only",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 4.078161009005271,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "home_python_only",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 3.017385639017448,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "round": 2,
+          "seconds": 0.4484,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 3.9748379490338266,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 2.8888069790555164,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "complete",
+          "complete": true
+        }
+      ]
+    },
+    {
+      "source": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/result-romeo-8997771/summary.json",
+      "measurements": [
+        {
+          "kind": "host",
+          "hostname": "i7138",
+          "cluster": "romeo",
+          "job": "8997771",
+          "affinity": [
+            67,
+            68,
+            69,
+            71,
+            74,
+            75,
+            76,
+            77,
+            195,
+            196,
+            197,
+            199,
+            202,
+            203,
+            204,
+            205
+          ],
+          "storage": "/tmp",
+          "mount": {
+            "seconds": 0.0104,
+            "returncode": 0,
+            "timeout": false,
+            "output": "/dev/sda5 xfs    rw,relatime,seclabel,attr2,inode64,logbufs=8,logbsize=32k,noquota\n"
+          },
+          "space": {
+            "seconds": 0.0073,
+            "returncode": 0,
+            "timeout": false,
+            "output": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda5       182G  1.3G  180G   1% /tmp\n"
+          },
+          "note": "Small warm-cache pilot; order/caching affect results. No global cache flush."
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar",
+          "bytes": 116008960,
+          "copy_seconds": 0.23961676200269721,
+          "extraction": {
+            "seconds": 0.4549,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar.gz",
+          "bytes": 40782549,
+          "copy_seconds": 0.0911775559943635,
+          "extraction": {
+            "seconds": 1.1441,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "direct_task_copy",
+          "seconds": 0.42684493301203474,
+          "note": "Tasks only, unlike archives which include Python/checks."
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "seconds": 1.068,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "concurrency": 1,
+          "wall_seconds": 6.0254380839760415,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "concurrency": 8,
+          "wall_seconds": 8.437314455979504,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "seconds": 0.2958,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "concurrency": 1,
+          "wall_seconds": 0.721765014983248,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "concurrency": 8,
+          "wall_seconds": 0.40232112500234507,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "seconds": 0.068,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "concurrency": 1,
+          "wall_seconds": 0.7054048689897172,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "concurrency": 8,
+          "wall_seconds": 0.42575542398844846,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "seconds": 0.0384,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/tmp/ot-storage-8997771-tf8s5uc9/bundle-tar/bundle/python/bin/python3.12\n/tmp/ot-storage-8997771-tf8s5uc9/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "concurrency": 1,
+          "wall_seconds": 0.4372983819921501,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "concurrency": 8,
+          "wall_seconds": 0.2808807120018173,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "seconds": 0.0385,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/tmp/ot-storage-8997771-tf8s5uc9/bundle-tar/bundle/python/bin/python3.12\n/tmp/ot-storage-8997771-tf8s5uc9/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "concurrency": 1,
+          "wall_seconds": 0.42596411201520823,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "concurrency": 8,
+          "wall_seconds": 0.26706877900869586,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "complete",
+          "complete": true
+        }
+      ]
+    },
+    {
+      "source": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/result-romeo-8997833/summary.json",
+      "measurements": [
+        {
+          "kind": "host",
+          "hostname": "i7111",
+          "cluster": "romeo",
+          "job": "8997833",
+          "affinity": [
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            192,
+            193,
+            194,
+            195,
+            196,
+            197,
+            198,
+            199
+          ],
+          "storage": "/tmp",
+          "mount": {
+            "seconds": 0.0094,
+            "returncode": 0,
+            "timeout": false,
+            "output": "/dev/sda5 xfs    rw,relatime,seclabel,attr2,inode64,logbufs=8,logbsize=32k,noquota\n"
+          },
+          "space": {
+            "seconds": 0.006,
+            "returncode": 0,
+            "timeout": false,
+            "output": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda5       182G  1.3G  180G   1% /tmp\n"
+          },
+          "note": "Small warm-cache pilot; order/caching affect results. No global cache flush."
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar",
+          "bytes": 116008960,
+          "copy_seconds": 0.18878099499852397,
+          "extraction": {
+            "seconds": 0.3389,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "staging",
+          "archive": "bundle.tar.gz",
+          "bytes": 40782549,
+          "copy_seconds": 0.07148784300079569,
+          "extraction": {
+            "seconds": 0.8904,
+            "returncode": 0,
+            "timeout": false,
+            "output": ""
+          }
+        },
+        {
+          "kind": "direct_task_copy",
+          "seconds": 0.33818824199261144,
+          "note": "Tasks only, unlike archives which include Python/checks."
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "round": 1,
+          "seconds": 0.6696,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 4.855282472999534,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 3.7877203190000728,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "round": 1,
+          "seconds": 0.2706,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.6198474999982864,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.3291175039776135,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "round": 1,
+          "seconds": 0.0576,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.5869250309769996,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.3312994959997013,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "round": 1,
+          "seconds": 0.0313,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/tmp/ot-storage-8997833-172544xt/bundle-tar/bundle/python/bin/python3.12\n/tmp/ot-storage-8997833-172544xt/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.35197314198012464,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.2047396579873748,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "round": 1,
+          "seconds": 0.0297,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/tmp/ot-storage-8997833-172544xt/bundle-tar/bundle/python/bin/python3.12\n/tmp/ot-storage-8997833-172544xt/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 1,
+          "concurrency": 1,
+          "wall_seconds": 0.3253779330116231,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 1,
+          "concurrency": 8,
+          "wall_seconds": 0.19366208600695245,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_local",
+          "round": 2,
+          "seconds": 0.0302,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/tmp/ot-storage-8997833-172544xt/bundle-tar/bundle/python/bin/python3.12\n/tmp/ot-storage-8997833-172544xt/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.3356639920093585,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_local",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.19554528102162294,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_runtime",
+          "round": 2,
+          "seconds": 0.0308,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/tmp/ot-storage-8997833-172544xt/bundle-tar/bundle/python/bin/python3.12\n/tmp/ot-storage-8997833-172544xt/bundle-tar/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.35115308899548836,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_runtime",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.20382871601032093,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "local_tasks",
+          "round": 2,
+          "seconds": 0.056,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.5870747299923096,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "local_tasks",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.3229160619957838,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "all_horse",
+          "round": 2,
+          "seconds": 0.0556,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python/bin/python3.12\n/data/horse/ws/frwe188h-trp-shared/storage-probe-20261001/bundle/python\n"
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 0.5925590470142197,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "all_horse",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 0.32882930600317195,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "python_startup",
+          "case": "original",
+          "round": 2,
+          "seconds": 1.0821,
+          "returncode": 0,
+          "timeout": false,
+          "output": "/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/bin/python3.12\n/home/h3/frwe188h/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu\n"
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 2,
+          "concurrency": 1,
+          "wall_seconds": 8.466217022010824,
+          "task_count": 2,
+          "checks": 8,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "checks",
+          "case": "original",
+          "round": 2,
+          "concurrency": 8,
+          "wall_seconds": 6.992265986977145,
+          "task_count": 8,
+          "checks": 32,
+          "timeouts": 0,
+          "nonzero": 0
+        },
+        {
+          "kind": "complete",
+          "complete": true
+        }
+      ]
+    }
+  ]
+}

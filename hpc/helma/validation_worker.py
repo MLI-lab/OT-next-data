@@ -16,19 +16,29 @@ from validation.upstream import ROOT
 from validation.stages.runner import save
 
 
-def wait_ready(url, processes, timeout=120, workers=False):
+def wait_ready(url, processes, timeout=120, workers=False, diagnostics=False):
+    # These health endpoints are node-local, never cluster-proxy requests.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if any(p.poll() is not None for p in processes):
             raise RuntimeError('service exited during startup; see service logs')
         try:
-            with urllib.request.urlopen(url, timeout=3) as response:
+            with opener.open(url, timeout=3) as response:
                 if not workers or json.load(response).get('workers_alive'):
                     return
         except (OSError, ValueError):
             pass
         time.sleep(2)
-    raise RuntimeError(f'service readiness timed out: {url}')
+    if diagnostics:
+        for process in processes:
+            if process.poll() is None:
+                try:
+                    process.send_signal(signal.SIGUSR2)
+                except ProcessLookupError:
+                    pass
+        time.sleep(1)  # Let services flush their startup stacks before cleanup.
+    raise RuntimeError(f'service readiness timed out after {timeout}s: {url}; see service logs')
 
 
 def free_port(start, attempts=200):
@@ -126,7 +136,10 @@ def main(request):
         # Static checks do not reserve separate agent/verifier containers.
         from validation.stages.runner import static_concurrency
         args.static_concurrency = static_concurrency(args)
-        budget = trial_capacity(tasks, args)
+        static_only = set(data['stages']) == {1}
+        budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
+                   'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
+                  if static_only else trial_capacity(tasks, args))
         args.concurrency = min(args.concurrency, budget['max_concurrency'])
         save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency,
                                                'static_concurrency': args.static_concurrency})
@@ -160,13 +173,19 @@ def main(request):
         bridge = f'http://127.0.0.1:{port}'
         os.environ['APPTAINER_BRIDGE_URL'] = bridge
         args.environment_kwargs.update(bridge_url=bridge, sif_cache=str(base / 'images'))
-        start([sys.executable, '-m', 'harbor.environments.apptainer.server',
-               '--host', '127.0.0.1', '--port', str(port)], 'bridge')
-        wait_ready(bridge + '/status', processes)
-        start([sys.executable, str(ROOT / 'harbor_patches/bridge_worker.py'), '--bridge-url', bridge,
-               '--sif-cache', str(base / 'images'), '--staging-base', str(scratch / 'bridge'),
-               '--num-workers', str(max(2, args.concurrency * 2))], 'worker')
-        wait_ready(bridge + '/status', processes, workers=True)
+        if not static_only:
+            import harbor
+            # The server is stdlib-only. Running it with -m imports the entire
+            # Apptainer environment package first, adding avoidable startup I/O.
+            server = Path(harbor.__file__).parent / 'environments/apptainer/server.py'
+            launcher = str(ROOT / 'validation/stages/service_entrypoint.py')
+            start([sys.executable, '-u', launcher, str(server),
+                   '--host', '127.0.0.1', '--port', str(port)], 'bridge')
+            wait_ready(bridge + '/status', processes, timeout=600, diagnostics=True)
+            start([sys.executable, '-u', launcher, str(ROOT / 'harbor_patches/bridge_worker.py'), '--bridge-url', bridge,
+                   '--sif-cache', str(base / 'images'), '--staging-base', str(scratch / 'bridge'),
+                   '--num-workers', str(max(2, args.concurrency * 2))], 'worker')
+            wait_ready(bridge + '/status', processes, timeout=600, workers=True, diagnostics=True)
         if args.serve_model:
             from config.models import resolve, VLLM_VERSION
             key, spec = resolve(args.serve_model)
