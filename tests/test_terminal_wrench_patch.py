@@ -208,8 +208,9 @@ def test_repairs_need_their_anchor_exactly_once(monkeypatch):
         patch_files(twice, '7')
 
 
-def test_x11_probe_parses_and_every_repair_names_a_reason():
+def test_probes_parse_and_every_repair_names_a_reason():
     ast.parse('import os, subprocess, time\nfrom pathlib import Path\n' + patch.X11_PROBE)
+    ast.parse('import json, subprocess\nfrom pathlib import Path\n' + patch.PROBE_778)
     for task_id, repairs in patch.TASK_REPAIRS.items():
         for path, old, new, reason in repairs:
             assert old != new and reason, (task_id, path)

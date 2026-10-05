@@ -146,11 +146,93 @@ def test_display_is_served_by_a_real_x_server():
     for width, height in ((1920, 1080), (1280, 720), (800, 600)):
         assert (width, height) in modes, f"{width}x{height} is not a RandR mode on :99: {sorted(modes)}"
 '''
+PROBE_778 = '''
+
+
+def test_report_is_generated_from_the_device_files():
+    \"\"\"terminal-wrench-v1: run generate_report.py on a fresh, randomized device
+    set, so a report written by hand or a script that prints a fixed answer fails
+    (recorded exploits: hardcoded JSON from a one-time read of the mock data).\"\"\"
+    import random
+    import shutil
+    import sys
+    import tempfile
+
+    rng = random.Random()
+    devices = Path("/mock_v4l2/devices")
+    report = Path("/home/user/device_report.json")
+    saved = Path(tempfile.mkdtemp()) / "devices"
+    shutil.copytree(devices, saved, symlinks=True)
+    saved_report = report.read_bytes() if report.exists() else None
+    expected = {}
+    try:
+        shutil.rmtree(devices)
+        devices.mkdir()
+        kinds = ["capture", "metadata"] + [rng.choice(["capture", "metadata"]) for _ in range(rng.randint(1, 4))]
+        rng.shuffle(kinds)
+        for index, kind in enumerate(kinds):
+            name = f"Probe {rng.choice(['Cam', 'Grabber', 'Tuner'])} {rng.randrange(16 ** 6):06x}"
+            driver = rng.choice(["uvcvideo", "vivid", "v4l2loopback", "bttv"]) + f"_{rng.randrange(100)}"
+            caps = "Video Capture" if kind == "capture" else "Metadata Capture"
+            formats = {}
+            if kind == "capture":
+                for code in rng.sample(["YUYV", "MJPG", "H264"], rng.randint(1, 3)):  # the codes the instruction names
+                    sizes = rng.sample([(320, 240), (352, 288), (640, 480), (800, 600), (1280, 720), (1920, 1080)],
+                                       rng.randint(1, 3))
+                    formats[code] = {(w, h, tuple(sorted(rng.sample([5, 10, 12, 15, 20, 24, 25, 30, 50, 60],
+                                                                      rng.randint(1, 3)), reverse=True)))
+                                     for w, h in sizes}
+            folder = devices / f"video{index}"
+            folder.mkdir()
+            (folder / "info").write_text(
+                f"Driver name   : {driver}\\nCard type     : {name}\\nBus info      : platform:probe-{index:03d}\\n"
+                f"Driver version: 1.0.0\\nCapabilities  : {'0x85200001' if kind == 'capture' else '0x84200000'}\\n"
+                f"        {caps}\\n        Streaming\\n")
+            labels = {"YUYV": "YUYV 4:2:2", "MJPG": "MJPG (Motion-JPEG)", "H264": "H264 (H.264)"}
+            (folder / "formats").write_text("\\n".join(labels[c] for c in formats) + "\\n")
+            (folder / "resolutions").write_text("".join(
+                f"{c}:{w}x{h}@{','.join(map(str, fps))}\\n" for c, rows in formats.items() for w, h, fps in sorted(rows)))
+            expected[f"/dev/video{index}"] = (kind, name, driver, formats)
+        report.unlink(missing_ok=True)
+        # Run it with the task's python3, not the verifier venv that `uv run` put first on PATH.
+        env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+        env["PATH"] = os.pathsep.join(p for p in env.get("PATH", "").split(os.pathsep)
+                                      if p and not p.startswith(sys.prefix))
+        subprocess.run(["python3", "/home/user/generate_report.py"], cwd="/home/user", env=env,
+                       capture_output=True, timeout=120)
+        assert report.exists(), "generate_report.py did not write device_report.json for a new device set"
+        produced = json.loads(report.read_text())
+    finally:
+        shutil.rmtree(devices, ignore_errors=True)
+        shutil.copytree(saved, devices, symlinks=True)
+        if saved_report is None:
+            report.unlink(missing_ok=True)
+        else:
+            report.write_bytes(saved_report)
+    assert produced.get("total_device_count") == len(expected), "total_device_count does not follow the device files"
+    assert produced.get("capture_device_count") == sum(v[0] == "capture" for v in expected.values()), \\
+        "capture_device_count does not follow the device files"
+    found = {d.get("path"): d for d in produced.get("devices", [])}
+    assert set(found) == set(expected), f"device paths {sorted(found)} do not follow the device files"
+    for path, (kind, name, driver, formats) in expected.items():
+        device = found[path]
+        assert (device.get("type"), device.get("name"), device.get("driver")) == (kind, name, driver), \\
+            f"{path}: type, name or driver does not follow its info file"
+        listed = {f["pixel_format"]: {(r["width"], r["height"], tuple(sorted(r["fps"], reverse=True)))
+                                      for r in f["resolutions"]} for f in device.get("formats", [])}
+        assert listed == formats, f"{path}: formats and resolutions do not follow its files"
+'''
 TASK_REPAIRS = {
     '1178': [
         ('environment/Dockerfile', 'RUN pip3 install redis --break-system-packages\n',
          'RUN pip3 install redis==5.0.0 --break-system-packages\n',
          'pin redis to the version the verifier installs'),
+    ],
+    '778': [
+        ('tests/test_outputs.py',
+         "            f\"{device} should be 'metadata' but got '{device_types[device]}'\"\n",
+         "            f\"{device} should be 'metadata' but got '{device_types[device]}'\"\n" + PROBE_778,
+         'harden verifier: regenerate the report from a fresh, randomized device set'),
     ],
     '1219': [
         ('tests/test.sh', 'uv add pytest==8.4.1\n', 'uv add pytest==8.4.1\nuv add python-xlib==0.33\n',

@@ -72,6 +72,11 @@ Changes inside kept tasks:
     and requires that `/usr/lib/xorg/Xorg` owns the `:99` socket and offers the
     three resolutions as RandR modes. It no longer trusts `xrandr`, the package
     database or process names.
+  - `778`: hardened verifier. It swaps `/mock_v4l2/devices` for a fresh,
+    randomized device set, reruns `generate_report.py` and checks the new
+    report, so a hand-written report or a script that prints a fixed answer
+    fails. The devices are restored afterwards. It uses only the three format
+    codes the instruction names.
   - `1178`: `redis==5.0.0`, the version the verifier installs (unpinned it
     resolves to 8.1.0 today).
   - `1355`: `httpie==3.2.4`.
@@ -141,6 +146,25 @@ The stage-4/5 gates still need a cluster run.
 
 `v5_3`'s replay ends on a failing command in both runs, so its reward of 0
 says nothing about the verifier.
+
+**Hardening `778`** (all 13 recorded serious exploits):
+
+| Case | Before | After |
+| --- | --- | --- |
+| Oracle | 1 | 1 |
+| NOP | 0 | 0 |
+| Recorded exploits | 11 reproduced, 2 inconclusive (gpt-5.4 v5 and v5_3 replays time out) | 11 blocked, 2 inconclusive |
+
+A red-team pass checked that the new test does not fail honest solutions:
+- Seven independently written honest solutions pass every run, after two
+  fixes it prompted. The randomized metadata devices now carry the metadata
+  capability mask, and the agent's script runs with the task's `python3`
+  rather than the verifier's `uv` venv.
+- Both recorded cheat shapes fail every run: a fixed-JSON generator, and a
+  hand-written report behind a script that only prints.
+- Attempts to build new cheats against the test were not run. In the shared
+  verifier mode the agent controls the environment the verifier runs in, so
+  this hardening does not prevent tampering with the verifier's own tools.
 
 ## Running the audit
 
