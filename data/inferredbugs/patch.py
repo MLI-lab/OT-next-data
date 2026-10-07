@@ -106,7 +106,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential zlib1g-dev && rm -rf /var/lib/apt/lists/* \\
  && d=$(mktemp -d) && curl -fLsS --retry 3 https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz -o "$d/python2.tgz" \\
  && echo "da3080e3b488f648a3d7a4560ddee895284c3380b11d6de75edb986526b9a814  $d/python2.tgz" | sha256sum -c - \\
- && tar -xzf "$d/python2.tgz" -C "$d" && cd "$d/Python-2.7.18" \\
+ && tar --no-same-owner -xzf "$d/python2.tgz" -C "$d" && cd "$d/Python-2.7.18" \\
  && ./configure --prefix=/opt/python2 --disable-shared --without-ensurepip >/dev/null && make -j"$(nproc)" >/dev/null && make install >/dev/null \\
  && cd / && rm -rf "$d" && /opt/python2/bin/python2.7 -c "import zlib"
 RUN mkdir -p /workspace /cache/m2 /cache/gradle /tmp/home \\
@@ -122,6 +122,9 @@ RUN mkdir -p /workspace /cache/nuget /tmp/home \\
 WORKDIR /workspace
 '''
 _MONO = '''FROM {base}
+# fontconfig-config otherwise creates this directory with an unmapped staff
+# group. Task images do not need a separate group for installing local fonts.
+RUN mkdir -p /usr/local/share/fonts && chmod 0755 /usr/local/share/fonts
 RUN apt-get update && apt-get install -y --no-install-recommends \\
     ca-certificates curl git mono-devel mono-xbuild python3 unzip zip \\
     && rm -rf /var/lib/apt/lists/*
@@ -146,7 +149,9 @@ WORKDIR /workspace
 # Union of the six custom .NET variants used by ~160 tasks (Mono + NuGet 6.11.1 + .NET 3.1/5.0
 # SDKs + Debian bullseye legacy libraries + MinGW + Microsoft reference assemblies + a
 # case-insensitive System.XML alias). Every layer is additive over inferredbugs-dotnet:8.
-_DOTNET_FULL = _CSHARP.replace('{base}', 'mcr.microsoft.com/dotnet/sdk:8.0').replace('WORKDIR /workspace\n', '') + '''RUN apt-get update && apt-get install -y --no-install-recommends mono-devel nuget && rm -rf /var/lib/apt/lists/*
+_DOTNET_FULL = _CSHARP.replace('{base}', 'mcr.microsoft.com/dotnet/sdk:8.0').replace('WORKDIR /workspace\n', '') + '''# Precreate fontconfig's optional local-font directory without an unmapped staff group.
+RUN mkdir -p /usr/local/share/fonts && chmod 0755 /usr/local/share/fonts
+RUN apt-get update && apt-get install -y --no-install-recommends mono-devel nuget && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /opt/nuget && curl -fL --retry 3 https://dist.nuget.org/win-x86-commandline/v6.11.1/nuget.exe -o /opt/nuget/nuget.exe && sha256sum /opt/nuget/nuget.exe
 # The .NET Core 3.1 and .NET 5 SDKs beside the image's own: Microsoft's release archives, by hash,
 # unpacked into the same directory without replacing a file of the newer SDK (its `dotnet`
@@ -154,7 +159,7 @@ RUN mkdir -p /opt/nuget && curl -fL --retry 3 https://dist.nuget.org/win-x86-com
 # for apptainer (the Harbor bridge) cannot copy from another image.
 RUN for sdk in 3.1.100:3687b2a150cd5fef6d60a4693b4166994f32499c507cd04f346b6dda38ecdc46 5.0.100:b8278fd20a7242e711ee46910c23804babf9b38a4c1b97e2a4d9c5155d21cbd2; do \\
       d=$(mktemp -d) && curl -fLsS --retry 3 "https://builds.dotnet.microsoft.com/dotnet/Sdk/${sdk%%:*}/dotnet-sdk-${sdk%%:*}-linux-x64.tar.gz" -o "$d/sdk.tgz" \\
-      && echo "${sdk##*:}  $d/sdk.tgz" | sha256sum -c - && tar -xzf "$d/sdk.tgz" -C /usr/share/dotnet --skip-old-files && rm -rf "$d" || exit 1; \\
+      && echo "${sdk##*:}  $d/sdk.tgz" | sha256sum -c - && tar --no-same-owner -xzf "$d/sdk.tgz" -C /usr/share/dotnet --skip-old-files && rm -rf "$d" || exit 1; \\
     done && dotnet --list-sdks | grep -c -E '^(3\\.1\\.100|5\\.0\\.100) ' | grep -qx 2
 RUN printf '%s\\n' 'deb https://deb.debian.org/debian bullseye main' > /etc/apt/sources.list.d/ib-legacy-libraries.list \\
  && apt-get update && apt-get install -y --no-install-recommends libssl1.1 libicu67 libfreeimage3 libsdl2-2.0-0 libopenal1 libvorbisfile3 libgdiplus \\
@@ -4802,7 +4807,7 @@ _INSTALL_PYTHON2 = r'''# The capture of this Infer release is written in Python 
 '''
 _INSTALL_INFER = r'''command -v xz >/dev/null || packages xz-utils
 fetch https://github.com/facebook/infer/releases/download/v{version}/infer-linux64-v{version}.tar.xz {sha256} "$work/infer.tar.xz"
-mkdir -p /opt/infer && tar -xJf "$work/infer.tar.xz" --strip-components=1 -C /opt/infer
+mkdir -p /opt/infer && tar --no-same-owner -xJf "$work/infer.tar.xz" --strip-components=1 -C /opt/infer
 # (no compiled Python files next to the release's own: the verifier compares the directory with the release)
 printf '#!/bin/sh\nPATH=/opt/python2/bin:/opt/infer/bin:$PATH PYTHONDONTWRITEBYTECODE=1 exec /opt/infer/bin/infer "$@"\n' > /usr/local/bin/infer && chmod +x /usr/local/bin/infer
 /opt/infer/bin/infer --version | head -1

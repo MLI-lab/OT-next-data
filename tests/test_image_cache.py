@@ -71,6 +71,11 @@ def test_preparation_builds_once_and_next_run_stages_cache(tmp_path, monkeypatch
     (task / 'Dockerfile').write_text('FROM changed\n')
     third = prepare_images([task], second_images, shared, args)
     assert third[0]['status'] == 'built' and len(calls) == 2
+    monkeypatch.setenv('OT_REQUIRE_PREBUILT_IMAGES', '1')
+    (task / 'Dockerfile').write_text('FROM another-change\n')
+    with pytest.raises(RuntimeError, match='Required prebuilt image is missing'):
+        prepare_images([task], second_images, shared, args)
+    assert len(calls) == 2
 
 
 def test_builder_initializes_apptainer(tmp_path, monkeypatch):
@@ -79,7 +84,7 @@ def test_builder_initializes_apptainer(tmp_path, monkeypatch):
     from harbor_patches import bridge_worker as patch
     context = tmp_path / 'environment'
     context.mkdir()
-    (context / 'Dockerfile').write_text('FROM test\n')
+    (context / 'Dockerfile').write_text('FROM test\nRUN false && echo unreachable\nRUN true\n')
     output = tmp_path / 'image.sif'
     monkeypatch.setattr('sys.argv', ['image_cache', '--build', str(context / 'Dockerfile'),
                                   '--output', str(output), '--memory-mb', '8192', '--cpus', '4'])
@@ -94,6 +99,10 @@ def test_builder_initializes_apptainer(tmp_path, monkeypatch):
     def build(self, dockerfile, destination):
         assert patch.worker.APPTAINER == '/bin/apptainer'
         assert Path(dockerfile).parent != context
+        import subprocess
+        steps = [line[4:] for line in Path(dockerfile).read_text().splitlines() if line.startswith('RUN ')]
+        # A later successful RUN must not hide failure in an earlier && chain.
+        assert subprocess.run(['/bin/sh', '-ec', '\n'.join(steps)]).returncode != 0
         assert image_cache.os.environ['OT_IMAGE_COMPRESSION_ARGS'] == '-processors 4 -mem 2048M'
         Path(destination).write_bytes(b'image')
     monkeypatch.setattr(patch.worker.ApptainerInstance, '_build_sif', build)

@@ -32,6 +32,7 @@ to the bridge server. Harbor polls the server to retrieve it.
 | `reasoning_field.py` | Save reasoning text returned by vLLM in the agent trace; Harbor otherwise misses it because it expects a different response field name |
 | `tmux_diagnostics.py` | Log the attempted commands and container state when the agent's terminal session unexpectedly closes, so the failure can be investigated |
 | `tmux_runtime.py` | Require working tmux before starting its persistent session; disable Harbor's task-startup tmux installer |
+| `local_image_base.py` | Reuse explicitly selected, SHA-256-verified local base SIFs for native and deferred image builds without registry pulls |
 
 A task container counts as unused when it is ready, has no queued or running
 commands, and has been idle for more than `BRIDGE_STALE_READY_SEC` (default:
@@ -54,6 +55,15 @@ unmapped group in single-user builds while allowing normal package installation.
 Cold-install probes on Debian 12 and Ubuntu 24 completed with an empty dpkg audit
 and a working tmux session (job 949467, repeated with the exact generated
 Dockerfile command in job 949478).
+
+Image preparation runs each Dockerfile RUN in its own checked shell so an
+earlier failure in an `&&` chain cannot be hidden by a later successful RUN.
+`OT_IMAGE_BASE_MANIFEST` can select a JSON mapping under `bases`, keyed by OCI
+reference, with absolute `path` and `sha256` fields for each raw base SIF.
+These must be base images, not completed task images or deferred overlays.
+Missing references or changed content fail preparation rather than contacting
+the registry. After a separate preparation gate passes, validation jobs can set
+`OT_REQUIRE_PREBUILT_IMAGES=1` to reject cache misses without rebuilding.
 
 ## Command timeouts
 

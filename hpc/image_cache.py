@@ -9,6 +9,7 @@ import os
 import platform
 from pathlib import Path
 import shutil
+import shlex
 import socket
 import subprocess
 import sys
@@ -165,6 +166,9 @@ def prepare_images(tasks, images, shared, args):
                     matches.append(base)
         if matches and not args.force_build:
             return {'key': key, 'status': 'cached', 'image': str(matches[0])}
+        if os.environ.get('OT_REQUIRE_PREBUILT_IMAGES') == '1':
+            raise RuntimeError(f'Required prebuilt image is missing for {name} ({key}); '
+                               'run image preparation before validation')
         if allocated_memory and memory > allocated_memory:
             raise ValueError('Image build memory exceeds the job allocation; '
                              'increase --memory or lower --image-build-memory-mb')
@@ -259,6 +263,15 @@ def main():
         context = Path(temporary) / 'context'
         shutil.copytree(args.build.parent, context)
         patch.worker._patch_test_sh_for_offline_pip(str(context))
+        # Docker stops when any RUN returns nonzero. The fallback builder joins
+        # RUNs into one set-e script, where a failed non-final command in an &&
+        # chain can otherwise be masked by the next RUN. Give each its own shell
+        # so its exit status is checked by the enclosing build script.
+        dockerfile = context / 'Dockerfile'
+        lines = patch.worker._dockerfile_logical_lines(str(dockerfile))
+        dockerfile.write_text('\n'.join(
+            'RUN /bin/sh -ec ' + shlex.quote(line[4:].strip())
+            if line.upper().startswith('RUN ') else line for line in lines) + '\n')
         patch.worker.ApptainerInstance._build_sif(None, str(context / 'Dockerfile'), str(args.output))
         verify_image_runtime(args.output, patch.worker.APPTAINER)
 
