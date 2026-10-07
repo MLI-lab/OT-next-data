@@ -1,0 +1,8 @@
+{
+  "source": "bugsinpy",
+  "project": "matplotlib",
+  "bug_id": "1",
+  "test_command": "pytest lib/matplotlib/tests/test_bbox_tight.py::test_noop_tight_bbox",
+  "buggy_commit": "c404d1f716e8aaefd4d7371ff49673e9c1f7f07c",
+  "fixed_commit": "5324adaec6a7fd3d78dea7b28451d5f6e95392a6"
+}

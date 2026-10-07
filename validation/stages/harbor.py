@@ -9,10 +9,30 @@ import re
 from pathlib import Path
 import tomllib
 import time
+from contextvars import ContextVar
 from uuid import uuid4
+
+_save_dependencies = ContextVar('validation_save_dependencies', default=False)
+BRIDGE_EXEC_LIMIT = 7 * 86400     # a command's own limit on the bridge: in practice none
+
+
+# An attempt is run again, once, only when the node took the agent's terminal away
+# before the agent could act (2 of the first 30,000 trials of the CrossCodeEval pass@16
+# runs; replaying the prompts showed the model had typed nothing that ends a shell).
+# Such an attempt says nothing about the task or the model. Every other failure,
+# including model, verifier and timeout errors, stays a recorded, ungraded attempt.
+INFRASTRUCTURE_RETRY = {'max_retries': 1, 'include_exceptions': ['TmuxSessionEndedError']}
 
 
 def install_runtime_patches():
+    from validation.stages.task_setup import install as install_task_setup
+    install_task_setup()
+    from harbor_patches.bridge_client import install as install_transport
+    install_transport()
+    from harbor_patches.reasoning_field import install as install_reasoning_field
+    install_reasoning_field()
+    from harbor_patches.tmux_diagnostics import install as install_tmux_diagnostics
+    install_tmux_diagnostics()
     from validation.stages.container_reuse import install
     install()
     # The pinned bridge keys images only by Dockerfile text. Include COPY
@@ -20,6 +40,26 @@ def install_runtime_patches():
     from harbor.environments.apptainer import apptainer as bridge
     from harbor.utils.container_cache import environment_dir_hash_truncated
     bridge.dockerfile_hash_truncated = lambda path: environment_dir_hash_truncated(path.parent)
+    if not getattr(bridge, '_bridge_exec_without_cap', False):
+        # The bridge client runs a command without its own limit, such as the verifier's test.sh,
+        # for at most 600 s. Harbor's own agent and verifier limits are the ones that count here.
+        exec_with_cap = bridge.ApptainerEnvironment.exec
+
+        async def exec_without_cap(self, command, *args, timeout_sec=None, **kwargs):
+            return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)
+        bridge.ApptainerEnvironment.exec = exec_without_cap
+        bridge._bridge_exec_without_cap = True
+    if not getattr(bridge, '_validation_dependency_request', False):
+        post = bridge._async_http_post
+
+        async def post_marking_oracle(url, data, timeout=60):
+            # The bridge server passes task_env_config to the worker unchanged. With dependency
+            # archives configured, the worker saves the archive of a marked trial that passes.
+            if url.endswith('/env/create') and _save_dependencies.get():
+                data = dict(data, task_env_config=dict(data.get('task_env_config') or {}, save_dependencies=True))
+            return await post(url, data, timeout)
+        bridge._async_http_post = post_marking_oracle
+        bridge._validation_dependency_request = True
 
 
 def environment_config(args):
@@ -50,28 +90,45 @@ def check_runtime_task(task, backend):
 
 def job_config(task, output, args, agent, model=None, artifacts=None):
     kwargs = dict(args.agent_kwargs) if agent == args.agent else {}
+    agent_spec = {'name': agent, **({'model_name': model} if model else {}), 'kwargs': kwargs}
     # API routing is relevant to host-driven Terminus, not the Claude reviewer.
     if args.api_base and agent == 'terminus-2':
         kwargs['api_base'] = args.api_base
     config = {
         'job_name': 'job', 'jobs_dir': str(output.resolve()),
         'tasks': [{'path': str(task.resolve())}],
-        'agents': [{'name': agent, **({'model_name': model} if model else {}), 'kwargs': kwargs}],
+        'agents': [agent_spec],
         'environment': environment_config(args), 'verifier': {'disable': False},
         'n_attempts': args.attempts, 'n_concurrent_trials': args.concurrency,
-        'retry': {'max_retries': 0},
+        'retry': INFRASTRUCTURE_RETRY,
     }
     if artifacts:
         config['artifacts'] = artifacts
     return config
 
 
-async def execute_job(config):
+async def execute_job(config, *, path_search_roots=(), pip_pin_capture=None):
     install_runtime_patches()
+    from validation.stages.path_diagnostics import install as install_path_diagnostics, observations
+    install_path_diagnostics()
     from harbor.job import Job
     from harbor.models.job.config import JobConfig
     job = await Job.create(JobConfig.model_validate(config))
-    await job.run()
+    token = _save_dependencies.set(all(agent.get('name') == 'oracle' for agent in config['agents']))
+    diagnostic_agents = {agent.get('name') for agent in config['agents']}
+    diagnostic_token = observations.set(
+        {'roots': list(path_search_roots)}
+        if path_search_roots and diagnostic_agents == {'oracle'} else None)
+    from data.utils.resolve_pip_pins import install_capture, _capture
+    if pip_pin_capture and diagnostic_agents == {'oracle'}:
+        install_capture()
+    pip_token = _capture.set(pip_pin_capture if diagnostic_agents == {'oracle'} else None)
+    try:
+        await job.run()
+    finally:
+        _save_dependencies.reset(token)
+        observations.reset(diagnostic_token)
+        _capture.reset(pip_token)
     return Path(str(job.job_dir))
 
 
@@ -91,7 +148,72 @@ def trial_results(job_dir):
     return results
 
 
-def nop_execution_problem(path, verifier):
+def group_trial_results(results, tasks):
+    """Match trials to selected tasks, retaining unmatched evidence as a finding."""
+    groups = {task.name: [] for task in tasks}
+    unmatched = []
+    for trial, result in results:
+        name = str(result.get('task_name') or '').split('/')[-1]
+        path = ((result.get('config') or {}).get('task') or {}).get('path')
+        if name not in groups and path:
+            name = Path(path).name
+        if name in groups:
+            groups[name].append((trial, result))
+        else:
+            unmatched.append(str(trial))
+    return groups, unmatched
+
+
+def declared_output_paths(task_path):
+    """Conservatively recognize paths named in output section headings."""
+    if task_path is None:
+        return set()
+    instruction = Path(task_path) / 'instruction.md'
+    if not instruction.is_file():
+        return set()
+    outputs, output_level = set(), None
+    for line in instruction.read_text().splitlines():
+        heading = re.match(r'^(#{1,6})\s+(.+)', line)
+        if not heading:
+            continue
+        level, title = len(heading[1]), heading[2]
+        if output_level is not None and level <= output_level:
+            output_level = None
+        if re.search(r'\b(?:outputs?|deliverables?)\b', title, re.I):
+            output_level = level
+        if output_level is not None:
+            outputs.update(re.findall(r'`(/[^`\s]+)`', title))
+    return outputs
+
+
+def expected_missing_output_setup(output, task_path):
+    """Accept fixture assertions only for explicitly declared output paths.
+
+    Every setup error must be the same kind of existence assertion. Import,
+    parsing and dependency failures remain execution failures.
+    """
+    allowed = declared_output_paths(task_path)
+    if not allowed:
+        return False
+    blocks = re.split(r'(?m)^_+ ERROR at setup of [^\n]+ _+\s*$', output)[1:]
+    if not blocks or not re.search(r'collected [1-9]\d* items?', output):
+        return False
+    error_counts = re.findall(r'(?m)^(?:=+ )?(\d+) errors? in [\d.]+s(?: .*?)?(?: =+)?\s*$', output)
+    if sum(map(int, error_counts)) != len(blocks):
+        return False
+    for block in blocks:
+        exceptions = re.findall(r'^E\s+([A-Za-z]\w*(?:Error|Exception)):\s*(.*)$', block, re.M)
+        if len(exceptions) != 1 or exceptions[0][0] != 'AssertionError':
+            return False
+        match = re.fullmatch(r'(/\S+) must exist', exceptions[0][1].strip())
+        if not match or match[1] not in allowed:
+            return False
+        if not re.search(r'^>\s+assert [^\n]+\.(?:is_file|exists)\(\)', block, re.M):
+            return False
+    return True
+
+
+def nop_execution_problem(path, verifier, task_path=None):
     """Recognize runner failures that wrappers sometimes turn into reward zero.
 
     This is deliberately conservative: arbitrary verifiers need not use pytest,
@@ -114,21 +236,25 @@ def nop_execution_problem(path, verifier):
                            r'(?:, )?)+|no tests ran) in [\d.]+s(?: .*?)?(?: =+)?\s*$', output, re.M)
     for summary in summaries:
         if not re.search(r'\b[1-9]\d* (?:passed|failed|xfailed|xpassed)\b', summary):
+            if re.fullmatch(r'\d+ errors?', summary) and expected_missing_output_setup(output, task_path):
+                continue
             return 'verifier executed no tests (empty, skipped, or setup errors)'
     return None
 
 
-def trial_seconds(result):
-    """Harbor's own start-to-finish time of one trial, or None when it recorded none."""
+def trial_seconds(result, phase=None):
+    """Harbor's own start-to-finish time of one trial, or of one of its phases (agent_execution,
+    verifier), or None when it recorded none."""
     from datetime import datetime
     try:
-        return round((datetime.fromisoformat(result['finished_at'])
-                      - datetime.fromisoformat(result['started_at'])).total_seconds(), 1)
+        record = result[phase] if phase else result
+        return round((datetime.fromisoformat(record['finished_at'])
+                      - datetime.fromisoformat(record['started_at'])).total_seconds(), 1)
     except (KeyError, TypeError, ValueError):
         return None
 
 
-def assess_trials(results, expected_count, expected_reward=None, reward_key='reward'):
+def assess_trials(results, expected_count, expected_reward=None, reward_key='reward', *, task_path=None):
     findings = []
     if len(results) != expected_count:
         findings.append(f'expected {expected_count} trials, found {len(results)}')
@@ -136,10 +262,14 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
     for path, result in results:
         if result.get('exception_info'):
             findings.append(f'{path.name}: exception: {result["exception_info"]}')
-            continue
+            # Harbor still verifies the final files after an agent time limit.
+            # Retain that measured score for teacher statistics, with the error
+            # visible. Oracle/NOP acceptance still requires an error-free trial.
+            if expected_reward is not None or result['exception_info'].get('exception_type') != 'AgentTimeoutError':
+                continue
         verifier = result.get('verifier_result') or {}
-        if expected_reward == 0:
-            problem = nop_execution_problem(path, verifier)
+        if expected_reward in (0, 1):
+            problem = nop_execution_problem(path, verifier, task_path)
             if problem:
                 findings.append(f'{path.name}: {problem}')
         rewards = verifier.get('rewards') or {}
@@ -151,7 +281,10 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
         if expected_reward is not None and score != expected_reward:
             findings.append(f'{path.name}: expected reward {expected_reward}, got {score}')
     return {'status': 'failed' if findings else 'completed', 'findings': findings, 'rewards': scores,
-            'trial_seconds': [trial_seconds(result) for _, result in results]}
+            'trial_seconds': [trial_seconds(result) for _, result in results],
+            # How long the solution and the verifier themselves ran: the slow tasks can be found later.
+            'agent_seconds': [trial_seconds(result, 'agent_execution') for _, result in results],
+            'verifier_seconds': [trial_seconds(result, 'verifier') for _, result in results]}
 
 
 async def build_task(task_path, out, args):
@@ -193,12 +326,24 @@ async def build_task(task_path, out, args):
                 type=EnvironmentType(args.backend), environment_dir=context,
                 environment_name=f'{task.short_name}-{label}', session_id=f'validate-{uuid4().hex[:12]}',
                 trial_paths=paths, task_env_config=spec, **config['kwargs'])
-            await asyncio.wait_for(environment.start(force_build=args.force_build), timeout=spec.build_timeout_sec)
+            from validation.stages.task_setup import detect, prepare, upload_setup
+            command = detect(task_path) if label == 'agent' else None
+            await asyncio.wait_for(
+                prepare(environment, command=command, timeout_sec=spec.build_timeout_sec,
+                        force_build=args.force_build,
+                        upload=lambda: upload_setup(environment, task_path)),
+                timeout=spec.build_timeout_sec)
+            if command:
+                entry['setup_command'] = command
+                entry['preparation_budget_seconds'] = spec.build_timeout_sec
             entry['timings_seconds']['start'] = time.monotonic() - started
             phase, started = 'inspect', time.monotonic()
             from validation.checks.environment import inspect_environment
             inspection = await inspect_environment(environment, task, context, label)
             entry.update(inspection)
+            if label == 'agent' and getattr(args, 'resolve_path_root', None):
+                from data.utils.resolve_absolute_paths import resolve_in_environment
+                entry['instruction_paths'] = await resolve_in_environment(environment, task_path, args.resolve_path_root)
         except Exception as exc:
             entry.update(status='error', error=str(exc))
         finally:

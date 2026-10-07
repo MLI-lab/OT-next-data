@@ -94,6 +94,11 @@ def test_patched_oracle_writes_complete_reference(
     assert result["other"].equals(table["other"])
     blob = result["task_binary"][0].as_py()
     patched = patcher.unpack(blob)
+    manifest = json.loads(output.with_suffix('.manifest.json').read_text())
+    assert manifest['source']['revision'] == patcher.UPSTREAM_REVISION
+    assert manifest['source']['task_count'] == 1
+    assert manifest['tasks'][0]['action'] == 'changed'
+    assert pq.read_table(output.with_suffix('.archive.parquet')).num_rows == 0
     assert patched[gold_path] == reference
     assert patched["solution/solution_snippet.txt"] == reference
     assert patched["environment/Dockerfile"] == files["environment/Dockerfile"]

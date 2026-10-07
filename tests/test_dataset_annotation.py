@@ -7,8 +7,8 @@ import tomllib
 
 import pytest
 
-from validation import annotation, publish
-from test_validation_stages import publish_fixture
+from validation.publishing import annotation, publish
+from test_validation_pipeline import publish_fixture
 
 
 def task_blob(files=None, member=None):
@@ -57,9 +57,10 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
     result = publish.publish(tmp_path, tmp_path / 'contract', 'test/repo', dry_run=True, **kwargs)
     assert len(prompts) == 2
     assert 'set-python/README.md' in result['files']
-    assert 'set-java/annotation.json' in result['files']
+    assert 'set-java/annotation.json' not in result['files']
     text = (tmp_path / 'out/set-python/README.md').read_text()
     assert 'hypotheses, not measured' in text
+    assert 'annotation.json' not in text
     assert 'Insufficient overlap evidence.' in text
     card = json.loads((tmp_path / 'out/set-python/annotation.json').read_text())
     assert len(card['provenance']['prompt_sha256']) == 64
@@ -67,15 +68,27 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
     assert len(card['provenance']['evidence']['evidence']) == 2
     assert 'set-python/README.md' in result['description']
     import huggingface_hub
-    commits = []
+    commits, descriptions = [], []
     class Api:
         def create_commit(self, **kwargs):
             commits.append(kwargs)
-            return type('Commit', (), {'pr_url': 'https://example.test/pr'})()
+            return type('Commit', (), {'pr_url': 'https://example.test/discussions/3',
+                                      'pr_revision': 'refs/pr/3'})()
+        def get_discussion_details(self, repo, number, **kwargs):
+            assert repo == 'test/repo' and number == 3
+            event = type('Comment', (), {'id': 'initial', 'content': commits[-1]['commit_description']})()
+            return type('Discussion', (), {'events': [event]})()
+        def edit_discussion_comment(self, repo, number, comment_id, content, **kwargs):
+            assert comment_id == 'initial'
+            descriptions.append(content)
     monkeypatch.setattr(huggingface_hub, 'HfApi', Api)
     publish.publish(tmp_path, tmp_path / 'contract', 'test/repo', **kwargs)
     assert commits[0]['create_pr'] is True
+    assert '(set-python/README.md)' not in commits[0]['commit_description']
+    assert 'https://huggingface.co/datasets/test/repo/blob/refs%2Fpr%2F3/set-python/README.md' in descriptions[0]
+    assert (tmp_path / 'out/pull-request.md').read_text() == descriptions[0]
     assert 'set-python/README.md' in [op.path_in_repo for op in commits[0]['operations']]
+    assert not any(op.path_in_repo.endswith('/annotation.json') for op in commits[0]['operations'])
     def broken(*args):
         result = answer()
         result['domains'][0]['label'] = 'invented'
@@ -150,6 +163,28 @@ def test_source_evidence_is_a_file_not_inlined(tmp_path):
         assert (task / 'setup_files/evidence/source/000/source.txt').read_text() == doc.read_text()
         return answer(), {}
     annotation.generate({'set-python': tables['set-python']}, 'test', call, tmp_path / 'work', {'set-python': [doc]})
+
+
+def test_explicit_validation_disclosures_survive_model_output(tmp_path):
+    _, contract, reports = publish_fixture(tmp_path)
+    tables, record, run_file = publish.build(contract, reports, {})
+    doc = tmp_path / 'notes.json'
+    note = 'The absolute-path check was excluded, not passed.'
+    doc.write_text(json.dumps({'validation_disclosures': [note]}))
+    cards = annotation.generate({'set-python': tables['set-python']}, 'test',
+                                lambda task, model: (answer(), {}), tmp_path / 'work',
+                                {'set-python': [doc]})
+    text = cards['set-python']['readme']
+    kept, archived = tables['set-python']
+    assert note not in text
+    assert 'Validation outcomes' not in text
+    assert cards['set-python']['validation_disclosures'] == [note]
+    publish.write(tables, record, run_file, tmp_path / 'release', cards)
+    assert note in (tmp_path / 'release/pull-request.md').read_text()
+    assert record['validation_disclosures']['set-python'] == [note]
+    published = (tmp_path / 'release/set-python/README.md').read_text()
+    assert published == text
+    assert 'Archive reasons' not in published
 
 
 def test_selected_benchmark_and_paper_render_without_mismatch():
@@ -231,7 +266,7 @@ def test_evidence_rejects_links(tmp_path):
 
 
 def test_harbor_runtime_collects_verified_artifact(tmp_path, monkeypatch):
-    from validation import annotation_runtime
+    from validation.publishing import annotation_runtime
     from validation.stages import harbor as runtime
     task = tmp_path / 'task'
     task.mkdir()
@@ -240,7 +275,7 @@ def test_harbor_runtime_collects_verified_artifact(tmp_path, monkeypatch):
     (trial / 'artifacts/annotation.json').write_text(json.dumps(answer()))
     monkeypatch.setenv('HARBOR_SIF_CACHE', str(tmp_path / 'images'))
     monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test-bridge')
-    monkeypatch.setenv('PILOT_NET_ISOLATION', '0')
+    monkeypatch.setenv('OT_NET_ISOLATION', '0')
     configs = []
     async def execute(config):
         import tempfile
@@ -267,7 +302,7 @@ def test_harbor_runtime_collects_verified_artifact(tmp_path, monkeypatch):
 
 
 def test_staged_task_and_verifier(tmp_path):
-    from validation.annotation_runtime import stage
+    from validation.publishing.annotation_runtime import stage
     docs = {key: (annotation.ASSETS / name).read_text() for key, name in
             [('DOMAIN_TAXONOMY', 'domain_taxonomy.txt'), ('CAPABILITY_TAXONOMY', 'capability_taxonomy.txt'),
              ('EVALUATION_SUITE', 'evaluation_suite.txt')]}
@@ -280,8 +315,10 @@ def test_staged_task_and_verifier(tmp_path):
     assert config['artifacts'][0]['source'] == '/app/annotation.json'
     assert config['environment']['allow_internet'] is True
     # Exercise the validator copied into the container, with the actual codebooks.
-    import runpy
-    validator = runpy.run_path(str(tmp_path / 'tests/annotation.py'))['validate']
+    # Match the shallow container path, where repository-relative assets do not exist.
+    namespace = {'__file__': '/tests/annotation.py', '__name__': 'annotation'}
+    exec(compile((tmp_path / 'tests/annotation.py').read_text(), '/tests/annotation.py', 'exec'), namespace)
+    validator = namespace['validate']
     labels = json.loads((tmp_path / 'tests/labels.json').read_text())
     validator(answer(), **labels)
     invalid = answer()

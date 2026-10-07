@@ -17,7 +17,7 @@ the patcher's pip-only update applied; hashes are in `parquets-pinned/source.jso
 The smoke evidence is saved in `runs/137299/smoke/`. The replacement code
 snapshot is under `submissions/20260930-115202-wide/code`; full-run reports
 will be under `runs/137304/full/`, and the log is `logs/cce-validation-137304.out`.
-No automatic publication is configured. See [ZIH commands](../../hpc/zih/crosscodeeval.md).
+No automatic publication is configured. See [ZIH commands](../../hpc/zih/README.md).
 
 Local checks: 158 tests passed and two skipped on the full run; the remaining
 plotting test passed after installing its missing matplotlib dependency.
@@ -66,7 +66,7 @@ Replace `$TASKS` with the directory that holds the four Parquets.
    and this repository's worker (`python harbor_patches/bridge_worker.py --bridge-url
    http://127.0.0.1:P --sif-cache IMAGES --staging-base SCRATCH --num-workers 2N`), with
    `APPTAINER_BRIDGE_URL`, `HARBOR_SIF_CACHE`, `BRIDGE_USE_FAKEROOT=1` and
-   `APPTAINER_NO_MOUNT=hostfs,bind-paths,cwd` exported, as `hpc/helma/validation_worker.py`
+   `APPTAINER_NO_MOUNT=hostfs,bind-paths,cwd` exported, as `hpc/validation_worker.py`
    does. Extract the Parquets to node-local storage first
    (`python validation/data/materialize.py $TASKS TASKDIR`) and point the contract at `TASKDIR`;
    the pull request script packs task directories back into `task_binary`.
@@ -94,7 +94,7 @@ Replace `$TASKS` with the directory that holds the four Parquets.
 
    On Helma this took 1 h 47 min up to the middle of oracle at 28 trials in parallel; expect
    3 to 4 hours for all four stages. If the job is not on Helma, open the pull request by hand
-   afterwards: `python validation/publish.py RESULTS/stage_*/ --contract RESULTS/contract.json
+   afterwards: `python validation/publishing/publish.py RESULTS/stage_*/ --contract RESULTS/contract.json
    --analysis --folder ...` (the same four `--folder` mappings). Review the pull request: every
    task that was reached should pass; a task archived at stage 3, 4 or 5 is either a real
    defect or a node problem, and the advisory analysis in the description groups them.
@@ -119,7 +119,7 @@ Replace `$TASKS` with the directory that holds the four Parquets.
 
 5. **Publish the trajectories** to Hugging Face: a second dataset repository, one folder per
    model and run, with the trajectories, `agent-run.json`, `trace-metrics.json` and the
-   contract. Not built yet; `validation/publish.py` handles tasks only.
+   contract. Not built yet; `validation/publishing/publish.py` handles tasks only.
 
 6. **Stage 8, LLM trajectory analysis, on a pilot sample.** Stage 8 takes a Harbor job
    directory (`--trials`) and reviews every trial in it, so the sample is made by copying the

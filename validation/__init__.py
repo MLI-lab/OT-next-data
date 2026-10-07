@@ -1,1 +1,1 @@
-"""Local stage adapters for pinned Terminal-Bench review automation."""
+"""Validate task datasets and collect reproducible agent-trial evidence."""

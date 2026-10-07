@@ -1,0 +1,28 @@
+{
+  "agent_model": "gpt-6-astra",
+  "agent_provider": "codex",
+  "concurrency": 8,
+  "cpus": 48,
+  "dataset": "PrimeIntellect/Scale-SWE-Verified",
+  "memory": "128G",
+  "network_mode": "host",
+  "partition": "cpu",
+  "patch_command": [
+    "{python}",
+    "{patcher}",
+    "--source",
+    "{source}",
+    "--output",
+    "{output}"
+  ],
+  "patcher": "/home/hpc/y500bb/y500bb12/OT_next_data/data/scaleswe/patch.py",
+  "python": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/bin/python",
+  "source": "/hnvme/workspace/y500bb12-optiagent/full-sources/scaleswe/tasks.parquet",
+  "source_revision": "8935f8e55244fd56080cdb8dcd0819a57e8a003c",
+  "time": "06:00:00",
+  "usage_retry_seconds": 600,
+  "work_root": "/hnvme/workspace/y500bb12-optiagent/repair-queue/scaleswe/loop",
+  "workspace": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke",
+  "prior_repair_evidence": "/hnvme/workspace/y500bb12-optiagent/repair-queue/scaleswe/loop/model-migration-20261003-astra-medium/agents/review-code/answer.txt",
+  "agent_reasoning_effort": "medium"
+}

@@ -1,0 +1,635 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/evidence.tar.gz",
+  "contract_sha256": "c3e6eb20422a663aa179bfdd99a4cba314b77eb37da573eb03909c653a809afb",
+  "network_status": {
+    "requested": "host",
+    "effective": "host",
+    "reason": "host networking explicitly requested"
+  },
+  "instruction_fixup": {
+    "operation": "canonical-timeout-anticheat-suffix-v1",
+    "original_path": "/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/input/tasks",
+    "description": "Our extension to the upstream Terminal-Bench suffix check appends the sentence when missing and overwrites the saved instruction.md in the validation copy; an existing canonical suffix is updated without duplication. Original inputs are unchanged.",
+    "sentence_template": "You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.",
+    "timeout_source": "[agent].timeout_sec",
+    "saved_dataset": "/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/contract.stage1-tasks",
+    "original_manifest_sha256": "f2577940cbafba30731d82622ccb294711852ae890927471f0ebf31fd193db96",
+    "original_source_files": [],
+    "original_selection": {
+      "limit": null,
+      "task_id_range": null
+    }
+  },
+  "contract_status": "bound",
+  "requested_stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "static_checks",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "failed": 20
+      },
+      "report": "results/stage_1_static_checks/9f6b389349ff/summary.json",
+      "contract_sha256": "c3e6eb20422a663aa179bfdd99a4cba314b77eb37da573eb03909c653a809afb",
+      "timing": {
+        "node": "h32-32",
+        "slurm_job_id": "923740",
+        "started_at": "2026-10-02T12:48:29+00:00",
+        "wall_seconds": 17.3,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 3,
+      "name": "build_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "passed": 14,
+        "error": 6
+      },
+      "report": "results/stage_3_build_validation/71e358ac38e7/summary.json",
+      "contract_sha256": "c3e6eb20422a663aa179bfdd99a4cba314b77eb37da573eb03909c653a809afb",
+      "timing": {
+        "node": "h32-32",
+        "slurm_job_id": "923740",
+        "started_at": "2026-10-02T12:48:47+00:00",
+        "wall_seconds": 343.5,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 4,
+      "name": "oracle_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "failed": 20
+      },
+      "report": "results/stage_4_oracle_validation/d511be1329ab/summary.json",
+      "contract_sha256": "c3e6eb20422a663aa179bfdd99a4cba314b77eb37da573eb03909c653a809afb",
+      "timing": {
+        "node": "h32-32",
+        "slurm_job_id": "923740",
+        "started_at": "2026-10-02T12:54:31+00:00",
+        "wall_seconds": 755.7,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 5,
+      "name": "nop_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "failed": 6,
+        "passed": 14
+      },
+      "report": "results/stage_5_nop_validation/00fffb65bc1f/summary.json",
+      "contract_sha256": "c3e6eb20422a663aa179bfdd99a4cba314b77eb37da573eb03909c653a809afb",
+      "timing": {
+        "node": "h32-32",
+        "slurm_job_id": "923740",
+        "started_at": "2026-10-02T13:07:07+00:00",
+        "wall_seconds": 55.8,
+        "concurrency": 8
+      }
+    }
+  ],
+  "review_groups": null,
+  "pipelines": [
+    {
+      "stages": [
+        {
+          "stage": 1,
+          "report": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/summary.json",
+          "status": "findings"
+        },
+        {
+          "stage": 3,
+          "report": "/tmp/923740.helma/validation-91d0f4168877/results/stage_3_build_validation/71e358ac38e7/summary.json",
+          "status": "findings"
+        },
+        {
+          "stage": 4,
+          "report": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/summary.json",
+          "status": "findings"
+        },
+        {
+          "stage": 5,
+          "report": "/tmp/923740.helma/validation-91d0f4168877/results/stage_5_nop_validation/00fffb65bc1f/summary.json",
+          "status": "findings"
+        }
+      ],
+      "complete": true,
+      "dry_run": false,
+      "contract_sha256": "c3e6eb20422a663aa179bfdd99a4cba314b77eb37da573eb03909c653a809afb"
+    }
+  ],
+  "failures": [
+    {
+      "stage": 1,
+      "task": "OpenMathLib__OpenBLAS-4419",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "beego__beego-4036",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "caddyserver__caddy-6264",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "cli__cli-1631",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "cli__cli-2055",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "cli__cli-6384",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "etcd-io__etcd-17943",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "facebook__zstd-947",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "facebook__zstd-947",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "fatedier__frp-2421",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "go-gorm__gorm-2410",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "gohugoio__hugo-10800",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "gohugoio__hugo-12332",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "gohugoio__hugo-5358",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "gohugoio__hugo-6086",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "gohugoio__hugo-7981",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "gohugoio__hugo-9587",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "gohugoio__hugo-9587",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "jqlang__jq-2945",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "libsdl-org__SDL-10158",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "mruby__mruby-2261",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "mruby__mruby-2261",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "mruby__mruby-2828",
+      "status": "failed",
+      "check": "check-pip-pinning.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_1_static_checks/9f6b389349ff/static/checks.log"
+    },
+    {
+      "stage": 3,
+      "task": "facebook__zstd-947",
+      "status": "error",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[{\"environment\": \"agent\", \"context\": \"/tmp/923740.helma/validation-91d0f4168877/tasks/facebook__zstd-947/environment\", \"timings_seconds\": {\"start\": 169.80428151099477, \"stop\": 1.718975595998927}, \"status\": \"error\", \"error\": \"Bridge job j-f145c2b12495 failed: Persistent tmux owner exited: /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.33' not found (required by /.singularity.d/libs/faked) | /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by /.singularity.d/libs/faked) | fakeroot: error while starting the `faked' daemon. | /.singularity.d/libs/fakeroot: 1: kill: Usage: kill [-s sigspec | -signum | -sigspec] [pid | job]... or | kill -l [exitstatus] | srun: error: h32-32: task 0: Exited with exit code 1\"}]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_3_build_validation/71e358ac38e7/00007-facebook__zstd-947"
+    },
+    {
+      "stage": 3,
+      "task": "OpenMathLib__OpenBLAS-4419",
+      "status": "error",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[{\"environment\": \"agent\", \"context\": \"/tmp/923740.helma/validation-91d0f4168877/tasks/OpenMathLib__OpenBLAS-4419/environment\", \"timings_seconds\": {\"start\": 187.1928981719975, \"stop\": 1.20450624798832}, \"status\": \"error\", \"error\": \"Bridge job j-3ae4bf5bc422 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\nINFO:    Using fakeroot command combined with root-mapped namespace\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\nERROR:   container cleanup failed: no instance found with name hb_env_599b5449d377\\n\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\n\"}]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_3_build_validation/71e358ac38e7/00000-OpenMathLib__OpenBLAS-4419"
+    },
+    {
+      "stage": 3,
+      "task": "jqlang__jq-2945",
+      "status": "error",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[{\"environment\": \"agent\", \"context\": \"/tmp/923740.helma/validation-91d0f4168877/tasks/jqlang__jq-2945/environment\", \"timings_seconds\": {\"start\": 39.36770681699272, \"inspect\": 2.148031014003209, \"stop\": 10.23465585699887}, \"status\": \"failed\", \"checks\": [{\"check\": \"declared-workdir\", \"status\": \"passed\", \"command\": \"actual=$(pwd -P) && expected=$(cd /home/jq && pwd -P) && printf \\\"%s\\\\n\\\" \\\"$actual\\\" && test \\\"$actual\\\" = \\\"$expected\\\"\", \"exit_code\": 0, \"stdout\": \"/home/jq\", \"stderr\": \"\"}, {\"check\": \"declared-network-egress\", \"status\": \"error\", \"expected_allow_internet\": true, \"observed_any_reachable\": false, \"observations\": [{\"url\": \"https://example.com/\", \"route\": \"configured-proxy-or-direct\", \"exit_code\": 125, \"reachable\": false, \"client_available\": false, \"stderr\": \"\"}, {\"url\": \"https://www.cloudflare.com/\", \"route\": \"configured-proxy-or-direct\", \"exit_code\": 125, \"reachable\": false, \"client_available\": false, \"stderr\": \"\"}, {\"url\": \"https://1.1.1.1/\", \"route\": \"direct\", \"exit_code\": 125, \"reachable\": false, \"client_available\": false, \"stderr\": \"\"}], \"reason\": \"Requires curl or python3; no tools are installed by validation.\"}]}]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_3_build_validation/71e358ac38e7/00016-jqlang__jq-2945"
+    },
+    {
+      "stage": 3,
+      "task": "mruby__mruby-2828",
+      "status": "error",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[{\"environment\": \"agent\", \"context\": \"/tmp/923740.helma/validation-91d0f4168877/tasks/mruby__mruby-2828/environment\", \"timings_seconds\": {\"start\": 128.38880208399496, \"stop\": 0.11807628499809653}, \"status\": \"error\", \"error\": \"Bridge job j-825d3d31e3ea failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\nINFO:    Using fakeroot command combined with root-mapped namespace\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\nERROR:   container cleanup failed: no instance found with name hb_env_ee10736f7cde\\n\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\n\"}]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_3_build_validation/71e358ac38e7/00019-mruby__mruby-2828"
+    },
+    {
+      "stage": 3,
+      "task": "libsdl-org__SDL-10158",
+      "status": "error",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[{\"environment\": \"agent\", \"context\": \"/tmp/923740.helma/validation-91d0f4168877/tasks/libsdl-org__SDL-10158/environment\", \"timings_seconds\": {\"start\": 144.97247268099454, \"stop\": 0.05350400299357716}, \"status\": \"error\", \"error\": \"Bridge job j-e4751450af0d failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\nINFO:    Using fakeroot command combined with root-mapped namespace\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\nERROR:   container cleanup failed: no instance found with name hb_env_7eb2aea1a836\\n\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\n\"}]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_3_build_validation/71e358ac38e7/00017-libsdl-org__SDL-10158"
+    },
+    {
+      "stage": 3,
+      "task": "mruby__mruby-2261",
+      "status": "error",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[{\"environment\": \"agent\", \"context\": \"/tmp/923740.helma/validation-91d0f4168877/tasks/mruby__mruby-2261/environment\", \"timings_seconds\": {\"start\": 143.0560128990037, \"stop\": 0.05383174399321433}, \"status\": \"error\", \"error\": \"Bridge job j-9ad5f064ce10 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\nINFO:    Using fakeroot command combined with root-mapped namespace\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\nERROR:   container cleanup failed: no instance found with name hb_env_99590b682c77\\n\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\n\"}]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_3_build_validation/71e358ac38e7/00018-mruby__mruby-2261"
+    },
+    {
+      "stage": 4,
+      "task": "OpenMathLib__OpenBLAS-4419",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-1ff5cc61c9a1 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_513501d0e000\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-1ff5cc61c9a1 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using \\\\'/root\\\\' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_513501d0e000\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\\n', 'occurred_at': '2026-10-02T14:54:56.197635'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "beego__beego-4036",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'VerifierRuntimeError', 'exception_message': 'Verifier test harness exited with code -1 and wrote no reward file; the grader crashed before scoring (e.g. the agent deleted the working directory or the test process was killed).', 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 251, in run\\\\n    await self._run()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/single_step.py\\\", line 43, in _run\\\\n    await self._run_verifier()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/single_step.py\\\", line 110, in _run_verifier\\\\n    self.result.verifier_result = await self._run_shared_verifier(\\\\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 638, in _run_shared_verifier\\\\n    return await self._await_phase(\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/verifier/verifier.py\\\", line 265, in verify\\\\n    raise VerifierRuntimeError(\\\\nharbor.verifier.verifier.VerifierRuntimeError: Verifier test harness exited with code -1 and wrote no reward file; the grader crashed before scoring (e.g. the agent deleted the working directory or the test process was killed).\\\\n', 'occurred_at': '2026-10-02T15:05:03.018968'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "caddyserver__caddy-6264",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "cli__cli-1631",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "cli__cli-2055",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "cli__cli-6384",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "etcd-io__etcd-17943",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "facebook__zstd-947",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-495eda1c453a failed: Persistent tmux owner exited: /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.33' not found (required by /.singularity.d/libs/faked) | /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by /.singularity.d/libs/faked) | fakeroot: error while starting the `faked' daemon. | /.singularity.d/libs/fakeroot: 1: kill: Usage: kill [-s sigspec | -signum | -sigspec] [pid | job]... or | kill -l [exitstatus] | srun: error: h32-32: task 0: Exited with exit code 1\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-495eda1c453a failed: Persistent tmux owner exited: /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.33\\\\' not found (required by /.singularity.d/libs/faked) | /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34\\\\' not found (required by /.singularity.d/libs/faked) | fakeroot: error while starting the `faked\\\\' daemon. | /.singularity.d/libs/fakeroot: 1: kill: Usage: kill [-s sigspec | -signum | -sigspec] [pid | job]... or | kill -l [exitstatus] | srun: error: h32-32: task 0: Exited with exit code 1\\\\n', 'occurred_at': '2026-10-02T14:54:57.190687'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "fatedier__frp-2421",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "go-gorm__gorm-2410",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-10800",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-12332",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-5358",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-6086",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-7981",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-9587",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'VerifierRuntimeError', 'exception_message': 'Verifier test harness exited with code -1 and wrote no reward file; the grader crashed before scoring (e.g. the agent deleted the working directory or the test process was killed).', 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 251, in run\\\\n    await self._run()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/single_step.py\\\", line 43, in _run\\\\n    await self._run_verifier()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/single_step.py\\\", line 110, in _run_verifier\\\\n    self.result.verifier_result = await self._run_shared_verifier(\\\\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 638, in _run_shared_verifier\\\\n    return await self._await_phase(\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/verifier/verifier.py\\\", line 265, in verify\\\\n    raise VerifierRuntimeError(\\\\nharbor.verifier.verifier.VerifierRuntimeError: Verifier test harness exited with code -1 and wrote no reward file; the grader crashed before scoring (e.g. the agent deleted the working directory or the test process was killed).\\\\n', 'occurred_at': '2026-10-02T15:07:05.788690'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "jqlang__jq-2945",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'VerifierRuntimeError', 'exception_message': 'Verifier test harness exited with code 127 and wrote no reward file; the grader crashed before scoring (e.g. the agent deleted the working directory or the test process was killed). Last verifier stdout: .../tests/test.sh: line 10: python3: command not found\\\\n', 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 251, in run\\\\n    await self._run()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/single_step.py\\\", line 43, in _run\\\\n    await self._run_verifier()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/single_step.py\\\", line 110, in _run_verifier\\\\n    self.result.verifier_result = await self._run_shared_verifier(\\\\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 638, in _run_shared_verifier\\\\n    return await self._await_phase(\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/verifier/verifier.py\\\", line 265, in verify\\\\n    raise VerifierRuntimeError(\\\\nharbor.verifier.verifier.VerifierRuntimeError: Verifier test harness exited with code 127 and wrote no reward file; the grader crashed before scoring (e.g. the agent deleted the working directory or the test process was killed). Last verifier stdout: .../tests/test.sh: line 10: python3: command not found\\\\n\\\\n', 'occurred_at': '2026-10-02T14:58:35.228070'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "libsdl-org__SDL-10158",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-547e90917745 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_94d45ec85f76\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-547e90917745 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using \\\\'/root\\\\' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_94d45ec85f76\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\\n', 'occurred_at': '2026-10-02T14:57:02.012936'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "mruby__mruby-2261",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-94f5e27ac5d1 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_fd83b892d3b6\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-94f5e27ac5d1 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using \\\\'/root\\\\' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_fd83b892d3b6\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\\n', 'occurred_at': '2026-10-02T14:57:01.034044'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "mruby__mruby-2828",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-bf4fc6c21d45 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_23eef2d827de\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-bf4fc6c21d45 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using \\\\'/root\\\\' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_23eef2d827de\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\\n', 'occurred_at': '2026-10-02T14:57:47.499175'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_4_oracle_validation/d511be1329ab/jobs/job"
+    },
+    {
+      "stage": 5,
+      "task": "OpenMathLib__OpenBLAS-4419",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-f62e858f5de8 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_2996c1ab1441\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-f62e858f5de8 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using \\\\'/root\\\\' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_2996c1ab1441\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\\n', 'occurred_at': '2026-10-02T15:07:10.986588'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_5_nop_validation/00fffb65bc1f/jobs/job"
+    },
+    {
+      "stage": 5,
+      "task": "facebook__zstd-947",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-0dd82a3eeeaf failed: Persistent tmux owner exited: /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.33' not found (required by /.singularity.d/libs/faked) | /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by /.singularity.d/libs/faked) | fakeroot: error while starting the `faked' daemon. | /.singularity.d/libs/fakeroot: 1: kill: Usage: kill [-s sigspec | -signum | -sigspec] [pid | job]... or | kill -l [exitstatus] | srun: error: h32-32: task 0: Exited with exit code 1\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-0dd82a3eeeaf failed: Persistent tmux owner exited: /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.33\\\\' not found (required by /.singularity.d/libs/faked) | /.singularity.d/libs/faked: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34\\\\' not found (required by /.singularity.d/libs/faked) | fakeroot: error while starting the `faked\\\\' daemon. | /.singularity.d/libs/fakeroot: 1: kill: Usage: kill [-s sigspec | -signum | -sigspec] [pid | job]... or | kill -l [exitstatus] | srun: error: h32-32: task 0: Exited with exit code 1\\\\n', 'occurred_at': '2026-10-02T15:07:10.485416'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_5_nop_validation/00fffb65bc1f/jobs/job"
+    },
+    {
+      "stage": 5,
+      "task": "jqlang__jq-2945",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'VerifierRuntimeError', 'exception_message': 'Verifier test harness exited with code 127 and wrote no reward file; the grader crashed before scoring (e.g. the agent deleted the working directory or the test process was killed). Last verifier stdout: .../tests/test.sh: line 10: python3: command not found\\\\n', 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 251, in run\\\\n    await self._run()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/single_step.py\\\", line 43, in _run\\\\n    await self._run_verifier()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/single_step.py\\\", line 110, in _run_verifier\\\\n    self.result.verifier_result = await self._run_shared_verifier(\\\\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 638, in _run_shared_verifier\\\\n    return await self._await_phase(\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/verifier/verifier.py\\\", line 265, in verify\\\\n    raise VerifierRuntimeError(\\\\nharbor.verifier.verifier.VerifierRuntimeError: Verifier test harness exited with code 127 and wrote no reward file; the grader crashed before scoring (e.g. the agent deleted the working directory or the test process was killed). Last verifier stdout: .../tests/test.sh: line 10: python3: command not found\\\\n\\\\n', 'occurred_at': '2026-10-02T15:08:02.793054'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_5_nop_validation/00fffb65bc1f/jobs/job"
+    },
+    {
+      "stage": 5,
+      "task": "libsdl-org__SDL-10158",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-8d4ca556720e failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_a2d840d6db9d\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-8d4ca556720e failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using \\\\'/root\\\\' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_a2d840d6db9d\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\\n', 'occurred_at': '2026-10-02T15:07:42.084269'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_5_nop_validation/00fffb65bc1f/jobs/job"
+    },
+    {
+      "stage": 5,
+      "task": "mruby__mruby-2261",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-6f3cfa742094 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_79498be5781e\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-6f3cfa742094 failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using \\\\'/root\\\\' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_79498be5781e\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\\n', 'occurred_at': '2026-10-02T15:07:41.898404'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_5_nop_validation/00fffb65bc1f/jobs/job"
+    },
+    {
+      "stage": 5,
+      "task": "mruby__mruby-2828",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: exception: {'exception_type': 'RuntimeError', 'exception_message': \\\"Bridge job j-2bed74eae80c failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using '/root' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_4f149f233a64\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\", 'exception_traceback': 'Traceback (most recent call last):\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 250, in run\\\\n    await self._prepare()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 293, in _prepare\\\\n    await self._setup_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1049, in _setup_agent_environment\\\\n    await self._start_agent_environment()\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 1058, in _start_agent_environment\\\\n    await self._await_phase(\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/trial/trial.py\\\", line 510, in _await_phase\\\\n    return await task\\\\n           ^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-optiagent/multiswe-20-pilot/results/submissions/91d0f4168877/code/validation/stages/container_reuse.py\\\", line 58, in start\\\\n    return await original_start(environment, force_build=force_build)\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 332, in start\\\\n    result = await _poll_job(self._bridge_url, job_id, timeout_sec=1200)\\\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\\\", line 134, in _poll_job\\\\n    raise RuntimeError(f\\\"Bridge job {job_id} failed: {result.get(\\\\'error\\\\')}\\\")\\\\nRuntimeError: Bridge job j-2bed74eae80c failed: Instance start failed: INFO:    User not listed in /etc/subuid, trying root-mapped namespace\\\\nINFO:    Using fakeroot command combined with root-mapped namespace\\\\nINFO:    Instance stats will not be available - rootless cgroups is not usable in fakeroot mode\\\\nWARNING: Error changing the container working directory. Using \\\\'/root\\\\' instead: chdir /home/hpc/y500bb/y500bb12/OT_next_data: no such file or directory\\\\nFATAL:   exec /.singularity.d/libs/fakeroot failed: fork/exec /.singularity.d/libs/fakeroot: no such file or directory\\\\nERROR:   container cleanup failed: no instance found with name hb_env_4f149f233a64\\\\n\\\\nFATAL:   while executing starter: failed to start instance: while running /usr/libexec/apptainer/bin/starter: exit status 255\\\\n\\\\n', 'occurred_at': '2026-10-02T15:07:42.137115'}\"]",
+      "evidence": "/tmp/923740.helma/validation-91d0f4168877/results/stage_5_nop_validation/00fffb65bc1f/jobs/job"
+    }
+  ]
+}

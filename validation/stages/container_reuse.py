@@ -1,8 +1,4 @@
-"""Opt-in, same-task Apptainer lifetime shared across validation phases.
-
-No cross-task pool. Filesystem changes persist between phases; only output logs
-are cleared. This is deliberately recorded as a different execution profile.
-"""
+"""Reuse Apptainer containers within one task, preserving files and clearing logs."""
 from contextvars import ContextVar
 
 _scope = ContextVar('validation_container_scope', default=None)

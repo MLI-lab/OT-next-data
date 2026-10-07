@@ -32,6 +32,12 @@ in the report).
 """
 from __future__ import annotations
 
+# Support both direct execution and python -m data.<source>.patch.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+
 import argparse
 import hashlib
 import io
@@ -746,9 +752,9 @@ def main():
     ap.add_argument('--output', help='where the repaired parquet goes')
     ap.add_argument('--all', action='store_true',
                     help=f'fetch and patch every source of {UPSTREAM_REPO} at {UPSTREAM_REVISION[:8]}')
-    ap.add_argument('--upstream', type=Path, default=Path(os.environ.get('PILOT_ROOT', '.')) / 'upstream',
+    ap.add_argument('--upstream', type=Path, default=Path(os.environ.get('OT_WORKSPACE', '.')) / 'upstream',
                     help='where --all downloads the pinned parquets')
-    ap.add_argument('--outdir', type=Path, default=Path(os.environ.get('PILOT_ROOT', '.')) / 'patched',
+    ap.add_argument('--outdir', type=Path, default=Path(os.environ.get('OT_WORKSPACE', '.')) / 'patched',
                     help='where --all writes the repaired parquets')
     ap.add_argument('--archive', help='the upstream cceval archive; not needed with --pin-only')
     ap.add_argument('--pin-only', action='store_true',
@@ -775,6 +781,18 @@ def main():
 
 def pin_parquet(input_path, output_path):
     """Pin the pip installs of every task; all other files keep their bytes."""
+    parent_manifest = input_path.with_suffix('.manifest.json')
+    provenance = json.loads(parent_manifest.read_text()) if parent_manifest.exists() else None
+    if provenance:
+        original = provenance.get('original_parquet')
+        if not original:
+            raise ValueError('pin-only reporting needs a manifest with original_parquet; rerun the full patcher')
+        with Path(original['path']).open('rb') as stream:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != original['sha256']:
+                raise ValueError('original Parquet changed since the full patch run')
+        for artifact in (output_path.with_suffix('.archive.parquet'), output_path.with_suffix('.manifest.json')):
+            if artifact.exists():
+                raise ValueError(f'Use a new output location; reporting artifact exists: {artifact}')
     table = pq.read_table(input_path)
     rows = {n: [] for n in table.column_names}
     pinned = 0
@@ -787,12 +805,25 @@ def pin_parquet(input_path, output_path):
             rows[n].append(row[n])
     output_path.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.table(rows, schema=table.schema), output_path)
+    if provenance:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from data.utils.patch_reporting import write_patch_report
+        write_patch_report(original['path'], output_path, patcher=__file__, source=provenance['source'],
+            dropped={task['task_id']: {'category': task['labels'][0], 'reason': task['reason']}
+                     for task in provenance['tasks'] if task['action'] == 'dropped'},
+            file_labels={'instruction.md': 'instruction-clarified', 'tests/': 'verifier-updated',
+                         'solution/': 'reference-solution-updated', 'environment/': 'environment-adapted',
+                         'setup_files/context/': 'retrieval-context-restored'},
+            patches=[*provenance.get('patches', []), {'operation': 'pin-only', 'pins': PIP_PINS}])
     return {'input': str(input_path), 'input_sha256': hashlib.sha256(input_path.read_bytes()).hexdigest(),
             'output': str(output_path), 'output_sha256': hashlib.sha256(output_path.read_bytes()).hexdigest(),
             'tasks': table.num_rows, 'pinned': pinned, 'pins': PIP_PINS}
 
 
 def patch_parquet(input_path, output_path, originals):
+    for artifact in (output_path.with_suffix('.archive.parquet'), output_path.with_suffix('.manifest.json')):
+        if artifact.exists():
+            raise ValueError(f'Use a new output location; reporting artifact exists: {artifact}')
     table = pq.read_table(input_path)
     stats = dict.fromkeys(('rows', 'unique', 'unmatched', 'ambiguous', 'kept', 'dropped', 'dropped_no_identifiers',
                            'oracle_upstream', 'oracle_packaged_gold', 'context_chunks', 'kept_chunks',
@@ -880,6 +911,20 @@ def patch_parquet(input_path, output_path, originals):
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.table(rows, schema=table.schema), output_path)
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from data.utils.patch_reporting import write_patch_report
+    write_patch_report(input_path, output_path, patcher=__file__,
+        file_labels={'instruction.md': 'instruction-clarified', 'tests/': 'verifier-updated',
+                     'solution/': 'reference-solution-updated', 'setup_files/context/': 'retrieval-context-restored',
+                     'environment/': 'environment-adapted'},
+        source={'dataset': UPSTREAM_REPO, 'revision': UPSTREAM_REVISION,
+                'url': f'https://huggingface.co/datasets/{UPSTREAM_REPO}/tree/{UPSTREAM_REVISION}'},
+        dropped={entry['task']: {
+            'category': ('reference-has-no-identifiers' if entry['task'] in stats['dropped_no_identifiers_task_ids']
+                         else 'insufficient-retrieval-context'),
+            'reason': entry['reason']} for entry in review if not entry['kept']},
+        patches=[{'patcher': 'data/crosscodeeval/patch.py',
+                  'sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}])
     report = json.dumps(stats, indent=2)
     output_path.with_suffix('.report.json').write_text(report + '\n')
     print(report)
@@ -889,5 +934,397 @@ def patch_parquet(input_path, output_path, originals):
           file=sys.stderr)
 
 
+# Prepare
+"""Download the published repair at its immutable revision, then apply pip pins."""
+import argparse
+import json
+import os
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from huggingface_hub import hf_hub_download
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+REVISION = '12df4483fe99c79ccbb4c923d76ab5a2b042e64a'
+prepare_SOURCES = {'csharp-v5': 1353, 'java-v4': 1895, 'python-v3': 432, 'typescript-v3': 3030}
+
+
+def prepare_main(root):
+    root = root.resolve()
+    os.environ.setdefault('HF_HOME', str(root / 'cache/huggingface'))
+    records, sample = [], []
+    for family, count in prepare_SOURCES.items():
+        source = f'laion__exp_rpt_crosscodeeval-{family}/tasks.parquet'
+        original = hf_hub_download('open-thoughts/TaskTrove', source,
+                                   repo_type='dataset', revision=REVISION,
+                                   local_dir=root / 'published', cache_dir=root / 'cache/huggingface/hub')
+        output = root / 'parquets-pinned' / f'{family}.parquet'
+        record = pin_parquet(Path(original), output)
+        if record['tasks'] != count:
+            raise ValueError(f'Unexpected coverage: {record}')
+        records.append(record)
+        table = pq.read_table(output)
+        sample.append(table.slice(0, 3 if family.startswith(('csharp', 'java')) else 2))
+        print(json.dumps(record), flush=True)
+    provenance = {'dataset': 'open-thoughts/TaskTrove', 'revision': REVISION, 'files': records}
+    (root / 'parquets-pinned/source.json').write_text(json.dumps(provenance, indent=2) + '\n')
+    (root / 'sample').mkdir(exist_ok=True)
+    pq.write_table(pa.concat_tables(sample), root / 'sample/tasks.parquet')
+
+
+def prepare_cli():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('root', type=Path)
+    prepare_main(parser.parse_args().root)
+
+
+# Warmup
+"""Warm distinct CrossCodeEval environments and benchmark cached container I/O.
+
+Uses the real Harbor bridge and stages 3 -> 5 -> 4, without publishing or
+changing production caches. Inputs are already patched/materialized tasks;
+cross-file excerpts are supplied in setup_files, not downloaded Git checkouts.
+Explicit paths also allow use outside ZIH. Run only inside a CPU allocation.
+"""
+
+import argparse
+import asyncio
+from contextlib import contextmanager
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+
+def save(path, value):
+    tmp = path.with_suffix('.tmp')
+    tmp.write_text(json.dumps(value, indent=2) + '\n')
+    tmp.replace(path)
+
+
+def fingerprint(directory):
+    """Same file-name/content digest as the patched bridge (not just Dockerfile)."""
+    digest = hashlib.sha256()
+    for path in sorted(directory.rglob('*')):
+        if path.is_file():
+            name, content = str(path.relative_to(directory)).encode(), path.read_bytes()
+            digest.update(len(name).to_bytes(4, 'big')); digest.update(name)
+            digest.update(len(content).to_bytes(4, 'big')); digest.update(content)
+    return digest.hexdigest()[:12]
+
+
+def inventory(tasks):
+    groups, languages = {}, {}
+    for task in sorted(tasks.iterdir()):
+        if not (task / 'task.toml').is_file():
+            continue
+        if not task.name.startswith('crosscodeeval-'):
+            raise ValueError(f'Expected patched CrossCodeEval tasks: {task}')
+        if not (task / 'environment/Dockerfile').is_file():
+            raise ValueError(f'Missing Dockerfile: {task}')
+        key = fingerprint(task / 'environment')
+        groups.setdefault(key, []).append(task)
+        languages.setdefault(task.name.rsplit('-', 1)[0], task)
+    if not groups:
+        raise ValueError('No materialized CrossCodeEval tasks found')
+    representatives = sorted(set(languages.values()) | {v[0] for v in groups.values()})
+    return groups, representatives
+
+
+def cache_files(cache, keys):
+    """Resolve symlinks; copy SIF and the adjacent deferred build companions."""
+    result = {}
+    for key in keys:
+        matches = sorted(cache.glob(f'*-{key}.sif'))
+        if not matches:
+            continue
+        source = matches[0].resolve(strict=True)
+        result[f'build_warmup-{key}.sif'] = source
+        for suffix in ('.deferred.json', '.overlay.img'):
+            companion = source.with_suffix(suffix)
+            if companion.exists():
+                result[f'build_warmup-{key}{suffix}'] = companion
+    return result
+
+
+def copy_cache(files, destination):
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, source in files.items():
+        # Preserve sparse overlays; dereference shared-cache symlinks.
+        subprocess.run(['cp', '--sparse=always', '--reflink=auto', '--',
+                        str(source), str(destination / name)], check=True)
+
+
+@contextmanager
+def bridge(cache, scratch, out):
+    from hpc.validation_worker import free_port, wait_ready
+    import harbor
+    scratch.mkdir(parents=True)
+    out.mkdir(parents=True, exist_ok=True)
+    previous = os.environ.copy()
+    processes, logs = [], []
+    for key in ('APPTAINER_BIND', 'APPTAINER_BINDPATH', 'SINGULARITY_BIND', 'SINGULARITY_BINDPATH'):
+        os.environ.pop(key, None)
+    os.environ.update(TMPDIR=str(scratch), APPTAINER_TMPDIR=str(scratch / 'build'),
+        APPTAINER_NO_MOUNT='hostfs,bind-paths,cwd', APPTAINER_BINDPATH='/etc/resolv.conf:/etc/resolv.conf:ro',
+        BRIDGE_USE_FAKEROOT='1', BRIDGE_INSTANCE_REUSE='0', BRIDGE_START_CONCURRENCY='1',
+        BRIDGE_START_INTERVAL='0.25', OT_NET_ISOLATION='0', HARBOR_SIF_CACHE=str(cache),
+        OT_NETWORK_STATUS_PATH=str(out / 'network.json'))
+    (scratch / 'build').mkdir()
+    port = free_port(40000 + os.getpid() % 10000)
+    url = f'http://127.0.0.1:{port}'
+    os.environ['APPTAINER_BRIDGE_URL'] = url
+    launcher = ROOT / 'validation/stages/service_entrypoint.py'
+    server = Path(harbor.__file__).parent / 'environments/apptainer/server.py'
+    try:
+        commands = [
+            ('server', [str(server), '--host', '127.0.0.1', '--port', str(port)]),
+            ('worker', [str(ROOT / 'harbor_patches/bridge_worker.py'), '--bridge-url', url,
+                        '--sif-cache', str(cache), '--staging-base', str(scratch / 'instances'), '--num-workers', '2'])]
+        for name, command in commands:
+            log = (out / f'{name}.log').open('w'); logs.append(log)
+            processes.append(subprocess.Popen([sys.executable, '-u', str(launcher), *command],
+                             stdout=log, stderr=subprocess.STDOUT, start_new_session=True))
+            wait_ready(url + '/status', processes, timeout=600, workers=name == 'worker')
+        yield url
+    finally:
+        for process in reversed(processes):
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGTERM)
+        for process in processes:
+            try:
+                process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL); process.wait()
+        for log in logs:
+            log.close()
+        os.environ.clear(); os.environ.update(previous)
+
+
+async def measure(task, out, cache, url, journal, label, build_only=False):
+    from validation.stages import harbor as runtime
+    from validation.stages.runner import parser
+    from validation.stages.container_reuse import ReuseScope
+    from harbor.trial.trial import Trial
+    args = parser().parse_args([str(task), '--backend', 'apptainer', '--submit', 'never',
+                               '--trial-cpus', '1', '--trial-memory-mb', '2048'])
+    args.environment_kwargs = dict(bridge_url=url, sif_cache=str(cache))
+    # Instrument the actual harness copy, not a stand-in filesystem benchmark.
+    upload = Trial._upload_setup_files
+    upload_times = []
+    async def timed_upload(self):
+        started = time.monotonic()
+        try:
+            return await upload(self)
+        finally:
+            upload_times.append(time.monotonic() - started)
+    Trial._upload_setup_files = timed_upload
+    try:
+        async with ReuseScope() as scope:
+            for stage in ([3] if build_only else [3, 5, 4]):
+                stage_out = out / f'stage-{stage}'
+                stage_out.mkdir(parents=True)
+                if stage != 3:
+                    await scope.clear_logs()
+                upload_times.clear()
+                started = time.monotonic()
+                if stage == 3:
+                    result = await runtime.build_task(task, stage_out, args)
+                else:
+                    config = runtime.job_config(task, stage_out / 'jobs', args,
+                                                'nop' if stage == 5 else 'oracle')
+                    job_dir = await runtime.execute_job(config)
+                    result = runtime.assess_trials(runtime.trial_results(job_dir), 1, 0 if stage == 5 else 1)
+                record = dict(layout=label, task=task.name, stage=stage,
+                              seconds=time.monotonic() - started, setup_upload_seconds=list(upload_times),
+                              result=result, starts=scope.starts, reuses=scope.reuses)
+                journal.write(json.dumps(record) + '\n'); journal.flush(); os.fsync(journal.fileno())
+                print(json.dumps(record), flush=True)
+                if result['status'] not in ('passed', 'completed'):
+                    raise RuntimeError(f'{label} {task.name} stage {stage} failed; see durable outcomes.jsonl')
+            cleanup_started = time.monotonic()
+        journal.write(json.dumps(dict(layout=label, task=task.name, phase='container_cleanup',
+                                      seconds=time.monotonic() - cleanup_started)) + '\n')
+        journal.flush(); os.fsync(journal.fileno())
+    finally:
+        Trial._upload_setup_files = upload
+
+
+def warmup_main():
+    ap = argparse.ArgumentParser(description='Warm distinct CrossCodeEval environments and benchmark cached container I/O.\n\nUses the real Harbor bridge and stages 3 -> 5 -> 4, without publishing or\nchanging production caches. Inputs are already patched/materialized tasks;\ncross-file excerpts are supplied in setup_files, not downloaded Git checkouts.\nExplicit paths also allow use outside ZIH. Run only inside a CPU allocation.')
+    ap.add_argument('--tasks', type=Path, required=True)
+    ap.add_argument('--cache', type=Path, required=True, help='existing source image cache (read only)')
+    ap.add_argument('--out', type=Path, required=True, help='new durable run directory')
+    ap.add_argument('--local-root', type=Path, required=True, help='private scratch selected by cluster mapping')
+    ap.add_argument('--max-local-gib', type=float, default=8)
+    ap.add_argument('--repeats', type=int, default=2)
+    ap.add_argument('--warmup-only', action='store_true')
+    args = ap.parse_args()
+    if not os.environ.get('SLURM_JOB_ID'):
+        ap.error('Run in a Slurm CPU allocation')
+    if args.repeats < 1 or args.max_local_gib <= 0:
+        ap.error('repeats and max-local-gib must be positive')
+    args.out = args.out.resolve(); args.local_root = args.local_root.resolve()
+    if args.out.is_relative_to(Path.home()) or args.local_root.is_relative_to(Path.home()):
+        ap.error('Data and scratch must be outside home')
+    args.out.mkdir(parents=True, exist_ok=False)
+    groups, representatives = inventory(args.tasks)
+    save(args.out / 'inventory.json', dict(groups={k: [p.name for p in v] for k, v in groups.items()},
+         representatives=[p.name for p in representatives], source=str(args.tasks.resolve()),
+         cluster=os.environ.get('SLURM_CLUSTER_NAME'), partition=os.environ.get('SLURM_JOB_PARTITION'),
+         local_root=str(args.local_root), note='Cached-image starts, not cold builds; OS page cache is not flushed.'))
+    cache = args.out / 'images'
+    started = time.monotonic()
+    copy_cache(cache_files(args.cache, groups), cache)
+    save(args.out / 'cache-seed.json', dict(seconds=time.monotonic() - started))
+    with (args.out / 'outcomes.jsonl').open('x') as journal:
+        with bridge(cache, args.out / 'warmup-scratch', args.out / 'warmup-services') as url:
+            for key, tasks in groups.items():
+                asyncio.run(measure(tasks[0], args.out / 'warmup' / key, cache, url, journal, 'warmup', True))
+        if args.warmup_only:
+            return
+        files = cache_files(cache, groups)
+        if len([n for n in files if n.endswith('.sif')]) != len(groups):
+            raise RuntimeError('Warmup did not cache every distinct environment')
+        task_bytes = sum(p.stat().st_size for task in representatives for p in task.rglob('*') if p.is_file())
+        # Conservative apparent size (including sparse overlays) plus writable
+        # instance/build headroom. Only one task is live in this initial pilot.
+        needed = sum(p.stat().st_size for p in files.values()) + task_bytes + 4 * 2**30
+        args.local_root.mkdir(parents=True, exist_ok=True)
+        mount = subprocess.check_output(['findmnt', '-T', str(args.local_root), '-no', 'FSTYPE'], text=True).strip()
+        if mount == 'tmpfs':
+            memory_mb = int(os.environ.get('SLURM_MEM_PER_NODE', '0'))
+            if not memory_mb:
+                memory_mb = int(os.environ.get('SLURM_MEM_PER_CPU', '0')) * int(os.environ.get('SLURM_CPUS_PER_TASK', '1'))
+            if args.max_local_gib * 1024 > memory_mb / 4:
+                raise RuntimeError('RAM scratch budget must fit within one quarter of allocated job memory')
+        if needed > args.max_local_gib * 2**30 or needed > shutil.disk_usage(args.local_root).free:
+            raise RuntimeError(f'Local pilot needs at least {needed} bytes; exceeds budget/free space')
+        local = args.local_root / f'cce-warmup-{os.getpid()}'
+        local.mkdir()
+        try:
+            started = time.monotonic()
+            copy_cache(files, local / 'images')
+            image_seconds = time.monotonic() - started
+            started = time.monotonic()
+            for task in representatives:
+                shutil.copytree(task, local / 'tasks' / task.name)
+            save(args.out / 'staging.json', dict(image_seconds=image_seconds,
+                 task_seconds=time.monotonic() - started, estimated_peak_bytes=needed, filesystem=mount))
+            layouts = [('horse', cache, args.out / 'scratch', False),
+                       ('local-images', local / 'images', args.out / 'scratch', False),
+                       ('local-work', cache, local / 'scratch', True),
+                       ('local-both', local / 'images', local / 'scratch', True)]
+            for repeat in range(args.repeats):
+                # Reverse order on alternate repetitions to expose warm-cache/order effects.
+                for name, images, scratch, local_tasks in (layouts if repeat % 2 == 0 else layouts[::-1]):
+                    label = f'{repeat}-{name}'
+                    output = args.out / label
+                    with bridge(images, scratch / label, output / 'services') as url:
+                        for task in representatives:
+                            source = local / 'tasks' / task.name if local_tasks else task
+                            asyncio.run(measure(source, output / task.name, images, url, journal, label))
+            save(args.out / 'complete.json', dict(status='passed', repeats=args.repeats,
+                 tasks=len(representatives), layouts=len(layouts)))
+        finally:
+            shutil.rmtree(local)
+
+
+def warmup_cli():
+    warmup_main()
+
+
+# Rewards
+#!/usr/bin/env python3
+"""How to grade a CrossCodeEval answer locally, and which wrong answers are worth
+trying. tests/test_dataset_reward_plugins.py imports this module as
+`data.<dataset>.patch`; register new reward contracts in that test.
+"""
+import contextlib
+import importlib.util
+import io
+import json
+import re
+import tempfile
+from pathlib import Path
+
+# Where a trial's answer has to be for the task's tests/test.sh to grade it.
+ANSWER_PATH = '/app/solution.txt'
+
+
+def language(task: Path) -> str:
+    return re.search(r'-(\w+)-\d+$', task.name).group(1)
+
+
+def reference(task: Path) -> str:
+    """The graded reference solution, as shipped in the task."""
+    lang = language(task)
+    return (task / 'tests' / ('expected.txt' if lang == 'java' else 'solution.txt')).read_text()
+
+
+def grade(task: Path, answer: str) -> float:
+    """Reward for `answer`, using this task's own verifier, in this process."""
+    lang = language(task)
+    spec = importlib.util.spec_from_file_location('v', task / 'tests/cceval_verifier.py')
+    v = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(v)
+    gold_file = task / 'tests' / ('expected.txt' if lang == 'java' else 'solution.txt')
+    prompt = task / 'tests/prompt.txt'
+    with tempfile.TemporaryDirectory() as d:
+        pred = Path(d) / 'solution.txt'
+        pred.write_text(answer)
+        args = ['--language', lang, '--prediction', str(pred), '--reference', str(gold_file),
+                '--out', d + '/out']
+        if prompt.exists():
+            args += ['--prompt', str(prompt)]
+        with contextlib.redirect_stdout(io.StringIO()):
+            v.main(args)
+        return json.loads((Path(d) / 'out/reward.json').read_text())['reward']
+
+
+def extra_variants(task: Path, gold: str) -> dict[str, tuple[str, float]]:
+    """{label: (answer, expected reward)} beyond the generic reference/empty pair.
+
+    Each of these caught a real verifier defect:
+      re-indented reference   whitespace must not matter (Java's old diff failed this)
+      lone } ; {              what the retired TaskTrove verifier paid partial credit for
+      return null;            the most common trivial first statement
+      one identifier renamed  catches a verifier rewarding a prefix or first-token match
+    """
+    spec = importlib.util.spec_from_file_location('v', task / 'tests/cceval_verifier.py')
+    v = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(v)
+    ids = v.extract_identifiers(gold, language(task))
+    near = gold.replace(ids[0], ids[0] + 'Wrong', 1) if ids else gold + ' wrong'
+    reindented = '\n'.join('    ' + l.strip() for l in gold.splitlines()) + '\n'
+    return {'reference re-indented': (reindented, 1),
+            'garbage call': ('__PILOT_WRONG_ANSWER__();', 0),
+            'lone }': ('}', 0), 'lone ;': (';', 0), 'lone {': ('{', 0),
+            'return null;': ('return null;', 0),
+            'one identifier renamed': (near, 0)}
+
+
+def rewards_cli():
+    import argparse
+    parser = argparse.ArgumentParser(description="Grade one task with its own verifier")
+    parser.add_argument("task", type=Path)
+    task = parser.parse_args().task
+    gold = reference(task)
+    for label, (answer, want) in {"reference": (gold, 1), "empty answer": ("", 0), **extra_variants(task, gold)}.items():
+        print(label, grade(task, answer), "expected", want)
+
+
 if __name__ == '__main__':
+    from data.utils.cli import dispatch
+    dispatch({'prepare': prepare_cli, 'warmup': warmup_cli, 'rewards': rewards_cli})
     main()

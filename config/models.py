@@ -1,54 +1,25 @@
 #!/usr/bin/env python3
-"""The teacher models a run can use, and how each one is served.
+"""Teacher models, sampling defaults and GPU requirements.
 
-All of them run on the one pinned serving runtime (VLLM_VERSION below): a single
-version keeps the setup honest, since a model newer than the runtime fails to
-load its own weights, and two runtimes side by side make it unclear which numbers
-came from which. Bump the pin, rebuild the image, re-run a smoke.
+Use model-card settings and document exceptions. vLLM is pinned in requirements.txt.
+context limits prompt + reply tokens; max_output_tokens limits one reply, including thinking.
 
-`weak` and `strong` were the pilot's names for "the small coder model" and "the
-big thinking model" (it compared teachers of different strength). They survive
-as aliases, but a model is addressed by name here, so adding a third one does not
-mean inventing a third adjective.
-
-Sampling follows each model card; it is set here and not taken from upstream
-defaults, because a teacher's reward rate is only comparable when the sampling is
-the one the model was tuned for.
-
-  python config/models.py                      # list them
-  python config/models.py --download <key>     # fetch weights into $PILOT_ROOT/models
+  python config/models.py                   # list models
+  python config/models.py --download <key>  # save to $OT_MODELS or $OT_WORKSPACE/models
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-# The serving runtime everything uses. hpc/<cluster>/build_runtime.sh builds the
-# image for this tag, and the launcher refuses to start without it.
-VLLM_VERSION = 'v0.29.0'
-
-
-@dataclass
-class Concurrency:
-    """What one measurement on one kind of hardware found.
-
-    `trials` is the total to run in flight for this model's own allocation (its
-    `gpus`), not per GPU. `limited_by` says what stops it going higher - 'gpu'
-    when more trials no longer raise utilization, 'cores' when the allocation
-    runs out of cores first and the GPU is still partly idle. Both are worth
-    recording: the second is still the number to use, it just says that more
-    cores per GPU, not a bigger engine, is what would help.
-    """
-    trials: int
-    gpu_util: float
-    limited_by: str
-    note: str = ''
-
-
 @dataclass
 class Model:
-    name: str                       # directory under $PILOT_ROOT/models
+    name: str                       # directory under $OT_MODELS or $OT_WORKSPACE/models
     gpus: int
     sampling: dict
+    # From the model card. The defaults are what the September 2026 pilot ran its
+    # models with (not their card values), kept so those numbers stay comparable.
+    context: int = 32768
+    max_output_tokens: int = 8192
     hf_repo: str = ''               # where the weights come from
     thinking: bool = False
     extra_args: list = field(default_factory=list)
@@ -63,9 +34,6 @@ class Model:
     dtype: str = 'bfloat16'
     reasoning_parser: str = ''
     weights_gb: int = 0             # bf16/fp8 checkpoint size, for planning
-    # Measured with the `sweep` stage, per hardware ('<cluster>-<gpu type>'),
-    # because a different GPU or core budget gives a different answer.
-    concurrency: dict = field(default_factory=dict)
 
     def parallelism(self, gpus_per_node: int) -> tuple[int, int]:
         """(tensor parallel, pipeline parallel) for a cluster with this node width."""
@@ -88,18 +56,10 @@ MODELS = {
     'coder-30b': Model(
         name='Qwen3-Coder-30B-A3B-Instruct', hf_repo='Qwen/Qwen3-Coder-30B-A3B-Instruct',
         gpus=1, weights_gb=61,
-        concurrency={'helma-h200': Concurrency(
-            trials=32, gpu_util=0.74, limited_by='cores',
-            note='73-74% at 16 and at 32 trials; 32 is all that fits in 32 cores per GPU, '
-                 'so the GPU stays partly idle and only more cores per GPU would help')},
         sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'repetition_penalty': 1.05}),
     'qwen35-122b': Model(
         name='Qwen3.5-122B-A10B', hf_repo='Qwen/Qwen3.5-122B-A10B',
         gpus=4, thinking=True, weights_gb=245, reasoning_parser='qwen3',
-        concurrency={'helma-h200': Concurrency(
-            trials=32, gpu_util=0.89, limited_by='gpu',
-            note='88-90% from 32 trials up; 64 and 100 in flight gained nothing, so the '
-                 'engine, not the cores, is the wall')},
         sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20},
         extra_args=['--language-model-only']),
     # Multi-node teacher that this runtime can actually serve: Qwen3MoeForCausalLM
@@ -121,14 +81,86 @@ MODELS = {
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
 
+# The two models the RL runs start from, measured on every dataset. Sampling is
+# the model card's (and generation_config.json's) own, nothing added.
+#
+# Context and reply limit are the same for both, and the same as the September
+# pilot's models: 32,768 is the native context of Qwen3-30B-A3B, which it handles
+# without rope scaling (the card needs YaRN beyond it and warns that YaRN can cost
+# quality on short inputs). Instruct-2507 could take 262,144, but is held to the
+# same limit so the two are compared like for like. The cards' recommended output
+# lengths (16,384 and 32,768) do not fit an agent turn inside a 32,768 context,
+# so one reply, thinking included, gets 8,192.
+MODELS.update({
+    # Never thinks. Card: Temperature=0.7, TopP=0.8, TopK=20, MinP=0.
+    'qwen3-30b-instruct-2507': Model(
+        name='Qwen3-30B-A3B-Instruct-2507', hf_repo='Qwen/Qwen3-30B-A3B-Instruct-2507',
+        gpus=1, weights_gb=61, context=32768, max_output_tokens=8192,
+        sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'min_p': 0}),
+    # Thinking on; the template has only the switch, no effort levels. Card, thinking
+    # mode: Temperature=0.6, TopP=0.95, TopK=20, MinP=0.
+    'qwen3-30b-thinking': Model(
+        name='Qwen3-30B-A3B', hf_repo='Qwen/Qwen3-30B-A3B',
+        gpus=1, thinking=True, weights_gb=61, reasoning_parser='qwen3',
+        context=32768, max_output_tokens=8192,
+        sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20, 'min_p': 0}),
+})
+
 # The pilot's old names, kept so existing commands and run ids keep working.
-ALIASES = {'weak': 'coder-30b', 'strong': 'qwen35-122b'}
+
+
+def weights_dir(model_name: str):
+    """Where a model's weights are: $OT_MODELS (shared by all datasets) or $OT_WORKSPACE/models."""
+    import os
+    from pathlib import Path
+    shared = os.environ.get('OT_MODELS')
+    return (Path(shared) if shared else Path(os.environ.get('OT_WORKSPACE', '.')) / 'models') / model_name
+
+
+def serving_agent_kwargs(spec, context, overrides):
+    """Keep Harbor's context accounting consistent with the actual reply budget."""
+    output = overrides.get('max_tokens', spec.max_output_tokens)
+    info = {'max_input_tokens': context, 'input_cost_per_token': 0, 'output_cost_per_token': 0,
+            **overrides.get('model_info', {}), 'max_output_tokens': output}
+    if not isinstance(output, int) or not 0 < output < min(context, info['max_input_tokens']):
+        raise ValueError('max_tokens must be positive and smaller than --serve-context; leave room for the agent prompt')
+    return {'temperature': spec.sampling['temperature'],
+            'extra_body': {**{k: v for k, v in spec.sampling.items() if k != 'temperature'},
+                           'chat_template_kwargs': {'enable_thinking': spec.thinking}},
+            **overrides, 'max_tokens': output, 'model_info': info}
+
+
+def placement(spec: 'Model', gpus_per_node: int | None = None, replicas: int = 1) -> dict:
+    """How one model is spread over an allocation.
+
+    A model that fits one node is tensor-parallel on that node. A larger one takes
+    whole nodes: tensor-parallel inside each, pipeline-parallel across them, held
+    together by a Ray cluster. OT_GPUS_PER_NODE (default 4, Helma's node width) and
+    OT_SERVE_GPUS (more GPUs than the model needs) exist to exercise the multi-node
+    path without a model that large.
+
+    `replicas` loads that many full copies of a model on one node, each on its own
+    GPUs (vLLM's data parallelism). They share one server address, and vLLM hands
+    each request to the copy with the least work, so more trials can run at once.
+    """
+    import os
+    from dataclasses import replace
+    from config.clusters import detect_cluster
+    cluster = detect_cluster()
+    width = gpus_per_node or int(os.environ.get('OT_GPUS_PER_NODE') or (cluster.gpus_per_node if cluster else 4))
+    total = max(spec.gpus, int(os.environ.get('OT_SERVE_GPUS') or 0))
+    tp, pp = replace(spec, gpus=total).parallelism(width)
+    nodes = -(-total // width)
+    if replicas > 1 and (nodes > 1 or total * replicas > width):
+        raise ValueError(f'{replicas} copies of {spec.name} need {total * replicas} GPUs on one node, a node has {width}')
+    return {'gpus': total * replicas, 'nodes': nodes, 'gpus_per_node': min(total * replicas, width),
+            'tensor_parallel': tp, 'pipeline_parallel': pp, 'replicas': replicas}
 
 
 def resolve(key: str) -> tuple[str, Model]:
-    name = ALIASES.get(key, key)
+    name = key
     if name not in MODELS:
-        raise SystemExit(f'unknown model {key!r}; known: {", ".join([*MODELS, *ALIASES])}')
+        raise SystemExit(f'unknown model {key!r}; known: {", ".join(MODELS)}')
     return name, MODELS[name]
 
 
@@ -136,18 +168,16 @@ if __name__ == '__main__':
     import argparse
     ap = argparse.ArgumentParser(description='List the teacher models.')
     ap.add_argument('--gpus-per-node', type=int, default=4)
-    ap.add_argument('--download', help='fetch this model into $PILOT_ROOT/models')
+    ap.add_argument('--download', help='fetch this model into $OT_MODELS, or $OT_WORKSPACE/models if that is unset')
     a = ap.parse_args()
     if a.download:
-        import os
-        from pathlib import Path as P
         from huggingface_hub import snapshot_download
         key, m = resolve(a.download)
         if not m.hf_repo:
             raise SystemExit(f'{key} has no hf_repo')
         import json
         from huggingface_hub import HfApi
-        dest = P(os.environ['PILOT_ROOT']) / 'models' / m.name
+        dest = weights_dir(m.name)
         print(f'{m.hf_repo} -> {dest}  ({m.weights_gb} GB)')
         # The launcher refuses to serve a model without this marker, so a
         # half-finished download can never be mistaken for a complete one.
@@ -157,12 +187,8 @@ if __name__ == '__main__':
             json.dumps({'model': m.hf_repo, 'revision': revision}, indent=2) + '\n')
         print(f'wrote {dest}/download_complete.json (revision {revision})')
         raise SystemExit(0)
-    print(f"{'key':14}{'weights':>9}{'GPUs':>6}{'nodes':>7}  {'TPxPP':8}{'thinking':>9}  sampling")
+    print(f"{'key':24}{'weights':>9}{'GPUs':>6}{'nodes':>7}  {'TPxPP':8}{'thinking':>9}{'context':>9}{'reply':>7}  sampling")
     for key, m in MODELS.items():
         tp, pp = m.parallelism(a.gpus_per_node)
-        alias = [x for x, n in ALIASES.items() if n == key]
-        print(f'{key:14}{m.weights_gb:7} GB{m.gpus:6}{m.nodes(a.gpus_per_node):7}  {f"{tp}x{pp}":8}'
-              f'{str(m.thinking):>9}  {m.sampling}' + (f'  (alias: {", ".join(alias)})' if alias else ''))
-        for hardware, c in m.concurrency.items():
-            print(f'{"":14}measured on {hardware}: {c.trials} trials in flight, '
-                  f'{c.gpu_util:.0%} GPU, limited by {c.limited_by} - {c.note}')
+        print(f'{key:24}{m.weights_gb:7} GB{m.gpus:6}{m.nodes(a.gpus_per_node):7}  {f"{tp}x{pp}":8}'
+              f'{str(m.thinking):>9}{m.context:>9}{m.max_output_tokens:>7}  {m.sampling}')

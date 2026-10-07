@@ -1,9 +1,8 @@
 """Stage-1 suffix fix-up, applied before contract hashing; originals stay unchanged."""
 import copy
-import hashlib
 import io
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 import re
 import shutil
 import tarfile
@@ -25,7 +24,7 @@ def suffix(instruction, config):
     return (text + '\n\n' + sentence + '\n').encode()
 
 
-def normalize_archive(blob):
+def normalize_archive(blob, transform=None):
     output = io.BytesIO()
     with tarfile.open(fileobj=io.BytesIO(blob), mode='r:*') as source:
         members = source.getmembers()
@@ -34,7 +33,7 @@ def normalize_archive(blob):
             if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
                 raise ValueError('unsafe task archive')
         files = {str(PurePosixPath(m.name)): source.extractfile(m).read() for m in members if m.isfile()}
-        normalized = suffix(files['instruction.md'], files['task.toml'])
+        normalized = transform(files['instruction.md'], files['task.toml']) if transform else suffix(files['instruction.md'], files['task.toml'])
         with tarfile.open(fileobj=output, mode='w') as target:
             for member in members:
                 member = copy.copy(member)
@@ -51,6 +50,11 @@ def prepare(args, destination):
     original = args.tasks.resolve()
     records, files = inventory(original, args.limit, args.task_id_range)
     ids = {r['task_id'] for r in records}
+    from validation.checks.instruction_paths import Normalizer
+    paths = Normalizer(args, records)
+    def transform(task_id, instruction, config):
+        instruction = paths.apply(task_id, instruction)
+        return suffix(instruction, config) if getattr(args, 'fix_instruction_suffix', True) else instruction
     destination.mkdir(parents=True, exist_ok=False)
     try:
         inputs = parquet_files(original)
@@ -64,7 +68,7 @@ def prepare(args, destination):
                     for batch in parquet.iter_batches(batch_size=32):
                         rows = [r for r in batch.to_pylist() if r['path'] in ids]
                         for row in rows:
-                            row['task_binary'] = normalize_archive(row['task_binary'])
+                            row['task_binary'] = normalize_archive(row['task_binary'], lambda instruction, config: transform(row['path'], instruction, config))
                         if rows:
                             table = pa.Table.from_pylist(rows, schema=parquet.schema_arrow)
                             if writer is None:
@@ -74,10 +78,15 @@ def prepare(args, destination):
                     if writer:
                         writer.close()
         else:
-            for task in select_paths(discover_tasks(original), args):
+            selected_tasks = select_paths(discover_tasks(original), args)
+            from validation.publishing.image_release import copy_references
+            copy_references(selected_tasks, destination)
+            from validation.checks.path_cache import copy_cache
+            copy_cache(original, destination)
+            for task in selected_tasks:
                 target = destination / task.name
                 shutil.copytree(task, target)
-                (target / 'instruction.md').write_bytes(suffix((task / 'instruction.md').read_bytes(), (task / 'task.toml').read_bytes()))
+                (target / 'instruction.md').write_bytes(transform(task.name, (task / 'instruction.md').read_bytes(), (task / 'task.toml').read_bytes()))
         meta_path = (original if original.is_dir() else original.parent) / 'source.json'
         meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
         meta['normalization'] = {'operation': 'canonical-timeout-anticheat-suffix-v1', 'original_path': str(original),
@@ -86,6 +95,13 @@ def prepare(args, destination):
             'timeout_source': '[agent].timeout_sec', 'saved_dataset': str(destination.resolve()),
             'original_manifest_sha256': digest(records), 'original_source_files': files,
             'original_selection': {'limit': args.limit, 'task_id_range': args.task_id_range}}
+        meta['normalization']['instruction_paths'] = paths.report
+        if paths.report['evidence_reports']:
+            meta['normalization']['operation'] = 'automatic-instruction-normalization-v1'
+        if not getattr(args, 'fix_instruction_suffix', True):
+            meta['normalization']['description'] = 'Automatic evidence-backed path replacements in a validation copy; original inputs unchanged.'
+        meta['normalization']['suffix_enabled'] = getattr(args, 'fix_instruction_suffix', True)
+        (destination / 'instruction-path-edits.json').write_text(json.dumps(paths.report, indent=2) + '\n')
         (destination / 'source.json').write_text(json.dumps(meta, indent=2) + '\n')
     except BaseException:
         shutil.rmtree(destination)

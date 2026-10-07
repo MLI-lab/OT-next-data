@@ -18,7 +18,7 @@ def main():
             raise ValueError('choose unique stages from 1 through 10')
     except ValueError as exc:
         ap.error(str(exc))
-    from hpc.helma.validation_submit import maybe_submit
+    from hpc.validation_submit import maybe_submit
     try:
         from validation.contract import bind
         numbers = bind(args, numbers)
@@ -33,6 +33,10 @@ def main():
 
 
 def run_selected(args, numbers):
+    from validation.stages.normalize_paths import prepare as normalize_paths
+    normalize_paths(args, numbers)
+    from data.utils.resolve_pip_pins import prepare as normalize_pip_pins
+    normalize_pip_pins(args, numbers)
     report = {'stages': [], 'complete': False, 'dry_run': args.dry_run}
     if getattr(args, 'contract', None):
         from validation.contract import read
@@ -40,14 +44,15 @@ def run_selected(args, numbers):
     summary = args.out.resolve() / f'pipeline-{uuid4().hex[:12]}.json'
     analysis_jobs, given_trials = [], args.trials
     save(summary, report)
-    bundled = {n for n in numbers if n in (3, 4, 5)} if getattr(args, 'reuse_validation_containers', False) else set()
+    args._build_failures = {}
+    bundled = {n for n in numbers if n in (4, 5)} if getattr(args, 'reuse_validation_containers', False) else set()
     if len(bundled) < 2:
         bundled = set()  # Standalone stages retain ordinary fresh-start behavior.
     bundle_finished = False
     for number in numbers:
         if number in bundled:
             if not bundle_finished:
-                from validation.stages.paired import run_validation_bundle
+                from validation.stages.run_reused_containers import run_validation_bundle
                 try:
                     for stage, path, result in run_validation_bundle(args, bundled):
                         report['stages'].append({'stage': stage, 'report': str(path),
@@ -70,6 +75,9 @@ def run_selected(args, numbers):
                 path, result = run_stage(number, args)
                 report['stages'].append({'stage': number, 'report': str(path),
                                          'status': 'findings' if result['has_findings'] else 'completed'})
+                if number == 3 and not args.dry_run:
+                    args._build_failures = {i['task']: {'report': str(path), 'reason': i.get('reason', 'build validation failed')}
+                                            for i in result['items'] if i['status'] != 'passed'}
                 if number in (6, 9):
                     analysis_jobs.extend(i['job_dir'] for i in result['items'] if i.get('job_dir') and i['job_dir'] not in analysis_jobs)
             except Exception as exc:

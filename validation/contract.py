@@ -77,10 +77,15 @@ def inventory(source, limit=None, task_id_range=None):
 def implementation():
     base = Path(__file__).parent
     code = [p for p in base.rglob('*.py') if p.relative_to(base).parts[0] not in ('results', 'contracts')]
-    paths = [*code, ROOT / 'harbor_patches/bridge_worker.py', ROOT / 'hpc/helma/validation.sbatch',
-             ROOT / 'hpc/helma/validation_submit.py', ROOT / 'hpc/helma/validation_worker.py',
-             ROOT / 'hpc/helma/proxy.sh', ROOT / 'config/models.py', ROOT / 'config/clusters.py']
+    paths = [*code, *(ROOT / 'harbor_patches').glob('*.py'),
+             ROOT / 'hpc/helma/validation.sbatch', ROOT / 'hpc/zih/validation.sbatch', ROOT / 'hpc/validation.sh',
+             ROOT / 'hpc/validation_submit.py', ROOT / 'hpc/validation_worker.py',
+             ROOT / 'hpc/helma/proxy.sh',
+             ROOT / 'hpc/local_runtime.py', ROOT / 'hpc/local_assets.py', ROOT / 'hpc/image_cache.py',
+             ROOT / 'config/models.py', ROOT / 'config/clusters.py', ROOT / 'config/runtime.py', ROOT / 'requirements.txt']
     paths.extend((ROOT / 'data/annotate_dataset').glob('*.txt'))
+    paths.extend((ROOT / 'data/utils').rglob('*.py'))
+    paths.append(ROOT / 'data/seta/patch.py')
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
 
 
@@ -92,13 +97,11 @@ def dependencies():
 def local_model_assets(args):
     if not getattr(args, 'serve_model', None):
         return None
-    import os
     from dataclasses import asdict
-    from config.models import resolve, VLLM_VERSION
+    from config.models import resolve, weights_dir
+    from config.runtime import record
     _, spec = resolve(args.serve_model)
-    base = Path(os.environ.get('PILOT_ROOT', '.'))
-    weights = Path(args.serve_weights) if getattr(args, 'serve_weights', None) else base / 'models' / spec.name
-    image = Path(args.serve_image) if getattr(args, 'serve_image', None) else base / f'images/runtime-{VLLM_VERSION}.sif'
+    weights = Path(args.serve_weights) if getattr(args, 'serve_weights', None) else weights_dir(spec.name)
     assets = {name: hashlib.sha256((weights / name).read_bytes()).hexdigest()
               for name in ('config.json', 'tokenizer_config.json', 'chat_template.jinja', 'generation_config.json') if (weights / name).is_file()}
     marker = weights / '.cache/huggingface/download/config.json.metadata'
@@ -106,24 +109,24 @@ def local_model_assets(args):
     download_marker = weights / 'download_complete.json'
     if download_marker.is_file():
         revision = json.loads(download_marker.read_text()).get('revision', revision)
-    sidecar = Path(str(image) + '.sha256')
     return {'spec': asdict(spec), 'weights': str(weights.resolve()), 'revision': revision,
-            'assets_sha256': assets, 'image': str(image.resolve()),
-            'image_sha256_sidecar': sidecar.read_text().split()[0] if sidecar.is_file() else None,
-            'image_size': image.stat().st_size if image.is_file() else None,
+            'assets_sha256': assets, 'runtime': record(),
             'scope': 'configuration hashes and recorded model revision; weight shards are not rehashed'}
 
 
 def profile(args):
     from validation.checks.agent_run import agent_settings
     apptainer = args.backend == 'apptainer'
+    from validation.stages.runner import dependency_archive_spec
     return {
+        'dependency_archives': dependency_archive_spec(args),
+        'instruction_path_search_roots': getattr(args, 'resolve_path_root', []),
         # Agent defaults (maximum turns, parser, ...) with --agent-kwargs applied.
         'agent_settings': agent_settings(args.agent, args.agent_kwargs),
         'backend': args.backend, 'architecture': platform.machine(),
         'partition_policy': getattr(args, 'partition', 'auto'),
         'allocation_policy': 'auto: CPU for external models; h200 for local models or explicit GPUs; h200 fallback if CPU partition has no usable nodes',
-        'scheduler_target': 'Helma/Slurm' if args.submit == 'helma' else args.submit,
+        'scheduler_target': f'{args.submit}/Slurm' if args.submit in ('helma', 'zih') else args.submit,
         'submission_host': platform.node(),
         'network': args.network_mode if apptainer else 'backend/task-defined; see frozen task configs',
         'network_guarantee': ('host networking through cluster HTTP proxy' if args.network_mode == 'host'
@@ -134,21 +137,26 @@ def profile(args):
         'profile_scope': 'declared bridge policy including stated fallbacks; does not certify offline or rootless behavior',
         'dependency_policy': 'execute shipped Dockerfiles; mutable tags and unpinned installs are not rewritten; reuse content-keyed image cache unless force_build; installed agents may download dependencies',
         'environment_kwargs': args.environment_kwargs,
+        'build_retry_policy': 'after initial pass, retry failed tasks three times in fresh environments; require all three to pass; skip subsequent oracle/NOP on failure',
         'force_build': args.force_build, 'trial_cpus': args.trial_cpus,
         'trial_memory_mb': args.trial_memory_mb,
         'agent': args.agent, 'model': args.model, 'review_agent': args.review_agent,
         'review_model': args.review_model, 'analysis_agent': getattr(args, 'analysis_agent', None),
         'analysis_model': getattr(args, 'analysis_model', None),
         'review_defaults_source': getattr(args, 'review_defaults_source', None), 'agent_kwargs': args.agent_kwargs,
-        'proposal_review': getattr(args, 'proposal_review', False), 'proposal_model': getattr(args, 'proposal_model', None),
         'review_local': getattr(args, 'review_local', False),
         'serve_weights': str(args.serve_weights) if getattr(args, 'serve_weights', None) else None,
-        'serve_image': str(args.serve_image) if getattr(args, 'serve_image', None) else None,
         'serve_context': getattr(args, 'serve_context', 32768),
+        'serve_replicas': getattr(args, 'serve_replicas', 1),
         'local_model_assets': local_model_assets(args),
         'serve_model': args.serve_model, 'api_base': args.api_base,
-        'validation_container_reuse': 'same-task stages 3,5,4; logs cleared, filesystem state retained' if getattr(args, 'reuse_validation_containers', False) else 'fresh instance per phase',
+        'validation_container_reuse': 'stage 3 fresh; same-task stages 5,4; logs cleared, filesystem state retained' if getattr(args, 'reuse_validation_containers', False) else 'fresh instance per phase',
+        'nop_setup_policy': 'one NOP trial per attempt after environment preparation; no pre-setup NOP',
+        'task_setup_budget_policy': 'Slurm image preparation precedes task timers; container startup, detected task setup and setup-files upload share environment.build_timeout_sec; direct runs without preparation also include image build',
         'container_start_concurrency': getattr(args, 'container_start_concurrency', 8),
+        'image_preparation': {name: getattr(args, 'image_build_' + name, default)
+                              for name, default in [('memory_mb', 8192), ('cpus', 4),
+                                                    ('concurrency', 2), ('timeout_sec', 3600)]},
         'container_start_interval': getattr(args, 'container_start_interval', 0),
         'static_concurrency': getattr(args, 'static_concurrency', None) or args.concurrency,
         'static_concurrency_policy': 'cap at allocated CPU budget; no separate verifier reservation',
@@ -167,16 +175,21 @@ def protocol(contract):
         f"Instruction normalization: {source.get('normalization') or 'none'}",
         f"Task count: {len(task_records(contract))}; minimum acceptable: {criteria['minimum_tasks']}",
         f"Selection: {source['selection']}",
-        f"Task manifest: {contract.get('task_manifest', {}).get('path', 'embedded (legacy)')}",
-        f"Task manifest SHA-256: `{contract.get('task_manifest', {}).get('sha256', digest(task_records(contract)))}`",
+        f"Task manifest: {contract['task_manifest']['path']}",
+        f"Task manifest SHA-256: `{contract['task_manifest']['sha256']}`",
         f"Stages: {contract['stages']}", f"Static exclusions: {criteria['static_exclusions']}",
         f"Imported static checkpoint: {contract.get('static_checkpoint') or 'none'}",
         f"Accept previous path-check adaptation: {contract.get('arguments', {}).get('static_resume_accept_previous_path_check', False)}",
         f"Oracle reward: {criteria['oracle_reward']}; NOP reward: {criteria['nop_reward']}; attempts: {criteria['attempts']}",
+        f"NOP task preparation: {execution.get('nop_setup_policy', 'unspecified in this contract')}",
+        f"Task setup budget: {execution.get('task_setup_budget_policy', 'unspecified in this contract')}",
         f"Reward key: {criteria['reward_key']}", f"Backend: {execution['backend']}; architecture: {execution['architecture']}",
         f"Network: {execution['network_guarantee']}", f"Privileges: {execution['privileges']}",
         f"Mounts: {execution['mount_policy']}", f"Dependencies: {execution['dependency_policy']}",
         f"Container reuse: {execution.get('validation_container_reuse', 'fresh instance per phase')}",
+        'Dependency archives: ' + ('oracle validation builds without one and saves {directory}/<task>.tar from {folder} '
+                                   'after reward 1; all other trials mount it read-only at {target}'.format(**execution['dependency_archives'])
+                                   if execution.get('dependency_archives') else 'none'),
         'Failure policy: continue collecting; selected check failures, infrastructure errors, missing/invalid rewards, skipped tasks and insufficient coverage fail acceptance.',
         'Real/adversarial agent rewards are measurements, not an all-rewards-must-equal-1 gate.',
         'A result supports only this declared execution profile. No Docker/offline/rootless equivalence is implied.',
@@ -184,7 +197,7 @@ def protocol(contract):
 
 
 def create(args, numbers, destination):
-    from validation.verify.check_terminal_bench import load_checks
+    from validation.checks.check_terminal_bench import load_checks
     from validation.stages.runner import check_args, resolve_review_defaults
     check_args(args)
     resolve_review_defaults(args, numbers)
@@ -200,7 +213,7 @@ def create(args, numbers, destination):
     meta = json.loads(source_meta_path.read_text()) if source_meta_path.exists() else {}
     _, checks, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
     frozen = vars(args).copy()
-    for key in ('tasks', 'out', 'trials', 'serve_weights', 'serve_image'):
+    for key in ('tasks', 'out', 'trials', 'serve_weights', 'dependency_archives', 'dependency_layout'):
         if frozen.get(key) is not None:
             frozen[key] = str(Path(frozen[key]).resolve())
     for key in ('prepare_contract', 'contract', 'stages'):
@@ -223,7 +236,7 @@ def create(args, numbers, destination):
         'arguments': frozen,
     }
     if getattr(args, 'static_resume', None):
-        from validation.static_resume import checkpoint_record
+        from validation.checkpoints.static_resume import checkpoint_record
         if 1 not in numbers:
             raise ValueError('--static-resume requires stage 1')
         contract['static_checkpoint'] = checkpoint_record(args.static_resume)
@@ -256,10 +269,8 @@ def read(path):
     recorded = contract.get('sha256')
     if recorded != digest({k: v for k, v in contract.items() if k != 'sha256'}):
         raise ValueError('contract checksum mismatch; prepare a new contract instead of editing it')
-    if contract.get('schema_version') == 1:
-        return contract  # Historical contracts embedded their manifest.
     if contract.get('schema_version') != 2:
-        raise ValueError('unsupported contract schema')
+        raise ValueError('unsupported contract schema; prepare a new contract')
     manifest = contract['task_manifest']
     name = manifest['path']
     if Path(name).name != name or name in ('', '.', '..'):
@@ -295,11 +306,12 @@ def verify_source(args, contract):
         raise ValueError('execution architecture differs from the frozen contract')
 
 
-def bind(args, numbers, *, locked_stage=None):
+def bind(args, numbers):
     if args.prepare_contract:
         if args.contract or args.tasks is None:
             raise ValueError('--prepare-contract requires tasks and cannot be combined with --contract')
-        if 1 in numbers and getattr(args, 'fix_instruction_suffix', False):
+        if 1 in numbers and (getattr(args, 'fix_instruction_suffix', False) or
+                             (getattr(args, 'fix_instruction_paths', True) and getattr(args, 'path_resolution_report', []))):
             from validation.checks.instruction_suffix import prepare
             prepare(args, args.prepare_contract.resolve().with_suffix('.stage1-tasks'))
         create(args, numbers, args.prepare_contract)
@@ -307,8 +319,6 @@ def bind(args, numbers, *, locked_stage=None):
     if not args.contract:
         raise ValueError('a prewritten contract is required: use TASKS --prepare-contract FILE first, then --contract FILE')
     contract = read(args.contract)
-    if locked_stage is not None and contract['stages'] != [locked_stage]:
-        raise ValueError('standalone stage requires a contract containing exactly that stage')
     explicit = {token.split('=')[0][2:].replace('-', '_') for token in sys.argv[1:] if token.startswith('--')}
     # Artifact destination and preview mode may change; execution inputs may not.
     allowed = {'contract', 'out', 'dry_run'}

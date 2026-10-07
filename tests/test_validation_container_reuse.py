@@ -87,7 +87,7 @@ def test_cleanup_attempts_every_environment_after_error(fake_environment):
 
 @pytest.mark.parametrize('nop_reward', [0, 1])
 def test_bundle_order_rewards_and_journals(tmp_path, monkeypatch, fake_environment, nop_reward):
-    from validation.stages import paired, runner
+    from validation.stages import run_reused_containers, runner
     from validation import contract
     from validation.data import selection
     tasks = [tmp_path / name for name in ('a', 'b')]
@@ -99,7 +99,7 @@ def test_bundle_order_rewards_and_journals(tmp_path, monkeypatch, fake_environme
     monkeypatch.setattr(contract, 'verify_materialized', lambda a: None)
     monkeypatch.setattr(selection, 'discover_tasks', lambda p: tasks)
     monkeypatch.setattr(selection, 'select_paths', lambda paths, a: paths)
-    monkeypatch.setattr(paired.runtime, 'check_runtime_task', lambda *a: None)
+    monkeypatch.setattr(run_reused_containers.runtime, 'check_runtime_task', lambda *a: None)
     events = {str(t): [] for t in tasks}
     rewards = {}
     async def phase(task, stage):
@@ -119,12 +119,12 @@ def test_bundle_order_rewards_and_journals(tmp_path, monkeypatch, fake_environme
         out = Path(config['out'])
         rewards[out] = nop_reward if stage == 5 else 1
         return out
-    monkeypatch.setattr(paired.runtime, 'build_task', build)
-    monkeypatch.setattr(paired.runtime, 'job_config', config)
-    monkeypatch.setattr(paired.runtime, 'execute_job', execute)
-    monkeypatch.setattr(paired.runtime, 'trial_results', lambda path: [(path, {
+    monkeypatch.setattr(run_reused_containers.runtime, 'build_task', build)
+    monkeypatch.setattr(run_reused_containers.runtime, 'job_config', config)
+    monkeypatch.setattr(run_reused_containers.runtime, 'execute_job', execute)
+    monkeypatch.setattr(run_reused_containers.runtime, 'trial_results', lambda path: [(path, {
         'verifier_result': {'rewards': {'reward': rewards[path]}}})])
-    reports = paired.run_validation_bundle(args, {3, 4, 5})
+    reports = run_reused_containers.run_validation_bundle(args, {3, 4, 5})
     assert [stage for stage, _, _ in reports] == [3, 5, 4]
     assert list(events.values()) == [[3, 5, 4], [3, 5, 4]]
     assert len(fake_environment.starts) == len(fake_environment.stops) == 2
@@ -138,13 +138,15 @@ def test_bundle_order_rewards_and_journals(tmp_path, monkeypatch, fake_environme
 
 
 @pytest.mark.parametrize('stages,enabled,bundles,singles', [
-    ([1, 3, 4, 5], True, [{3, 4, 5}], [1]),
+    ([1, 3, 4, 5], True, [{4, 5}], [1, 3]),
     ([4], True, [], [4]), ([3, 4, 5], False, [], [3, 4, 5])])
 def test_pipeline_dispatch(tmp_path, monkeypatch, stages, enabled, bundles, singles):
     from validation import run
-    from validation.stages import paired, runner
+    from validation.stages import run_reused_containers, runner
     args = runner.parser().parse_args([str(tmp_path), '--out', str(tmp_path / 'out')])
     args.reuse_validation_containers = enabled
+    args.fix_instruction_paths = False  # This test exercises dispatch, not task preparation.
+    args.fix_pip_pins = False
     calls, individual = [], []
     def bundle(args, selected):
         calls.append(selected)
@@ -152,7 +154,7 @@ def test_pipeline_dispatch(tmp_path, monkeypatch, stages, enabled, bundles, sing
     def single(n, args):
         individual.append(n)
         return tmp_path / str(n), {'has_findings': False, 'items': []}
-    monkeypatch.setattr(paired, 'run_validation_bundle', bundle)
+    monkeypatch.setattr(run_reused_containers, 'run_validation_bundle', bundle)
     monkeypatch.setattr(run, 'run_stage', single)
     assert run.run_selected(args, stages) == 0
     assert calls == bundles and individual == singles

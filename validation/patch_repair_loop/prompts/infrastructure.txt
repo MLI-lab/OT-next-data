@@ -1,0 +1,15 @@
+Use the logs to diagnose shared Slurm, bridge, image-cache, network or runtime
+failures. For a repeatable defect, make the smallest repair in
+allowed_infrastructure_files only. Do not edit the dataset patcher, verifiers or
+solutions. Address reviewer_feedback.
+
+Choose retry_only without edits only for a transient fault whose recovery you
+verified. Supply a recovered prerequisite or successful probe; do not retry
+unchanged missing credentials or persistent failures. A necessary change outside
+the allowed files requires a blocker.
+
+Return {"action": "retry_only|patched|blocked", "reason": "...",
+"changed_files": [...], "retry_task_ids": [...]}, choosing one action.
+For retry_only, include "retry_ready": true and "retry_evidence" describing the
+verified recovery. For blocked, include the common "blocked" object.
+The controller submits retries; do not submit jobs or discard affected tasks.

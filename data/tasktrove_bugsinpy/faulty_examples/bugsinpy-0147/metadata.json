@@ -1,0 +1,8 @@
+{
+  "source": "bugsinpy",
+  "project": "matplotlib",
+  "bug_id": "2",
+  "test_command": "pytest lib/matplotlib/tests/test_axes.py::TestScatter::test_scatter_unfilled",
+  "buggy_commit": "2a3707d9c3472b1a010492322b6946388d4989ae",
+  "fixed_commit": "d86cc2bab8183fd3288ed474e4dfd33e0f018908"
+}

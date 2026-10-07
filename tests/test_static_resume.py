@@ -6,12 +6,14 @@ import sys
 
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from validation import contract, static_resume
-from validation.verify import check_terminal_bench as checker
+from validation import contract
+from validation.checkpoints import static_resume
+from validation.checks import check_terminal_bench as checker
 
 
-@pytest.fixture
-def checkpoint(tmp_path):
+@pytest.fixture(params=['validation/verify/check_terminal_bench.py',
+                       'validation/checks/check_terminal_bench.py'])
+def checkpoint(tmp_path, request):
     task = tmp_path / 'tasks' / 'sample'
     (task / 'environment').mkdir(parents=True)
     (task / 'tests').mkdir()
@@ -22,20 +24,23 @@ def checkpoint(tmp_path):
     root = tmp_path / 'checkpoint'
     root.mkdir()
     shutil.copyfile(checker.__file__, root / 'checker.py')
-    manifest, checks, excluded = checker.load_checks('training')
-    report = {'commit': manifest['commit'], 'profile': 'training', 'checks': checks,
+    manifest, checks, excluded = checker.load_checks('portable')
+    report = {'commit': manifest['commit'], 'profile': 'portable', 'checks': checks,
               'adaptations': dict(checker.ADAPTATIONS), 'tasks': [{'task': task.name, 'status': 'passed',
               'checks': [{'check': name, 'status': 'passed', 'exit_code': 0, 'log': '/old/log'} for name in checks]}]}
-    old = {'schema_version': 1, 'tasks': [{'task_id': task.name, 'sha256': contract.task_digest(task)}],
+    manifest_path = root / 'contract.tasks.json'
+    manifest_path.write_text(json.dumps([{'task_id': task.name, 'sha256': contract.task_digest(task)}]))
+    old = {'schema_version': 2, 'task_manifest': {'path': manifest_path.name,
+           'sha256': static_resume.sha(manifest_path), 'count': 1},
            'success_criteria': {'static_checks': checks},
-           'implementation': {'validation/verify/check_terminal_bench.py': static_resume.sha(root / 'checker.py')}}
+           'implementation': {request.param: static_resume.sha(root / 'checker.py')}}
     old['sha256'] = contract.digest(old)
     (root / 'contract.json').write_text(json.dumps(old))
     (root / 'summary.json').write_text(json.dumps(report))
     (root / 'logs.tar.gz').write_bytes(b'test logs')
     def seal():
         meta = {'source_contract_sha256': old['sha256'], 'checkpoint_tasks': 1,
-                'files': {name: static_resume.sha(root / name) for name in ('contract.json', 'summary.json', 'checker.py', 'logs.tar.gz')}}
+                'files': {name: static_resume.sha(root / name) for name in ('contract.json', 'contract.tasks.json', 'summary.json', 'checker.py', 'logs.tar.gz')}}
         (root / 'checkpoint.json').write_text(json.dumps(meta))
     seal()
     return root, task, manifest, checks, report, seal
@@ -47,7 +52,7 @@ def test_resume_only_unchanged_successes(checkpoint):
     report['tasks'][0]['checks'][0].update(status='failed', exit_code=1)
     (root / 'summary.json').write_text(json.dumps(report))
     seal()
-    imported, record = static_resume.load(root, [task], manifest, checks, 'training')
+    imported, record = static_resume.load(root, [task], manifest, checks, 'portable')
     assert checker.PATH_CHECK not in imported[task.name]
     assert checks[0] not in imported[task.name]
     assert record['imported_checks'] == len(checks) - 2
@@ -67,7 +72,7 @@ def test_resume_rejects_changed_evidence(checkpoint, changed):
     else:
         manifest = {**manifest, 'commit': 'changed'}
     with pytest.raises(ValueError):
-        static_resume.load(root, [task], manifest, checks, 'training', expected)
+        static_resume.load(root, [task], manifest, checks, 'portable', expected)
 
 
 def test_checker_executes_only_missing_checks(checkpoint, tmp_path, monkeypatch):
@@ -83,7 +88,7 @@ def test_checker_executes_only_missing_checks(checkpoint, tmp_path, monkeypatch)
     monkeypatch.setattr(checker.subprocess, 'run', execute)
     monkeypatch.delenv('GPTZERO_API_KEY', raising=False)
     out = tmp_path / 'out'
-    assert checker.run_checks([task], out, resume=root) == 0
+    assert checker.run_checks([task], out, profile='portable', resume=root) == 0
     final = json.loads((out / 'summary.json').read_text())
     assert final['complete'] and len(final['tasks']) == 1
     assert calls == ([] if checks[-1] == checker.AI_CHECK else [checks[-1]])
@@ -95,7 +100,7 @@ def test_explicit_previous_path_check_keeps_success(checkpoint):
     report['adaptations'][checker.PATH_CHECK] = 'old path handling'
     (root / 'summary.json').write_text(json.dumps(report))
     seal()
-    imported, record = static_resume.load(root, [task], manifest, checks, 'training', accept_previous_path_check=True)
+    imported, record = static_resume.load(root, [task], manifest, checks, 'portable', accept_previous_path_check=True)
     assert checker.PATH_CHECK in imported[task.name]
     assert record['accepted_previous_path_check']
     assert not record['rerun_changed_checks']
@@ -103,7 +108,7 @@ def test_explicit_previous_path_check_keeps_success(checkpoint):
 
 @pytest.mark.parametrize('missing', [None, 1, 3, 4, 5])
 def test_automatic_pr_requires_complete_gates(tmp_path, monkeypatch, missing):
-    from validation import publish
+    from validation.publishing import publish
     frozen = {'tasks': [{'task_id': 'sample'}], 'sha256': 'contract'}
     monkeypatch.setattr(publish, 'read', lambda path: frozen)
     reports = {}

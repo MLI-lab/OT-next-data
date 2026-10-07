@@ -57,11 +57,9 @@ currently no separate hand-written JSON configuration loader.
 
 ## Teacher trajectory contracts
 
-Teacher collection has a separate automatic generation contract; see
-[teacher_traces/README.md](../../teacher_traces/README.md#automatic-teacher-generation-contract).
-You configure the model, agent and run normally. The wrapper captures the resolved
-settings and implementation **before invoking trajectory generation**, then saves
-the protocol with that run. You do not author another contract by hand. Dynamic
-prompts, model responses and execution outcomes remain in the trial trajectories.
-A generation contract records how data was collected; it does not establish that
-the dataset passed this validation contract, or automatically enforce such a gate.
+Teacher generation is stage 6 of this same pipeline. Prepare a validation
+contract with `--stages 6,7`, the model and attempt settings, then run it with
+`--contract`. Stage 6 additionally saves `agent-run.json` with the resolved agent
+settings, sampling, model assets and task hashes. Responses and tool executions
+remain in each trial's trajectory. Running stages 6 and 7 alone does not certify
+that tasks passed stages 1, 3, 4 and 5.

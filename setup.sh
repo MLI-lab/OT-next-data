@@ -1,59 +1,78 @@
 #!/bin/bash
-# Install the two pinned dependencies and the host tooling for this repo.
-#
-#   ./setup.sh /path/to/workspace
-#
-# The workspace holds what must not live in the repo: the OpenThoughts-Agent
-# checkout, the python env, model weights, task archives and run outputs.
-# Writes env.sh next to this script; source it before using run/ or validation/.
+# One environment for task validation and teacher generation.
+# ./setup.sh /path/to/workspace [--cluster helma] [--python /path/to/python3.12]
 set -euo pipefail
-
-# Pinned upstreams. Both are dependencies, not vendored code, so this repo stays
-# easy to compare with them. Update deliberately and re-run the checks in
-# validation/dataset_checks.py afterwards.
-OTAGENT_REPO=${OTAGENT_REPO:-https://github.com/open-thoughts/OpenThoughts-Agent.git}
-OTAGENT_PIN=${OTAGENT_PIN:-3bd1917e62c9d03d73063b433f5c442c279c0563}
-HARBOR_PIN=${HARBOR_PIN:-7faf878c14b6d72737579ec936ebf5f74ba3194d}
-
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-ws=${1:?Usage: setup.sh <workspace dir>}
+ws=${1:?Usage: setup.sh /path/to/workspace [--cluster NAME] [--python PATH]}
+shift
+cluster=
+python_override=
+while (( $# )); do
+    case "$1" in
+        --cluster) cluster=${2:?}; shift 2 ;;
+        --python) python_override=${2:?}; shift 2 ;;
+        *) echo "Unknown argument: $1" >&2; exit 2 ;;
+    esac
+done
+if [[ -z "$cluster" ]]; then
+    cluster=$(python3 - "$here" <<'DETECT'
+import sys
+sys.path.insert(0, sys.argv[1])
+from config.clusters import detect_cluster
+cluster = detect_cluster()
+if cluster is None:
+    raise SystemExit('Unknown cluster; pass --cluster NAME')
+print(cluster.name)
+DETECT
+    )
+fi
+# Bootstrap uses only the standard library; it does not install into system Python.
+runtime_exports=$(python3 "$here/config/runtime.py" shell --cluster "$cluster")
+eval "$runtime_exports"
+if [[ -n "$OT_PYTHON_MODULE" ]]; then module load "$OT_PYTHON_MODULE"; fi
+if [[ -n "$OT_APPTAINER_MODULE" ]]; then module load "$OT_APPTAINER_MODULE"; fi
+if [[ -n "$OT_CUDA_MODULE" ]]; then module load "$OT_CUDA_MODULE"; fi
+python_bin=${python_override:-$OT_PYTHON_EXECUTABLE}
+command -v "$python_bin" >/dev/null || {
+    echo "Python executable $python_bin not found. Pass --python /path/to/python3.12 or configure python_module in config/clusters.py." >&2
+    exit 1
+}
+"$python_bin" "$here/config/runtime.py" check --cluster "$cluster" --system-only
 mkdir -p "$ws"
 ws=$(cd "$ws" && pwd)
-
-# 1. Official OpenThoughts-Agent provides data/local/run_tracegen.py.
-#    The experiment wrapper lives here in teacher_traces/.
-if [[ ! -d "$ws/OpenThoughts-Agent/.git" ]]; then
-    git clone "$OTAGENT_REPO" "$ws/OpenThoughts-Agent"
+# Keep one explicit source environment; compute jobs use its local staged copy.
+prep_env=${OT_PREP_ENV:-${OT_DEFAULT_PREP_ENV:-$ws/envs/prep}}
+mkdir -p "$prep_env"
+prep_env=$(cd "$prep_env" && pwd)
+if [[ -x "$prep_env/bin/python" ]]; then
+    "$prep_env/bin/python" "$here/config/runtime.py" check --cluster "$cluster" --system-only
+else
+    "$python_bin" -m venv "$prep_env"
 fi
-# Preserve existing checkouts: an old private clone needs a separate workspace.
-actual_repo=$(git -C "$ws/OpenThoughts-Agent" remote get-url origin)
-if [[ "${actual_repo%.git}" != "${OTAGENT_REPO%.git}" ]]; then
-    echo "Existing checkout uses $actual_repo; expected $OTAGENT_REPO. Use a fresh workspace or set OTAGENT_REPO explicitly." >&2
-    exit 1
-fi
-git -C "$ws/OpenThoughts-Agent" fetch --quiet origin
-git -C "$ws/OpenThoughts-Agent" checkout --quiet "$OTAGENT_PIN"
-
-# 2. Host env: the patcher, the checks and the analysis run here; Harbor is
-#    needed because harbor_patches/bridge_worker.py wraps its apptainer worker.
-python3 -m venv "$ws/envs/prep"
-"$ws/envs/prep/bin/pip" install --quiet --upgrade pip
-"$ws/envs/prep/bin/pip" install --quiet -r "$here/requirements.txt"
-"$ws/envs/prep/bin/pip" install --quiet \
-    "harbor[daytona] @ https://github.com/marin-community/harbor/archive/$HARBOR_PIN.zip"
-
-cat > "$here/env.sh" <<EOF
-# Written by setup.sh on $(date -Is). Source before running anything here.
-export PILOT_ROOT=$ws
-export OTAGENT_ROOT=$ws/OpenThoughts-Agent
-export OT_NEXT_DATA=$here
-export PATH=$ws/envs/prep/bin:\$PATH
-export PYTHONPATH=$here\${PYTHONPATH:+:\$PYTHONPATH}
-EOF
-
-echo "Installed. Workspace: $ws"
-echo "  OpenThoughts-Agent @ $OTAGENT_PIN"
-echo "  harbor             @ $HARBOR_PIN"
-echo "Next: source $here/env.sh"
-echo "Then: python -m pytest $here/tests -q   # unit tests, no cluster needed"
-echo "The GPU runtime image is built separately: hpc/<cluster>/build_runtime.sh (see README)."
+"$prep_env/bin/python" -m ensurepip --upgrade
+"$prep_env/bin/python" -m pip install -r "$here/requirements.txt"
+"$prep_env/bin/python" -m pip check
+"$prep_env/bin/python" "$here/config/runtime.py" check --cluster "$cluster"
+"$prep_env/bin/python" -m pip freeze > "$prep_env/requirements-resolved.txt"
+# Shell-quote generated paths, including spaces. Source the standard activation.
+{
+    printf '%s\n' '# Generated by setup.sh. Source in each new shell.'
+    printf 'export OT_WORKSPACE=%q\n' "$ws"
+    printf 'export OT_NEXT_DATA=%q\n' "$here"
+    printf 'export OT_CLUSTER=%q\n' "$cluster"
+    printf 'export OT_PREP_ENV=%q\n' "$prep_env"
+    printf 'export OT_RUNTIME_BUNDLE=%q\n' "$ws/runtime/prep.json"
+    if [[ -n "$OT_APPTAINER_MODULE" ]]; then printf 'module load %q\n' "$OT_APPTAINER_MODULE"; fi
+    if [[ -n "$OT_PYTHON_MODULE" ]]; then printf 'module load %q\n' "$OT_PYTHON_MODULE"; fi
+    printf 'source %q\n' "$prep_env/bin/activate"
+    printf 'eval "$(%q %q storage --cluster %q)"\n' "$prep_env/bin/python" "$here/config/runtime.py" "$cluster"
+    printf 'export PYTHONPATH=%q${PYTHONPATH:+:$PYTHONPATH}\n' "$here"
+    if [[ -n "$OT_CUDA_MODULE" ]]; then printf 'module load %q\n' "$OT_CUDA_MODULE"; fi
+} > "$here/env.sh"
+# Jobs stage a copy of this same environment on node-local disk.
+# This is a transport archive, not a second set of dependencies or a GPU image.
+"$prep_env/bin/python" "$here/hpc/local_runtime.py" build \
+    "$prep_env" "$ws/runtime/prep.tar"
+echo "Ready: source $here/env.sh"
+echo "Next: python -m validation.upstream setup"
+echo "Download model weights with: python config/models.py --download MODEL"

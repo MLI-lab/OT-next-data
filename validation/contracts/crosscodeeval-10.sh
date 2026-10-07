@@ -3,7 +3,7 @@
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
-workspace="${PILOT_ROOT:-/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke}"
+workspace="${OT_WORKSPACE:-/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke}"
 python_bin="${VALIDATION_PYTHON:-$workspace/envs/prep/bin/python}"
 run_name="non-llm-$(date +%Y%m%d-%H%M%S)"
 contract_path="${1:-$repo_root/validation/results/crosscodeeval/$run_name/contract.json}"

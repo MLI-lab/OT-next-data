@@ -1,16 +1,11 @@
-"""Cost, tool, termination and error statistics read from saved agent trials.
-
-Everything is read from Harbor's `result.json` and ATIF `agent/trajectory.json`.
-A value the agent did not record is reported as null, never estimated.
-"""
+"""Summarize recorded costs, tools, termination reasons and errors from agent trials."""
 from collections import Counter
 from datetime import datetime
 import json
 from pathlib import Path
 import re
 
-from validation.verify.pass_at_k import group_of
-from validation.checks.reward_metrics import trial_reward
+from validation.checks.reward_metrics import group_of, trial_reward
 from validation.checks.command_metrics import profile, mean_distribution
 
 PARSE_ERROR = 'Previous response had parsing errors'

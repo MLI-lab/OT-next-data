@@ -1,0 +1,5 @@
+{
+  "target": "/opt/inferredbugs/dependencies.tar",
+  "folder": "/cache",
+  "exclude": ["./m2/*.xml", "./.inferredbugs-dependencies"]
+}

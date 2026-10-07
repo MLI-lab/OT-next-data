@@ -18,9 +18,15 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
     destination.mkdir(parents=True, exist_ok=True)
     records = []
     seen = set()
+    image_sources = {}
+    path_cache = {}
     for path in parquet_files(source):
+        metadata = pq.read_schema(path).metadata or {}
+        image_manifest = json.loads(metadata[b'ot.images.v1']) if b'ot.images.v1' in metadata else None
+        from validation.checks.path_cache import KEY
+        cached_paths = json.loads(metadata.get(KEY, b'{}'))
         selected = 0
-        for batch in pq.ParquetFile(path).iter_batches(batch_size=32):
+        for batch in pq.ParquetFile(path).iter_batches(batch_size=1):
             for row in batch.to_pylist():
                 if limit is not None and (selected if per_file else len(records)) >= limit:
                     break
@@ -40,6 +46,13 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
                             raise ValueError(f'unsafe archive member: {member.name}')
                     # data filter additionally rejects link/permission tricks.
                     tar.extractall(destination / name, members=members, filter='data')
+                if image_manifest and name in image_manifest['tasks']:
+                    entry = image_manifest['tasks'][name]
+                    image_sources[name] = {k: image_manifest[k] for k in ('version', 'repo_id', 'revision')}
+                    image_sources[name].update(tasks={name: entry}, bundles={
+                        env['bundle']: image_manifest['bundles'][env['bundle']] for env in entry['environments']})
+                if name in cached_paths:
+                    path_cache[name] = cached_paths[name]
                 seen.add(name)
                 selected += 1
                 records.append({'task': name, 'parquet': str(path.resolve()),
@@ -50,6 +63,10 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
         raise ValueError('materialization did not find all selected task IDs')
     if not records:
         raise ValueError('no tasks materialized from Parquet inputs')
+    from validation.checks.path_cache import NAME
+    (destination / NAME).write_text(json.dumps(path_cache))
+    from validation.publishing.image_release import reference_path
+    reference_path(destination).write_text(json.dumps(image_sources))
     (destination.parent / 'materialization.json').write_text(json.dumps(records, indent=2) + '\n')
     return [destination / record['task'] for record in records]
 

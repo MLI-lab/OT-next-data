@@ -1,7 +1,7 @@
 """Guard cache identity/companions and representative coverage before HPC pilots."""
 from pathlib import Path
 
-from data.crosscodeeval.warmup import cache_files, copy_cache, fingerprint, inventory
+from data.crosscodeeval.patch import cache_files, copy_cache, fingerprint, inventory
 
 
 def task(root, name, helper='same'):

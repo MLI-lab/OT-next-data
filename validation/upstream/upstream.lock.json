@@ -10,7 +10,6 @@
   },
   "harbor-validation": {
     "url": "https://github.com/marin-community/harbor.git",
-    "commit": "7faf878c14b6d72737579ec936ebf5f74ba3194d",
     "sparse": [
       "src",
       "packages"

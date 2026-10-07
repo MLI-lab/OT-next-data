@@ -1,0 +1,176 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-optiagent/repair-queue/swelego-codex/loop/wave-50/iteration-00/results/submissions/036814a321ca/evidence.tar.gz",
+  "contract_sha256": "a1da0d0237b7d1701fff562ef35a4d246273699d0258b5c45a1642a7b61135ba",
+  "network_status": {
+    "requested": "host",
+    "effective": "host",
+    "reason": "host networking explicitly requested"
+  },
+  "instruction_fixup": {
+    "operation": "canonical-timeout-anticheat-suffix-v1",
+    "original_path": "/hnvme/workspace/y500bb12-optiagent/repair-queue/swelego-codex/loop/wave-50/iteration-00/pilot/tasks",
+    "description": "Our extension to the upstream Terminal-Bench suffix check appends the sentence when missing and overwrites the saved instruction.md in the validation copy; an existing canonical suffix is updated without duplication. Original inputs are unchanged.",
+    "sentence_template": "You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.",
+    "timeout_source": "[agent].timeout_sec",
+    "saved_dataset": "/hnvme/workspace/y500bb12-optiagent/repair-queue/swelego-codex/loop/wave-50/iteration-00/contract.stage1-tasks",
+    "original_manifest_sha256": "abd6d44566ae4e1c70e608162659c49847268d628d54597f46298c58bfdb2f49",
+    "original_source_files": [],
+    "original_selection": {
+      "limit": null,
+      "task_id_range": null
+    }
+  },
+  "contract_status": "bound",
+  "requested_stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "static_checks",
+      "complete": true,
+      "tasks": 60,
+      "counts": {
+        "passed": 57,
+        "failed": 3
+      },
+      "report": "results/stage_1_static_checks/9b249379aa01/summary.json",
+      "contract_sha256": "a1da0d0237b7d1701fff562ef35a4d246273699d0258b5c45a1642a7b61135ba",
+      "timing": {
+        "node": "h31-65",
+        "slurm_job_id": "929098",
+        "started_at": "2026-10-03T14:52:31+00:00",
+        "wall_seconds": 13.4,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 3,
+      "name": "build_validation",
+      "complete": true,
+      "tasks": 60,
+      "counts": {
+        "passed": 60
+      },
+      "report": "results/stage_3_build_validation/6ea8d8bbfb14/summary.json",
+      "contract_sha256": "a1da0d0237b7d1701fff562ef35a4d246273699d0258b5c45a1642a7b61135ba",
+      "timing": {
+        "node": "h31-65",
+        "slurm_job_id": "929098",
+        "started_at": "2026-10-03T14:52:45+00:00",
+        "wall_seconds": 543.9,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 4,
+      "name": "oracle_validation",
+      "complete": true,
+      "tasks": 60,
+      "counts": {
+        "passed": 59,
+        "failed": 1
+      },
+      "report": "results/stage_4_oracle_validation/22dd59dec17f/summary.json",
+      "contract_sha256": "a1da0d0237b7d1701fff562ef35a4d246273699d0258b5c45a1642a7b61135ba",
+      "timing": {
+        "node": "h31-65",
+        "slurm_job_id": "929098",
+        "started_at": "2026-10-03T15:01:49+00:00",
+        "wall_seconds": 109.2,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 5,
+      "name": "nop_validation",
+      "complete": true,
+      "tasks": 60,
+      "counts": {
+        "passed": 60
+      },
+      "report": "results/stage_5_nop_validation/a86547e05408/summary.json",
+      "contract_sha256": "a1da0d0237b7d1701fff562ef35a4d246273699d0258b5c45a1642a7b61135ba",
+      "timing": {
+        "node": "h31-65",
+        "slurm_job_id": "929098",
+        "started_at": "2026-10-03T15:03:38+00:00",
+        "wall_seconds": 119.2,
+        "concurrency": 8
+      }
+    }
+  ],
+  "review_groups": null,
+  "pipelines": [
+    {
+      "stages": [
+        {
+          "stage": 1,
+          "report": "/tmp/929098.helma/validation-036814a321ca/results/stage_1_static_checks/9b249379aa01/summary.json",
+          "status": "findings"
+        },
+        {
+          "stage": 3,
+          "report": "/tmp/929098.helma/validation-036814a321ca/results/stage_3_build_validation/6ea8d8bbfb14/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 4,
+          "report": "/tmp/929098.helma/validation-036814a321ca/results/stage_4_oracle_validation/22dd59dec17f/summary.json",
+          "status": "findings"
+        },
+        {
+          "stage": 5,
+          "report": "/tmp/929098.helma/validation-036814a321ca/results/stage_5_nop_validation/a86547e05408/summary.json",
+          "status": "completed"
+        }
+      ],
+      "complete": true,
+      "dry_run": false,
+      "contract_sha256": "a1da0d0237b7d1701fff562ef35a4d246273699d0258b5c45a1642a7b61135ba"
+    }
+  ],
+  "failures": [
+    {
+      "stage": 1,
+      "task": "gammapy__gammapy-3911",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/929098.helma/validation-036814a321ca/results/stage_1_static_checks/9b249379aa01/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "modelcontextprotocol__python-sdk-137",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/929098.helma/validation-036814a321ca/results/stage_1_static_checks/9b249379aa01/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "open-mmlab__mmengine-856",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/929098.helma/validation-036814a321ca/results/stage_1_static_checks/9b249379aa01/static/checks.log"
+    },
+    {
+      "stage": 4,
+      "task": "dask__distributed-8101",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/929098.helma/validation-036814a321ca/results/stage_4_oracle_validation/22dd59dec17f/jobs/job"
+    }
+  ]
+}

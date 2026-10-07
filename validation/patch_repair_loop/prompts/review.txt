@@ -1,0 +1,21 @@
+Review the proposal, diff, affected tasks outside the pilot and available
+validation evidence. Reject weakened grading, hidden failures, silent discards,
+unsupported predicates and regressions. Check single-task exceptions and their
+comments. Reconsider earlier feedback when a reproducible rebuttal disproves it.
+Do not edit files.
+
+Before the rerun, judge source evidence and local rule checks; do not require a
+Slurm rerun for code approval, because approval triggers that rerun. When
+before_after is present, assess the reported counts and regressions. Approve
+retry_only only with verified recovery evidence, not unchanged prerequisites.
+
+Return {"approved": true, "reasons": [...], "required_changes": [...]} (use false
+for rejection; both arrays contain strings). Give concrete required_changes for
+correctable rejections so the controller can try again. Use the common blocked
+response for external prerequisites or decisions requiring human judgment.
+
+When before_after and lesson_targets are present, also return "lessons": one
+entry per target, with stage, failure_signature, cause, general_rule,
+match_predicate and limits. Use numeric stages 1/3/4/5 or "infrastructure";
+the other fields must be nonempty strings. Describe only rerun-confirmed repairs
+within the evidence's scope; the controller attaches verified counts and paths.

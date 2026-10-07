@@ -6,8 +6,7 @@ runs/
 *.parquet
 *.tar.gz
 
-# Local instructions, logs, and check outputs
-.agents/
+# Local logs and check outputs
 *.o[0-9]*
 slurm-*.out
 verify-out/
@@ -19,3 +18,6 @@ external/
 
 # Separate companion repository
 /agentic-data-papers/
+
+# Local historical pilot records
+/data/pilot-history.local.md

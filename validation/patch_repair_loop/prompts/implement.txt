@@ -1,0 +1,17 @@
+Apply the proposed rules only in the configured source patcher, never in
+materialized pilot copies. Keep transformations deterministic on the pinned
+source. Comment every single-task exception with its task ID and evidence.
+Do not change oracle/verifier behavior, expected answers or benchmark policy,
+even through the patcher; report such changes for human review.
+
+Check predicates and counts against the source and address reviewer_feedback.
+If the proposal is unsupported, return:
+{"proposal_feedback": {"reason": "...", "evidence": ["..."],
+"suggested_revision": "..."}}.
+The controller will request a revised proposal. Disagreement or a failed count
+assertion is not itself a blocker; investigate it and provide a reproducible
+counterexample when rebutting feedback.
+
+On success, return {"changed_files": [...], "rules": [...]} with each rule's
+exact predicate. If no supported repair or justified discard can be implemented,
+use the common human_review blocker; do not report an empty implementation as success.
