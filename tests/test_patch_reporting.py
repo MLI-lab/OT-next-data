@@ -162,7 +162,8 @@ def test_inferredbugs_reporting_keeps_original_drop_and_pinned_source(tmp_path):
     document = patcher.write_reporting(tmp_path / 'original.parquet', tmp_path / 'patched.parquet',
         {'set-3': {'category': 'warning_not_reproduced', 'reason': 'Warning absent in the buggy project'}})
     assert document['source']['revision'] == patcher.TASKTROVE_REVISION
-    assert document['tasks'][0]['labels'] == ['instruction-updated']
+    assert document['tasks'][0]['labels'] == ['compiled-warning-verification']
+    assert document['tasks'][0]['reason'] == patcher.PATCH_EXPLANATION
     archived = pq.read_table(tmp_path / 'patched.archive.parquet').to_pylist()
     assert archived[0]['task_binary'] == original[2]['task_binary']
     with pytest.raises(FileExistsError):
@@ -197,13 +198,56 @@ def test_bugsinpy_project_emits_shared_manifest_and_conversion_labels(tmp_path):
     assert document['comparison_kind'] == 'conversion'
     assert document['tasks'][0]['action'] == 'changed'
     assert document['tasks'][0]['source_task_id'] == 'demo/1'
-    assert 'dependencies-pinned' in document['tasks'][0]['labels']
+    assert document['tasks'][0]['labels'] == ['upstream-to-harbor']
     tables = {'demo': ([dict(rows[0], archive_stage=None)], [])}
     record = {'data_sources': {'demo': {'tasks': 1, 'kept': 1, 'archived': 0}}, 'rules': {}}
     publish.add_conversion_archives(tables, record, 'r', [f'demo={tmp_path}/tasks.archive.parquet'], {})
     patch_provenance.attach(record, tables, [f'demo={tmp_path}/tasks.manifest.json'])
     assert record['patch_provenance']['demo']['counts'] == {'changed': 1, 'unchanged': 0, 'dropped': 1}
     assert 'converted/adapted' in patch_provenance.render(record)
+    text = patch_provenance.render(record)
+    conversion_row = next(line for line in text.splitlines() if line.startswith('| upstream-to-harbor |'))
+    assert conversion_row == f'| upstream-to-harbor | 1 | {patcher.CONVERSION_EXPLANATION} |'
+    assert text.count(patcher.CONVERSION_EXPLANATION) == 1
+    assert 'dependencies-pinned' not in text
+    assert 'verifier-adapted' not in text
+    assert document['tasks'][0]['reason'] == patcher.CONVERSION_EXPLANATION
+    assert 'label_reasons' not in document['tasks'][0]
+    assert 'comparison_note' not in document
+
+
+@pytest.mark.parametrize('project,bug_id', [
+    ('ansible', 12), ('black', 23), ('httpie', 4), ('luigi', 8),
+    ('thefuck', 3), ('thefuck', 16), ('tornado', 6),
+])
+def test_bugsinpy_instruction_review_exclusion_survives_publication(tmp_path, project, bug_id):
+    from data.tasktrove_bugsinpy import patch as patcher
+    name = f'bugsinpy-original-{project}-{bug_id}'
+    exclusion = patcher.task_exclusion(project, bug_id)
+    binary = blob('original instruction retained for review')
+    archived = [{'path': name, 'task_binary': binary,
+                 'archive_category': exclusion['category'],
+                 'archive_reason': exclusion['category'] + ': ' + exclusion['reason']}]
+    details = {'task_id': name, 'project': project, 'bug_id': bug_id,
+               'dockerfile_sha256': 'image'}
+    patcher.write_project(tmp_path, [], [], [], {}, 'pinned',
+                          {'project': project, 'repo': 'https://example.org/source',
+                           'bug_ids': [bug_id]}, archived,
+                          [{'task_id': name, **exclusion, 'task_manifest': details}])
+    tables = {project: ([], [])}
+    record = {'data_sources': {project: {'tasks': 0, 'kept': 0, 'archived': 0}}, 'rules': {}}
+    publish.add_conversion_archives(tables, record, 'run',
+                                   [f'{project}={tmp_path}/tasks.archive.parquet'], {})
+    patch_provenance.attach(record, tables, [f'{project}={tmp_path}/tasks.manifest.json'])
+    task = record['patch_provenance'][project]['tasks'][0]
+    assert task['action'] == 'dropped'
+    assert task['labels'] == ['flagged_by_instruction_loop']
+    assert task['reason'] == exclusion['reason']
+    assert tables[project][1][0]['task_binary'] == binary
+    assert record['conversion_exclusions'][0]['category'] == exclusion['category']
+    assert 'label_reasons' not in task
+    assert patcher.CONVERSION_EXPLANATION not in patch_provenance.render(record)
+    assert patcher.task_exclusion(project, 999) is None
 
 
 def test_crosscodeeval_pin_only_preserves_original_comparison_and_drops(tmp_path):
@@ -253,3 +297,18 @@ def test_patch_report_freezes_script_for_later_publication(tmp_path):
     record = {'run': 'saved'}
     files = patch_provenance.stage_patchers(record, [f'set={tmp_path}/manifest.json'], tmp_path / 'upload')
     assert (tmp_path / 'upload' / files[0]).read_bytes() == snapshot.read_bytes()
+
+
+def test_change_table_uses_label_specific_reasons():
+    record = {'patch_provenance': {'set': {
+        'source': {'dataset': 'native', 'revision': 'pinned', 'task_count': 1},
+        'counts': {'changed': 1},
+        'tasks': [{'task_id': 'set-1', 'action': 'changed',
+                   'labels': ['upstream-to-harbor', 'anti-cheat-instruction'],
+                   'reason': 'Rebuilt from native source.',
+                   'label_reasons': {'anti-cheat-instruction': 'Added the anti-cheat sentence.'}}],
+    }}}
+    text = patch_provenance.render(record)
+    assert text.count('Rebuilt from native source.') == 1
+    assert text.count('Added the anti-cheat sentence.') == 1
+    assert '| anti-cheat-instruction | 1 | Added the anti-cheat sentence. |' in text

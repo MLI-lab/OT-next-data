@@ -189,7 +189,9 @@ def prepare_images(tasks, images, shared, args):
         started = time.monotonic()
         log = images / f'{key}.build.log'
         record = {'key': key, 'image': str(image), 'memory_mb': memory, 'cpus': cpus,
-                  'timeout_sec': timeout, 'command': command, 'log': str(log)}
+                  'timeout_sec': timeout, 'command': command, 'log': str(log),
+                  'directory_build': os.environ.get('OT_IMAGE_DIRECTORY_BUILD', '1') == '1',
+                  'deferred_overlay_mb': int(os.environ.get('BRIDGE_DEFERRED_OVERLAY_MB', '2048'))}
         try:
             with log.open('w') as output:
                 subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=True, timeout=timeout)
@@ -201,6 +203,9 @@ def prepare_images(tasks, images, shared, args):
                     'builder': 'hpc.image_cache', 'runtime': 'apptainer',
                     'builder_sha256': digest(Path(__file__)),
                     'bridge_patch_sha256': digest(Path(__file__).parents[1] / 'harbor_patches/bridge_worker.py'),
+                    'directory_build': record['directory_build'],
+                    'directory_builder_sha256': digest(Path(__file__).parents[1] / 'harbor_patches/image_build.py'),
+                    'deferred_overlay_mb': record['deferred_overlay_mb'],
                     'memory_mb': memory, 'cpus': cpus}, packed=getattr(args, 'pack_image_cache', False)))
             except Exception as exc:
                 record['cache_warning'] = str(exc)
@@ -251,9 +256,20 @@ def main():
         raise RuntimeError('Image preparation requires Apptainer or Singularity on the build node')
     # Size compression from the dedicated build allowance, never physical node RAM.
     os.environ['OT_IMAGE_COMPRESSION_ARGS'] = f'-processors {args.cpus} -mem {max(1, args.memory_mb // 4)}M'
+    # Image builds use host networking too. Deferred RUN uses --cleanenv, so
+    # explicitly forward the configured proxy just as task containers do.
+    patch.configure_explicit_host_network(force=True)
     patch.configure_container_certificates()
     patch.worker._parse_copies = patch.parse_copies_docker_semantics
     patch.worker.subprocess.run = patch.run_container_commands(patch.worker.subprocess.run)
+    from harbor_patches.image_build import certificate_build_mountpoints, file_backed_build_scripts, logged_build_commands
+    patch.worker.subprocess.run = certificate_build_mountpoints(patch.worker.subprocess.run)
+    patch.worker._run_unshared = file_backed_build_scripts(
+        logged_build_commands(patch.worker.subprocess.run), patch.worker.APPTAINER)
+    if os.environ.get('OT_IMAGE_DIRECTORY_BUILD', '1') == '1':
+        from harbor_patches.image_build import directory_overlay_builds
+        patch.worker._run_unshared = directory_overlay_builds(
+            patch.worker._run_unshared, patch.worker.APPTAINER)
     if os.environ.get('OT_IMAGE_BASE_MANIFEST'):
         from harbor_patches.local_image_base import local_base_builds
         patch.worker.subprocess.run = local_base_builds(

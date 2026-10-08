@@ -1,0 +1,92 @@
+[
+  {
+    "task": "goodmami__wn-174",
+    "url": "https://codeload.github.com/goodmami/wn/tar.gz/4d9100f2d94fa71f3224414527aaaf66f65b8c7c",
+    "sha256": "99e0fb098e888588f651293e1fb3487812661bc270e9548b9800f35eb3657f16",
+    "references": []
+  },
+  {
+    "task": "wright-group__WrightTools-1095",
+    "url": "https://codeload.github.com/wright-group/WrightTools/tar.gz/66b7d7350e1d1cb432ccda3c66b7e95dec2a937d",
+    "sha256": "9f46736d91d95700cea1bacccc817035d700d115acc83665647c8571ff23085b",
+    "references": []
+  },
+  {
+    "task": "collective__icalendar-185",
+    "url": "https://codeload.github.com/collective/icalendar/tar.gz/6888bbe02042cd65b12a6d855b527a964a4b823b",
+    "sha256": "bf49aedaf69e205b62d5e32e235f85c6fe67ae6fd3fca5fb3bccec00a2a39a07",
+    "references": []
+  },
+  {
+    "task": "goodmami__wn-178",
+    "url": "https://codeload.github.com/goodmami/wn/tar.gz/0ddfd89207affc28335ba16c948da70833257e8d",
+    "sha256": "26c6282271641c243753b2592a15b73f292480ffeda843032e43e7af525ae69f",
+    "references": []
+  },
+  {
+    "task": "sigmavirus24__github3.py-650",
+    "url": "https://codeload.github.com/sigmavirus24/github3.py/tar.gz/e57cdf6b2f3fb3eec9bf235a1b55f2bd4bd41d85",
+    "sha256": "ff0663d311dd90cba46f53c491f0289ce8db008641bb8867bda10c78029b7448",
+    "references": []
+  },
+  {
+    "task": "wright-group__WrightTools-1092",
+    "url": "https://codeload.github.com/wright-group/WrightTools/tar.gz/773ad713ee8a64b2c6fb4f2fdb97d30a85bd0f01",
+    "sha256": "8cb89cdf07722b568d3a97ac3aee34c5b08661e131ebcf2ad785c0eeb049673f",
+    "references": []
+  },
+  {
+    "task": "wright-group__WrightTools-1085",
+    "url": "https://codeload.github.com/wright-group/WrightTools/tar.gz/45c1efe942fa2693b272a76f111c8a613a6d57d8",
+    "sha256": "006a871e75202dd6c8a2a1bac7ac0350ee72275f487c1bcb4a697fc27f6f37ab",
+    "references": []
+  },
+  {
+    "task": "box__box-python-sdk-99",
+    "url": "https://codeload.github.com/box/box-python-sdk/tar.gz/f365c177f70ce6cfc2d53528ed649cdac20bb43d",
+    "sha256": "a6c0960dbea7658d63804d111eb29392a803b0e460427139a73bc66dca931b1c",
+    "references": []
+  },
+  {
+    "task": "AzureAD__microsoft-authentication-library-for-python-41",
+    "url": "https://codeload.github.com/AzureAD/microsoft-authentication-library-for-python/tar.gz/f76f3c37c6bf7747971947d300f0a50d3ec701f7",
+    "sha256": "adfa192415886aa2aa7c062c793cbbe13d53de41aa52a83fb91a9b7448848158",
+    "references": []
+  },
+  {
+    "task": "sigmavirus24__github3.py-613",
+    "url": "https://codeload.github.com/sigmavirus24/github3.py/tar.gz/f6948ac9097f61dd44d8666ac1de42edbea666d5",
+    "sha256": "2c59c79ab0f911ec930441b5594fdc4dcb67cf3d474a1e76dfce44f57889f9e6",
+    "references": []
+  },
+  {
+    "task": "kangasta__fdbk-72",
+    "url": "https://codeload.github.com/kangasta/fdbk/tar.gz/2bb2f886a860d85c74284053124d92c0d4dd9d07",
+    "sha256": "3eab70bd486f005795354fdb933ac24fbcf8651ffd4ea185b3635155e8146b18",
+    "references": []
+  },
+  {
+    "task": "emsig__emg3d-325",
+    "url": "https://codeload.github.com/emsig/emg3d/tar.gz/8750f85bfcebaf67ed2e6beff941b960a048a1b3",
+    "sha256": "774c826485d1318192e9c3ef27d08b1c13a2fffecd5230290c33880db6616c15",
+    "references": []
+  },
+  {
+    "task": "wright-group__WrightTools-938",
+    "url": "https://codeload.github.com/wright-group/WrightTools/tar.gz/e8966a3807c27c60ec23639601f4db276588d25f",
+    "sha256": "c4b8cca2dbab63ea61df1a441ee159bcd34268f791dbb26dccb32f5554d13b78",
+    "references": []
+  },
+  {
+    "task": "wright-group__WrightTools-628",
+    "url": "https://codeload.github.com/wright-group/WrightTools/tar.gz/39d23edfffe4b323d94777873911ab69d4aaa705",
+    "sha256": "a78762d2de58710824ea19320b1286fba4dc9b2aaaab42e3e3b0e26fe54a855e",
+    "references": []
+  },
+  {
+    "task": "google__flax-4029",
+    "url": "https://codeload.github.com/google/flax/tar.gz/3b21870822bd2a6d880194799b749bb69534769f",
+    "sha256": "01f0ba585395177eb143ecd02aaa67701b9cfeae59bd31d4ffaf526679dfd01b",
+    "references": []
+  }
+]

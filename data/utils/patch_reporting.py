@@ -12,6 +12,8 @@ import json
 from pathlib import Path, PurePosixPath
 import tarfile
 
+from data.utils.environment_counts import fingerprints, summarize
+
 
 def _files(blob):
     """Compare contents, modes and links, ignoring packaging timestamps/order."""
@@ -74,16 +76,18 @@ def write_patch_report(original, patched, *, source, dropped, archive=None, mani
     if set(change_labels) - set(outputs):
         raise ValueError('change labels refer to a task absent from patched output')
     tasks, seen, removed = [], set(), set()
+    source_environments = []
     for row in _rows(original):
         name, blob = row['path'], row['task_binary']
         if name in seen:
             raise ValueError('duplicate original task ID: ' + name)
         seen.add(name)
+        before = _files(blob)
+        source_environments.append(fingerprints(before))
         task = {'task_id': name, 'source_task_id': name,
                 'source_binary_sha256': hashlib.sha256(blob).hexdigest()}
         if name in outputs:
             files, digest, labels = outputs[name]
-            before = _files(blob)
             changes = sorted(k for k in before.keys() | files.keys() if before.get(k) != files.get(k))
             if labels and not changes:
                 raise ValueError('change labels supplied for an unchanged task: ' + name)
@@ -112,6 +116,7 @@ def write_patch_report(original, patched, *, source, dropped, archive=None, mani
     document = {'version': 1, 'source': {**source, 'task_count': len(seen)},
                 'complete': not unresolved, 'patches': list(patches), 'tasks': tasks,
                 'comparison_scope': 'patcher' if patcher else 'published'}
+    document['source_environments'] = summarize(source_environments)
     with Path(original).open('rb') as stream:
         document['original_parquet'] = {'path': str(Path(original).resolve()),
                                         'sha256': hashlib.file_digest(stream, 'sha256').hexdigest()}
@@ -140,7 +145,8 @@ def write_patch_report(original, patched, *, source, dropped, archive=None, mani
     return document
 
 
-def write_conversion_report(output, rows, archived, *, source, records, errors=(), patcher=None):
+def write_conversion_report(output, rows, archived, *, source, records, errors=(), patcher=None,
+                            change_labels=None, change_reasons=None):
     """Native source conversion: generated Harbor packages are not original packages."""
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -159,12 +165,20 @@ def write_conversion_report(output, rows, archived, *, source, records, errors=(
                 labels.append('verifier-adapted')
             if details.get('requirements_lock_sha256'):
                 labels.append('dependencies-pinned')
+            if name in (change_labels or {}):
+                labels = change_labels[name]
+                if not isinstance(labels, (list, tuple)) or any(
+                        not isinstance(label, str) or not label for label in labels):
+                    raise ValueError('change_labels must contain lists of nonempty strings')
+                labels = sorted(set(labels))
         task = {'task_id': name, 'source_task_id': f"{details['project']}/{details['bug_id']}",
                 'action': 'dropped' if excluded else 'changed', 'change_kind': 'conversion',
                 'labels': labels, 'changed_files': sorted(_files(row['task_binary'])),
                 'output_binary_sha256': hashlib.sha256(row['task_binary']).hexdigest()}
         if excluded:
             task['reason'] = row['archive_reason'].removeprefix(row['archive_category'] + ': ')
+        elif (change_reasons or {}).get(name):
+            task['reason'] = change_reasons[name]
         tasks.append(task)
     schema = pa.schema([('path', pa.string()), ('task_binary', pa.binary()),
                         ('archive_category', pa.string()), ('archive_reason', pa.string())])

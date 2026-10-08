@@ -115,7 +115,7 @@ def test_publisher_pins_artifact_commit_in_same_pr(tmp_path, monkeypatch):
     import huggingface_hub
     from validation.publishing import publish
     task, cache, bundle, tables = fixture(tmp_path)
-    monkeypatch.setattr(publish, 'read', lambda _: {'sha256': 'contract'})
+    monkeypatch.setattr(publish, 'read', lambda _: {'sha256': 'contract', 'dataset': {}})
     monkeypatch.setattr(publish, 'stage_reports', lambda _: {})
     monkeypatch.setattr(publish, 'build', lambda *a: (tables, {'run': 'test'}, 'runs/test.json'))
     monkeypatch.setattr(publish.patch_provenance, 'attach', lambda *a: None)

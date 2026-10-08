@@ -22,7 +22,7 @@ REPOSITORY = 'open-thoughts/TaskTrove'
 DISCUSSION = 'https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/4'
 REVISION = '9262d5628e13ec20ac75b7d897f94b93f6be0594'
 UPSTREAM_PATH = 'camel-ai__SETA-Env/tasks.parquet'
-PATCH_VERSION = 'seta-stage1-v55'
+PATCH_VERSION = 'seta-stage1-v62'
 VIM_TARGET = 'unix_linux_se__synth__41803'
 REPOSITORY_TARGET = 'ask_ubuntu__synth__138'
 ARCHIVE_TARGET = 'ask_ubuntu__synth__1'
@@ -896,7 +896,7 @@ SOLUTION_PIP_EDITS = {
 VERIFIER_PIP_EDITS = {
     'ask_ubuntu__synth__344': [('pytest==8.4.1 pyyaml', 'pytest==8.4.1 pyyaml==6.0.3')],
 }
-EXPECTED_PATCHED_TASK_COUNT = 3052
+EXPECTED_PATCHED_TASK_COUNT = 3134
 EXPECTED_NPROC_DROP_COUNT = 0
 
 
@@ -1769,9 +1769,396 @@ def repair_ssh_verifier(files, task_id):
         files['instruction.md'] = (text.replace(b' via SSH on port 2222 using', b' via SSH using'), mode)
 
 
-def patch_task(blob, task_id=TARGET):
+# Reviewed infrastructure dependencies only. Task sources and graded outputs
+# remain in setup_files and are restored separately in every fresh trial.
+JAVA_PREPARATION = {
+    'stack_overflow__synth__9112770': (0, 1, 4, '/app/lib/h2.jar'),
+    'stack_overflow__synth__11919009': (1, 2, 3, '/home/user/game-audio/lib/junit-platform-console-standalone-1.10.2.jar'),
+    'stack_overflow__synth__34192572': (2, 3, 12, '/home/user/loganalyzer/lib/commons-cli-1.5.0.jar'),
+}
+JAVA_ARTIFACTS = {
+    'h2.jar': ('com/h2database/h2/2.2.224/h2-2.2.224.jar',
+               'b9d8f19358ada82a4f6eb5b174c6cfe320a375b5a9cb5a4fe456d623e6e55497'),
+    'junit-platform-console-standalone-1.10.2.jar': (
+        'org/junit/platform/junit-platform-console-standalone/1.10.2/junit-platform-console-standalone-1.10.2.jar',
+        'a1de557821293ce903c213c694165fff532cf92081bac4238b9e05b35f04f43f'),
+    'commons-cli-1.5.0.jar': ('commons-cli/commons-cli/1.5.0/commons-cli-1.5.0.jar',
+                            'bc8bb01fc0fad250385706e20f927ddcff6173f6339b387dc879237752567ac6'),
+}
+
+
+def java_preparation_recipe():
+    recipe = '''
+# seta-java-preparation-v1: reusable dependencies built once, never per trial.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-17-jdk-headless build-essential git wget python3-pip && rm -rf /var/lib/apt/lists/*
+RUN curl --fail --location --retry 5 --retry-max-time 300 --connect-timeout 30 --max-time 180 https://astral.sh/uv/0.10.11/install.sh -o /tmp/seta-uv-install.sh && UV_UNMANAGED_INSTALL=/opt/seta-tools sh /tmp/seta-uv-install.sh && rm /tmp/seta-uv-install.sh
+RUN UV_PYTHON_INSTALL_DIR=/opt/seta-python /opt/seta-tools/uv venv --python 3.13 /opt/seta-verifier && /opt/seta-tools/uv pip install --python /opt/seta-verifier/bin/python pytest==8.4.1 pytest-json-ctrf==0.3.5
+RUN python3 -m pip install --break-system-packages pytest==8.4.1
+'''
+    return recipe
+
+
+def java_artifact(name, dependency_cache=None):
+    """Fetch once during dataset preparation, never from an agent/container job."""
+    import os
+    import time
+    import urllib.error
+    import urllib.request
+    cache = dependency_cache or os.environ.get('OT_SETA_DEPENDENCIES')
+    if not cache:
+        raise ValueError('Java preparation requires --dependency-cache or OT_SETA_DEPENDENCIES')
+    path, checksum = JAVA_ARTIFACTS[name]
+    cache = Path(cache)
+    cache.mkdir(parents=True, exist_ok=True)
+    target = cache / name
+    if target.exists():
+        data = target.read_bytes()
+        if hashlib.sha256(data).hexdigest() != checksum:
+            raise ValueError(f'Cached Java artifact checksum mismatch: {target}')
+        return data
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen('https://repo.maven.apache.org/maven2/' + path, timeout=60) as response:
+                data = response.read()
+            break
+        except (urllib.error.URLError, TimeoutError) as exc:
+            if isinstance(exc, urllib.error.HTTPError) and exc.code not in (408, 429, 500, 502, 503, 504):
+                raise
+            if attempt == 3:
+                raise
+            delay = 2 ** attempt
+            if isinstance(exc, urllib.error.HTTPError):
+                retry_after = exc.headers.get('Retry-After', '')
+                if retry_after.isdecimal():
+                    delay = min(60, max(delay, int(retry_after)))
+            time.sleep(delay)
+    if hashlib.sha256(data).hexdigest() != checksum:
+        raise ValueError(f'Downloaded Java artifact checksum mismatch: {name}')
+    temporary = target.with_suffix(target.suffix + '.tmp')
+    temporary.write_bytes(data)
+    temporary.replace(target)
+    return data
+
+
+def prebuild_java_preparation(files, task_id, dependency_cache=None):
+    """Move reviewed setup operations into the image, retaining task initialization."""
+    if task_id not in JAVA_PREPARATION:
+        return
+    import shlex
+    apt, uv, jar, destination = JAVA_PREPARATION[task_id]
+    artifact_name = PurePosixPath(destination).name
+    artifact_path = 'setup_files/dependencies/' + artifact_name
+    artifact = java_artifact(artifact_name, dependency_cache)
+    checksum = JAVA_ARTIFACTS[artifact_name][1]
+    data, mode = files['setup_files/setup.sh']
+    script = data.decode()
+    metadata = json.loads(files['setup_files/operations.json'][0])
+    replacements = {
+        apt: ': # packages installed in seta-java-preparation-v1',
+        uv: ('mkdir -p /root/.local/bin && '
+             'ln -sf /opt/seta-tools/uv /root/.local/bin/uv && '
+             'ln -sf /opt/seta-tools/uvx /root/.local/bin/uvx && '
+             'printf \'export PATH="$HOME/.local/bin:$PATH"\\n\' > /root/.local/bin/env'),
+        jar: (f'echo "{checksum}  /{artifact_path}" | sha256sum -c - && '
+              f'mkdir -p {str(PurePosixPath(destination).parent)} && cp /{artifact_path} {destination}'),
+    }
+    if task_id == 'stack_overflow__synth__9112770':
+        replacements[3] = ': # pinned system pytest installed in image'
+    for index, command in replacements.items():
+        pattern = re.compile(r'(?m)(^operation=' + str(index) + r'\necho [^\n]+\n)([^\n]+)')
+        match = pattern.search(script)
+        if not match or metadata['operations'][index]['op'] != 'RUN':
+            raise ValueError(f'{task_id}: expected reviewed RUN operation {index}')
+        previous = match[2]
+        expected = 'apt-get install' if index == apt else ('astral.sh/uv' if index == uv else
+                   ('maven' if index == jar else 'pytest==8.4.1'))
+        if expected not in previous:
+            raise ValueError(f'{task_id}: unexpected setup operation {index}')
+        script = script[:match.start(2)] + '/bin/sh -c ' + shlex.quote(command) + script[match.end(2):]
+        operation = metadata['operations'][index]
+        operation['prebuilt_command'] = previous
+        operation['command'] = command
+        operation['cwd'] = '/'
+    dockerfile, docker_mode = files['environment/Dockerfile']
+    # libutempter's archive has a non-root group that a single-UID build
+    # namespace cannot chown. These Java tasks do not use utmp accounting;
+    # a root-owned helper permits a complete dpkg install and working tmux.
+    # The converted shared base also installs SSH and system D-Bus. Neither
+    # belongs to these three Java tasks' original dependency lists; their
+    # system-user ownership scripts cannot run in the single-UID builder.
+    base = dockerfile.decode().replace(' openssh-client ', ' ').replace(' dbus ', ' ').splitlines(keepends=True)
+    base.insert(1, 'RUN dpkg-statoverride --add root root 0755 /usr/lib/x86_64-linux-gnu/utempter/utempter\n')
+    recipe = ''.join(base) + java_preparation_recipe()
+    files['environment/Dockerfile'] = (recipe.encode(), docker_mode)
+    metadata['recipe'] = recipe
+    metadata['preparation_image'] = 'seta-java-preparation-v1'
+    metadata_bytes = (json.dumps(metadata, indent=2) + '\n').encode()
+    script, count = re.subn(r'(?m)^identity=[0-9a-f]{64}$',
+                            'identity=' + hashlib.sha256(metadata_bytes).hexdigest(), script)
+    if count != 1:
+        raise ValueError(f'{task_id}: expected setup identity')
+    files['setup_files/setup.sh'] = (script.encode(), mode)
+    files['setup_files/operations.json'] = (metadata_bytes, files['setup_files/operations.json'][1])
+    verifier, verifier_mode = files['tests/test.sh']
+    text = verifier.decode()
+    text, bootstraps = re.subn(r'if ! command -v uv &> /dev/null; then\n.*?\nfi\nsource \$HOME/\.local/bin/env\n', '', text, flags=re.S)
+    text, invocations = re.subn(r'uvx\s*\\\s*-p 3\.13\s*\\\s*-w pytest==8\.4\.1\s*\\\s*-w pytest-json-ctrf==0\.3\.5\s*\\\s*pytest\b',
+                                '/opt/seta-verifier/bin/pytest', text)
+    if (bootstraps, invocations) != (1, 1):
+        raise ValueError(f'{task_id}: unexpected verifier bootstrap or package pins')
+    files['tests/test.sh'] = (text.encode(), verifier_mode)
+    files[artifact_path] = (artifact, 0o644)
+
+
+SLOW_PREPARATION = {
+    'ask_ubuntu__evolve__1081__d1': 'util-linux e2fsprogs mount kmod build-essential git curl tmux',
+    'ask_ubuntu__evolve__1234__d1': 'build-essential git curl tmux',
+    'stack_overflow__synth__9878138': 'ffmpeg python3 tmux curl ca-certificates',
+}
+
+
+def prebuild_slow_preparation(files, task_id):
+    """Promote dependencies and the provided video fixture after five-run review."""
+    if task_id not in SLOW_PREPARATION:
+        return
+    import shlex
+    metadata = json.loads(files['setup_files/operations.json'][0])
+    script = files['setup_files/setup.sh'][0].decode()
+    packages = SLOW_PREPARATION[task_id]
+    expected = 'apt-get update && apt-get install -y ' + packages
+    if not metadata['operations'][1]['command'].startswith(expected):
+        raise ValueError(f'{task_id}: unreviewed package setup')
+    replacements = {
+        1: ': # reviewed packages installed in seta-preparation-v1',
+        2: ('mkdir -p /root/.local/bin && '
+            'ln -sf /opt/seta-tools/uv /root/.local/bin/uv && '
+            'ln -sf /opt/seta-tools/uvx /root/.local/bin/uvx && '
+            'printf \'export PATH="$HOME/.local/bin:$PATH"\\n\' > /root/.local/bin/env'),
+    }
+    if metadata['operations'][2]['command'] != 'curl -LsSf https://astral.sh/uv/0.10.11/install.sh | sh':
+        raise ValueError(f'{task_id}: unreviewed uv setup')
+    base = files['environment/Dockerfile'][0].decode().replace(' openssh-client ', ' ').replace(' dbus ', ' ').splitlines(keepends=True)
+    base.insert(1, 'RUN dpkg-statoverride --add root root 0755 /usr/lib/x86_64-linux-gnu/utempter/utempter\n')
+    recipe = ''.join(base) + '\n# seta-preparation-v1: measured reusable setup\n'
+    if task_id == 'stack_overflow__synth__9878138':
+        # fontconfig-config only assigns root:staff when creating this directory.
+        # Pre-create it for single-ID builds; font discovery remains unchanged.
+        recipe += 'RUN mkdir -p /usr/local/share/fonts && chmod 0755 /usr/local/share/fonts\n'
+    recipe += f'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends {packages} && rm -rf /var/lib/apt/lists/*\n'
+    recipe += 'RUN curl --fail --location --retry 5 --retry-max-time 300 --connect-timeout 30 --max-time 180 https://astral.sh/uv/0.10.11/install.sh -o /tmp/seta-uv-install.sh && UV_UNMANAGED_INSTALL=/opt/seta-tools sh /tmp/seta-uv-install.sh && rm /tmp/seta-uv-install.sh\n'
+    if task_id == 'stack_overflow__synth__9878138':
+        fixture = metadata['operations'][3]['command']
+        if not fixture.startswith('ffmpeg -f lavfi -i "testsrc=duration=120:size=320x240:rate=10"') or not fixture.endswith(' /workspace/source_video.mp4'):
+            raise ValueError(f'{task_id}: unreviewed video fixture')
+        recipe += 'RUN mkdir -p /opt/seta-fixtures && ' + fixture.replace(' /workspace/source_video.mp4', ' /opt/seta-fixtures/source_video.mp4') + '\n'
+        replacements[3] = 'cp /opt/seta-fixtures/source_video.mp4 /workspace/source_video.mp4'
+    for index, command in replacements.items():
+        operation = metadata['operations'][index]
+        pattern = re.compile(r'(?m)(^operation=' + str(index) + r'\necho [^\n]+\n)([^\n]+)')
+        match = pattern.search(script)
+        if not match or operation['op'] != 'RUN' or shlex.quote(operation['command']) not in match[2]:
+            raise ValueError(f'{task_id}: setup script differs from reviewed operation {index}')
+        previous = match[2]
+        prefix = previous.rsplit('/bin/sh -c ', 1)[0]
+        script = script[:match.start(2)] + prefix + '/bin/sh -c ' + shlex.quote(command) + ')' + script[match.end(2):]
+        operation['prebuilt_command'] = operation['command']
+        operation['command'] = command
+    metadata['recipe'] = recipe
+    metadata['preparation_image'] = 'seta-preparation-v1'
+    serialized = (json.dumps(metadata, indent=2) + '\n').encode()
+    script, count = re.subn(r'(?m)^identity=[0-9a-f]{64}$', 'identity=' + hashlib.sha256(serialized).hexdigest(), script)
+    if count != 1:
+        raise ValueError(f'{task_id}: expected setup identity')
+    files['setup_files/setup.sh'] = (script.encode(), files['setup_files/setup.sh'][1])
+    files['setup_files/operations.json'] = (serialized, files['setup_files/operations.json'][1])
+    files['environment/Dockerfile'] = (recipe.encode(), files['environment/Dockerfile'][1])
+
+
+# Keep preparation boundaries explicit. Bash parses statements without executing
+# them; no heuristic prefix is allowed to run grading during setup review.
+from functools import lru_cache
+
+
+@lru_cache(maxsize=8192)
+def _complete_shell_statement(text):
+    if text.rstrip('\n').endswith('\\'):
+        return False
+    result = subprocess.run(['bash', '-n'], input=text, text=True, capture_output=True)
+    return result.returncode == 0 and 'here-document' not in result.stderr
+
+
+def _shell_statements(script):
+    pending = ''
+    for line in script.splitlines(keepends=True):
+        pending += line
+        if _complete_shell_statement(pending):
+            yield pending
+            pending = ''
+    if pending.strip():
+        raise ValueError('Cannot safely parse verifier shell statements')
+
+
+_VERIFIER_INSTALL = re.compile(
+    r'\b(?:apt-get\s+(?:update|install)|pip3?\s+install|uv\s+(?:init|add|sync|pip\s+install))\b'
+    r'|https://astral\.sh/uv/[^\s]*install\.sh')
+_UV_PYTEST = re.compile(r'(?m)^(?P<indent>[ \t]*)(?P<runner>(?:\$HOME/\.local/bin/)?uvx\b|uv run\b)'
+                        r'(?P<options>(?:[^\n]|\\\n)*?)\bpytest(?=\s)(?P<arguments>[^\n]*(?:\\\n[^\n]*)*)')
+
+
+@lru_cache(maxsize=1024)
+def split_verifier_script(script):
+    setup, grading = ['#!/bin/bash\nset -eo pipefail\n'], []
+    for statement in _shell_statements(script):
+        if statement.strip() in ('source $HOME/.local/bin/env', 'source "$HOME/.local/bin/env"'):
+            # uv 0.7.13 can install successfully without emitting this optional
+            # shell helper when its bin directory is already on PATH.
+            context = ('if [ -f "$HOME/.local/bin/env" ]; then source "$HOME/.local/bin/env"; fi\n'
+                       'export PATH="$HOME/.local/bin:$PATH"\n')
+            setup.append(context)
+            grading.append(context)
+            continue
+        live = '\n'.join(l for l in statement.splitlines() if not l.lstrip().startswith('#'))
+        install = bool(_VERIFIER_INSTALL.search(live))
+        if install and ('/tests/test_outputs.py' in live or 'reward.txt' in live):
+            # One pinned wrapper chooses uvx or system pytest. Keep the branch
+            # and grading intact, moving only its fallback install to setup.
+            fallback = '    pip3 install --break-system-packages pytest==8.4.1 pytest-json-ctrf==0.3.5 2>&1\n'
+            if live.startswith('if command -v uvx ') and statement.count(fallback) == 1:
+                setup.append('if ! command -v uvx >/dev/null 2>&1; then\n' + fallback + 'fi\n')
+                statement = statement.replace(fallback, '')
+                install = False
+            else:
+                raise ValueError('Mixed verifier installation/grading statement requires explicit review')
+        if install:
+            if statement.strip().startswith('uv init'):
+                statement = 'if [ ! -f pyproject.toml ]; then\n' + statement + 'fi\n'
+            setup.append(statement)
+            # Conditional installer blocks may also set PATH/source uv's env.
+            for line in statement.splitlines():
+                if line.strip().startswith(('export PATH=', 'source ')):
+                    grading.append(line.strip() + '\n')
+            continue
+        # Preserve shell context independently in setup and grading. Do not copy
+        # compound cd-and-run commands, command substitutions, or task execution.
+        stripped = statement.strip()
+        if (stripped.startswith(('source ', 'export ')) and '$(' not in stripped and '`' not in stripped
+                or re.fullmatch(r'cd [\w/~.\-]+(?: 2>/dev/null \|\| true)?', stripped)
+                or stripped.startswith('if [ "$PWD" = "/" ]; then')):
+            setup.append(statement)
+        matches = list(_UV_PYTEST.finditer(statement))
+        if matches:
+            for match in matches:
+                warm = match['runner'] + match['options'] + 'pytest --version\n'
+                if stripped.startswith('if command -v uvx '):
+                    warm = 'if command -v uvx >/dev/null 2>&1; then\n' + warm + 'fi\n'
+                setup.append(warm)
+            statement = _UV_PYTEST.sub(lambda m: m['indent'] + 'UV_OFFLINE=1 ' + m['runner'] + m['options'] + 'pytest' + m['arguments'], statement)
+        grading.append(statement)
+    result = ''.join(grading)
+    active = '\n'.join(l for l in result.splitlines() if not l.lstrip().startswith('#'))
+    if _VERIFIER_INSTALL.search(active):
+        raise ValueError('Verifier still contains installation after separation')
+    return ''.join(setup), result
+
+
+def repair_python_verifier_preparation(files, task_id):
+    if task_id != 'ask_ubuntu__evolve__945__b1':
+        return
+    # Pillow is already a pinned dependency of this exact verifier uvx command.
+    # Its fallback installer inside the test must never perform grading-time I/O.
+    name = 'tests/test_outputs.py'
+    data, mode = files[name]
+    old = b'    # Use Pillow to check dimensions (agent must have installed it)\n    try:\n        from PIL import Image\n    except ImportError:\n        # Try to import after installing\n        subprocess.run(\n            ["pip", "install", "Pillow"],\n            capture_output=True, timeout=60\n        )\n        from PIL import Image\n'
+    if data.count(old) != 1 or b'-w Pillow==11.2.1' not in files['tests/test.sh'][0]:
+        raise ValueError('Unexpected Pillow verifier preparation boundary')
+    files[name] = (data.replace(old, b'    from PIL import Image\n'), mode)
+
+
+def separate_verifier_preparation(files):
+    script, mode = files['tests/test.sh']
+    if 'tests/setup.sh' in files:
+        raise ValueError('Existing verifier setup.sh requires explicit merge review')
+    setup, grading = split_verifier_script(script.decode())
+    files['tests/setup.sh'] = (setup.encode(), 0o755)
+    files['tests/test.sh'] = (grading.encode(), mode)
+
+
+PREPARATION_IMAGE_OPERATIONS = {
+    'ask_ubuntu__evolve__0__d1': {
+        1: 'apt-get update && apt-get install -y build-essential git curl tmux wget vim htop tree net-tools && rm -rf /var/lib/apt/lists/*',
+        2: 'curl -LsSf https://astral.sh/uv/0.10.11/install.sh | sh',
+    },
+    'ask_ubuntu__evolve__833__b1': {
+        2: 'apt-get update && apt-get install -y --no-install-recommends openvpn wireguard-tools rsync acl attr build-essential git curl tmux && rm -rf /var/lib/apt/lists/*',
+    },
+    'unix_linux_se__synth__90345': {},  # Only verifier setup exceeded its budget.
+}
+
+
+def prebuild_reviewed_preparation(files, task_id):
+    """Bake only the dependency operations identified by the five-run pilot.
+
+    Task inputs, broken configurations, users, fixtures, services and agent-code
+    compilation remain in runtime setup. Preserve each operation's cwd/env.
+    """
+    if task_id not in PREPARATION_IMAGE_OPERATIONS:
+        return
+    import base64
+    import shlex
+    metadata = json.loads(files['setup_files/operations.json'][0])
+    script = files['setup_files/setup.sh'][0].decode()
+    recipe = files['environment/Dockerfile'][0].decode()
+    lines = recipe.splitlines(keepends=True)
+    lines.insert(1, 'RUN dpkg-statoverride --add root root 0755 /usr/lib/x86_64-linux-gnu/utempter/utempter\n')
+    recipe = ''.join(lines) + '\n# seta-preparation-review-v1: preserve runtime task state, bake dependencies\n'
+    for index, expected in PREPARATION_IMAGE_OPERATIONS[task_id].items():
+        operation = metadata['operations'][index]
+        pattern = re.compile(r'(?m)(^operation=' + str(index) + r'\necho [^\n]+\n)([^\n]+)')
+        match = pattern.search(script)
+        if operation.get('op') != 'RUN' or operation.get('command') != expected or not match or shlex.quote(expected) not in match[2]:
+            raise ValueError(f'{task_id}: unexpected preparation operation {index}')
+        build_command = expected.replace('pip3 install uv --break-system-packages',
+                                         'pip3 install uv==0.10.11 --break-system-packages')
+        variables = dict(operation.get('env') or {}, DEBIAN_FRONTEND='noninteractive')
+        env = ' '.join(shlex.quote(k + '=' + v) for k, v in variables.items())
+        recipe += 'RUN cd ' + shlex.quote(operation['cwd']) + ' && env ' + env + ' /bin/sh -ec ' + shlex.quote(build_command) + '\n'
+        replacement = ': # dependencies baked in seta-preparation-review-v1'
+        prefix = match[2].rsplit('/bin/sh -c ', 1)[0]
+        script = script[:match.start(2)] + prefix + '/bin/sh -c ' + shlex.quote(replacement) + ')' + script[match.end(2):]
+        operation.update(prebuilt_command=expected, command=replacement)
+
+    # This is the explicit preparation-only script already separated from grading.
+    # Keep a readable build input as well as the inline encoding needed by Harbor's
+    # deferred builder, which otherwise applies COPY only at container startup.
+    setup = files['tests/setup.sh'][0]
+    setup = setup.replace(b'https://astral.sh/uv/install.sh', b'https://astral.sh/uv/0.10.11/install.sh')
+    files['environment/verifier-preparation.sh'] = (setup, 0o755)
+    encoded = base64.b64encode(setup).decode()
+    workdirs = re.findall(r'(?m)^WORKDIR (\S+)\s*$', recipe)
+    if len(workdirs) != 1 or not workdirs[0].startswith('/'):
+        raise ValueError(f'{task_id}: expected one absolute preparation WORKDIR')
+    # Harbor's definition builder creates WORKDIR but does not cd into it.
+    recipe += ('RUN printf %s ' + shlex.quote(encoded)
+               + ' | base64 -d > /opt/seta-verifier-preparation.sh && cd '
+               + shlex.quote(workdirs[0]) + ' && bash /opt/seta-verifier-preparation.sh\n')
+    # Keep context and offline interpreter/package checks, remove installation.
+    _, check = split_verifier_script(setup.decode())
+    files['tests/setup.sh'] = (check.encode(), 0o755)
+    metadata.update(recipe=recipe, preparation_image='seta-preparation-review-v1')
+    serialized = (json.dumps(metadata, indent=2) + '\n').encode()
+    script, count = re.subn(r'(?m)^identity=[0-9a-f]{64}$', 'identity=' + hashlib.sha256(serialized).hexdigest(), script)
+    if count != 1:
+        raise ValueError(f'{task_id}: missing setup identity')
+    files['setup_files/operations.json'] = (serialized, files['setup_files/operations.json'][1])
+    files['setup_files/setup.sh'] = (script.encode(), files['setup_files/setup.sh'][1])
+    files['environment/Dockerfile'] = (recipe.encode(), files['environment/Dockerfile'][1])
+
+
+def patch_task(blob, task_id=TARGET, dependency_cache=None):
     files = unpack(_patch_task(blob, task_id))
     harden_verifier_curl(files)
+    prebuild_java_preparation(files, task_id, dependency_cache)
+    prebuild_slow_preparation(files, task_id)
     if task_id in SETUP_TIMEOUT_TARGETS:
         data, mode = files['task.toml']
         text = data.decode()
@@ -1783,6 +2170,9 @@ def patch_task(blob, task_id=TARGET):
         if count != 1:
             raise ValueError(f'{task_id}: expected one setup timeout')
         files['task.toml'] = (text.encode(), mode)
+    repair_python_verifier_preparation(files, task_id)
+    separate_verifier_preparation(files)
+    prebuild_reviewed_preparation(files, task_id)
     return pack(files)
 
 
@@ -1851,7 +2241,7 @@ def _patch_task(blob, task_id=TARGET):
         files['instruction.md'] = (text.encode(), files['instruction.md'][1])
         return pack(files)
     if task_id != TARGET:
-        if task_id in SETUP_TIMEOUT_TARGETS or task_id in ORACLE_ZERO_REPAIRS or task_id in (CONFIG_LOADER_TARGET, FHS_LOOKUP_TARGET, VIM_TARGET) or shared_image or setup_edits or unpinned_edits or extra_pins or uvx_pins or uv_bootstrap or solution_pip or verifier_pip or curl_edits:
+        if task_id in PREPARATION_IMAGE_OPERATIONS or task_id in SETUP_TIMEOUT_TARGETS or task_id in ORACLE_ZERO_REPAIRS or task_id in (CONFIG_LOADER_TARGET, FHS_LOOKUP_TARGET, VIM_TARGET) or shared_image or setup_edits or unpinned_edits or extra_pins or uvx_pins or uv_bootstrap or solution_pip or verifier_pip or curl_edits:
             return pack(files)
         raise ValueError(f'Unreviewed target: {task_id}')
     config = tomllib.loads(files['task.toml'][0].decode())
@@ -1984,6 +2374,7 @@ def main():
     ap.add_argument('--input', type=Path, required=True)
     ap.add_argument('--output', type=Path, required=True)
     ap.add_argument('--pilot-output', type=Path, help='also write the one repaired task for smoke validation')
+    ap.add_argument('--dependency-cache', type=Path, help='verified Java downloads; defaults beside output')
     args = ap.parse_args()
     outputs = [args.output, args.output.with_suffix('.report.json'),
                args.output.with_suffix('.archive.parquet'), args.output.with_suffix('.manifest.json')]
@@ -2070,11 +2461,19 @@ def main():
                 verifier_pip = row['path'] in VERIFIER_PIP_EDITS
                 if verifier_pip:
                     verifier_pip_tasks += 1
-                if row['path'] in SETUP_TIMEOUT_TARGETS or row['path'] in ORACLE_ZERO_REPAIRS or row['path'] in TARGETS or shared_image or setup_edits or unpinned_edits or extra_pins or uvx_pins or uv_bootstrap or solution_pip or verifier_pip or curl_edits:
+                if row['path'] in PREPARATION_IMAGE_OPERATIONS or row['path'] in SLOW_PREPARATION or row['path'] in JAVA_PREPARATION or row['path'] in SETUP_TIMEOUT_TARGETS or row['path'] in ORACLE_ZERO_REPAIRS or row['path'] in TARGETS or shared_image or setup_edits or unpinned_edits or extra_pins or uvx_pins or uv_bootstrap or solution_pip or verifier_pip or curl_edits:
                     task_id = row['path']
                     before = hashlib.sha256(row['task_binary']).hexdigest()
-                    row['task_binary'] = patch_task(row['task_binary'], task_id)
-                    changes = (['preinstall pinned pytest in the shared Dockerfile'] if shared_image else [])
+                    row['task_binary'] = patch_task(row['task_binary'], task_id, args.dependency_cache or args.output.parent / 'dependency-cache')
+                    changes = ['separate verifier installation and Python dependency preparation into tests/setup.sh; grade with offline uv'] + (['preinstall pinned pytest in the shared Dockerfile'] if shared_image else [])
+                    if task_id in PREPARATION_IMAGE_OPERATIONS:
+                        changes.append('bake dependency-only task operations and explicit verifier preparation after the five-run setup review')
+                    if task_id in SLOW_PREPARATION:
+                        changes.append('prebuild reusable packages and uv after the five-run preparation gate; precompute the provided video fixture where applicable')
+                    if task_id in JAVA_PREPARATION:
+                        changes.append('prebuild Java tools and pinned verifier dependencies; bundle checksum-verified Maven JARs for local setup copying')
+                    if task_id == 'ask_ubuntu__evolve__945__b1':
+                        changes.append('remove the redundant grading-time Pillow installer; use the existing pinned verifier dependency')
                     if system_pytest:
                         changes.append('run verifier with pinned uvx pytest and reject startup errors')
                     if setup_edits:
@@ -2130,7 +2529,13 @@ def main():
                     if task_id == TARGET:
                         pilot = dict(row)
                 else:
-                    report['unchanged'].append({'task_id': row['path'], 'reason': 'outside this targeted repair'})
+                    before = hashlib.sha256(row['task_binary']).hexdigest()
+                    files = unpack(row['task_binary'])
+                    separate_verifier_preparation(files)
+                    row['task_binary'] = pack(files)
+                    report['patched'].append({'task_id': row['path'], 'before_sha256': before,
+                        'after_sha256': hashlib.sha256(row['task_binary']).hexdigest(),
+                        'changes': ['separate verifier installation and Python dependency preparation into tests/setup.sh; grade with offline uv']})
                 kept_rows.append(row)
             writer.write_table(pa.Table.from_pylist(kept_rows, schema=source.schema_arrow))
     if rocky_image_tasks != ROCKY_RECIPE_TASK_COUNT:

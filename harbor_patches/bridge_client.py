@@ -19,9 +19,9 @@ import urllib.request
 from uuid import uuid4
 
 try:
-    from harbor_patches.bridge_timeouts import exec_result_timeout
+    from harbor_patches.bridge_timeouts import exec_result_timeout, upload_result_timeout
 except ModuleNotFoundError:  # Direct CLI launcher.
-    from bridge_timeouts import exec_result_timeout
+    from bridge_timeouts import exec_result_timeout, upload_result_timeout
 
 logger = logging.getLogger(__name__)
 RETRY_SECONDS = 60
@@ -134,11 +134,13 @@ class BridgeClient:
 
         result = await retry(submit, deadline - time.monotonic(),
                              label=f"{parsed.path} {data.get('env_id', '')}".strip())
-        if parsed.path == '/env/exec' and result.get('job_id'):
+        if parsed.path in ('/env/exec', '/env/upload') and result.get('job_id'):
             # Upstream Harbor otherwise polls for command_timeout + 30, while
             # the lifecycle RPC waits command_timeout + 60. Allow that inner
             # deadline plus result delivery; never re-execute a timed-out command.
-            self.exec_waits[(base, result['job_id'])] = (time.monotonic(), exec_result_timeout(data.get('timeout_sec')))
+            budget = (upload_result_timeout() if parsed.path == '/env/upload'
+                      else exec_result_timeout(data.get('timeout_sec')))
+            self.exec_waits[(base, result['job_id'])] = (time.monotonic(), budget)
             while len(self.exec_waits) > 20000:
                 self.exec_waits.popitem(last=False)
         return result
@@ -176,4 +178,3 @@ def install():
     bridge._async_http_post = client.post
     bridge._poll_job = client.poll_job
     bridge._reliable_transport = True
-

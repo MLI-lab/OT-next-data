@@ -97,6 +97,8 @@ def prepare(args, numbers):
     derived = copy.copy(args)
     derived.path_resolution_report = [evidence_path]
     derived.static_resume = None
+    # A derived task tree needs fresh stage-3 validation.
+    derived.reuse_stage3 = None
     # Keep selected coverage even when a direct caller used a task selection.
     derived.limit = args.limit
     derived.task_id_range = args.task_id_range

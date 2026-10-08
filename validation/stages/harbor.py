@@ -13,26 +13,33 @@ from contextvars import ContextVar
 from uuid import uuid4
 
 _save_dependencies = ContextVar('validation_save_dependencies', default=False)
+_review_preparation = ContextVar('validation_review_preparation', default=False)
 BRIDGE_EXEC_LIMIT = 7 * 86400     # a command's own limit on the bridge: in practice none
 
 
-# An attempt is run again, once, only when the node took the agent's terminal away
-# before the agent could act (2 of the first 30,000 trials of the CrossCodeEval pass@16
-# runs; replaying the prompts showed the model had typed nothing that ends a shell).
-# Such an attempt says nothing about the task or the model. Every other failure,
-# including model, verifier and timeout errors, stays a recorded, ungraded attempt.
-INFRASTRUCTURE_RETRY = {'max_retries': 1, 'include_exceptions': ['TmuxSessionEndedError']}
+# A lost session alone does not establish an infrastructure failure: agent exec,
+# exit, kill-server and malformed heredocs can all close it. Preserve the attempt
+# for diagnosis instead of granting a new sample based only on its exception type.
+INFRASTRUCTURE_RETRY = {'max_retries': 0}
 
 
 def install_runtime_patches():
+    from harbor_patches.fresh_verifier import install as install_fresh_verifier
+    install_fresh_verifier()
+    from harbor_patches.verifier_setup import install as install_verifier_setup
+    install_verifier_setup()
     from validation.stages.task_setup import install as install_task_setup
     install_task_setup()
     from harbor_patches.bridge_client import install as install_transport
     install_transport()
     from harbor_patches.reasoning_field import install as install_reasoning_field
     install_reasoning_field()
+    from harbor_patches.tmux_capture import install as install_tmux_capture
+    install_tmux_capture()
     from harbor_patches.tmux_diagnostics import install as install_tmux_diagnostics
     install_tmux_diagnostics()
+    from harbor_patches.oom_recovery import install as install_oom_recovery
+    install_oom_recovery()
     from validation.stages.container_reuse import install
     install()
     # The pinned bridge keys images only by Dockerfile text. Include COPY
@@ -55,6 +62,8 @@ def install_runtime_patches():
         async def post_marking_oracle(url, data, timeout=60):
             # The bridge server passes task_env_config to the worker unchanged. With dependency
             # archives configured, the worker saves the archive of a marked trial that passes.
+            if url.endswith('/env/create') and _review_preparation.get():
+                data = dict(data, task_env_config=dict(data.get('task_env_config') or {}, disable_dependency_archive=True))
             if url.endswith('/env/create') and _save_dependencies.get():
                 data = dict(data, task_env_config=dict(data.get('task_env_config') or {}, save_dependencies=True))
             return await post(url, data, timeout)
@@ -213,18 +222,53 @@ def expected_missing_output_setup(output, task_path):
     return True
 
 
+def verifier_output(path, verifier):
+    outputs = [verifier.get('stdout') or '', verifier.get('stderr') or '']
+    for name in ('test-stdout.txt', 'test-stderr.txt'):
+        log = path / 'verifier' / name
+        if log.is_file():
+            outputs.append(log.read_text(errors='replace'))
+    return re.sub(r'\x1b\[[0-9;]*m', '', '\n'.join(outputs))
+
+
+def nop_missing_instruction_files(path, result, task_path, reward_key):
+    """Recognize missing files mentioned in instructions, using verifier logs only."""
+    if task_path is None or not (Path(task_path) / 'instruction.md').is_file():
+        return []
+    exception = result.get('exception_info') or {}
+    if exception.get('exception_type') not in (None, 'VerifierRuntimeError', 'RewardFileNotFoundError'):
+        return []
+    verifier = result.get('verifier_result') or {}
+    score = (verifier.get('rewards') or {}).get(reward_key)
+    if score is not None and (isinstance(score, bool) or score != 0):
+        return []
+    problem = nop_execution_problem(path, verifier, task_path)
+    if problem and problem.startswith('verifier did not run:'):
+        return []
+    output = verifier_output(path, verifier)
+    errors = re.findall(r'^(?:E\s+)?([\w.]+(?:Error|Exception)):\s*(.*)$', output, re.M)
+    if not errors or any(kind != 'FileNotFoundError' for kind, _ in errors):
+        return []
+    instruction = (Path(task_path) / 'instruction.md').read_text()
+    paths = set()
+    for _, message in errors:
+        match = re.fullmatch(r"\[Errno 2\] No such file or directory: (['\"])(.+)\1", message.strip())
+        if not match:
+            return []
+        missing = match[2]
+        if not re.search(r'(?<![\w./-])' + re.escape(missing) + r'(?![\w./-])', instruction):
+            return []
+        paths.add(missing)
+    return sorted(paths)
+
+
 def nop_execution_problem(path, verifier, task_path=None):
     """Recognize runner failures that wrappers sometimes turn into reward zero.
 
     This is deliberately conservative: arbitrary verifiers need not use pytest,
     and assertion failures (including missing task outputs) are valid NOP results.
     """
-    outputs = [verifier.get('stdout') or '', verifier.get('stderr') or '']
-    for name in ('test-stdout.txt', 'test-stderr.txt'):
-        log = path / 'verifier' / name
-        if log.is_file():
-            outputs.append(log.read_text(errors='replace'))
-    output = re.sub(r'\x1b\[[0-9;]*m', '', '\n'.join(outputs))
+    output = verifier_output(path, verifier)
     if re.search(r'^\S*python[\w.]*: No module named [\'"]?pytest\b', output, re.M):
         return 'verifier did not run: pytest is not installed'
     if re.search(r'^(?:[^\n]*: )?(?:\S*/)?pytest: (?:command )?not found\s*$', output, re.M):
@@ -256,10 +300,18 @@ def trial_seconds(result, phase=None):
 
 def assess_trials(results, expected_count, expected_reward=None, reward_key='reward', *, task_path=None):
     findings = []
+    missing_file_zeros = []
     if len(results) != expected_count:
         findings.append(f'expected {expected_count} trials, found {len(results)}')
     scores = []
     for path, result in results:
+        missing = (nop_missing_instruction_files(path, result, task_path, reward_key)
+                   if expected_reward == 0 else [])
+        if missing:
+            scores.append(0)
+            missing_file_zeros.append({'trial': str(path), 'paths': missing,
+                                       'reason': 'verifier FileNotFoundError for a path mentioned in instruction.md'})
+            continue
         if result.get('exception_info'):
             findings.append(f'{path.name}: exception: {result["exception_info"]}')
             # Harbor still verifies the final files after an agent time limit.
@@ -281,6 +333,7 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
         if expected_reward is not None and score != expected_reward:
             findings.append(f'{path.name}: expected reward {expected_reward}, got {score}')
     return {'status': 'failed' if findings else 'completed', 'findings': findings, 'rewards': scores,
+            **({'missing_file_zeros': missing_file_zeros} if missing_file_zeros else {}),
             'trial_seconds': [trial_seconds(result) for _, result in results],
             # How long the solution and the verifier themselves ran: the slow tasks can be found later.
             'agent_seconds': [trial_seconds(result, 'agent_execution') for _, result in results],
@@ -289,6 +342,13 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
 
 async def build_task(task_path, out, args):
     install_runtime_patches()
+    if getattr(args, 'review_setup', None) is not None:
+        from validation.stages.verifier_setup import review_task
+        token = _review_preparation.set(True)
+        try:
+            return await review_task(task_path, out, args)
+        finally:
+            _review_preparation.reset(token)
     from harbor.environments.factory import EnvironmentFactory
     from harbor.models.environment_type import EnvironmentType
     from harbor.models.task.task import Task
@@ -301,12 +361,13 @@ async def build_task(task_path, out, args):
         for step in task.config.steps:
             env = resolve_effective_verifier_env_config(task.config, step)
             if env is not None:
-                context = task.paths.step_tests_dir(step.name)
-                specs.append((f'verifier-{step.name}', context if context.exists() else task.paths.tests_dir, env))
+                from harbor_patches.fresh_verifier import build_context
+                specs.append((f'verifier-{step.name}', build_context(task, step), env))
     else:
         env = resolve_effective_verifier_env_config(task.config, None)
         if env is not None:
-            specs.append(('verifier', task.paths.tests_dir, env))
+            from harbor_patches.fresh_verifier import build_context
+            specs.append(('verifier', build_context(task), env))
     results = []
     for label, context, spec in specs:
         overrides = {}
@@ -331,6 +392,7 @@ async def build_task(task_path, out, args):
             await asyncio.wait_for(
                 prepare(environment, command=command, timeout_sec=spec.build_timeout_sec,
                         force_build=args.force_build,
+                        timings=entry['timings_seconds'],
                         upload=lambda: upload_setup(environment, task_path)),
                 timeout=spec.build_timeout_sec)
             if command:
@@ -338,6 +400,16 @@ async def build_task(task_path, out, args):
                 entry['preparation_budget_seconds'] = spec.build_timeout_sec
             entry['timings_seconds']['start'] = time.monotonic() - started
             phase, started = 'inspect', time.monotonic()
+            if command and getattr(args, 'preparation_runs', 1) > 1:
+                timing = await environment.exec(
+                    'if [ -f /setup_files/setup-timing.json ]; then cat /setup_files/setup-timing.json; fi',
+                    user='root')
+                if timing.return_code == 0 and timing.stdout.strip():
+                    try:
+                        entry['setup_timing'] = json.loads(timing.stdout)
+                        (out / label / 'setup-timing.json').write_text(timing.stdout)
+                    except (ValueError, OSError) as exc:
+                        entry['timing_evidence_error'] = str(exc)
             from validation.checks.environment import inspect_environment
             inspection = await inspect_environment(environment, task, context, label)
             entry.update(inspection)

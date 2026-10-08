@@ -86,7 +86,10 @@ def main(submission, output):
                     readme_evidence=options.get('publish_readme_evidence', []),
                     patch_manifests=options.get('publish_patch_manifest', []),
                     conversion_archives=options.get('publish_conversion_archive', []),
-                    readme_work_dir=scratch / 'annotation-runs')
+                    readme_work_dir=scratch / 'annotation-runs',
+                    agent_patch_repair_loop=options.get('publish_agent_patch_repair_loop', False),
+                    patch_repair_summary=options.get('publish_patch_repair_summary'),
+                    skipped_stages=options.get('publish_skipped_stages'))
                 status.update(status='completed', pull_request=result['pull_request'],
                               files=result['files'], run=result['run'])
                 save(output / 'publish-status.json', status)

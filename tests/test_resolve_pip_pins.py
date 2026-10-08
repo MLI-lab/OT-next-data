@@ -132,7 +132,10 @@ def test_preparation_preserves_original_and_freezes_only_successful_edits(tmp_pa
     assert (tmp_path / 'original.json').read_bytes() == original_contract
     if passed:
         assert (args.tasks / 'sample/tests/test.sh').read_text() == 'python3 -m pip install pytest==8.3.5\n'
-        assert verify_materialized(args)['stages'] == stages
+        frozen = verify_materialized(args)
+        assert frozen['stages'] == stages
+        assert frozen['dataset']['automation_changes']['sample'] == [
+            'anti-cheat-instruction', 'dependency-pinning']
     else:
         assert args.tasks == root.parent
         assert args.contract == tmp_path / 'original.json'

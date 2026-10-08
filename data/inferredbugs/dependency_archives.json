@@ -1,5 +1,9 @@
 {
   "target": "/opt/inferredbugs/dependencies.tar",
   "folder": "/cache",
-  "exclude": ["./m2/*.xml", "./.inferredbugs-dependencies"]
+  "exclude": [
+    "./m2/*.xml",
+    "./.inferredbugs-dependencies"
+  ],
+  "reuse_for_oracle": true
 }

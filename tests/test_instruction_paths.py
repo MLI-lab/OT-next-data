@@ -1,4 +1,5 @@
 import hashlib
+import pytest
 from validation.checks.instruction_paths import automatic
 
 
@@ -24,9 +25,16 @@ def test_reference_is_accepted_independently_of_oracle_reward():
     assert '/workspace/' in automatic(text, evidence(text, 'reference'), True)[0]
 
 
-def test_examples_and_ambiguity_unchanged():
-    text = 'For example use `src/new.py`.\n\n```python\nimport src/new.py\n```'
-    assert automatic(text, evidence(text), True)[0] == text
+@pytest.mark.parametrize('prefix', ['For example', 'e.g.', 'Illustrative', 'Reproduce', 'Example input'])
+def test_unique_paths_in_example_prose_are_rewritten(prefix):
+    text = prefix + ' use `src/new.py`.\n\n```python\nimport src/new.py\n```'
+    fixed, edits = automatic(text, evidence(text), True)
+    assert fixed == prefix + ' use `/workspace/project/src/new.py`.\n\n```python\nimport src/new.py\n```'
+    assert len(edits) == 1
+
+
+def test_ambiguous_example_paths_unchanged():
+    text = 'For example use `src/new.py`.'
     diagnostic = evidence(text)
     diagnostic['agent_baseline']['findings'][0]['status'] = 'ambiguous'
     assert automatic(text, diagnostic, True)[0] == text
@@ -55,9 +63,23 @@ def test_shared_preparation_preserves_original_and_rejects_stale(tmp_path):
     assert (task / 'instruction.md').read_text() == text
     derived = (tmp_path / 'derived/sample/instruction.md').read_text()
     assert '/workspace/project/src/new.py' in derived and '120 seconds' in derived
+    expected = {'sample': ['anti-cheat-instruction', 'relative-path-fix']}
+    assert json.loads((tmp_path / 'derived/source.json').read_text())['automation_changes'] == expected
+    repeat = args()
+    repeat.tasks = tmp_path / 'derived'
+    repeat.path_resolution_report = []
+    prepare(repeat, tmp_path / 'repeated')
+    assert json.loads((tmp_path / 'repeated/source.json').read_text())['automation_changes'] == expected
     (task / 'task.toml').write_text('[agent]\ntimeout_sec = 121\n')
     prepare(args(), tmp_path / 'stale')
     assert '/workspace/' not in (tmp_path / 'stale/sample/instruction.md').read_text()
+    assert json.loads((tmp_path / 'stale/source.json').read_text())['automation_changes'] == {
+        'sample': ['anti-cheat-instruction']}
+    unchanged = args()
+    unchanged.fix_instruction_suffix = False
+    unchanged.path_resolution_report = []
+    prepare(unchanged, tmp_path / 'unchanged')
+    assert json.loads((tmp_path / 'unchanged/source.json').read_text())['automation_changes'] == {}
 
 
 def test_incomplete_reference_observation_is_not_used():

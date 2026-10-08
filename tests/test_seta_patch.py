@@ -47,7 +47,7 @@ def test_repair_only_changes_image_dependencies_and_test_wrapper():
     files = unpack(patched)
     for name in ('instruction.md', 'solution/solve.sh', 'tests/test_outputs.py', 'setup_files/context.sh'):
         assert files[name] == original[name]
-    assert set(files) == set(original) | {'tests/test.sh'}
+    assert set(files) == set(original) | {'tests/test.sh', 'tests/setup.sh'}
     for name in original:
         if name != 'environment/Dockerfile':
             assert files[name] == original[name]
@@ -66,7 +66,8 @@ def test_shared_image_repair_applies_to_other_matching_tasks_only():
     result = unpack(patch_task(source, 'nl2bash__synth__003'))
     assert result['environment/Dockerfile'][0] == SHARED_DOCKERFILE + SHARED_DOCKERFILE_ADDENDUM
     assert result['setup_files/setup.sh'] == files['setup_files/setup.sh']
-    assert result['tests/test.sh'] == files['tests/test.sh']
+    assert result['tests/test.sh'][0].removeprefix(b'UV_OFFLINE=1 ') == files['tests/test.sh'][0]
+    assert b'pytest --version' not in result['tests/setup.sh'][0]
     assert not uses_shared_recipe(pack(result))
     files['environment/Dockerfile'] = (b'FROM ubuntu:24.04\nWORKDIR /app\n', 0o644)
     with pytest.raises(ValueError, match='Unreviewed target'):
@@ -103,7 +104,8 @@ def test_setup_pytest_follows_pinned_uvx_version_and_updates_metadata():
     for name in ('setup_files/setup.sh', 'setup_files/operations.json'):
         assert b'pytest==8.4.1' in result[name][0]
         assert b'pytest==8.3.5' not in result[name][0]
-    assert result['tests/test.sh'] == files['tests/test.sh']
+    assert result['tests/test.sh'][0].removeprefix(b'UV_OFFLINE=1 ') == files['tests/test.sh'][0]
+    assert b'pytest --version' in result['tests/setup.sh'][0]
 
 
 def test_unpinned_debian_pytest_is_replaced_when_image_and_uvx_agree():
@@ -217,7 +219,8 @@ def test_patch_rejects_archive_symlinks():
 def test_required_cli_interface_is_disclosed_without_changing_grading():
     from data.seta.patch import INSTRUCTION_REPAIRS
     old, _ = INSTRUCTION_REPAIRS['ask_ubuntu__synth__284']
-    files = {'instruction.md': (old.encode(), 0o644),
+    files = {'tests/test.sh': (b'#!/bin/bash\npython3 -m pytest /tests/test_outputs.py\n', 0o755),
+             'instruction.md': (old.encode(), 0o644),
              'tests/test_outputs.py': (b'original assertions', 0o644),
              'solution/solve.sh': (b'original solution', 0o755)}
     original = pack(files)
@@ -236,7 +239,8 @@ def test_user_home_is_explicit_without_relocating_the_task():
     from data.seta.patch import INSTRUCTION_REPAIRS
     name = 'ask_ubuntu__synth__1293'
     old, _ = INSTRUCTION_REPAIRS[name]
-    files = {'instruction.md': (old.encode(), 0o644),
+    files = {'tests/test.sh': (b'#!/bin/bash\npython3 -m pytest /tests/test_outputs.py\n', 0o755),
+             'instruction.md': (old.encode(), 0o644),
              'setup_files/context.sh': (b'cd /app\n', 0o644),
              'tests/test_outputs.py': (b'original assertions', 0o644)}
     result = unpack(patch_task(pack(files), name))
@@ -287,9 +291,9 @@ def test_curl_only_task_is_selected_and_hardened():
 def test_h2_setup_download_rejects_http_errors():
     script = b'curl -L "https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar" -o /app/lib/h2.jar'
     files = {'setup_files/setup.sh': (script, 0o755)}
-    result = unpack(patch_task(pack(files), 'stack_overflow__synth__9112770'))
-    from data.seta.patch import CURL_DOWNLOAD_RETRIES
-    assert result['setup_files/setup.sh'][0] == script.replace(
+    from data.seta.patch import CURL_DOWNLOAD_RETRIES, repair_oracle_zero
+    repair_oracle_zero(files, 'stack_overflow__synth__9112770')
+    assert files['setup_files/setup.sh'][0] == script.replace(
         b'curl -L', f'curl --fail {CURL_DOWNLOAD_RETRIES} -L'.encode())
 
 

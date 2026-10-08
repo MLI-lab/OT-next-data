@@ -52,6 +52,26 @@ def render(record):
         lines.append(f"| Unique cached images / tasks kept | {images['bundles']:,} / {kept:,} |")
         if images['tasks'] != kept:
             lines.append(f"| Tasks with cached images | {images['tasks']:,} / {kept:,} |")
+    comparisons = {folder: evidence['environment_comparison']
+                   for folder, evidence in record.get('patch_provenance', {}).items()
+                   if evidence.get('environment_comparison')}
+    if comparisons:
+        coverage = []
+        lines += ['', '| Data source | Unique upstream build environments | Unique kept build environments | Change |',
+                  '| --- | ---: | ---: | ---: |']
+        for folder, comparison in comparisons.items():
+            upstream, kept = comparison.get('upstream'), comparison['kept']
+            before = f"{upstream['unique']:,}" if upstream is not None else 'Not recorded'
+            delta = f"{kept['unique'] - upstream['unique']:+,}" if upstream is not None else 'Not recorded'
+            lines.append(f"| {cell(folder)} | {before} | {kept['unique']:,} | {delta} |")
+            for scope, counts in [('Upstream', upstream), ('Kept', kept)]:
+                if counts is not None and counts['tasks_with_build_context'] != counts['tasks']:
+                    coverage.append(f"{cell(folder)}: {scope.lower()} build contexts found for "
+                                    f"{counts['tasks_with_build_context']:,} of {counts['tasks']:,} tasks.")
+        lines += ['', *coverage]
+        lines += ['', 'Build environments count distinct Dockerfile directory contents, file modes and links. '
+                  'Upstream covers the original source scope, including subsequently archived tasks; kept covers retained tasks. '
+                  'These are build contexts, not built image digests or cached-image counts.']
     timings = record.get('stage_timings') or {}
     if timings:
         if record.get('timing_scope'):

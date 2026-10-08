@@ -37,19 +37,26 @@ def detect(task: Path) -> str | None:
     return next(iter(calls), None)
 
 
-async def prepare(environment, *, command, timeout_sec, force_build, upload, logger=None):
+async def prepare(environment, *, command, timeout_sec, force_build, upload, logger=None, timings=None):
     """Caller enforces timeout_sec around this entire operation, including uploads."""
     deadline = time.monotonic() + timeout_sec
-    await environment.start(force_build=force_build)
+    async def measured(name, operation):
+        started = time.monotonic()
+        try:
+            return await operation()
+        finally:
+            if timings is not None:
+                timings[name] = time.monotonic() - started
+    await measured('container_start', lambda: environment.start(force_build=force_build))
     if not command:
         return
-    await upload()
+    await measured('setup_upload', upload)
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise TimeoutError('Environment preparation budget exhausted before task setup')
     if logger:
         logger.info('Task setup shares environment budget: %.3fs remaining; %s', remaining, command)
-    result = await environment.exec(command, timeout_sec=remaining, user='root')
+    result = await measured('setup_execution', lambda: environment.exec(command, timeout_sec=remaining, user='root'))
     if logger:
         logger.info('Task setup stdout:\n%s\nTask setup stderr:\n%s', result.stdout, result.stderr)
     if result.return_code != 0:

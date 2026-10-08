@@ -56,8 +56,19 @@ def parser():
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
     ap.add_argument('--attempts', type=int, default=1)
+    ap.add_argument('--review-setup', type=int, nargs='?', const=5, metavar='RUNS',
+                    help='stage 3 setup review: five fresh task/verifier preparations; mean task <=30s, verifier <=5%% of timeout, each <=60s')
+    ap.add_argument('--preparation-runs', type=int, default=1,
+                    help='stage 3 repetitions in fresh containers with prepared images')
+    ap.add_argument('--preparation-mean-target-seconds', type=float,
+                    help='stage 3 mean task preparation limit (review default: 30s)')
+    ap.add_argument('--preparation-median-target-seconds', type=float,
+                    help='stage 3 median preparation limit across all repetitions')
+    ap.add_argument('--preparation-max-seconds', type=float,
+                    help='stage 3 preparation limit for every repetition')
     ap.add_argument('--concurrency', type=int, default=1)
     ap.add_argument('--static-concurrency', type=int, help='stage 1 parallel tasks; defaults to --concurrency, capped by allocated CPUs')
+    ap.add_argument('--reuse-stage3', help='reuse compatible passing stage-3 evidence from a checkpoint record')
     ap.add_argument('--static-resume', help='preserved static checkpoint directory; import unchanged successful checks')
     ap.add_argument('--static-resume-accept-previous-path-check', action='store_true',
                     help='explicitly retain successful path checks under the checkpoint adaptation; record mixed provenance')
@@ -180,10 +191,17 @@ def dependency_archive_spec(a):
     exclude = data.get('exclude') or []
     if not isinstance(exclude, list) or not all(isinstance(e, str) for e in exclude):
         raise ValueError('"exclude" in --dependency-layout must be a list of tar patterns')
-    return {'directory': str(Path(directory).resolve()), 'target': data['target'], 'folder': data['folder'], 'exclude': exclude}
+    spec = {'directory': str(Path(directory).resolve()), 'target': data['target'], 'folder': data['folder'], 'exclude': exclude}
+    if 'reuse_for_oracle' in data:
+        if not isinstance(data['reuse_for_oracle'], bool):
+            raise ValueError('"reuse_for_oracle" in --dependency-layout must be a boolean')
+        spec['reuse_for_oracle'] = data['reuse_for_oracle']
+    return spec
 
 
 def check_args(a):
+    from validation.stages.build_retries import configure_preparation_review
+    configure_preparation_review(a)
     if getattr(a, 'resolve_path_root', None):
         from data.utils.resolve_absolute_paths import validate_roots
         validate_roots(a.resolve_path_root)
@@ -496,6 +514,11 @@ def run_stage(number, args):
             report['items'] = static['tasks']
             if 'resumed_from' in static:
                 report['resumed_from'] = static['resumed_from']
+    elif number == 3 and not args.dry_run and contract and contract.get('stage3_checkpoint'):
+        from validation.checkpoints.stage3 import restore
+        checkpoint = contract['stage3_checkpoint']
+        report['items'] = restore(checkpoint, sources)
+        report['reused_from'] = {k: v for k, v in checkpoint.items() if k != 'items'}
     elif number == 3 and not args.dry_run:
         from validation.stages.build_retries import run_builds
         with (out / 'outcomes.jsonl').open('x') as outcomes:

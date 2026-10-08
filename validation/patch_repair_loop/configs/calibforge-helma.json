@@ -1,0 +1,49 @@
+{
+  "dataset": "AweAI-Team/CalibForge",
+  "source_revision": "fb1e75441a94b8bb0ced08acd6b59e711704d70a",
+  "source": "/hnvme/workspace/y500bb12-optiagent/calibforge-patch-loop-20261008/source/tasks.parquet",
+  "patcher": "/home/hpc/y500bb/y500bb12/OT_next_data/data/calibforge/patch.py",
+  "patch_command": [
+    "{python}",
+    "{patcher}",
+    "--source",
+    "{source}",
+    "--output",
+    "{output}"
+  ],
+  "work_root": "/hnvme/workspace/y500bb12-optiagent/calibforge-patch-loop-20261008/loop",
+  "workspace": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke",
+  "python": "/home/vault/y500bb/y500bb12/ot-next-data/envs/prep/bin/python",
+  "agent_provider": "claude",
+  "agent_model": "claude-opus-5-5",
+  "supervisor_provider": "codex",
+  "supervisor_model": "gpt-6-astra",
+  "supervisor_reasoning_effort": "medium",
+  "supervisor_shared_infra": true,
+  "max_supervisor_reviews": 3,
+  "max_recoveries": 3,
+  "pilot_sizes": [
+    10,
+    50,
+    200
+  ],
+  "max_repairs": null,
+  "max_infra_retries": null,
+  "review_setup_runs": 5,
+  "concurrency": 8,
+  "cpus": 48,
+  "memory": "128G",
+  "partition": "cpu",
+  "time": "06:00:00",
+  "required_stages": [
+    1,
+    3,
+    5
+  ],
+  "validation_policy_reason": "User explicitly approved skipping stage 4 for CalibForge: the pinned release has no reference solutions (0 of 5431 tasks contain solution/solve.sh). Do not generate substitute reference solutions or archive tasks solely for lacking them.",
+  "publish": true,
+  "publish_readme_model": "claude-opus-5-5",
+  "usage_retry_seconds": 600,
+  "publish_repo": "FWeindel/validated-tasks",
+  "publish_dataset_folder": "calibforge"
+}

@@ -22,22 +22,31 @@ Python interpreter before starting services. This is a copy of the same environm
 ### Per-environment Slurm resources
 
 The outer `.sbatch` allocation starts the shared bridge. On Slurm, the bridge
-launches one persistent lifecycle worker per task environment using
+launches one disposable execution step per task environment using
 `srun --exact -n1 -c<cpus> --mem=<memory> --gres=none`. CPU and memory requests
 come from the effective Harbor environment config (including task.toml and
 CLI overrides); missing values fall back to `OT_TRIAL_CPUS=1` and
 `OT_TRIAL_MEM=4G`.
 
-[`bridge_worker.py`](../../harbor_patches/bridge_worker.py) routes the environment
-to [`trial_step.py`](../../harbor_patches/trial_step.py). This worker owns image
-building/pulling, container startup, agent and direct verifier commands, file
-transfers, dependency saving and teardown. The bridge sends requests over a
-private node-local socket. Every container command inherits this worker's Slurm
-step; the persistent tmux session does not request another step. A separately
-configured verifier environment gets its own lifecycle step, and concurrency
+[`bridge_worker.py`](../../harbor_patches/bridge_worker.py) installs a protected
+controller from [`protected_step.py`](../../harbor_patches/protected_step.py) in
+the shared bridge process. It retains lifecycle state outside the task memory
+limit. A small executor inside the task step launches Apptainer subprocesses,
+including the persistent tmux owner, and returns results over a private
+node-local socket. Container commands inherit the task limits. A separately
+configured verifier environment gets its own execution step, and concurrency
 accounting reserves both environments to avoid allocation deadlocks.
 
-Each lifecycle worker temporarily writes `config.json`, `rpc.sock` and `step.log`
+Confirmed task OOM during a Terminus terminal operation reaps the old step and
+reopens the same disk-backed overlay and mounts in a replacement step. Harbor
+receives explicit OOM feedback and creates a new terminal in the same agent
+conversation and time budget. Setup and the interrupted command are not replayed.
+Recovery counts and terminal `task_memory_limit` outcomes appear in stage 7 trace
+metrics. See [OOM recovery details](../../harbor_patches/README.md#continuing-an-agent-after-a-confirmed-task-oom)
+for evidence requirements, lost process state, reporting and validation.
+The legacy lifecycle-worker pool has been removed.
+
+Each task executor temporarily writes `config.json`, `rpc.sock` and `step.log`
 under node-local `$TMPDIR/trial-*`. After the process exits, including startup
 and stop failures, the proxy copies at most the last 8 KiB of its log into the
 shared worker log and deletes that control directory. Task steps redirect their
@@ -48,7 +57,31 @@ batch job's output stream, producing one combined batch log instead of separate
 have those separate files. Structured validation reports and packaged evidence
 remain separate; model-serving and metrics logs also retain their own files.
 
+### Terminal capture limits
+
+[`tmux_capture.py`](../../harbor_patches/tmux_capture.py) bounds Apptainer
+Terminus batch captures before Harbor adds its status markers. The lifecycle
+worker reserves 1,024 characters for framing and splits the remaining exec
+output allowance between the visible screen and scrollback. Captures are
+limited in bytes to retain recent complete lines without splitting UTF-8;
+small captures stay unchanged. The worker's ordinary output limit remains in
+force. Capture failures still propagate, and the patch never replays agent
+commands. Other backends keep Harbor's existing capture behavior.
+
+Both the agent runtime and lifecycle worker install this patch. Existing frozen
+submissions retain their original code; new submissions include it in their
+code snapshot and contract implementation hashes.
+
 ### Bridge communication retries
+
+Upload bookkeeping uses a non-login shell with a standard system PATH and no
+`BASH_ENV` or `ENV` startup hooks. This applies to transport extraction and
+verification only. Agent commands and task verifiers retain their task shell
+configuration. An accepted upload has a 600-second lifecycle RPC budget and a
+630-second result-wait budget, covering extraction, verification and bounded
+directory-creation retries. The enclosing preparation or verifier deadline still
+limits the complete phase. Polling retries keep waiting for the accepted upload;
+they do not rerun the agent or submit duplicate uploads.
 
 `harbor_patches/bridge_client.py` is installed by validation's runtime adapter
 and the Helma validation launcher. Status/result requests retry transient connection
@@ -95,8 +128,8 @@ clocks agree within 30 s. Worker-to-server dispatch/result delivery is unchanged
 Previously only the tmux anchor ran under `srun`; image creation and direct
 `apptainer exec` calls could inherit the outer job's resources. Joining an
 Apptainer instance alone does not put a command in the tmux server's Slurm step.
-Instance pooling is disabled for lifecycle workers so different tasks cannot
-reuse an old resource allocation. `OT_TRIAL_SRUN=0` explicitly opts out, and
+The protected path gives each environment its own execution step and never
+reuses it for another task. There is no cross-task executor reuse. `OT_TRIAL_SRUN=0` explicitly opts out, and
 outside Slurm the worker continues to run containers directly.
 
 On other nodes of a multi-node job, the shared coordinator step uses
@@ -124,13 +157,18 @@ are frozen in the contract:
   scripts read the archive from), `folder` (the container folder an archive is made of) and
   `exclude` (tar patterns left out). InferredBugs: `data/inferredbugs/dependency_archives.json`.
 
-Stage 4 writes the archives: an oracle trial starts without an archive, so its build downloads
+By default, stage 4 writes the archives: an oracle trial starts without an archive, so its build downloads
 everything, and when the verifier gives reward 1 the worker saves the container's `folder` as
 a local `<task>.tar` before the container stops; the launcher saves new archives
 back to `DIR` after task execution. Every other trial (stage 5, agent stages) of a task
 that has an archive gets its staged local copy mounted read-only at `target`. Unpacking is the task's own business;
 the bridge only mounts the file. Only oracle trials can write an archive, so an agent cannot put
-anything into it. The options need a fresh container per stage and are refused together with
+anything into it. A dataset layout can set `"reuse_for_oracle": true` to let oracle retries
+also mount an existing archive read-only. A successful oracle can replace its archive atomically;
+failed trials and non-oracle agents cannot publish one. Missing archives still start cold.
+InferredBugs enables this option to avoid downloading the same historical build dependencies
+on every oracle retry. The contract records the selected policy.
+The options need a fresh container per stage and are refused together with
 `--reuse-validation-containers`.
 
 A worker started outside this runner (teacher or RL runs) mounts the same archives when it is
@@ -193,3 +231,67 @@ run. The runner imports reusable stage-1 outcomes; it does not automatically
 choose a smoke sample or add stages. Use `--publish-require-complete` with
 automatic publication to require outcomes for stages 1, 3, 4 and 5. Validation
 findings can archive tasks; incomplete execution prevents that publication.
+
+### Setup review
+
+Optional `--review-setup` runs each task five times in fresh containers using
+prepared images. Use `--review-setup 3` to change the repetition count. Each run
+performs task preparation, then verifier preparation through `tests/setup.sh`.
+The review never calls `test.sh` or grading.
+Task preparation must succeed every time, have mean duration at most 30 seconds
+and no run above 60 seconds. Override task limits with
+`--preparation-mean-target-seconds` and `--preparation-max-seconds`; the legacy
+`--preparation-median-target-seconds` remains an optional additional constraint.
+Verifier preparation must succeed every time, have mean duration at most 5% of
+its `task.toml` verifier timeout, and no run above 60 seconds. For multiple steps,
+each verifier is evaluated separately against that step's timeout. A task may
+be flagged in both categories.
+
+Task timing includes container startup, setup upload and setup execution.
+Verifier timing includes separate-container startup when needed, test-file
+upload, task initialization in a fresh task-image verifier, submission transfer,
+verifier setup execution, and cleanup of temporary transfer files. Image builds, runtime inspection,
+teardown and verification checks are excluded. All work performed by a setup
+command counts, including any compilation it performs. Slurm prepares
+images before measurement; direct runs must have their images prepared already.
+Host filesystem caches are not cleared. Apptainer reviews explicitly disable
+per-task dependency archives from earlier trials. Configured external cache
+mounts on other backends remain the caller's responsibility.
+
+Use the standard scripts:
+
+- `tests/setup.sh`: verifier preparation.
+- `tests/test.sh`: verification checks and grading.
+
+Stage 3 runs only `setup.sh`, after task setup and the required uploads/transfers.
+Normal verification uploads the tests, runs `setup.sh`, then runs `test.sh` in the
+same environment and within the existing verifier timeout. Setup failure or
+timeout prevents checks from running. Setup output is saved separately from test
+output. Omit `setup.sh` if no preparation is needed; no declaration file is required.
+
+Some existing `test.sh` scripts mix setup and verification. Separate them first;
+the runner cannot identify arbitrary installation commands inside a test script.
+Do not call `setup.sh` again from `test.sh`, since the runner now calls it.
+For multi-step tasks, a step's tests overlay the shared tests, including `setup.sh`.
+A separate verifier image may bake these scripts into `/tests`.
+
+Submission transfers use the existing artifact declarations in `task.toml`.
+Review runs transfer the files available after task setup, before an agent has
+produced a solution. The measured transfer size can therefore differ from a real
+submission.
+
+With `environment_mode = "separate"` under `[verifier]`, a task without a custom
+verifier image uses the original task image in a fresh container. Task setup runs again
+before artifacts are imported, and verifier scripts are uploaded from the task.
+No saved copy of the agent's modified environment is used. A custom verifier
+image (a verifier environment definition or Dockerfile in its tests directory)
+keeps its own preparation workflow. Existing shared-mode tasks remain shared
+until migrated with the correct artifact declarations.
+
+Failed or slow tasks fail stage 3. The two review indexes are
+`review/task-setup-needs-review/index.json` and
+`review/verifier-setup-needs-review/index.json`. Both reference portable task
+archives and timing/failure evidence under `review/setup-speed/`, without storing
+duplicate task archives. Review mode uses exactly the requested repetitions
+instead of the ordinary failure retry policy below. Five clean runs measure
+preparation speed; they do not execute the verifier checks.

@@ -1,0 +1,1128 @@
+{
+  "dataset": "PrimeIntellect/SWE-Lego-Real-Data-Verified",
+  "revision": "8b0d2bed6f04ef571ca04abebf737ea23cbceaf3",
+  "audit": {
+    "tasks": 4323,
+    "unique_dockerfiles": 20,
+    "original_images": 0,
+    "grading_payloads_preserved": true,
+    "validated_setup_payloads_identical": 23,
+    "counts": {
+      "explicit_conda": 7,
+      "conda_adjustment": 173
+    },
+    "final_parquet": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/full-v5/source.parquet"
+  },
+  "stage_3_note": "22 final payloads passed setup in job 953724; that diagnostic run was stopped before repeated retries of the old Toolkit payload. The corrected Toolkit payload passed stages 1,3,4,5 in job 953732. All 23 final payloads passed stages 1,4,5 in job 953747. audit-final.json checks byte identity between final dataset and setup-tested payloads.",
+  "setup_checks": {
+    "AzureAD__microsoft-authentication-library-for-python-41": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 20.095421099918894,
+        "inspect": 8.03204107307829,
+        "stop": 0.4636696990346536
+      }
+    },
+    "collective__icalendar-185": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 24.13877176702954,
+        "inspect": 6.062323643011041,
+        "stop": 0.6490676909452304
+      }
+    },
+    "box__box-python-sdk-99": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 43.20756895490922,
+        "inspect": 7.43245935998857,
+        "stop": 1.6209931819466874
+      }
+    },
+    "dask__dask-1113": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 76.29898216400761,
+        "inspect": 7.121311457944103,
+        "stop": 2.118890315061435
+      }
+    },
+    "dask__dask-1126": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 74.71738503908273,
+        "inspect": 7.535860626026988,
+        "stop": 1.2096021770266816
+      }
+    },
+    "dask__dask-1150": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 76.71422914299183,
+        "inspect": 6.805853779078461,
+        "stop": 1.6178075289353728
+      }
+    },
+    "dask__dask-1152": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 75.79906962800305,
+        "inspect": 7.128324682009406,
+        "stop": 2.1228610089747235
+      }
+    },
+    "goodmami__wn-174": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 23.201389217050746,
+        "inspect": 7.345074485987425,
+        "stop": 0.65028756193351
+      }
+    },
+    "goodmami__wn-178": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 21.783146046916954,
+        "inspect": 6.555496037006378,
+        "stop": 0.46196645603049546
+      }
+    },
+    "emsig__emg3d-325": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 52.40979996195529,
+        "inspect": 6.8043982069939375,
+        "stop": 1.2079120370326564
+      }
+    },
+    "OpenSourceEconomics__estimagic-411": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 157.62763386999723,
+        "inspect": 7.53539399697911,
+        "stop": 4.12895688705612
+      }
+    },
+    "kangasta__fdbk-72": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 23.601279219961725,
+        "inspect": 7.766440993989818,
+        "stop": 0.46076915005687624
+      }
+    },
+    "sigmavirus24__github3.py-613": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 21.306952026090585,
+        "inspect": 6.617418608046137,
+        "stop": 0.4629154779249802
+      }
+    },
+    "rl-institut__smooth-167": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 43.139435134944506,
+        "inspect": 7.128989208023995,
+        "stop": 1.621530310017988
+      }
+    },
+    "sigmavirus24__github3.py-650": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 24.030557261081412,
+        "inspect": 6.629980487050489,
+        "stop": 0.46341331698931754
+      }
+    },
+    "wright-group__WrightTools-1085": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 54.411544626927935,
+        "inspect": 7.538364456035197,
+        "stop": 1.6197907669702545
+      }
+    },
+    "wright-group__WrightTools-1092": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 51.75161063706037,
+        "inspect": 7.543768382049166,
+        "stop": 1.6209658340085298
+      }
+    },
+    "openforcefield__openff-nagl-71": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 168.65473349706735,
+        "inspect": 11.084703624015674,
+        "stop": 4.627377026015893
+      }
+    },
+    "wright-group__WrightTools-1095": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 54.42641410790384,
+        "inspect": 8.845245262025855,
+        "stop": 2.1200297239702195
+      }
+    },
+    "wright-group__WrightTools-628": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 48.196343093994074,
+        "inspect": 7.84183004591614,
+        "stop": 1.2096156019251794
+      }
+    },
+    "google__flax-4029": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 214.60449571500067,
+        "inspect": 7.537925136042759,
+        "stop": 3.1230586550664157
+      }
+    },
+    "wright-group__WrightTools-938": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/v3-setup-evidence.tar.gz",
+      "record": "results/stage_3_build_validation/5a8f6d2aaf96/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 47.017393179936334,
+        "inspect": 6.631227303063497,
+        "stop": 2.1229243950219825
+      }
+    },
+    "openforcefield__openff-toolkit-2026": {
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/results-v4/submissions/b4a000ab966c/evidence.tar.gz",
+      "record": "results/stage_3_build_validation/909c252673ed/outcomes.jsonl",
+      "status": "passed",
+      "timings_seconds": {
+        "start": 174.06215834699105,
+        "inspect": 8.538435572059825,
+        "stop": 3.6262038240674883
+      }
+    }
+  },
+  "image_preparation": [
+    {
+      "key": "2f4abe117941",
+      "status": "cached",
+      "image": "/tmp/953747.helma/validation-24058060b103/images/build_pre-commit__pre-commit-1435-2f4abe117941.sif"
+    },
+    {
+      "key": "5bce4d1debb3",
+      "status": "cached",
+      "image": "/tmp/953747.helma/validation-24058060b103/images/build_UXARRAY__uxarray-1158-5bce4d1debb3.sif"
+    },
+    {
+      "key": "9ef4838a7b92",
+      "status": "cached",
+      "image": "/tmp/953747.helma/validation-24058060b103/images/build_serge-sans-paille__gast-14-9ef4838a7b92.sif"
+    },
+    {
+      "key": "71c755430beb",
+      "status": "cached",
+      "image": "/tmp/953747.helma/validation-24058060b103/images/build_encode__starlette-1715-71c755430beb.sif"
+    },
+    {
+      "key": "de8c3543eb26",
+      "status": "cached",
+      "image": "/tmp/953747.helma/validation-24058060b103/images/build_kangasta__fdbk-72-de8c3543eb26.sif"
+    }
+  ],
+  "resolution_counts": {
+    "conda_distribution_alias": 3,
+    "collection_harness_omitted": 15,
+    "frozen_msgpack_python": 4,
+    "pinned_oemof_source": 1
+  },
+  "grading_report": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/results-v5/submissions/24058060b103/report/summary.json",
+  "toolkit_report": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/results-v4/submissions/b4a000ab966c/report/summary.json",
+  "complete": true,
+  "tasks": 23,
+  "checks": {
+    "stage_1": 23,
+    "stage_3": 23,
+    "oracle_reward_1": 23,
+    "nop_reward_0": 23
+  },
+  "timings": {
+    "samples": 46,
+    "median_seconds": 41.5,
+    "min_seconds": 10,
+    "max_seconds": 470
+  },
+  "records": [
+    {
+      "task": "AzureAD__microsoft-authentication-library-for-python-41",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 11,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 8,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/AzureAD__microsoft-authenticatio__GcJhAD6/attempts/000/result.json"
+    },
+    {
+      "task": "OpenSourceEconomics__estimagic-411",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 147,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 135,
+          "preinstall": 0,
+          "dependencies": 8,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/OpenSourceEconomics__estimagic-4__UBBT2Qe/attempts/000/result.json"
+    },
+    {
+      "task": "box__box-python-sdk-99",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 34,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 32,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/box__box-python-sdk-99__TmfKsSA/attempts/000/result.json"
+    },
+    {
+      "task": "collective__icalendar-185",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 14,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 11,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/collective__icalendar-185__NaMFHfk/attempts/000/result.json"
+    },
+    {
+      "task": "dask__dask-1113",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 66,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 28,
+          "preinstall": 20,
+          "dependencies": 15,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/dask__dask-1113__Zpa3AH2/attempts/000/result.json"
+    },
+    {
+      "task": "dask__dask-1126",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 66,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 27,
+          "preinstall": 20,
+          "dependencies": 15,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/dask__dask-1126__dmYTBCf/attempts/000/result.json"
+    },
+    {
+      "task": "dask__dask-1150",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 66,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 28,
+          "preinstall": 20,
+          "dependencies": 15,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/dask__dask-1150__AZQ2Aq9/attempts/000/result.json"
+    },
+    {
+      "task": "dask__dask-1152",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 65,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 28,
+          "preinstall": 19,
+          "dependencies": 15,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/dask__dask-1152__MHEpvyZ/attempts/000/result.json"
+    },
+    {
+      "task": "emsig__emg3d-325",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 44,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 41,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/emsig__emg3d-325__i8sqt3D/attempts/000/result.json"
+    },
+    {
+      "task": "goodmami__wn-174",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 13,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 11,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/goodmami__wn-174__pTPkFtv/attempts/000/result.json"
+    },
+    {
+      "task": "goodmami__wn-178",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 11,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 10,
+          "install": 0
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/goodmami__wn-178__G8xHUwN/attempts/000/result.json"
+    },
+    {
+      "task": "google__flax-4029",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 424,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 419,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/google__flax-4029__Mu5cpnM/attempts/000/result.json"
+    },
+    {
+      "task": "kangasta__fdbk-72",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 13,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 11,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/kangasta__fdbk-72__XbNJqVn/attempts/000/result.json"
+    },
+    {
+      "task": "openforcefield__openff-nagl-71",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 157,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 4,
+          "conda": 150,
+          "preinstall": 0,
+          "dependencies": 1,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/openforcefield__openff-nagl-71__m57Np2Z/attempts/000/result.json"
+    },
+    {
+      "task": "openforcefield__openff-toolkit-2026",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 163,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 158,
+          "preinstall": 0,
+          "dependencies": 1,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/openforcefield__openff-toolkit-2__Ac68vvZ/attempts/000/result.json"
+    },
+    {
+      "task": "rl-institut__smooth-167",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 34,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 32,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/rl-institut__smooth-167__qxpDSz8/attempts/000/result.json"
+    },
+    {
+      "task": "sigmavirus24__github3.py-613",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 14,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 10,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/sigmavirus24__github3.py-613__z5MJYVS/attempts/000/result.json"
+    },
+    {
+      "task": "sigmavirus24__github3.py-650",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 15,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 12,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/sigmavirus24__github3.py-650__rQ6S6TJ/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-1085",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 42,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 38,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/wright-group__WrightTools-1085__M4DKpSw/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-1092",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 42,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 39,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/wright-group__WrightTools-1092__dTgSguZ/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-1095",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 43,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 3,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 39,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/wright-group__WrightTools-1095__BEmEWDV/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-628",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 35,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 10,
+          "dependencies": 20,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/wright-group__WrightTools-628__hXpUj6x/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-938",
+      "stage": 4,
+      "reward": 1.0,
+      "exception": null,
+      "setup": {
+        "seconds": 35,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 7,
+          "dependencies": 23,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_4_oracle_validation/d8b9dae401f7/jobs/job/wright-group__WrightTools-938__Au9okjf/attempts/000/result.json"
+    },
+    {
+      "task": "AzureAD__microsoft-authentication-library-for-python-41",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 10,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 7,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/AzureAD__microsoft-authenticatio__mkGjzWA/attempts/000/result.json"
+    },
+    {
+      "task": "OpenSourceEconomics__estimagic-411",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 149,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 137,
+          "preinstall": 0,
+          "dependencies": 8,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/OpenSourceEconomics__estimagic-4__neaZyTh/attempts/000/result.json"
+    },
+    {
+      "task": "box__box-python-sdk-99",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 33,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 30,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/box__box-python-sdk-99__ZDJjHin/attempts/000/result.json"
+    },
+    {
+      "task": "collective__icalendar-185",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 14,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 11,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/collective__icalendar-185__NwVkcjF/attempts/000/result.json"
+    },
+    {
+      "task": "dask__dask-1113",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 66,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 28,
+          "preinstall": 20,
+          "dependencies": 15,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/dask__dask-1113__atqZ73i/attempts/000/result.json"
+    },
+    {
+      "task": "dask__dask-1126",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 66,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 28,
+          "preinstall": 19,
+          "dependencies": 15,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/dask__dask-1126__CobCmiZ/attempts/000/result.json"
+    },
+    {
+      "task": "dask__dask-1150",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 67,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 28,
+          "preinstall": 20,
+          "dependencies": 15,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/dask__dask-1150__EksauHS/attempts/000/result.json"
+    },
+    {
+      "task": "dask__dask-1152",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 66,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 28,
+          "preinstall": 19,
+          "dependencies": 15,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/dask__dask-1152__2FGHmDz/attempts/000/result.json"
+    },
+    {
+      "task": "emsig__emg3d-325",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 43,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 39,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/emsig__emg3d-325__id8qpc9/attempts/000/result.json"
+    },
+    {
+      "task": "goodmami__wn-174",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 12,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 10,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/goodmami__wn-174__4anjkv2/attempts/000/result.json"
+    },
+    {
+      "task": "goodmami__wn-178",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 12,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 10,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/goodmami__wn-178__Ympwa5D/attempts/000/result.json"
+    },
+    {
+      "task": "google__flax-4029",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 470,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 466,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/google__flax-4029__6zLAHAA/attempts/000/result.json"
+    },
+    {
+      "task": "kangasta__fdbk-72",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 15,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 12,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/kangasta__fdbk-72__bdP5Udo/attempts/000/result.json"
+    },
+    {
+      "task": "openforcefield__openff-nagl-71",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 158,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 4,
+          "conda": 151,
+          "preinstall": 0,
+          "dependencies": 1,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/openforcefield__openff-nagl-71__GsRAwJW/attempts/000/result.json"
+    },
+    {
+      "task": "openforcefield__openff-toolkit-2026",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 165,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 3,
+          "conda": 159,
+          "preinstall": 0,
+          "dependencies": 1,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/openforcefield__openff-toolkit-2__JyzBZ7g/attempts/000/result.json"
+    },
+    {
+      "task": "rl-institut__smooth-167",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 33,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 1,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 31,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/rl-institut__smooth-167__EuTsWem/attempts/000/result.json"
+    },
+    {
+      "task": "sigmavirus24__github3.py-613",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 13,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 10,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/sigmavirus24__github3.py-613__hpUgqPi/attempts/000/result.json"
+    },
+    {
+      "task": "sigmavirus24__github3.py-650",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 15,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 12,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/sigmavirus24__github3.py-650__6t7yTwB/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-1085",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 43,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 3,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 38,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/wright-group__WrightTools-1085__Rzaq7dm/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-1092",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 41,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 38,
+          "install": 1
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/wright-group__WrightTools-1092__kWybTsn/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-1095",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 43,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 0,
+          "dependencies": 39,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/wright-group__WrightTools-1095__8dUFytq/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-628",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 35,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 10,
+          "dependencies": 20,
+          "install": 3
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/wright-group__WrightTools-628__SWgw7CM/attempts/000/result.json"
+    },
+    {
+      "task": "wright-group__WrightTools-938",
+      "stage": 5,
+      "reward": 0.0,
+      "exception": null,
+      "setup": {
+        "seconds": 34,
+        "exit_code": 0,
+        "phases": {
+          "checkout": 2,
+          "conda": 0,
+          "preinstall": 6,
+          "dependencies": 24,
+          "install": 2
+        }
+      },
+      "evidence": "results/stage_5_nop_validation/3712acae022d/nop-jobs-0/job/wright-group__WrightTools-938__RWrjjP6/attempts/000/result.json"
+    }
+  ]
+}

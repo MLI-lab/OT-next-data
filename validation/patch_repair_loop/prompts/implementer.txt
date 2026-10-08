@@ -1,0 +1,9 @@
+Implement the image consolidation plan in `{integration_plan}`.
+
+Collect all dataset-specific transformations in `data/{dataset}/patch.py`, creating it if necessary. Reuse the existing patcher utilities and preserve the original tasks, environments, and verification behavior.
+
+Document the changes in `data/{dataset}/README.md` and record per-task change labels and reasons using the existing patch reporting mechanism.
+
+Verify that the patcher runs and produces the intended transformations. Report the changed files and affected task counts.
+
+Do not submit validation jobs.

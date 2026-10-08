@@ -3,8 +3,7 @@
 Each converted project now also gets `tasks.archive.parquet` and
 `tasks.manifest.json` automatically. Existing detailed reports remain available.
 The common manifest identifies its native BugsInPy source and marks retained
-packages as `changed` with `converted-to-harbor`, plus applicable adaptation
-labels. Dropped payloads are generated Harbor packages because this source has
+packages as `changed` with one `upstream-to-harbor` label. Dropped payloads are generated Harbor packages because this source has
 no original Harbor Parquet. Conversion errors leave the manifest incomplete.
 See [patch reporting](../INVENTORY.md#reporting-patches-in-the-datasource-pr) for the datasource PR integration.
 
@@ -20,7 +19,64 @@ The OT Agent generator took the diff showing the fix and asked GPT-4o-mini to in
 
 The assessment of ten tasks is: **one already passing task, one trivial text-copy task, and eight with substantial test or task-alignment problems**. See the `bugsinpy-*` folders in `faulty_examples` for selected task files and a `PROBLEM.md` explaining each example.
 
-We are piloting a replacement built from the original BugsInPy project repositories and tests instead of repairing this TaskTrove conversion.
+The maintainer reports manually inspecting five examples and finding problems in
+all five. The examples are preserved in [`faulty_examples`](faulty_examples),
+with individual `PROBLEM.md` explanations. This is a small qualitative audit,
+not an estimate of the failure rate of the full TaskTrove dataset.
+
+We replaced this conversion with tasks built from the original BugsInPy project
+repositories and upstream tests. The process is:
+
+1. Read BugsInPy metadata for each bug's buggy/fixed commit IDs, Python version,
+   test files and test commands. Archive the project at the buggy revision as
+   the initial `/app` tree.
+2. Build a working environment from the upstream setup recipe and project
+   dependencies. Pin dependencies and record compatibility adaptations, including
+   native build tools, interpreter/image adjustments and private test dependencies.
+3. Package upstream tests from the fixed revision for the private verifier and
+   run the selected regression commands. Record any reviewed verifier adaptations.
+4. Construct the reference solution from the metadata's fixed revision: restore
+   changed files and remove deleted files. Preserve the binary diff between the
+   buggy and fixed endpoints. This is not necessarily one fixing commit; ranges
+   spanning multiple commits are flagged for review.
+5. Draft `instruction.md` from a task template and the title/body of an issue
+   explicitly linked by the fixing commit, or by the fix range when necessary.
+   Strip explicit patch material and flag missing, ambiguous or potentially
+   revealing issue text for review.
+6. Validate the converted tasks, including reference reward 1 and unchanged-source
+   reward 0, then run the separate instruction review/rewrite loop in the task
+   environments. That loop evaluates alignment, leakage, instruction quality and
+   task validity. It changes instructions, not tests or reference solutions.
+   Final rewritten payloads still require fresh validation before publication.
+
+## Instruction review exclusions (2026-10-08)
+
+The first full Claude Opus 5.5 medium review covered 496 tasks in 17 projects:
+487 were accepted (419 on their first review and 68 after rewriting), seven were
+flagged for verifier/task-validity problems, and two had session errors. These
+are first-run counts; retries and final validation are separate evidence.
+
+Review of the seven tasks' selected tests supports excluding them from the
+current release. Ansible 12, Luigi 8, TheFuck 3 and 16, and Tornado 6 assert
+implementation details that can reject alternative correct fixes. Black 23's
+selected regression does not cover the issue in its instruction. HTTPie 4
+depends on live DNS and an external HTTP service. Instruction changes alone do
+not resolve these problems. This does not establish that the tasks cannot be
+repaired with separately reviewed verifier changes.
+
+[`patch.py`](patch.py) labels these exclusions
+`flagged_by_instruction_loop`, preserving each generated task in the
+archive with an individual reason. The conversion manifest carries those labels
+and the source/conversion explanation into publication reporting. The automatic
+PR's change-label table uses the standard per-task `change_reasons` with the
+single `upstream-to-harbor` change label, counting each converted task once. Excluded tasks keep their individual
+reasons in exclusion reporting. The instruction
+loop remains a separate step; running the converter alone does not apply its
+accepted rewrites. Full local evidence is in
+[`flagged_instruction_review_20261008`](flagged_instruction_review_20261008).
+Repository evidence paths are under
+[`data/tasktrove_bugsinpy`](https://github.com/MLI-lab/OT-next-data/tree/main/data/tasktrove_bugsinpy).
+The archive explains why a task was excluded; no task reward is changed.
 
 ## Tornado conversion and runtime validation (2026-10-06)
 

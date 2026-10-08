@@ -848,9 +848,203 @@ def resolve_image(tag: str | None, language: str) -> str:
 MICROSOFT_REFS_STEP = '# Microsoft .NET Framework reference assemblies for /opt/ib-frameworks (recovered from image history)\nRUN printf %s aW1wb3J0IGlvLHVybGxpYi5yZXF1ZXN0LHppcGZpbGUscGF0aGxpYix4bWwuZXRyZWUuRWxlbWVudFRyZWUgYXMgRVQsaGFzaGxpYixqc29uCnJvb3Q9cGF0aGxpYi5QYXRoKCcvb3B0L2liLWZyYW1ld29ya3MnKTtyb290Lm1rZGlyKHBhcmVudHM9VHJ1ZSxleGlzdF9vaz1UcnVlKQptYW5pZmVzdD1bXQpmb3IgdmVyc2lvbiBpbiAoJzM1JywnNDAnLCc0NScsJzQ1MicpOgogbmFtZT0nbWljcm9zb2Z0Lm5ldGZyYW1ld29yay5yZWZlcmVuY2Vhc3NlbWJsaWVzLm5ldCcrdmVyc2lvbgogdXJsPSdodHRwczovL2FwaS5udWdldC5vcmcvdjMtZmxhdGNvbnRhaW5lci8nK25hbWUrJy8xLjAuMy8nK25hbWUrJy4xLjAuMy5udXBrZycKIGRhdGE9dXJsbGliLnJlcXVlc3QudXJsb3Blbih1cmwsdGltZW91dD0xMjApLnJlYWQoKQogbWFuaWZlc3QuYXBwZW5kKHsndXJsJzp1cmwsJ3NoYTI1Nic6aGFzaGxpYi5zaGEyNTYoZGF0YSkuaGV4ZGlnZXN0KCl9KQogd2l0aCB6aXBmaWxlLlppcEZpbGUoaW8uQnl0ZXNJTyhkYXRhKSkgYXMgejoKICBwcmVmaXg9J2J1aWxkLy5ORVRGcmFtZXdvcmsvJwogIGZvciBuIGluIHoubmFtZWxpc3QoKToKICAgaWYgbi5zdGFydHN3aXRoKHByZWZpeCkgYW5kIChuLmVuZHN3aXRoKCcuZGxsJykgb3Igbi5lbmRzd2l0aCgnRnJhbWV3b3JrTGlzdC54bWwnKSBvciAnL1N1YnNldExpc3QvJyBpbiBuKToKICAgIHA9cm9vdC9uW2xlbihwcmVmaXgpOl07cC5wYXJlbnQubWtkaXIocGFyZW50cz1UcnVlLGV4aXN0X29rPVRydWUpO3Aud3JpdGVfYnl0ZXMoei5yZWFkKG4pKQojIC5ORVQzLjUgZGlzdHJpYnV0ZXMgQ2xpZW50IGFzIGFuIG9mZmljaWFsIHN1YnNldCBsaXN0LCBub3QgYSBQcm9maWxlIGZvbGRlci4KYmFzZT1yb290Lyd2My41JztzdWJzZXQ9YmFzZS8nU3Vic2V0TGlzdC9DbGllbnQueG1sJztwcm9maWxlPWJhc2UvJ1Byb2ZpbGUvQ2xpZW50Jztwcm9maWxlLm1rZGlyKHBhcmVudHM9VHJ1ZSxleGlzdF9vaz1UcnVlKQpmb3IgZSBpbiBFVC5wYXJzZShzdWJzZXQpLmdldHJvb3QoKToKIG5hbWU9ZS5hdHRyaWIuZ2V0KCdBc3NlbWJseU5hbWUnLCcnKSsnLmRsbCc7c291cmNlPWJhc2UvbmFtZQogaWYgc291cmNlLmlzX2ZpbGUoKToKICB0YXJnZXQ9cHJvZmlsZS9uYW1lCiAgaWYgbm90IHRhcmdldC5leGlzdHMoKTp0YXJnZXQuc3ltbGlua190byhzb3VyY2UpCnJlZGlzdD1wcm9maWxlLydSZWRpc3RMaXN0JztyZWRpc3QubWtkaXIoZXhpc3Rfb2s9VHJ1ZSk7KHJlZGlzdC8nRnJhbWV3b3JrTGlzdC54bWwnKS53cml0ZV9ieXRlcyhzdWJzZXQucmVhZF9ieXRlcygpKQoocm9vdC8ncGFja2FnZXMuanNvbicpLndyaXRlX3RleHQoanNvbi5kdW1wcyhtYW5pZmVzdCxpbmRlbnQ9MikpCg== | base64 -d | python3'
 
 
+# Pinned shared tools and release POMs that previously triggered runtime downloads.
+# The image owns these files; task-local writable caches can be reset independently.
+JAVA_BOOTSTRAP = r'''#!/usr/bin/env python3
+import hashlib
+import html.entities
+import re
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
+
+ROOT = Path(__file__).resolve().parent
+
+
+def valid_pom_bytes(data):
+    # Maven's historical XML reader accepts HTML named entities (for example
+    # Plexus 1.0.4 contains &oslash;). Normalize them only for validation, without
+    # rewriting the original POM or mistaking it for a proxy error page.
+    def entity(match):
+        name = match[1].decode('ascii')
+        value = html.entities.name2codepoint.get(name)
+        return ('&#%d;' % value).encode() if value and name not in ('amp', 'lt', 'gt', 'apos', 'quot') else match[0]
+    try:
+        data = re.sub(rb'&([A-Za-z][A-Za-z0-9]+);', entity, data)
+        return ET.fromstring(data).tag.split('}')[-1] == 'project'
+    except ET.ParseError:
+        return False
+
+
+def valid_pom(path):
+    try:
+        return valid_pom_bytes(path.read_bytes())
+    except OSError:
+        return False
+
+
+def seed(cache):
+    cache = Path(cache)
+    for item in json.loads((ROOT / 'manifest.json').read_text()):
+        rel = item['path']
+        if not rel.endswith('.pom'):
+            continue
+        source, target = ROOT / 'files' / Path(rel).name, cache / 'm2' / rel
+        if hashlib.sha256(source.read_bytes()).hexdigest() != item['sha256']:
+            raise RuntimeError('Invalid image dependency: ' + str(source))
+        if not valid_pom(target):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+    # Historical recipes explicitly invoke this path, independently of mvnw.
+    tools = cache / 'm2/audit-tools'
+    tools.mkdir(parents=True, exist_ok=True)
+    for source in sorted((ROOT / 'maven').glob('apache-maven-*')):
+        target = tools / source.name
+        if not target.exists():
+            target.symlink_to(source, target_is_directory=True)
+    # Archives come from the recipe audit's repository IDs. Maven otherwise
+    # re-resolves an existing release against the runtime's different mirror ID.
+    # Treat restored artifacts as local, like an explicitly installed artifact.
+    for marker in (cache / 'm2').rglob('_remote.repositories'):
+        marker.unlink()
+    invalid = [str(p) for p in (cache / 'm2').rglob('*.pom') if not valid_pom(p)]
+    if invalid:
+        raise RuntimeError('Malformed Maven cache entries (cache must be repaired before validation): ' + ', '.join(invalid[:20]))
+
+
+def install():
+    files = ROOT / 'files'
+    files.mkdir(parents=True, exist_ok=True)
+    for item in json.loads((ROOT / 'manifest.json').read_text()):
+        target = files / Path(item['path']).name
+        for url in item['urls']:
+            try:
+                data = urllib.request.urlopen(url, timeout=60).read()
+                if hashlib.sha256(data).hexdigest() != item['sha256']:
+                    raise ValueError('SHA256 mismatch for ' + url)
+                target.write_bytes(data)
+                break
+            except Exception as exc:
+                print(str(exc), file=sys.stderr, flush=True)
+        else:
+            raise RuntimeError('Cannot prepare image dependency: ' + item['path'])
+        if target.suffix == '.pom':
+            if not valid_pom(target):
+                raise RuntimeError('Not a Maven POM: ' + str(target))
+        else:
+            with zipfile.ZipFile(target) as archive:
+                if archive.testzip() is not None:
+                    raise RuntimeError('Invalid ZIP/JAR: ' + str(target))
+                if target.name.startswith('apache-maven-'):
+                    archive.extractall(ROOT / 'maven')
+    for executable in (ROOT / 'maven').glob('*/bin/*'):
+        executable.chmod(0o755)
+    for executable in (ROOT / 'maven').glob('*/bin/mvn'):
+        subprocess.run([str(executable), '-version'], check=True)
+    seed('/cache')
+
+
+if __name__ == '__main__':
+    if sys.argv[1:] == ['install']:
+        install()
+    elif len(sys.argv) == 3 and sys.argv[1] == 'seed':
+        seed(sys.argv[2])
+    else:
+        raise SystemExit('usage: bootstrap.py install | seed CACHE')
+'''
+
+
+def java_bootstrap_dockerfile() -> str:
+    manifest = Path(__file__).with_name('java_bootstrap.json').read_bytes()
+    script64 = base64.b64encode(JAVA_BOOTSTRAP.encode()).decode()
+    manifest64 = base64.b64encode(manifest).decode()
+    return ('\n# Prepare shared Java tools and verified dependency repairs once, at image build.\n'
+            'RUN mkdir -p /opt/inferredbugs/bootstrap && touch /opt/inferredbugs/dependencies.tar '
+            f'&& printf %s {script64} | base64 -d > /opt/inferredbugs/bootstrap/bootstrap.py '
+            f'&& printf %s {manifest64} | base64 -d > /opt/inferredbugs/bootstrap/manifest.json '
+            '&& python3 /opt/inferredbugs/bootstrap/bootstrap.py install\n')
+
+
+
+IMAGE_VENDOR_INSTALL = r'''import concurrent.futures
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import time
+import urllib.request
+
+root = Path('/opt/inferredbugs/vendor')
+root.mkdir(parents=True, exist_ok=True)
+manifest = json.loads(Path(sys.argv[1]).read_text())
+base = sys.argv[2].rstrip('/')
+
+def install(digest):
+    if len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
+        raise ValueError('Invalid artifact digest')
+    target = root / digest
+    if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest() == digest:
+        return
+    partial = target.with_suffix('.partial')
+    for attempt in range(5):
+        try:
+            checksum = hashlib.sha256()
+            with urllib.request.urlopen(base + '/' + digest, timeout=60) as response, partial.open('wb') as output:
+                while True:
+                    block = response.read(1024 * 1024)
+                    if not block:
+                        break
+                    checksum.update(block)
+                    output.write(block)
+            if checksum.hexdigest() != digest:
+                raise ValueError('Artifact checksum mismatch: ' + digest)
+            os.replace(partial, target)
+            target.chmod(0o444)
+            return
+        except Exception:
+            partial.unlink(missing_ok=True)
+            if attempt == 4:
+                raise
+            time.sleep(min(30, 2 ** (attempt + 1)))
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+    list(pool.map(install, manifest))
+(root / 'manifest.json').write_text(json.dumps(manifest) + '\n')
+print('Prepared %d verified dependency artifacts in the image' % len(manifest), flush=True)
+'''
+
+
+def image_vendor_dockerfile(tag: str, analyzer: str | None) -> str:
+    if not analyzer:
+        return ''
+    profiles = json.loads(Path(__file__).with_name('image_dependencies.json').read_text())['profiles']
+    assets = profiles.get(tag + '|' + analyzer_release(analyzer), [])
+    if not assets:
+        return ''
+    command = 'exec(' + repr(IMAGE_VENDOR_INSTALL) + ')'
+    manifest = '/opt/inferredbugs/vendor-assets.json'
+    encoded = json.dumps(assets)
+    text = ('\n# Prepare pinned project artifacts once for every task sharing this image.\n'
+            + 'RUN mkdir -p /opt/inferredbugs && : > ' + manifest + '\n')
+    # Each RUN also becomes a shell argument in the deferred Apptainer builder.
+    for offset in range(0, len(encoded), 32768):
+        text += 'RUN printf %s ' + shlex.quote(encoded[offset:offset + 32768]) + ' >> ' + manifest + '\n'
+    return (text + 'RUN python3 -c ' + shlex.quote(command) + ' '
+            + manifest + ' ' + shlex.quote(DEFAULT_VENDOR_URL) + '\n')
+
+
 def dockerfile_text(tag: str, vendor_dir: Path | None, analyzer: str | None = None) -> str:
     """The Dockerfile of a shared image; with `analyzer`, of that image with the analyzer installed."""
-    text = IMAGES[tag]
+    text = IMAGES[tag].replace('make -j"$(nproc)"', 'make -j4')
+    if tag in JAVA_IMAGES:
+        text += java_bootstrap_dockerfile()
     if '{microsoft_refs}' in text:
         extra = (vendor_dir / 'dotnet8-full-microsoft-refs.dockerfile') if vendor_dir else None
         text = text.replace('{microsoft_refs}', extra.read_text().strip() if extra and extra.exists() else MICROSOFT_REFS_STEP)
@@ -870,6 +1064,7 @@ def dockerfile_text(tag: str, vendor_dir: Path | None, analyzer: str | None = No
         text += ('# %s, the static analyzer of the task (install_analyzer.sh)\n'
                  'RUN f=$(mktemp) && printf %%s %s | base64 -d > "$f" && bash "$f" && rm -f "$f"\n'
                  % (analyzer_release(analyzer), script))
+        text += image_vendor_dockerfile(tag, analyzer)
     return text
 
 
@@ -2046,6 +2241,48 @@ def configure_settings(path, env):
     tree.write(path, encoding='utf-8', xml_declaration=True)
 
 
+def local_wrapper(command, env):
+    # Use the exact distribution requested by the project, without downloading
+    # the wrapper JAR or re-extracting a distribution into a task-local HOME.
+    root = Path(env.get('INFERREDBUGS_BOOTSTRAP', '/opt/inferredbugs/bootstrap'))
+    if not (root / 'manifest.json').is_file():
+        return command  # older images and standalone recipe audits
+    command = list(command)
+    for i, arg in enumerate(command):
+        if os.path.basename(arg) != 'mvnw':
+            continue
+        properties = Path(arg).parent / '.mvn/wrapper/maven-wrapper.properties'
+        text = properties.read_text() if properties.is_file() else ''
+        match = re.search(r'apache-maven-([0-9.]+)-bin\.(?:zip|tar\.gz)', text)
+        if not match:
+            raise RuntimeError('Cannot determine pinned Maven version: ' + str(properties))
+        executable = root / 'maven' / ('apache-maven-' + match.group(1)) / 'bin/mvn'
+        if not executable.is_file():
+            raise RuntimeError('Maven version missing from prepared image: ' + match.group(1))
+        command[i] = str(executable)
+        if i and command[i - 1] in ('bash', 'sh', '/bin/bash', '/bin/sh'):
+            del command[i - 1]
+        return command
+    return command
+
+
+def cached_maven_command(command, env):
+    mode = env.get('INFERREDBUGS_MAVEN_CACHE_FIRST')
+    if mode is None:
+        # Setup and capture run in separate processes. Detect the mounted archive
+        # here as well; an export in build_setup.sh cannot reach later capture.
+        archive = Path(env.get('INFERREDBUGS_DEPENDENCY_CACHE', '/opt/inferredbugs/dependencies.tar'))
+        mode = '1' if archive.is_file() and archive.stat().st_size > 0 else '0'
+    if mode != '1':
+        return None
+    for i, arg in enumerate(command):
+        # A bare "mvn" after --force-integration is an Infer option, not the
+        # executable. The actual Maven command follows -- or names its path.
+        if os.path.basename(arg) in ('mvn', 'mvnw') and (i == 0 or '/' in arg or command[i - 1] == '--'):
+            return command[:i + 1] + ['--offline'] + command[i + 1:]
+    return None
+
+
 def wrapper_mirror(command, env):
     # A project's Maven wrapper (mvnw) downloads its Maven from the URL in maven-wrapper.properties,
     # not through any settings file: where a mirror of Central is named, it is asked instead (a
@@ -2066,6 +2303,7 @@ def wrapper_mirror(command, env):
 def run(command):
     env = os.environ.copy()
     env.pop('MAVEN_CONFIG', None)
+    command = local_wrapper(command, env)
     wrapper_mirror(command, env)
     settings = []
     for i, arg in enumerate(command):
@@ -2084,9 +2322,11 @@ def run(command):
         env['JAVA_TOOL_OPTIONS'] = (env.get('JAVA_TOOL_OPTIONS', '') + ' ' + java_proxy_options(env)).strip()
     attempts = int(env.get('INFERREDBUGS_NETWORK_ATTEMPTS', '4'))
     base = float(env.get('INFERREDBUGS_BACKOFF_SECONDS', '60'))
-    for attempt in range(attempts):
-        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+    cached = cached_maven_command(command, env)
+    for attempt in range(-1 if cached else 0, attempts):
+        proc = subprocess.Popen(cached if attempt == -1 else command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
         transient = False
+        cache_miss = False
         carry = b''
         while True:
             chunk = proc.stdout.read1(65536)
@@ -2096,8 +2336,14 @@ def run(command):
             sys.stdout.buffer.flush()
             combined = carry + chunk
             transient = transient or bool(TRANSIENT.search(combined.decode(errors='replace')))
+            cache_miss = cache_miss or bool(re.search(r'Cannot access [^\n]+ in offline mode|has not been downloaded from it before|Plugin not found in any plugin repository|No plugin found for prefix', combined.decode(errors='replace'), re.I))
             carry = combined[-512:]
         code = proc.wait()
+        if attempt == -1:
+            if code == 0 or not cache_miss:
+                return code
+            print('[repository cache] missing artifact or plugin metadata; trying online resolution', flush=True)
+            continue
         if code == 0 or not transient or attempt + 1 == attempts:
             return code
         # Failed download markers suppress retries in Maven until its update interval.
@@ -2119,6 +2365,49 @@ if __name__ == '__main__':
 """
 
 
+IVY_COMPILE_SETUP = r'''
+# These JSecurity recipes compile application source, not samples or documentation.
+# Keep the historical Ivy version and application dependency versions unchanged.
+python3 - <<'INFERREDBUGS_IVY_SETUP'
+from pathlib import Path
+import xml.etree.ElementTree as ET
+build = Path('/workspace/build.xml')
+tree = ET.parse(build)
+if tree.getroot().get('name') != 'jsecurity':
+    raise RuntimeError('Unexpected project for JSecurity Ivy preparation')
+ET.register_namespace('ivy', 'antlib:org.apache.ivy.ant')
+for retrieve in tree.getroot().iter('{antlib:org.apache.ivy.ant}retrieve'):
+    retrieve.set('conf', 'compile')
+tree.write(build, encoding='utf-8', xml_declaration=True)
+settings = Path('INFERREDBUGS_IVY_SETTINGS_PATH')
+tree = ET.parse(settings)
+root = tree.getroot()
+for caches in list(root.findall('caches')):
+    root.remove(caches)
+ET.SubElement(root, 'caches', {'defaultCacheDir': '/cache/ivyhome/cache'})
+resolvers = root.find('resolvers')
+if resolvers is None:
+    raise RuntimeError('Missing Ivy resolvers')
+for name, url in (('audit-local', 'file:///cache/m2'),
+                  ('audit-central-mirror', 'https://maven-central.storage-download.googleapis.com/maven2')):
+    if not any(r.get('name') == name for r in resolvers):
+        resolvers.insert(0, ET.Element('ibiblio', {'name': name, 'm2compatible': 'true', 'root': url}))
+chain = resolvers.find('chain')
+if chain is None:
+    previous = root.find('settings').get('defaultResolver')
+    chain = ET.SubElement(resolvers, 'chain', {'name': 'audit-chain', 'returnFirst': 'true'})
+    ET.SubElement(chain, 'resolver', {'ref': previous})
+    root.find('settings').set('defaultResolver', 'audit-chain')
+for index, name in enumerate(('audit-local', 'audit-central-mirror')):
+    for entry in list(chain):
+        if entry.get('ref') == name:
+            chain.remove(entry)
+    chain.insert(index, ET.Element('resolver', {'ref': name}))
+tree.write(settings, encoding='utf-8', xml_declaration=True)
+INFERREDBUGS_IVY_SETUP
+'''
+
+
 def portable_recipe(text: str) -> str:
     """Two recipe idioms that only worked on the recipe-construction host:
     `env [-u MAVEN_CONFIG] [VAR=..] mvnw` - the runner routes mvnw through a shell function, which
@@ -2128,7 +2417,16 @@ def portable_recipe(text: str) -> str:
     text = re.sub(r'(?<![\w-])env((?:\s+-u\s+MAVEN_CONFIG)+)((?:\s+[A-Za-z_]\w*=\S*)*)\s+'
                   r'(?=(?:audit_mvn_(?:transport|wrapper)\s+)?(?:(?:bash|sh)\s+)?(?:\./|/workspace/)(?:[\w.-]+/)*mvnw(?:\s|[;&]|$))',
                   lambda m: m.group(2).strip() + ' ' if m.group(2).strip() else '', text)
-    return text.replace('http://172.17.0.1:8081/maven2', 'https://repo.maven.apache.org/maven2')
+    text = text.replace('http://172.17.0.1:8081/maven2', 'https://repo.maven.apache.org/maven2')
+    for host in ('repo.maven.apache.org', 'repo1.maven.org'):
+        text = text.replace('https://' + host + '/maven2/org/apache/ivy/ivy/2.0.0-beta2/ivy-2.0.0-beta2.jar',
+                            'file:///opt/inferredbugs/bootstrap/files/ivy-2.0.0-beta2.jar')
+    if 'ivy-2.0.0-beta2.jar' in text and 'INFERREDBUGS_IVY_SETUP' not in text:
+        for settings_path in ('/cache/ivyhome/ivysettings.xml', '/workspace/ivysettings.xml'):
+            if settings_path in text:
+                text += '\n' + IVY_COMPILE_SETUP.replace('INFERREDBUGS_IVY_SETTINGS_PATH', settings_path)
+                break
+    return text
 
 
 # Capture-side workarounds for Infer 0.17, used by the warning audit only (never by a task verifier).
@@ -2307,9 +2605,27 @@ export -f curl
 {java_proxy}# Dependencies of an earlier build of this task, where the runner mounts their archive: unpacked
 # once, and nothing that is already in /cache is replaced.
 IB_DEPENDENCIES="${INFERREDBUGS_DEPENDENCY_CACHE:-{dependency_archive}}"
-if [ -f "$IB_DEPENDENCIES" ] && [ ! -e {dependency_marker} ]; then
-  tar -xf "$IB_DEPENDENCIES" -C /cache --skip-old-files 2>/dev/null || true
-  touch {dependency_marker} 2>/dev/null || true
+if [ -s "$IB_DEPENDENCIES" ] && [ ! -e {dependency_marker} ]; then
+  # Maven distributions already provided by the image must not be unpacked
+  # through their cache symlinks. Only project downloads need archive prefill.
+  IB_TAR_EXCLUDES=()
+  for tool in /cache/m2/audit-tools/apache-maven-*; do
+    [ -L "$tool" ] || continue
+    case "$(readlink -f "$tool")" in
+      /opt/inferredbugs/bootstrap/maven/apache-maven-*)
+        IB_TAR_EXCLUDES+=("--exclude=${tool#/cache/}" "--exclude=./${tool#/cache/}") ;;
+    esac
+  done
+  tar --no-same-owner -xf "$IB_DEPENDENCIES" -C /cache --skip-old-files --anchored "${IB_TAR_EXCLUDES[@]}"
+  touch {dependency_marker}
+fi
+# Each fresh container gets image-owned bootstrap files. Repair known bad POMs
+# from verified local copies and reject any other malformed POM before Maven runs.
+if [ -f /opt/inferredbugs/bootstrap/bootstrap.py ]; then
+  python3 /opt/inferredbugs/bootstrap/bootstrap.py seed /cache
+  if [ -s "$IB_DEPENDENCIES" ]; then
+    export INFERREDBUGS_MAVEN_CACHE_FIRST=${INFERREDBUGS_MAVEN_CACHE_FIRST:-1}
+  fi
 fi
 if [ -z "${INFERREDBUGS_TRANSPORT_ACTIVE:-}" ]; then
   export INFERREDBUGS_TRANSPORT_ACTIVE=1
@@ -2341,12 +2657,21 @@ for m in /tests/deps.sha256 /setup_files/deps.sha256; do if [ -s "$m" ]; then MA
 if [ -n "$MANIFEST" ]; then
   while read -r sum rel; do
     [ -n "$sum" ] || continue
+    # Image-provided Maven replaces the old vendored distribution and its audit metadata.
+    case "$rel" in
+      m2/audit-tools/apache-maven-*/*)
+        tool="${rel#m2/audit-tools/}"; tool="/cache/m2/audit-tools/${tool%%/*}"
+        if [ -L "$tool" ]; then
+          case "$(readlink -f "$tool")" in /opt/inferredbugs/bootstrap/maven/apache-maven-*) continue ;; esac
+        fi ;;
+    esac
     dest="/cache/$rel"
     # Only install what is absent: a setup step may rebuild a SNAPSHOT of the project itself,
     # and that newer file must win over the shipped copy.
     if [ ! -f "$dest" ]; then
       mkdir -p "$(dirname "$dest")"
-      if [ -f "/setup_files/deps/$rel" ]; then cp "/setup_files/deps/$rel" "$dest"
+      if [ -f "/opt/inferredbugs/vendor/$sum" ]; then cp "/opt/inferredbugs/vendor/$sum" "$dest"
+      elif [ -f "/setup_files/deps/$rel" ]; then cp "/setup_files/deps/$rel" "$dest"
       elif [ -n "$VENDOR_URL" ]; then vendor_fetch "$sum" "$dest.part" && mv "$dest.part" "$dest"
       else echo "missing vendored artifact $rel" >&2; exit 1; fi
       echo "$sum  $dest" | sha256sum -c --quiet -
@@ -2428,7 +2753,7 @@ fi
 
     def make(name, body):
         body = portable_recipe(body or 'true')
-        body = re.sub(r'(?<![\w./-])((?:(?:bash|sh)\s+)?(?:\./|/workspace/)(?:[\w.-]+/)*mvnw)(?=\s|[;&]|$)', r'audit_mvn_transport \1', body)
+        body = warning_audit_wrap_mvnw(body, 'audit_mvn_transport')
         return (head.replace('{name}', name).replace('{vendor_url}', (vendor_url or '').rstrip('/'))
                 .replace('{dependency_archive}', DEPENDENCY_ARCHIVE).replace('{dependency_marker}', DEPENDENCY_MARKER)
                 .replace('{repository}', repository or '').replace('{java_proxy}', java_proxy)
@@ -2525,8 +2850,7 @@ bash /tests/fetch_repository.sh /workspace > /logs/verifier/fetch.log 2>&1
         files.update({
             'tests/infer/verify.py': script, 'setup_files/infer/analyze.py': script,
             'tests/infer/task.json': json.dumps(dict(public, originals=audited['originals'], allowed=audited['allowed'],
-                                                     allowed_elsewhere=audited.get('allowed_elsewhere', []),
-                                                     analyzer_tree=ANALYZER_TREES[analyzer_release(analyzer)]), indent=1).encode(),
+                                                     allowed_elsewhere=audited.get('allowed_elsewhere', [])), indent=1).encode(),
             'setup_files/infer/task.json': json.dumps(public, indent=1).encode(),
             'tests/infer/buggy_target': before,
             'setup_files/analyze.sh': b'#!/bin/bash\n# Print the warnings the task\'s static analyzer reports in the target file of /app (builds the project).\n'
@@ -2574,15 +2898,19 @@ fi
 #   4. every warning in another changed source file is one that file had before the change, or
 #      one the reference fix has there.
 # A failed build, capture or analysis is reward 0, never "no warnings". Details: /logs/verifier/result.json
-# The analyzer is the image's where it still is the release, file by file; otherwise verify.py
-# installs it again (tests/install_analyzer.sh --force, log in /logs/verifier/install.log).
-{fetch_submission}mkdir -p {shlex.quote(str(PurePosixPath('/workspace', target).parent))}
-cp -- /tests/infer/buggy_target /workspace/{shlex.quote(target)}
+# tests/setup.sh has prepared the checkouts in a fresh task-image container.
+set -euo pipefail
 code=0
 # -I: only the standard library, nothing that lies beside the script or in the environment
-python3 -I /tests/infer/verify.py --grade /app --setup --workspace /workspace --logs /logs/verifier --timeout {t} --analysis-timeout {getattr(args, 'analysis_timeout', None) or t} || code=$?
+python3 -I /tests/infer/verify.py --grade /app --prepared --workspace /workspace --logs /logs/verifier --timeout {t} --analysis-timeout {getattr(args, 'analysis_timeout', None) or t} || code=$?
 if [ "$code" -eq 0 ]; then echo 1 > /logs/verifier/reward.txt; fi
 {poison}""".encode()
+        files['tests/setup.sh'] = f"""#!/bin/bash
+# Runs in a fresh container from the task image. /app contains only submitted project files.
+{fetch_submission}mkdir -p {shlex.quote(str(PurePosixPath('/workspace', target).parent))}
+cp -- /tests/infer/buggy_target /workspace/{shlex.quote(target)}
+python3 -I /tests/infer/verify.py --grade /app --prepare-only --workspace /workspace --logs /logs/verifier --timeout {t} --analysis-timeout {getattr(args, 'analysis_timeout', None) or t}
+""".encode()
         deliverable = f"""Overwrite `/app/{target}` with the complete, corrected version of the file.
 If the fix needs changes in other files of the project, make them in /app as well."""
         grading = f"""The verifier puts the files you changed into a fresh copy of the project, builds it with the
@@ -2602,9 +2930,12 @@ bash /setup_files/analyze.sh
         files['tests/test.sh'] = f"""#!/bin/bash
 # Reward 1 iff the submitted file compiles in a fresh checkout of the pinned commit with the
 # task's recipe (setup + build). It does not check whether the bug is fixed.
-{fetch_submission}{single_file}timeout {t} bash /tests/build_setup.sh /workspace > /logs/verifier/setup.log 2>&1
+set -euo pipefail
 timeout {t} bash /tests/build.sh /workspace > /logs/verifier/build.log 2>&1
 echo 1 > /logs/verifier/reward.txt
+""".encode()
+        files['tests/setup.sh'] = f"""#!/bin/bash
+{fetch_submission}{single_file}timeout {t} bash /tests/build_setup.sh /workspace > /logs/verifier/setup.log 2>&1
 """.encode()
         deliverable = f"""Overwrite `/app/{target}` with the complete, corrected version of the file.
 Only this file is graded; changes to other files are ignored."""
@@ -2653,6 +2984,12 @@ bash /setup_files/build.sh /app
             agent_seconds, verifier_seconds = task_timeouts(task.task_id) if audited else (900, 2 * t + 300)
         toml = re.sub(r'(\[agent\][\s\S]*?timeout_sec\s*=\s*)[\d.]+', lambda m: m[1] + str(agent_seconds), toml)
         toml = re.sub(r'(\[verifier\][\s\S]*?timeout_sec\s*=\s*)[\d.]+', lambda m: m[1] + str(verifier_seconds), toml)
+        # Only the project is transferred. Tools, caches and verifier files come from
+        # the fresh image and trusted task payload. Directory transfer preserves deletions.
+        toml = re.sub(r'(?m)^artifacts\s*=.*\n?', '', toml)
+        toml = 'artifacts = [{source = "/app", exclude = [".git"]}]\n' + toml
+        toml = re.sub(r'(?m)^environment_mode\s*=.*\n?', '', toml)
+        toml = toml.replace('[verifier]', '[verifier]\nenvironment_mode = "separate"', 1)
         files['task.toml'] = task_resource_config(toml).encode()
     return files
 
@@ -3300,6 +3637,16 @@ def fresh_cache_check(task: Task, proposal: dict, row: dict | None, vendored: di
     shared project cache, and it exercises the exact scripts a task ships."""
     image = resolve_image(proposal.get('image'), task.language)
     packaged = package({}, task, proposal, image, row, vendored, a)
+    image_recipe = packaged['environment/Dockerfile']
+    image = 'inferredbugs-packaged:' + hashlib.sha256(image_recipe).hexdigest()[:20]
+    code, _, _ = run_process(['docker', 'image', 'inspect', image], timeout=30)
+    if code:
+        work.mkdir(parents=True, exist_ok=True)
+        built = subprocess.run(['docker', 'build', '-q', '-t', image, '-'], input=image_recipe,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=3600)
+        (work / 'packaged-image.log').write_bytes(built.stdout)
+        if built.returncode:
+            raise InfrastructureError('Cannot build packaged verifier image; see %s' % (work / 'packaged-image.log'))
     with tempfile.TemporaryDirectory(dir=a.scratch_dir or a.cache_dir, prefix='ib-fresh-') as temp:
         rt = Path(temp)
         for name, content in packaged.items():
@@ -3319,7 +3666,7 @@ def fresh_cache_check(task: Task, proposal: dict, row: dict | None, vendored: di
                '--memory', a.memory, '-e', 'HOME=/tmp/home', '-e', 'MAVEN_OPTS=' + AUDIT_MAVEN_OPTS]
         for mount, ro in (('tests', True), ('setup_files', True), ('app', False), ('logs', False), ('workspace', False), ('cache', False)):
             cmd += ['-v', f'{rt / mount}:/{mount}' + (':ro' if ro else '')]
-        cmd += [image, 'bash', '/tests/test.sh']
+        cmd += [image, 'bash', '-c', 'bash /tests/setup.sh && bash /tests/test.sh']
         try:
             with (CHECK_SLOTS or threading.BoundedSemaphore(1)), (BUILD_SLOTS or threading.BoundedSemaphore(1)):
                 code, _, _ = run_process(cmd, timeout=2 * a.verify_timeout + 900, log_path=work / 'fresh-cache.log')
@@ -4377,16 +4724,32 @@ def warning_audit_main():
     with ThreadPoolExecutor(max_workers=args.workers) as pool:list(pool.map(lambda task_id:warning_audit_one(args,task_id),ids))
 
 
+PATCH_EXPLANATION = (
+    "Issue: The TaskTrove verifier used regex checks over the submitted solution, "
+    "without compiling or executing the project, so textual patterns could earn reward "
+    "without fixing the bug. Fix: Restore the project snapshot and build recipe, compile "
+    "the submitted fix, and analyze it with the task's pinned Infer or InferSharp release. "
+    "Compare against warnings established for the buggy and reference versions: the "
+    "target warning must disappear, and no warning absent from both baselines is allowed. "
+    "Run verifier preparation separately in a fresh container from the task image, "
+    "transfer only the submitted project, and reject incorrect analyzer images without redownloading tools."
+)
+
+
 def write_reporting(input_path, output_path, dropped, unresolved=None):
+    import pyarrow.parquet as pq
+
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from data.utils.patch_reporting import write_patch_report
     return write_patch_report(input_path, output_path, patcher=__file__,
         source={'dataset': 'open-thoughts/TaskTrove', 'revision': TASKTROVE_REVISION,
                 'url': f'https://huggingface.co/datasets/open-thoughts/TaskTrove/tree/{TASKTROVE_REVISION}'},
         dropped=dropped, unresolved=unresolved,
-        file_labels={'instruction.md': 'instruction-updated', 'tests/': 'warning-verifier-updated',
-                     'solution/': 'reference-solution-updated', 'environment/': 'environment-adapted',
-                     'setup_files/': 'build-recipe-updated', 'task.toml': 'task-configuration-updated'},
+        # One combined explanation, shown once in the automatic PR change table.
+        file_labels={name: 'compiled-warning-verification' for name in
+                     ('instruction.md', 'tests/', 'solution/', 'environment/', 'setup_files/', 'task.toml')},
+        change_reasons={name: PATCH_EXPLANATION for name in
+                        pq.read_table(output_path, columns=['path'])['path'].to_pylist()},
         patches=[{'version': VERSION, 'source_commit': SOURCE_COMMIT, 'patcher_sha256': sha(Path(__file__))}])
 
 
@@ -4707,8 +5070,8 @@ def main():
 # and NULLPTR_DEREFERENCE with the dataset's wording ('1.3 biabduction': the same release run with
 # its biabduction checker), 1.5 PULSE_UNINITIALIZED_VALUE.
 # The task image is one of the eight shared ones plus the task's analyzer, installed by the task's
-# install_analyzer.sh while the image is built. The agent can change what is installed, so the
-# verifier compares it with the release (ANALYZER_TREES) and installs it again where it differs.
+# install_analyzer.sh while the image is built, with the download checksum checked below.
+# Verification starts from that image in a separate container, without the agent's tool changes.
 ANALYZERS = {
     'Infer 0.16.0': '435c415a9a22f41e7f2074b542b035b972a2a8c237d5490285d763bf333a817b',
     'Infer 0.17.0': 'de972ba3043f18b29a8eff6cd7612e24f5ffaef038dc7949befeaf490931725e',
@@ -4719,55 +5082,10 @@ ANALYZERS = {
     'InferSharp 1.4': 'fb5d473cc8e8d9a3125edabaa9c0992fb3261d2e9fbd31b891f67ce6f752e936',
     'InferSharp 1.5': 'c0f36ffb7515e83f2968e4e7c4d669c3bba1d90a1188fdd0c1413378adb75d92',
 }
-# analyzer_digest() of the installed release (/opt/infer or /opt/infersharp). It is unpacked from the
-# archive above, so the value is the same on every machine: `warmup.py --downloads DIR --digests`
-# unpacks every release and compares. Computing it takes under a second (1 to 1.6 GB for Infer).
-ANALYZER_TREES = {
-    'Infer 0.16.0': 'a958b10ee4b8203a29a681e42369ba8dc6d4227b96ae47ed6f3267087fe5d7fc',
-    'Infer 0.17.0': 'b0623e977d9b17903cb1a88be79f6f01d8d265c56449daffd35da7213cfc3b51',
-    'Infer 1.0.0': 'a4801c424ec78fed5fd1e9b320f03d33619dbc62435bbf12c693b4717036c184',
-    'Infer 1.1.0': 'ef903215e1026129b5a5613b3299582ced7370a254ceb336fabd532654a533ae',
-    'InferSharp 1.2': '1d23e607b6479435a5201777cc9eb5460fdde6a51615c2a655184c6ebfd5525e',
-    'InferSharp 1.3': 'b88a7cb3c1f40529bd48c2ff9e505610a34f6b9433a2664e93e7917c33f0fe88',
-    'InferSharp 1.4': '25def6014ff6dd9c1dfe91dd59afaefe0ccc163eb45972b441d14287dd5e2400',
-    'InferSharp 1.5': 'af7c673f9b7bfd730810b3e63068a9fd0444ccc80f174d90d1192464bd786888',
-}
-ANALYZER_ROOTS = {'Infer': '/opt/infer', 'InferSharp': '/opt/infersharp'}
-# A runner may mount, read-only, an archive of /cache (Maven, NuGet, Gradle) from an earlier build
-# of the task: the build scripts unpack it once into the empty /cache, and the verifier empties
-# /cache and unpacks it again, so that it does not build with what the agent left there. Without
-# the archive everything is downloaded, and the verifier's build reuses the agent's /cache.
+# Optional project download archives seed each fresh container once. They accelerate builds;
+# verifier isolation comes from a fresh task-image container, not resetting the agent's cache.
 DEPENDENCY_ARCHIVE = '/opt/inferredbugs/dependencies.tar'    # or the path in INFERREDBUGS_DEPENDENCY_CACHE
 DEPENDENCY_MARKER = '/cache/.inferredbugs-dependencies'
-
-
-def analyzer_digest(root, name=None):
-    """One SHA-256 over an installed analyzer: of every file under `root` its path (as if root were
-    `name`), whether it is executable and its content, of a link its target. A file added, removed
-    or changed gives another value; None when there is no such directory."""
-    import hashlib
-    if not os.path.isdir(root):
-        return None
-    entries = []
-    for directory, dirs, files in os.walk(root):
-        for entry in dirs + files:
-            path = os.path.join(directory, entry)
-            if os.path.islink(path) or not os.path.isdir(path):
-                entries.append(path)
-    total = hashlib.sha256()
-    for path in sorted(entries):
-        if os.path.islink(path):
-            kind, value = 'link', hashlib.sha256(os.fsencode(os.readlink(path))).hexdigest()
-        elif os.path.isfile(path):
-            content = hashlib.sha256()
-            with open(path, 'rb') as f:
-                for block in iter(lambda: f.read(1 << 20), b''):
-                    content.update(block)
-            kind, value = ('exec' if os.stat(path).st_mode & 0o111 else 'file'), content.hexdigest()
-        else:
-            kind, value = 'other', ''
-        total.update(os.fsencode('%s\0%s\0%s\n' % ((name or root) + path[len(root):], kind, value)))
-    return total.hexdigest()
 
 
 _INSTALL_HEAD = r'''#!/bin/bash
@@ -12056,7 +12374,7 @@ class Run:
                     env['JAVA_HOME'], env['PATH'] = home, os.path.join(home, 'bin') + ':' + env['PATH']
                     break
         # Infer's capture is Python: compiled files next to its sources would make the installed
-        # analyzer differ from the release (installed_analyzer), and the verifier install it again.
+        # analyzer differ from the pinned release.
         env['PYTHONDONTWRITEBYTECODE'] = '1'
         if TASK['language'] == 'java':
             env['JAVA_TOOL_OPTIONS'] = (env.get('JAVA_TOOL_OPTIONS', '') + ' ' + AUDIT_NO_REFORMAT).strip()
@@ -12259,40 +12577,39 @@ def apply_changes(changes, submission, checkout):
             shutil.copyfile(str(submission / rel), str(destination))
 
 
-def installed_analyzer(logs, timeout):
-    """'image' when the installed analyzer is the release, file by file (the task image carries it,
-    and the agent can change it); otherwise it is installed from scratch: 'verifier', or None when
-    that failed."""
-    root = ANALYZER_ROOTS[TASK['analyzer'].split()[0]]
-    found = analyzer_digest(root)
-    if found == TASK['analyzer_tree']:
-        return 'image'
-    with (logs / 'install.log').open('wb') as log:
-        log.write(('%s is not the release (%s), installing it again\n' % (root, found or 'missing')).encode())
-        log.flush()
-        code = subprocess.run(['timeout', str(timeout), 'bash', str(HERE.parent / 'install_analyzer.sh'), '--force'],
-                              stdout=log, stderr=subprocess.STDOUT).returncode
-    return None if code else 'verifier'
-
-
-def clean_dependencies():
-    """'archive' when the runner mounts the task's dependency archive: /cache is emptied and filled
-    from it, so the verifier builds with nothing the agent put there (what the archive lacks is
-    downloaded). 'reused' without an archive: the build uses /cache as the agent left it."""
-    archive = os.environ.get('INFERREDBUGS_DEPENDENCY_CACHE') or DEPENDENCY_ARCHIVE
-    cache = os.path.dirname(DEPENDENCY_MARKER)
-    if not os.path.isfile(archive) or not os.path.isdir(cache):
-        return 'reused'
-    for entry in os.listdir(cache):
-        path = os.path.join(cache, entry)
-        if os.path.isdir(path) and not os.path.islink(path):
-            shutil.rmtree(path, ignore_errors=True)
-        else:
-            os.unlink(path)
-    if subprocess.run(['tar', '-xf', archive, '-C', cache], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
-        return 'archive_unreadable'       # an empty /cache: everything is downloaded
-    Path(DEPENDENCY_MARKER).touch()
-    return 'archive'
+def prepare_verification(a, logs):
+    """Run preparation recipes on both checkouts, leaving grading to test.sh."""
+    # A fresh verifier uses the image's analyzer, never the agent's installation.
+    analyzer = 'image'
+    changes = submitted_changes(Path(a.grade), Path(a.workspace), logs)
+    others = sorted(rel for rel in changes if rel != TASK['target_file'] and is_source(rel))
+    baseline = Path(a.workspace + '-baseline') if others else None
+    if baseline is not None:
+        shutil.rmtree(str(baseline), ignore_errors=True)
+        shutil.copytree(a.workspace, baseline, symlinks=True)
+    apply_changes(changes, Path(a.grade), Path(a.workspace))
+    steps = {}
+    for name, workspace in [('baseline', baseline), ('submission', Path(a.workspace))]:
+        if workspace is None:
+            continue
+        source = workspace / TASK['target_file']
+        original = source.read_bytes()
+        if TASK['language'] == 'java':
+            warning_audit_strip_formatters(workspace)
+            for properties in workspace.rglob('maven-wrapper.properties'):
+                properties.write_text(properties.read_text().replace('https://repo1.maven.org/maven2/', 'https://repo.maven.apache.org/maven2/'))
+        run = Run(workspace, logs / name, a.timeout, False, [], a.analysis_timeout)
+        try:
+            if not run.stage('setup', 'bash %s/build_setup.sh %s' % (run.files, run.ws)):
+                detail = (run.logs / 'setup.log').read_text(errors='replace') if (run.logs / 'setup.log').exists() else ''
+                raise RuntimeError('%s verifier setup failed: %s\n%s' % (name, run.result['status'], detail[-8000:]))
+            if not source.is_file() or source.read_bytes() != original:
+                raise RuntimeError('%s source_modified_by_recipe during verifier setup' % name)
+            steps[name] = run.result['steps']
+        finally:
+            shutil.rmtree(run.out.parent, ignore_errors=True)
+    (logs / 'preparation.json').write_text(json.dumps(dict(changes=changes, analyzer=analyzer, steps=steps)))
+    return 0
 
 
 def main():
@@ -12304,25 +12621,29 @@ def main():
     ap.add_argument('--setup', action='store_true', help='run build_setup.sh first (a fresh checkout)')
     ap.add_argument('--grade', help='verifier: the submitted project directory; its source changes are applied to --workspace (a fresh '
                                     'checkout with the buggy target) and the warnings compared with task.json')
+    ap.add_argument('--prepare-only', action='store_true', help='prepare verifier checkouts without grading')
+    ap.add_argument('--prepared', action='store_true', help='use checkouts prepared by tests/setup.sh')
     a = ap.parse_args()
+    if (a.prepare_only or a.prepared) and not a.grade:
+        ap.error('--prepare-only and --prepared require --grade')
     logs, target = Path(a.logs), TASK['target_file']
     logs.mkdir(parents=True, exist_ok=True)
+    if a.prepare_only:
+        return prepare_verification(a, logs)
+    preparation = json.loads((logs / 'preparation.json').read_text()) if a.prepared else None
     others, elsewhere, baseline = [], set(), None
     if a.grade:
-        analyzer = installed_analyzer(logs, a.timeout)
-        if analyzer is None:
-            print('the analyzer could not be installed (%s)' % (logs / 'install.log'), file=sys.stderr)
-            return 1
-        dependencies = clean_dependencies()
-        changes = submitted_changes(Path(a.grade), Path(a.workspace), logs)
+        analyzer = preparation['analyzer'] if preparation else 'image'
+        changes = preparation['changes'] if preparation else submitted_changes(Path(a.grade), Path(a.workspace), logs)
         # warnings are compared in the changed source files; any changed file is taken over
         others = sorted(rel for rel in changes if rel != target and is_source(rel))
         if others:
             # What the analyzer says about those files before the submission: on a copy, since a
             # second build in one directory would skip what is already compiled.
             baseline = Path(str(Path(a.workspace)) + '-baseline')
-            shutil.rmtree(str(baseline), ignore_errors=True)
-            shutil.copytree(str(a.workspace), str(baseline), symlinks=True)
+            if not preparation:
+                shutil.rmtree(str(baseline), ignore_errors=True)
+                shutil.copytree(str(a.workspace), str(baseline), symlinks=True)
             before = Run(baseline, logs / 'baseline', a.timeout, a.setup, [rel for rel in others if changes[rel] != 'added'], a.analysis_timeout)
             known = before.analyze()
             shutil.rmtree(str(baseline), ignore_errors=True)
@@ -12334,14 +12655,16 @@ def main():
             elsewhere = {warning_key(w) for w in known if not warning_audit_file(target, w.get('file', ''))}
             # kept in result.json: what the other files had before, and what a second build costs
             baseline = {'steps': before.result['steps'], 'warnings': [brief(w) for w in known]}
-        apply_changes(changes, Path(a.grade), Path(a.workspace))
+        if not preparation:
+            apply_changes(changes, Path(a.grade), Path(a.workspace))
     run = Run(a.workspace, logs, a.timeout, a.setup, [rel for rel in others if changes[rel] != 'deleted'], a.analysis_timeout)
     warnings = run.analyze()
     result = run.result
     if a.grade:
         result['changed_files'] = changes
         result['analyzer_installation'] = analyzer
-        result['dependencies'] = dependencies
+        if preparation:
+            result['preparation_steps'] = preparation['steps']
         if baseline:
             result['baseline'] = baseline
     if warnings is not None:
@@ -12385,9 +12708,9 @@ def verifier_script() -> bytes:
             'import sqlite3\nimport subprocess\nimport sys\nimport time\n\n')
     constants = ('AUDIT_CAPTURE_SH', 'AUDIT_CAPTURE_PY', 'AUDIT_JAVAC_SHIM', 'AUDIT_INFER_JAVAC', 'AUDIT_CSHARP_BUILD_SH',
                  'AUDIT_NO_REFORMAT', 'AUDIT_UNSKIPPABLE_FORMATTERS', '_AUDIT_SOURCE_ROOT', 'SOURCE_SUFFIXES', 'BUILD_DIRECTORIES', 'ANALYZER_CONFIGURATION',
-                 'ANALYZER_ROOTS', 'DEPENDENCY_ARCHIVE', 'DEPENDENCY_MARKER')
+                 'DEPENDENCY_ARCHIVE', 'DEPENDENCY_MARKER')
     functions = (warning_audit_file, warning_audit_strip_formatters, warning_audit_infersharp_version, warning_audit_legacy_infersharp,
-                 warning_audit_assemblies, warning_audit_captured_procedures, analyzer_digest, warning_key)
+                 warning_audit_assemblies, warning_audit_captured_procedures, warning_key)
     values = globals()
     text = head + ''.join('%s = %s\n' % (name, 're.compile(%r)' % values[name].pattern if name == '_AUDIT_SOURCE_ROOT' else repr(values[name]))
                           for name in constants)

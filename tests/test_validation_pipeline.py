@@ -1244,6 +1244,12 @@ def test_dependency_archive_options_belong_together_and_follow_the_layout_file(t
         stages.dependency_archive_spec(SimpleNamespace(dependency_archives=str(tmp_path), dependency_layout=None))
     spec = stages.dependency_archive_spec(SimpleNamespace(dependency_archives=str(tmp_path), dependency_layout=str(layout)))
     assert spec == {'directory': str(tmp_path.resolve()), 'target': '/opt/deps.tar', 'folder': '/cache', 'exclude': ['./m2/*.xml']}
+    layout.write_text(json.dumps({'target': '/opt/deps.tar', 'folder': '/cache', 'reuse_for_oracle': True}))
+    spec = stages.dependency_archive_spec(SimpleNamespace(dependency_archives=str(tmp_path), dependency_layout=str(layout)))
+    assert spec['reuse_for_oracle'] is True
+    layout.write_text(json.dumps({'target': '/opt/deps.tar', 'folder': '/cache', 'reuse_for_oracle': 'yes'}))
+    with pytest.raises(ValueError, match='boolean'):
+        stages.dependency_archive_spec(SimpleNamespace(dependency_archives=str(tmp_path), dependency_layout=str(layout)))
     layout.write_text(json.dumps({'target': 'deps.tar', 'folder': '/cache'}))
     with pytest.raises(ValueError, match='absolute'):
         stages.dependency_archive_spec(SimpleNamespace(dependency_archives=str(tmp_path), dependency_layout=str(layout)))

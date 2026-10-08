@@ -87,31 +87,3 @@ def summarize(report_dir, expected_ids, required_stages=STAGES):
             "oracle_validated": 4 in required_stages,
             "failures": failures,
             "contract_sha256": next(iter({r.get('contract_sha256') for _, r in reports.values()}))}
-
-
-def before_after(before, after):
-    prior = set(before["per_task"])
-    current = set(after["per_task"])
-    if not current <= prior:
-        raise ValueError("after run contains tasks absent from the before run")
-    common = prior & current
-    required_stages = after.get("required_stages", STAGES)
-    policy_changed = list(before.get("required_stages", STAGES)) != list(required_stages)
-    before_common_passes = sum(all(before["per_task"][task].get(str(stage)) == "passed"
-                                   for stage in required_stages) for task in common)
-    def common_counts(outcome):
-        stage = {str(number): dict(Counter(
-            outcome["per_task"][task].get(str(number), "missing") for task in common))
-            for number in STAGES}
-        checks = Counter(key for task in common for key in outcome.get("per_task_checks", {}).get(task, []))
-        return {"stage_counts": stage, "check_counts": dict(sorted(checks.items()))}
-    return {"policy_changed": policy_changed,
-            "comparison_required_stages": list(required_stages),
-            "before_policy": list(before.get("required_stages", STAGES)),
-            "after_policy": list(required_stages),
-            "before": {key: before[key] for key in ("stage_counts", "check_counts", "passed_all")},
-            "after": {key: after[key] for key in ("stage_counts", "check_counts", "passed_all")},
-            "same_retained_tasks": {"before": common_counts(before), "after": common_counts(after)},
-            "retained_before": len(prior), "retained_after": len(current),
-            "discarded_ids": sorted(prior - current),
-            "passed_all_delta_on_retained": after["passed_all"] - before_common_passes}

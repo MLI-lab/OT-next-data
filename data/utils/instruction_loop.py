@@ -25,6 +25,12 @@ reviews. Per input Parquet the results are:
                         session_error/           an agent session gave no output
     audit.jsonl       every round's instruction and review, one line per task
 
+Claude usage limits pause all new sessions until the reported reset plus 60s.
+Unreadable reset times use --usage-limit-retry-seconds (default 15 minutes).
+Completed sessions and reset deadlines are saved under --out. Use --resume with
+the same inputs/settings to continue after an interruption, even on a new node.
+Waiting still counts against Slurm walltime; this does not resubmit Slurm jobs.
+
 Needs a Slurm allocation; the script starts its own Apptainer bridge there.
 Run in an allocation with the workspace environment and runtime configured:
 
@@ -46,11 +52,14 @@ import subprocess
 import sys
 import tarfile
 import tomllib
+import uuid
 from types import SimpleNamespace
 
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
+from data.utils.instruction_resume import SessionProgress, UsageLimit, claude_limit
+
 PROMPTS = Path(__file__).parent / "instruction_prompts"
 # Session step -> prompt file and the file the agent must leave in /output.
 STEPS = {
@@ -91,7 +100,7 @@ mkdir -p /logs/verifier
 echo 0 > /logs/verifier/reward.txt
 python3 - <<'PY' || exit 0
 import json
-review = json.load(open('/output/review.json'))
+review = json.load(open('/output/review.json', encoding='utf-8'))
 for name in {CATEGORIES!r}:
     assert review[name]['rating'] in {RATINGS!r}, name
     assert isinstance(review[name]['description'], str), name
@@ -205,11 +214,11 @@ def bridge(scratch: Path, workers: int):
                 os.killpg(process.pid, signal.SIGTERM)
 
 
-def run_sessions(sessions: dict[str, Path], jobs: Path, args) -> dict[str, Path | str]:
+def run_sessions(sessions: dict[str, Path], jobs: Path, args) -> dict[str, Path | str | UsageLimit]:
     """Run the wrapped tasks as one Harbor job.
 
     Returns the artifact directory of each session that left a valid output,
-    and a short reason for each one that did not.
+    a UsageLimit for subscription exhaustion, or a short error reason.
     """
     from validation.stages import harbor as runtime
     if args.agent == "codex":
@@ -224,13 +233,16 @@ def run_sessions(sessions: dict[str, Path], jobs: Path, args) -> dict[str, Path 
     config = runtime.job_config(first, jobs, settings, args.agent, args.model)
     config["tasks"] = [{"path": str(path.resolve())} for path in sessions.values()]
     job = asyncio.run(runtime.execute_job(config))
-    outcome: dict[str, Path | str] = {name: "no trial result" for name in sessions}
+    outcome: dict[str, Path | str | UsageLimit] = {name: "no trial result" for name in sessions}
     for trial, result in runtime.trial_results(job):
         name = result.get("task_name")
         if name not in outcome:
             continue
         reward = ((result.get("verifier_result") or {}).get("rewards") or {}).get("reward")
-        if result.get("exception_info"):
+        limit = claude_limit(trial / "agent/claude-code.txt") if args.agent == "claude-code" else None
+        if limit is not None:
+            outcome[name] = limit
+        elif result.get("exception_info"):
             error = result["exception_info"]
             outcome[name] = f"{error.get('exception_type')}: {str(error.get('exception_message'))[:300]}"
         elif reward != 1:
@@ -241,6 +253,7 @@ def run_sessions(sessions: dict[str, Path], jobs: Path, args) -> dict[str, Path 
 
 
 def loop(tasks: dict[str, Path], args) -> dict[str, dict]:
+    progress = SessionProgress(tasks, args)
     state = {}
     for name, task in tasks.items():
         path = task / "instruction.md"
@@ -255,21 +268,59 @@ def loop(tasks: dict[str, Path], args) -> dict[str, dict]:
         """Run one kind of session for the named tasks; mark those that produce nothing."""
         if not names:
             return {}
-        root = args.work_dir / f"round-{number}-{kind}"
-        sessions = {}
-        for name in names:
-            rounds = state[name]["rounds"]
-            sessions[name] = session_task(
-                tasks[name], kind, root / "tasks" / name, state[name]["instruction"],
-                rounds[-1]["review"] if kind == "propose" else None, args.agent_timeout,
-                args.prompts_dir)
         artifacts = {}
-        for name, result in run_sessions(sessions, root / "jobs", args).items():
-            if isinstance(result, Path):
-                artifacts[name] = result
-            else:
-                state[name].update(status=f"needs_human: {kind} session in round {number}: {result}",
+        pending = []
+        output = STEPS[kind][1]
+
+        def restore(name, saved):
+            if "error" in saved:
+                state[name].update(status=f"needs_human: {kind} session in round {number}: {saved['error']}",
                                    folder="session_error")
+            else:
+                target = args.work_dir / "restored" / f"{number}-{kind}" / name
+                target.mkdir(parents=True, exist_ok=True)
+                (target / output).write_text(saved["output"])
+                artifacts[name] = target
+
+        def key(name):
+            return json.dumps([number, kind, name])
+
+        for name in names:
+            saved = progress.data["sessions"].get(key(name))
+            if saved is None:
+                pending.append(name)
+            else:
+                restore(name, saved)
+        while pending:
+            progress.wait()
+            batch, pending = pending[:args.concurrency], pending[args.concurrency:]
+            root = args.work_dir / f"round-{number}-{kind}-{uuid.uuid4().hex}"
+            sessions = {}
+            for name in batch:
+                rounds = state[name]["rounds"]
+                sessions[name] = session_task(
+                    tasks[name], kind, root / "tasks" / name, state[name]["instruction"],
+                    rounds[-1]["review"] if kind == "propose" else None, args.agent_timeout,
+                    args.prompts_dir)
+            results = run_sessions(sessions, root / "jobs", args)
+            limits = []
+            retry = []
+            for name in batch:
+                result = results.get(name, "no trial result")
+                if isinstance(result, UsageLimit):
+                    limits.append(result)
+                    retry.append(name)
+                    continue
+                saved = ({"output": (result / output).read_text()} if isinstance(result, Path)
+                         else {"error": result})
+                progress.data["sessions"][key(name)] = saved
+                restore(name, saved)
+            # Save all successful peers before waiting or launching another batch.
+            if limits:
+                progress.defer(limits)
+            else:
+                progress.save()
+            pending = retry + pending
         print(f"round {number} {kind}: {len(artifacts)}/{len(names)} sessions gave output", flush=True)
         return artifacts
 
@@ -351,7 +402,7 @@ def write_group(out: Path, tasks: dict[str, Path], state: dict[str, dict]) -> No
             else:
                 # The converter's draft stays next to the last candidate.
                 target = out / "needs_human" / item["folder"] / name
-                shutil.copytree(task, target)
+                shutil.copytree(task, target, dirs_exist_ok=True)
                 if item["instruction"]:
                     if "instruction.md" in files:
                         (target / "instruction.draft.md").write_bytes(files["instruction.md"])
@@ -376,6 +427,10 @@ def main(argv=None, *, placeholder_markers=()) -> None:
     parser.add_argument("--out", type=Path, required=True, help="Root for the results")
     parser.add_argument("--work-dir", type=Path, required=True,
                         help="Scratch for session tasks, Harbor jobs and containers; node-local")
+    parser.add_argument("--resume", action="store_true",
+                        help="Reuse saved session results and reset deadline from --out")
+    parser.add_argument("--usage-limit-retry-seconds", type=float, default=900,
+                        help="Wait when Claude reports a limit without a future reset time (default: 900)")
     parser.add_argument("--max-reviews", type=int, default=5)
     parser.add_argument("--agent", default="claude-code")
     parser.add_argument("--model", default="anthropic/claude-opus-5-5")
@@ -389,6 +444,14 @@ def main(argv=None, *, placeholder_markers=()) -> None:
     parser.add_argument("--placeholder-marker", action="append", default=list(placeholder_markers),
                         help="Instruction substring identifying a placeholder; repeatable")
     args = parser.parse_args(argv)
+    if not 0 < args.usage_limit_retry_seconds < float("inf"):
+        parser.error("--usage-limit-retry-seconds must be finite and positive")
+    if args.resume and not (args.out / "instruction-progress.json").is_file():
+        parser.error("--resume requires an instruction-progress.json checkpoint in --out")
+    if (args.out / "instruction-progress.json").exists() and not args.resume:
+        parser.error("Saved progress exists; use --resume to continue")
+    # A fresh scratch directory also permits resuming within the same allocation.
+    args.work_dir = args.work_dir / ("run-" + uuid.uuid4().hex)
     if args.max_reviews < 1 or args.concurrency < 1:
         parser.error("--max-reviews and --concurrency must be positive")
     if any(not marker.strip() for marker in args.placeholder_marker):
@@ -405,7 +468,7 @@ def main(argv=None, *, placeholder_markers=()) -> None:
     if not tasks or args.only and set(args.only) - set(tasks):
         parser.error("No matching tasks, or an --only name is missing")
     for group in groups:
-        if (args.out / group / "tasks.parquet").exists():
+        if (args.out / group / "tasks.parquet").exists() and not args.resume:
             parser.error(f"Refusing to overwrite existing results: {args.out / group}")
         (args.out / group).mkdir(parents=True, exist_ok=True)
     try:
@@ -418,7 +481,7 @@ def main(argv=None, *, placeholder_markers=()) -> None:
         # Agent logs and trajectories of every session, as one file for the file quota.
         jobs = sorted(path.relative_to(args.work_dir) for path in args.work_dir.glob("round-*/jobs"))
         if jobs:
-            subprocess.run(["tar", "-czf", str(args.out / "harbor-jobs.tar.gz"), "-C",
+            subprocess.run(["tar", "-czf", str(args.out / f"harbor-jobs-{args.work_dir.name}.tar.gz"), "-C",
                             str(args.work_dir), *map(str, jobs)], check=False)
     for group, members in groups.items():
         write_group(args.out / group, members, state)

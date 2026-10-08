@@ -1,0 +1,14 @@
+Recover a stopped datasource loop using its saved state, failure record, agent logs, and partial edits.
+
+You may run diagnostics and repair files within editable_paths. Preserve task intent, instructions, verifier, upstream source, and earlier evidence. Do not modify shared infrastructure, even if you know a possible fix. Describe the problem and supporting evidence for the supervisor instead. Do not edit another datasource, override retry limits, modify controller/job/publication records, commit, or push.
+
+Choose one action:
+- wait: An existing job or temporary infrastructure problem needs time. Explain what must recover.
+- restart: Resume the saved checkpoint, or restart stage 3 when changed inputs require fresh validation. Supply instructions for the next agent, including how to finish partial work.
+- escalate: Shared infrastructure may need a fix. Explain the suspected cause and evidence for the stronger supervisor model to judge.
+- stop: Explain the credentials, permissions, or other decision needed to proceed.
+
+The runner executes restart requests. Do not launch another controller or submit validation/publication jobs. Never create a duplicate PR when publication status is uncertain.
+
+Return JSON only:
+{"action": "wait|restart|escalate|stop", "kind": "infrastructure|agent|controller|publication", "cause": "why it stopped", "evidence": ["paths"], "changes": "local repairs, or none", "restart_from": "checkpoint|stage3", "restart_prompt": "instructions for the next agent", "wait_reason": "what must recover, if waiting"}

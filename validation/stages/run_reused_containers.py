@@ -45,7 +45,8 @@ def run_validation_bundle(args, numbers):
         config['n_concurrent_trials'] = 1
         save(out / 'job.json', config)
         job_dir = await runtime.execute_job(config)
-        result = runtime.assess_trials(runtime.trial_results(job_dir), 1, 0 if stage == 5 else 1, args.reward_key)
+        result = runtime.assess_trials(runtime.trial_results(job_dir), 1, 0 if stage == 5 else 1,
+                                       args.reward_key, task_path=task)
         result['job_dir'] = str(job_dir)
         if result['status'] == 'completed':
             result['status'] = 'passed'

@@ -73,3 +73,58 @@ E       AssertionError: /task_file/answer.json must exist
     result = assess_trials([(tmp_path, {'verifier_result': {
         'rewards': {'reward': 0}, 'stdout': output}})], 1, 0, task_path=task)
     assert result['status'] == expected_status
+
+
+@pytest.mark.parametrize('source', ['stdout', 'stderr', 'file'])
+@pytest.mark.parametrize('reward,exception', [
+    (0, None), (None, 'VerifierRuntimeError'), (None, 'RewardFileNotFoundError'),
+])
+def test_nop_counts_missing_instruction_file_as_zero(tmp_path, source, reward, exception):
+    task = tmp_path / 'task'
+    task.mkdir()
+    (task / 'instruction.md').write_text('Write your answer to `/project/answer.json`.')
+    output = ("E   FileNotFoundError: [Errno 2] No such file or directory: '/project/answer.json'\n"
+              '================ 1 error in 0.04s ================\n')
+    verifier = {'rewards': {'reward': reward}}
+    if source == 'file':
+        (tmp_path / 'verifier').mkdir()
+        (tmp_path / 'verifier' / 'test-stdout.txt').write_text(output)
+    else:
+        verifier[source] = output
+    trial = {'verifier_result': verifier,
+             'exception_info': {'exception_type': exception} if exception else None}
+    result = assess_trials([(tmp_path, trial)], 1, 0, task_path=task)
+    assert result['status'] == 'completed'
+    assert result['rewards'] == [0]
+    assert result['missing_file_zeros'][0]['paths'] == ['/project/answer.json']
+    assert verifier['rewards']['reward'] == reward
+    assert trial['exception_info'] == ({'exception_type': exception} if exception else None)
+    # The exception remains an error for reference and teacher trials.
+    for expected in (1, None):
+        other = assess_trials([(tmp_path, trial)], 1, expected, task_path=task)
+        assert 'missing_file_zeros' not in other
+        if exception:
+            assert other['status'] == 'failed'
+
+
+@pytest.mark.parametrize('instruction,extra,exception,reward', [
+    ('No output file specified.', '', None, None),
+    ('Write /project/answer.json.bak', '', None, None),
+    ('Write /project/answer.json', 'E   PermissionError: denied\n', None, None),
+    ('Write /project/answer.json', '/usr/bin/python3: No module named pytest\n', None, None),
+    ('Write /project/answer.json', '/tests/test.sh: line 9: pytest: command not found\n', None, None),
+    ('Write /project/answer.json',
+     "E   FileNotFoundError: [Errno 2] No such file or directory: '/tests/input.json'\n", None, None),
+    ('Write /project/answer.json', '', 'BuildError', None),
+    ('Write /project/answer.json', '', 'AgentTimeoutError', None),
+    ('Write /project/answer.json', '', None, 1),
+])
+def test_nop_missing_file_rule_does_not_hide_other_failures(tmp_path, instruction, extra, exception, reward):
+    (tmp_path / 'instruction.md').write_text(instruction)
+    trial = {'verifier_result': {'rewards': {'reward': reward}, 'stdout':
+        "E   FileNotFoundError: [Errno 2] No such file or directory: '/project/answer.json'\n"
+        + extra + '================ 1 error in 0.04s ================\n'},
+        'exception_info': {'exception_type': exception} if exception else None}
+    result = assess_trials([(tmp_path, trial)], 1, 0, task_path=tmp_path)
+    assert result['status'] == 'failed'
+    assert 'missing_file_zeros' not in result

@@ -276,6 +276,8 @@ def prepare(args, numbers):
     from validation.checks.instruction_suffix import prepare as prepare_copy
     derived = copy.copy(args)
     derived.path_resolution_report = []
+    # A derived task tree needs fresh stage-3 validation.
+    derived.reuse_stage3 = None
     prepare_copy(derived, destination)
     by_name = {task.name: task for task in tasks}
     edits = []
@@ -294,6 +296,10 @@ def prepare(args, numbers):
             delattr(derived, key)
     meta_path = destination / 'source.json'
     meta = json.loads(meta_path.read_text())
+    changes = meta.setdefault('automation_changes', {})
+    for item in edits:
+        if item['edits']:
+            changes[item['task']] = sorted(set(changes.get(item['task'], [])) | {'dependency-pinning'})
     meta['pip_normalization'] = {'parent_contract_sha256': parent['sha256'] if parent else None,
                                  'evidence': str(out / 'resolver-evidence.json'), 'edits': edits}
     save(meta_path, meta)

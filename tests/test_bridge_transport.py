@@ -233,7 +233,8 @@ def test_request_attempt_cannot_overrun_overall_deadline():
     assert time.monotonic() - start < .5
 
 
-def test_exec_poll_outlives_inner_rpc_without_reexecution(live_bridge, monkeypatch):
+@pytest.mark.parametrize('operation', ['exec', 'upload'])
+def test_exec_poll_outlives_inner_rpc_without_reexecution(live_bridge, monkeypatch, operation):
     from harbor_patches import bridge_timeouts
     server, base, _, counts = live_bridge
     transport = client.BridgeClient()
@@ -241,13 +242,16 @@ def test_exec_poll_outlives_inner_rpc_without_reexecution(live_bridge, monkeypat
     # at .06, result delivery at .16. A result arriving at .05 must be kept.
     monkeypatch.setattr(bridge_timeouts, 'EXEC_RPC_GRACE', .05)
     monkeypatch.setattr(bridge_timeouts, 'EXEC_RESULT_GRACE', .10)
+    monkeypatch.setattr(bridge_timeouts, 'UPLOAD_RPC_TIMEOUT', .06)
+    monkeypatch.setattr(bridge_timeouts, 'UPLOAD_RESULT_GRACE', .10)
     async def scenario():
         created = await transport.post(base + '/env/create', {})
         finish_one(base, {})
-        accepted = await transport.post(base + '/env/exec', {
+        accepted = await transport.post(base + '/env/' + operation, {
             'env_id': created['env_id'], 'command': 'once', 'timeout_sec': .01})
         job = request(base, '/worker/get_job?worker_id=node-0')
-        assert job['payload']['timeout_sec'] == .01  # Command budget unchanged.
+        if operation == 'exec':
+            assert job['payload']['timeout_sec'] == .01  # Command budget unchanged.
         async def complete():
             await asyncio.sleep(.05)
             request(base, '/worker/result', {'job_id': job['job_id'], 'result': {'return_code': 0}})
@@ -257,7 +261,7 @@ def test_exec_poll_outlives_inner_rpc_without_reexecution(live_bridge, monkeypat
         assert result['return_code'] == 0
         assert not transport.exec_waits
     asyncio.run(scenario())
-    assert counts['/env/exec'] == 1
+    assert counts['/env/' + operation] == 1
 
 
 def test_exec_result_wait_is_bounded_and_cancellable(live_bridge, monkeypatch):

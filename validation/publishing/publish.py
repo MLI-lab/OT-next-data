@@ -44,12 +44,20 @@ def failed_checks(item, not_required=(), status='failed'):
                   if c['status'] == status and c['check'] not in not_required)
 
 
-def require_complete(reports_dir, contract_path):
+def require_complete(reports_dir, contract_path, skipped_stages=None):
     """Prevent an interrupted automatic run from opening a partial-data PR."""
     frozen = read(contract_path)
+    skipped_stages = skipped_stages or {}
+    if skipped_stages and (set(skipped_stages) != {'4'} or frozen['stages'] != [1, 3, 5] or
+            not isinstance(skipped_stages['4'], str) or not skipped_stages['4'].strip()):
+        raise ValueError('Only an explicit no-reference-solution stage-4 exception is supported')
     expected = {t['task_id'] for t in task_records(frozen)}
     reports = stage_reports(reports_dir)
     for stage in GATES:
+        if str(stage) in skipped_stages:
+            if stage in reports:
+                raise ValueError('A stage cannot be both reported and explicitly not run')
+            continue
         report = reports.get(stage, {})
         items = report.get('items', [])
         if (not report.get('complete') or report.get('dry_run') or
@@ -310,6 +318,8 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
         'data_sources': {folder: {k: (dict(v) if isinstance(v, Counter) else v) for k, v in count.items()}
                          for folder, count in sorted(counts.items())},
     }
+    record['infrastructure_retries'] = {str(stage): report['retry_sources']
+        for stage, report in reports.items() if report.get('retry_sources')}
     record['archive_details'] = archive_details
     record['task_findings'] = {}
     for stage, report in reports.items():
@@ -417,6 +427,42 @@ def analysis_text(analysis):
 
 def description(record, repo=None, revision=None):
     lines = []
+    for stage, reason in record.get('skipped_stages', {}).items():
+        lines += [f'> Stage {cell(stage)} not run: {cell(reason)}', '']
+    provenance = record.get('review_provenance', {})
+    if (provenance.get('workflow') == 'agent_patch_repair_loop' and
+            provenance.get('human_audited') is False):
+        lines += ['> These results were produced by an automated agent patch-and-repair loop '
+                  'and have not been independently audited by a human.', '']
+    if summary := record.get('patch_repair_summary'):
+        seconds = summary.get('elapsed_seconds')
+        elapsed = 'Not recorded' if seconds is None else f'{seconds / 3600:.2f} hours'
+        estimate = summary.get('estimated_cost_usd')
+        cost = ('Not available' if estimate is None else
+                f"${estimate:.4f} estimated ({summary.get('cost_reported_attempts', 0)}/{summary['agent_attempts']} attempts reported)")
+        lines += ['### Agent patch and repair loop', '', '| Metric | Result |', '| --- | --- |',
+                  f"| Completed repair rounds | {summary['repair_rounds']} |",
+                  f"| Completed infrastructure retry rounds | {summary['infrastructure_retry_rounds']} |",
+                  f"| Recovery attempts | {summary.get('recovery_attempts', 0)} |",
+                  f"| Supervisor reviews | {summary.get('supervisor_reviews', 0)} |",
+                  f"| Recorded agent attempts | {summary['agent_attempts']} |",
+                  f"| Usage limit events | {summary['usage_limit_events']} |",
+                  f'| Elapsed time | {elapsed} |',
+                  f'| Cost | {cost} |', '', cell(summary['elapsed_scope']), '',
+                  cell(summary['cost_note']), '']
+        sessions = summary.get('agent_sessions', [])
+        if sessions:
+            lines += ['| Agent role | Provider | Configured model | Completed sessions |',
+                      '| --- | --- | --- | --- |']
+            groups = {}
+            for session in sessions:
+                key = (session['role'], session['provider'], session.get('model') or 'CLI default (not recorded)')
+                groups[key] = groups.get(key, 0) + 1
+            for (role, provider, model), count in sorted(groups.items()):
+                lines.append(f'| {cell(role)} | {cell(provider)} | {cell(model)} | {count} |')
+            lines.append('')
+        if not any(session['role'] == 'final_failure_reviewer' for session in sessions):
+            lines += ['No completed final failure reviewer session was recorded.', '']
     for folder, counts in record['data_sources'].items():
         evidence = record.get('patch_provenance', {}).get(folder, {})
         source = evidence.get('source') or {'dataset': record['dataset'], 'revision': record.get('dataset_revision')}
@@ -440,6 +486,12 @@ def description(record, repo=None, revision=None):
         if changes:
             lines += ['', changes.rstrip()]
         lines += ['']
+    if record.get('infrastructure_retries'):
+        retried = {task for attempts in record['infrastructure_retries'].values()
+                   for attempt in attempts for task in attempt['task_ids']}
+        lines += [f'Infrastructure retries covered **{len(retried):,} tasks**. '
+                  'The latest compatible outcomes determine retention; earlier attempts and '
+                  'execution contract references are preserved in the run record.', '']
     from validation.publishing.pr_runtime import render as render_runtime
     lines += [render_runtime(record).rstrip(), '']
     excluded = {k: v for k, v in record['static_exclusions'].items()}
@@ -619,9 +671,12 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             analysis=False, analysis_model='sonnet', call=run_llm,
             readme=False, readme_model='claude-fable-5-1', readme_evidence=(),
             readme_seed=0, readme_work_dir=None, annotation_runner=None, readme_force=False,
-            conversion_archives=(), patch_manifests=(), image_cache=None):
+            conversion_archives=(), patch_manifests=(), image_cache=None, agent_patch_repair_loop=False,
+            patch_repair_summary=None, skipped_stages=None):
     """Build the files for one run and open the pull request; returns what was done."""
     contract = read(contract_path)
+    if skipped_stages:
+        require_complete(reports_dir, contract_path, skipped_stages=skipped_stages)
     reports = stage_reports(reports_dir)
     for stage, report in reports.items():
         if report.get('contract_sha256') not in (None, contract['sha256']):
@@ -634,8 +689,15 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             cache[folder] = {} if dry_run and not repo else previous_rows(repo, folder)
         return cache[folder]
     tables, record, run_file = build(contract, reports, mapping, checks, previous, run_id)
+    if agent_patch_repair_loop:
+        record['review_provenance'] = {'workflow': 'agent_patch_repair_loop', 'human_audited': False}
+        if patch_repair_summary is not None:
+            record['patch_repair_summary'] = patch_repair_summary
+    if skipped_stages:
+        record['skipped_stages'] = skipped_stages
     add_conversion_archives(tables, record, run_file, conversion_archives, mapping)
     patch_provenance.attach(record, tables, patch_manifests)
+    patch_provenance.attach_automations(record, tables, contract)
     from validation.publishing.pr_runtime import collect
     record['runtime_summary'] = collect(contract, reports_dir)
     if analysis:

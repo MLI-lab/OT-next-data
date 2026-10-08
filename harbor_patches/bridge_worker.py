@@ -1,8 +1,8 @@
 """Run concurrent bridge work with cluster-specific container hooks.
 
-Under Slurm, each environment gets a worker before build/start, using CPU
-and memory from task.toml's effective environment config (including overrides).
-trial_step.py owns that worker; configure_worker() installs the container hooks.
+Under Slurm, each environment gets a disposable executor using CPU and memory
+from task.toml's effective config. The protected controller remains outside
+those limits. Each task owns a fresh execution step.
 """
 import glob
 import base64
@@ -160,6 +160,8 @@ def dependency_archives():
 
 def dependency_archive(payload):
     """Host path of the task's archive; the file need not exist yet."""
+    if (payload.get('task_env_config') or {}).get('disable_dependency_archive'):
+        return None
     spec, name = dependency_archives(), payload.get('task_name') or ''
     if not spec or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name):
         return None
@@ -234,14 +236,18 @@ def save_dependency_archive(self):
 def start_with_anchor(self, payload):
     payload = content_keyed_payload(payload)
     archive = dependency_archive(payload)
+    if archive and archive.is_file() and archive.stat().st_size == 0:
+        raise RuntimeError(f'Empty dependency archive: {archive}')
     self._helma_dependency_archive = archive
     self._helma_save_dependencies = bool(archive and (payload.get('task_env_config') or {}).get('save_dependencies'))
-    _trial.archive = archive if archive and archive.is_file() and not self._helma_save_dependencies else None
+    reuse_for_oracle = bool((dependency_archives() or {}).get('reuse_for_oracle', False))
+    _trial.archive = archive if archive and archive.is_file() and (not self._helma_save_dependencies or reuse_for_oracle) else None
     _trial.workspace_seeded = set()
     try:
         result = _original_start(self, payload)
         if archive and isinstance(result, dict):
-            result['dependency_archive'] = ('saved after reward 1' if self._helma_save_dependencies
+            result['dependency_archive'] = ('mounted read-only; saved after reward 1' if self._helma_save_dependencies and _trial.archive
+                                            else 'saved after reward 1' if self._helma_save_dependencies
                                             else 'mounted' if _trial.archive else 'none for this task')
     finally:
         _trial.archive = None
@@ -257,17 +263,19 @@ def start_with_anchor(self, payload):
 
 def start_anchor(self):
     """Keep tmux alive in the container for commands that reconnect later."""
+    from harbor_patches.tmux_socket import SOCKET_ROOT, prepare_socket_directory
     cmd = [worker.APPTAINER, 'exec', '--pwd', '/tmp',
-           f'instance://{self.instance_name}', '/bin/bash', '-c']
+           f'instance://{self.instance_name}', '/usr/bin/env',
+           f'TMUX_TMPDIR={SOCKET_ROOT}', '/bin/bash', '-c']
     from harbor_patches.tmux_runtime import ensure_tmux
     ensure_tmux(cmd, subprocess.run)
-    # The container has a private /tmp. Fakeroot may expose uid 0 to the shell
-    # while tmux uses the host uid, so prepare both possible socket directories.
+    # Task cleanup may delete /tmp/*; keep terminal control under private /run.
     uid = os.getuid()
-    subprocess.run(cmd + [f'mkdir -p -m 700 /tmp/tmux-{uid} /tmp/tmux-0'],
-                   capture_output=True, timeout=60)
+    subprocess.run(cmd + [prepare_socket_directory(uid)],
+                   capture_output=True, timeout=60, check=True)
     self._helma_tmux_log = open(Path(self.staging_dir) / 'tmux-anchor.log', 'w')
-    self._helma_tmux_anchor = subprocess.Popen(
+    from harbor_patches.protected_step import popen_in_step
+    self._helma_tmux_anchor = popen_in_step(
         cmd + ['tmux new-session -d -s _pilot_anchor && exec sleep infinity'],
         stdin=subprocess.DEVNULL, stdout=self._helma_tmux_log,
         stderr=subprocess.STDOUT, start_new_session=True)
@@ -436,6 +444,13 @@ def run_image_build(original_run, cmd, args, kwargs, clock=time.monotonic, sleep
         transient = ('conveyor failed to get' in error and any(message in error for message in
                      ('unexpected end of JSON input', 'connection reset by peer', 'TLS handshake timeout')))
         if not registry_import or result.returncode == 0 or not transient or attempt == 2:
+            if result.returncode and str(cmd[-1]).endswith('.def'):
+                # The caller retains only a short stderr tail before falling
+                # back to a deferred overlay. Keep the original build cause.
+                for output in (result.stdout, result.stderr):
+                    if output:
+                        print(output.decode(errors='replace') if isinstance(output, bytes)
+                              else output, flush=True)
             return result
         delay = 2 ** (attempt + 1)
         if deadline is not None and deadline - clock() <= delay:
@@ -478,6 +493,15 @@ def run_container_commands(original_run, net_flags=(), clock=time.monotonic):
     """Adapt instance startup and retry safe mkdir stalls."""
     fakeroot_cache = {}
     def run(cmd, *args, **kwargs):
+        from harbor_patches.upload_runtime import upload_command
+        cmd = upload_command(cmd)
+        if (isinstance(cmd, list) and len(cmd) > 2 and cmd[1] == 'exec'
+                and os.path.basename(cmd[0]) in ('apptainer', 'singularity')
+                and any(str(arg).startswith('instance://') for arg in cmd)
+                and '--cleanenv' not in cmd):
+            # Local runtime cache paths belong to the host, not the task.
+            # Preserve the image/instance environment and explicit --env values.
+            cmd = [*cmd[:2], '--cleanenv', *cmd[2:]]
         if (getattr(_trial, 'workspace_seeded', None) is not None
                 and isinstance(cmd, list) and len(cmd) > 4 and cmd[1] == 'exec'
                 and cmd[-2] == '-c' and 'precedence ::ffff:0:0/96 100' in cmd[-1]):
@@ -489,13 +513,16 @@ def run_container_commands(original_run, net_flags=(), clock=time.monotonic):
             return run_image_build(original_run, cmd, args, kwargs)
         instance_start = isinstance(cmd, list) and cmd[1:3] == ['instance', 'start']
         if instance_start:
-            seed_image_workspace(cmd, original_run)
+            from harbor_patches.protected_step import run_in_step
+            scoped_run = partial(run_in_step, original_run)
+            seed_image_workspace(cmd, scoped_run)
             cmd = instance_start_command(cmd, net_flags)
-            cmd = compatible_fakeroot_command(cmd, original_run, fakeroot_cache)
+            cmd = compatible_fakeroot_command(cmd, scoped_run, fakeroot_cache)
         start = clock()
         while True:
             try:
-                return original_run(cmd, *args, **kwargs)
+                from harbor_patches.protected_step import run_in_step
+                return run_in_step(original_run, cmd, *args, **kwargs)
             except subprocess.TimeoutExpired:
                 if not only_creates_directories(cmd) or clock() - start > STALL_BUDGET:
                     raise
@@ -638,13 +665,26 @@ def configure_worker(staging_base, sif_cache, child=False):
         # was requested. It needs the same DNS bind and proxy forwarding.
         configure_explicit_host_network(force=True)
     if not child and os.environ.get('SLURM_JOB_ID') and os.environ.get('OT_TRIAL_SRUN', '1') != '0':
-        from trial_step import SlurmInstance, REGISTRY
+        from harbor_patches.trial_step import REGISTRY
         with worker._instances_lock:
             REGISTRY.update(worker._instances)
             worker._instances = REGISTRY
+        from harbor_patches.protected_step import ProtectedInstance
+        install_container_hooks(net_flags)
         worker.ApptainerInstance = partial(
-            SlurmInstance, step_prefix=trial_step_prefix, start_gate=worker._INSTANCE_START_SEM)
-        return  # Container hooks belong to the child, not the shared dispatcher.
+            ProtectedInstance, instance_factory=worker.ApptainerInstance,
+            step_prefix=trial_step_prefix, is_abandoned=lambda env_id: env_id in REGISTRY.abandoned)
+        return
+    install_container_hooks(net_flags)
+
+
+def install_container_hooks(net_flags):
+    from harbor_patches.tmux_capture import install_worker as install_tmux_capture_worker
+    install_tmux_capture_worker(worker)
+    from harbor_patches.tmux_socket import install_worker as install_tmux_socket_worker
+    install_tmux_socket_worker(worker)
+    from harbor_patches.upload_runtime import install_worker as install_upload_worker
+    install_upload_worker(worker)
     worker._pool_key_from_payload = lambda payload: _original_pool_key(content_keyed_payload(payload))
     worker.ApptainerInstance.start = start_with_anchor
     worker.ApptainerInstance.stop = stop_with_anchor

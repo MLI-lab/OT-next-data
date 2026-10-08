@@ -28,6 +28,32 @@ Skills in `.agents/skills/`: `patch-dataset` (repair a dataset), `verify-dataset
 (stages 1, 3, 4, 5), `run-teachers` (stages 6 and 7, plotting),
 [`write-dataset-pr`](skills/write-dataset-pr/SKILL.md) (HF PR wording and automatic template).
 
+## Patch explanations in automatic PRs
+
+Follow [`validation/README.md`, Automatic PR text](../validation/README.md#automatic-pr-text).
+Put explanations in the patcher's reporting inputs, not in a custom PR template
+or renderer field. `write_patch_report` accepts `change_labels` and
+`change_reasons` keyed by task ID; these become manifest `labels` and `reason`.
+Native-source converters use `write_conversion_report`, which assigns
+`converted-to-harbor` and applicable adaptation labels by default. It also accepts
+explicit per-task `change_labels` overrides and `change_reasons`. Use one label
+for a single combined change explanation, as BugsInPy does with
+`upstream-to-harbor`, instead of repeating that explanation under several labels. Exclusions require a category, individual reason and preserved payload.
+Check the manifest and render the automatic PR table to verify labels, counts
+and explanations. A task's reason appears under each of its change labels.
+Do not claim new wording is published until the relevant artifacts are regenerated
+and published; existing frozen manifests are unchanged by patcher edits.
+
+When a checker failure is the main reason for excluding a task, reuse that
+checker's existing reporting label instead of inventing a synonymous category
+or `failure_label`. For example, `check-test-file-references.sh` is reported as
+`static:test-file-references`. Put task-specific details in the explanation,
+while keeping the checker label. Use a separate category only when the evidence
+establishes a distinct exclusion reason that the checker label does not describe.
+Do not attribute patcher filters or manual review exclusions to a checker that
+did not cause them; CrossCodeEval's identifier-context filter is separate from
+the static file-reference checker.
+
 # Writing style
 
 Do not use em dashes, en dashes, or standalone hyphens as punctuation in prose
@@ -109,6 +135,35 @@ node, concurrency 28, total 3 h 23 min:
 - The 25 SIF images used 3.7 GB in `$OT_WORKSPACE/images`. An unpacked Python
   environment used about 20K files; unpacked task trees also consume file quotas.
   Jobs receive the environment as an archive in `$OT_WORKSPACE/runtime/`.
+
+## Image build scratch and packaging
+
+For dependency-heavy image builds, run deferred Dockerfile RUN steps in a native
+directory overlay on node-local scratch, then package the completed tree into
+the cached ext3 overlay. Keep dependencies inside the resulting image; do not
+replace them with a runtime cache-restore step. Avoid installing many small files
+directly into a writable ext3 image when the native-directory path is available.
+
+`hpc/image_cache.py` enables this path by default for both Helma and ZIH validation
+launchers. `OT_IMAGE_DIRECTORY_BUILD=0` explicitly selects the old deferred-build
+path for compatibility diagnosis. Use the shared builder rather than adding
+dataset-specific build launchers. Its image output directory must be on node-local
+scratch; the directory overlay is created beside the output. Keep host home and
+site-wide mounts isolated during installation, retaining explicit certificate and
+DNS binds. Publish only the completed image artifacts to shared storage.
+Normal Apptainer definition builds are unchanged; this optimization applies to
+the deferred RUN fallback. Existing frozen submissions retain their captured code
+and settings, and direct external Apptainer commands do not use this adapter.
+
+Measured on Helma on 2026-10-08: a React Router baseline installation in an isolated
+native directory overlay took 43 seconds including checkout, followed by 114
+seconds to package an 8 GiB sparse overlay. Reopening that overlay verified the
+baseline commit and installed dependencies. The earlier image build failed after
+about 29 minutes with a Yarn download timeout. Download retries and filesystem
+overhead both warrant investigation; this comparison does not isolate their
+individual contributions or establish timings for every dataset. Preserve full
+build logs and distinguish installation time, packaging time and complete build
+time. Larger images and other dependency managers still require validation.
 
 # Git branches
 

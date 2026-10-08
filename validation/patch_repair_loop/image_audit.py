@@ -1,4 +1,13 @@
-"""Count distinct Dockerfiles and build inputs in a pinned Harbor source."""
+"""Inspect Harbor task environments for opportunities to share container images.
+
+Count distinct Dockerfile contents, combinations of filenames and contents under
+each task's environment/ directory (the build inputs), and FROM sequences.
+For example, identical Dockerfiles with different requirements.txt files count
+as one Dockerfile but two sets of build inputs.
+
+Use these counts as additional information when an agent evaluates how to
+reduce the number of unique container images.
+"""
 
 import hashlib
 import io
@@ -92,3 +101,21 @@ def audit(source):
                            "unique_dockerfiles": len(item["dockerfiles"]),
                            "unique_build_payloads": len(item["payloads"])}
                           for key, item in groups[:30]]}
+
+
+def main():
+    import argparse
+    import json
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('source', type=Path, help='Harbor tasks or a task Parquet')
+    args = parser.parse_args()
+    source = args.source
+    if source.is_dir() and (source / 'tasks.parquet').is_file():
+        source = source / 'tasks.parquet'
+    print(json.dumps(audit(source), indent=2))
+
+
+if __name__ == '__main__':
+    main()

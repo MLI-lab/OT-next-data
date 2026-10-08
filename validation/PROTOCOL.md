@@ -111,7 +111,8 @@ Stage 3 starts containers and runs task setup within
   Without a setting, results are recorded only. We try a few public addresses,
   so this does not prove that every internet connection is blocked or allowed.
 
-A failed task gets three retries in fresh containers, reusing cached images.
+Outside setup review, a failed task gets three retries in fresh containers,
+reusing cached images.
 This gives tasks a chance to recover from temporary infrastructure errors.
 All three must pass; otherwise the task is labeled `unstable-build-under-our-infra`
 and archived when publishing. Stages 4 and 5 skip it in that run because reference
@@ -121,6 +122,50 @@ When you publish the dataset to Hugging Face, the publishing script automaticall
 includes available cached container images for kept tasks that passed stage 3 and only includes
 images with a recorded build history.
 
+### What goes in setup vs image
+
+- **Setup:** start with git clones/checkouts, initial task files and small
+  configuration changes. These are usually quick and let many tasks share an image.
+- **Task image:** install tools and dependencies the agent may use here when
+  preparing them during setup is slow or unreliable. A dependency used by the
+  verifier can also go here if the agent is allowed to have it. Dependencies
+  the agent must not access belong in a **separate verifier image**.
+
+For clean verification, start a fresh container from the cached task image,
+repeat task setup, then copy in the submitted files. This gives the verifier
+original tools even if the agent changed its installation, with **no additional
+unique image**. Set `environment_mode = "separate"` under `[verifier]`
+in `task.toml`; a verifier without its own image definition reuses the task image.
+Declare submitted files through the existing artifact settings. A custom
+verifier image can instead provide dependencies the agent must not access.
+
+Use stage 3's `--review-setup` to find the balance. It runs task setup followed by
+verifier preparation in **five fresh runs**, using prepared images, and times them
+separately. Move expensive installation steps into images and repeat until:
+
+- **Task preparation:** mean at most **30 seconds**.
+- **Verifier preparation:** mean at most **5% of the verifier timeout** in `task.toml`.
+- **Both:** every run succeeds and no individual run exceeds **60 seconds**.
+
+The **task timer** includes starting the agent container, uploading setup files
+and running task setup. The **verifier timer** includes starting a separate
+verifier container if needed, uploading test files, transferring declared
+submission files, repeating task setup when using the task image, and running
+verifier setup. File transfers performed by the runner count
+even when they are outside the setup script. Each timer is checked against its
+own limits above.
+
+Slow or failed tasks are saved in **task-setup-needs-review** and/or
+**verifier-setup-needs-review** buckets with timings and logs. These five runs
+replace the usual failure retries.
+
+Put verifier preparation in `tests/setup.sh` and the actual verification in
+`tests/test.sh`. Stage 3's setup review runs only `setup.sh`; normal verification
+runs it first, then `test.sh`. If setup fails, verification stops. Omit `setup.sh`
+when no preparation is needed. Some existing `test.sh` scripts mix setup and
+verification; **separate them first** so the review measures all preparation.
+See [setup review details](docs/runtime.md#setup-review) for timing and options.
+
 ## Stage 4: reference solution
 
 Runs `solution/solve.sh`, then the task's verifier. Every attempt must return
@@ -129,12 +174,17 @@ reward **1** without execution errors. Tasks without a reference solution are sk
 ## Stage 5: no-op baseline
 
 Runs task setup and the verifier without a solving agent. Every attempt must
-return reward **0**; verifier crashes or missing rewards do not count as a pass.
+return reward **0**; verifier crashes or missing rewards do not count as a pass,
+except for the missing-file case below.
 
 Sometimes the no-op check fails because the verifier crashes while opening a file
 that the agent was supposed to create. To handle this expected missing file,
 change the verifier to assert that the file exists before opening it. The test
 then fails normally and returns reward **0**, which passes the no-op check.
+
+**UPDATE:** Stage 5 now automatically counts `FileNotFoundError` for a path
+mentioned in `instruction.md` as a valid no-op (reward **0**), even if no reward
+was written.
 
 ## Stage 6: teacher agent trials
 
@@ -251,3 +301,17 @@ stage 8, also supply `--trials /path/to/teacher/job`. `--out` receives the selec
 [harden-instructions]: https://github.com/few-sh/harden-v0/blob/342b8474e0c0cf96e4a8313fd2e26c7a11d51193/harden/instructions.py
 [fixer-guidance]: https://github.com/few-sh/harden-v0/blob/342b8474e0c0cf96e4a8313fd2e26c7a11d51193/prompts/fixer_guidance.md
 [fortify]: https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/fortify/fortify.py
+
+### Automatic change attribution
+
+Automatic fixes record cumulative per-task `automation_changes` in `source.json`
+and the frozen contract. The default labels are `anti-cheat-instruction` for
+suffix edits, `relative-path-fix` for evidence-backed path replacements, and
+`dependency-pinning` for pip pins captured from a successful reference run.
+A label is added only when that automation changes content. Later normalization
+copies preserve earlier labels and restrict them to the selected task IDs.
+Publication carries these labels into task `patch_labels` and the PR change
+table, with a separate count of unique tasks changed by automation. Category
+counts can overlap. These record automation activity, while the source comparison
+continues to describe net changes against upstream. Older frozen contracts
+without this metadata do not gain inferred automation labels.

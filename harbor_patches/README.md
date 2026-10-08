@@ -1,166 +1,176 @@
 # Harbor patches
 
-These fix or adapt the Harbor version pinned in `requirements.txt`. The pipeline
-applies them automatically when running tasks:
-
-- `validation/stages/harbor.py` changes Harbor's behavior in the running Python
-  process, including request retries and handling model reasoning output.
-- `hpc/validation_worker.py` starts the patched bridge server and bridge worker
-  inside the Slurm job. The server receives and queues requests; the worker
-  carries them out in Apptainer containers.
-
-These changes apply at runtime; they do not reinstall Harbor or edit its installed files.
-
-Separate processes communicate to control each task container:
+Runtime adaptations for the Harbor version pinned in `requirements.txt`.
+`validation/stages/harbor.py` installs the agent-side patches;
+`hpc/validation_worker.py` launches the patched bridge. New jobs freeze both in
+code snapshots. Editing this checkout does not change running jobs.
 
 ```text
-Harbor → bridge server → bridge worker → task process → container
+Harbor → bridge server → protected controller → task executor → Apptainer/tmux
+                        outside task limit    inside task Slurm step
 ```
 
-The task process runs inside a Slurm step and manages the Apptainer container.
-It returns command output or errors to the bridge worker, which sends the result
-to the bridge server. Harbor polls the server to retrieve it.
+Each task gets its own execution step with its effective CPU/memory limits.
+The controller retains lifecycle state and disk-backed storage. Model serving
+and the agent conversation run separately. A small executor, Apptainer and tmux
+still consume part of the task memory budget.
 
-| File | Why it exists |
-| --- | --- |
-| `bridge_client.py` | Retry interrupted communication with the bridge (task-container commands, startup/shutdown and file transfers) without running commands twice |
-| `bridge_server.py` | Recognize repeated requests, keep results for retrieval after connection failures, and clean up unused task containers |
-| `bridge_timeouts.py` | Give the task process time to return a command's result to the worker, and the worker time to send it back before Harbor stops waiting; see [timeouts below](#command-timeouts) |
-| `bridge_worker.py` | Rebuild cached images when task files change, copy files correctly, and make task files, saved dependencies and networking available inside containers |
-| `trial_step.py` | Apply each task's CPU and memory limits through Slurm; reuse idle Slurm steps to reduce startup overhead while giving each task a fresh container |
-| `fakeroot_ipc.py` | Remove leftover communication resources from a task's fakeroot helper (used to simulate root permissions), without disrupting other tasks |
-| `reasoning_field.py` | Save reasoning text returned by vLLM in the agent trace; Harbor otherwise misses it because it expects a different response field name |
-| `tmux_diagnostics.py` | Log the attempted commands and container state when the agent's terminal session unexpectedly closes, so the failure can be investigated |
-| `tmux_runtime.py` | Require working tmux before starting its persistent session; disable Harbor's task-startup tmux installer |
-| `local_image_base.py` | Reuse explicitly selected, SHA-256-verified local base SIFs for native and deferred image builds without registry pulls |
+## Shared pass@k infrastructure fixes and remaining limits
 
-A task container counts as unused when it is ready, has no queued or running
-commands, and has been idle for more than `BRIDGE_STALE_READY_SEC` (default:
-3,600 seconds). The server asks the worker to stop and delete it.
+| Failure | Fix | Boundary |
+| --- | --- | --- |
+| Truncated tmux responses | Bound visible/full captures before Harbor adds protocol markers | Keep the global output cap; never replay commands |
+| Failed test uploads | Clean shell/PATH for upload bookkeeping; allow 600s RPC and 630s result polling | Enclosing phase timeout still applies; accepted uploads are not resubmitted |
+| Transient bridge HTTP failures | Bounded retries with request IDs, deduplication and retained results | Does not repair model API failures, task downloads or a dead bridge |
+| `/tmp` cleanup deletes tmux socket | Put sockets in the container's private `/run/ot-harbor-tmux` | Does not prevent explicit tmux removal or shell exits |
+| Task OOM kills executor/terminal | Keep controller outside task limit; reopen preserved filesystem and restart terminal | Requires confirmed task OOM; process state is lost |
+| Failed startup keeps a Slurm slot | Remember early stop requests and check them while waiting for an executor | Cleanup remains scoped to that environment |
 
-Task startup checks `tmux -V` and rejects missing or broken tmux with an image
-rebuild instruction. It neither installs tmux nor restores libraries. Image
-preparation owns installation; datasource Dockerfiles must provide terminal
-tooling. The InferredBugs patcher explicitly installs and checks tmux. Newly
-built images must pass `tmux -V` and, when available, `dpkg --audit` before the
-shared builder publishes them. Existing cache bundles are not retroactively
-certified by this gate; the startup check still rejects broken tmux in them.
+### Terminal output and uploads
 
-The earlier runtime library repair is removed. Historical job 948835 passed all
-42 InferredBugs retries using that workaround; it does not validate newly
-generated image definitions. The InferredBugs patch now records a dpkg ownership
-override for libutempter's amd64 helper before installing tmux: root:root, mode
-0755. These tasks do not need privileged utmp login accounting. This avoids the
-unmapped group in single-user builds while allowing normal package installation.
-Cold-install probes on Debian 12 and Ubuntu 24 completed with an empty dpkg audit
-and a working tmux session (job 949467, repeated with the exact generated
-Dockerfile command in job 949478).
+Marin [PR 136](https://github.com/marin-community/harbor/pull/136) retains the last
+500,000 characters of an exec stream; [PR 137](https://github.com/marin-community/harbor/pull/137)
+adds batched terminal status markers. Ben Feuer introduced both in `c52e5d30`
+and `06139137`. Long Apptainer/Terminus output could discard the leading markers
+and raise `TmuxBatchProtocolError` after the command had run.
 
-Image preparation runs each Dockerfile RUN in its own checked shell so an
-earlier failure in an `&&` chain cannot be hidden by a later successful RUN.
-`OT_IMAGE_BASE_MANIFEST` can select a JSON mapping under `bases`, keyed by OCI
-reference, with absolute `path` and `sha256` fields for each raw base SIF.
-These must be base images, not completed task images or deferred overlays.
-Missing references or changed content fail preparation rather than contacting
-the registry. After a separate preparation gate passes, validation jobs can set
-`OT_REQUIRE_PREBUILT_IMAGES=1` to reject cache misses without rebuilding.
+`tmux_capture.py` budgets each capture to `(max_exec_output_chars - 1024) // 2`
+bytes before framing. Whole-line trimming preserves UTF-8, small captures remain
+unchanged, and `pipefail` preserves errors. Both agent and worker patches are required.
+
+`upload_runtime.py` uses `/bin/bash --noprofile --norc`, a standard PATH, no
+`BASH_ENV`/`ENV`, and cwd `/` for upload mkdir/extraction/verification. Agent and
+test shells retain their configuration. Longer polling accommodates the upload's
+multiple operations and safe mkdir retries; it cannot fix missing files, broken
+archives, disk failures or a permanently failed worker.
+
+### Transport and terminal failures
+
+`bridge_client.py` and `bridge_server.py` retry transient HTTP 408/429/502/503/504,
+resets, temporary DNS failures and interrupted responses with jittered backoff
+within 60s. Submission retries preserve the request ID and payload. Receipts
+prevent duplicate work; polling retrieves accepted results. A changed bridge
+epoch fails safely. Receipts and polled results expire after five minutes;
+acknowledgement removes completed results sooner. State is in memory.
+
+Local executor RPC errors report the operation, connect/send/receive phase,
+process status and log tail. Connect failure means not submitted; send/receive
+failure leaves execution unknown. Neither automatically replays the command.
+
+A persistent `_pilot_anchor` keeps tmux's owner alive. `tmux_diagnostics.py`
+records failed batches, sessions, sockets, processes and memory/fakeroot details
+without replacing the original error. Generic session loss is not retried:
+`exit`, `exec`, `tmux kill-server` and malformed heredocs can be agent-caused.
+Agent timeouts likewise receive no fresh attempt. Unexplained terminal errors
+still need cause review; an intact anchor does not explain why a shell exited.
+
+### Continuing an agent after a confirmed task OOM
+
+`protected_step.py` requires an increase in the task step's cgroup v2 `oom_kill`
+counter or an explicit Slurm OOM event in that step's log. A reset, missing shell
+or exit 137 alone is insufficient. Execution steps are never shared or reused
+between tasks on this path.
+
+For a marked Terminus terminal operation, recovery:
+
+1. Reaps the old execution step and cleans only its recorded fakeroot IPC.
+2. Reopens the original writable disk overlay and bind mounts in a new step with
+   the same limits. Missing storage or a volatile overlay causes failure.
+3. Creates a terminal and returns `TASK_MEMORY_LIMIT` feedback in the existing
+   conversation, within the original agent timeout.
+
+Disk-backed files survive. Processes, shell variables, cwd and memory-backed
+files do not. Interrupted commands may have partially completed. Recovery never
+replays them, reruns setup, repeats uploads or grants a fresh attempt. Setup and
+verifier OOMs remain failures of their own phases.
+
+Stage 7 reports per-trajectory and aggregate `oom_recoveries`, plus
+`trajectories_with_oom_recovery`. Recovered trajectories retain their eventual
+outcome; unrecoverable confirmed agent OOM is `task_memory_limit`. Historical
+results are unchanged. These counters establish task-budget exhaustion, not
+that agent code alone consumed every byte.
+
+Enabled for new Slurm jobs; readable enforcing cgroup v2 limits are required.
+The legacy worker pool and its recovery/reuse switches have been removed.
+`OT_TRIAL_SRUN=0` bypasses task-step isolation/recovery. Recovery cannot survive
+loss of the shared bridge, node, allocation or its storage.
+
+## Images and lifecycle
+
+- Execute instance commands with `--cleanenv`, as for container startup. Otherwise
+  host runtime variables such as `UV_CACHE_DIR` override image caches and break
+  offline verifier dependencies. Explicit task `--env` values still apply.
+- Prepare images before timed trials. Separate build defaults: 8192 MB, 4 CPUs,
+  concurrency 2, 3600s per image. Use `--image-build-memory-mb`,
+  `--image-build-cpus`, `--image-build-concurrency`, `--image-build-timeout-sec`.
+  Compression gets one quarter of build memory. Allocation wall time still applies.
+- Publish immutable, checksum-verified bundles under `$OT_WORKSPACE/images/bundles-v1`,
+  including deferred overlays/metadata. Stage by environment content hash.
+  `--force-build` does not overwrite published bundles. Failures go to
+  `image-preparation.json`; timed trials refuse cache misses. Build commands stream
+  full output to per-image logs so downstream dpkg errors do not hide the first
+  package failure. Task command output limits are unchanged.
+- Before definition builds, create empty targets for the configured CA binds.
+  Apptainer's writable build root cannot create missing bind destinations as a
+  runtime overlay can. Without these targets, certificate mounting aborts `%post`
+  and forces the less capable deferred builder. Only empty placeholders enter
+  the image; host certificate contents remain read-only mounts.
+- `OT_IMAGE_BASE_MANIFEST` maps OCI references under `bases` to absolute raw-base
+  SIF `path` and `sha256`. Missing/changed bases fail instead of pulling.
+  `OT_REQUIRE_PREBUILT_IMAGES=1` rejects missing prepared task images.
+- Dockerfile RUN instructions use separate checked shells. Temporary OCI imports
+  retry at most twice for conveyor truncated JSON, connection resets or TLS
+  handshake timeouts, within the original deadline. Dockerfile commands and
+  permanent registry errors are not retried.
+- Images must provide working tmux. Startup checks `tmux -V`; newly built images
+  also run `dpkg --audit` where available. No runtime installation/library repair.
+  Existing cached images are not retroactively certified.
+- Seed `/workspace` from the merged image before mounting task storage. Preserve
+  hidden files, links and modes; uploaded/COPY task files win collisions. A
+  disposable upper layer applies deferred whiteouts; tar avoids unsupported
+  ACL/xattr copying. Copy failures or the 300s timeout abort startup. Budget local
+  disk for both the workspace copy and temporary archive.
+- Bind a job-local read-only `/etc/hosts` with loopback names unless explicitly
+  overridden. This does not change network isolation. Host-network fallback is
+  logged and cannot be described as certified offline.
+- Reap ready environments only when idle, without queued/running commands, for
+  `BRIDGE_STALE_READY_SEC` (default 3600s). Fakeroot cleanup removes only resources
+  positively attributed to the stopped step, never node-wide orphans.
 
 ## Command timeouts
 
-For a command with execution limit `T`, the timeouts are:
+| Wait | Budget |
+| --- | --- |
+| Container command | Supplied `T` |
+| Executor RPC | `T + 60s` |
+| Harbor result retrieval | `T + 90s` |
+| Upload RPC / result retrieval | `600s / 630s` |
 
-| Who waits for whom | Limit | Where it comes from |
-| --- | --- | --- |
-| Task process waits for the command inside the container | `T` | Upstream Harbor enforces the supplied command timeout; its fallback is 600 seconds |
-| Bridge worker waits for the task process to return output or an error | `T + 60 seconds` | Our `trial_step.py` uses `bridge_timeouts.py`, allowing time for command termination and the response |
-| Harbor waits to retrieve the result from the bridge server | `T + 60 + 30 seconds` | Our `bridge_client.py` uses `bridge_timeouts.py`; upstream waits only `T + 30` |
+Waits overlap; grace periods do not extend command execution. The validation
+adapter supplies seven days when no command timeout is specified, replacing
+Harbor's 600s fallback. Enclosing preparation, agent and verifier timeouts still
+apply. OOM recovery subprocesses also share the interrupted call's remaining
+budget. Grace periods do not apply indiscriminately to startup/stop/transfers.
 
-These waits overlap; the extra time does not extend the command's execution limit.
-Our adapter in `validation/stages/harbor.py` uses a 7-day command limit when no
-explicit timeout is supplied, replacing upstream's 600-second fallback. Separate
-agent/verifier limits still apply. The 60/30-second allowances in
-`bridge_timeouts.py` apply to command execution, not to every startup, shutdown
-or file-transfer request.
+## Code and validation
 
-## After upgrading Harbor
+| Modules | Responsibility |
+| --- | --- |
+| `bridge_client`, `bridge_server`, `bridge_timeouts` | Transport, deduplication, polling, idle cleanup |
+| `bridge_worker`, `protected_step`, `trial_step` | Container adaptations, isolated execution, OOM recovery |
+| `tmux_capture`, `tmux_socket`, `tmux_runtime`, `tmux_diagnostics`, `oom_recovery` | Terminal protocol, lifecycle, diagnostics and feedback |
+| `upload_runtime`, `fakeroot_ipc` | Upload shell isolation and scoped cleanup |
+| `image_build`, `local_image_base` | Image preparation and verified local bases |
+| `fresh_verifier`, `verifier_setup` | Separate verifier preparation and optional `/tests/setup.sh` |
+| `reasoning_field` | Preserve vLLM reasoning in traces |
 
-Before removing a patch after a Harbor upgrade, run its regression tests under
-`tests/test_bridge_*`, `test_trial_step.py` and `test_fakeroot_ipc.py`, then run
-container smoke tests. Dataset verifier behavior does not belong in these patches.
+Before removing patches after an upgrade, run their `tests/test_*` regressions
+and real container smoke tests. Dataset-specific verifier logic belongs outside
+these patches. Passing tests verifies reproduced cases, not every historical
+failure or readiness at full concurrency.
 
-## Image workspace preservation
-
-Before mounting a fresh task directory at `/workspace`, the worker copies the
-image's existing `/workspace` into it, including hidden files, `.git`, executable
-bits and symlinks. The copy reads the base image plus any read-only deferred-build
-overlay, without the trial's workspace bind. Uploaded task files and emulated
-Dockerfile `COPY` files take precedence at colliding paths; directories merge
-without following symlinks. Each container receives its own writable copy.
-
-Missing or empty image workspaces still accept task uploads. A copy error or
-300-second copy timeout aborts startup instead of hiding an incomplete repository.
-Fakeroot fallback attempts reuse the already seeded directory. This adds one
-workspace copy per fresh container and requires node-local space for that copy.
-
-The preservation probe uses a temporary writable upper layer so Apptainer
-applies deferred-layer whiteouts before copying the merged filesystem. On Helma,
-a read-only-only mount exposed `.wh..wh..opq` to the copy command in the
-InferredBugs retry. The probe now copies through a temporary tar archive,
-preserving file modes, timestamps and links without filesystem-specific ACLs or
-extended attributes. This also avoids the `Operation not supported` error from
-`cp -a` on that mounted filesystem. Whiteouts are interpreted by the filesystem,
-not filtered out of raw layer contents. Source images and build overlays remain
-read-only. The temporary archive requires space in the probe's temporary directory.
-
-Verified on 2026-10-07 with Scale-SWE's ten-task path-resolution pilot (Helma job
-946901): 10/10 builds, 10/10 oracle rewards of 1, and 10/10 no-op rewards of 0.
-The resolver found 9 unique paths and 4 missing paths, matching direct image
-inspection; before this fix all 13 paths were hidden by the workspace mount.
-Reports: `/hnvme/workspace/y500bb12-optiagent/runs/scaleswe-workspace-fix-20261006/submissions/00a5d2fcf689/report/`.
-Repository tests: `pytest -q tests` — 702 passed.
-
-## Image build resource limits and retries
-
-The worker also supplies a job-local, read-only `/etc/hosts` with standard IPv4
-and IPv6 localhost mappings. Disabling site bind paths can otherwise leave the
-image's empty hosts file active, causing local socket tests to fail with
-`socket.gaierror`. An explicitly supplied hosts mount takes precedence. This
-does not expose the host's hosts file or change network namespace policy.
-Live reproduction and repair evidence:
-`/hnvme/workspace/y500bb12-optiagent/runs/scaleswe-972-path-resolution-20261007/reference-review/loopback-probe.json`.
-
-Slurm validation prepares missing images with `hpc/image_cache.py` before task
-timers and containers start. Each build has separate memory, CPU and timeout
-settings; defaults are 8192 MB, four CPUs, two simultaneous builds, and 3600
-seconds per image. Configure these with `--image-build-memory-mb`,
-`--image-build-cpus`, `--image-build-concurrency`, and `--image-build-timeout-sec`.
-Compression uses one quarter of this build memory allowance and its assigned
-CPUs, rather than physical node memory. There is no global 256 MB override.
-The total job wall time still bounds preparation and validation together.
-
-A cache miss logs a warning. Successful SIFs and any required deferred metadata
-and overlays are published together as immutable, checksum-verified bundles in
-`$OT_WORKSPACE/images/bundles-v1`. Subsequent jobs stage matching bundles by
-environment content hash. Partial builds and agent-modified workspaces are never
-published. Concurrent publishers keep the first completed bundle. `--force-build`
-rebuilds locally but does not overwrite an existing immutable shared bundle.
-
-Preparation failures are recorded in `image-preparation.json` and build logs.
-Timed trials refuse to rebuild a missing image under task limits. Task startup,
-setup scripts, healthchecks, agent and verifier budgets otherwise remain intact.
-This preparation is in the shared Slurm validation runner, not the path resolver;
-direct standalone bridge launches must arrange their own image preparation.
-
-Registry imports into temporary `.tmp` images retry at most twice for truncated
-JSON, connection resets, or TLS handshake timeouts reported by the OCI conveyor.
-Retries share the original timeout and overwrite only the temporary image.
-Dockerfile commands and permanent registry failures are not retried.
-
-The earlier 256 MB mitigation was tested in job 947035; that frozen job retains
-the earlier behavior. New jobs use separate preparation.
-
-Verified 2026-10-07: job 947056 built and published two Scale-SWE images with
-8 GB build limits; both tasks passed stage 3 and scored oracle reward 1. Job
-947076 restored both bundles in a fresh job, recorded two cache hits and no
-builds, and again passed both stages for both tasks. Repository tests: 733 passed.
-Evidence: `/hnvme/workspace/y500bb12-optiagent/runs/scaleswe-image-cache-20261007/verification.json`.
+See the [execution review](docs/execution-review-20261008.md) for current findings
+and rollout recommendations. The [detailed evidence archive](docs/runtime-evidence-20261008.md)
+preserves all previous explanations, audit counts, PR links, job IDs, paths,
+regression inventories and dataset-specific probes. It is a historical snapshot;
+this README describes current behavior.

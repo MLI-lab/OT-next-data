@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.fixture
-def patch():
+def patch(monkeypatch):
     pytest.importorskip('harbor')
     path = Path(__file__).resolve().parents[1] / 'harbor_patches/bridge_worker.py'
     spec = importlib.util.spec_from_file_location('test_bridge_patch', path)
@@ -113,7 +113,9 @@ def test_namespace_fallback_uses_host_dns_and_proxy(patch, monkeypatch, tmp_path
     monkeypatch.delenv('APPTAINERENV_https_proxy', raising=False)
     monkeypatch.setattr(patch, 'network_isolation_available', lambda cache: False)
     monkeypatch.setattr(patch, 'sweep_partial_archives', lambda: None)
-    monkeypatch.setitem(sys.modules, 'trial_step', SimpleNamespace(SlurmInstance=lambda *args: None, REGISTRY={}))
+    monkeypatch.setattr(patch, 'install_container_hooks', lambda flags: None)
+    from harbor_patches import trial_step
+    monkeypatch.setattr(trial_step, 'REGISTRY', {})
     monkeypatch.setattr(patch.worker, 'ApptainerInstance', patch.worker.ApptainerInstance)
     monkeypatch.setattr(patch.worker, '_INSTANCE_START_SEM', patch.worker._INSTANCE_START_SEM)
     monkeypatch.setattr(patch.worker, '_cleanup_stale_instances', patch.worker._cleanup_stale_instances)
@@ -238,6 +240,8 @@ def test_dependency_archive_is_mounted_only_for_the_trial_that_has_one(patch, mo
     monkeypatch.setenv('OT_DEPENDENCY_ARCHIVES', json.dumps(spec))
     assert patch.dependency_archive({'task_name': 'task-1'}) == tmp_path / 'task-1.tar'
     assert patch.dependency_archive({'task_name': '../other'}) is None
+    assert patch.dependency_archive({'task_name': 'task-1',
+        'task_env_config': {'disable_dependency_archive': True}}) is None
     seen = []
     monkeypatch.setattr(patch, 'image_bakes_tests', lambda sif: False)
     run = patch.run_container_commands(lambda cmd, *a, **k: seen.append(cmd))
@@ -249,7 +253,7 @@ def test_dependency_archive_is_mounted_only_for_the_trial_that_has_one(patch, mo
     patch._trial.archive = None
     start = start[:3] + ['--contain'] + start[3:]
     assert seen == [start, start[:4] + ['--bind', f'{tmp_path}/task-1.tar:/opt/deps.tar:ro'] + start[4:],
-                    ['apptainer', 'exec', 'instance://hb_env_1', 'true']]
+                    ['apptainer', 'exec', '--cleanenv', 'instance://hb_env_1', 'true']]
 
 
 def test_dependency_archive_is_saved_only_by_a_marked_trial_with_reward_one(patch, monkeypatch, tmp_path):
@@ -309,9 +313,12 @@ def test_instances_get_private_filesystems_without_losing_task_mounts(patch, mon
     assert '--contain' not in command  # do not mutate upstream retry arguments
     run(seen[0])
     assert seen[1].count('--contain') == 1
-    exec_command = ['apptainer', 'exec', 'instance://env', 'true']
+    exec_command = ['apptainer', 'exec', '--env', 'UV_CACHE_DIR=/task/cache', 'instance://env', 'true']
     run(exec_command)
-    assert seen[2] == exec_command
+    assert seen[2] == exec_command[:2] + ['--cleanenv'] + exec_command[2:]
+    assert '--cleanenv' not in exec_command
+    run(seen[2])
+    assert seen[3].count('--cleanenv') == 1
 
 
 def test_startup_preserves_baked_tests_and_other_mounts(patch, monkeypatch):
@@ -336,25 +343,24 @@ def test_directory_copy_expands_contents_and_keeps_file_copy(patch, monkeypatch,
         (['data/a'], '/app/data/'), (['data/b'], '/app/data/'), (['single'], '/app/single')]
 
 
-def test_slurm_dispatcher_does_not_install_child_container_hooks(patch, monkeypatch, tmp_path):
+def test_slurm_dispatcher_defaults_to_protected_controller(patch, monkeypatch, tmp_path):
     import sys
     from types import SimpleNamespace
-    sentinel = lambda *args, **kwargs: None
-    monkeypatch.setitem(sys.modules, 'trial_step', SimpleNamespace(SlurmInstance=sentinel, REGISTRY={}))
+    from harbor_patches.protected_step import ProtectedInstance
+    monkeypatch.setitem(sys.modules, 'harbor_patches.trial_step', SimpleNamespace(REGISTRY={}))
     monkeypatch.setenv('SLURM_JOB_ID', '123')
     monkeypatch.setenv('OT_TRIAL_SRUN', '1')
     monkeypatch.setenv('OT_NET_ISOLATION', '0')
     monkeypatch.setattr(patch, 'sweep_partial_archives', lambda: None)
+    installed = []
+    monkeypatch.setattr(patch, 'install_container_hooks', lambda flags: installed.append(flags))
     backend = patch.worker.ApptainerInstance
-    start, run, copies = backend.start, patch.worker.subprocess.run, patch.worker._parse_copies
-    # Register upstream globals for restoration after configure_worker mutates them.
     for name in ('ApptainerInstance', '_INSTANCE_START_SEM', '_cleanup_stale_instances', '_instances'):
         monkeypatch.setattr(patch.worker, name, getattr(patch.worker, name))
     patch.configure_worker(str(tmp_path), str(tmp_path))
-    assert patch.worker.ApptainerInstance.func is sentinel
-    assert backend.start is start
-    assert patch.worker.subprocess.run is run
-    assert patch.worker._parse_copies is copies
+    assert installed == [[]]
+    assert patch.worker.ApptainerInstance.func is ProtectedInstance
+    assert patch.worker.ApptainerInstance.keywords['instance_factory'] is backend
 
 
 def test_multi_node_serving_steps(tmp_path, monkeypatch):
@@ -524,7 +530,7 @@ def test_startup_tmux_install_is_disabled_but_task_commands_are_unchanged(patch)
     assert 'apt-get install' not in calls[-1][-1]
     patch._trial.workspace_seeded = None
     wrapped(cmd)
-    assert calls[-1] == cmd
+    assert calls[-1] == cmd[:2] + ['--cleanenv'] + cmd[2:]
 
 
 def test_workspace_seed_executes_copy_with_hidden_files_and_links(patch, tmp_path):
@@ -689,3 +695,56 @@ def test_fakeroot_fallback_never_masks_other_errors_or_loses_root(patch, tmp_pat
         return CompletedProcess(cmd, 0, uid, '') if '--ignore-fakeroot-command' in cmd else CompletedProcess(cmd, 1, '', error)
     cmd = ['apptainer', 'instance', 'start', '--fakeroot', str(sif), 'name']
     assert patch.compatible_fakeroot_command(cmd, run, {}) == cmd
+
+
+@pytest.mark.parametrize('reuse,exists,expected', [(False, True, False), (True, True, True), (True, False, False)])
+def test_oracle_archive_reuse_is_explicit_and_readonly(patch, monkeypatch, tmp_path, reuse, exists, expected):
+    import json
+    from types import SimpleNamespace
+    spec = {'directory': str(tmp_path), 'target': '/opt/deps.tar', 'folder': '/cache', 'reuse_for_oracle': reuse}
+    monkeypatch.setenv('OT_DEPENDENCY_ARCHIVES', json.dumps(spec))
+    archive = tmp_path / 'task-1.tar'
+    if exists:
+        archive.write_bytes(b'previous successful oracle')
+    seen = []
+    monkeypatch.setattr(patch, 'content_keyed_payload', lambda payload: payload)
+    monkeypatch.setattr(patch, '_original_start', lambda self, payload: seen.append(patch._trial.archive) or {})
+    monkeypatch.setattr(patch, 'start_anchor', lambda self: None)
+    env = SimpleNamespace()
+    result = patch.start_with_anchor(env, {'task_name': 'task-1', 'task_env_config': {'save_dependencies': True}})
+    assert seen == [archive if expected else None]
+    assert env._helma_save_dependencies is True
+    assert patch._trial.archive is None
+    assert ('mounted read-only' in result['dependency_archive']) == expected
+
+
+def test_empty_host_dependency_archive_is_rejected(patch, monkeypatch, tmp_path):
+    import json
+    from types import SimpleNamespace
+    monkeypatch.setenv('OT_DEPENDENCY_ARCHIVES', json.dumps({'directory': str(tmp_path), 'target': '/opt/deps.tar', 'folder': '/cache'}))
+    (tmp_path / 'task-1.tar').touch()
+    monkeypatch.setattr(patch, 'content_keyed_payload', lambda payload: payload)
+    with pytest.raises(RuntimeError, match='Empty dependency archive'):
+        patch.start_with_anchor(SimpleNamespace(), {'task_name': 'task-1'})
+
+
+def test_startup_workspace_and_fakeroot_probes_use_task_step(patch, monkeypatch):
+    from types import SimpleNamespace
+    from harbor_patches import protected_step
+    calls = []
+    def remote(cmd, kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0)
+    controller = SimpleNamespace(remote_run=remote)
+    def seed(cmd, run):
+        run(['apptainer', 'exec', 'image.sif', 'workspace-probe'])
+    def fakeroot(cmd, run, cache):
+        run(['apptainer', 'exec', 'image.sif', 'fakeroot-probe'])
+        return cmd
+    monkeypatch.setattr(patch, 'seed_image_workspace', seed)
+    monkeypatch.setattr(patch, 'compatible_fakeroot_command', fakeroot)
+    monkeypatch.setattr(patch, 'instance_start_command', lambda cmd, flags: cmd)
+    run = patch.run_container_commands(lambda *a, **kw: pytest.fail('escaped task step'))
+    with protected_step.active(controller):
+        run(['apptainer', 'instance', 'start', 'image.sif', 'test'])
+    assert [cmd[-1] for cmd in calls] == ['workspace-probe', 'fakeroot-probe', 'test']

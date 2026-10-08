@@ -2281,7 +2281,56 @@ def render(root: Path, name: str, files: dict[str, bytes]) -> None:
             path.chmod(0o755)
 
 
+CONVERSION_EXPLANATION = (
+    "TaskTrove used GPT-4o-mini to generate simplified buggy code, pytest tests and "
+    "instructions from upstream fix diffs. A ten-task pilot using GPT-6 Astra as an "
+    "LLM judge found instruction/test alignment and task-quality problems. "
+    "We rebuilt the tasks from the original BugsInPy benchmark. For each bug, its "
+    "metadata names the project, buggy and fixed commits, Python version, test files "
+    "and test commands. The agent starts with the actual project files from the buggy "
+    "commit. The patcher turns upstream setup scripts and dependency requirements into "
+    "working build recipes, adding compatible container images, required build tools "
+    "and pinned dependencies. The verifier tests come from the upstream fixed commit. "
+    "The reference solution also comes from that commit and applies the upstream fix "
+    "to the buggy project. The initial instruction combines a short task template with the title and "
+    "body of the issue linked from the fixing commit. A separate instruction review and "
+    "rewrite loop then checks alignment with the verifier, clarity and solution "
+    "leakage, and rewrites instructions where needed."
+)
+
+
+INSTRUCTION_REVIEW_EXCLUSIONS = {
+    ("ansible", 12): ("reference_details", "The tests require environment variables to be read "
+        "through one particular helper. A correct fix that reads them another way can fail."),
+    ("black", 23): ("unrelated_changes", "The instruction asks for a fix to spacing around "
+        "exec/eval, but the selected test checks different Python 2 formatting behavior. "
+        "Fixing the reported issue is not enough to pass."),
+    ("httpie", 4): ("unreliable_tests", "The test needs a successful response from the public "
+        "httpbin.org service. A correct fix can fail when the network or service is unavailable."),
+    ("luigi", 8): ("reference_details", "The test requires the database query to be written "
+        "exactly like the reference fix. A different query that finds the same schema and "
+        "table regardless of letter case can fail."),
+    ("thefuck", 3): ("reference_details", "The test requires the exact command fish --version. "
+        "A fix that safely gets the shell version another way can fail."),
+    ("thefuck", 16): ("reference_details", "The tests require shell aliases to use a particular "
+        "text layout and order of environment variables. An alias that works the same way "
+        "but is written differently can fail."),
+    ("tornado", 6): ("reference_details", "The test expects one closed event loop to remain "
+        "in an internal tracking table. A fix that cleans up all closed loops immediately "
+        "can fail even though it prevents the leak."),
+}
+
+
 def task_exclusion(project: str, bug_id: int) -> dict | None:
+    if finding := INSTRUCTION_REVIEW_EXCLUSIONS.get((project, bug_id)):
+        category, reason = finding
+        task_id = f"bugsinpy-original-{project}-{bug_id}"
+        evidence = ("https://github.com/MLI-lab/OT-next-data/tree/main/data/tasktrove_bugsinpy/"
+                    f"flagged_instruction_review_20261008/{task_id}")
+        return {"category": "flagged_by_instruction_loop",
+                "reason": f"Flagged during instruction review and excluded after checking the tests. "
+                          f"{reason} Evidence: {evidence}",
+                "review_category": category, "evidence": evidence}
     if project == "youtube-dl" and bug_id == 40:
         return {"category": "environment_task_mismatch", "reason": (
             "Recorded Python 3.7 cannot exercise the older-Python struct Unicode-format "
@@ -2307,12 +2356,15 @@ def write_project(output: Path, rows: list[dict], manifest: list[dict], errors: 
         pq.write_table(pa.Table.from_pylist(archived), output / "archive.parquet", compression="zstd")
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from data.utils.patch_reporting import write_conversion_report
+    # One label covers the complete rebuild; the explanation appears once per PR table.
     write_conversion_report(output, rows, archived, patcher=__file__,
         source={'dataset': 'BugsInPy/' + project['project'], 'revision': source_revision,
                 'url': metadata_url.rstrip('/') + '/tree/' + source_revision,
                 'task_count': len(project['bug_ids'])},
         records={entry['task_id']: entry for entry in
-                 [*manifest, *(entry['task_manifest'] for entry in exclusions)]}, errors=errors)
+                 [*manifest, *(entry['task_manifest'] for entry in exclusions)]}, errors=errors,
+        change_labels={row['path']: ['upstream-to-harbor'] for row in rows},
+        change_reasons={row['path']: CONVERSION_EXPLANATION for row in rows})
     report = {"bugsinpy_revision": source_revision, "project_repo": project["repo"],
               "candidate_count": len(rows), "error_count": len(errors),
               "excluded_count": len(exclusions), "exclusions": list(exclusions),

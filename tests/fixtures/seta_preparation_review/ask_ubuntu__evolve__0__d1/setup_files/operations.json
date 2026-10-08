@@ -1,0 +1,44 @@
+{
+  "recipe": "FROM ubuntu@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4\nRUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends bash ca-certificates coreutils curl gzip tar tmux python3 openssh-client dbus && rm -rf /var/lib/apt/lists/*\nWORKDIR /app\n",
+  "operations": [
+    {
+      "op": "WORKDIR",
+      "path": "/app",
+      "line": 3
+    },
+    {
+      "op": "RUN",
+      "command": "apt-get update && apt-get install -y build-essential git curl tmux wget vim htop tree net-tools && rm -rf /var/lib/apt/lists/*",
+      "cwd": "/app",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      },
+      "line": 5,
+      "shell": [
+        "/bin/sh",
+        "-c"
+      ]
+    },
+    {
+      "op": "RUN",
+      "command": "curl -LsSf https://astral.sh/uv/0.10.11/install.sh | sh",
+      "cwd": "/app",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      },
+      "line": 18,
+      "shell": [
+        "/bin/sh",
+        "-c"
+      ]
+    }
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "workdir": "/app",
+  "source_workdir": "/app",
+  "dependency_runs": [],
+  "lifecycle": null,
+  "mount_scaffold": []
+}

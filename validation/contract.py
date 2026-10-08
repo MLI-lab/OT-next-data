@@ -102,6 +102,10 @@ def local_model_assets(args):
     from config.runtime import record
     _, spec = resolve(args.serve_model)
     weights = Path(args.serve_weights) if getattr(args, 'serve_weights', None) else weights_dir(spec.name)
+    weights = weights.resolve()
+    if not weights.is_dir() or not (weights / 'config.json').is_file():
+        raise ValueError(f'local model assets missing at {weights}; provide --serve-weights '
+                         'or set OT_MODELS to the directory containing the downloaded models')
     assets = {name: hashlib.sha256((weights / name).read_bytes()).hexdigest()
               for name in ('config.json', 'tokenizer_config.json', 'chat_template.jinja', 'generation_config.json') if (weights / name).is_file()}
     marker = weights / '.cache/huggingface/download/config.json.metadata'
@@ -138,6 +142,15 @@ def profile(args):
         'dependency_policy': 'execute shipped Dockerfiles; mutable tags and unpinned installs are not rewritten; reuse content-keyed image cache unless force_build; installed agents may download dependencies',
         'environment_kwargs': args.environment_kwargs,
         'build_retry_policy': 'after initial pass, retry failed tasks three times in fresh environments; require all three to pass; skip subsequent oracle/NOP on failure',
+        'preparation_measurement': {
+            'review_setup': getattr(args, 'review_setup', None),
+            'runs': getattr(args, 'review_setup', None) or getattr(args, 'preparation_runs', 1),
+            'mean_target_seconds': getattr(args, 'preparation_mean_target_seconds', None) or (30.0 if getattr(args, 'review_setup', None) is not None else None),
+            'median_target_seconds': getattr(args, 'preparation_median_target_seconds', None),
+            'verifier_review': {'timeout_fraction': 0.05, 'max_seconds': 60,
+                                'setup_script': 'tests/setup.sh'} if getattr(args, 'review_setup', None) is not None else None,
+            'max_seconds': getattr(args, 'preparation_max_seconds', None) or (60.0 if getattr(args, 'review_setup', None) is not None else None),
+            'scope': 'fresh task preparation; review also measures verifier transfers and tests/setup.sh separately; excludes image builds, inspection and grading'},
         'force_build': args.force_build, 'trial_cpus': args.trial_cpus,
         'trial_memory_mb': args.trial_memory_mb,
         'agent': args.agent, 'model': args.model, 'review_agent': args.review_agent,
@@ -179,6 +192,7 @@ def protocol(contract):
         f"Task manifest SHA-256: `{contract['task_manifest']['sha256']}`",
         f"Stages: {contract['stages']}", f"Static exclusions: {criteria['static_exclusions']}",
         f"Imported static checkpoint: {contract.get('static_checkpoint') or 'none'}",
+        f"Reused stage-3 report: {(contract.get('stage3_checkpoint') or {}).get('source_report', 'none')}",
         f"Accept previous path-check adaptation: {contract.get('arguments', {}).get('static_resume_accept_previous_path_check', False)}",
         f"Oracle reward: {criteria['oracle_reward']}; NOP reward: {criteria['nop_reward']}; attempts: {criteria['attempts']}",
         f"NOP task preparation: {execution.get('nop_setup_policy', 'unspecified in this contract')}",
@@ -187,8 +201,10 @@ def protocol(contract):
         f"Network: {execution['network_guarantee']}", f"Privileges: {execution['privileges']}",
         f"Mounts: {execution['mount_policy']}", f"Dependencies: {execution['dependency_policy']}",
         f"Container reuse: {execution.get('validation_container_reuse', 'fresh instance per phase')}",
-        'Dependency archives: ' + ('oracle validation builds without one and saves {directory}/<task>.tar from {folder} '
-                                   'after reward 1; all other trials mount it read-only at {target}'.format(**execution['dependency_archives'])
+        'Dependency archives: ' + ((('oracle validation reuses an existing archive read-only and saves '
+                                    if execution['dependency_archives'].get('reuse_for_oracle') else
+                                    'oracle validation builds without one and saves ')
+                                   + '{directory}/<task>.tar from {folder} after reward 1; all other trials mount it read-only at {target}').format(**execution['dependency_archives'])
                                    if execution.get('dependency_archives') else 'none'),
         'Failure policy: continue collecting; selected check failures, infrastructure errors, missing/invalid rewards, skipped tasks and insufficient coverage fail acceptance.',
         'Real/adversarial agent rewards are measurements, not an all-rewards-must-equal-1 gate.',
@@ -205,6 +221,10 @@ def create(args, numbers, destination):
         raise ValueError('review stages need --review-model in the contract')
     if any(n in (6, 9, 10) for n in numbers) and not (args.model or args.serve_model):
         raise ValueError('agent stages need --model or --serve-model in the contract')
+    if getattr(args, 'serve_model', None):
+        # Freeze the resolved location in both the contract and submission args.
+        # Later execution must not reinterpret the preparing shell's defaults.
+        args.serve_weights = Path(local_model_assets(args)['weights'])
     tasks, files = inventory(args.tasks, args.limit, getattr(args, 'task_id_range', None))
     minimum = args.min_tasks if args.min_tasks is not None else len(tasks)
     if minimum < 1 or len(tasks) < minimum:
@@ -222,6 +242,8 @@ def create(args, numbers, destination):
         'schema_version': 2, 'created_at': datetime.now(timezone.utc).isoformat(),
         'dataset': {'source': args.dataset_source or meta.get('repo') or str(args.tasks.resolve()),
                     'revision': args.dataset_revision or meta.get('revision') or 'sha256:' + digest(tasks),
+                    'automation_changes': {t['task_id']: meta.get('automation_changes', {})[t['task_id']]
+                                           for t in tasks if t['task_id'] in meta.get('automation_changes', {})},
                     'source_files': files, 'preselection': meta.get('selection'), 'normalization': meta.get('normalization'), 'selection': {'method': 'id_range' if getattr(args, 'task_id_range', None) else ('first_n' if args.limit else 'all'),
                         'limit': args.limit, 'task_id_range_inclusive': getattr(args, 'task_id_range', None),
                         'order': 'lexicographic IDs for ranges; otherwise sorted Parquet paths then row order, or sorted task directories',
@@ -235,6 +257,9 @@ def create(args, numbers, destination):
         'upstream': PINS, 'implementation': implementation(),
         'arguments': frozen,
     }
+    if getattr(args, 'reuse_stage3', None):
+        from validation.checkpoints.stage3 import freeze
+        contract['stage3_checkpoint'] = freeze(args.reuse_stage3, contract, tasks)
     if getattr(args, 'static_resume', None):
         from validation.checkpoints.static_resume import checkpoint_record
         if 1 not in numbers:

@@ -16,8 +16,8 @@ def automatic(instruction, diagnostic, oracle_passed):
         for finding in observation.get('findings', []):
             if finding.get('status') == 'unique' and len(finding.get('matches', [])) == 1:
                 candidates.setdefault(finding['relative_path'], (phase, finding['matches'][0]))
-    # Never rewrite executable examples or illustrative reproductions. These can
-    # coincidentally match reference-created test fixtures.
+    # Keep fenced code unchanged; prose examples use the same unique-match
+    # rule as other prose.
     excluded = [(m.start(), m.end()) for m in re.finditer(r'(?ms)^\s*(```|~~~).*?^\s*\1[^\n]*', instruction)]
     decisions = []
     for relative, (phase, absolute) in candidates.items():
@@ -25,13 +25,6 @@ def automatic(instruction, diagnostic, oracle_passed):
         for match in re.finditer(r'(?<![A-Za-z0-9_./+~\-])' + re.escape(relative) + r'(?![A-Za-z0-9_./+~\-])', instruction):
             start, end = match.span()
             if any(a <= start < b for a, b in excluded):
-                continue
-            boundary = instruction.rfind('\n\n', 0, start)
-            paragraph_start = boundary + 2 if boundary >= 0 else 0
-            boundary = instruction.find('\n\n', end)
-            paragraph_end = boundary if boundary >= 0 else len(instruction)
-            paragraph = instruction[paragraph_start:paragraph_end]
-            if re.search(r'(?:\be\.g\.|\b(?:for example|illustrative|reproduc(?:e|er|tion)|example input)\b)', paragraph, re.I):
                 continue
             occurrences.append({'start': start, 'end': end})
         if occurrences:

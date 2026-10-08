@@ -52,9 +52,16 @@ def prepare(args, destination):
     ids = {r['task_id'] for r in records}
     from validation.checks.instruction_paths import Normalizer
     paths = Normalizer(args, records)
+    changes = {}
     def transform(task_id, instruction, config):
-        instruction = paths.apply(task_id, instruction)
-        return suffix(instruction, config) if getattr(args, 'fix_instruction_suffix', True) else instruction
+        normalized = paths.apply(task_id, instruction)
+        labels = changes.setdefault(task_id, set())
+        if normalized != instruction:
+            labels.add('relative-path-fix')
+        final = suffix(normalized, config) if getattr(args, 'fix_instruction_suffix', True) else normalized
+        if final != normalized:
+            labels.add('anti-cheat-instruction')
+        return final
     destination.mkdir(parents=True, exist_ok=False)
     try:
         inputs = parquet_files(original)
@@ -89,6 +96,10 @@ def prepare(args, destination):
                 (target / 'instruction.md').write_bytes(transform(task.name, (task / 'instruction.md').read_bytes(), (task / 'task.toml').read_bytes()))
         meta_path = (original if original.is_dir() else original.parent) / 'source.json'
         meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+        prior = meta.get('automation_changes', {})
+        meta['automation_changes'] = {task: sorted(set(prior.get(task, [])) | changes.get(task, set()))
+                                      for task in sorted(ids)
+                                      if prior.get(task) or changes.get(task)}
         meta['normalization'] = {'operation': 'canonical-timeout-anticheat-suffix-v1', 'original_path': str(original),
             'description': 'Our extension to the upstream Terminal-Bench suffix check appends the sentence when missing and overwrites the saved instruction.md in the validation copy; an existing canonical suffix is updated without duplication. Original inputs are unchanged.',
             'sentence_template': 'You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.',

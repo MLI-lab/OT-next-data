@@ -78,10 +78,22 @@ def test_preparation_builds_once_and_next_run_stages_cache(tmp_path, monkeypatch
     assert len(calls) == 2
 
 
-def test_builder_initializes_apptainer(tmp_path, monkeypatch):
+@pytest.mark.parametrize('directory_setting', [None, '0', '1'])
+def test_builder_initializes_apptainer(tmp_path, monkeypatch, directory_setting):
     pytest.importorskip('harbor')
     from hpc import image_cache
     from harbor_patches import bridge_worker as patch
+    from harbor_patches import image_build
+    directory_adapters = []
+    original_adapter = image_build.directory_overlay_builds
+    def directory_adapter(run, apptainer):
+        directory_adapters.append(apptainer)
+        return original_adapter(run, apptainer)
+    monkeypatch.setattr(image_build, 'directory_overlay_builds', directory_adapter)
+    if directory_setting is None:
+        monkeypatch.delenv('OT_IMAGE_DIRECTORY_BUILD', raising=False)
+    else:
+        monkeypatch.setenv('OT_IMAGE_DIRECTORY_BUILD', directory_setting)
     context = tmp_path / 'environment'
     context.mkdir()
     (context / 'Dockerfile').write_text('FROM test\nRUN false && echo unreachable\nRUN true\n')
@@ -91,6 +103,10 @@ def test_builder_initializes_apptainer(tmp_path, monkeypatch):
     monkeypatch.setattr(image_cache.shutil, 'which', lambda name: '/bin/apptainer')
     monkeypatch.setattr(patch.worker, 'APPTAINER', None)
     monkeypatch.setattr(patch, 'configure_container_certificates', lambda: None)
+    monkeypatch.setenv('https_proxy', 'http://proxy.example:3128')
+    monkeypatch.setenv('APPTAINER_BINDPATH', '')
+    for key in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'no_proxy', 'NO_PROXY'):
+        monkeypatch.setenv('APPTAINERENV_' + key, '')
     verified = []
     monkeypatch.setattr(image_cache, 'verify_image_runtime', lambda image, tool: verified.append((image, tool)))
     monkeypatch.setattr(patch, 'run_container_commands', lambda run: run)
@@ -104,9 +120,12 @@ def test_builder_initializes_apptainer(tmp_path, monkeypatch):
         # A later successful RUN must not hide failure in an earlier && chain.
         assert subprocess.run(['/bin/sh', '-ec', '\n'.join(steps)]).returncode != 0
         assert image_cache.os.environ['OT_IMAGE_COMPRESSION_ARGS'] == '-processors 4 -mem 2048M'
+        assert image_cache.os.environ['APPTAINERENV_https_proxy'] == 'http://proxy.example:3128'
+        assert '/etc/resolv.conf:/etc/resolv.conf:ro' in image_cache.os.environ['APPTAINER_BINDPATH']
         Path(destination).write_bytes(b'image')
     monkeypatch.setattr(patch.worker.ApptainerInstance, '_build_sif', build)
     image_cache.main()
+    assert directory_adapters == ([] if directory_setting == '0' else ['/bin/apptainer'])
     assert output.read_bytes() == b'image'
     assert verified == [(output, '/bin/apptainer')]
 

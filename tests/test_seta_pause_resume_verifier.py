@@ -93,6 +93,7 @@ def test_repair_still_rejects_broken_worker_control(mode, message):
 def test_patcher_changes_only_reviewed_log_test():
     original_test = '# Other tests remain unchanged.\n' + OLD + '\n'
     files = {
+        'tests/test.sh': (b'#!/bin/bash\npython3 -m pytest /tests/test_outputs.py\n', 0o755),
         'tests/test_outputs.py': (original_test.encode(), 0o644),
         'solution/solve.sh': (b'original reference solution\n', 0o755),
         'instruction.md': (b'original instruction\n', 0o644),

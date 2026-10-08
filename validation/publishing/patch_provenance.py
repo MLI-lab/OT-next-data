@@ -75,27 +75,70 @@ def attach(record, tables, specifications):
             'instructions_changed': sum(t['action'] == 'changed' and 'instruction.md' in t['changed_files'] for t in tasks),
         }
         record.setdefault('patch_provenance', {})[folder] = summary
+        from data.utils.patch_reporting import _files
+        from data.utils.environment_counts import fingerprints, summarize
+        summary['environment_comparison'] = {
+            'upstream': manifest.get('source_environments'),
+            'kept': summarize(fingerprints(_files(row['task_binary'])) for row in kept),
+        }
+
+
+def attach_automations(record, tables, contract):
+    """Carry recorded edits through publication without inferring causes from diffs."""
+    changes = contract['dataset'].get('automation_changes', {})
+    for folder, (kept, archived) in tables.items():
+        tasks = []
+        for row in [*kept, *archived]:
+            labels = changes.get(row['path'], []) if row.get('archive_stage') != 0 else []
+            if not labels:
+                continue
+            labels = sorted(set(labels))
+            tasks.append({'task_id': row['path'], 'labels': labels})
+            row['patch_labels'] = sorted(set(row.get('patch_labels') or []) | set(labels))
+            row['patch_changed'] = True
+        if tasks:
+            record.setdefault('automation_changes', {})[folder] = {
+                'tasks': tasks, 'changed': len(tasks),
+                'change_labels': dict(sorted(Counter(label for task in tasks for label in task['labels']).items()))}
+
+
+AUTOMATION_REASONS = {
+    'anti-cheat-instruction': 'Added or normalized the timeout and anti-cheat instruction.',
+    'relative-path-fix': 'Replaced relative instruction paths with uniquely observed absolute paths.',
+    'dependency-pinning': 'Pinned pip requirements to versions captured after a successful reference run.',
+}
 
 
 def render(record, folder=None):
     lines = []
-    for name, evidence in sorted(record.get('patch_provenance', {}).items()):
+    names = set(record.get('patch_provenance', {})) | set(record.get('automation_changes', {}))
+    for name in sorted(names):
         if folder is not None and name != folder:
             continue
-        source, counts = evidence['source'], evidence['counts']
-        source_link = (f"[{cell(source['dataset'])}]({source['url']})" if source.get('url')
-                       else cell(source['dataset']))
-        action = 'our patcher modified' if evidence.get('comparison_scope') == 'patcher' else 'the published dataset differs from upstream in'
-        prefix = (f"Compared with {source_link} at `{cell(source['revision'])}`, " if folder is None else '')
-        sentence = f"{prefix}{action} **{counts['changed']:,} of the original {source['task_count']:,} tasks**."
-        lines += [sentence[0].upper() + sentence[1:], '']
-        if evidence.get('comparison_kind') == 'conversion':
-            lines += ['This source uses native records: changed means converted/adapted to Harbor.', '']
-        rows = [(task['task_id'], label, task.get('reason'))
-                for task in evidence['tasks'] if task['action'] == 'changed'
-                for label in set(task.get('labels') or ['other-changes'])]
+        evidence = record.get('patch_provenance', {}).get(name)
+        automation = record.get('automation_changes', {}).get(name, {})
+        rows = []
+        if evidence:
+            source, counts = evidence['source'], evidence['counts']
+            source_link = (f"[{cell(source['dataset'])}]({source['url']})" if source.get('url')
+                           else cell(source['dataset']))
+            action = 'our patcher modified' if evidence.get('comparison_scope') == 'patcher' else 'the published dataset differs from upstream in'
+            prefix = (f"Compared with {source_link} at `{cell(source['revision'])}`, " if folder is None else '')
+            sentence = f"{prefix}{action} **{counts['changed']:,} of the original {source['task_count']:,} tasks**."
+            lines += [sentence[0].upper() + sentence[1:], '']
+            if evidence.get('comparison_kind') == 'conversion':
+                lines += ['This source uses native records: changed means converted/adapted to Harbor.', '']
+            rows = [(task['task_id'], label, task.get('label_reasons', {}).get(label, task.get('reason')))
+                    for task in evidence['tasks'] if task['action'] == 'changed'
+                    for label in set(task.get('labels') or ['other-changes'])]
+        if automation:
+            lines += [f"Automatic fixes changed **{automation['changed']:,} unique tasks**.", '']
+            rows += [(task['task_id'], label, AUTOMATION_REASONS.get(label))
+                     for task in automation['tasks'] for label in task['labels']]
+        if rows:
+            lines += ['Tasks can have multiple change labels, so category counts may overlap.', '']
         lines += [line.replace('| Tasks |', '| Tasks affected |') for line in label_table(rows, 'Change label')]
-        if evidence.get('comparison_note'):
+        if evidence and evidence.get('comparison_note'):
             lines += ['', evidence['comparison_note'], '']
     return '\n'.join(lines) + '\n' if lines else ''
 

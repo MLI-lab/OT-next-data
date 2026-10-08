@@ -280,3 +280,55 @@ Historical repair evidence, including three successful reference runs for
 [the evidence archive](/hnvme/workspace/y500bb12-seta-validation/experiments/setup-verifier-v52-20261007/historical-repair-evidence.tar.gz).
 The [detailed older notes](/hnvme/workspace/y500bb12-seta-validation/experiments/build-recheck-v48-20261006/before-merge-pr-readme-evidence.md)
 are preserved with the recheck evidence.
+
+## Verifier preparation boundary (v57/v58)
+
+Every retained task now has `tests/setup.sh`. The patcher uses Bash syntax checks
+without execution to separate complete installer statements from `tests/test.sh`.
+APT/pip/uv installation and uv project initialization move into setup. `uvx` and
+`uv run` resolve their original Python/package options there using `pytest
+--version`; grading uses `UV_OFFLINE=1`. Existing task execution, compilation of
+agent-modified code, pytest arguments and reward handling remain in `test.sh`.
+Mixed installation/grading statements fail patching unless explicitly handled.
+
+The pinned source produces 3,134 retained tasks and the same 19 exclusions.
+The v57 comparison against v56 kept all instructions, solutions, task configurations
+and Python verifier files byte-identical. V58 additionally removes the redundant
+`pip install Pillow` fallback from `ask_ubuntu__evolve__945__b1`; Pillow was already
+pinned in that verifier's uvx dependencies and is prepared by setup. Its grading
+assertions are unchanged. Shell preparation and dependency timing nevertheless
+changed, so this comparison alone does not certify old oracle/no-op or teacher
+results for the new execution profile. Preserve old results with provenance;
+revalidate changed environments and verifier wrappers before publishing or
+resuming teacher generation.
+
+Preparation review uses nested 10, 50, 200 and full-task cohorts, five fresh
+containers per task and cached images. Stage 3 times task preparation and explicit
+verifier setup separately. Move reusable slow installation into images, rebuild
+changed image content, and repeat the affected gate before expanding. Only after
+the preparation gate passes should new stage 4/5 results certify the new payloads.
+Evidence and cohort IDs:
+`/hnvme/workspace/y500bb12-seta-validation/experiments/setup-review-20261008/`.
+
+The first five-run pilot passed 6/10 tasks (job 954826). V59 moves measured
+dependency installation for package inventory and VPN tasks, and verifier
+preparation for the report task, into their images. V60 fixes the video image:
+Ubuntu's fontconfig post-install script assigns `root:staff` only when creating
+`/usr/local/share/fonts`; pre-creating that directory as root with mode 0755
+avoids the unmapped group in single-ID builds. Package configuration remains
+enabled and the shared builder still requires a clean dpkg audit. The original
+package post-install script and failed build log are preserved with the pilot.
+These repairs require a new successful pilot before expanding the cohort.
+The second pilot passed 7/10 (job 954946), including all five video preparations.
+The other three images exposed a shared builder bug: missing CA bind targets
+aborted the normal definition build, forcing an overlay fallback unable to update
+the base image's unmapped group-owned files. The shared image adapter now creates
+empty mount targets before `%post`. V61 also explicitly enters the declared
+working directory when baking verifier preparation. No task limits were raised.
+
+The 10-task gate passed on job 955102: all 50 fresh preparations succeeded,
+with maximum task preparation 45.13 seconds. Earlier job 955050 exposed four
+initial container-start timeouts on the same node, followed by fast successful
+starts; that transient startup cause remains unproven. The shared runner also
+now uses `--cleanenv` for instance execs, preventing host `UV_CACHE_DIR` from
+overriding baked dependencies. The next gate is the nested 50-task cohort.

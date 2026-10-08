@@ -203,6 +203,16 @@ def main():
                             manifest["counts"][rule] += rule in changes
                 writer.write_table(pa.table(table, schema=reader.schema_arrow))
         temporary.replace(target)
+        from data.utils.patch_reporting import write_patch_report
+        write_patch_report(path, target,
+            source={"dataset": "AweAI-Team/CalibForge", "url": "https://huggingface.co/datasets/AweAI-Team/CalibForge", "revision": REVISION},
+            dropped={}, patcher=__file__,
+            file_labels={"environment/": "apptainer-build-compatibility", "instruction.md": "explicit-command-paths"},
+            change_reasons={item["task"]: " ".join(message for rule, message in (
+                ("R1", "Remove redundant image tags while preserving pinned digests for Apptainer."),
+                ("R2", "Preserve Docker WORKDIR semantics during Apptainer image builds."),
+                ("R3", "Make command paths explicit after directory changes.")) if rule in item["changes"])
+                for item in manifest["tasks"]})
     (args.output / "calibforge_repair_manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
 
 

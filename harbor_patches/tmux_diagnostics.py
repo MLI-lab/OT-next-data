@@ -5,7 +5,8 @@ without replacing the original error or changing agent behavior.
 """
 import json
 
-PROBE = ('echo "--- tmux sessions"; tmux ls 2>&1; echo "--- tmux sockets"; ls -la /tmp/tmux-* 2>&1; '
+PROBE = ('echo "--- tmux sessions"; tmux ls 2>&1; echo "--- tmux sockets"; '
+         'ls -la /run/ot-harbor-tmux/tmux-* /tmp/tmux-* 2>&1; '
          'echo "--- processes"; ps -eo pid,ppid,user,etime,stat,args 2>&1 | head -60; '
          'echo "--- memory events"; cat /sys/fs/cgroup/memory.events 2>&1; '
          # --fakeroot gives each session a helper (faked) reached through a message queue; a
@@ -26,15 +27,16 @@ def install():
     async def send_keys_and_capture(self, keystroke_batches):
         try:
             return await original(self, keystroke_batches)
-        except module.TmuxSessionEndedError:
+        except (module.TmuxSessionEndedError, module.TmuxCommandError) as exc:
             report = {'session': self._session_name,
+                      'exception_type': type(exc).__name__, 'error': str(exc),
                       'keystrokes': [{'keys': b.keystrokes, 'duration_sec': b.duration_sec} for b in keystroke_batches]}
             try:
                 probe = await self.environment.exec(command=PROBE, timeout_sec=30, user=self._user)
                 report['container'] = (probe.stdout or '') + (probe.stderr or '')
             except Exception as exc:  # the diagnosis must never replace the original error
                 report['container'] = f'probe failed: {exc!r}'
-            self._logger.error('tmux session ended; diagnostics: %s', json.dumps(report, default=str))
+            self._logger.error('tmux terminal failure; diagnostics: %s', json.dumps(report, default=str))
             raise
 
     session.send_keys_and_capture = send_keys_and_capture

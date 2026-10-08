@@ -21,3 +21,6 @@ external/
 
 # Local historical pilot records
 /data/pilot-history.local.md
+
+# Coordination records for supervised shared infrastructure repairs
+/.patch-repair-infra/

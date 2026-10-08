@@ -1,0 +1,512 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-shared-20261007/results-v6/submissions/babf39ad5489/evidence.tar.gz",
+  "image_preparation": [
+    {
+      "key": "9ef4838a7b92",
+      "status": "cached",
+      "image": "/tmp/950536.helma/validation-babf39ad5489/images/build_serge-sans-paille__gast-14-9ef4838a7b92.sif"
+    },
+    {
+      "key": "2f4abe117941",
+      "status": "cached",
+      "image": "/tmp/950536.helma/validation-babf39ad5489/images/build_pre-commit__pre-commit-1435-2f4abe117941.sif"
+    },
+    {
+      "key": "71c755430beb",
+      "status": "cached",
+      "image": "/tmp/950536.helma/validation-babf39ad5489/images/build_encode__starlette-1715-71c755430beb.sif"
+    },
+    {
+      "key": "5bce4d1debb3",
+      "status": "cached",
+      "image": "/tmp/950536.helma/validation-babf39ad5489/images/build_UXARRAY__uxarray-1158-5bce4d1debb3.sif"
+    }
+  ],
+  "timing_records": [
+    {
+      "task": "UXARRAY__uxarray-1158",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/UXARRAY__uxarray-1158__CNSb7Tu/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/UXARRAY__uxarray-1158__CNSb7Tu/attempts/000",
+      "seconds": 65,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 3,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 58,
+        "install": 4
+      }
+    },
+    {
+      "task": "UXARRAY__uxarray-1158",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/UXARRAY__uxarray-1158__923MUmp/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/UXARRAY__uxarray-1158__923MUmp/attempts/000",
+      "seconds": 51,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 3,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 46,
+        "install": 2
+      }
+    },
+    {
+      "task": "agronholm__anyio-749",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/agronholm__anyio-749__bQHRDmU/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/agronholm__anyio-749__bQHRDmU/attempts/000",
+      "seconds": 9,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 6,
+        "install": 2
+      }
+    },
+    {
+      "task": "agronholm__anyio-749",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/agronholm__anyio-749__VNqarV9/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/agronholm__anyio-749__VNqarV9/attempts/000",
+      "seconds": 9,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 6,
+        "install": 2
+      }
+    },
+    {
+      "task": "caleb531__automata-123",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/caleb531__automata-123__eYPqrH4/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/caleb531__automata-123__eYPqrH4/attempts/000",
+      "seconds": 10,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 7,
+        "install": 2
+      }
+    },
+    {
+      "task": "caleb531__automata-123",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/caleb531__automata-123__8Ux54hx/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/caleb531__automata-123__8Ux54hx/attempts/000",
+      "seconds": 11,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 8,
+        "install": 2
+      }
+    },
+    {
+      "task": "dask__dask-4151",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/dask__dask-4151__HV6XpEh/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/dask__dask-4151__HV6XpEh/attempts/000",
+      "seconds": 18,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 15,
+        "install": 2
+      }
+    },
+    {
+      "task": "dask__dask-4151",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/dask__dask-4151__AiHv6bA/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/dask__dask-4151__AiHv6bA/attempts/000",
+      "seconds": 18,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 2,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 15,
+        "install": 1
+      }
+    },
+    {
+      "task": "encode__starlette-1715",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/encode__starlette-1715__YvJuWMx/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/encode__starlette-1715__YvJuWMx/attempts/000",
+      "seconds": 28,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 26,
+        "install": 1
+      }
+    },
+    {
+      "task": "encode__starlette-1715",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/encode__starlette-1715__HJ7Vo3m/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/encode__starlette-1715__HJ7Vo3m/attempts/000",
+      "seconds": 28,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 26,
+        "install": 1
+      }
+    },
+    {
+      "task": "getsentry__responses-235",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/getsentry__responses-235__YWchcpJ/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/getsentry__responses-235__YWchcpJ/attempts/000",
+      "seconds": 12,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 10,
+        "install": 1
+      }
+    },
+    {
+      "task": "getsentry__responses-235",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/getsentry__responses-235__HARhLbF/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/getsentry__responses-235__HARhLbF/attempts/000",
+      "seconds": 13,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 10,
+        "install": 2
+      }
+    },
+    {
+      "task": "pre-commit__pre-commit-1435",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/pre-commit__pre-commit-1435__zKSoniC/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/pre-commit__pre-commit-1435__zKSoniC/attempts/000",
+      "seconds": 9,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 6,
+        "install": 2
+      }
+    },
+    {
+      "task": "pre-commit__pre-commit-1435",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/pre-commit__pre-commit-1435__3C6RNWu/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/pre-commit__pre-commit-1435__3C6RNWu/attempts/000",
+      "seconds": 9,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 7,
+        "install": 1
+      }
+    },
+    {
+      "task": "serge-sans-paille__gast-14",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/serge-sans-paille__gast-14__F4fumVf/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/serge-sans-paille__gast-14__F4fumVf/attempts/000",
+      "seconds": 8,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 6,
+        "install": 1
+      }
+    },
+    {
+      "task": "serge-sans-paille__gast-14",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/serge-sans-paille__gast-14__kx3PpqP/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/serge-sans-paille__gast-14__kx3PpqP/attempts/000",
+      "seconds": 7,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 5,
+        "install": 1
+      }
+    },
+    {
+      "task": "sympy__sympy-13343",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/sympy__sympy-13343__jy47kdY/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/sympy__sympy-13343__jy47kdY/attempts/000",
+      "seconds": 7,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 2,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 4,
+        "install": 1
+      }
+    },
+    {
+      "task": "sympy__sympy-13343",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/sympy__sympy-13343__HpduYax/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/sympy__sympy-13343__HpduYax/attempts/000",
+      "seconds": 8,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 3,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 3,
+        "install": 2
+      }
+    },
+    {
+      "task": "tobymao__sqlglot-960",
+      "stage": 4,
+      "evidence": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/tobymao__sqlglot-960__Tj8gQNg/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_4_oracle_validation/6e5f60cc871f/jobs/job/tobymao__sqlglot-960__Tj8gQNg/attempts/000",
+      "seconds": 39,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 1,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 36,
+        "install": 2
+      }
+    },
+    {
+      "task": "tobymao__sqlglot-960",
+      "stage": 5,
+      "evidence": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/tobymao__sqlglot-960__g4hSH7H/attempts/000/verifier/setup-timing.json",
+      "trial": "results/stage_5_nop_validation/149f4e7eb2cb/nop-jobs-0/job/tobymao__sqlglot-960__g4hSH7H/attempts/000",
+      "seconds": 39,
+      "exit_code": 0,
+      "phases": {
+        "checkout": 2,
+        "conda": 0,
+        "preinstall": 0,
+        "dependencies": 36,
+        "install": 1
+      }
+    }
+  ],
+  "completed_setups": 20,
+  "median_seconds": 11.5,
+  "max_seconds": 65,
+  "failures": [],
+  "initial_image_builds": [
+    {
+      "key": "9ef4838a7b92",
+      "image": "/tmp/950418.helma/validation-dd147e0351f0/images/build_serge-sans-paille__gast-14-9ef4838a7b92.sif",
+      "memory_mb": 12288,
+      "cpus": 4,
+      "timeout_sec": 1800,
+      "command": [
+        "srun",
+        "--quiet",
+        "--exact",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpu-bind=none",
+        "--gres=none",
+        "--kill-on-bad-exit=1",
+        "-w",
+        "h24-24",
+        "--cpus-per-task=4",
+        "--mem=12288M",
+        "--time=30",
+        "/tmp/950418.helma/validation-runtime/env/bin/python",
+        "-m",
+        "hpc.image_cache",
+        "--build",
+        "/tmp/950418.helma/validation-dd147e0351f0/tasks/serge-sans-paille__gast-14/environment/Dockerfile",
+        "--output",
+        "/tmp/950418.helma/validation-dd147e0351f0/images/build_serge-sans-paille__gast-14-9ef4838a7b92.sif",
+        "--memory-mb",
+        "12288",
+        "--cpus",
+        "4"
+      ],
+      "log": "/tmp/950418.helma/validation-dd147e0351f0/images/9ef4838a7b92.build.log",
+      "status": "built",
+      "published": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/images/bundles-v1/build_serge-sans-paille__gast-14-9ef4838a7b92.sif",
+      "seconds": 149.346
+    },
+    {
+      "key": "2f4abe117941",
+      "image": "/tmp/950418.helma/validation-dd147e0351f0/images/build_pre-commit__pre-commit-1435-2f4abe117941.sif",
+      "memory_mb": 12288,
+      "cpus": 4,
+      "timeout_sec": 1800,
+      "command": [
+        "srun",
+        "--quiet",
+        "--exact",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpu-bind=none",
+        "--gres=none",
+        "--kill-on-bad-exit=1",
+        "-w",
+        "h24-24",
+        "--cpus-per-task=4",
+        "--mem=12288M",
+        "--time=30",
+        "/tmp/950418.helma/validation-runtime/env/bin/python",
+        "-m",
+        "hpc.image_cache",
+        "--build",
+        "/tmp/950418.helma/validation-dd147e0351f0/tasks/pre-commit__pre-commit-1435/environment/Dockerfile",
+        "--output",
+        "/tmp/950418.helma/validation-dd147e0351f0/images/build_pre-commit__pre-commit-1435-2f4abe117941.sif",
+        "--memory-mb",
+        "12288",
+        "--cpus",
+        "4"
+      ],
+      "log": "/tmp/950418.helma/validation-dd147e0351f0/images/2f4abe117941.build.log",
+      "status": "built",
+      "published": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/images/bundles-v1/build_pre-commit__pre-commit-1435-2f4abe117941.sif",
+      "seconds": 151.262
+    },
+    {
+      "key": "71c755430beb",
+      "image": "/tmp/950418.helma/validation-dd147e0351f0/images/build_encode__starlette-1715-71c755430beb.sif",
+      "memory_mb": 12288,
+      "cpus": 4,
+      "timeout_sec": 1800,
+      "command": [
+        "srun",
+        "--quiet",
+        "--exact",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpu-bind=none",
+        "--gres=none",
+        "--kill-on-bad-exit=1",
+        "-w",
+        "h24-24",
+        "--cpus-per-task=4",
+        "--mem=12288M",
+        "--time=30",
+        "/tmp/950418.helma/validation-runtime/env/bin/python",
+        "-m",
+        "hpc.image_cache",
+        "--build",
+        "/tmp/950418.helma/validation-dd147e0351f0/tasks/encode__starlette-1715/environment/Dockerfile",
+        "--output",
+        "/tmp/950418.helma/validation-dd147e0351f0/images/build_encode__starlette-1715-71c755430beb.sif",
+        "--memory-mb",
+        "12288",
+        "--cpus",
+        "4"
+      ],
+      "log": "/tmp/950418.helma/validation-dd147e0351f0/images/71c755430beb.build.log",
+      "status": "built",
+      "published": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/images/bundles-v1/build_encode__starlette-1715-71c755430beb.sif",
+      "seconds": 156.723
+    },
+    {
+      "key": "5bce4d1debb3",
+      "image": "/tmp/950418.helma/validation-dd147e0351f0/images/build_UXARRAY__uxarray-1158-5bce4d1debb3.sif",
+      "memory_mb": 12288,
+      "cpus": 4,
+      "timeout_sec": 1800,
+      "command": [
+        "srun",
+        "--quiet",
+        "--exact",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpu-bind=none",
+        "--gres=none",
+        "--kill-on-bad-exit=1",
+        "-w",
+        "h24-24",
+        "--cpus-per-task=4",
+        "--mem=12288M",
+        "--time=30",
+        "/tmp/950418.helma/validation-runtime/env/bin/python",
+        "-m",
+        "hpc.image_cache",
+        "--build",
+        "/tmp/950418.helma/validation-dd147e0351f0/tasks/UXARRAY__uxarray-1158/environment/Dockerfile",
+        "--output",
+        "/tmp/950418.helma/validation-dd147e0351f0/images/build_UXARRAY__uxarray-1158-5bce4d1debb3.sif",
+        "--memory-mb",
+        "12288",
+        "--cpus",
+        "4"
+      ],
+      "log": "/tmp/950418.helma/validation-dd147e0351f0/images/5bce4d1debb3.build.log",
+      "status": "built",
+      "published": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/images/bundles-v1/build_UXARRAY__uxarray-1158-5bce4d1debb3.sif",
+      "seconds": 159.082
+    }
+  ],
+  "source_inventory": {
+    "tasks": 4323,
+    "converted": 4300,
+    "unique_images": 43,
+    "unconverted": {
+      "goodmami__wn-174": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "OpenSourceEconomics__estimagic-411": "Local requirement has no frozen conda package: lief @ file:///home/conda/feedstock_root/build_artifacts/lief_1737185538459/work/api/python",
+      "wright-group__WrightTools-1095": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "collective__icalendar-185": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "goodmami__wn-178": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "sigmavirus24__github3.py-650": "Local requirement has no frozen conda package: swebench-matterhorn @ file:///swebench_matterhorn",
+      "dask__dask-1113": "Local requirement has no frozen conda package: msgpack @ file:///tmp/build/80754af9/msgpack-python_1612287171716/work",
+      "wright-group__WrightTools-1092": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "wright-group__WrightTools-1085": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "box__box-python-sdk-99": "Local requirement has no frozen conda package: swebench-matterhorn @ file:///swebench_matterhorn",
+      "dask__dask-1126": "Local requirement has no frozen conda package: msgpack @ file:///tmp/build/80754af9/msgpack-python_1612287171716/work",
+      "AzureAD__microsoft-authentication-library-for-python-41": "Local requirement has no frozen conda package: swebench-matterhorn @ file:///swebench_matterhorn",
+      "sigmavirus24__github3.py-613": "Local requirement has no frozen conda package: swebench-matterhorn @ file:///swebench_matterhorn",
+      "dask__dask-1152": "Local requirement has no frozen conda package: msgpack @ file:///tmp/build/80754af9/msgpack-python_1612287171716/work",
+      "kangasta__fdbk-72": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "emsig__emg3d-325": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "rl-institut__smooth-167": "Local requirement has no frozen conda package: oemof @ file:///smooth/oemof-solph",
+      "openforcefield__openff-nagl-71": "Local requirement has no frozen conda package: openff-interchange @ file:///home/conda/feedstock_root/build_artifacts/openff-interchange-split_1710878885896/work",
+      "wright-group__WrightTools-938": "Local requirement has no frozen conda package: swebench-matterhorn @ file:///swebench_matterhorn",
+      "dask__dask-1150": "Local requirement has no frozen conda package: msgpack @ file:///tmp/build/80754af9/msgpack-python_1612287171716/work",
+      "wright-group__WrightTools-628": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "google__flax-4029": "Local requirement has no frozen conda package: swebench_matterhorn @ file:///swebench_matterhorn",
+      "openforcefield__openff-toolkit-2026": "Local requirement has no frozen conda package: openff-interchange @ file:///home/conda/feedstock_root/build_artifacts/openff-interchange-split_1741274625463/work"
+    }
+  },
+  "patched_dataset": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-shared-20261007/full-v6/source.parquet"
+}

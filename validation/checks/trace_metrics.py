@@ -19,6 +19,7 @@ TERMINATIONS = {
     'TurnCapExhaustedError': 'turn_limit',
     'ContextLengthExceededError': 'context_limit', 'ContextBudgetExceededError': 'context_limit',
     'OutputLengthExceededError': 'output_cap',
+    'TaskMemoryLimitError': 'task_memory_limit',
 }
 ERRORS = {
     'model_server': ('LLMRequestTimeoutError', 'OpenAITransportConnectTimeoutError', 'ModelAuthenticationError',
@@ -103,6 +104,7 @@ def trial_metrics(trial, result, context_limit=None, key='reward'):
         'peak_context_tokens': peak, 'context_limit': limit,
         'peak_context_fraction': peak / limit if peak and limit else None,
         'context_summarizations': metadata.get('summarization_count'),
+        'oom_recoveries': metadata.get('oom_recoveries'),
         'model_call_seconds': [ms / 1000 for ms in metadata.get('api_request_times_msec') or []] or None,
         'agent_seconds': seconds(result.get('agent_execution')), 'verifier_seconds': seconds(result.get('verifier')),
         'trial_seconds': seconds(result),
@@ -149,6 +151,8 @@ def aggregate(rows, wall_hours=None):
         'terminations': dict(sorted(Counter(r['termination'] for r in rows).items())),
         'command_distribution': mean_distribution(r.get('command_profile') for r in rows),
         'output_cap_events': total('output_cap_events'),
+        'oom_recoveries': sum(r.get('oom_recoveries') or 0 for r in rows),
+        'trajectories_with_oom_recovery': sum(bool(r.get('oom_recoveries')) for r in rows),
         'malformed_tool_calls': total('malformed_tool_calls'),
         'trajectories_with_malformed_tool_calls': sum(bool(r['malformed_tool_calls']) for r in rows),
         'errors': {kind: {'trajectories': sum(bool(r['errors'][kind]) for r in rows),

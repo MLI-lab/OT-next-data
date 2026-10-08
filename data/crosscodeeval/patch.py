@@ -52,6 +52,40 @@ from pathlib import Path, PurePosixPath
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+PATCH_EXPLANATION = (
+    "Issue: TaskTrove omitted the benchmark's cross-file context. Its C#, Python and "
+    "TypeScript verifiers gave 0.25 reward for short code-like answers and could give "
+    "full reward for prefix or leading-identifier matches without a correct completion. "
+    "Java used a whole-answer diff that rejected different indentation. Fix: Replace this scoring "
+    "with normalized exact match of the first statement, add a reference solution, "
+    "and pin verifier dependencies. For uniquely matched upstream tasks, restore retrieved "
+    "cross-file excerpts after removing target-file and answer-containing excerpts. "
+    "Exclude tasks when the supplied code and known library names do not give the agent "
+    "enough information to infer names required by the expected answer. Also exclude "
+    "tasks whose scored answer contains no variable, function or other code names."
+)
+MISSING_NAMES_LABEL = 'Required code names cannot be inferred'
+MISSING_NAMES_EXPLANATION = (
+    "The expected answer uses names, such as methods or variables, that the agent "
+    "cannot infer from the prompt, the available excerpts from other files, or the "
+    "filter's list of known library names. None of the available sets of excerpts "
+    "provides enough information. The agent would have to guess these names to match "
+    "the expected answer."
+)
+NO_NAMES_LABEL = 'Expected completion contains no code names'
+NO_NAMES_EXPLANATION = (
+    "The part of the expected answer that is scored contains no variable, function, "
+    "class or other code names (identifiers). These tasks were excluded by the "
+    "patcher's rule requiring at least one such name in the scored completion."
+)
+CHANGE_FILE_LABELS = {name: 'context-and-verifier-repaired' for name in
+                      ('instruction.md', 'tests/', 'solution/', 'environment/', 'setup_files/context/')}
+
+
+def change_explanation(context_restored):
+    return PATCH_EXPLANATION + ("" if context_restored else
+        " Cross-file excerpts were not added for this task.")
+
 CONTEXT_NOTE = ("\n\nAdditional read-only cross-file context is available under:\n"
                 "  /setup_files/context/\n\n"
                 "These files are retrieved excerpts from related repository files.\n"
@@ -811,9 +845,10 @@ def pin_parquet(input_path, output_path):
         write_patch_report(original['path'], output_path, patcher=__file__, source=provenance['source'],
             dropped={task['task_id']: {'category': task['labels'][0], 'reason': task['reason']}
                      for task in provenance['tasks'] if task['action'] == 'dropped'},
-            file_labels={'instruction.md': 'instruction-clarified', 'tests/': 'verifier-updated',
-                         'solution/': 'reference-solution-updated', 'environment/': 'environment-adapted',
-                         'setup_files/context/': 'retrieval-context-restored'},
+            file_labels=CHANGE_FILE_LABELS,
+            change_reasons={task['task_id']: task.get('reason') or change_explanation(
+                any(name.startswith('setup_files/context/') for name in task['changed_files']))
+                for task in provenance['tasks'] if task['action'] == 'changed'},
             patches=[*provenance.get('patches', []), {'operation': 'pin-only', 'pins': PIP_PINS}])
     return {'input': str(input_path), 'input_sha256': hashlib.sha256(input_path.read_bytes()).hexdigest(),
             'output': str(output_path), 'output_sha256': hashlib.sha256(output_path.read_bytes()).hexdigest(),
@@ -868,7 +903,7 @@ def patch_parquet(input_path, output_path, originals):
         if not reference_identifiers(gold, lang, p or ''):
             stats['dropped_no_identifiers'] += 1
             stats['dropped_no_identifiers_task_ids'].append(row['path'])
-            record(row, lang, gold, p, False, 'no identifier in the graded reference')
+            record(row, lang, gold, p, False, NO_NAMES_EXPLANATION)
             continue
         if match is None:
             stats['unmatched' if not matches else 'ambiguous'] += 1
@@ -882,7 +917,10 @@ def patch_parquet(input_path, output_path, originals):
             if chosen is None:
                 stats['dropped'] += 1
                 stats['dropped_task_ids'].append(row['path'])
-                record(row, lang, gold, p, False, 'no retrieval makes every name knowable', missing=missing)
+                names = sorted({name for values in missing.values() for name in (values or [])})
+                record(row, lang, gold, p, False,
+                       MISSING_NAMES_EXPLANATION + ' Names missing from one or more sets of excerpts: '
+                       + ', '.join(names), missing=missing)
                 continue
             retriever, kept, counts, verdicts = chosen
             record(row, lang, gold, p, True, 'kept', retriever, verdicts, missing)
@@ -914,14 +952,14 @@ def patch_parquet(input_path, output_path, originals):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from data.utils.patch_reporting import write_patch_report
     write_patch_report(input_path, output_path, patcher=__file__,
-        file_labels={'instruction.md': 'instruction-clarified', 'tests/': 'verifier-updated',
-                     'solution/': 'reference-solution-updated', 'setup_files/context/': 'retrieval-context-restored',
-                     'environment/': 'environment-adapted'},
+        file_labels=CHANGE_FILE_LABELS,
+        change_reasons={entry['task']: change_explanation(entry['retriever'] is not None)
+                        for entry in review if entry['kept']},
         source={'dataset': UPSTREAM_REPO, 'revision': UPSTREAM_REVISION,
                 'url': f'https://huggingface.co/datasets/{UPSTREAM_REPO}/tree/{UPSTREAM_REVISION}'},
         dropped={entry['task']: {
-            'category': ('reference-has-no-identifiers' if entry['task'] in stats['dropped_no_identifiers_task_ids']
-                         else 'insufficient-retrieval-context'),
+            'category': (NO_NAMES_LABEL if entry['task'] in stats['dropped_no_identifiers_task_ids']
+                         else MISSING_NAMES_LABEL),
             'reason': entry['reason']} for entry in review if not entry['kept']},
         patches=[{'patcher': 'data/crosscodeeval/patch.py',
                   'sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}])

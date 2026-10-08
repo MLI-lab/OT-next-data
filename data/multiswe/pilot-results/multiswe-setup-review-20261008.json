@@ -1,0 +1,557 @@
+{
+  "dataset": "PrimeIntellect/Multi-SWE-RL-Verified",
+  "revision": "80de95c62ac792c99dcfa8e26569bcd7d036bdc3",
+  "status": "first_50_completed_with_findings",
+  "stages": [
+    3
+  ],
+  "review": {
+    "runs": 5,
+    "median_limit_seconds": 30,
+    "maximum_limit_seconds": 60,
+    "fresh_containers": true,
+    "prepared_images_reused": true,
+    "measurement": "container startup, setup upload and setup execution",
+    "flagged_tasks": "stage output/review/setup-speed/"
+  },
+  "first_batch": {
+    "tasks": 50,
+    "repositories": 41,
+    "unique_images": 45,
+    "job_id": "954219",
+    "contract": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-setup-review-20261008/contract-50-cpu.json",
+    "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-setup-review-20261008/results-50-cpu/submissions/c8a9e5647011",
+    "source": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/datasets/multiswe/setup-review-50-v1/source-50.parquet",
+    "partition": "cpu",
+    "node": "h31-39"
+  },
+  "next_batches": {
+    "200": "selected, not submitted; review first 50 before expansion",
+    "2232": "not submitted; Java image repair also required"
+  },
+  "java_tasks_pending": [
+    "spotbugs__spotbugs-2843",
+    "spotbugs__spotbugs-3311",
+    "spotbugs__spotbugs-3237",
+    "spotbugs__spotbugs-3278",
+    "mockito__mockito-3251",
+    "spotbugs__spotbugs-1785",
+    "spotbugs__spotbugs-1769",
+    "spotbugs__spotbugs-3281",
+    "spotbugs__spotbugs-2514",
+    "spotbugs__spotbugs-2516",
+    "spotbugs__spotbugs-1951",
+    "spotbugs__spotbugs-2943",
+    "spotbugs__spotbugs-2234",
+    "spotbugs__spotbugs-2900",
+    "spotbugs__spotbugs-1829",
+    "spotbugs__spotbugs-2795",
+    "spotbugs__spotbugs-3032",
+    "spotbugs__spotbugs-2844",
+    "spotbugs__spotbugs-3349",
+    "spotbugs__spotbugs-3029",
+    "spotbugs__spotbugs-2996",
+    "mockito__mockito-3508",
+    "spotbugs__spotbugs-3307",
+    "spotbugs__spotbugs-2740",
+    "spotbugs__spotbugs-3038",
+    "mockito__mockito-3514",
+    "spotbugs__spotbugs-2020",
+    "spotbugs__spotbugs-1902",
+    "spotbugs__spotbugs-3076",
+    "spotbugs__spotbugs-2881",
+    "spotbugs__spotbugs-2694",
+    "mockito__mockito-3180",
+    "spotbugs__spotbugs-3268",
+    "spotbugs__spotbugs-2375",
+    "spotbugs__spotbugs-2811",
+    "spotbugs__spotbugs-2887",
+    "spotbugs__spotbugs-2874",
+    "spotbugs__spotbugs-2872",
+    "spotbugs__spotbugs-3269",
+    "mockito__mockito-3447",
+    "spotbugs__spotbugs-3226",
+    "spotbugs__spotbugs-2873",
+    "spotbugs__spotbugs-2186",
+    "spotbugs__spotbugs-3330",
+    "spotbugs__spotbugs-2538"
+  ],
+  "selection": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-setup-review-20261008/selection.json",
+  "tests": {
+    "focused_passed": 71,
+    "final_review_checks_passed": 25,
+    "full_suite_passed": 1007,
+    "full_suite_failed": 2,
+    "failures": [
+      "tests/test_bridge_transport.py::test_lost_submission_responses_do_not_duplicate_execution",
+      "tests/test_image_release.py::test_publisher_pins_artifact_commit_in_same_pr"
+    ],
+    "full_suite_log": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-setup-review-20261008/pytest.log"
+  },
+  "superseded_jobs": [
+    {
+      "job_id": "954100",
+      "partition": "h200",
+      "status": "cancelled_before_start",
+      "reason": "CPU alternative started first"
+    }
+  ],
+  "result": {
+    "job_elapsed": "02:17:23",
+    "all_45_pilot_images_ready": true,
+    "images_built": 24,
+    "images_cached": 21,
+    "repetitions_completed": 250,
+    "counts": {
+      "slow_only": 9,
+      "upload_ownership": 6,
+      "passed": 29,
+      "runtime_failure": 6
+    },
+    "findings": [
+      {
+        "task": "Kong__insomnia-8131",
+        "category": "slow_only",
+        "reason": "median preparation 72.649s exceeds 30s; maximum preparation 75.744s exceeds 60s",
+        "timing": {
+          "seconds": [
+            69.9201709140325,
+            67.60562980908435,
+            75.74414786999114,
+            73.38253719394561,
+            72.64892524899915
+          ],
+          "median_seconds": 72.64892524899915,
+          "max_seconds": 75.74414786999114,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "OpenMathLib__OpenBLAS-4727",
+        "category": "upload_ownership",
+        "reason": "one or more preparation/runtime checks failed",
+        "timing": {
+          "seconds": [
+            5.165231766062789,
+            5.065904310089536,
+            4.777466400992125,
+            7.764327823068015,
+            5.176750710932538
+          ],
+          "median_seconds": 5.165231766062789,
+          "max_seconds": 7.764327823068015,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "alibaba__fastjson2-328",
+        "category": "upload_ownership",
+        "reason": "one or more preparation/runtime checks failed",
+        "timing": {
+          "seconds": [
+            4.552621980081312,
+            2.5590318370377645,
+            4.236303345998749,
+            6.898833018029109,
+            3.4010563689516857
+          ],
+          "median_seconds": 4.236303345998749,
+          "max_seconds": 6.898833018029109,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "anuraghazra__github-readme-stats-391",
+        "category": "slow_only",
+        "reason": "median preparation 30.982s exceeds 30s",
+        "timing": {
+          "seconds": [
+            28.69053613592405,
+            26.57676309393719,
+            32.285655257990584,
+            30.98183963703923,
+            36.482707598945126
+          ],
+          "median_seconds": 30.98183963703923,
+          "max_seconds": 36.482707598945126,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "caolan__async-1078",
+        "category": "slow_only",
+        "reason": "median preparation 45.065s exceeds 30s",
+        "timing": {
+          "seconds": [
+            45.06460313592106,
+            43.445495557039976,
+            42.08508129697293,
+            46.16228145302739,
+            45.69584862503689
+          ],
+          "median_seconds": 45.06460313592106,
+          "max_seconds": 46.16228145302739,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "checkstyle__checkstyle-10979",
+        "category": "runtime_failure",
+        "reason": "one or more preparation/runtime checks failed; median preparation 600.001s exceeds 30s; maximum preparation 600.008s exceeds 60s",
+        "timing": {
+          "seconds": [
+            600.0014842150267,
+            600.001089407946,
+            600.0007852680283,
+            600.0020320570329,
+            600.0083688599989
+          ],
+          "median_seconds": 600.0014842150267,
+          "max_seconds": 600.0083688599989,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "checkstyle__checkstyle-13482",
+        "category": "runtime_failure",
+        "reason": "one or more preparation/runtime checks failed; median preparation 600.002s exceeds 30s; maximum preparation 600.006s exceeds 60s",
+        "timing": {
+          "seconds": [
+            600.0012408319162,
+            600.0018890509382,
+            600.0043566670502,
+            600.0011745210504,
+            600.0063563840231
+          ],
+          "median_seconds": 600.0018890509382,
+          "max_seconds": 600.0063563840231,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "checkstyle__checkstyle-15149",
+        "category": "runtime_failure",
+        "reason": "one or more preparation/runtime checks failed; median preparation 600.002s exceeds 30s; maximum preparation 600.078s exceeds 60s",
+        "timing": {
+          "seconds": [
+            600.0007280319696,
+            600.0010460739722,
+            600.0017763429787,
+            600.0022552629234,
+            600.078185640974
+          ],
+          "median_seconds": 600.0017763429787,
+          "max_seconds": 600.078185640974,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "elastic__logstash-13523",
+        "category": "runtime_failure",
+        "reason": "one or more preparation/runtime checks failed; median preparation 600.001s exceeds 30s; maximum preparation 600.003s exceeds 60s",
+        "timing": {
+          "seconds": [
+            600.0005224499619,
+            600.0011060819961,
+            600.0011651800014,
+            600.00167774898,
+            600.0026936329668
+          ],
+          "median_seconds": 600.0011651800014,
+          "max_seconds": 600.0026936329668,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "facebook__zstd-3441",
+        "category": "upload_ownership",
+        "reason": "one or more preparation/runtime checks failed",
+        "timing": {
+          "seconds": [
+            1.8543625440215692,
+            3.1500472899060696,
+            2.445590869989246,
+            2.5348609460052103,
+            3.6327133749146014
+          ],
+          "median_seconds": 2.5348609460052103,
+          "max_seconds": 3.6327133749146014,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "iamkun__dayjs-2705",
+        "category": "slow_only",
+        "reason": "median preparation 34.196s exceeds 30s",
+        "timing": {
+          "seconds": [
+            36.85783799295314,
+            37.23183202603832,
+            31.870066902018152,
+            32.295887502026744,
+            34.196295841014944
+          ],
+          "median_seconds": 34.196295841014944,
+          "max_seconds": 37.23183202603832,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "junit-team__junit5-2885",
+        "category": "runtime_failure",
+        "reason": "one or more preparation/runtime checks failed; median preparation 600.001s exceeds 30s; maximum preparation 600.127s exceeds 60s",
+        "timing": {
+          "seconds": [
+            600.0012327129953,
+            600.1274848760804,
+            600.000768954982,
+            600.001070432947,
+            600.0022495700978
+          ],
+          "median_seconds": 600.0012327129953,
+          "max_seconds": 600.1274848760804,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "junit-team__junit5-4049",
+        "category": "runtime_failure",
+        "reason": "one or more preparation/runtime checks failed; median preparation 600.001s exceeds 30s; maximum preparation 600.002s exceeds 60s",
+        "timing": {
+          "seconds": [
+            600.0009545551147,
+            600.0013706500176,
+            600.001061304938,
+            600.0015756250359,
+            600.0014438190265
+          ],
+          "median_seconds": 600.0013706500176,
+          "max_seconds": 600.0015756250359,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "libsdl-org__SDL-9889",
+        "category": "upload_ownership",
+        "reason": "one or more preparation/runtime checks failed",
+        "timing": {
+          "seconds": [
+            3.2897572750225663,
+            4.215500916005112,
+            3.144315643934533,
+            3.147110817953944,
+            4.79493222408928
+          ],
+          "median_seconds": 3.2897572750225663,
+          "max_seconds": 4.79493222408928,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "mruby__mruby-3365",
+        "category": "upload_ownership",
+        "reason": "one or more preparation/runtime checks failed",
+        "timing": {
+          "seconds": [
+            3.6511187870055437,
+            4.219120761030354,
+            2.442185653024353,
+            3.141132429940626,
+            3.729172541992739
+          ],
+          "median_seconds": 3.6511187870055437,
+          "max_seconds": 4.219120761030354,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "mruby__mruby-6091",
+        "category": "upload_ownership",
+        "reason": "one or more preparation/runtime checks failed",
+        "timing": {
+          "seconds": [
+            3.4418860789155588,
+            3.1454327689716592,
+            3.144906905014068,
+            3.142622822080739,
+            3.6951654750155285
+          ],
+          "median_seconds": 3.1454327689716592,
+          "max_seconds": 3.6951654750155285,
+          "required_runs": 5,
+          "all_runs_successful": false,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "mui__material-ui-25547",
+        "category": "slow_only",
+        "reason": "median preparation 54.445s exceeds 30s",
+        "timing": {
+          "seconds": [
+            55.30390594503842,
+            54.445145462988876,
+            50.44576078501996,
+            47.75223376695067,
+            55.50640987197403
+          ],
+          "median_seconds": 54.445145462988876,
+          "max_seconds": 55.50640987197403,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "mui__material-ui-41306",
+        "category": "slow_only",
+        "reason": "median preparation 38.219s exceeds 30s",
+        "timing": {
+          "seconds": [
+            36.21009781502653,
+            41.423167446046136,
+            38.21934320696164,
+            34.30604717298411,
+            39.546944432077
+          ],
+          "median_seconds": 38.21934320696164,
+          "max_seconds": 41.423167446046136,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "reduxjs__redux-1818",
+        "category": "slow_only",
+        "reason": "median preparation 42.720s exceeds 30s",
+        "timing": {
+          "seconds": [
+            56.02751216606703,
+            42.72047030599788,
+            35.55120871600229,
+            33.30715319304727,
+            46.27602472004946
+          ],
+          "median_seconds": 42.72047030599788,
+          "max_seconds": 56.02751216606703,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "remix-run__react-router-10433",
+        "category": "slow_only",
+        "reason": "median preparation 30.684s exceeds 30s",
+        "timing": {
+          "seconds": [
+            49.91298641101457,
+            30.683734487043694,
+            21.623689459986053,
+            23.37457126902882,
+            31.090574383968487
+          ],
+          "median_seconds": 30.683734487043694,
+          "max_seconds": 49.91298641101457,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      },
+      {
+        "task": "trpc__trpc-5119",
+        "category": "slow_only",
+        "reason": "median preparation 44.650s exceeds 30s",
+        "timing": {
+          "seconds": [
+            48.77516939502675,
+            35.817232994013466,
+            44.650162315927446,
+            33.94574327592272,
+            52.77576128509827
+          ],
+          "median_seconds": 44.650162315927446,
+          "max_seconds": 52.77576128509827,
+          "required_runs": 5,
+          "all_runs_successful": true,
+          "median_target_seconds": 30.0,
+          "max_limit_seconds": 60.0,
+          "accepted": false
+        }
+      }
+    ],
+    "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-setup-review-20261008/results-50-cpu/submissions/c8a9e5647011/evidence.tar.gz",
+    "stage_report_member": "results/stage_3_build_validation/976796502cae/summary.json"
+  }
+}

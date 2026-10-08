@@ -18,14 +18,17 @@ def test_start_and_upload_consume_the_setup_budget(monkeypatch):
             clock[0] += 400
         async def exec(self, command, **kwargs):
             calls.append(('setup', kwargs))
+            clock[0] += 12
             return SimpleNamespace(return_code=0, stdout='', stderr='')
     async def upload():
         calls.append(('upload', {}))
         clock[0] += 50
+    timings = {}
     asyncio.run(task_setup.prepare(Environment(), command='bash /setup_files/setup.sh',
-        timeout_sec=600, force_build=True, upload=upload))
+        timeout_sec=600, force_build=True, upload=upload, timings=timings))
     assert calls == [('start', {'force_build': True}), ('upload', {}),
                      ('setup', {'timeout_sec': 150, 'user': 'root'})]
+    assert timings == {'container_start': 400, 'setup_upload': 50, 'setup_execution': 12}
 
 
 @pytest.mark.parametrize('failure', ['startup', 'upload', 'setup', 'nonzero'])

@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 import sys
 
+import pytest
+
 spec = importlib.util.spec_from_file_location('inferredbugs_audit_tests', Path(__file__).resolve().parents[1] / 'data/inferredbugs/patch.py')
 audit = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = audit
@@ -297,12 +299,12 @@ def test_packaged_task_has_its_analyzer_in_the_image_and_the_verifier_checks_it(
     assert 'Python-2.7.18' in files['environment/Dockerfile'].decode() and '/opt/python2/bin/python2.7 ] ||' in install
     agent, verifier = audit.task_timeouts('inferredbugs-7544')
     assert (agent, verifier) == (1800, 900)
-    # the verifier installs the analyzer only where the installed one is not the release (installed_analyzer)
-    assert 'bash /tests/install_analyzer.sh' not in files['tests/test.sh'].decode() and '--grade /app --setup' in files['tests/test.sh'].decode()
+    # The verifier uses a fresh image; preparation and grading are separate.
+    assert 'bash /tests/install_analyzer.sh' not in files['tests/test.sh'].decode() and '--grade /app --prepared' in files['tests/test.sh'].decode()
     # a module the agent left beside the verifier is not imported
     assert 'python3 -I /tests/infer/verify.py --grade' in files['tests/test.sh'].decode()
-    assert json.loads(files['tests/infer/task.json'])['analyzer_tree'] == audit.ANALYZER_TREES['Infer 0.17.0']
-    assert b"'install_analyzer.sh'), '--force'" in files['tests/infer/verify.py'] and b'analyzer_tree' not in files['setup_files/infer/task.json']
+    assert 'analyzer_tree' not in json.loads(files['tests/infer/task.json'])
+    assert b"'install_analyzer.sh'), '--force'" not in files['tests/infer/verify.py'] and b'analyzer_tree' not in files['setup_files/infer/task.json']
     # the audit reproduced this task's warning on the fixing commit with the buggy target
     assert json.loads(files['tests/recipe.json'])['environment'] == 'fix-commit'
     # what the verifier compares with never enters the agent's files
@@ -329,7 +331,7 @@ def test_packaged_task_has_its_analyzer_in_the_image_and_the_verifier_checks_it(
 BUGGY = b''.join(b'line %d\n' % i for i in range(3000))
 
 
-def graded(tmp_path, monkeypatch, capsys, reports, submitted, extra=None):
+def graded(tmp_path, monkeypatch, capsys, reports, submitted, extra=None, setup_failure=None):
     """Run the packaged verifier with the analyzer replaced: `reports` maps 'baseline' and
     'submission' to the warnings the analysis of that directory returns (None: it failed)."""
     import importlib.util
@@ -354,53 +356,49 @@ def graded(tmp_path, monkeypatch, capsys, reports, submitted, extra=None):
         path = tmp_path / 'app' / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
+    calls = []
+    def stage(self, name, command):
+        assert name == 'setup'
+        calls.append(('setup', str(self.ws)))
+        if setup_failure == 'changed-source':
+            (self.ws / verifier.TASK['target_file']).write_text('recipe changed the target')
+        if setup_failure == 'exit':
+            self.result['status'] = 'setup_failed'
+            return False
+        self.result['steps'][name] = {'exit_code': 0}
+        return True
+    monkeypatch.setattr(verifier.Run, 'stage', stage)
     def analyze(self):
+        assert not self.setup
+        calls.append(('analyze', str(self.ws)))
         value = reports['baseline' if str(self.ws).endswith('-baseline') else 'submission']
         self.result['status'] = 'capture_failed' if value is None else 'analyzed'
         return None if value is None else value(verifier.TASK, self)
     monkeypatch.setattr(verifier.Run, 'analyze', analyze)
-    monkeypatch.setattr(verifier, 'installed_analyzer', lambda logs, timeout: 'image')
     monkeypatch.setattr(sys, 'argv', ['verify.py', '--grade', str(tmp_path / 'app'), '--workspace', str(tmp_path / 'workspace'), '--logs', str(tmp_path / 'logs')])
+    arguments = list(sys.argv)
+    monkeypatch.setattr(sys, 'argv', arguments + ['--prepare-only'])
+    assert verifier.main() == 0
+    assert calls and all(kind == 'setup' for kind, _ in calls)
+    assert not (tmp_path / 'logs/result.json').exists()
+    monkeypatch.setattr(sys, 'argv', arguments + ['--prepared'])
     code = verifier.main()
     capsys.readouterr()
     return code, json.loads((tmp_path / 'logs/result.json').read_text()), tmp_path / 'workspace'
 
 
-def test_verifier_installs_the_analyzer_again_only_where_it_is_not_the_release(tmp_path, monkeypatch):
-    import importlib.util
+def test_fresh_verifier_does_not_hash_or_reinstall_analyzer(tmp_path):
     row, files = packaged('inferredbugs-7544', tmp_path)
-    for name in ('tests/infer/verify.py', 'tests/infer/task.json'):
-        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / name).write_bytes(files[name])
-    spec = importlib.util.spec_from_file_location('inferredbugs_verifier_analyzer', tmp_path / 'tests/infer/verify.py')
-    verifier = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(verifier)
-    root, logs = tmp_path / 'opt/infer', tmp_path / 'logs'
-    (root / 'bin').mkdir(parents=True)
-    logs.mkdir()
-    (root / 'bin/infer').write_text('release\n')
-    (root / 'bin/infer').chmod(0o755)
-    (root / 'lib').symlink_to('bin')
-    # the verifier's copy of the function gives the patch script's value; the path counts as `name`
-    release = audit.analyzer_digest(str(root), '/opt/infer')
-    assert verifier.analyzer_digest(str(root), '/opt/infer') == release and audit.analyzer_digest(str(root)) != release
-    assert audit.analyzer_digest(str(tmp_path / 'missing')) is None
-    monkeypatch.setitem(verifier.ANALYZER_ROOTS, 'Infer', str(root))
-    monkeypatch.setitem(verifier.TASK, 'analyzer_tree', audit.analyzer_digest(str(root)))
-    script = tmp_path / 'tests/install_analyzer.sh'
-    script.write_text('echo reinstalled "$1"\n')
-    assert verifier.installed_analyzer(logs, 60) == 'image' and not (logs / 'install.log').exists()
-    # another content, another mode, one more file, another link target: each gives another value
-    seen = {release}
-    for change in (lambda: (root / 'bin/infer').write_text('changed\n'), lambda: (root / 'bin/infer').chmod(0o644),
-                   lambda: (root / 'bin/infer.pyc').write_text(''), lambda: ((root / 'lib').unlink(), (root / 'lib').symlink_to('other'))):
-        change()
-        seen.add(audit.analyzer_digest(str(root), '/opt/infer'))
-    assert len(seen) == 5
-    # what is not the release is installed again; a failed installation is no analyzer
-    assert verifier.installed_analyzer(logs, 60) == 'verifier' and 'reinstalled --force' in (logs / 'install.log').read_text()
-    script.write_text('exit 3\n')
-    assert verifier.installed_analyzer(logs, 60) is None
+    script = files['tests/infer/verify.py'].decode()
+    assert 'def installed_analyzer' not in script
+    assert 'analyzer_digest' not in script
+    assert 'analyzer_tree' not in script
+    assert 'analyzer_tree' not in json.loads(files['tests/infer/task.json'])
+    assert b'install_analyzer.sh' not in files['tests/setup.sh']
+    # Release download verification still happens when building the image.
+    installer = files['setup_files/install_analyzer.sh']
+    assert b'sha256sum -c' in installer
+    assert audit.ANALYZERS['Infer 0.17.0'].encode() in installer
 
 
 def test_build_scripts_rewrite_the_project_path_inside_encoded_scripts_too(tmp_path):
@@ -434,31 +432,20 @@ def test_dependency_archive_fills_the_cache_and_the_verifier_starts_from_it(tmp_
         text = files[name].decode()
         assert 'IB_DEPENDENCIES="${INFERREDBUGS_DEPENDENCY_CACHE:-/opt/inferredbugs/dependencies.tar}"' in text
         assert '[ ! -e /cache/.inferredbugs-dependencies ]' in text and '--skip-old-files' in text
-    (tmp_path / 'tests/infer').mkdir(parents=True)
-    for name in ('tests/infer/verify.py', 'tests/infer/task.json'):
-        (tmp_path / name).write_bytes(files[name])
-    spec = importlib.util.spec_from_file_location('inferredbugs_verifier_dependencies', tmp_path / 'tests/infer/verify.py')
-    verifier = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(verifier)
-    cache, source = tmp_path / 'cache', tmp_path / 'saved'
-    (source / 'm2/org/lib').mkdir(parents=True)
-    (source / 'm2/org/lib/lib.jar').write_text('released')
-    subprocess.run(['tar', '-cf', str(tmp_path / 'dependencies.tar'), '-C', str(source), '.'], check=True)
-    (cache / 'm2/org/lib').mkdir(parents=True)
-    (cache / 'm2/org/lib/lib.jar').write_text('what the agent left')
-    (cache / 'm2/org/planted.jar').write_text('what the agent left')
-    monkeypatch.setattr(verifier, 'DEPENDENCY_MARKER', str(cache / '.inferredbugs-dependencies'))
-    # no archive: the build reuses the cache as it is
-    monkeypatch.setattr(verifier, 'DEPENDENCY_ARCHIVE', str(tmp_path / 'none.tar'))
-    monkeypatch.delenv('INFERREDBUGS_DEPENDENCY_CACHE', raising=False)
-    assert verifier.clean_dependencies() == 'reused' and (cache / 'm2/org/planted.jar').exists()
-    # with the archive: only what it holds
-    monkeypatch.setenv('INFERREDBUGS_DEPENDENCY_CACHE', str(tmp_path / 'dependencies.tar'))
-    assert verifier.clean_dependencies() == 'archive'
-    assert (cache / 'm2/org/lib/lib.jar').read_text() == 'released' and not (cache / 'm2/org/planted.jar').exists()
-    assert (cache / '.inferredbugs-dependencies').exists()
-    (tmp_path / 'dependencies.tar').write_text('not an archive')
-    assert verifier.clean_dependencies() == 'archive_unreadable' and not (cache / 'm2').exists()
+    # Download archives still seed fresh containers, but are no longer a restore mechanism.
+    assert b'def clean_dependencies' not in files['tests/infer/verify.py']
+    import tomllib
+    from harbor.models.task.config import TaskConfig
+    config = TaskConfig.model_validate(tomllib.loads(files['task.toml'].decode()))
+    assert config.verifier.environment_mode.value == 'separate'
+    assert config.verifier.environment is None
+    assert config.artifacts[0].source == '/app'
+    assert config.artifacts[0].exclude == ['.git']
+    assert 'tests/Dockerfile' not in files
+    assert b'--prepare-only' in files['tests/setup.sh']
+    assert b'fetch_repository.sh' in files['tests/setup.sh']
+    assert b'fetch_repository.sh' not in files['tests/test.sh']
+    assert b'--setup' not in files['tests/test.sh']
 
 
 def test_warning_key_leaves_out_the_line_numbers_infer_keeps(tmp_path):
@@ -526,3 +513,243 @@ def test_verifier_takes_over_changed_files_and_checks_the_sources(tmp_path, monk
     import shutil
     code, result, workspace = graded(tmp_path / 'alone', monkeypatch, capsys, {'submission': lambda task, run: []}, b'// fixed\n' + BUGGY)
     assert 'deleted' not in result['changed_files'].values()
+
+
+def test_prepared_maven_wrapper_uses_exact_local_version_without_network(tmp_path):
+    import subprocess
+    import pytest
+    scope = {'__name__': 'transport_test'}
+    exec(audit.MAVEN_TRANSPORT, scope)
+    root = tmp_path / 'image'
+    root.mkdir()
+    (root / 'manifest.json').write_text('[]')
+    executable = root / 'maven/apache-maven-3.6.3/bin/mvn'
+    executable.parent.mkdir(parents=True)
+    executable.write_text('#!/bin/sh\nprintf "local Maven %s\\n" "$*"\n')
+    executable.chmod(0o755)
+    project = tmp_path / 'project'
+    properties = project / '.mvn/wrapper/maven-wrapper.properties'
+    properties.parent.mkdir(parents=True)
+    properties.write_text('distributionUrl=https://unreachable.invalid/apache-maven-3.6.3-bin.zip\n')
+    wrapper = project / 'mvnw'
+    wrapper.write_text('exit 99\n')
+    env = {'INFERREDBUGS_BOOTSTRAP': str(root)}
+    command = scope['local_wrapper'](['bash', str(wrapper), '-version'], env)
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    assert 'local Maven -version' in result.stdout
+    capture = ['infer', 'capture', '--', 'bash', str(wrapper), 'compile']
+    assert scope['local_wrapper'](capture, env) == ['infer', 'capture', '--', str(executable), 'compile']
+    properties.write_text('distributionUrl=https://unreachable.invalid/apache-maven-9.9.9-bin.zip\n')
+    with pytest.raises(RuntimeError, match='missing from prepared image: 9.9.9'):
+        scope['local_wrapper'](['bash', str(wrapper)], env)
+
+
+def test_image_seed_repairs_bad_pom_preserves_valid_and_rejects_unknown_corruption(tmp_path):
+    import hashlib
+    import pytest
+    root = tmp_path / 'image'
+    (root / 'files').mkdir(parents=True)
+    (root / 'maven/apache-maven-3.6.3').mkdir(parents=True)
+    rel = 'org/example/lib/1.0/lib-1.0.pom'
+    released = b'<project><modelVersion>4.0.0</modelVersion></project>'
+    (root / 'files/lib-1.0.pom').write_bytes(released)
+    (root / 'manifest.json').write_text(json.dumps([{'path': rel, 'sha256': hashlib.sha256(released).hexdigest()}]))
+    scope = {'__name__': 'bootstrap_test', '__file__': str(root / 'bootstrap.py')}
+    exec(audit.JAVA_BOOTSTRAP, scope)
+    cache = tmp_path / 'cache'
+    target = cache / 'm2' / rel
+    target.parent.mkdir(parents=True)
+    target.write_text('Your request has been rate limited')
+    marker = target.parent / '_remote.repositories'
+    marker.write_text('lib-1.0.pom>old-audit-proxy=\n')
+    scope['seed'](cache)
+    assert not marker.exists()
+    assert target.read_bytes() == released
+    assert (cache / 'm2/audit-tools/apache-maven-3.6.3').resolve() == root / 'maven/apache-maven-3.6.3'
+    target.write_text('<project><version>legitimate-local-build</version></project>')
+    scope['seed'](cache)
+    assert 'legitimate-local-build' in target.read_text()
+    (target.parent / 'unknown.pom').write_text('<html>proxy error</html>')
+    with pytest.raises(RuntimeError, match='Malformed Maven cache'):
+        scope['seed'](cache)
+
+
+def test_ivy_bootstrap_uses_image_jar():
+    recipe = 'curl -fsSL -o /cache/ivyhome/lib/ivy.jar https://repo1.maven.org/maven2/org/apache/ivy/ivy/2.0.0-beta2/ivy-2.0.0-beta2.jar'
+    assert 'file:///opt/inferredbugs/bootstrap/files/ivy-2.0.0-beta2.jar' in audit.portable_recipe(recipe)
+
+
+def test_repackaged_transport_is_not_wrapped_twice_and_ant_properties_are_preserved():
+    body = 'audit_mvn_transport bash /workspace/mvnw -B compile'
+    script = audit.runner_script('', body)[1].decode()
+    assert 'audit_mvn_transport audit_mvn_transport' not in script
+    assert 'audit_mvn_transport bash /workspace/mvnw -B compile' in script
+    assert audit.drop_offline_flags('cd /workspace && ant -Doffline=true compile') == 'cd /workspace && ant -Doffline=true compile'
+
+
+def test_ivy_preparation_keeps_compile_dependencies_and_places_cache_in_archive(tmp_path):
+    import subprocess
+    import xml.etree.ElementTree as ET
+    project = tmp_path / 'project'
+    cache = tmp_path / 'ivyhome'
+    project.mkdir(); cache.mkdir()
+    build = project / 'build.xml'
+    build.write_text('<project name="jsecurity" xmlns:ivy="antlib:org.apache.ivy.ant"><target name="compile"><ivy:retrieve pattern="lib/[conf]/[artifact].[ext]"/></target></project>')
+    settings = cache / 'ivysettings.xml'
+    settings.write_text('<ivysettings><resolvers><chain name="audit-chain"><resolver ref="audit-central"/></chain></resolvers></ivysettings>')
+    script = audit.IVY_COMPILE_SETUP.replace('INFERREDBUGS_IVY_SETTINGS_PATH', str(settings)).replace('/workspace', str(project)).replace('/cache/ivyhome', str(cache))
+    subprocess.run(['bash', '-c', script], check=True)
+    subprocess.run(['bash', '-c', script], check=True)
+    assert ET.parse(build).getroot().find('.//{antlib:org.apache.ivy.ant}retrieve').get('conf') == 'compile'
+    root = ET.parse(settings).getroot()
+    assert root.find('caches').get('defaultCacheDir') == str(cache / 'cache')
+    assert [x.get('ref') for x in root.find('resolvers/chain')][:2] == ['audit-local', 'audit-central-mirror']
+    definitions = list(root.find('resolvers'))
+    assert all(next(i for i, x in enumerate(definitions) if x.get('name') == name) < next(i for i, x in enumerate(definitions) if x.tag == 'chain') for name in ('audit-local', 'audit-central-mirror'))
+    settings.write_text('<ivysettings><settings defaultResolver="central"/><resolvers><ibiblio name="central"/></resolvers></ivysettings>')
+    subprocess.run(['bash', '-c', script], check=True)
+    root = ET.parse(settings).getroot()
+    assert root.find('settings').get('defaultResolver') == 'audit-chain'
+    assert [x.get('ref') for x in root.find('resolvers/chain')] == ['audit-local', 'audit-central-mirror', 'central']
+    assert 'INFERREDBUGS_IVY_SETUP' in audit.portable_recipe('curl ivy-2.0.0-beta2.jar > /workspace/ivysettings.xml')
+    recipe = 'curl -fsSL http://172.17.0.1:8081/maven2/org/apache/ivy/ivy/2.0.0-beta2/ivy-2.0.0-beta2.jar'
+    assert 'file:///opt/inferredbugs/bootstrap/files/ivy-2.0.0-beta2.jar' in audit.portable_recipe(recipe)
+
+
+def test_pom_validation_accepts_mavens_legacy_named_entities_without_rewriting(tmp_path):
+    scope = {'__name__': 'bootstrap_test', '__file__': str(tmp_path / 'bootstrap.py')}
+    exec(audit.JAVA_BOOTSTRAP, scope)
+    pom = tmp_path / 'plexus.pom'
+    data = b'<project><developers><developer><name>J&oslash;rgen</name></developer></developers></project>'
+    pom.write_bytes(data)
+    assert scope['valid_pom'](pom)
+    assert pom.read_bytes() == data
+    assert not scope['valid_pom_bytes'](b'Your IP has exceeded rate limits')
+    assert not scope['valid_pom_bytes'](b'<html>429</html>')
+
+
+def test_cached_maven_avoids_network_and_only_falls_back_for_cache_misses(tmp_path):
+    import subprocess
+    transport = tmp_path / 'transport.py'
+    transport.write_text(audit.MAVEN_TRANSPORT)
+    mvn = tmp_path / 'mvn'
+    mvn.write_text('#!' + sys.executable + '\n' + '''import json, os, sys
+from pathlib import Path
+p = Path(os.environ['CALLS'])
+a = json.loads(p.read_text()) if p.exists() else []
+a.append(sys.argv[1:]); p.write_text(json.dumps(a))
+mode = os.environ['MODE']
+if '--offline' in sys.argv and mode == 'missing':
+    print('Cannot access central in offline mode and the artifact has not been downloaded from it before')
+    sys.exit(1)
+if mode == 'compile_error':
+    print('[ERROR] compiler: incompatible types')
+    sys.exit(1)
+print('BUILD SUCCESS')
+''')
+    mvn.chmod(0o755)
+    for mode, expected_calls, expected_code in [('complete', 1, 0), ('missing', 2, 0), ('compile_error', 1, 1)]:
+        calls = tmp_path / (mode + '.json')
+        env = dict(os.environ, CALLS=str(calls), MODE=mode, INFERREDBUGS_MAVEN_CACHE_FIRST='1', INFERREDBUGS_NETWORK_ATTEMPTS='1')
+        result = subprocess.run([sys.executable, str(transport), str(mvn), 'compile'], env=env, text=True, capture_output=True)
+        assert result.returncode == expected_code
+        invocations = json.loads(calls.read_text())
+        assert len(invocations) == expected_calls and '--offline' in invocations[0]
+        if expected_calls == 2:
+            assert '--offline' not in invocations[1]
+    scope = {'__name__': 'transport_test'}
+    exec(audit.MAVEN_TRANSPORT, scope)
+    command = ['infer', 'capture', '--force-integration', 'mvn', '-o', '/out', '--', str(mvn), 'compile']
+    assert scope['cached_maven_command'](command, {'INFERREDBUGS_MAVEN_CACHE_FIRST': '1'}) == command[:-1] + ['--offline', 'compile']
+    archive = tmp_path / 'dependencies.tar'
+    env = {'INFERREDBUGS_DEPENDENCY_CACHE': str(archive)}
+    assert scope['cached_maven_command'](command, env) is None
+    archive.touch()
+    assert scope['cached_maven_command'](command, env) is None
+    archive.write_bytes(b'nonempty mounted archive')
+    assert scope['cached_maven_command'](command, env) == command[:-1] + ['--offline', 'compile']
+    assert scope['cached_maven_command'](command, dict(env, INFERREDBUGS_MAVEN_CACHE_FIRST='0')) is None
+
+
+@pytest.mark.parametrize('failure, message', [('exit', 'setup failed'), ('changed-source', 'source_modified_by_recipe')])
+def test_verifier_preparation_failure_never_reaches_analysis(tmp_path, monkeypatch, capsys, failure, message):
+    with pytest.raises(RuntimeError, match=message):
+        # No reports are provided: reaching analysis would fail this test.
+        graded(tmp_path / failure, monkeypatch, capsys, {}, BUGGY, setup_failure=failure)
+    assert not (tmp_path / failure / 'logs/result.json').exists()
+    assert not (tmp_path / failure / 'logs/preparation.json').exists()
+
+
+def test_archive_prefill_preserves_image_maven_directory_symlink(tmp_path):
+    import subprocess
+    _, files = packaged('inferredbugs-7544', tmp_path)
+    script = files['tests/build_setup.sh'].decode()
+    command = script[script.index('IB_DEPENDENCIES='):script.index('# Each fresh container')]
+    source, image, cache = (tmp_path / name for name in ('source', 'image', 'cache'))
+    for path in (source / 'm2/audit-tools/apache-maven-3.5.0', image / 'apache-maven-3.5.0', cache / 'm2/audit-tools'):
+        path.mkdir(parents=True)
+    (image / 'apache-maven-3.5.0/tool').write_text('original image tool')
+    (source / 'm2/audit-tools/apache-maven-3.5.0/tool').write_text('cached copy must not replace image')
+    (source / 'm2/audit-tools/apache-maven-3.5.0/metadata').write_text('cached metadata')
+    (cache / 'm2/audit-tools/apache-maven-3.5.0').symlink_to(image / 'apache-maven-3.5.0', target_is_directory=True)
+    (source / 'm2/project.jar').write_text('project dependency')
+    archive = tmp_path / 'dependencies.tar'
+    subprocess.run(['tar', '-cf', str(archive), '-C', str(source), '.'], check=True)
+    command = command.replace('/opt/inferredbugs/dependencies.tar', str(archive)).replace('/cache/', str(cache) + '/').replace('-C /cache', '-C ' + str(cache)).replace('/opt/inferredbugs/bootstrap/maven/', str(image) + '/')
+    subprocess.run(['bash', '-c', command], check=True, capture_output=True)
+    assert (cache / 'm2/audit-tools/apache-maven-3.5.0').is_symlink()
+    assert (image / 'apache-maven-3.5.0/tool').read_text() == 'original image tool'
+    assert not (image / 'apache-maven-3.5.0/metadata').exists()
+    assert (cache / 'm2/project.jar').read_text() == 'project dependency'
+
+
+def test_image_vendor_installer_verifies_downloads_and_rejects_corruption(tmp_path, monkeypatch):
+    import hashlib, io, time, urllib.request
+    source = b'pinned project dependency'
+    digest = hashlib.sha256(source).hexdigest()
+    code = audit.IMAGE_VENDOR_INSTALL.split('with concurrent.futures.ThreadPoolExecutor', 1)[0]
+    code = code.replace("Path('/opt/inferredbugs/vendor')", 'Path(' + repr(str(tmp_path / 'vendor')) + ')')
+    manifest = tmp_path / 'assets.json'
+    manifest.write_text(json.dumps([digest]))
+    monkeypatch.setattr(sys, 'argv', ['install', str(manifest), 'https://example.invalid/vendor'])
+    monkeypatch.setattr(time, 'sleep', lambda seconds: None)
+    calls = []
+    def fetch(url, timeout):
+        calls.append(url)
+        return io.BytesIO(source)
+    monkeypatch.setattr(urllib.request, 'urlopen', fetch)
+    namespace = {}
+    exec(code, namespace)
+    namespace['install'](digest)
+    assert (tmp_path / 'vendor' / digest).read_bytes() == source
+    namespace['install'](digest)
+    assert len(calls) == 1
+    (tmp_path / 'vendor' / digest).unlink()
+    monkeypatch.setattr(urllib.request, 'urlopen', lambda *args, **kwargs: io.BytesIO(b'corrupt download'))
+    with pytest.raises(ValueError, match='checksum mismatch'):
+        namespace['install'](digest)
+    assert not list((tmp_path / 'vendor').iterdir())
+
+
+def test_setup_uses_verified_image_dependency_without_network(tmp_path):
+    import hashlib, subprocess
+    _, files = packaged('inferredbugs-10174', tmp_path)
+    content = b'pinned project dependency'
+    digest = hashlib.sha256(content).hexdigest()
+    store, tests, cache = [tmp_path / name for name in ('vendor', 'tests', 'cache')]
+    for directory in (store, tests, cache): directory.mkdir()
+    (store / digest).write_bytes(content)
+    (tests / 'deps.sha256').write_text(digest + '  m2/project/dependency.jar\n')
+    script = files['tests/build_setup.sh'].decode()
+    start = script.index('MANIFEST=""')
+    end = script.index('\ncd "$WS"', start)
+    body = script[start:end]
+    body = body.replace('/opt/inferredbugs/vendor/', str(store) + '/').replace('/cache/', str(cache) + '/').replace('/tests/', str(tests) + '/').replace('/setup_files/', str(tmp_path / 'absent') + '/')
+    # Falling back to a download must fail this test.
+    prefix = 'set -euo pipefail\nVENDOR_URL=https://example.invalid\nvendor_fetch() { return 99; }\n'
+    result = subprocess.run(['bash', '-c', prefix + body], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert (cache / 'm2/project/dependency.jar').read_bytes() == content
+    (cache / 'm2/project/dependency.jar').unlink()
+    (store / digest).write_bytes(b'corrupt image copy')
+    assert subprocess.run(['bash', '-c', prefix + body], capture_output=True).returncode != 0

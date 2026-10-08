@@ -98,6 +98,8 @@ def test_patched_oracle_writes_complete_reference(
     assert manifest['source']['revision'] == patcher.UPSTREAM_REVISION
     assert manifest['source']['task_count'] == 1
     assert manifest['tasks'][0]['action'] == 'changed'
+    assert manifest['tasks'][0]['labels'] == ['context-and-verifier-repaired']
+    assert manifest['tasks'][0]['reason'] == patcher.change_explanation(match_count == 1)
     assert pq.read_table(output.with_suffix('.archive.parquet')).num_rows == 0
     assert patched[gold_path] == reference
     assert patched["solution/solution_snippet.txt"] == reference
