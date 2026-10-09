@@ -90,3 +90,30 @@ For now, we use the patched Terminal-Bench rubric for environment filtering:
    [Harbor commit](https://github.com/harbor-framework/harbor/commit/c1f266c596c700cb8db53f0ee4bf3853a930b3bd)).
 2. Terminal-Bench covers more criteria. As the mapping above shows, most Harbor
    criteria are covered by one or more Terminal-Bench criteria.
+
+The final criteria are:
+
+- `verifiable`
+- `solvable`
+- `interesting`
+- `outcome_verified`
+- `anti_cheat_robustness`
+- `task_security`
+- `functional_verification`
+- `deterministic_reproducible`
+- `essential_difficulty`
+- `test_instruction_alignment`
+- `agentic`
+- `reviewable`
+- `instruction_concision`
+- `solution_quality`
+- `structured_data_schema`
+- `typos`
+- `resource_configuration`
+- `no_extraneous_files`
+- `artifact_efficiency`
+- `verifier_execution_isolation`
+- `ctrf_reporting`
+- `do_not_modify_enforced`
+
+`solvable` is skipped when the complete datasource has no reference solutions.
