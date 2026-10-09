@@ -35,9 +35,9 @@ def test_pinned_scripts_match_upstream_workflow_and_profiles():
     workflow = (TERMINAL_BENCH / '.github/workflows/static-checks.yml').read_text()
     upstream = set(re.findall(r'\|((?:check-)[\w-]+\.sh)"', workflow))
     assert {n for n in set(checks) | set(excluded) if n.endswith('.sh')} == upstream
-    assert len(checks) == 26 and len(excluded) == 2
+    assert len(checks) == 27 and len(excluded) == 2
     _, portable, skipped = load_checks('portable')
-    assert len(portable) == 13
+    assert len(portable) == 14
     assert 'check-task-package-name.sh' in skipped
 
 

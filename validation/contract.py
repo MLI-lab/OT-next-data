@@ -43,10 +43,14 @@ def task_digest(path):
                         for p in path.rglob('*') if p.is_file())
 
 
-def inventory(source, limit=None, task_id_range=None):
+def inventory(source, limit=None, task_id_range=None, references=None, suffixes=None):
     source = Path(source)
     parquets = parquet_files(source)
     records, files = [], []
+    if references is not None:
+        references.update(task_count=0, solution_count=0, complete=True)
+    if suffixes is not None:
+        suffixes.update(task_count=0, **{'Terminal-Bench tasks': 0, 'this task': 0}, complete=True)
     if parquets:
         import pyarrow.parquet as pq
         for path in parquets:
@@ -64,9 +68,31 @@ def inventory(source, limit=None, task_id_range=None):
                             if member.isfile():
                                 contents.append((str(name), tar.extractfile(member).read()))
                     records.append({'task_id': row['path'], 'sha256': files_digest(contents)})
+                    if references is not None:
+                        references['task_count'] += 1
+                        references['solution_count'] += any(PurePosixPath(name).as_posix() == 'solution/solve.sh'
+                                                             for name, _ in contents)
+                    if suffixes is not None:
+                        from validation.rubrics import instruction_suffix_variant
+                        suffixes['task_count'] += 1
+                        variant = instruction_suffix_variant(dict(contents).get('instruction.md', b''))
+                        if variant:
+                            suffixes[variant] += 1
         # Match materialization order (sorted Parquets, row order), then limit.
     else:
-        records = [{'task_id': p.name, 'sha256': task_digest(p)} for p in discover_tasks(source)]
+        discovered = discover_tasks(source)
+        records = [{'task_id': p.name, 'sha256': task_digest(p)} for p in discovered]
+        if references is not None:
+            from validation.rubrics import reference_inventory
+            references.update(reference_inventory(discovered))
+        if suffixes is not None:
+            from validation.rubrics import suffix_inventory
+            suffixes.update(suffix_inventory(discovered))
+    if references is not None or suffixes is not None:
+        from validation.rubrics import complete_source
+        for counts in (references, suffixes):
+            if counts is not None:
+                counts['complete'] = complete_source(source)
     records = select(records, key=lambda row: row['task_id'], limit=limit, task_id_range=task_id_range)
     names = [r['task_id'] for r in records]
     if not records or len(set(names)) != len(names):
@@ -84,6 +110,8 @@ def implementation():
              ROOT / 'hpc/local_runtime.py', ROOT / 'hpc/local_assets.py', ROOT / 'hpc/image_cache.py',
              ROOT / 'config/models.py', ROOT / 'config/clusters.py', ROOT / 'config/runtime.py', ROOT / 'requirements.txt']
     paths.extend((ROOT / 'data/annotate_dataset').glob('*.txt'))
+    paths.extend(p for p in (base / 'rubrics').rglob('*')
+                 if p.is_file() and p.suffix in ('.toml', '.patch', '.json'))
     paths.extend((ROOT / 'data/utils').rglob('*.py'))
     paths.append(ROOT / 'data/seta/patch.py')
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
@@ -225,7 +253,9 @@ def create(args, numbers, destination):
         # Freeze the resolved location in both the contract and submission args.
         # Later execution must not reinterpret the preparing shell's defaults.
         args.serve_weights = Path(local_model_assets(args)['weights'])
-    tasks, files = inventory(args.tasks, args.limit, getattr(args, 'task_id_range', None))
+    references = {} if 2 in numbers else None
+    suffixes = {} if 2 in numbers else None
+    tasks, files = inventory(args.tasks, args.limit, getattr(args, 'task_id_range', None), references, suffixes)
     minimum = args.min_tasks if args.min_tasks is not None else len(tasks)
     if minimum < 1 or len(tasks) < minimum:
         raise ValueError(f'selected {len(tasks)} tasks, below minimum {minimum}')
@@ -241,6 +271,8 @@ def create(args, numbers, destination):
     contract = {
         'schema_version': 2, 'created_at': datetime.now(timezone.utc).isoformat(),
         'dataset': {'source': args.dataset_source or meta.get('repo') or str(args.tasks.resolve()),
+                    'reference_solutions': references,
+                    'instruction_suffixes': suffixes,
                     'revision': args.dataset_revision or meta.get('revision') or 'sha256:' + digest(tasks),
                     'automation_changes': {t['task_id']: meta.get('automation_changes', {})[t['task_id']]
                                            for t in tasks if t['task_id'] in meta.get('automation_changes', {})},
@@ -312,7 +344,15 @@ def read(path):
 
 
 def verify_source(args, contract):
-    tasks, files = inventory(args.tasks, args.limit, getattr(args, 'task_id_range', None))
+    expected_references = contract['dataset'].get('reference_solutions')
+    references = {} if expected_references is not None else None
+    expected_suffixes = contract['dataset'].get('instruction_suffixes')
+    suffixes = {} if expected_suffixes is not None else None
+    tasks, files = inventory(args.tasks, args.limit, getattr(args, 'task_id_range', None), references, suffixes)
+    if references != expected_references:
+        raise ValueError('datasource reference-solution inventory differs from the frozen contract')
+    if suffixes != expected_suffixes:
+        raise ValueError('datasource instruction-suffix inventory differs from the frozen contract')
     if tasks != task_records(contract):
         raise ValueError('task IDs/content differ from the frozen contract')
     if files != contract['dataset']['source_files']:

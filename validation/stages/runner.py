@@ -51,6 +51,8 @@ def parser():
     ap.add_argument('--review-agent', help='override the pinned upstream reviewer agent (also applies to analysis unless separately overridden)')
     ap.add_argument('--model', help='model for solver/cheat/hacker/fixer')
     ap.add_argument('--review-model', help='override pinned upstream rubric/trajectory judge model')
+    ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor'], default='terminal-bench',
+                    help='Stage 2 implementation rubric: patched Terminal-Bench (default) or patched Harbor default rubric')
     ap.add_argument('--review-local', action='store_true', help='use the local served model with Terminus-2 for implementation/proposal/trajectory reviews')
     ap.add_argument('--analysis-agent', help='override only the trajectory-analysis agent')
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
@@ -274,14 +276,15 @@ def stage_timing(clock, concurrency):
             'wall_seconds': round(time.monotonic() - started, 1), 'concurrency': concurrency}
 
 
-def run_review(number, source, item_dir, args, upstream):
+def run_review(number, source, item_dir, args, upstream, references=None, suffixes=None):
     """Run an implementation (stage 2) or trajectory (stage 8) rubric review."""
     resolve_review_defaults(args, [number])
     agent, model = (args.review_agent, args.review_model) if number == 2 else (args.analysis_agent, args.analysis_model)
     if getattr(args, 'review_local', False):
         agent, model = 'terminus-2', args.model
     if number == 2:
-        task = prepare_review_tasks.stage_review(source, item_dir / 'input' / 'rubric-review', upstream)
+        task = prepare_review_tasks.stage_review(source, item_dir / 'input' / 'rubric-review', upstream,
+                                                 references, suffixes, getattr(args, 'review_rubric', 'terminal-bench'))
         verdict_name, rubric_name = 'verdicts.json', 'task-implementation.toml'
     else:
         task = prepare_review_tasks.stage_analysis(source, args.current_trial, item_dir / 'input' / 'trajectory-analysis', upstream)
@@ -291,17 +294,20 @@ def run_review(number, source, item_dir, args, upstream):
     runtime.check_runtime_task(task, args.backend)
     config = runtime.job_config(task, item_dir / 'jobs', args, agent, model)
     save(item_dir / 'job.json', config)
+    skipped = json.loads((task / 'rubric-skips.json').read_text()) if number == 2 else {}
     if args.dry_run:
-        return {'status': 'previewed', 'config': str(item_dir / 'job.json')}
+        return {'status': 'previewed', 'config': str(item_dir / 'job.json'), 'automatic_skips': skipped}
     job_dir = asyncio.run(runtime.execute_job(config))
     results = runtime.trial_results(job_dir)
     result = runtime.assess_trials(results, args.attempts, 1, 'reward', task_path=task)
     result['job_dir'] = str(job_dir)
-    rubric = upstream / 'docs/prompts' / rubric_name
+    rubric = task / 'rubric.toml' if number == 2 else upstream / 'docs/prompts' / rubric_name
+    result['automatic_skips'] = skipped
     verdicts = []
     for trial, _ in results:
         try:
             data = prepare_review_tasks.read_verdicts(trial / 'artifacts' / verdict_name, rubric, analysis=number == 8)
+            data['checks'].update(skipped)
             verdicts.append({'trial': str(trial), **data})
         except (OSError, ValueError) as exc:
             result['status'] = 'failed'
@@ -480,7 +486,18 @@ def run_stage(number, args):
     from validation.contract import verify_materialized
     contract = verify_materialized(args)
     upstream = checkout('terminal-bench')
-    sources = select_paths(discover_tasks(args.tasks), args)
+    all_sources = discover_tasks(args.tasks)
+    sources = select_paths(all_sources, args)
+    references = None
+    suffixes = None
+    if number == 2:
+        from validation.rubrics import complete_source, reference_inventory, suffix_inventory
+        if contract:
+            references = contract['dataset'].get('reference_solutions')
+            suffixes = contract['dataset'].get('instruction_suffixes')
+        else:
+            references = reference_inventory(all_sources, complete=complete_source(args.tasks))
+            suffixes = suffix_inventory(all_sources, complete=complete_source(args.tasks))
     out = args.out.resolve() / f'stage_{number}_{NAMES[number]}' / uuid4().hex[:12]
     # Avoid recursive copies if an output directory is nested inside a source.
     if any(out.is_relative_to(t) for t in sources):
@@ -488,6 +505,10 @@ def run_stage(number, args):
     out.mkdir(parents=True)
     report = {'stage': number, 'name': NAMES[number], 'upstream': PINS,
               'backend': args.backend, 'dry_run': args.dry_run, 'items': [], 'complete': False}
+    if number == 2:
+        report['reference_solutions'] = references
+        report['instruction_suffixes'] = suffixes
+        report['review_rubric'] = getattr(args, 'review_rubric', 'terminal-bench')
     report_path = out / 'summary.json'
     save(report_path, report)
     clock = stage_clock()
@@ -576,7 +597,7 @@ def run_stage(number, args):
                     result = run_fortify(source, item_dir, args, upstream)
                 else:
                     args.current_trial = trial
-                    result = run_review(number, source, item_dir, args, upstream)
+                    result = run_review(number, source, item_dir, args, upstream, references, suffixes)
             except Exception as exc:
                 result = {'status': 'error', 'reason': f'{type(exc).__name__}: {exc}'}
             result.update(task=str(source), output=str(item_dir))

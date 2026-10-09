@@ -1,0 +1,15 @@
+--- rubric.toml
++++ rubric.toml
+@@ -342,12 +342,2 @@
+ 
+-[[criteria]]
+-name = "task_readme"
+-description = "README.md contains the required explanations and useful context for reviewers"
+-guidance = """
+-A task must include a README.md with Difficulty explanation, Solution explanation, Verification explanation, and Relevant experience sections. The README is not passed to the agent or used in task orchestration. It provides context for reviewers and future maintainers; evaluate explanation quality using the corresponding explanation criteria above.
+-
+-Good README content includes: links to repos with extra verifier tests, visualization or tracing tools specific to this task, design decision notes, or references to related work. Required explanation sections and a task metadata summary are expected. Beyond those, avoid redundant copies of the instruction or solution code.
+-
+-PASS if the README includes the required sections and provides accurate, useful context. FAIL if the README or required sections are missing, or if it contains misleading information or unnecessary duplication beyond the expected explanations and metadata summary."""
+-
+ [[criteria]]

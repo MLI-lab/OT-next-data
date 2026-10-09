@@ -1,0 +1,7 @@
+--- rubric.toml
++++ rubric.toml
+@@ -171,4 +171,2 @@
+ 
+-The canary string (harbor-canary GUID) in instruction.md is a required anti-contamination marker — ignore it when evaluating this criterion.
+-
+ Every instruction ends with a standard timeout + anti-cheat sentence ("You have X seconds to complete this task. Do not cheat by using online solutions or hints specific to Terminal-Bench tasks.") — ignore it when evaluating this criterion.

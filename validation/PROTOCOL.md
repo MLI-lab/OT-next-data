@@ -49,6 +49,13 @@ for each upstream check and its purpose.
 
 - Before running the upstream checks, verify that required task files and the
   environment directory exist, and that `task.toml` can be parsed.
+- `check-task-toml-schema.py` validates `task.toml` against the pinned Harbor
+  models and rejects unknown fields in typed sections, including nested verifier
+  environments, artifacts, and multi-step configurations. Harbor's free-form
+  metadata and environment-variable mappings remain allowed. This replaces the
+  former Stage 2 `task_toml_schema` rubric criterion because code checks schema
+  compliance more cheaply and reliably than an LLM judge. It runs by default in
+  every static profile and reports field paths for failures.
 
 **Off by default:**
 
@@ -78,11 +85,87 @@ another check, or `--static-profile terminal-bench` for stricter benchmark rules
 
 An implementation reviewer reads the instruction, tests, solution and environment
 files. It assesses whether tests match the requested outcome, the solution is
-valid, dependencies and verification are reliable, and the task is useful,
-appropriately difficult and resistant to cheating. It uses Terminal-Bench's
+valid, dependencies and verification are reliable, and the task is useful
+and resistant to cheating. It uses Terminal-Bench's
 [rubric][implementation-rubric] and [prompt template][implementation-prompt].
-We may need to relax some criteria, such as novelty, because our tasks are for
-training rather than evaluation.
+Select the Stage 2 rubric with `--review-rubric terminal-bench` (the default) or
+`--review-rubric harbor`. The Harbor option uses the pinned upstream default
+rubric from `validation/rubrics/harbor/`, with `pinned_dependencies` removed
+because the Stage 1 `check-pip-pinning.sh` static check validates dependency
+pinning more cheaply and reliably. Its `test_deps_in_image` criterion is also
+removed because training tasks sometimes put reusable tooling such as pytest in
+shared task images to reduce image storage and task setup time. Both removed
+criteria are recorded as automatically `not_applicable`. The selected rubric
+is saved with each staged review and recorded in the run report.
+Before staging each review, we apply the diffs in `validation/rubrics/patches/`.
+The `verifiable` change includes `tests/setup.sh` alongside `tests/test.sh`, and
+some tasks use these scripts separately so Stage 3's `review-setup` can measure
+verifier preparation apart from execution.
+We always remove `difficult` and record it as automatically `not_applicable`.
+It is a good criterion for constructing a challenging benchmark, but it is too
+restrictive for selecting useful RL training tasks.
+When the full datasource contains zero `solution/solve.sh` files, we remove
+`solvable` from the judge's rubric and record an automatic `not_applicable`
+verdict with the reason. Mixed datasources keep the criterion. Counts are
+frozen before task selection; a single task or known preselected export cannot
+establish absence across the datasource. Each staged review saves `rubric.toml`
+and `rubric-skips.json`, and contracts bind the rubric assets and diffs.
+We also always remove `novel` and record it as automatically `not_applicable`.
+Removed because novelty is mainly an evaluation concern, ensuring tasks cannot
+be solved through memorization of training data, which is not a requirement
+for RL training tasks.
+In `instruction_concision`, the canary exemption is always removed. The standard
+timeout and anti-cheat sentence is exempted only when every instruction in the
+complete datasource ends with it. Both the upstream `Terminal-Bench tasks`
+wording and our `this task` variant count, with a positive integer timeout.
+Counts cover tasks before selection and are frozen in the contract. If the
+datasource is mixed or complete coverage is unknown, the exemption is removed;
+the rest of `instruction_concision` is still reviewed.
+The paragraph prescribing backticks and math-delimiter formatting is also
+removed because training tasks do not need to follow benchmark formatting
+conventions. The general clarity and readability requirements remain.
+We always remove `separate_verifier_configured` and record it as automatically
+`not_applicable`. Our RL training datasets contain many more tasks than a typical
+evaluation benchmark. We balance image reuse and storage costs with fast
+task-specific setup, rather than requiring a dedicated task image and verifier
+image for every task.
+We also always remove `environment_hygiene` and record it as automatically
+`not_applicable` because it prescribes benchmark-specific image and dependency
+management. Our RL training infrastructure balances shared images, storage costs,
+and fast task-specific setup, without requiring separate agent and verifier images
+for every task. `anti_cheat_robustness` still checks that hidden tests and reference
+solutions are inaccessible to the agent.
+We always remove `difficulty_explanation_quality` and record it as automatically
+`not_applicable`. RL training tasks are not required to include a
+`Difficulty explanation` section in `README.md`; this criterion evaluates
+benchmark documentation rather than whether a task is useful for RL training.
+The same documentation policy removes `solution_explanation_quality` and
+`verification_explanation_quality`, recorded as automatically `not_applicable`.
+Training tasks do not require these README sections or a benchmark-style
+justification for an absent reference solution. The remaining verifier criteria
+still assess correctness and reliability, including appropriate tolerance bounds
+where applicable.
+We always remove `category_and_tags` and record it as automatically
+`not_applicable`. Training datasets can use their own metadata conventions;
+Terminal-Bench's category, subcategory, and tag taxonomy is not required for
+training usefulness.
+We always remove `task_name` and record it as automatically `not_applicable`.
+Training datasets may preserve source task IDs and their own naming conventions;
+descriptive kebab-case names of at most three words are benchmark presentation
+requirements. Runtime safety and uniqueness requirements for task IDs still apply.
+We always remove `task_readme` and record it as automatically `not_applicable`.
+Training tasks do not require a benchmark reviewer README with explanation,
+relevant-experience, and metadata sections. These documentation requirements are
+not prerequisites for training usefulness.
+We always remove `expert_time_estimate` and record it as automatically
+`not_applicable` because RL training tasks do not require an expert time estimate.
+`task_toml_schema` is also omitted from the LLM review and recorded as automatically
+`not_applicable`, with the reason that Stage 1 now performs this check in code.
+Its static failures still fail Stage 1.
+We always remove `binary_reward` and record it as automatically `not_applicable`
+because binary rewards are not necessarily required for every RL training task.
+No replacement static check is added. This rubric change does not alter runtime
+reward handling or the success criteria of other validation stages.
 
 After the run finishes, `report/reviews.json` contains each task's review and
 explanations. `report/summary.json` lists which tasks passed, failed, or had a

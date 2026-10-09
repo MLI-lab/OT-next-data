@@ -1,0 +1,7 @@
+--- rubric.toml
++++ rubric.toml
+@@ -173,4 +173,2 @@
+ 
+-Every instruction ends with a standard timeout + anti-cheat sentence ("You have X seconds to complete this task. Do not cheat by using online solutions or hints specific to Terminal-Bench tasks.") — ignore it when evaluating this criterion.
+-
+ The instruction should be readable and auditable by non-specialist reviewers. LLM-generated instructions raise concern and should be flagged.

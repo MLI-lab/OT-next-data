@@ -55,6 +55,7 @@ TRAINING_EXCLUSIONS = {
 CHECKER_UNIT_TESTS = ('test-author-github.py', 'test-instruction-headings.sh',
                       'test-resource-sizes.sh', 'test-task-changelog.sh')
 AI_CHECK = 'check_ai_detection.py'
+LOCAL_CHECKS = {'check-task-toml-schema.py': Path(__file__).with_name('task_toml_schema.py')}
 
 
 
@@ -65,6 +66,7 @@ def load_checks(profile, upstream=None, exclude=()):
         if hashlib.sha256(((upstream or TERMINAL_BENCH) / name).read_bytes()).hexdigest() != digest:
             raise ValueError(f'upstream file differs from pinned copy: {name}')
     names = sorted(Path(p).name for p in manifest['files'] if p.startswith('scripts/checks/'))
+    names = sorted([*names, *LOCAL_CHECKS])
     excluded = {**PR_ONLY, **(POLICY if profile == 'portable' else TRAINING_EXCLUSIONS if profile == 'training' else {}),
                 'rubric_review.py': 'LLM rubric review is opt-in via stage 2, never a default static check'}
     inactive = {'rubric_review.py', *CHECKER_UNIT_TESTS}
@@ -73,9 +75,11 @@ def load_checks(profile, upstream=None, exclude=()):
         value, _, reason = value.partition('=')
         for requested in value.split(','):
             requested = requested.strip()
-            aliases = {'ai-detection': 'check_ai_detection.py', 'rubric-review': 'rubric_review.py'}
+            aliases = {'ai-detection': 'check_ai_detection.py', 'rubric-review': 'rubric_review.py',
+                       'task-toml-schema': 'check-task-toml-schema.py',
+                       'check-task-toml-schema': 'check-task-toml-schema.py'}
             name = aliases.get(requested, requested)
-            if name not in inactive and name != AI_CHECK:
+            if name not in inactive and name != AI_CHECK and name not in LOCAL_CHECKS:
                 name = name if name.endswith('.sh') else name + '.sh'
                 name = name if name.startswith('check-') else 'check-' + name
             if name not in names and name not in inactive:
@@ -139,6 +143,9 @@ ADAPTATIONS = {PATH_CHECK: 'Relative-path findings are advisory warnings and do 
                'file names': 'a task with whitespace or *?[] in a file name is checked on a copy where those characters '
                              'are replaced by _, because the upstream scripts split paths at spaces and expand globs; '
                              'the renamed files are listed per task'}
+ADAPTATIONS['check-task-toml-schema.py'] = (
+    'Local deterministic replacement for the task_toml_schema rubric: validates against pinned Harbor models '
+    'and rejects unrecognized fields recursively; Harbor free-form metadata/env mappings remain allowed.')
 
 
 def without_source_code(instruction):
@@ -681,8 +688,9 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                         # file system stalled (job 916252), so one more attempt is made.
                         for attempt in (1, 2):
                             try:
-                                script = reference_script if name == reference_script.name else scripts / name
-                                result = subprocess.run([check_python if name.endswith('.py') else 'bash', str(script), str(target)],
+                                script = LOCAL_CHECKS.get(name) or (reference_script if name == reference_script.name else scripts / name)
+                                interpreter = sys.executable if name in LOCAL_CHECKS else check_python if name.endswith('.py') else 'bash'
+                                result = subprocess.run([interpreter, str(script), str(target)],
                                     cwd=scratch, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
                                 status = 'passed' if result.returncode == 0 else 'failed'
                                 rc = result.returncode

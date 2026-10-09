@@ -40,12 +40,27 @@ def args(source, tmp_path):
 
 def test_review_uses_production_upstream_rubric_and_local_payload(source, tmp_path, upstream):
     out = prepare_review_tasks.stage_review(source, tmp_path / 'review', upstream)
-    assert (upstream / 'docs/prompts/task-implementation.toml').read_text() in (out / 'instruction.md').read_text()
+    from validation.rubrics import implementation_rubric
+    effective, _ = implementation_rubric(upstream / 'docs/prompts/task-implementation.toml')
+    assert effective in (out / 'instruction.md').read_text()
+    assert (out / 'rubric.toml').read_text() == effective
     assert (out / 'setup_files/task-under-review/sample/instruction.md').read_bytes() == (source / 'instruction.md').read_bytes()
     assert 'git fetch' not in (out / 'environment/Dockerfile').read_text()
     pytest.importorskip('harbor')
     from harbor.models.task.task import Task
     assert Task(out).config.artifacts[0].destination == 'verdicts.json'
+
+
+def test_review_can_stage_harbor_rubric(source, tmp_path, upstream):
+    from validation.rubrics import harbor_rubric
+    out = prepare_review_tasks.stage_review(source, tmp_path / 'review-harbor', upstream,
+                                           rubric_kind='harbor')
+    effective, skipped = harbor_rubric()
+    assert (out / 'rubric.toml').read_text() == effective
+    assert effective in (out / 'instruction.md').read_text()
+    assert 'pinned_dependencies' not in (out / 'instruction.md').read_text()
+    assert 'test_deps_in_image' not in (out / 'instruction.md').read_text()
+    assert json.loads((out / 'rubric-skips.json').read_text()) == skipped
 
 
 def test_cheat_stage_preserves_source_and_uses_upstream_prompt(source, tmp_path, upstream):

@@ -3,17 +3,36 @@ from __future__ import annotations
 
 import json
 import shutil
+from pathlib import Path
 import tomllib
 
 from validation.upstream import module
+from validation.rubrics import harbor_rubric, implementation_rubric
 
 
-def stage_review(source, destination, upstream):
+def stage_review(source, destination, upstream, references=None, suffixes=None, rubric_kind='terminal-bench'):
     stager = module(upstream / 'scripts/review/stage_task.py', 'tb_stage_review')
-    # Reuse upstream's production prompt, rubric and verifier. Replace only its
-    # GitHub-fetch Dockerfile with per-trial setup-file uploads.
+    # Reuse upstream's production prompt and verifier, apply our rubric diffs,
+    # and replace its GitHub-fetch Dockerfile with per-trial setup-file uploads.
     stager.stage_task('harbor-framework/terminal-bench', '0' * 40,
                      f'tasks/{source.name}', destination)
+    rubric_path = upstream / 'docs/prompts/task-implementation.toml'
+    if rubric_kind == 'terminal-bench':
+        rubric, skipped = implementation_rubric(rubric_path, references, suffixes)
+    elif rubric_kind == 'harbor':
+        rubric, skipped = harbor_rubric()
+    else:
+        raise ValueError(f'unknown implementation rubric: {rubric_kind}')
+    instruction = destination / 'instruction.md'
+    # The production staging template always embeds Terminal-Bench's rubric;
+    # replace that exact source regardless of which effective rubric is chosen.
+    original_rubric = (upstream / 'docs/prompts/task-implementation.toml').read_text()
+    text = instruction.read_text()
+    if text.count(original_rubric) != 1:
+        raise ValueError('expected exactly one embedded upstream rubric')
+    instruction.write_text(text.replace(original_rubric, rubric))
+    (destination / 'rubric.toml').write_text(rubric)
+    (destination / 'rubric-skips.json').write_text(json.dumps(skipped, indent=2) + '\n')
     env = destination / 'environment'
     original = (env / 'Dockerfile').read_text()
     header = original.split('RUN git init /tmp/source', 1)[0]

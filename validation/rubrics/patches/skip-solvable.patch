@@ -1,0 +1,19 @@
+--- rubric.toml
++++ rubric.toml
+@@ -9,16 +9,6 @@
+ Reliability also means avoiding runtime network installs at verify time. `apt-get install`, `curl ... | sh`, `pip install`, etc. inside `tests/setup.sh` or `tests/test.sh` introduce flakiness (intermittent network, rate limits, upstream version churn) and slow every trial. Bake those dependencies into `tests/Dockerfile` instead. Exception: a separate verifier may install the agent's pinned dependency manifest in `test.sh` — its build context is `tests/`, so the agent's deps arrive only at verify time (see `separate_verifier_configured`).
+ 
+ Reject tasks where there is no way to verify the task has been solved or where grading is subjective (e.g., "make this game more fun"). PASS if the verifier is deterministic, reliable, programmatic, and does not perform runtime network installs for verifier dependencies at verify time. FAIL if verification depends on subjective judgment, is non-deterministic, uses LLM-as-a-judge without documented justification, or relies on `test.sh` to install verifier tooling that could be baked into `tests/Dockerfile` (the agent's pinned manifest excepted)."""
+-
+-[[criteria]]
+-name = "solvable"
+-description = "Solution demonstrates the task is solvable within time and resource constraints"
+-guidance = """
+-There must be a working solution that passes all tests. The solution itself should be implementable by someone who knows exactly what to do in a few hours at most. The problem need not be formally proven to be possible — for example, "make this code run faster" is almost certainly solvable if the speed improvement is reasonable given historical trends.
+-
+-The solution must not be something that would take days to implement because of how much work is required. Good problems should be solvable in a few hours at most by an expert human who knows the idea of the answer in advance. It is OK to be hard to come up with the solution, but the difficulty should not be measured by how much work there is to be done.
+-
+-PASS if a working solution is provided that passes all tests and could reasonably be implemented by an expert in a few hours. FAIL if no solution is provided, the solution doesn't pass tests, or the implementation requires an unreasonable amount of work."""
+ 
+ [[criteria]]
+ name = "difficult"

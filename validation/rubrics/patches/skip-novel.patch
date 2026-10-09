@@ -1,0 +1,15 @@
+--- rubric.toml
++++ rubric.toml
+@@ -135,12 +135,2 @@
+ 
+-[[criteria]]
+-name = "novel"
+-description = "Not solvable through training corpus memorization"
+-guidance = """
+-Tasks should not be standard textbook exercises, well-known algorithmic problems (e.g., FizzBuzz, sorting algorithms, sudoku solvers), or problems with widely available solutions that an LLM could reproduce from training data.
+-
+-The best tasks involve novel combinations of skills, domain-specific scenarios that don't appear verbatim in training corpora, or custom codebases and environments that require genuine exploration and reasoning.
+-
+-PASS if the task requires genuine reasoning that cannot be short-circuited by memorization. FAIL if the task is a standard textbook exercise or well-known problem with widely available solutions."""
+-
+ [[criteria]]

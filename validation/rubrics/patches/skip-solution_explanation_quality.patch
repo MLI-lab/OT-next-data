@@ -1,0 +1,19 @@
+--- rubric.toml
++++ rubric.toml
+@@ -269,16 +269,2 @@
+ 
+-[[criteria]]
+-name = "solution_explanation_quality"
+-description = "Solution explanation summarizes the approach and key insights, or justifies absence of solution"
+-guidance = """
+-Read the `## Solution explanation` section in the task's `README.md`. This README section should help a non-domain expert understand the high-level strategy and key insights behind the solution — not a step-by-step walkthrough (that's what the solution files are for). A reviewer should be able to read it and understand the general approach without diving into solve.sh.
+-
+-Good explanations answer: what strategy does this use and why does it work? They bridge the gap between the instruction (what to do) and the solution code (how it's done). A missing, empty, or unfilled template section in the README is a missing explanation.
+-
+-If no solution is provided, the explanation must rigorously justify why. The only acceptable reason for omitting a solution is that it would take a team of humans several weeks or longer to implement. In this case, the explanation should describe what the solution would involve and why it is prohibitively expensive to write. Any task that a single expert could solve in a few days must include a working solution.
+-
+-The explanation must be congruous with the actual solution files — if the explanation describes an approach that differs from what solve.sh implements, that is a problem.
+-
+-PASS if the explanation concisely describes the approach and key insights in a way a non-domain expert can understand and is consistent with the solution files, or rigorously justifies why no solution is provided. FAIL if the explanation is vague, missing, contradicts the solution files, or omits a solution without strong justification."""
+-
+ [[criteria]]
