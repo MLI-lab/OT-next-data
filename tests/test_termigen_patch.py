@@ -1,44 +1,74 @@
+import json
+import sys
+
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
-from data.termigen import patch as P
-
-BASE = b"FROM x\nRUN pip3 install pandas==2.3.2 scipy==1.16.1 pytest==8.4.1\n"
+from data.termigen import patch as patcher
 
 
-def test_r2_pins_from_same_dockerfile_and_numpy_keeping_other_bytes():
-    original = BASE + b"RUN pip3 install pandas numpy \\\n    scipy && echo hi\nCOPY a /w/\n"
-    new, rule, replacements = P.pin_dockerfile(original, {})
-    assert rule == "R2"
-    assert new == BASE + b"RUN pip3 install pandas==2.3.2 numpy==%s \\\n    scipy==1.16.1 && echo hi\nCOPY a /w/\n" % P.NUMPY_PIN.encode()
-    assert replacements == {"pandas": "pandas==2.3.2", "numpy": f"numpy=={P.NUMPY_PIN}", "scipy": "scipy==1.16.1"}
-    assert not P.flagged(new.decode())[0]
+def task(dockerfile, **files):
+    entries = {
+        'environment/Dockerfile': (dockerfile.encode(), 0o644),
+        'instruction.md': (b'Keep the original task.', 0o644),
+        'tests/test_outputs.py': (b'import yaml\n', 0o644),
+    }
+    entries.update({name: (content, 0o644) for name, content in files.items()})
+    return patcher.pack(entries)
 
 
-def test_r2_skips_dockerfile_with_other_unpinned_package():
-    assert P.pin_dockerfile(BASE + b"RUN pip install torch numpy\n", {}) is None
+def test_missing_verifier_dependency_is_a_byte_identical_noop():
+    original = task(f'FROM {patcher.BASE_IMAGE}\nWORKDIR /app\n')
+    output, report = patcher.patch_task(original)
+    assert output == original
+    assert report['status'] == 'no-op'
+    assert report['rules'] == report['predictions'] == []
 
 
-def test_r2_conflicting_pins_raise():
-    with pytest.raises(ValueError):
-        P.pin_dockerfile(BASE + b"RUN pip install pandas==1.0\nRUN pip install pandas\n", {})
+@pytest.mark.parametrize('dockerfile,files,rule', [
+    # An earlier ENV rewrite must also be rolled back if COPY is unpatchable.
+    (f'FROM {patcher.BASE_IMAGE}\nENV TOOL=/opt/tool\nENV PATH=$TOOL/bin:$PATH\n'
+     'COPY absent /data/input\n', {}, 'missing-copy-source'),
+    (f'FROM {patcher.BASE_IMAGE}\nCOPY payload /workspace/Dockerfile\n',
+     {'environment/payload': b'payload'}, 'bridge-metadata-collision'),
+    (f'FROM {patcher.BASE_IMAGE}\nENV LD_LIBRARY_PATH=/opt/lib:$LD_LIBRARY_PATH\n',
+     {}, 'unresolved-env-reference'),
+])
+def test_unpatchable_conditions_are_predictions_and_preserve_exact_input(dockerfile, files, rule):
+    original = task(dockerfile, **files)
+    output, report = patcher.patch_task(original)
+    assert output == original
+    assert report['status'] == 'unpatchable'
+    assert report['changed_files'] == report['added_files'] == report['rules'] == []
+    assert report['predictions'] == [{'rule': rule, 'reason': report['unpatchable'][0]}]
+    assert not any(key.startswith('archive') for key in report)
 
 
-def test_r3_uses_lock_only_when_every_name_is_locked():
-    original = BASE + b"RUN pip install torch 'dask[complete]' yara-python\n".replace(b"'", b"")
-    key = P.sha256(original)
-    partial = {key: {"versions": {"torch": "2.0.0"}}}
-    assert P.pin_dockerfile(original, partial) is None
-    full = {key: {"versions": {"torch": "2.0.0", "dask": "1.0", "yara_python": "4.5.4"}}}
-    new, rule, _ = P.pin_dockerfile(original, full)
-    assert rule == "R3" and b"torch==2.0.0 dask[complete]==1.0 yara-python==4.5.4" in new
-
-
-def test_r3_locked_version_must_satisfy_specifier():
-    original = BASE + b"RUN pip install torch>=2.1\n"
-    with pytest.raises(ValueError):
-        P.pin_dockerfile(original, {P.sha256(original): {"versions": {"torch": "1.0"}}})
-
-
-def test_r1_copy_sources_ignore_globs_urls_and_stages():
-    text = "COPY --from=b /x /y\nCOPY a.pyc b/ /w/\nCOPY *.txt /w/\nADD http://h/f /w/\n"
-    assert list(P.copy_sources(text)) == ["a.pyc", "b"]
+def test_cli_retains_every_task_and_writes_only_prediction_report(tmp_path, monkeypatch):
+    rows = [
+        {'path': 'missing', 'task_binary': task(f'FROM {patcher.BASE_IMAGE}\nCOPY absent /data/input\n')},
+        {'path': 'metadata', 'task_binary': task(f'FROM {patcher.BASE_IMAGE}\nCOPY payload /workspace/Dockerfile\n',
+                                             **{'environment/payload': b'payload'})},
+        {'path': 'env', 'task_binary': task(f'FROM {patcher.BASE_IMAGE}\nENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH\n')},
+        {'path': 'yaml', 'task_binary': task(f'FROM {patcher.BASE_IMAGE}\n')},
+        {'path': 'copy', 'task_binary': task(f'FROM {patcher.BASE_IMAGE}\nCOPY payload /workspace/payload\n',
+                                         **{'environment/payload': b'payload'})},
+    ]
+    source = tmp_path / 'input.parquet'
+    output = tmp_path / 'patched' / 'tasks.parquet'
+    pq.write_table(pa.Table.from_pylist(rows), source)
+    input_bytes = source.read_bytes()
+    monkeypatch.setattr(sys, 'argv', ['patcher', '--input', str(source), '--output', str(output)])
+    patcher.main()
+    result = pq.read_table(output).to_pylist()
+    assert [r['path'] for r in result] == [r['path'] for r in rows]
+    assert result[:4] == rows[:4]
+    assert result[4]['task_binary'] != rows[4]['task_binary']
+    assert source.read_bytes() == input_bytes
+    report = json.loads(output.with_suffix('.report.json').read_text())
+    assert report['candidate_count'] == len(rows)
+    assert {r['task_id'] for r in report['unpatchable_predictions']} == {'missing', 'metadata', 'env'}
+    assert all(set(r) == {'task_id', 'rule', 'reason'} for r in report['unpatchable_predictions'])
+    assert 'archive_stage' not in json.dumps(report)
+    assert {p.name for p in output.parent.iterdir()} == {'tasks.parquet', 'tasks.report.json'}
