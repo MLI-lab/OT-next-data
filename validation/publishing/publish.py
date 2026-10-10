@@ -170,8 +170,9 @@ def stage_timings(reports):
 
 
 def folder_of(task, mapping):
+    """Data source folder of a task: its mapped prefix, the '*' catch-all, else the prefix itself."""
     prefix = re.sub(r'-\d+$', '', task)
-    return mapping.get(prefix, prefix)
+    return mapping.get(prefix) or mapping.get('*') or prefix
 
 
 def commit_title(run, what='validation run'):

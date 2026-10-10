@@ -134,7 +134,7 @@ def parser():
     ap.add_argument('--timeout-minutes', type=float, default=120)
     ap.add_argument('--publish-repo', help='open a pull request on this Hugging Face dataset when the Helma job ends, e.g. FWeindel/validated-tasks')
     ap.add_argument('--publish-require-complete', action='store_true', help='publish only after all tasks have outcomes for stages 1,3,4,5')
-    ap.add_argument('--publish-folder', action='append', default=[], metavar='PREFIX=FOLDER', help='data source folder for task IDs starting with PREFIX (see publish.py)')
+    ap.add_argument('--publish-folder', action='append', default=[], metavar='PREFIX=FOLDER', help='data source folder for task IDs starting with PREFIX, or *=FOLDER for every task (see publish.py)')
     ap.add_argument('--publish-readme', action='store_true', help='generate dataset READMEs when publishing')
     ap.add_argument('--publish-readme-force', action='store_true', help='regenerate existing dataset READMEs in the proposed PR')
     ap.add_argument('--publish-readme-model', default='claude-fable-5-1')
