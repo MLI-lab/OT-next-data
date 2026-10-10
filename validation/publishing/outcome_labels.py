@@ -11,6 +11,8 @@ def execution_label(item):
         return 'infrastructure-error'
     if re.search(r'verifier (?:did not run|could not collect|executed no tests)', text):
         return 'verifier-execution-error'
+    if re.search(r'verifier (?:execution (?:evidence|context|counts)|invocation)', text):
+        return 'verifier-execution-error'
     if (item.get('status') in ('error', 'skipped', 'previewed') or
             re.search(r'exception|missing numeric reward|trials, found', text, re.I)):
         return 'validation-not-run'

@@ -7,6 +7,22 @@ import pytest
 from harbor_patches import upload_runtime as patch
 
 
+def test_directory_payload_preserves_links_without_reading_targets(tmp_path):
+    import base64
+    import io
+    import tarfile
+    source = tmp_path / 'submission'
+    source.mkdir()
+    (source / 'source.java').write_text('source')
+    (source / 'browserify').symlink_to('../absent/browserify')
+    (source / 'outside').symlink_to('/must/not/be/read')
+    with tarfile.open(fileobj=io.BytesIO(base64.b64decode(patch.directory_payload(source)))) as archive:
+        assert archive.getmember('./browserify').issym()
+        assert archive.getmember('./browserify').linkname == '../absent/browserify'
+        assert archive.getmember('./outside').linkname == '/must/not/be/read'
+        assert archive.extractfile('./source.java').read() == b'source'
+
+
 def test_upload_ignores_poisoned_shell_startup(tmp_path):
     startup = tmp_path / 'startup'
     startup.write_text('export PATH=/missing\nexit 127\n')
@@ -42,3 +58,15 @@ def test_upload_scope_is_reset_after_failure():
         Instance().upload({})
     cmd = ['apptainer', 'exec', 'instance://trial', 'bash', '-lc', 'echo task']
     assert patch.upload_command(cmd) is cmd
+
+
+def test_upload_tar_does_not_restore_foreign_owners():
+    command = ['apptainer', 'exec', 'instance://trial', 'bash', '-c',
+               'tar xf /workspace/.upload_tmp -C /tests && rm /workspace/.upload_tmp']
+    class Instance:
+        def upload(self, payload):
+            return patch.upload_command(command)
+    patch.install_worker(SimpleNamespace(ApptainerInstance=Instance))
+    adapted = Instance().upload({})
+    assert adapted[-1] == 'tar --no-same-owner -xf /workspace/.upload_tmp -C /tests && rm /workspace/.upload_tmp'
+    assert patch.upload_command(command) is command

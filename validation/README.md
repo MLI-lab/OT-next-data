@@ -87,6 +87,11 @@ python validation/run.py --contract "$OT_WORKSPACE/contracts/check.json"
 Results are saved under `<out>/submissions/ID/`: `report/` contains summaries,
 stage reports, and automatic plots; `evidence.tar.gz` contains detailed run
 evidence. Prepare a new contract when changing tasks or settings.
+If the submission folder's filesystem is out of quota when the run ends (file count
+or space), the evidence, `execution.json` and `report/` go to
+`$OT_EVIDENCE_FALLBACK` (default `$HOME`) under `validation-evidence-fallback/<mirrored path>`,
+`evidence-relocated.json` beside the request points there, and the job fails only if
+that location is full too.
 
 Run `python validation/run.py --help` for all options.
 

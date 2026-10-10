@@ -228,6 +228,13 @@ def test_image_recipes_use_no_fixed_name_in_tmp():
         assert set(re.findall(r'/tmp/[\w.-]+', text + install)) <= {'/tmp/home'}, tag
 
 
+def test_infersharp_image_disables_archive_owner_restoration():
+    text = audit.dockerfile_text('inferredbugs-mono:bookworm-v2', None, 'InferSharp 1.3')
+    assert '&& TAR_OPTIONS=--no-same-owner bash "$f"' in text
+    infer = audit.dockerfile_text('inferredbugs-java:17', None, 'Infer 0.17.0')
+    assert 'TAR_OPTIONS=--no-same-owner bash "$f"' not in infer
+
+
 def test_audit_mvnw_wrapping_absorbs_packaged_transport_prefix():
     packaged='audit_mvn_transport bash /workspace/mvnw -B compile'
     assert audit.warning_audit_wrap_mvnw(packaged,'audit_mvn_wrapper')=='audit_mvn_wrapper bash /workspace/mvnw -B compile'
@@ -294,7 +301,7 @@ def test_packaged_task_has_its_analyzer_in_the_image_and_the_verifier_checks_it(
     # the image is built with the task's own install script
     step = re.search(r'RUN f=\$\(mktemp\) && printf %s (\S+) \| base64 -d > "\$f" && bash "\$f"', files['environment/Dockerfile'].decode())
     assert base64.b64decode(step.group(1)).decode() == install
-    assert files['tests/install_analyzer.sh'] == files['setup_files/install_analyzer.sh']
+    assert 'tests/install_analyzer.sh' not in files
     assert 'infer-linux64-v0.17.0.tar.xz ' + audit.ANALYZERS['Infer 0.17.0'] in install and 'Python-2.7.18' not in install
     assert 'Python-2.7.18' in files['environment/Dockerfile'].decode() and '/opt/python2/bin/python2.7 ] ||' in install
     agent, verifier = audit.task_timeouts('inferredbugs-7544')
@@ -306,7 +313,7 @@ def test_packaged_task_has_its_analyzer_in_the_image_and_the_verifier_checks_it(
     assert 'analyzer_tree' not in json.loads(files['tests/infer/task.json'])
     assert b"'install_analyzer.sh'), '--force'" not in files['tests/infer/verify.py'] and b'analyzer_tree' not in files['setup_files/infer/task.json']
     # the audit reproduced this task's warning on the fixing commit with the buggy target
-    assert json.loads(files['tests/recipe.json'])['environment'] == 'fix-commit'
+    assert 'tests/recipe.json' not in files
     # what the verifier compares with never enters the agent's files
     public = json.loads(files['setup_files/infer/task.json'])
     assert set(public) == {'task_id', 'language', 'analyzer', 'target_file'}
@@ -324,14 +331,14 @@ def test_packaged_task_has_its_analyzer_in_the_image_and_the_verifier_checks_it(
     assert 'ENVIRONMENT=fix-commit' in files['solution/fetch_fix.sh'].decode() and 'BUGGY_COMMIT=\n' in files['solution/fetch_fix.sh'].decode()
     assert files['tests/build.capture.sh'] == audit.warning_audit_capture_build(files['tests/build.sh'].decode()).encode()
     csharp, files = packaged('inferredbugs-0216', tmp_path)
-    install = files['tests/install_analyzer.sh'].decode()
+    install = files['setup_files/install_analyzer.sh'].decode()
     assert 'infersharp-linux64-v1.3.tar.gz' in install and 'Python-2.7' not in install and 'tests/build.capture.sh' not in files
 
 
 BUGGY = b''.join(b'line %d\n' % i for i in range(3000))
 
 
-def graded(tmp_path, monkeypatch, capsys, reports, submitted, extra=None, setup_failure=None):
+def graded(tmp_path, monkeypatch, capsys, reports, submitted, extra=None, setup_failure=None, precompiled=False):
     """Run the packaged verifier with the analyzer replaced: `reports` maps 'baseline' and
     'submission' to the warnings the analysis of that directory returns (None: it failed)."""
     import importlib.util
@@ -356,6 +363,16 @@ def graded(tmp_path, monkeypatch, capsys, reports, submitted, extra=None, setup_
         path = tmp_path / 'app' / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
+    if precompiled:
+        helper = Path(audit.__file__).with_name('precompiled_support.py')
+        spec = importlib.util.spec_from_file_location('support_test', helper)
+        support = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(support)
+        manifest = tmp_path / 'image-manifest.json'
+        support.write_manifest(tmp_path / 'workspace', manifest, target)
+        (tmp_path / 'tests/precompiled_support.py').write_bytes(helper.read_bytes())
+        (tmp_path / 'tests/precompiled_support.json').write_text(json.dumps({
+            'manifest': str(manifest), 'excluded_target': target}))
     calls = []
     def stage(self, name, command):
         assert name == 'setup'
@@ -379,7 +396,9 @@ def graded(tmp_path, monkeypatch, capsys, reports, submitted, extra=None, setup_
     arguments = list(sys.argv)
     monkeypatch.setattr(sys, 'argv', arguments + ['--prepare-only'])
     assert verifier.main() == 0
-    assert calls and all(kind == 'setup' for kind, _ in calls)
+    assert (calls or precompiled) and all(kind == 'setup' for kind, _ in calls)
+    if precompiled:
+        assert len(calls) == (1 if extra else 0)
     assert not (tmp_path / 'logs/result.json').exists()
     monkeypatch.setattr(sys, 'argv', arguments + ['--prepared'])
     code = verifier.main()
@@ -387,8 +406,20 @@ def graded(tmp_path, monkeypatch, capsys, reports, submitted, extra=None, setup_
     return code, json.loads((tmp_path / 'logs/result.json').read_text()), tmp_path / 'workspace'
 
 
+def test_image_provided_maven_distribution_is_not_vendored(tmp_path):
+    import hashlib
+    artifact = {'path':'m2/audit-tools/apache-maven-3.5.0/LICENSE',
+                'sha256':'a' * 64, 'bytes':10}
+    row = {'non_central_artifacts':[artifact]}
+    assert audit.image_provided_maven_artifact(artifact['path'])
+    assert audit.deps_manifest(row) == b''
+    assert audit.vendored_artifacts(row, tmp_path) == {}
+
+
 def test_fresh_verifier_does_not_hash_or_reinstall_analyzer(tmp_path):
     row, files = packaged('inferredbugs-7544', tmp_path)
+    assert files['tests/Dockerfile'] == files['environment/Dockerfile']
+    assert files['tests/.dockerignore'] == b'*\n!Dockerfile\n'
     script = files['tests/infer/verify.py'].decode()
     assert 'def installed_analyzer' not in script
     assert 'analyzer_digest' not in script
@@ -424,24 +455,20 @@ def test_build_scripts_rewrite_the_project_path_inside_encoded_scripts_too(tmp_p
     assert script.count('-c gc.auto=0') == 2 and b"'-c', 'gc.auto=0'" in files['tests/infer/verify.py']
 
 
-def test_dependency_archive_fills_the_cache_and_the_verifier_starts_from_it(tmp_path, monkeypatch):
-    import importlib.util, subprocess
-    row, files = packaged('inferredbugs-7544', tmp_path)
-    # the build scripts unpack the archive once, where a runner mounts it
-    for name in ('setup_files/build.sh', 'tests/build.sh', 'tests/build_setup.sh'):
-        text = files[name].decode()
-        assert 'IB_DEPENDENCIES="${INFERREDBUGS_DEPENDENCY_CACHE:-/opt/inferredbugs/dependencies.tar}"' in text
-        assert '[ ! -e /cache/.inferredbugs-dependencies ]' in text and '--skip-old-files' in text
-    # Download archives still seed fresh containers, but are no longer a restore mechanism.
-    assert b'def clean_dependencies' not in files['tests/infer/verify.py']
+def test_submission_artifact_is_only_a_collected_patch(tmp_path):
+    _, files = packaged('inferredbugs-7544', tmp_path)
+    for name in ['tests/build_setup.sh', 'setup_files/build_setup.sh']:
+        assert b'INFERREDBUGS_DEPENDENCY_CACHE' not in files[name]
     import tomllib
     from harbor.models.task.config import TaskConfig
     config = TaskConfig.model_validate(tomllib.loads(files['task.toml'].decode()))
     assert config.verifier.environment_mode.value == 'separate'
     assert config.verifier.environment is None
-    assert config.artifacts[0].source == '/app'
-    assert config.artifacts[0].exclude == ['.git']
-    assert 'tests/Dockerfile' not in files
+    assert config.artifacts[0].source == '/tmp/inferredbugs-submission.patch'
+    assert len(config.verifier.collect) == 1
+    assert config.verifier.collect[0].command.startswith('rm -f /tmp/inferredbugs-submission.patch && ')
+    assert not config.artifacts[0].exclude
+    assert files['tests/Dockerfile'] == files['environment/Dockerfile']
     assert b'--prepare-only' in files['tests/setup.sh']
     assert b'fetch_repository.sh' in files['tests/setup.sh']
     assert b'fetch_repository.sh' not in files['tests/test.sh']
@@ -661,14 +688,8 @@ print('BUILD SUCCESS')
     exec(audit.MAVEN_TRANSPORT, scope)
     command = ['infer', 'capture', '--force-integration', 'mvn', '-o', '/out', '--', str(mvn), 'compile']
     assert scope['cached_maven_command'](command, {'INFERREDBUGS_MAVEN_CACHE_FIRST': '1'}) == command[:-1] + ['--offline', 'compile']
-    archive = tmp_path / 'dependencies.tar'
-    env = {'INFERREDBUGS_DEPENDENCY_CACHE': str(archive)}
-    assert scope['cached_maven_command'](command, env) is None
-    archive.touch()
-    assert scope['cached_maven_command'](command, env) is None
-    archive.write_bytes(b'nonempty mounted archive')
-    assert scope['cached_maven_command'](command, env) == command[:-1] + ['--offline', 'compile']
-    assert scope['cached_maven_command'](command, dict(env, INFERREDBUGS_MAVEN_CACHE_FIRST='0')) is None
+    assert scope['cached_maven_command'](command, {}) == command[:-1] + ['--offline', 'compile']
+    assert scope['cached_maven_command'](command, {'INFERREDBUGS_MAVEN_CACHE_FIRST': '0'}) is None
 
 
 @pytest.mark.parametrize('failure, message', [('exit', 'setup failed'), ('changed-source', 'source_modified_by_recipe')])
@@ -678,29 +699,6 @@ def test_verifier_preparation_failure_never_reaches_analysis(tmp_path, monkeypat
         graded(tmp_path / failure, monkeypatch, capsys, {}, BUGGY, setup_failure=failure)
     assert not (tmp_path / failure / 'logs/result.json').exists()
     assert not (tmp_path / failure / 'logs/preparation.json').exists()
-
-
-def test_archive_prefill_preserves_image_maven_directory_symlink(tmp_path):
-    import subprocess
-    _, files = packaged('inferredbugs-7544', tmp_path)
-    script = files['tests/build_setup.sh'].decode()
-    command = script[script.index('IB_DEPENDENCIES='):script.index('# Each fresh container')]
-    source, image, cache = (tmp_path / name for name in ('source', 'image', 'cache'))
-    for path in (source / 'm2/audit-tools/apache-maven-3.5.0', image / 'apache-maven-3.5.0', cache / 'm2/audit-tools'):
-        path.mkdir(parents=True)
-    (image / 'apache-maven-3.5.0/tool').write_text('original image tool')
-    (source / 'm2/audit-tools/apache-maven-3.5.0/tool').write_text('cached copy must not replace image')
-    (source / 'm2/audit-tools/apache-maven-3.5.0/metadata').write_text('cached metadata')
-    (cache / 'm2/audit-tools/apache-maven-3.5.0').symlink_to(image / 'apache-maven-3.5.0', target_is_directory=True)
-    (source / 'm2/project.jar').write_text('project dependency')
-    archive = tmp_path / 'dependencies.tar'
-    subprocess.run(['tar', '-cf', str(archive), '-C', str(source), '.'], check=True)
-    command = command.replace('/opt/inferredbugs/dependencies.tar', str(archive)).replace('/cache/', str(cache) + '/').replace('-C /cache', '-C ' + str(cache)).replace('/opt/inferredbugs/bootstrap/maven/', str(image) + '/')
-    subprocess.run(['bash', '-c', command], check=True, capture_output=True)
-    assert (cache / 'm2/audit-tools/apache-maven-3.5.0').is_symlink()
-    assert (image / 'apache-maven-3.5.0/tool').read_text() == 'original image tool'
-    assert not (image / 'apache-maven-3.5.0/metadata').exists()
-    assert (cache / 'm2/project.jar').read_text() == 'project dependency'
 
 
 def test_image_vendor_installer_verifies_downloads_and_rejects_corruption(tmp_path, monkeypatch):
@@ -753,3 +751,163 @@ def test_setup_uses_verified_image_dependency_without_network(tmp_path):
     (cache / 'm2/project/dependency.jar').unlink()
     (store / digest).write_bytes(b'corrupt image copy')
     assert subprocess.run(['bash', '-c', prefix + body], capture_output=True).returncode != 0
+
+
+def test_source_image_restores_buggy_snapshot_after_agent_changes(tmp_path):
+    import subprocess
+    snapshot = tmp_path / 'snapshot'
+    files = {'environment/Dockerfile': b'FROM example\n',
+             'tests/recipe.json': json.dumps({'target_file': 'src/main.cs'}).encode(),
+             'setup_files/fetch_repository.sh': b'#!/bin/bash\nmkdir -p "$1/src"\nprintf fixed > "$1/src/main.cs"\n',
+             'setup_files/buggy_target': b'buggy'}
+    audit.bake_repository_snapshot(files, 'inferredbugs-1676')
+    docker = files['environment/Dockerfile'].decode()
+    chunks = re.findall(r'^RUN printf %s ([A-Za-z0-9+/=]+) >> /tmp/inferredbugs-source-snapshot\.b64$', docker, re.M)
+    assert chunks
+    encoded = ''.join(chunks)
+    script = base64.b64decode(encoded).decode().replace('/opt/inferredbugs/source-snapshot', str(snapshot))
+    subprocess.run(['bash', '-c', script], check=True)
+    assert (snapshot / 'src/main.cs').read_bytes() == b'buggy'
+    restore = files['tests/fetch_repository.sh'].decode().replace('/opt/inferredbugs/source-snapshot', str(snapshot))
+    agent, verifier = tmp_path / 'agent', tmp_path / 'verifier'
+    subprocess.run(['bash', '-c', restore, 'restore', str(agent)], check=True)
+    (agent / 'src/main.cs').write_text('agent changes')
+    subprocess.run(['bash', '-c', restore, 'restore', str(verifier)], check=True)
+    assert (verifier / 'src/main.cs').read_bytes() == b'buggy'
+    assert files['setup_files/fetch_repository.sh'] == files['tests/fetch_repository.sh']
+    assert audit.bake_repository_snapshot(files, 'inferredbugs-1676')['environment/Dockerfile'].decode() == docker
+
+
+def test_large_buggy_target_uses_bounded_dockerfile_commands():
+    files = {'environment/Dockerfile': b'FROM example\n',
+             'tests/recipe.json': json.dumps({'target_file': 'src/main.cs'}).encode(),
+             'setup_files/fetch_repository.sh': b'#!/bin/bash\nmkdir -p "$1/src"\nprintf fixed > "$1/src/main.cs"\n',
+             'setup_files/buggy_target': b'x' * 200_000}
+    audit.bake_repository_snapshot(files, 'inferredbugs-1676')
+    docker = files['environment/Dockerfile'].decode()
+    assert max(map(len, docker.splitlines())) < 32 * 1024
+    chunks = re.findall(r'^RUN printf %s ([A-Za-z0-9+/=]+) >> /tmp/inferredbugs-source-snapshot\.b64$', docker, re.M)
+    assert ''.join(chunks)
+
+
+def test_prepared_setup_profiles_keep_source_edits_and_build_at_runtime(tmp_path):
+    import hashlib
+    import subprocess
+    profiles = json.loads(Path(audit.__file__).with_name('setup_images.json').read_text())
+    for profile in profiles.values():
+        for script in ('image_setup', 'runtime_setup'):
+            result = subprocess.run(['bash', '-n'], input=profile[script], text=True, capture_output=True)
+            assert result.returncode == 0, result.stderr
+        # External dependencies can be baked without a task checkout.
+        assert '/workspace' not in '\n'.join(line for line in profile['image_setup'].splitlines()
+                                              if not line.lstrip().startswith('#'))
+    recipe = next(recipe for recipe in audit.embedded_recipes()
+                  if hashlib.sha256((recipe.get('setup_shell') or '').encode()).hexdigest() in profiles
+                  and '/workspace/pom.xml' in profiles[hashlib.sha256(recipe['setup_shell'].encode()).hexdigest()]['runtime_setup'])
+    setup, build = audit.runner_script(recipe['setup_shell'], 'compile-submitted-source')
+    files = {'tests/recipe.json': json.dumps(recipe).encode(), 'environment/Dockerfile': b'FROM base\n',
+             'tests/build_setup.sh': setup, 'setup_files/build_setup.sh': setup,
+             'tests/build.sh': build, 'setup_files/deps.sha256': b'pinned-digest  m2/private/dependency.jar\n'}
+    original = dict(files)
+    assert audit.bake_setup_dependencies(files, 'unreviewed-task') == original
+    task_id = profiles[hashlib.sha256(recipe['setup_shell'].encode()).hexdigest()]['tasks'][0]
+    audit.bake_setup_dependencies(files, task_id)
+    chunks = re.findall(rb'^RUN printf %s ([A-Za-z0-9+/=]+) >> /tmp/inferredbugs-prepared-setup\.b64$',
+                        files['environment/Dockerfile'], re.M)
+    encoded = b''.join(chunks)
+    script = base64.b64decode(encoded)
+    assert base64.b64encode(files['setup_files/deps.sha256']) in script
+    # The manifest's artifacts come from the builder's mount, digest-checked, before the
+    # recipe runs; recipe installers unpack without chown (rootless build).
+    assert b'done < /setup_files/deps.sha256' in script
+    assert b'sha256sum -c --quiet' in script and b'/run/ot-image-artifacts/$sum' in script
+    assert b'\nTAR_OPTIONS=--no-same-owner bash /setup_files/build_setup.sh /app\n' in script
+    assert script.index(b'done < /setup_files/deps.sha256') < script.index(b'bash /setup_files/build_setup.sh')
+    assert b'git clone' not in files['tests/build_setup.sh']
+    assert b'/workspace/pom.xml' in files['tests/build_setup.sh']
+    assert files['tests/build.sh'] == build
+    first = dict(files)
+    assert audit.bake_setup_dependencies(files, task_id) == first
+
+
+@pytest.mark.parametrize('task_id', ['inferredbugs-3602', 'inferredbugs-10759'])
+def test_precompiled_support_is_explicit_in_task(task_id, tmp_path):
+    row, files = packaged(task_id, tmp_path)
+    assert files['tests/Dockerfile'] == files['environment/Dockerfile']
+    config = json.loads(files['tests/precompiled_support.json'])
+    assert config['excluded_target'] == row['target_file']
+    assert files['tests/precompiled_support.py'] == Path(audit.__file__).with_name('precompiled_support.py').read_bytes()
+    command = files['environment/Dockerfile'].decode().split('# InferredBugs pinned source snapshot')[1]
+    chunks = re.findall(r'^RUN printf %s ([A-Za-z0-9+/=]+) >> /tmp/inferredbugs-source-snapshot\.b64$', command, re.M)
+    script = base64.b64decode(''.join(chunks)).decode()
+    assert script.index('bash /setup_files/build_setup.sh') < script.index('precompiled-support.py record')
+
+
+@pytest.mark.parametrize('extra', [None, {'src/Other.java': b'class Other { int changed; }\n'}])
+def test_precompiled_support_still_analyzes_submission(tmp_path, monkeypatch, capsys, extra):
+    code, result, workspace = graded(tmp_path / 'reuse', monkeypatch, capsys,
+        {'baseline': lambda task, run: [], 'submission': lambda task, run: []},
+        BUGGY + b'fixed target\n', extra=extra, precompiled=True)
+    assert (workspace / next(r for r in audit.embedded_recipes() if r['task_id'] == 'inferredbugs-7544')['target_file']).read_bytes() == BUGGY + b'fixed target\n'
+    assert result['status'] != 'setup_failed'
+
+
+@pytest.mark.parametrize('case', ['missing', 'invalid', 'noop', 'manifest-failure'])
+def test_generated_submission_setup_failure_semantics(tmp_path, case):
+    import subprocess
+    row, files = packaged('inferredbugs-7544', tmp_path)
+    root = tmp_path / 'runtime'; root.mkdir()
+    snapshot = root / 'snapshot'; snapshot.mkdir()
+    target = snapshot / row['target_file']; target.parent.mkdir(parents=True); target.write_bytes(b'class A {}\n')
+    (snapshot / 'pom.xml').write_text('<project/>')
+    spec = importlib.util.spec_from_file_location('submission_shell_test', Path(audit.__file__).with_name('submission.py'))
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    module.record(snapshot)
+    import shutil
+    agent = root / 'agent'; shutil.copytree(snapshot, agent)
+    patch = root / 'submission.patch'
+    if case == 'invalid': patch.write_text('invalid patch')
+    elif case != 'missing':
+        if case == 'manifest-failure': (agent / 'pom.xml').write_text('changed')
+        module.collect(agent, snapshot, patch)
+    replacements = {'/tmp/inferredbugs-submission.patch': str(patch), '/logs/verifier': str(root/'logs'),
+                    '/tests': str(root/'tests'), '/app': str(root/'app'), '/workspace': str(root/'workspace')}
+    def local(text):
+        for before, after in replacements.items():
+            text = re.sub(re.escape(before) + r'(?=/|\b)', lambda _: after, text)
+        return text
+    for name, content in files.items():
+        if name.startswith('tests/'):
+            path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(content)
+    (root/'tests/fetch_repository.sh').write_text('set -eu\nmkdir -p "$1"\ncp -a ' + str(snapshot) + '/. "$1"/\n')
+    (root/'tests/build_setup.sh').write_text('echo dependency-install-failed >&2\nexit 1\n')
+    (root/'tests/build.sh').write_text('exit 0\n')
+    # Isolate shell orchestration from the expensive analyzer, already tested separately.
+    (root/'tests/infer/verify.py').write_text('pass\n')
+    script = root/'tests/setup.sh'; script.write_text(local(script.read_text()))
+    logs = root/'logs'; logs.mkdir(); reward = logs/'reward.txt'; reward.write_text('1')
+    result = subprocess.run(['bash', str(script)], capture_output=True, text=True)
+    if case in ('missing', 'noop'):
+        assert not reward.exists()
+        assert (result.returncode == 0) == (case == 'noop')
+    else:
+        assert result.returncode != 0
+        assert reward.read_text().strip() == '0'
+    if case == 'manifest-failure':
+        assert 'dependency-install-failed' in (logs/'dependency-setup.log').read_text()
+
+
+def test_submission_git_disables_automatic_gc(monkeypatch, tmp_path):
+    """record() commits a whole tree and then runs `git gc`; an automatic detached gc after the
+    commit of a large tree made that explicit gc fail ("gc is already running")."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'inferredbugs_submission', Path(audit.__file__).with_name('submission.py'))
+    submission = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(submission)
+    calls = []
+    monkeypatch.setattr(submission.subprocess, 'run', lambda cmd, **kw: calls.append(cmd))
+    submission.git(tmp_path, 'commit', '-q', '-m', 'x')
+    assert calls and calls[0][:1] == ['git']
+    assert '-c' in calls[0] and 'gc.auto=0' in calls[0]
+    assert calls[0].index('gc.auto=0') < calls[0].index('-C')

@@ -1,0 +1,1542 @@
+{
+  "candidate": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v65/source.parquet",
+  "stage4_passed": 4257,
+  "stage4_unresolved": 42,
+  "status": "preliminary; 33 fresh Stage 4 results completed (1 pass, 32 failures); nine tasks are being retried after v66-3 failed source-contract verification. PyPeri-8 was subsequently archived; its already-running retry is diagnostic only.",
+  "fresh_stage4_rerun": {
+    "candidate": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v65/source.parquet",
+    "subsets": {
+      "reference42-v66-0": {
+        "slurm_job_id": "959554",
+        "tasks": 11,
+        "completed": true,
+        "reference_pass": 0,
+        "failed": 11,
+        "job_exit": "OUT_OF_MEMORY"
+      },
+      "reference42-v66-1": {
+        "slurm_job_id": "959653",
+        "tasks": 11,
+        "completed": true,
+        "reference_pass": 0,
+        "failed": 11,
+        "job_exit": "OUT_OF_MEMORY"
+      },
+      "reference42-v66-2": {
+        "slurm_job_id": "959662",
+        "tasks": 11,
+        "completed": true,
+        "reference_pass": 1,
+        "failed": 10,
+        "job_exit": "OUT_OF_MEMORY"
+      },
+      "reference42-v66-3": {
+        "slurm_job_id": "959673",
+        "tasks": 9,
+        "completed": false,
+        "reference_pass": null,
+        "failed": null,
+        "job_exit": "FAILED_SOURCE_CONTRACT"
+      },
+      "reference42-v67-3": {
+        "slurm_job_id": "959914",
+        "tasks": 9,
+        "completed": true,
+        "reference_pass": 0,
+        "failed": 9,
+        "job_exit": "COMPLETED_WITH_FINDINGS; stage4/5 reports written"
+      },
+      "electionguard-reliability-v67": {
+        "slurm_job_id": "959908",
+        "tasks": 1,
+        "completed": true,
+        "reference_pass": null,
+        "failed": 1,
+        "job_exit": "FAILED_OOM_AND_INVALID_NOOP_EVIDENCE",
+        "observed": "Stage 4 produced four reference rewards of 1.0, then one attempt OOMed. Stage 5 recorded five rewards of 0.0 but all five lacked valid verifier invocation evidence. This does not satisfy the five-run reliability criterion."
+      }
+    },
+    "observed": {
+      "tasks_with_stage4_results": 33,
+      "reference_pass": 1,
+      "failed": 32,
+      "reproduced_task_memory_limit_failures": 7,
+      "batch_jobs_killed_at_approximately_60_8_GiB_of_64_GiB": 3,
+      "unrun_tasks_due_to_source_parquet_contract_mismatch": 9,
+      "other_failed_reference_or_runner_results": 25,
+      "memory_failure_verifier_commands_reviewed": {
+        "dask__dask-1150": "pytest dask/array/tests/test_random.py",
+        "dask__dask-4050": "pytest dask/bag/tests/test_bag.py",
+        "dask__dask-4181": "pytest dask/array/tests/test_atop.py dask/tests/test_base.py dask/tests/test_delayed.py",
+        "microsoft__electionguard-python-381": "pytest src/electionguard/type.py and four election integration/unit modules",
+        "modin-project__modin-5058": "pytest modin/test/storage_formats/pandas/test_internals.py",
+        "pybamm-team__PyBaMM-4644": "pytest -m unit tests/unit/test_solvers/test_processed_variable.py tests/unit/test_solvers/test_processed_variable_computed.py",
+        "sigmavirus24__github3.py-1167": "pytest tests/unit/test_github.py"
+      },
+      "memory_interpretation": "The seven reproduced verifier commands use ordinary single-process pytest invocations: no pytest-xdist worker count, nproc, or explicit host-sized process pool appears in the commands. Their OOM records contain no test stdout because the task process was killed, so they establish exceeding the default 4 GiB task cgroup limit but do not reveal per-test peak usage. This makes a shared host-resource-query bug unsupported by current evidence. A controlled one-task rerun with a larger per-task memory override is needed to determine whether these tests pass with more memory; two additional memory-category tasks were in the batch that failed its source contract and remain untested in the fresh rerun."
+    },
+    "interpretation": "The runner launches each task in its own Slurm step with an explicit memory limit and detects OOMs from that step's cgroup. The six task OOMs therefore establish that their verifier runs exceed their assigned task memory; the logs do not implicate a host-wide resource query. Separately, all three validation batch jobs reached about 60.8 GiB of their 64 GiB allocation and were OOM-killed, so batch-level memory pressure also affected completeness. The fourth subset failed its frozen source-file contract before stage 4, so its nine tasks remain untested in this rerun.",
+    "results_root": "/home/vault/y500bb/y500bb12/ot-next-data/swelego-full-validation/reference42-v66-*-results",
+    "controlled_memory_probe": {
+      "task_id": "dask__dask-1150",
+      "slurm_job_id": "959841",
+      "status": "completed_pass",
+      "task_memory_mb": 12288,
+      "slurm_memory": "128G",
+      "task_concurrency": 1,
+      "result_directory": "/home/vault/y500bb/y500bb12/ot-next-data/swelego-full-validation/memory-probe-dask-1150-v2-results",
+      "purpose": "Test whether the same single-process Dask verifier passes when its per-task cgroup limit is raised from the default 4 GiB while keeping task contents and tests unchanged.",
+      "reference_reward": 1.0,
+      "task_step_max_rss_kib": 7527284,
+      "task_step_elapsed": "00:00:50",
+      "result": "/home/vault/y500bb/y500bb12/ot-next-data/swelego-full-validation/memory-probe-dask-1150-v2-results/submissions/7e4284eb3354/report/summary.json",
+      "interpretation": "The same dask/array/tests/test_random.py verifier that hit the default 4 GiB task cap passed unchanged with a 12 GiB task cap. Its Slurm task step recorded 7,527,284 KiB MaxRSS. This confirms insufficient per-task memory as the cause for this task and demonstrates that raising the cap resolves it; it does not establish the needed cap for the other eight memory-category tasks.",
+      "memory_interpretation": "The seven reproduced verifier commands use ordinary single-process pytest invocations: no pytest-xdist worker count, nproc, or explicit host-sized process pool appears in the commands. The controlled Dask retry passed with a 12 GiB task cgroup limit and reached 7,527,284 KiB MaxRSS, showing that its failure was a too-small 4 GiB task cap rather than host resource detection. The other eight memory-category tasks still need controlled resource runs to establish their required caps; two were absent from the fresh rerun because its fourth batch failed the source contract."
+    }
+  },
+  "category_counts": {
+    "other_test_or_http_mock_failures_needing_reproduction": 24,
+    "other_environment_constraints": 3,
+    "date_time_sensitive_tests": 2,
+    "task_memory_limit": 9,
+    "runner_execution_evidence": 4
+  },
+  "items": [
+    {
+      "task_id": "2gis__k8s-handle-120",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_templating.py::TestTemplating::test_generate_templates - As...",
+        "========================= 1 failed, 13 passed in 0.51s ========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0"
+    },
+    {
+      "task_id": "PyPSA__linopy-77",
+      "category": "other_environment_constraints",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED test/test_optimization.py::test_default_setting[xpress-lp] - xpress.In...",
+        "FAILED test/test_optimization.py::test_default_setting_sol_and_dual_accessor[xpress-lp]",
+        "FAILED test/test_optimization.py::test_anonymous_constraint[xpress-lp] - xpre...",
+        "FAILED test/test_optimization.py::test_default_settings_chunked[xpress-lp] - ...",
+        "FAILED test/test_optimization.py::test_duplicated_variables[xpress-lp] - xpre...",
+        "FAILED test/test_optimization.py::test_set_files[xpress-lp] - xpress.Interfac...",
+        "FAILED test/test_optimization.py::test_set_files_and_keep_files[xpress-lp] - ...",
+        "FAILED test/test_optimization.py::test_infeasible_model[xpress-lp] - xpress.I..."
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0",
+      "disposition": "archived",
+      "change_label": "unsupported-expired-proprietary-license"
+    },
+    {
+      "task_id": "RightBrain-Networks__auto-semver-51",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED semver/tests.py::TestSemverObject::test_get_version_type_major_merge",
+        "FAILED semver/tests.py::TestSemverObject::test_get_version_type_minor_merge",
+        "FAILED semver/tests.py::TestSemverObject::test_get_version_type_patch_merge",
+        "FAILED semver/tests.py::TestSemverObject::test_run_no_merge - AssertionError:...",
+        "FAILED semver/tests.py::TestGetVersion::test_branch_docker_pre_release - Asse...",
+        "FAILED semver/tests.py::TestGetVersion::test_branch_maven_pre_release - Asser...",
+        "FAILED semver/tests.py::TestGetVersion::test_branch_npm_pre_release - Asserti...",
+        "FAILED semver/tests.py::TestGetVersion::test_get_version_run - AssertionError..."
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0"
+    },
+    {
+      "task_id": "Yelp__bravado-410",
+      "category": "proxy-sensitive-verification",
+      "triage_scope": "fresh v66-0 reference rerun completed; still unresolved, archived by the patcher",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/http_client_test.py::RequestsClientTestCase::test_api_key - brav...",
+        "FAILED tests/http_client_test.py::RequestsClientTestCase::test_api_key_header",
+        "FAILED tests/http_client_test.py::RequestsClientTestCase::test_api_key_header_overwrite",
+        "FAILED tests/http_client_test.py::RequestsClientTestCase::test_auth_leak - br...",
+        "FAILED tests/http_client_test.py::RequestsClientTestCase::test_basic_auth - b...",
+        "FAILED tests/http_client_test.py::RequestsClientTestCase::test_real_post - br...",
+        "FAILED tests/http_client_test.py::RequestsClientTestCase::test_simple_get - b...",
+        "FAILED tests/http_client_test.py::RequestsClientTestCase::test_unicode_to_utf8_encode_params"
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0",
+      "disposition": "archived",
+      "change_label": "proxy-sensitive-verification",
+      "fresh_rerun_result": {
+        "status": "failed",
+        "reward": 0.0,
+        "reason": "The fresh reference rerun returned HTTP 503 responses from the inherited cluster proxy for HTTP-client tests, including test_real_post. The v25 no-op score was 0.0 as expected. Local HTTP mocks are present, but proxy interception prevented reliable verification."
+      }
+    },
+    {
+      "task_id": "airbrake__pybrake-77",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "ERROR    pybrake:notifier.py:167 Expecting value: line 1 column 1 (char 0)",
+        "ERROR    pybrake:notifier.py:167 Expecting value: line 1 column 1 (char 0)",
+        "ERROR    pybrake:notifier.py:167 Expecting value: line 1 column 1 (char 0)",
+        "ERROR    pybrake:notifier.py:167 Expecting value: line 1 column 1 (char 0)",
+        "FAILED pybrake/test_notifier.py::test_unauthorized - AssertionError: assert J...",
+        "FAILED pybrake/test_notifier.py::test_unknown_host - AssertionError: assert F...",
+        "========================= 2 failed, 14 passed in 1.68s ========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0"
+    },
+    {
+      "task_id": "astropy__astropy-16241",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED astropy/coordinates/tests/test_frames.py::test_no_data_nonscalar_frames",
+        "========================= 1 failed, 66 passed in 0.76s ========================="
+      ],
+      "number_of_matching_failed_attempts": 4,
+      "fresh_rerun_subset": "reference42-v66-0"
+    },
+    {
+      "task_id": "astropy__pyvo-357",
+      "category": "date_time_sensitive_tests",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED pyvo/dal/tests/test_tap.py::TestTAPService::test_run_async - astropy.u...",
+        "=================== 1 failed, 14 passed, 1 skipped in 0.69s ===================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0"
+    },
+    {
+      "task_id": "cisagov__check-cve-2019-19781-10",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_check_cve.py::test_valid_timeout - AssertionError: main() s...",
+        "FAILED tests/test_check_cve.py::test_valid_retries - AssertionError: main() s...",
+        "============= 2 failed, 13 passed, 1 skipped, 1 xfailed in 25.16s =============="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0",
+      "disposition": "archived",
+      "change_label": "unreliable-live-service-dependency"
+    },
+    {
+      "task_id": "contentful__contentful-management.py-117",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/content_type_test.py::ContentTypeTest::test_content_type_editor_interfaces",
+        "FAILED tests/content_type_test.py::ContentTypeTest::test_content_type_entries",
+        "FAILED tests/content_type_test.py::ContentTypeTest::test_content_type_not_properly_updating",
+        "FAILED tests/content_type_test.py::ContentTypeTest::test_content_type_snapshots",
+        "FAILED tests/content_type_test.py::ContentTypeTest::test_create_content_type",
+        "FAILED tests/content_type_test.py::ContentTypeTest::test_create_content_type_no_fields",
+        "FAILED tests/content_type_test.py::ContentTypeTest::test_create_content_type_with_id",
+        "FAILED tests/content_type_test.py::ContentTypeTest::test_create_content_type_with_resource_link_field"
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0"
+    },
+    {
+      "task_id": "ctypesgen__ctypesgen-150",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:283: Syntax error at '\\n'",
+        "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:310: Syntax error at '\\n'",
+        "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:317: Syntax error at '\\n'",
+        "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:323: Syntax error at '\\n'",
+        "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:332: Syntax error at '\\n'",
+        "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:333: Syntax error at '\\n'",
+        "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:341: Syntax error at '\\n'",
+        "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:399: Syntax error at '\\n'"
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0"
+    },
+    {
+      "task_id": "dask__dask-1150",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-b0c54c27c699 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-b0c54c27c699 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-08T23:32:51.549342"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-0",
+      "disposition": "task-memory-limit-adjusted; 8 GiB setting not yet validated",
+      "change_label": "task-memory-8gib",
+      "fresh_rerun_result": {
+        "status": "controlled probe passed at 12 GiB; candidate 8 GiB task.toml change pending validation",
+        "maxrss_kib": 7527284,
+        "reason": "The unchanged verifier passed at 12 GiB with measured peak RSS about 7.18 GiB; the patcher now sets 8 GiB with modest headroom."
+      }
+    },
+    {
+      "task_id": "dask__dask-4050",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-8a8c1b7b905a failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-8a8c1b7b905a failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-09T00:53:57.746876"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "dask__dask-4181",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-bbaf62357ab9 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-bbaf62357ab9 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-08T23:33:17.525822"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "getsentry__sentry-python-79",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "E   AssertionError: assert []",
+        "E   TypeError: __init__() missing 2 required posit",
+        "FAILED tests/test_client.py::test_transport_works",
+        "FAILED tests/test_utils.py::test_safe_repr_never_broken_for_strings",
+        "============= 2 failed, 14 passed, 1 skipped, 3 warnings in 4.69s =============="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "googleapis__google-auth-library-python-424",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/transport/test_requests.py::TestRequestResponse::test_connection_error",
+        "========================= 1 failed, 21 passed in 3.65s ========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "h2non__pook-111",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/unit/mock_test.py::test_constructor[params] - pook.exceptions.Po...",
+        "FAILED tests/unit/mock_test.py::test_constructor[param_exists] - pook.excepti...",
+        "=================== 2 failed, 10 passed, 1 xfailed in 0.07s ===================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "h2non__pook-83",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/integration/engines_test.py::test_engines - AssertionError: inva...",
+        "========================= 1 failed, 8 passed in 0.62s =========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "holoviz__holoviews-6346",
+      "category": "other_environment_constraints",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Task setup exited 1: hint: Using 'master' as the name for the initial branch. This default branch name\nhint: is subject to change. To configure the initial branch name to use in all\nhint: of your new repositories, which will suppress this warning, call:\nhint: \nhint: \tgit config --global init.defaultBranch <name>\nhint: \nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint: \nhint: \tgit branch -m <name>\nFrom https://github.com/holoviz/holoviews\n * branch            c1e22a3e2d38046da285ae3c67f076e60c19226a -> FETCH_HEAD\nHEAD is now at c1e22a3 Wrap popup in set_curdoc (#6337)\nERROR: Could not install packages due to an OSError: [Errno 21] Is a directory: '/opt/conda/envs/testbed/lib/python3.9/site-packages/tomli-2.0.1.dist-info/METADATA'\n\n",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/958626.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 250, in run\n    await self._prepare()\n  File \"/tmp/958626.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 293, in _prepare\n    await self._setup_agent_environment()\n  File \"/tmp/958626.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 1049, in _setup_agent_environment\n    await self._start_agent_environment()\n  File \"/tmp/958626.helma/validation-runtime/code/validation/stages/task_setup.py\", line 91, in start\n    await self._await_phase(\n  File \"/tmp/958626.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/958626.helma/validation-runtime/code/validation/stages/task_setup.py\", line 64, in prepare\n    raise RuntimeError(f'Task setup exited {result.return_code}: {result.stderr}')\nRuntimeError: Task setup exited 1: hint: Using 'master' as the name for the initial branch. This default branch name\nhint: is subject to change. To configure the initial branch name to use in all\nhint: of your new repositories, which will suppress this warning, call:\nhint: \nhint: \tgit config --global init.defaultBranch <name>\nhint: \nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint: \nhint: \tgit branch -m <name>\nFrom https://github.com/holoviz/holoviews\n * branch            c1e22a3e2d38046da285ae3c67f076e60c19226a -> FETCH_HEAD\nHEAD is now at c1e22a3 Wrap popup in set_curdoc (#6337)\nERROR: Could not install packages due to an OSError: [Errno 21] Is a directory: '/opt/conda/envs/testbed/lib/python3.9/site-packages/tomli-2.0.1.dist-info/METADATA'\n\n\n",
+        "occurred_at": "2026-10-09T09:38:48.874458"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1",
+      "disposition": "repaired",
+      "change_label": "repair-directory-package-metadata"
+    },
+    {
+      "task_id": "kivy__kivy-6954",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED kivy/tests/test_urlrequest.py::test_callbacks - assert False",
+        "FAILED kivy/tests/test_urlrequest.py::test_auth_header - assert False",
+        "FAILED kivy/tests/test_urlrequest.py::test_auth_auto - assert False",
+        "FAILED kivy/tests/test_urlrequest.py::test_ca_file[http] - assert False",
+        "FAILED kivy/tests/test_urlrequest.py::test_ca_file[https] - assert False",
+        "============================== 5 failed in 51.03s =============================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1",
+      "disposition": "archived",
+      "change_label": "unreliable-live-service-dependency"
+    },
+    {
+      "task_id": "lundberg__respx-13",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_activate_contextmanager - ...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_activate_decorator - Attri...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_api - AttributeError: 'str...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_async_client - AttributeEr...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_callable_content - Attribu...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_content_type - AttributeEr...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_custom_matcher - Attribute...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_headers - AttributeError: ..."
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "lundberg__respx-21",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_api - AttributeError: 'str...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_assert_all_called_disabled",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_assert_all_called_sucess",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_assert_all_mocked_disabled",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_async_client - AttributeEr...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_callable_content - Attribu...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_content_type - AttributeEr...",
+        "FAILED tests/test_mock.py::HTTPXMockTestCase::test_custom_matcher - Attribute..."
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "mdsol__rwslib-111",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED rwslib/tests/test_rwslib.py::TestVersion::test_sub_domain - AttributeE...",
+        "FAILED rwslib/tests/test_rwslib.py::TestVersion::test_version - AttributeErro...",
+        "FAILED rwslib/tests/test_rwslib.py::TestVersion::test_virtual_directory - Att...",
+        "FAILED rwslib/tests/test_rwslib.py::TestRequestTime::test_request_time - Attr...",
+        "FAILED rwslib/tests/test_rwslib.py::TestErrorResponse::test_400_error_ODM_error",
+        "FAILED rwslib/tests/test_rwslib.py::TestErrorResponse::test_400_error_error_response",
+        "FAILED rwslib/tests/test_rwslib.py::TestErrorResponse::test_400_error_iis_error",
+        "FAILED rwslib/tests/test_rwslib.py::TestErrorResponse::test_401_error_error_response_no_header"
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-1"
+    },
+    {
+      "task_id": "microsoft__electionguard-python-381",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-6da4fd63329d failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-6da4fd63329d failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-09T01:26:28.283564"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "modin-project__modin-5058",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-0500a0375467 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-0500a0375467 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-09T00:46:15.924940"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "moogar0880__PyTrakt-54",
+      "category": "date_time_sensitive_tests",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_utils.py::test_now - AssertionError: assert 3 == 2",
+        "========================= 1 failed, 4 passed in 0.02s =========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "mtgjson__mtgjson-469",
+      "category": "runner_execution_evidence",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "ModuleNotFoundError: No module named 'ot_pytest_execution'"
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "pybamm-team__PyBaMM-4644",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-56381b224832 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-56381b224832 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-08T23:16:47.148003"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 2,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "pypa__setuptools_scm-854",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED testing/test_basic_api.py::test_get_version_blank_tag_regex - UserWarn...",
+        "========================= 1 failed, 38 passed in 0.64s ========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "pytest-dev__pytest-asyncio-1029",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_event_loop_fixture_finalizer.py::test_event_loop_fixture_finalizer_handles_loop_set_to_none_sync",
+        "FAILED tests/test_event_loop_fixture_finalizer.py::test_event_loop_fixture_finalizer_raises_warning_when_fixture_leaves_loop_unclosed",
+        "FAILED tests/test_event_loop_fixture_finalizer.py::test_event_loop_fixture_finalizer_raises_warning_when_test_leaves_loop_unclosed",
+        "========================= 3 failed, 4 passed in 2.14s =========================="
+      ],
+      "number_of_matching_failed_attempts": 4,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "scopely-devops__skew-92",
+      "category": "runner_execution_evidence",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "sigmavirus24__github3.py-1167",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-0b62a4a9e46f failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-0b62a4a9e46f failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-09T02:21:12.661068"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 4,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "sphinx-doc__sphinx-5203",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_build_linkcheck.py::test_defaults - assert 2 == 1",
+        "FAILED tests/test_build_linkcheck.py::test_anchors_ignored - assert not \"link...",
+        "=================== 2 failed, 9 passed, 62 warnings in 0.62s ==================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-2",
+      "disposition": "archived",
+      "change_label": "unreliable-live-service-dependency"
+    },
+    {
+      "task_id": "spulec__uncurl-25",
+      "category": "runner_execution_evidence",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-2"
+    },
+    {
+      "task_id": "takeontom__PyPeri-29",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_pyperi.py::test_request_api - requests.exceptions.SSLError:...",
+        "FAILED tests/test_pyperi.py::test_get_broadcast_info - requests.exceptions.SS...",
+        "FAILED tests/test_pyperi.py::test_get_user_info - requests.exceptions.SSLErro...",
+        "=================== 3 failed, 9 passed in 181.10s (0:03:01) ===================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-3",
+      "disposition": "archived",
+      "change_label": "unreliable-live-service-dependency"
+    },
+    {
+      "task_id": "takeontom__PyPeri-35",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_pyperi.py::test_request_api - requests.exceptions.SSLError:...",
+        "FAILED tests/test_pyperi.py::test_get_broadcast_info - requests.exceptions.SS...",
+        "FAILED tests/test_pyperi.py::test_get_user_info - requests.exceptions.SSLErro...",
+        "FAILED tests/test_pyperi.py::test_get_user_broadcast_history__username - requ...",
+        "FAILED tests/test_pyperi.py::test_get_user_broadcast_history__user_id - reque...",
+        "FAILED tests/test_pyperi.py::test_get_web_data_store - requests.exceptions.SS...",
+        "FAILED tests/test_pyperi.py::test_get_web_public_user_session_tokens__username",
+        "FAILED tests/test_pyperi.py::test_get_web_public_user_session_tokens__user_id"
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-3",
+      "disposition": "archived",
+      "change_label": "unreliable-live-service-dependency"
+    },
+    {
+      "task_id": "takeontom__PyPeri-8",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "not rerun in fresh v66 stage 4; batch v66-3 failed its frozen-source contract before task execution",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_pyperi.py::test_request_api - AttributeError: 'HTTPrettyReq...",
+        "FAILED tests/test_pyperi.py::test_get_broadcast_info - AttributeError: 'HTTPr...",
+        "FAILED tests/test_pyperi.py::test_get_user_info - AttributeError: 'HTTPrettyR...",
+        "========================= 3 failed, 1 passed in 0.17s =========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-3",
+      "fresh_rerun_result": {
+        "status": "not_run",
+        "reason": "The v66-3 source contract failed before Stage 4. Earlier stage 4 evidence showed HTTPrettyRequest.headers AttributeError in three tests; this is a mock/dependency compatibility failure, not evidence of live-service dependence."
+      }
+    },
+    {
+      "task_id": "tcgdex__python-sdk-2",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/tests.py::APITest::test_card - vcr.errors.CannotOverwriteExistin...",
+        "FAILED tests/tests.py::APITest::test_card_resume - vcr.errors.CannotOverwrite...",
+        "FAILED tests/tests.py::APITest::test_category_item - vcr.errors.CannotOverwri...",
+        "FAILED tests/tests.py::APITest::test_category_list - vcr.errors.CannotOverwri...",
+        "FAILED tests/tests.py::APITest::test_dexId_item - vcr.errors.CannotOverwriteE...",
+        "FAILED tests/tests.py::APITest::test_dexId_list - vcr.errors.CannotOverwriteE...",
+        "FAILED tests/tests.py::APITest::test_energyType_item - vcr.errors.CannotOverw...",
+        "FAILED tests/tests.py::APITest::test_energyType_list - vcr.errors.CannotOverw..."
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-3"
+    },
+    {
+      "task_id": "tobymao__sqlglot-1889",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-1af8631a6d01 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-1af8631a6d01 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-08T23:20:58.019383"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-3"
+    },
+    {
+      "task_id": "tomerfiliba-org__rpyc-479",
+      "category": "other_environment_constraints",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/test_affinity.py::Test_Affinity::test_pinned_to_0 - OSError: [Er...",
+        "========================= 1 failed, 8 passed in 0.77s =========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-3",
+      "disposition": "repaired",
+      "change_label": "verifier-allowed-cpu-affinity"
+    },
+    {
+      "task_id": "tox-dev__tox-2643",
+      "category": "other_test_or_http_mock_failures_needing_reproduction",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [
+        "FAILED tests/tox_env/test_tox_env_api.py::test_recreate - AssertionError: cod...",
+        "FAILED tests/tox_env/test_tox_env_api.py::test_allow_list_external_fail - ass...",
+        "FAILED tests/tox_env/test_tox_env_api.py::test_env_log - AssertionError: code: 1",
+        "FAILED tests/tox_env/test_tox_env_api.py::test_change_dir_is_created_if_not_exist",
+        "========================= 4 failed, 6 passed in 1.71s =========================="
+      ],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-3"
+    },
+    {
+      "task_id": "twisted__towncrier-639",
+      "category": "runner_execution_evidence",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": null,
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 3,
+      "fresh_rerun_subset": "reference42-v66-3"
+    },
+    {
+      "task_id": "zarr-developers__zarr-python-2784",
+      "category": "task_memory_limit",
+      "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+      "original_exception": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Bridge job j-b3756c36f6d8 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-b3756c36f6d8 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+        "occurred_at": "2026-10-08T23:16:05.368428"
+      },
+      "verifier_failure_signals": [],
+      "number_of_matching_failed_attempts": 2,
+      "fresh_rerun_subset": "reference42-v66-3"
+    }
+  ],
+  "fresh_validation": {
+    "stages": [
+      4
+    ],
+    "runs": [
+      {
+        "batch": 0,
+        "job_id": "959554",
+        "status": "submitted",
+        "tasks": [
+          {
+            "task_id": "2gis__k8s-handle-120",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_templating.py::TestTemplating::test_generate_templates - As...",
+              "========================= 1 failed, 13 passed in 0.51s ========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "PyPSA__linopy-77",
+            "category": "other_environment_constraints",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED test/test_optimization.py::test_default_setting[xpress-lp] - xpress.In...",
+              "FAILED test/test_optimization.py::test_default_setting_sol_and_dual_accessor[xpress-lp]",
+              "FAILED test/test_optimization.py::test_anonymous_constraint[xpress-lp] - xpre...",
+              "FAILED test/test_optimization.py::test_default_settings_chunked[xpress-lp] - ...",
+              "FAILED test/test_optimization.py::test_duplicated_variables[xpress-lp] - xpre...",
+              "FAILED test/test_optimization.py::test_set_files[xpress-lp] - xpress.Interfac...",
+              "FAILED test/test_optimization.py::test_set_files_and_keep_files[xpress-lp] - ...",
+              "FAILED test/test_optimization.py::test_infeasible_model[xpress-lp] - xpress.I..."
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "RightBrain-Networks__auto-semver-51",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED semver/tests.py::TestSemverObject::test_get_version_type_major_merge",
+              "FAILED semver/tests.py::TestSemverObject::test_get_version_type_minor_merge",
+              "FAILED semver/tests.py::TestSemverObject::test_get_version_type_patch_merge",
+              "FAILED semver/tests.py::TestSemverObject::test_run_no_merge - AssertionError:...",
+              "FAILED semver/tests.py::TestGetVersion::test_branch_docker_pre_release - Asse...",
+              "FAILED semver/tests.py::TestGetVersion::test_branch_maven_pre_release - Asser...",
+              "FAILED semver/tests.py::TestGetVersion::test_branch_npm_pre_release - Asserti...",
+              "FAILED semver/tests.py::TestGetVersion::test_get_version_run - AssertionError..."
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "Yelp__bravado-410",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/http_client_test.py::RequestsClientTestCase::test_api_key - brav...",
+              "FAILED tests/http_client_test.py::RequestsClientTestCase::test_api_key_header",
+              "FAILED tests/http_client_test.py::RequestsClientTestCase::test_api_key_header_overwrite",
+              "FAILED tests/http_client_test.py::RequestsClientTestCase::test_auth_leak - br...",
+              "FAILED tests/http_client_test.py::RequestsClientTestCase::test_basic_auth - b...",
+              "FAILED tests/http_client_test.py::RequestsClientTestCase::test_real_post - br...",
+              "FAILED tests/http_client_test.py::RequestsClientTestCase::test_simple_get - b...",
+              "FAILED tests/http_client_test.py::RequestsClientTestCase::test_unicode_to_utf8_encode_params"
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "airbrake__pybrake-77",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "ERROR    pybrake:notifier.py:167 Expecting value: line 1 column 1 (char 0)",
+              "ERROR    pybrake:notifier.py:167 Expecting value: line 1 column 1 (char 0)",
+              "ERROR    pybrake:notifier.py:167 Expecting value: line 1 column 1 (char 0)",
+              "ERROR    pybrake:notifier.py:167 Expecting value: line 1 column 1 (char 0)",
+              "FAILED pybrake/test_notifier.py::test_unauthorized - AssertionError: assert J...",
+              "FAILED pybrake/test_notifier.py::test_unknown_host - AssertionError: assert F...",
+              "========================= 2 failed, 14 passed in 1.68s ========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "astropy__astropy-16241",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED astropy/coordinates/tests/test_frames.py::test_no_data_nonscalar_frames",
+              "========================= 1 failed, 66 passed in 0.76s ========================="
+            ],
+            "number_of_matching_failed_attempts": 4,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "astropy__pyvo-357",
+            "category": "date_time_sensitive_tests",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED pyvo/dal/tests/test_tap.py::TestTAPService::test_run_async - astropy.u...",
+              "=================== 1 failed, 14 passed, 1 skipped in 0.69s ===================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "cisagov__check-cve-2019-19781-10",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_check_cve.py::test_valid_timeout - AssertionError: main() s...",
+              "FAILED tests/test_check_cve.py::test_valid_retries - AssertionError: main() s...",
+              "============= 2 failed, 13 passed, 1 skipped, 1 xfailed in 25.16s =============="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "contentful__contentful-management.py-117",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/content_type_test.py::ContentTypeTest::test_content_type_editor_interfaces",
+              "FAILED tests/content_type_test.py::ContentTypeTest::test_content_type_entries",
+              "FAILED tests/content_type_test.py::ContentTypeTest::test_content_type_not_properly_updating",
+              "FAILED tests/content_type_test.py::ContentTypeTest::test_content_type_snapshots",
+              "FAILED tests/content_type_test.py::ContentTypeTest::test_create_content_type",
+              "FAILED tests/content_type_test.py::ContentTypeTest::test_create_content_type_no_fields",
+              "FAILED tests/content_type_test.py::ContentTypeTest::test_create_content_type_with_id",
+              "FAILED tests/content_type_test.py::ContentTypeTest::test_create_content_type_with_resource_link_field"
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "ctypesgen__ctypesgen-150",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:283: Syntax error at '\\n'",
+              "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:310: Syntax error at '\\n'",
+              "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:317: Syntax error at '\\n'",
+              "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:323: Syntax error at '\\n'",
+              "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:332: Syntax error at '\\n'",
+              "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:333: Syntax error at '\\n'",
+              "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:341: Syntax error at '\\n'",
+              "ERROR    ctypesgen:messages.py:35 /usr/include/x86_64-linux-gnu/sys/cdefs.h:399: Syntax error at '\\n'"
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          },
+          {
+            "task_id": "dask__dask-1150",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-b0c54c27c699 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-b0c54c27c699 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-08T23:32:51.549342"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-0"
+          }
+        ]
+      },
+      {
+        "batch": 1,
+        "job_id": "959653",
+        "status": "submitted",
+        "tasks": [
+          {
+            "task_id": "dask__dask-4050",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-8a8c1b7b905a failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/957053.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-8a8c1b7b905a failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-09T00:53:57.746876"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "dask__dask-4181",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-bbaf62357ab9 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956821.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-bbaf62357ab9 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-08T23:33:17.525822"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "getsentry__sentry-python-79",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "E   AssertionError: assert []",
+              "E   TypeError: __init__() missing 2 required posit",
+              "FAILED tests/test_client.py::test_transport_works",
+              "FAILED tests/test_utils.py::test_safe_repr_never_broken_for_strings",
+              "============= 2 failed, 14 passed, 1 skipped, 3 warnings in 4.69s =============="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "googleapis__google-auth-library-python-424",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/transport/test_requests.py::TestRequestResponse::test_connection_error",
+              "========================= 1 failed, 21 passed in 3.65s ========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "h2non__pook-111",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/unit/mock_test.py::test_constructor[params] - pook.exceptions.Po...",
+              "FAILED tests/unit/mock_test.py::test_constructor[param_exists] - pook.excepti...",
+              "=================== 2 failed, 10 passed, 1 xfailed in 0.07s ===================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "h2non__pook-83",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/integration/engines_test.py::test_engines - AssertionError: inva...",
+              "========================= 1 failed, 8 passed in 0.62s =========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "holoviz__holoviews-6346",
+            "category": "other_environment_constraints",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Task setup exited 1: hint: Using 'master' as the name for the initial branch. This default branch name\nhint: is subject to change. To configure the initial branch name to use in all\nhint: of your new repositories, which will suppress this warning, call:\nhint: \nhint: \tgit config --global init.defaultBranch <name>\nhint: \nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint: \nhint: \tgit branch -m <name>\nFrom https://github.com/holoviz/holoviews\n * branch            c1e22a3e2d38046da285ae3c67f076e60c19226a -> FETCH_HEAD\nHEAD is now at c1e22a3 Wrap popup in set_curdoc (#6337)\nERROR: Could not install packages due to an OSError: [Errno 21] Is a directory: '/opt/conda/envs/testbed/lib/python3.9/site-packages/tomli-2.0.1.dist-info/METADATA'\n\n",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/958626.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 250, in run\n    await self._prepare()\n  File \"/tmp/958626.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 293, in _prepare\n    await self._setup_agent_environment()\n  File \"/tmp/958626.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 1049, in _setup_agent_environment\n    await self._start_agent_environment()\n  File \"/tmp/958626.helma/validation-runtime/code/validation/stages/task_setup.py\", line 91, in start\n    await self._await_phase(\n  File \"/tmp/958626.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/958626.helma/validation-runtime/code/validation/stages/task_setup.py\", line 64, in prepare\n    raise RuntimeError(f'Task setup exited {result.return_code}: {result.stderr}')\nRuntimeError: Task setup exited 1: hint: Using 'master' as the name for the initial branch. This default branch name\nhint: is subject to change. To configure the initial branch name to use in all\nhint: of your new repositories, which will suppress this warning, call:\nhint: \nhint: \tgit config --global init.defaultBranch <name>\nhint: \nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint: \nhint: \tgit branch -m <name>\nFrom https://github.com/holoviz/holoviews\n * branch            c1e22a3e2d38046da285ae3c67f076e60c19226a -> FETCH_HEAD\nHEAD is now at c1e22a3 Wrap popup in set_curdoc (#6337)\nERROR: Could not install packages due to an OSError: [Errno 21] Is a directory: '/opt/conda/envs/testbed/lib/python3.9/site-packages/tomli-2.0.1.dist-info/METADATA'\n\n\n",
+              "occurred_at": "2026-10-09T09:38:48.874458"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "kivy__kivy-6954",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED kivy/tests/test_urlrequest.py::test_callbacks - assert False",
+              "FAILED kivy/tests/test_urlrequest.py::test_auth_header - assert False",
+              "FAILED kivy/tests/test_urlrequest.py::test_auth_auto - assert False",
+              "FAILED kivy/tests/test_urlrequest.py::test_ca_file[http] - assert False",
+              "FAILED kivy/tests/test_urlrequest.py::test_ca_file[https] - assert False",
+              "============================== 5 failed in 51.03s =============================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "lundberg__respx-13",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_activate_contextmanager - ...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_activate_decorator - Attri...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_api - AttributeError: 'str...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_async_client - AttributeEr...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_callable_content - Attribu...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_content_type - AttributeEr...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_custom_matcher - Attribute...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_headers - AttributeError: ..."
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "lundberg__respx-21",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_api - AttributeError: 'str...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_assert_all_called_disabled",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_assert_all_called_sucess",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_assert_all_mocked_disabled",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_async_client - AttributeEr...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_callable_content - Attribu...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_content_type - AttributeEr...",
+              "FAILED tests/test_mock.py::HTTPXMockTestCase::test_custom_matcher - Attribute..."
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          },
+          {
+            "task_id": "mdsol__rwslib-111",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED rwslib/tests/test_rwslib.py::TestVersion::test_sub_domain - AttributeE...",
+              "FAILED rwslib/tests/test_rwslib.py::TestVersion::test_version - AttributeErro...",
+              "FAILED rwslib/tests/test_rwslib.py::TestVersion::test_virtual_directory - Att...",
+              "FAILED rwslib/tests/test_rwslib.py::TestRequestTime::test_request_time - Attr...",
+              "FAILED rwslib/tests/test_rwslib.py::TestErrorResponse::test_400_error_ODM_error",
+              "FAILED rwslib/tests/test_rwslib.py::TestErrorResponse::test_400_error_error_response",
+              "FAILED rwslib/tests/test_rwslib.py::TestErrorResponse::test_400_error_iis_error",
+              "FAILED rwslib/tests/test_rwslib.py::TestErrorResponse::test_401_error_error_response_no_header"
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-1"
+          }
+        ]
+      },
+      {
+        "batch": 2,
+        "job_id": "959662",
+        "status": "submitted",
+        "tasks": [
+          {
+            "task_id": "microsoft__electionguard-python-381",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-6da4fd63329d failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/957136.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-6da4fd63329d failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-09T01:26:28.283564"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "modin-project__modin-5058",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-0500a0375467 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956997.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-0500a0375467 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-09T00:46:15.924940"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "moogar0880__PyTrakt-54",
+            "category": "date_time_sensitive_tests",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_utils.py::test_now - AssertionError: assert 3 == 2",
+              "========================= 1 failed, 4 passed in 0.02s =========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "mtgjson__mtgjson-469",
+            "category": "runner_execution_evidence",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "ModuleNotFoundError: No module named 'ot_pytest_execution'"
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "pybamm-team__PyBaMM-4644",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-56381b224832 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-56381b224832 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-08T23:16:47.148003"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 2,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "pypa__setuptools_scm-854",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED testing/test_basic_api.py::test_get_version_blank_tag_regex - UserWarn...",
+              "========================= 1 failed, 38 passed in 0.64s ========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "pytest-dev__pytest-asyncio-1029",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_event_loop_fixture_finalizer.py::test_event_loop_fixture_finalizer_handles_loop_set_to_none_sync",
+              "FAILED tests/test_event_loop_fixture_finalizer.py::test_event_loop_fixture_finalizer_raises_warning_when_fixture_leaves_loop_unclosed",
+              "FAILED tests/test_event_loop_fixture_finalizer.py::test_event_loop_fixture_finalizer_raises_warning_when_test_leaves_loop_unclosed",
+              "========================= 3 failed, 4 passed in 2.14s =========================="
+            ],
+            "number_of_matching_failed_attempts": 4,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "scopely-devops__skew-92",
+            "category": "runner_execution_evidence",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "sigmavirus24__github3.py-1167",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-0b62a4a9e46f failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/957271.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-0b62a4a9e46f failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-09T02:21:12.661068"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 4,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "sphinx-doc__sphinx-5203",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_build_linkcheck.py::test_defaults - assert 2 == 1",
+              "FAILED tests/test_build_linkcheck.py::test_anchors_ignored - assert not \"link...",
+              "=================== 2 failed, 9 passed, 62 warnings in 0.62s ==================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-2"
+          },
+          {
+            "task_id": "spulec__uncurl-25",
+            "category": "runner_execution_evidence",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-2"
+          }
+        ]
+      },
+      {
+        "batch": 3,
+        "job_id": "959673",
+        "status": "submitted",
+        "tasks": [
+          {
+            "task_id": "takeontom__PyPeri-29",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_pyperi.py::test_request_api - requests.exceptions.SSLError:...",
+              "FAILED tests/test_pyperi.py::test_get_broadcast_info - requests.exceptions.SS...",
+              "FAILED tests/test_pyperi.py::test_get_user_info - requests.exceptions.SSLErro...",
+              "=================== 3 failed, 9 passed in 181.10s (0:03:01) ===================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-3"
+          },
+          {
+            "task_id": "takeontom__PyPeri-35",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_pyperi.py::test_request_api - requests.exceptions.SSLError:...",
+              "FAILED tests/test_pyperi.py::test_get_broadcast_info - requests.exceptions.SS...",
+              "FAILED tests/test_pyperi.py::test_get_user_info - requests.exceptions.SSLErro...",
+              "FAILED tests/test_pyperi.py::test_get_user_broadcast_history__username - requ...",
+              "FAILED tests/test_pyperi.py::test_get_user_broadcast_history__user_id - reque...",
+              "FAILED tests/test_pyperi.py::test_get_web_data_store - requests.exceptions.SS...",
+              "FAILED tests/test_pyperi.py::test_get_web_public_user_session_tokens__username",
+              "FAILED tests/test_pyperi.py::test_get_web_public_user_session_tokens__user_id"
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-3"
+          },
+          {
+            "task_id": "takeontom__PyPeri-8",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_pyperi.py::test_request_api - AttributeError: 'HTTPrettyReq...",
+              "FAILED tests/test_pyperi.py::test_get_broadcast_info - AttributeError: 'HTTPr...",
+              "FAILED tests/test_pyperi.py::test_get_user_info - AttributeError: 'HTTPrettyR...",
+              "========================= 3 failed, 1 passed in 0.17s =========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-3"
+          },
+          {
+            "task_id": "tcgdex__python-sdk-2",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/tests.py::APITest::test_card - vcr.errors.CannotOverwriteExistin...",
+              "FAILED tests/tests.py::APITest::test_card_resume - vcr.errors.CannotOverwrite...",
+              "FAILED tests/tests.py::APITest::test_category_item - vcr.errors.CannotOverwri...",
+              "FAILED tests/tests.py::APITest::test_category_list - vcr.errors.CannotOverwri...",
+              "FAILED tests/tests.py::APITest::test_dexId_item - vcr.errors.CannotOverwriteE...",
+              "FAILED tests/tests.py::APITest::test_dexId_list - vcr.errors.CannotOverwriteE...",
+              "FAILED tests/tests.py::APITest::test_energyType_item - vcr.errors.CannotOverw...",
+              "FAILED tests/tests.py::APITest::test_energyType_list - vcr.errors.CannotOverw..."
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-3"
+          },
+          {
+            "task_id": "tobymao__sqlglot-1889",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-1af8631a6d01 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956685.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-1af8631a6d01 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-08T23:20:58.019383"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-3"
+          },
+          {
+            "task_id": "tomerfiliba-org__rpyc-479",
+            "category": "other_environment_constraints",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/test_affinity.py::Test_Affinity::test_pinned_to_0 - OSError: [Er...",
+              "========================= 1 failed, 8 passed in 0.77s =========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-3"
+          },
+          {
+            "task_id": "tox-dev__tox-2643",
+            "category": "other_test_or_http_mock_failures_needing_reproduction",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [
+              "FAILED tests/tox_env/test_tox_env_api.py::test_recreate - AssertionError: cod...",
+              "FAILED tests/tox_env/test_tox_env_api.py::test_allow_list_external_fail - ass...",
+              "FAILED tests/tox_env/test_tox_env_api.py::test_env_log - AssertionError: code: 1",
+              "FAILED tests/tox_env/test_tox_env_api.py::test_change_dir_is_created_if_not_exist",
+              "========================= 4 failed, 6 passed in 1.71s =========================="
+            ],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-3"
+          },
+          {
+            "task_id": "twisted__towncrier-639",
+            "category": "runner_execution_evidence",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": null,
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 3,
+            "fresh_rerun_subset": "reference42-v66-3"
+          },
+          {
+            "task_id": "zarr-developers__zarr-python-2784",
+            "category": "task_memory_limit",
+            "triage_scope": "historical failure log; fresh full-v65 stage4 rerun pending",
+            "original_exception": {
+              "exception_type": "RuntimeError",
+              "exception_message": "Bridge job j-b3756c36f6d8 failed: Task memory limit exceeded outside a recoverable agent terminal interaction",
+              "exception_traceback": "Traceback (most recent call last):\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 251, in run\n    await self._run()\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 43, in _run\n    await self._run_verifier()\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 110, in _run_verifier\n    self.result.verifier_result = await self._run_shared_verifier(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 638, in _run_shared_verifier\n    return await self._await_phase(\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/trial/trial.py\", line 510, in _await_phase\n    return await task\n           ^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 94, in verify\n    return await original(self)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/verifier/verifier.py\", line 233, in verify\n    test_exec_result = await self.environment.exec(\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/verifier_setup.py\", line 59, in exec\n    return await self.environment.exec(prefix + command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/validation/stages/harbor.py\", line 56, in exec_without_cap\n    return await exec_with_cap(self, command, *args, timeout_sec=timeout_sec or BRIDGE_EXEC_LIMIT, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/oom_recovery.py\", line 30, in exec_with_feedback\n    return await execute(self, command, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/env/lib/python3.12/site-packages/harbor/environments/apptainer/apptainer.py\", line 393, in exec\n    result = await _poll_job(\n             ^^^^^^^^^^^^^^^^\n  File \"/tmp/956672.helma/validation-runtime/code/harbor_patches/bridge_client.py\", line 164, in poll_job\n    raise RuntimeError(f\"Bridge job {job_id} failed: {result.get('error')}\")\nRuntimeError: Bridge job j-b3756c36f6d8 failed: Task memory limit exceeded outside a recoverable agent terminal interaction\n",
+              "occurred_at": "2026-10-08T23:16:05.368428"
+            },
+            "verifier_failure_signals": [],
+            "number_of_matching_failed_attempts": 2,
+            "fresh_rerun_subset": "reference42-v66-3"
+          }
+        ]
+      }
+    ],
+    "note": "Fresh runs use exact full-v65 task payloads; reports may include the runner\u2019s canonical anti-cheat instruction suffix. Stage4 results are pending."
+  },
+  "live_service_audit": {
+    "archived_tasks": [
+      "takeontom__PyPeri-29",
+      "takeontom__PyPeri-35",
+      "kivy__kivy-6954",
+      "sphinx-doc__sphinx-5203",
+      "cisagov__check-cve-2019-19781-10",
+      "Yelp__bravado-410",
+      "takeontom__PyPeri-8",
+      "airbrake__pybrake-77"
+    ],
+    "evidence": {
+      "PyPeri": "Tests make real Periscope API requests; observed TLS verification failures.",
+      "Kivy": "Tests make real requests to google.com and httpbin.org for URL callbacks/auth/TLS.",
+      "Sphinx": "linkcheck fetches a W3C XML Names anchor that currently returns no such anchor.",
+      "CISAGov": "valid timeout/retry tests call github.com directly.",
+      "Bravado": "Local HTTP mocks are present, but the fresh reference rerun received HTTP 503 responses from the inherited cluster proxy for HTTP-client tests; reference reward was 0.0.",
+      "Airbrake": "test_unauthorized calls the default Airbrake endpoint and test_unknown_host calls an intentionally invalid external hostname without mocks. The unauthorized check received a non-JSON response and raised JSONDecodeError; the invalid-host check did not observe the expected URLError. Both are live-network dependent and unreliable through the cluster proxy."
+    },
+    "kept_as_local_mock_tests": [],
+    "kept_reason": "No remaining local-mock task in this audit is separately listed as retained here.",
+    "classification_note": "Bravado is archived under proxy-sensitive verification, not live-service dependence: the tests install local HTTP mocks, but the inherited cluster proxy intercepted their requests in the observed run. PyPeri-8 is archived separately under incompatible-verifier-dependency: it uses mocks, but its pinned HTTPretty version crashes in the adapter; it is not considered a live-service task."
+  },
+  "patcher_actions": {
+    "source_task_count": 4323,
+    "previous_archived_count": 24,
+    "new_archives": [
+      "takeontom__PyPeri-29",
+      "takeontom__PyPeri-35",
+      "kivy__kivy-6954",
+      "sphinx-doc__sphinx-5203",
+      "cisagov__check-cve-2019-19781-10",
+      "PyPSA__linopy-77",
+      "Yelp__bravado-410",
+      "takeontom__PyPeri-8",
+      "airbrake__pybrake-77"
+    ],
+    "projected_archived_count": 33,
+    "projected_retained_count": 4290,
+    "repairs": {
+      "holoviz__holoviews-6346": "repair-directory-package-metadata",
+      "tomerfiliba-org__rpyc-479": "verifier-allowed-cpu-affinity",
+      "astropy__astropy-16241": "refreshed-leap-second-data (submitted for stages 3,4,5)",
+      "astropy__pyvo-357": "refreshed-leap-second-data (submitted for stages 3,4,5)",
+      "moogar0880__PyTrakt-54": "verifier-fixed-date (added to patcher; targeted validation not yet submitted)",
+      "pypa__setuptools_scm-854": "restore-git-version-history (added to patcher; targeted validation not yet submitted)",
+      "dask__dask-1150": "8-GiB task memory limit (controlled 12-GiB run passed; targeted 8-GiB validation not yet submitted)"
+    },
+    "note": "Nine tasks from the original 42 are archived, including Airbrake after confirming the verifier makes unmocked calls to the default Airbrake service and an invalid external hostname. Astropy, PyVO and RPyC passed stages 3,4,5 after their repairs. Thirty tasks remain unconfirmed. See swelego-reference-17-diagnosis-v68.json for individual diagnoses. Jobs 960175, 960179, 960193 and 960195 are pending/running follow-up checks."
+  },
+  "current_status": {
+    "original_stage4_unresolved": 42,
+    "fresh_reference_results_completed": 33,
+    "fresh_reference_passed_in_v66": 1,
+    "fresh_reference_failed_in_v66": 32,
+    "now_archived_from_these_42": 9,
+    "newly_passed_after_repairs": [
+      "astropy__astropy-16241",
+      "astropy__pyvo-357",
+      "tomerfiliba-org__rpyc-479"
+    ],
+    "currently_unconfirmed": 29,
+    "remaining_groups": {
+      "test_or_mock_failures_still_needing_fix_or_archive": 15,
+      "task_memory_limit_cases": 9,
+      "date_sensitive_tests": 0,
+      "environment_repairs": 0,
+      "runner_evidence_problems_including_holoviews": 5
+    },
+    "validation_jobs": {
+      "astropy_pyvo_repairs": {
+        "job": "959935",
+        "status": "completed_pass",
+        "stages": [
+          3,
+          4,
+          5
+        ]
+      },
+      "holoviews_rpyc_repairs": {
+        "job": "959924",
+        "status": "rpyc_pass_holoviews_no_valid_verifier_evidence",
+        "stages": [
+          3,
+          4,
+          5
+        ]
+      },
+      "pytrakt_plus_runner_evidence_retry": {
+        "job": "960175",
+        "status": "completed_pytrakt_passed_four_evidence_tasks_still_inconclusive",
+        "tasks": [
+          "moogar0880__PyTrakt-54",
+          "mtgjson__mtgjson-469",
+          "scopely-devops__skew-92",
+          "spulec__uncurl-25",
+          "twisted__towncrier-639"
+        ],
+        "stages": [
+          4,
+          5
+        ],
+        "results": {
+          "moogar0880__PyTrakt-54": "Stage 4 reference reward 1.0 passed; Stage 5 no-op reward 0.0 passed with fixed-clock plugin.",
+          "mtgjson__mtgjson-469": "Stage 4/5 inconclusive: missing verifier invocation evidence; rewards 0.0/0.0.",
+          "scopely-devops__skew-92": "Stage 4/5 inconclusive: overlapping verifier execution evidence; reward 1.0/0.0.",
+          "spulec__uncurl-25": "Stage 4/5 inconclusive: runner reported no tests executed; reward 1.0/0.0.",
+          "twisted__towncrier-639": "Stage 4/5 inconclusive: missing verifier invocation evidence; reward 1.0/0.0."
+        }
+      },
+      "memory_probes_12gib": {
+        "job": "960179",
+        "status": "pending_or_running",
+        "tasks": [
+          "dask__dask-1150",
+          "dask__dask-4050",
+          "dask__dask-4181",
+          "microsoft__electionguard-python-381",
+          "modin-project__modin-5058",
+          "pybamm-team__PyBaMM-4644",
+          "sigmavirus24__github3.py-1167",
+          "tobymao__sqlglot-1889",
+          "zarr-developers__zarr-python-2784"
+        ],
+        "stages": [
+          4,
+          5
+        ],
+        "observed_so_far": {
+          "dask__dask-4050": "MaxRSS 7,128,748 KiB (~6.80 GiB), completed trial step",
+          "dask__dask-4181": "MaxRSS 6,800,208 KiB (~6.48 GiB), completed trial step",
+          "note": "Job 960179 still running; these are early per-trial maxima and not final outcomes."
+        }
+      },
+      "dask_1150_8gib_task_limit": {
+        "job": "960193",
+        "status": "pending",
+        "stages": [
+          4,
+          5
+        ]
+      },
+      "setuptools_scm_full_history": {
+        "job": "960195",
+        "status": "pending",
+        "stages": [
+          4,
+          5
+        ]
+      }
+    },
+    "plain_language": {
+      "test_or_mock_failures_still_needing_fix_or_archive": "The failures are not all broken verifiers. We have matched specific assertion failures, fixture state leaks, VCR cassette mismatches, compatibility errors, and live-network behavior. See swelego-reference-17-diagnosis-v68.json for per-task evidence and which causes are confirmed versus still uncertain.",
+      "task_memory_limit_cases": "These are OOMs during the verifier test command after task setup, not image/container startup. Every affected task had a 4096 MiB task limit. The test process reached about 3980 MiB before the task cgroup killed it. The Slurm batch jobs separately reached about 63.7 GiB of their 64 GiB allocation. A 12 GiB per-task diagnostic retry for all nine tasks is job 960179; Dask-1150 is separately being checked at its proposed 8192 MiB task.toml limit in job 960193.",
+      "date_sensitive_tests": "Astropy and PyVO passed stages 3,4,5 with the checksum-pinned leap-second table. PyTrakt also passed its targeted retry: reference reward 1 and no-op reward 0 with the fixed-clock plugin (job 960175).",
+      "environment_repairs": "RPyC passed stages 3,4,5 with the allowed-CPU affinity repair. HoloViews setup passed after removing the malformed tomli metadata directory, but its stage4/5 runs still lacked verifier invocation evidence; keep it in the runner-evidence review.",
+      "runner_evidence_problems_including_holoviews": "The retry job 960175 did not fix the evidence issue for mtgjson, skew, uncurl, or towncrier: their reports cite missing invocation evidence, overlapping evidence, or zero tests executed. HoloViews remains in this group because its stage4/5 runs also lack valid verifier evidence. Rewards for some runs were 1/0, but the runner contract does not accept those scores without valid test-execution evidence."
+    }
+  },
+  "retry_results_v67": {
+    "slurm_job_id": "959914",
+    "completed": true,
+    "stages": [
+      4,
+      5
+    ],
+    "reference_stage4": "No reference reward 1 among the nine tasks. PyPeri-29, PyPeri-35, PyPeri-8, tcgdex, RPyC and Tox returned reward 0; SQLGlot and Zarr hit task memory limits; Towncrier lacked verifier invocation evidence.",
+    "noop_stage5": "The ordinary no-op attempts returned reward 0 for PyPeri-29, PyPeri-35, PyPeri-8, tcgdex, RPyC and Tox. SQLGlot and Zarr were interrupted by task memory limits; Towncrier lacked verifier invocation evidence.",
+    "interpretation": "No task from this retry is promoted to passed. The PyPeri-8 result is diagnostic only because the task is now archived."
+  }
+}

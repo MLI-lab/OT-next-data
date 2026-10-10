@@ -46,7 +46,9 @@ def choose_allocation(args):
         raise ValueError(f'Configure {cluster.name} GPU partition and CUDA module in config/clusters.py before local serving')
     if partition == cluster.cpu_partition and needs_gpu:
         raise ValueError('CPU partition cannot serve a local GPU model or satisfy --gpus')
-    gpus = (args.gpus or (resolve(args.serve_model)[1].gpus if args.serve_model else 1)) if needs_gpu or (cluster.name == 'helma' and partition != cluster.cpu_partition) else 0
+    # Helma's other CPU queues (preempt_cpu) take no GPU request either.
+    cpu_queue = partition == cluster.cpu_partition or (cluster.name == 'helma' and 'cpu' in partition)
+    gpus = (args.gpus or (resolve(args.serve_model)[1].gpus if args.serve_model else 1)) if needs_gpu or (cluster.name == 'helma' and not cpu_queue) else 0
     return {'partition': partition, 'gpus': gpus, 'reason': reason}
 
 

@@ -1,0 +1,1542 @@
+{
+ "app-sre_qontract-reconcile_pr2275": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: reconcile/test/test_secret_reader.py::test_read_vault_raises. Pytest summary with the reference solution: 133 passed, 22 warnings, 4 errors in 3.60s."
+ },
+ "appium_python-client_pr385": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::TestIOSFunctionalTestsFix::test_no_iswdvisible_in_ios_tests. Exception: AssertionError. Pytest summary with the reference solution: 4 failed, 30 passed, 96 warnings in 0.24s."
+ },
+ "appium_python-client_pr391": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_webdriver_tests_exists. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 33 passed, 82 warnings in 0.29s."
+ },
+ "arviz-devs_preliz_pr234": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: preliz/tests/test_quartile.py::test_quartile[distribution20-2-4-6-result20]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 86 passed, 3823 warnings in 16.26s."
+ },
+ "arviz-devs_preliz_pr305": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: preliz/tests/test_plots.py::test_plot_references. Exception: AttributeError. Pytest summary with the reference solution: 1 failed, 111 passed, 5 warnings in 8.73s."
+ },
+ "audreyr_cookiecutter_pr1414": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "auth0_auth0-python_pr696": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_random_seed_fixture_applied. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 122 passed, 2 warnings in 3.64s."
+ },
+ "awslabs_serverless-application-model_pr1625": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "awslabs_serverless-application-model_pr1827": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "awslabs_serverless-application-model_pr2095": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "awslabs_serverless-application-model_pr2165": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/translator/test_translator.py::TestTranslatorEndToEnd::test_transform_success_111_api_with_swagger_authorizer_none. Exception: AssertionError. Pytest summary with the reference solution: 6 failed, 1118 passed, 13 warnings in 29.60s."
+ },
+ "awslabs_serverless-application-model_pr2362": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "beetbox_beets_pr4148": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "brettcannon_gidgethub_pr122": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_aiohttp.py::test_get. Exception: TimeoutError. Pytest summary with the reference solution: 4 failed, 26 passed, 1 warning in 46.71s."
+ },
+ "brettcannon_gidgethub_pr131": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_aiohttp.py::test_get. Exception: asyncio.exceptions.CancelledError. Pytest summary with the reference solution: 1 failed, 30 passed, 3 warnings in 31.63s."
+ },
+ "brettcannon_gidgethub_pr134": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_aiohttp.py::test__request. Exception: TimeoutError. Pytest summary with the reference solution: 3 failed, 49 passed, 1 warning in 66.85s (0:01:06)."
+ },
+ "brettcannon_gidgethub_pr14": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_aiohttp.py::test_get. Exception: asyncio.exceptions.CancelledError. Pytest summary with the reference solution: 1 failed, 45 passed, 2 warnings in 32.07s."
+ },
+ "brettcannon_gidgethub_pr160": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_aiohttp.py::test__request. Exception: asyncio.exceptions.CancelledError. Pytest summary with the reference solution: 1 failed, 83 passed, 1 warning in 32.59s."
+ },
+ "brettcannon_gidgethub_pr170": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_tornado.py::TornadoTestCase::test_get. Exception: TimeoutError. Pytest summary with the reference solution: 1 failed, 120 passed, 2 warnings in 5.38s."
+ },
+ "brettcannon_gidgethub_pr174": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_aiohttp.py::test__request. Exception: asyncio.exceptions.CancelledError. Pytest summary with the reference solution: 2 failed, 84 passed, 2 warnings in 61.52s (0:01:01)."
+ },
+ "brettcannon_gidgethub_pr18": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_treq.py::TwistedPluginTestCase::test__request. Exception: twisted.internet.error.TimeoutError. Pytest summary with the reference solution: 4 failed, 13 passed, 2 warnings in 124.56s (0:02:04)."
+ },
+ "brettcannon_gidgethub_pr215": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_aiohttp.py::test__request. Exception: TimeoutError. Pytest summary with the reference solution: 2 failed, 49 passed, 1 warning in 36.59s."
+ },
+ "brettcannon_gidgethub_pr31": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test_fail_to_pass.py::test_getitem_rate_limit. Exception: twisted.internet.error.TimeoutError. Pytest summary with the reference solution: 4 failed, 29 passed, 2 warnings in 110.88s (0:01:50)."
+ },
+ "brettcannon_gidgethub_pr32": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_aiohttp.py::test_get. Exception: asyncio.exceptions.CancelledError. Pytest summary with the reference solution: 1 failed, 50 passed, 2 warnings in 32.26s."
+ },
+ "brettcannon_gidgethub_pr34": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_tornado.py::test__request_with_body. Exception: tornado.simple_httpclient.HTTPTimeoutError. Pytest summary with the reference solution: 2 failed, 31 passed, 2 warnings in 41.47s."
+ },
+ "brettcannon_gidgethub_pr35": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_treq.py::TwistedPluginTestCase::test__request. Exception: twisted.internet.error.TimeoutError. Pytest summary with the reference solution: 1 failed, 30 passed, 2 warnings in 31.46s."
+ },
+ "brettcannon_gidgethub_pr37": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_tornado.py::test__request. Exception: tornado.simple_httpclient.HTTPTimeoutError. Pytest summary with the reference solution: 2 failed, 51 passed, 2 warnings in 51.63s."
+ },
+ "brettcannon_gidgethub_pr38": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_treq.py::TwistedPluginTestCase::test__request. Exception: twisted.internet.error.TimeoutError. Pytest summary with the reference solution: 1 failed, 38 passed, 2 warnings in 31.47s."
+ },
+ "brettcannon_gidgethub_pr5": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_aiohttp.py::test_request. Exception: asyncio.exceptions.CancelledError. Pytest summary with the reference solution: 1 failed, 30 passed, 2 warnings in 31.62s."
+ },
+ "brettcannon_gidgethub_pr50": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_tornado.py::TornadoTestCase::test__request_with_body. Exception: TimeoutError. Pytest summary with the reference solution: 2 failed, 51 passed, 1 warning in 12.27s."
+ },
+ "brettcannon_gidgethub_pr51": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_aiohttp.py::test__request. Exception: TimeoutError. Pytest summary with the reference solution: 5 failed, 27 passed, 2 warnings in 77.22s (0:01:17)."
+ },
+ "brettcannon_gidgethub_pr57": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_tornado.py::TornadoTestCase::test__request_with_body. Exception: TimeoutError. Pytest summary with the reference solution: 1 failed, 57 passed, 2 warnings in 6.22s."
+ },
+ "brettcannon_gidgethub_pr62": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_aiohttp.py::test_get. Exception: TimeoutError. Pytest summary with the reference solution: 2 failed, 94 passed, 2 warnings in 36.98s."
+ },
+ "brettcannon_gidgethub_pr68": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: gidgethub/test/test_tornado.py::TornadoTestCase::test__request_with_body. Exception: TimeoutError. Pytest summary with the reference solution: 1 failed, 94 passed, 2 warnings in 5.26s."
+ },
+ "burnash_gspread_pr1199": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/worksheet_test.py::WorksheetTest::test_update_tab_color. Exception: vcr.errors.CannotOverwriteExistingCassetteException. Pytest summary with the reference solution: 1 failed, 70 passed, 13 warnings in 1.18s."
+ },
+ "burnash_gspread_pr1211": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/worksheet_test.py::WorksheetTest::test_worksheet_update_index. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 66 passed, 12 warnings in 0.73s."
+ },
+ "burnash_gspread_pr1277": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/client_test.py::ClientTest::test_access_non_existing_spreadsheet. Exception: vcr.errors.CannotOverwriteExistingCassetteException. Pytest summary with the reference solution: 33 passed, 13 warnings, 4 errors in 0.73s."
+ },
+ "burnash_gspread_pr1301": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/worksheet_test.py::WorksheetTest::test_get_all_records. Exception: vcr.errors.CannotOverwriteExistingCassetteException. Pytest summary with the reference solution: 6 failed, 86 passed, 22 warnings in 1.63s."
+ },
+ "burnash_gspread_pr1335": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/worksheet_test.py::WorksheetTest::test_get_values_and_combine_merged_cells. Exception: vcr.errors.CannotOverwriteExistingCassetteException. Pytest summary with the reference solution: 1 failed, 98 passed, 29 warnings in 1.37s."
+ },
+ "burnash_gspread_pr1357": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/worksheet_test.py::WorksheetTest::test_get_all_records_duplicate_keys. Exception: vcr.errors.CannotOverwriteExistingCassetteException. Pytest summary with the reference solution: 4 failed, 75 passed, 38 warnings, 1 error in 1.44s."
+ },
+ "burnash_gspread_pr1461": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/worksheet_test.py::WorksheetTest::test_worksheet_notes. Exception: vcr.errors.CannotOverwriteExistingCassetteException. Pytest summary with the reference solution: 1 failed, 94 passed, 1 warning in 1.16s."
+ },
+ "burnash_gspread_pr1487": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/worksheet_test.py::WorksheetTest::test_get_notes. Exception: vcr.errors.CannotOverwriteExistingCassetteException. Pytest summary with the reference solution: 1 failed, 99 passed, 1 warning in 1.36s."
+ },
+ "burnash_gspread_pr984": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/worksheet_test.py::WorksheetTest::test_clear. Exception: vcr.errors.CannotOverwriteExistingCassetteException. Pytest summary with the reference solution: 1 failed, 13 passed, 1 warning, 40 errors in 2.54s."
+ },
+ "canonical_operator_pr330": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "cclib_cclib_pr751": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test/test_io.py::ccframeTest::test_main_empty_argv. Exception: ImportError. Pytest summary with the reference solution: 1 failed, 31 passed, 33 warnings in 0.59s."
+ },
+ "cclib_cclib_pr770": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test/test_io.py::ccframeTest::test_main_empty_argv. Exception: ImportError. Pytest summary with the reference solution: 1 failed, 31 passed, 511 warnings in 3.70s."
+ },
+ "cclib_cclib_pr794": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test/test_io.py::ccframeTest::test_main_empty_argv. Exception: ImportError. Pytest summary with the reference solution: 1 failed, 33 passed, 33 warnings in 0.50s."
+ },
+ "chmp_ipytest_pr110": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_build_full_args_with_defopts_true. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 27 passed in 0.25s."
+ },
+ "cldf_csvw_pr23": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_db.py::test_integration. Exception: FileNotFoundError. Pytest summary with the reference solution: 8 failed, 93 passed, 3 warnings in 0.46s."
+ },
+ "cloud-custodian_cel-python_pr11": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_main.py::test_arg_combo_bad. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 183 passed, 10 warnings in 0.60s."
+ },
+ "compas-dev_compas_pr1124": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. Exception: ImportError."
+ },
+ "compas-dev_compas_pr686": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/compas/files/test_xml.py. Exception: ImportError. Pytest summary with the reference solution: 27 errors in 2.07s."
+ },
+ "compas-dev_compas_pr712": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/compas/files/test_gltf.py. Exception: ImportError. Pytest summary with the reference solution: 33 errors in 2.71s."
+ },
+ "compas-dev_compas_pr735": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/compas/robots/test_model.py. Exception: ImportError. Pytest summary with the reference solution: 23 errors in 1.74s."
+ },
+ "coveragepy_coveragepy_pr1479": {
+  "category": "verifier-execution-checker-pythonpath",
+  "reason": "A selected test asserts that PYTHONPATH is unset, but the validation runtime sets PYTHONPATH to load its test-execution evidence plugin. Runtime limitation, not a task defect; revisit once the plugin clears its own environment entries. First failing test: tests/test_testing.py::test_xdist_sys_path_nuttiness_is_fixed. Pytest summary with the reference solution: 1 failed, 421 passed in 6.75s."
+ },
+ "coveragepy_coveragepy_pr1819": {
+  "category": "verifier-execution-checker-pythonpath",
+  "reason": "A selected test asserts that PYTHONPATH is unset, but the validation runtime sets PYTHONPATH to load its test-execution evidence plugin. Runtime limitation, not a task defect; revisit once the plugin clears its own environment entries. First failing test: tests/test_process.py::EnvironmentTest::test_coverage_run_dashm_superset_of_doubledashsource. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 381 passed in 19.10s."
+ },
+ "coveragepy_coveragepy_pr1828": {
+  "category": "verifier-execution-checker-pythonpath",
+  "reason": "A selected test asserts that PYTHONPATH is unset, but the validation runtime sets PYTHONPATH to load its test-execution evidence plugin. Runtime limitation, not a task defect; revisit once the plugin clears its own environment entries. First failing test: tests/test_process.py::EnvironmentTest::test_coverage_run_dashm_is_like_python_dashm. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 379 passed in 18.77s."
+ },
+ "coveragepy_coveragepy_pr1943": {
+  "category": "verifier-execution-checker-pythonpath",
+  "reason": "A selected test asserts that PYTHONPATH is unset, but the validation runtime sets PYTHONPATH to load its test-execution evidence plugin. Runtime limitation, not a task defect; revisit once the plugin clears its own environment entries. First failing test: tests/test_process.py::EnvironmentTest::test_coverage_run_dashm_equal_to_doubledashsource. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 511 passed in 19.43s."
+ },
+ "dantebben_nox-uv_pr56": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test_fail_to_pass.py::test_no_install_project. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 3 passed in 5.15s."
+ },
+ "dbcli_pgcli_pr687": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test_fail_to_pass.py::test_pager_env_set. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 609 passed, 21 warnings in 1.45s."
+ },
+ "dimastbk_python-calamine_pr51": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "django-crispy-forms_crispy-bootstrap5_pr200": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. Pytest summary with the reference solution: 52 passed, 2 warnings in 0.46s."
+ },
+ "django-crispy-forms_crispy-bootstrap5_pr31": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "django-crispy-forms_crispy-bootstrap5_pr56": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "django-crispy-forms_django-crispy-forms_pr1286": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "elastic_apm-agent-python_pr1796": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/transports/test_urllib3.py::test_https_proxy_environment_variable_is_preferred. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 199 passed, 31 warnings in 9.08s."
+ },
+ "elastic_apm-agent-python_pr1830": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/transports/test_urllib3.py::test_https_proxy_environment_variable. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 198 passed, 22 warnings in 7.80s."
+ },
+ "elastic_apm-agent-python_pr1852": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/transports/test_urllib3.py::test_http_proxy_environment_variable. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 212 passed, 31 warnings in 8.05s."
+ },
+ "elastic_apm-agent-python_pr1867": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/transports/test_urllib3.py::test_http_proxy_environment_variable. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 200 passed, 32 warnings in 5.81s."
+ },
+ "elastic_apm-agent-python_pr1878": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/transports/test_urllib3.py::test_http_proxy_environment_variable. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 196 passed, 28 warnings in 8.68s."
+ },
+ "elastic_apm-agent-python_pr1893": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/transports/test_urllib3.py::test_http_proxy_environment_variable. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 202 passed, 31 warnings in 6.59s."
+ },
+ "elastic_apm-agent-python_pr1907": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/transports/test_urllib3.py::test_https_proxy_environment_variable. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 202 passed, 27 warnings in 8.88s."
+ },
+ "elastic_apm-agent-python_pr1959": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/transports/test_urllib3.py::test_https_proxy_environment_variable. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 213 passed, 46 warnings in 8.01s."
+ },
+ "elastic_elastic-transport-python_pr100": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "elastic_elastic-transport-python_pr137": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/node/test_http_aiohttp.py::test_custom_user_agent. Pytest summary with the reference solution: 1 failed, 102 passed, 9 skipped, 12 warnings in 1067.11s (0:17:47)."
+ },
+ "elastic_elastic-transport-python_pr14": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "elastic_elastic-transport-python_pr143": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "elastic_elastic-transport-python_pr148": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "elastic_elastic-transport-python_pr30": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "elastic_elastic-transport-python_pr31": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "elastic_elastic-transport-python_pr57": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "erikbern_synchronicity_pr144": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test/async_wrap_test.py::test_wrap_staticmethod. Pytest summary with the reference solution: 14 passed, 68 errors in 2.12s."
+ },
+ "ethereum_eth-utils_pr83": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/address-utils/test_address_utils.py::test_is_address[0x5b2063246F2191f18F2675ceDB8b28102e957458-False-True-False]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 180 passed, 1 warning in 0.37s."
+ },
+ "ethereum_eth-utils_pr87": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/address-utils/test_address_utils.py::test_is_address[0x5b2063246F2191f18F2675ceDB8b28102e957458-False-True-False]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 193 passed, 3 warnings in 0.38s."
+ },
+ "executablebooks_myst-nb_pr609": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_render_outputs.py::test_complex_outputs. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 35 passed, 49 warnings in 16.90s."
+ },
+ "fonttools_fonttools_pr1676": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "fonttools_fonttools_pr1747": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: Tests/designspaceLib/designspace_test.py::test_fill_document. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 986 passed, 13 warnings in 4.61s."
+ },
+ "fonttools_fonttools_pr1816": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: Tests/fontBuilder/fontBuilder_test.py::test_build_cff2. Pytest summary with the reference solution: 1 failed, 1001 passed, 13 warnings in 4.72s."
+ },
+ "fonttools_fonttools_pr1872": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: Tests/feaLib/builder_test.py::BuilderTest::test_Fea2feaFile_spec5f_ii_4. Exception: AssertionError. Pytest summary with the reference solution: 11 failed, 1135 passed, 10 warnings in 4.67s."
+ },
+ "fonttools_fonttools_pr1902": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "fonttools_fonttools_pr2039": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: Tests/fontBuilder/fontBuilder_test.py::test_build_var. Pytest summary with the reference solution: 2 failed, 1430 passed, 18 warnings in 7.06s."
+ },
+ "fonttools_fonttools_pr2101": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: Tests/feaLib/builder_test.py::BuilderTest::test_FeatureFile_ZeroValue_ChainSinglePos_vertical. Exception: AssertionError. Pytest summary with the reference solution: 7 failed, 1202 passed, 15 warnings in 5.87s."
+ },
+ "fonttools_fonttools_pr2146": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: Tests/subset/subset_test.py::SubsetTest::test_subset_context_subst_format_3. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 1077 passed, 14 warnings in 5.49s."
+ },
+ "fonttools_fonttools_pr2540": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "fonttools_fonttools_pr2552": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "fonttools_fonttools_pr2950": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: Tests/feaLib/builder_test.py::BuilderTest::test_Fea2feaFile_GSUB_5_formats. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 1509 passed, 25 warnings, 3 subtests passed in 6.54s."
+ },
+ "fonttools_fonttools_pr3831": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: Tests/varLib/varLib_test.py::BuildTest::test_varlib_build_from_ds_object_in_memory_ttfonts. Exception: AssertionError. Pytest summary with the reference solution: 5 failed, 1355 passed, 11 warnings in 8.38s."
+ },
+ "fox-it_dissect.util_pr77": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_conftest_registers_marker. Pytest summary with the reference solution: 1 failed, 97 passed, 10 warnings in 0.63s."
+ },
+ "frankie567_httpx-ws_pr54": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_api.py::TestKeepalivePing::test_async_keepalive_ping[asyncio]. Pytest summary with the reference solution: 1 failed, 34 passed, 14 warnings in 7.00s."
+ },
+ "frictionlessdata_datapackage-py_pr220": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_remote_resource_user_agent. Exception: requests.exceptions.HTTPError. Pytest summary with the reference solution: 1 failed, 52 passed, 14 warnings in 919.27s (0:15:19)."
+ },
+ "frictionlessdata_goodtables_pr346": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_scenarios.py::test_scenarios[primary_key_field-scenario13]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 58 passed, 2 warnings in 2.07s."
+ },
+ "frictionlessdata_tabulator-py_pr129": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "frictionlessdata_tabulator-py_pr141": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "frictionlessdata_tabulator-py_pr147": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "frictionlessdata_tabulator-py_pr166": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "frictionlessdata_tabulator-py_pr185": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "frictionlessdata_tabulator-py_pr193": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "frictionlessdata_tabulator-py_pr196": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "frictionlessdata_tabulator-py_pr207": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "frictionlessdata_tabulator-py_pr210": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/formats/test_json.py::test_stream_remote_json_lists. Exception: OSError. Pytest summary with the reference solution: 3 failed, 99 passed, 3 warnings in 1.41s."
+ },
+ "frostming_unearth_pr36": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_session.py::test_session_with_selfsigned_ca. Exception: ssl.SSLCertVerificationError. Pytest summary with the reference solution: 1 failed, 40 passed, 1 warning in 8.25s."
+ },
+ "gahjelle_pyconfs_pr17": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_configuration.py::test_replace. Pytest summary with the reference solution: 17 passed, 2 warnings, 11 errors in 0.08s."
+ },
+ "getsentry_responses_pr407": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_responses.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 95 passed, 1 warning in 0.89s."
+ },
+ "getsentry_responses_pr412": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_responses.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 100 passed, 2 warnings in 0.90s."
+ },
+ "getsentry_responses_pr413": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_responses.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 96 passed, 2 warnings in 0.89s."
+ },
+ "getsentry_responses_pr415": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_responses.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 98 passed, 2 warnings in 0.89s."
+ },
+ "getsentry_responses_pr416": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 23 passed, 3 warnings in 0.17s."
+ },
+ "getsentry_responses_pr420": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_responses.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 117 passed, 8 warnings in 0.94s."
+ },
+ "getsentry_responses_pr422": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_responses.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 109 passed, 8 warnings in 0.90s."
+ },
+ "getsentry_responses_pr427": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_responses.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 115 passed, 8 warnings in 0.93s."
+ },
+ "getsentry_responses_pr444": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 47 passed, 3 warnings in 0.42s."
+ },
+ "getsentry_responses_pr482": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 42 passed, 6 warnings in 0.28s."
+ },
+ "getsentry_responses_pr485": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 52 passed, 9 warnings in 0.26s."
+ },
+ "getsentry_responses_pr498": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 56 passed, 9 warnings in 0.27s."
+ },
+ "getsentry_responses_pr508": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 131 passed, 17 warnings in 1.44s."
+ },
+ "getsentry_responses_pr522": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/tests/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 55 passed, 8 warnings in 0.33s."
+ },
+ "getsentry_responses_pr534": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/tests/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 64 passed, 7 warnings in 0.56s."
+ },
+ "getsentry_responses_pr562": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/tests/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 65 passed, 8 warnings in 2.03s."
+ },
+ "getsentry_responses_pr580": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/tests/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 148 passed, 23 warnings in 1.23s."
+ },
+ "getsentry_responses_pr583": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/tests/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 60 passed, 6 warnings in 0.67s."
+ },
+ "getsentry_responses_pr593": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/tests/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 54 passed, 8 warnings in 3.13s."
+ },
+ "getsentry_responses_pr663": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: responses/tests/test_matchers.py::test_fail_matchers_error. Pytest summary with the reference solution: 1 failed, 80 passed, 9 warnings in 1.43s."
+ },
+ "getsentry_responses_pr702": {
+  "category": "image-dependency-mismatch",
+  "reason": "A dependency installed in the task image is incompatible with the selected tests (import-time version assertion or changed error format), so the reference solution scores 0. First failing test: responses/tests/test_matchers.py. Exception: AssertionError. Pytest summary with the reference solution: 4 errors in 0.15s."
+ },
+ "getsentry_responses_pr711": {
+  "category": "image-dependency-mismatch",
+  "reason": "A dependency installed in the task image is incompatible with the selected tests (import-time version assertion or changed error format), so the reference solution scores 0. First failing test: responses/tests/test_matchers.py. Exception: AssertionError. Pytest summary with the reference solution: 5 errors in 0.16s."
+ },
+ "getsentry_responses_pr717": {
+  "category": "image-dependency-mismatch",
+  "reason": "A dependency installed in the task image is incompatible with the selected tests (import-time version assertion or changed error format), so the reference solution scores 0. First failing test: responses/tests/test_matchers.py. Exception: AssertionError. Pytest summary with the reference solution: 5 errors in 0.16s."
+ },
+ "getsentry_responses_pr739": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: responses/tests/test_matchers.py. Exception: AssertionError. Pytest summary with the reference solution: 5 errors in 0.17s."
+ },
+ "getsentry_responses_pr776": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: responses/tests/test_matchers.py. Exception: AssertionError. Pytest summary with the reference solution: 4 errors in 0.15s."
+ },
+ "gijzelaerr_python-snap7_pr254": {
+  "category": "verifier-privileged-port",
+  "reason": "The selected tests bind a privileged TCP port (102), which the unprivileged task container cannot do, so the reference solution scores 0. First failing test: test/test_partner.py::TestPartner::test_b_send. Pytest summary with the reference solution: 4 failed, 64 passed, 1 warning in 7.28s."
+ },
+ "gijzelaerr_python-snap7_pr268": {
+  "category": "verifier-privileged-port",
+  "reason": "The selected tests bind a privileged TCP port (102), which the unprivileged task container cannot do, so the reference solution scores 0. First failing test: test/test_partner.py::TestPartner::test_as_b_send. Pytest summary with the reference solution: 8 failed, 61 passed, 1 warning in 8.80s."
+ },
+ "gijzelaerr_python-snap7_pr283": {
+  "category": "verifier-privileged-port",
+  "reason": "The selected tests bind a privileged TCP port (102), which the unprivileged task container cannot do, so the reference solution scores 0. First failing test: test/test_partner.py::TestPartner::test_get_times. Pytest summary with the reference solution: 2 failed, 54 passed, 1 warning in 7.59s."
+ },
+ "gijzelaerr_python-snap7_pr326": {
+  "category": "verifier-privileged-port",
+  "reason": "The selected tests bind a privileged TCP port (102), which the unprivileged task container cannot do, so the reference solution scores 0. First failing test: test/test_partner.py::TestPartner::test_check_as_b_recv_completion. Pytest summary with the reference solution: 5 failed, 51 passed, 1 warning in 8.11s."
+ },
+ "gijzelaerr_python-snap7_pr368": {
+  "category": "verifier-privileged-port",
+  "reason": "The selected tests bind a privileged TCP port (102), which the unprivileged task container cannot do, so the reference solution scores 0. First failing test: test/test_partner.py::TestPartner::test_check_as_b_send_completion. Exception: RuntimeError. Pytest summary with the reference solution: 7 failed, 72 passed, 1 warning in 7.72s."
+ },
+ "gijzelaerr_python-snap7_pr373": {
+  "category": "verifier-privileged-port",
+  "reason": "The selected tests bind a privileged TCP port (102), which the unprivileged task container cannot do, so the reference solution scores 0. First failing test: test/test_partner.py::TestPartner::test_b_send. Exception: RuntimeError. Pytest summary with the reference solution: 5 failed, 50 passed, 1 warning in 5.48s."
+ },
+ "gijzelaerr_python-snap7_pr529": {
+  "category": "verifier-privileged-port",
+  "reason": "The selected tests bind a privileged TCP port (102), which the unprivileged task container cannot do, so the reference solution scores 0. First failing test: tests/test_partner.py::TestPartner::test_check_as_b_send_completion. Exception: RuntimeError. Pytest summary with the reference solution: 6 failed, 87 passed in 8.48s."
+ },
+ "globus_globus-sdk-python_pr689": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/functional/services/auth/confidential_client/test_oauth2_client_credentials_tokens.py::test_oauth2_client_credentials_tokens. Pytest summary with the reference solution: 222 passed, 2 errors in 0.81s."
+ },
+ "globus_globus-sdk-python_pr749": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/functional/services/auth/test_simple_auth_usage.py::test_get_identities_unauthorized. Pytest summary with the reference solution: 250 passed, 18 errors in 1.00s."
+ },
+ "google_flatbuffers_pr4928": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_rust_test_sh_quiet_flag. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 33 passed, 1 warning in 0.21s."
+ },
+ "google_flatbuffers_pr5613": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "google_flatbuffers_pr608": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "google_flatbuffers_pr6156": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_optional_enum_getter_returns_option. Exception: FileNotFoundError. Pytest summary with the reference solution: 4 failed, 51 passed, 4 warnings, 216 subtests passed in 0.31s."
+ },
+ "google_flatbuffers_pr6318": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test_fail_to_pass.py::test_dictionary_files_renamed. Exception: AssertionError. Pytest summary with the reference solution: 5 failed, 52 passed, 4 warnings, 606 subtests passed in 0.39s."
+ },
+ "google_flatbuffers_pr6373": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test_fail_to_pass.py::test_generated_swift_code_contains_verifiable. Pytest summary with the reference solution: 1 failed, 51 passed, 4 warnings, 448 subtests passed in 0.32s."
+ },
+ "googleapis_python-documentai-toolbox_pr23": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/unit/test_document.py::test_get_shards_with_valid_gcs_uri. Exception: FileNotFoundError. Pytest summary with the reference solution: 8 failed, 17 passed, 1 warning, 7 errors in 1.74s."
+ },
+ "googlefonts_ufo2ft_pr826": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/integration_test.py::IntegrationTest::test_nestedComponents_variable[ufoLib2]. Exception: KeyError. Pytest summary with the reference solution: 2 failed, 303 passed, 6 warnings in 3.10s."
+ },
+ "googlefonts_ufo2ft_pr840": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/featureWriters/variableFeatureWriter_test.py::test_variable_features[ufoLib2]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 155 passed, 5 warnings in 1.60s."
+ },
+ "googlefonts_ufo2ft_pr886": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/outlineCompiler_test.py::ColrCpalTest::test_colr_cpal_gid1_not_blank[defcon]. Exception: KeyError. Pytest summary with the reference solution: 2 failed, 528 passed in 5.75s."
+ },
+ "goose3_goose3_pr118": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "goose3_goose3_pr171": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "goose3_goose3_pr52": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_content.py::TestExtractions::test_businessWeek1. Exception: AssertionError. Pytest summary with the reference solution: 12 failed, 94 passed, 1 warning in 5.31s."
+ },
+ "goose3_goose3_pr85": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "goose3_goose3_pr93": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "gruebel_pycep_pr137": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_function/test_parse_array.py::test_parse_last. Exception: AssertionError. Pytest summary with the reference solution: 26 failed, 11 passed in 8.20s."
+ },
+ "gruebel_pycep_pr64": {
+  "category": "verifier-timeout-without-fix",
+  "reason": "The reference solution passes in seconds, but the no-op run hits the 30-minute verifier limit in two independent attempts: the selected tests hang on the unfixed code instead of failing. Archived because a verifier must terminate for every candidate solution."
+ },
+ "hadialqattan_pycln_pr121": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_config.py::TestParseConfigFile::test_parse_methods[pycln.yml]. Exception: AssertionError. Pytest summary with the reference solution: 5 failed, 266 passed, 6 warnings in 1.31s."
+ },
+ "hammem_monarchmoney_pr120": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "hammem_monarchmoney_pr83": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "holoviz_param_pr775": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "home-assistant-libs_python-supervisor-client_pr167": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_jobs.py::test_jobs_info. Pytest summary with the reference solution: 1 failed, 61 passed in 0.38s."
+ },
+ "influxdb_influxdb-python_pr807": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: test_fail_to_pass.py::test_custom_session_verify_ssl. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 69 passed, 19 warnings in 0.82s."
+ },
+ "jawah_urllib3.future_pr1": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "jawah_urllib3.future_pr102": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_poolmanager.py::TestPoolManager::test_deprecated_no_scheme. Exception: OSError. Pytest summary with the reference solution: 3 failed, 358 passed, 47 warnings in 537.50s (0:08:57)."
+ },
+ "jawah_urllib3.future_pr103": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/with_dummyserver/test_connectionpool.py::TestConnectionPool::test_source_address_error[invalid_source_address1-True]. Exception: OSError. Pytest summary with the reference solution: 2 failed, 365 passed, 49 warnings in 22.16s."
+ },
+ "jawah_urllib3.future_pr123": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/with_dummyserver/test_connectionpool.py::TestConnectionPool::test_source_address_error[invalid_source_address1-True]. Exception: OSError. Pytest summary with the reference solution: 2 failed, 369 passed, 66 warnings in 8.83s."
+ },
+ "jawah_urllib3.future_pr129": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/with_dummyserver/asynchronous/test_connectionpool.py::TestConnectionPool::test_source_address_error[invalid_source_address1-True]. Exception: OSError. Pytest summary with the reference solution: 1 failed, 473 passed, 91 warnings in 42.18s."
+ },
+ "jawah_urllib3.future_pr142": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_poolmanager.py::TestPoolManager::test_deprecated_no_scheme. Exception: TimeoutError. Pytest summary with the reference solution: 14 failed, 436 passed, 70 warnings in 847.29s (0:14:07)."
+ },
+ "jawah_urllib3.future_pr144": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_poolmanager.py::TestPoolManager::test_deprecated_no_scheme. Exception: AssertionError. Pytest summary with the reference solution: 22 failed, 586 passed, 60 warnings in 643.02s (0:10:43)."
+ },
+ "jawah_urllib3.future_pr154": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/with_dummyserver/test_connectionpool.py::TestConnectionPool::test_source_address_error[invalid_source_address1-True]. Exception: OSError. Pytest summary with the reference solution: 1 failed, 372 passed, 45 warnings in 13.25s."
+ },
+ "jawah_urllib3.future_pr160": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_poolmanager.py::TestPoolManager::test_deprecated_no_scheme. Exception: TimeoutError. Pytest summary with the reference solution: 2 failed, 347 passed, 73 warnings in 716.69s (0:11:56)."
+ },
+ "jawah_urllib3.future_pr165": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_poolmanager.py::TestPoolManager::test_deprecated_no_scheme. Exception: OSError. Pytest summary with the reference solution: 3 failed, 444 passed, 76 warnings in 559.19s (0:09:19)."
+ },
+ "jawah_urllib3.future_pr23": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/with_dummyserver/test_connectionpool.py::TestConnectionPool::test_source_address_error[invalid_source_address1-True]. Exception: OSError. Pytest summary with the reference solution: 1 failed, 357 passed, 45 warnings in 10.54s."
+ },
+ "jawah_urllib3.future_pr45": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/with_dummyserver/test_connectionpool.py::TestConnectionPool::test_source_address_error[invalid_source_address1-True]. Exception: AssertionError. Pytest summary with the reference solution: 7 failed, 298 passed, 27 warnings in 24.27s."
+ },
+ "jawah_urllib3.future_pr57": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_poolmanager.py::TestPoolManager::test_deprecated_no_scheme. Exception: TimeoutError. Pytest summary with the reference solution: 1 failed, 302 passed, 38 warnings in 535.11s (0:08:55)."
+ },
+ "jawah_urllib3.future_pr65": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/with_dummyserver/test_connectionpool.py::TestConnectionPool::test_source_address_error[invalid_source_address1-True]. Exception: OSError. Pytest summary with the reference solution: 1 failed, 371 passed, 45 warnings in 32.87s."
+ },
+ "jawah_urllib3.future_pr7": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/with_dummyserver/test_socketlevel.py::TestContentFraming::test_chunked_not_specified[generator-PUT]. Exception: ConnectionResetError. Pytest summary with the reference solution: 1 failed, 286 passed, 36 warnings in 8.89s."
+ },
+ "jawah_urllib3.future_pr78": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_poolmanager.py::TestPoolManager::test_deprecated_no_scheme. Exception: TimeoutError. Pytest summary with the reference solution: 3 failed, 586 passed, 66 warnings in 552.47s (0:09:12)."
+ },
+ "jazzband_django-smart-selects_pr291": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test_fail_to_pass.py::test_location_area_relationship. Exception: KeyError. Pytest summary with the reference solution: 4 failed, 6 passed, 3 warnings, 19 errors in 1.19s."
+ },
+ "jazzband_icalevents_pr138": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "jazzband_icalevents_pr139": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "jazzband_icalevents_pr14": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 23 passed, 10 warnings in 139.00s (0:02:19)."
+ },
+ "jazzband_icalevents_pr23": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 19 passed, 10 warnings in 138.92s (0:02:18)."
+ },
+ "jazzband_icalevents_pr27": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 25 passed, 10 warnings in 137.72s (0:02:17)."
+ },
+ "jazzband_icalevents_pr29": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 17 passed, 10 warnings in 138.97s (0:02:18)."
+ },
+ "jazzband_icalevents_pr30": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_exdates. Exception: IndexError. Pytest summary with the reference solution: 3 failed, 19 passed, 10 warnings in 138.74s (0:02:18)."
+ },
+ "jazzband_icalevents_pr34": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_all_day_recurring. Exception: IndexError. Pytest summary with the reference solution: 3 failed, 20 passed, 10 warnings in 139.17s (0:02:19)."
+ },
+ "jazzband_icalevents_pr49": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 24 passed, 10 warnings in 138.43s (0:02:18)."
+ },
+ "jazzband_icalevents_pr52": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 24 passed, 10 warnings in 136.62s (0:02:16)."
+ },
+ "jazzband_icalevents_pr57": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 24 passed, 10 warnings in 138.91s (0:02:18)."
+ },
+ "jazzband_icalevents_pr66": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 26 passed, 10 warnings in 139.08s (0:02:19)."
+ },
+ "jazzband_icalevents_pr75": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test/test_icalevents.py::ICalEventsTests::test_events_async_url. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 27 passed, 10 warnings in 137.05s (0:02:17)."
+ },
+ "jborean93_pypsrp_pr135": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_wsman.py::TestTransportHTTP::test_build_session_default. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 99 passed, 1 warning in 1.14s."
+ },
+ "jborean93_pypsrp_pr136": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_wsman.py::TestTransportHTTP::test_build_session_cert_validate. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 108 passed, 1 warning in 0.93s."
+ },
+ "joblib_joblib_pr1576": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: joblib/test/test_memory.py::TestCacheValidationCallback::test_invalid_cache_validation_callback. Pytest summary with the reference solution: 366 passed, 16 warnings, 7 errors in 7.72s."
+ },
+ "joblib_threadpoolctl_pr52": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test_fail_to_pass.py::test_mkl_present_flag_no_import_error. Pytest summary with the reference solution: 2 failed, 10 passed in 0.31s."
+ },
+ "joke2k_faker_pr1072": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_factory.py::FactoryTestCase::test_some_words. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 223 passed in 7.48s."
+ },
+ "jonathf_numpoly_pr43": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test/test_array_function.py::test_numpy_true_divide[interface2]. Exception: AttributeError. Pytest summary with the reference solution: 2 failed, 130 passed, 807 warnings in 2.36s."
+ },
+ "jonathf_numpoly_pr67": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test/test_array_function.py::test_equal[interface2]. Exception: AttributeError. Pytest summary with the reference solution: 2 failed, 173 passed, 1111 warnings in 4.11s."
+ },
+ "joseph-roitman_pytest-snapshot_pr55": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "joseph-roitman_pytest-snapshot_pr56": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_assert_match_failure_string.py::test_sth. Exception: AssertionError. Pytest summary with the reference solution: 4 failed, 99 passed, 1 warning in 2.59s."
+ },
+ "jpadilla_pyjwt_pr1001": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "jsh9_pydoclint_pr154": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_main.py::testEdgeCases[12_property_methods_as_class_attr/google.py-options21-expectedViolations21]. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 195 passed, 5 warnings in 0.60s."
+ },
+ "jsh9_pydoclint_pr249": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_main.py::testParsingErrors_numpy. Pytest summary with the reference solution: 1 failed, 264 passed, 5 warnings in 0.74s."
+ },
+ "jsh9_pydoclint_pr267": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_baseline.py::testBaselineCreation[numpy]. Exception: AssertionError. Pytest summary with the reference solution: 133 failed, 115 passed in 1.05s."
+ },
+ "jsh9_pydoclint_pr80": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_main.py::testNoReturnSection[google-False]. Exception: AssertionError. Pytest summary with the reference solution: 6 failed, 171 passed in 0.48s."
+ },
+ "jupyter-server_jupyter-scheduler_pr513": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: jupyter_scheduler/tests/test_scheduler.py::test_create_job_definition_with_input_folder. Exception: jupyter_scheduler.exceptions.InputUriError. Pytest summary with the reference solution: 2 failed, 33 passed, 70 warnings in 0.98s."
+ },
+ "jxtech_wechatpy_pr167": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "jxtech_wechatpy_pr228": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_client.py::WeChatClientTestCase::test_customservice_get_records. Exception: wechatpy.exceptions.WeChatClientException. Pytest summary with the reference solution: 1 failed, 146 passed, 1 warning in 0.41s."
+ },
+ "jxtech_wechatpy_pr301": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "jxtech_wechatpy_pr537": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_component_api.py::ComponentOAuthTestCase::test_fetch_access_token. Exception: wechatpy.exceptions.WeChatComponentOAuthException. Pytest summary with the reference solution: 3 failed, 142 passed, 1 warning in 0.47s."
+ },
+ "keboola_python-component_pr67": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. Pytest summary with the reference solution: no tests ran in 0.09s."
+ },
+ "linkml_prefixmaps_pr42": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_etl/test_w3id.py::TestW3id::test_w3id. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 20 passed, 1 warning, 32 subtests passed in 19.60s."
+ },
+ "madpah_serializable_pr178": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_json.py::TestJson::test_deserializable_with_unknown_ignored_properties. Exception: ValueError. Pytest summary with the reference solution: 3 failed, 53 passed in 0.21s."
+ },
+ "magmax_python-inquirer_pr526": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/unit/test_question.py::TestPathQuestion::test_path_validation. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 55 passed in 4.85s."
+ },
+ "materialsproject_custodian_pr337": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "materialsvirtuallab_monty_pr688": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "materialsvirtuallab_monty_pr742": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "matiasb_python-unidiff_pr100": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_parser.py::TestUnidiffParser::test_parse_filename_prefix_with_spaces. Exception: FileNotFoundError. Pytest summary with the reference solution: 1 failed, 36 passed in 0.06s."
+ },
+ "matiasb_python-unidiff_pr106": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_parser.py::TestUnidiffParser::test_binary_patch. Exception: FileNotFoundError. Pytest summary with the reference solution: 1 failed, 39 passed in 0.07s."
+ },
+ "matiasb_python-unidiff_pr110": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_parser.py::TestUnidiffParser::test_parse_quoted_filename. Exception: FileNotFoundError. Pytest summary with the reference solution: 1 failed, 39 passed in 0.06s."
+ },
+ "matiasb_python-unidiff_pr46": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_parser.py::TestVCSSamples::test_samples. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 26 passed in 0.05s."
+ },
+ "matiasb_python-unidiff_pr66": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "matiasb_python-unidiff_pr90": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "matiasb_python-unidiff_pr95": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "meadsteve_lagom_pr6": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test/test_abstracts_and_replacements.py::test_registered_concrete_class_is_loaded. Pytest summary with the reference solution: 7 passed, 24 errors in 0.05s."
+ },
+ "mehcode_python-xmlsec_pr67": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "mesonbuild_meson-python_pr143": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "miketheman_pytest-socket_pr227": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "mill1000_midea-msmart_pr228": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "mill1000_midea-msmart_pr240": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: msmart/tests/test_cloud.py::TestSmartHomeCloud::test_login. Exception: msmart.cloud.ApiError. Pytest summary with the reference solution: 1 failed, 43 passed in 3.55s."
+ },
+ "mindee_mindee-api-python_pr72": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "mirumee_ariadne-codegen_pr129": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "mongodb_mongo-python-driver_pr2006": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "mwclient_mwclient_pr352": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "napari_napari-plugin-engine_pr2": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "napari_napari-plugin-engine_pr3": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "olofk_fusesoc_pr293": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_provider.py::test_cachable. Exception: subprocess.CalledProcessError. Pytest summary with the reference solution: 1 failed, 30 passed, 223 warnings in 134.44s (0:02:14)."
+ },
+ "olofk_fusesoc_pr411": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_capi2.py::test_capi2_get_parameters. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 33 passed, 244 warnings in 132.25s (0:02:12)."
+ },
+ "olofk_fusesoc_pr431": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_provider.py::test_opencores_provider. Exception: subprocess.CalledProcessError. Pytest summary with the reference solution: 1 failed, 29 passed, 231 warnings in 132.89s (0:02:12)."
+ },
+ "olzhasar_pytest-watcher_pr9": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_pytest_watcher.py::TestEventHandler::test_src_watched[created]. Pytest summary with the reference solution: 14 passed, 15 errors in 0.11s."
+ },
+ "omni-us_jsonargparse_pr276": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "onnx_tensorflow-onnx_pr880": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_from_keras_subset_outputs_eager. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 83 passed, 415 warnings in 15.32s."
+ },
+ "open-feature_python-sdk_pr415": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_flag_metadata_present_in_data. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 30 passed, 1 warning in 0.52s."
+ },
+ "osantana_prettyconf_pr29": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_cfgfile.py::test_basic_config_object. Pytest summary with the reference solution: 48 passed, 23 errors in 0.09s."
+ },
+ "pallets-eco_wtforms_pr413": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_validators.py::test_data_required. Pytest summary with the reference solution: 49 passed, 120 errors in 0.21s."
+ },
+ "pallets_jinja_pr1064": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "pallets_werkzeug_pr2091": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_serving.py::test_streaming_chunked_response. Pytest summary with the reference solution: 2 failed, 247 passed in 7.04s."
+ },
+ "pamelafox_axe-playwright-python_pr3": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_axe_async_playwright.py::test_run_axe_sample_page_firefox. Exception: playwright._impl._errors.Error. Pytest summary with the reference solution: 16 passed, 2 errors in 6.58s."
+ },
+ "pdm-project_pdm-backend_pr45": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "peterbe_hashin_pr91": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_cli.py::test_get_latest_version_simple. Pytest summary with the reference solution: 11 passed, 2 warnings, 25 errors in 0.50s."
+ },
+ "pinterest_pymemcache_pr468": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: pymemcache/test/test_compression.py::test_optimal_compression_length. Exception: zstd.Error. Pytest summary with the reference solution: 2 failed, 414 passed in 3.87s."
+ },
+ "praw-dev_praw_pr591": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/test_submission.py::SubmissionModeratorTest::test_lock_and_unlock. Exception: AttributeError. Pytest summary with the reference solution: 1 failed, 101 passed, 2 warnings in 4.10s."
+ },
+ "praw-dev_praw_pr603": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/test_submission.py::SubmissionTest::test_submission_hide_and_unhide_batch. Exception: betamax.exceptions.BetamaxError. Pytest summary with the reference solution: 1 failed, 144 passed, 2 warnings in 7.90s."
+ },
+ "praw-dev_prawcore_pr122": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/test_authorizer.py::DeviceIDAuthorizerTest::test_refresh__with_scopes_and_trusted_authenticator. Exception: prawcore.exceptions.ResponseException. Pytest summary with the reference solution: 1 failed, 52 passed in 0.36s."
+ },
+ "praw-dev_prawcore_pr16": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/test_sessions.py::SessionTest::test_request. Exception: betamax.exceptions.BetamaxError. Pytest summary with the reference solution: 3 failed, 28 passed in 0.12s."
+ },
+ "praw-dev_prawcore_pr28": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. Pytest summary with the reference solution: no tests ran in 0.02s."
+ },
+ "praw-dev_prawcore_pr45": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. Pytest summary with the reference solution: 11 passed in 0.03s."
+ },
+ "pyapp-kit_app-model_pr10": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_app.py::test_app. Pytest summary with the reference solution: 45 passed, 2 errors in 0.21s."
+ },
+ "pydantic_bump-pydantic_pr72": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/integration/test_cli.py. Exception: ModuleNotFoundError. Pytest summary with the reference solution: 1 warning, 1 error in 0.68s."
+ },
+ "pyinfra-dev_pyinfra_pr231": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_connectors/test_ansible.py::TestAnsibleConnector::test_make_names_data_with_limit. Exception: pyinfra.api.exceptions.InventoryError. Pytest summary with the reference solution: 1 failed, 154 passed, 6 warnings in 0.69s."
+ },
+ "pyout_pyout_pr98": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: pyout/tests/test_tabular.py::test_tabular_write_callable_kb_interrupt_during_wait. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 115 passed, 2 warnings in 8.10s."
+ },
+ "pypa_installer_pr94": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_sources.py::TestWheelFile::test_provides_correct_dist_info_filenames. Pytest summary with the reference solution: 28 passed, 2 warnings, 3 errors in 0.10s."
+ },
+ "pytest-dev_pytest-bdd_pr415": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/generation/test_generate_missing.py::test_generate_missing_with_step_parsers. Pytest summary with the reference solution: 1 failed, 35 passed in 3.84s."
+ },
+ "python-distro_distro_pr130": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. Pytest summary with the reference solution: no tests ran in 0.05s."
+ },
+ "python-distro_distro_pr181": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "python-distro_distro_pr39": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "python-distro_distro_pr51": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_ld.py::TestLSBRelease::test_lsb_release_nomodules. Pytest summary with the reference solution: 4 failed, 74 passed in 0.16s."
+ },
+ "python-distro_distro_pr86": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "python-distro_distro_pr89": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "python-distro_distro_pr93": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "python-openapi_openapi-core_pr482": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/unit/validation/test_shortcuts.py::TestValidateRequest::test_spec_not_detected. Pytest summary with the reference solution: 200 passed, 388 warnings, 23 errors in 1.11s."
+ },
+ "python-openapi_openapi-spec-validator_pr8": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/integration/test_validate.py::TestLocalPetstoreSeparateExample::test_valid. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 17 passed, 1 warning in 1.58s."
+ },
+ "python-poetry_cleo_pr157": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "python-poetry_poetry-core_pr114": {
+  "category": "reference-solution-reward-zero",
+  "reason": "Inverted outcome: the selected tests pass without the reference change and fail with it, so the task does not describe its own tests. First failing test: tests/masonry/builders/test_sdist.py::test_includes_with_inline_table. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 186 passed, 2 warnings in 1.32s."
+ },
+ "python-poetry_poetry-core_pr486": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/masonry/builders/test_sdist.py::test_find_files_to_add_with_multiple_readme_files. Pytest summary with the reference solution: 1 failed, 487 passed in 1.89s."
+ },
+ "python-poetry_poetry-core_pr500": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_sample_project_fixture_contains_tool_black. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 444 passed in 3.24s."
+ },
+ "python-poetry_poetry-core_pr672": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/masonry/builders/test_complete.py::test_package_with_include. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 621 passed in 3.13s."
+ },
+ "python-poetry_poetry-core_pr771": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/masonry/builders/test_complete.py::test_package_with_include. Exception: AssertionError. Pytest summary with the reference solution: 3 failed, 780 passed in 6.95s."
+ },
+ "python-poetry_poetry-core_pr827": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "python-poetry_poetry-core_pr835": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/masonry/builders/test_sdist.py::test_sdist_does_not_include_pycache_and_pyc_files. Pytest summary with the reference solution: 825 passed, 2 errors in 8.53s."
+ },
+ "python-poetry_poetry-core_pr870": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/masonry/builders/test_builder.py::test_get_metadata_content[complete_new]. Exception: AssertionError. Pytest summary with the reference solution: 9 failed, 1069 passed in 13.06s."
+ },
+ "python-trio_flake8-async_pr16": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_trio_tests.py::TestTrioTests::runTest. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 3 passed in 1.95s."
+ },
+ "python-trio_flake8-async_pr242": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_flake8_async.py::test_eval[ASYNC910-asyncio-autofix-normal]. Exception: AssertionError. Pytest summary with the reference solution: 8 failed, 839 passed in 28.79s."
+ },
+ "python-trio_flake8-async_pr321": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_future_flag_added. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 298 passed in 13.74s."
+ },
+ "python-trio_flake8-async_pr376": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "python-trio_flake8-async_pr8": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_trio_tests.py::TestTrioTests::runTest. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 3 passed in 1.96s."
+ },
+ "radish-bdd_radish_pr309": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/integration/test_main.py::test_main_cli_calls[Empty. Exception: FileNotFoundError. Pytest summary with the reference solution: 77 failed, 57 passed, 1 warning in 0.67s."
+ },
+ "radish-bdd_radish_pr451": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/functional/test_parser.py::test_parse_tags[parser3-expected_feature_tags3-expected_scenarios_tags3]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 122 passed, 3 warnings in 8.88s."
+ },
+ "ramonhagenaars_jsons_pr59": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_various.py::TestVarious::test_uuid_serialization. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 36 passed, 2 warnings in 0.11s."
+ },
+ "rbw_pysnow_pr11": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_incident.py::TestIncident::test_attach_incident. Exception: OSError. Pytest summary with the reference solution: 16 failed, 3 passed, 1 warning in 0.97s."
+ },
+ "rbw_pysnow_pr20": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_incident.py::TestIncident::test_attach_incident. Exception: OSError. Pytest summary with the reference solution: 19 failed, 23 passed, 17 warnings in 1.25s."
+ },
+ "rbw_pysnow_pr24": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_incident.py::TestIncident::test_get_limited_result. Exception: OSError. Pytest summary with the reference solution: 21 failed, 16 passed, 9 warnings in 1.39s."
+ },
+ "rbw_pysnow_pr41": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_request.py::TestIncident::test_client_request_params. Exception: OSError. Pytest summary with the reference solution: 31 failed, 33 passed, 4 warnings in 1.98s."
+ },
+ "rbw_pysnow_pr46": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_request.py::TestIncident::test_get_linked_result. Exception: OSError. Pytest summary with the reference solution: 32 failed, 20 passed, 3 warnings in 1.99s."
+ },
+ "rbw_pysnow_pr48": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_request.py::TestIncident::test_get_multiple_with_offset. Exception: OSError. Pytest summary with the reference solution: 34 failed, 19 passed, 3 warnings in 2.32s."
+ },
+ "rbw_pysnow_pr50": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_request.py::TestIncident::test_attach_incident. Exception: OSError. Pytest summary with the reference solution: 34 failed, 25 passed, 3 warnings in 2.29s."
+ },
+ "rbw_pysnow_pr52": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_request.py::TestIncident::test_attach_incident_multiple. Exception: OSError. Pytest summary with the reference solution: 11 failed, 23 passed, 2 warnings in 0.82s."
+ },
+ "rbw_pysnow_pr54": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_request.py::TestIncident::test_get_content_without_result. Exception: OSError. Pytest summary with the reference solution: 35 failed, 33 passed, 2 warnings in 2.30s."
+ },
+ "rbw_pysnow_pr59": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_request.py::TestIncident::test_attach_incident_non_existent. Exception: OSError. Pytest summary with the reference solution: 18 failed, 28 passed, 2 warnings in 1.42s."
+ },
+ "rbw_pysnow_pr67": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test_fail_to_pass.py::test_generate_token_error_details. Exception: AttributeError. Pytest summary with the reference solution: 16 failed, 16 passed, 2 warnings in 1680.33s (0:28:00)."
+ },
+ "rbw_pysnow_pr71": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_resource.py::TestResourceRequest::test_create. Exception: OSError. Pytest summary with the reference solution: 4 failed, 27 passed, 18 warnings in 0.40s."
+ },
+ "rbw_pysnow_pr73": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: test_fail_to_pass.py::test_oauth_client_request_headers. Exception: requests.exceptions.ProxyError. Pytest summary with the reference solution: 20 failed, 24 passed, 33 warnings in 1080.37s (0:18:00)."
+ },
+ "rbw_pysnow_pr82": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/legacy/test_request.py::TestIncident::test_attach_incident. Exception: OSError. Pytest summary with the reference solution: 18 failed, 29 passed, 44 warnings in 1440.07s (0:24:00)."
+ },
+ "rbw_pysnow_pr91": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: tests/test_attachment.py::TestAttachment::test_upload_binary. Exception: requests.exceptions.ProxyError. Pytest summary with the reference solution: 49 failed, 31 passed, 51 warnings in 1322.10s (0:22:02)."
+ },
+ "rokam_midea-local_pr200": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/cloud_test.py::CloudTest::test_meijucloud_get_keys. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 42 passed in 0.44s."
+ },
+ "rokam_midea-local_pr21": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/cloud_test.py::CloudTest::test_meijucloud_get_device_info. Exception: ValueError. Pytest summary with the reference solution: 2 failed, 7 passed in 0.25s."
+ },
+ "rokam_midea-local_pr22": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "rokam_midea-local_pr25": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "rokam_midea-local_pr36": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/cloud_test.py::CloudTest::test_meijucloud_download_lua. Exception: KeyError. Pytest summary with the reference solution: 10 failed, 5 passed in 0.28s."
+ },
+ "rokam_midea-local_pr40": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "ros-infrastructure_rosdep_pr949": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test/test_rosdep_catkin_support.py::test_workflow. Pytest summary with the reference solution: 40 passed, 1 warning, 2 errors in 21.53s."
+ },
+ "sangwonl_python-mpegdash_pr20": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_xmltompd.py::XML2MPDTestCase::test_xml2mpd_from_url. Exception: xml.parsers.expat.ExpatError. Pytest summary with the reference solution: 1 failed, 4 passed in 0.27s."
+ },
+ "sangwonl_python-mpegdash_pr21": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_xmltompd.py::XML2MPDTestCase::test_xml2mpd_from_url. Exception: xml.parsers.expat.ExpatError. Pytest summary with the reference solution: 1 failed, 5 passed in 0.25s."
+ },
+ "scikit-rf_scikit-rf_pr1158": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_conftest_exists. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 441 passed, 16 subtests passed in 10.48s."
+ },
+ "scrapinghub_andi_pr3": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "scrapy_w3lib_pr148": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test_fail_to_pass.py::test_conftest_contains_flake8_hook. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 46 passed, 2 warnings in 0.18s."
+ },
+ "scrapy_w3lib_pr243": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_conftest_removed. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 74 passed in 0.31s."
+ },
+ "sethmlarson_truststore_pr100": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "sethmlarson_truststore_pr113": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "sethmlarson_truststore_pr132": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "sethmlarson_truststore_pr149": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "sethmlarson_truststore_pr152": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "sethmlarson_truststore_pr157": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "sethmlarson_truststore_pr164": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result."
+ },
+ "siliconcompiler_lambdapdk_pr102": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: tests/test_lambda.py::test_la_auxlib[lambdapdk.asap7.libs.asap7sc7p5t-lambdapdk/asap7/libs/{lib_name}/lambda/auxlib]. Pytest summary with the reference solution: 25 passed, 1 warning, 18 errors in 6.70s."
+ },
+ "singingwolfboy_flask-dance_pr406": {
+  "category": "verifier-stale-cassette",
+  "reason": "The selected tests replay a cassette, a saved transcript of an earlier real session, so that the verifier does not depend on reaching the service. The transcript is outdated: the client installed in the task image sends requests the transcript does not contain, so replay fails for every solution, correct or not. First failing test: tests/contrib/test_gitlab.py::test_no_verify_api_call. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 64 passed in 0.69s."
+ },
+ "sissaschool_xmlschema_pr297": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/validation/test_decoding.py::TestDecoding11::test_datatypes. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 732 passed in 15.19s."
+ },
+ "snowflakedb_snowflake-cli_pr673": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_new_test_data_directories_contain_required_files. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 191 passed, 5 warnings in 25.65s."
+ },
+ "spacetelescope_pysiaf_pr177": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: pysiaf/tests/test_aperture.py::test_hst_fgs_idl_to_tel. Pytest summary with the reference solution: 1 failed, 22 passed, 100173 warnings in 12.97s."
+ },
+ "spacetelescope_pysiaf_pr277": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: pysiaf/tests/test_aperture.py::test_hst_fgs_idl_to_tel. Pytest summary with the reference solution: 1 failed, 32 passed, 52247 warnings in 15.02s."
+ },
+ "spacetelescope_pysiaf_pr293": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: pysiaf/tests/test_aperture.py::test_hst_fgs_idl_to_tel. Pytest summary with the reference solution: 1 failed, 32 passed, 26 warnings in 9.38s."
+ },
+ "spacetelescope_pysiaf_pr296": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: pysiaf/tests/test_aperture.py::test_hst_fgs_idl_to_tel. Pytest summary with the reference solution: 1 failed, 32 passed, 30 warnings in 8.53s."
+ },
+ "spacetelescope_pysiaf_pr318": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: pysiaf/tests/test_aperture.py::test_hst_fgs_idl_to_tel. Pytest summary with the reference solution: 1 failed, 32 passed, 21 warnings in 18.62s."
+ },
+ "spdx_tools-python_pr188": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_jsonyamlxml_parser.py::TestParser::test_json_parser. Exception: AssertionError. Pytest summary with the reference solution: 4 failed, 98 passed, 34 warnings in 1.51s."
+ },
+ "sphinx-contrib_confluencebuilder_pr1128": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: test_fail_to_pass.py::test_import_parse. Exception: ModuleNotFoundError. Pytest summary with the reference solution: 4 failed, 28 passed, 1 warning in 1.11s."
+ },
+ "sphinx-contrib_confluencebuilder_pr774": {
+  "category": "task-changes-only-test-files",
+  "reason": "The pull request changes only files under the test tree. The verifier resets that tree and reapplies the tests itself, so there is no source change for an agent to make and the selected tests pass with and without the reference solution. Unsolvable by construction."
+ },
+ "splitio_python-client_pr162": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/client/test_client.py::ClientTests::test_get_treatment_with_config. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 76 passed, 34 warnings in 16.06s."
+ },
+ "splitio_python-client_pr174": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/storage/adapters/test_cache_trait.py::CacheTraitTests::test_intensive_usage_behavior. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 62 passed, 84 warnings in 5.21s."
+ },
+ "stchris_untangle_pr90": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "stravalib_stravalib_pr480": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: src/stravalib/tests/integration/test_client.py::TestIsAuthenticatedAthlete::test_from_summary[False-False]. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 62 passed, 1 warning in 1.08s."
+ },
+ "stravalib_stravalib_pr567": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: src/stravalib/tests/integration/test_client.py::test_get_club_activities. Exception: KeyError. Pytest summary with the reference solution: 4 failed, 133 passed, 1 warning in 4.06s."
+ },
+ "stravalib_stravalib_pr569": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: src/stravalib/tests/integration/test_client.py::test_get_club_members[0]. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 69 passed, 1 warning in 0.92s."
+ },
+ "stravalib_stravalib_pr584": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: src/stravalib/tests/integration/test_client.py::test_get_club_members[0]. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 129 passed, 1 warning in 1.00s."
+ },
+ "stravalib_stravalib_pr595": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: src/stravalib/tests/integration/test_client.py::test_get_club_members[2]. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 69 passed, 1 warning in 3.89s."
+ },
+ "stravalib_stravalib_pr604": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: src/stravalib/tests/integration/test_client.py::test_get_club_activities. Exception: KeyError. Pytest summary with the reference solution: 4 failed, 137 passed, 1 warning in 4.03s."
+ },
+ "stravalib_stravalib_pr627": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: src/stravalib/tests/integration/test_client.py::test_get_club_activities. Exception: KeyError. Pytest summary with the reference solution: 4 failed, 208 passed, 1 warning in 4.17s."
+ },
+ "stravalib_stravalib_pr636": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: src/stravalib/tests/integration/test_client.py::test_get_club_admins. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 75 passed, 1 warning in 3.91s."
+ },
+ "stravalib_stravalib_pr684": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: src/stravalib/tests/integration/test_client.py::test_get_club_members[2]. Exception: KeyError. Pytest summary with the reference solution: 1 failed, 83 passed, 1 warning in 3.98s."
+ },
+ "swagger-api_swagger-codegen_pr2861": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: samples/client/petstore/python/tests/test_api_exception.py::ApiExceptionTests::test_500_error. Exception: TimeoutError. Pytest summary with the reference solution: 1 failed, 29 passed, 2 warnings in 1048.60s (0:17:28)."
+ },
+ "swagger-api_swagger-codegen_pr2917": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "swagger-api_swagger-codegen_pr2930": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "swagger-api_swagger-codegen_pr2979": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: samples/client/petstore/python/tests/test_store_api.py::StoreApiTests::test_get_inventory. Exception: TimeoutError. Pytest summary with the reference solution: 1 failed, 31 passed, 2 warnings in 1048.82s (0:17:28)."
+ },
+ "swagger-api_swagger-codegen_pr2988": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "swagger-api_swagger-codegen_pr2989": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "swagger-api_swagger-codegen_pr3058": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime."
+ },
+ "swagger-api_swagger-codegen_pr3067": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: samples/client/petstore/python/tests/test_pet_api.py::PetApiTests::test_find_pets_by_tags. Exception: TimeoutError. Pytest summary with the reference solution: 1 failed, 29 passed, 2 warnings in 1050.56s (0:17:30)."
+ },
+ "swagger-api_swagger-codegen_pr3158": {
+  "category": "verifier-network-dependency",
+  "reason": "The selected tests open connections to real services, for example remote CSV files for tabulator or Google and GitHub APIs. The cluster allows some of those hosts only through its proxy, which refuses them, and others time out. Archived because a verifier result must not depend on reaching an external service. First failing test: samples/client/petstore/python/tests/test_pet_api.py::PetApiTests::test_add_pet_and_get_pet_by_id_with_http_info. Exception: TimeoutError. Pytest summary with the reference solution: 1 failed, 28 passed, 2 warnings in 1050.23s (0:17:30)."
+ },
+ "tconbeer_sqlfmt_pr148": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/functional_tests/test_general_formatting.py::test_formatting[unformatted/109_lateral_flatten.sql]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 203 passed in 4.27s."
+ },
+ "tconbeer_sqlfmt_pr166": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "tconbeer_sqlfmt_pr173": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/functional_tests/test_general_formatting.py::test_formatting[unformatted/107_jinja_blocks.sql]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 158 passed in 5.59s."
+ },
+ "tconbeer_sqlfmt_pr194": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/unit_tests/test_node.py::test_jinja_depth. Exception: FileNotFoundError. Pytest summary with the reference solution: 3 failed, 327 passed in 5.84s."
+ },
+ "tconbeer_sqlfmt_pr22": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/functional_tests/test_general_formatting.py::test_formatting[unformatted/101_multiline.sql]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 50 passed in 0.36s."
+ },
+ "tconbeer_sqlfmt_pr23": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/functional_tests/test_general_formatting.py::test_formatting[unformatted/101_multiline.sql]. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 54 passed in 0.48s."
+ },
+ "tconbeer_sqlfmt_pr24": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/functional_tests/test_general_formatting.py::test_formatting[unformatted/200_base_model.sql]. Exception: AssertionError. Pytest summary with the reference solution: 18 failed, 60 passed in 0.62s."
+ },
+ "tconbeer_sqlfmt_pr668": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "tconbeer_sqlfmt_pr7": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/functional_tests/test_general_formatting.py::test_basic_queries[basic_queries/002_select_from_where.sql]. Exception: AssertionError. Pytest summary with the reference solution: 4 failed, 23 passed in 0.26s."
+ },
+ "tconbeer_sqlfmt_pr703": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "tconbeer_sqlfmt_pr711": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "tefra_xsdata_pr982": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/formats/dataclass/models/test_builders.py::XmlVarBuilderTests::test_build_with_choice_field. Exception: AssertionError. Pytest summary with the reference solution: 1 failed, 361 passed in 4.71s."
+ },
+ "valohai_valohai-yaml_pr137": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "valohai_valohai-yaml_pr153": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "valohai_valohai-yaml_pr166": {
+  "category": "reference-solution-reward-zero",
+  "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: test_fail_to_pass.py::test_ineffective_optional_flag_in_warning_examples. Exception: AssertionError. Pytest summary with the reference solution: 2 failed, 79 passed, 2 warnings in 0.49s."
+ },
+ "valohai_valohai-yaml_pr66": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "wbond_asn1crypto_pr138": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "xarray-contrib_datatree_pr107": {
+  "category": "verifier-collection-error",
+  "reason": "pytest cannot collect or set up the selected tests in the task image (missing module, fixture or setup error), so neither the reference nor the no-op run produces a usable result. First failing test: datatree/tests/test_dataset_api.py::TestUFuncs::test_tree. Pytest summary with the reference solution: 55 passed, 1 warning, 19 errors in 0.70s."
+ },
+ "xnuinside_simple-ddl-parser_pr217": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ },
+ "yuvipanda_ipynb_pr19": {
+  "category": "verifier-no-op-passes",
+  "reason": "With the complete post-PR test tree in place, the selected tests pass without the source change as well as with it (reference reward 1, no-op reward 1), so they do not detect the bug the task describes."
+ }
+}

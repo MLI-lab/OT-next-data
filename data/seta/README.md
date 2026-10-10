@@ -117,7 +117,7 @@ H200 node with Apptainer fakeroot and up to 16 concurrent trials.
 **2,657 passed all four stages; 473 had at least one finding.** These counts include
 execution errors, so a failed stage does not necessarily mean the verifier returned
 the wrong reward. Original reports are under
-`~/seta-validation-artifacts/full-v48-20261004/results/submissions/77dd88ef3465/report/`.
+`/home/vault/y500bb/y500bb12/archive/home-relocated-20261005/seta-validation-artifacts/seta-validation-artifacts/full-v48-20261004/results/submissions/77dd88ef3465/report/`.
 
 All **43 static failures** came from `check-test-file-references.sh`: it flagged
 file references in tests that the task did not clearly provide. They comprise
@@ -274,7 +274,7 @@ python data/seta/patch.py audit --pilot pilot.parquet --image task.sif --out NEW
 Earlier v12–v46 results describe older task versions and runtime bugs, including
 a bridge cleanup bug that stopped active containers. They do not replace the v48
 results above. The patch history is in
-`~/seta-validation-artifacts/README-history-through-v48.md`.
+`/home/vault/y500bb/y500bb12/archive/home-relocated-20261005/seta-validation-artifacts/seta-validation-artifacts/README-history-through-v48.md`.
 Historical repair evidence, including three successful reference runs for
 `unix_linux_se__synth__502065` with its original budgets, is preserved in
 [the evidence archive](/hnvme/workspace/y500bb12-seta-validation/experiments/setup-verifier-v52-20261007/historical-repair-evidence.tar.gz).

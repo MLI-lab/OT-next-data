@@ -171,6 +171,10 @@ class BridgeClient:
 def install():
     """Install once before Harbor creates any environments."""
     from harbor.environments.apptainer import apptainer as bridge
+    from harbor_patches.upload_runtime import install_client
+    install_client(bridge)
+    from harbor_patches.artifact_transfer import install as install_artifact_transfer
+    install_artifact_transfer(bridge)
     if getattr(bridge, '_reliable_transport', False):
         return
     client = BridgeClient()

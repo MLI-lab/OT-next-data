@@ -1,0 +1,78 @@
+{
+  "status": "passed",
+  "scope": "Static and build/preparation validation for all final task payloads. Full-dataset oracle/no-op correctness and full-dataset timing acceptance are not claimed.",
+  "tasks": 4323,
+  "static_passed": 4323,
+  "build_passed": 4323,
+  "remaining_build_failures": [],
+  "unique_image_definitions": 99,
+  "cached_image_bundles_present": 99,
+  "original_image_fallbacks": 0,
+  "dropped_tasks": 0,
+  "candidate": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50/source.parquet",
+  "candidate_sha256": "40abeb65ea561a3e036d229ebb18d46f4bf7531ac3223320478249ae898bee09",
+  "grading_and_reference_patches_preserved": true,
+  "initial_submission_batches": 54,
+  "timing_rule": {
+    "runs_per_task": 5,
+    "median_target_seconds": 30,
+    "max_seconds": 60,
+    "fresh_containers": true,
+    "cached_images": true
+  },
+  "pilot_execution_profile": {
+    "backend": "apptainer",
+    "cpus_per_job": 384,
+    "concurrency": 8,
+    "dedicated_cpu_node": true
+  },
+  "pilots": [
+    {
+      "tasks": 50,
+      "runs": 250,
+      "accepted": true,
+      "median_seconds": 13.341242004476953,
+      "max_seconds": 29.903581664082594,
+      "report": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v19-final.json"
+    },
+    {
+      "tasks": 200,
+      "runs": 1000,
+      "accepted": true,
+      "median_seconds": 14.027993482421152,
+      "max_seconds": 32.88368645799346,
+      "report": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50-pilot200-timing.json"
+    }
+  ],
+  "limitations": [
+    "Timing acceptance covers the 50-task and disjoint 200-task pilots, five fresh cached-image preparations per task.",
+    "Shared-node full validation encountered slower startup, network failures and intermittent filesystem errors; repaired or retried payloads have matching successful build evidence.",
+    "Later full-build jobs reserve 96 CPUs for eight concurrent tasks; selected filesystem diagnostics use lower concurrency or dedicated nodes."
+  ],
+  "evidence": {
+    "full-v50-build-evidence.json": {
+      "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50-build-evidence.json",
+      "sha256": "c5a75873ae484476af43b52911bd4ca824ee1e5227316bfa6fc2ec849133ebd2"
+    },
+    "full-v50-static-evidence.json": {
+      "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50-static-evidence.json",
+      "sha256": "c7ef5097f82c1c549f7e7e5ababc98ac4c3e814772baf470d86f9a93934ad8bf"
+    },
+    "full-v50-integrity.json": {
+      "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50-integrity.json",
+      "sha256": "2e959bb25744083f2c789bae3775a9eebb55d94b3dea0c2a6cb9b0213567da63"
+    },
+    "full-v50-pilot-gate.json": {
+      "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50-pilot-gate.json",
+      "sha256": "837085887c3c90f02c6654583c5de52f9fe2dbf6b3d3a504d7410d64e6651cc4"
+    },
+    "full-v50-image-cache.json": {
+      "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50-image-cache.json",
+      "sha256": "1fc6f76909c2eb09581d5cc6da644b690756e194f0f374f781d3f5d308b0c533"
+    },
+    "full-v50/source.manifest.json": {
+      "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50/source.manifest.json",
+      "sha256": "c115bc5dd9dcc8afcbaa5b8d202b7d45edf0aa861a338142c58da227fe9fbf0b"
+    }
+  }
+}

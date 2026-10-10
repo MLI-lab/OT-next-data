@@ -66,6 +66,8 @@ def test_stage_five_previews_only_post_setup_nop(tmp_path):
 
 @pytest.mark.parametrize('prepared_reward,expected', [(0, 'passed'), (1, 'failed')])
 def test_stage_five_runs_only_post_setup_nop(tmp_path, monkeypatch, prepared_reward, expected):
+    from test_nop_verifier_failures import execution_evidence
+    output = execution_evidence(tmp_path / 'trial', '')
     task = tmp_path / 'task'
     (task / 'setup_files').mkdir(parents=True)
     (task / 'setup_files/setup.sh').write_text('#!/bin/sh\n')
@@ -87,7 +89,7 @@ def test_stage_five_runs_only_post_setup_nop(tmp_path, monkeypatch, prepared_rew
     def results(job):
         reward = prepared_reward if job.name == 'prepared' else 0
         return [(tmp_path / 'trial', {'task_name': 'task',
-            'verifier_result': {'rewards': {'reward': reward}}})]
+            'verifier_result': {'rewards': {'reward': reward}, 'stdout': output}})]
 
     monkeypatch.setattr(runtime, 'execute_job', execute)
     monkeypatch.setattr(runtime, 'trial_results', results)
@@ -102,6 +104,8 @@ def test_stage_five_runs_only_post_setup_nop(tmp_path, monkeypatch, prepared_rew
 
 @pytest.mark.parametrize('setup_kind,expected_calls', [('none', 1), ('ambiguous', 0), ('fails', 1)])
 def test_nop_does_not_fall_back_to_unprepared_run(tmp_path, monkeypatch, setup_kind, expected_calls):
+    from test_nop_verifier_failures import execution_evidence
+    output = execution_evidence(tmp_path / 'trial', '')
     task = tmp_path / 'task'
     (task / 'solution').mkdir(parents=True)
     (task / 'setup_files').mkdir()
@@ -123,7 +127,7 @@ def test_nop_does_not_fall_back_to_unprepared_run(tmp_path, monkeypatch, setup_k
         return tmp_path / 'job'
     monkeypatch.setattr(runtime, 'execute_job', execute)
     monkeypatch.setattr(runtime, 'trial_results', lambda _: [(tmp_path / 'trial', {
-        'task_name': 'task', 'verifier_result': {'rewards': {'reward': 0}}})])
+        'task_name': 'task', 'verifier_result': {'rewards': {'reward': 0}, 'stdout': output}})])
     out = tmp_path / 'out'
     out.mkdir()
     [item] = run_trial_batch(5, [task], out, args, None)

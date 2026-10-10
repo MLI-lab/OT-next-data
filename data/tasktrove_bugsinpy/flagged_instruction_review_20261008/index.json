@@ -1,0 +1,56 @@
+{
+  "source_run": "/home/vault/y500bb/y500bb12/OT_next_data/runs/bugsinpy/instruction-loop/opus55-medium-full-20261007-154717",
+  "decision": "Excluded from the current release after task-file review; original evidence preserved. Future verifier repairs require separate review and validation.",
+  "tasks": [
+    {
+      "task_id": "bugsinpy-original-ansible-12",
+      "category": "task_validity/reference_details",
+      "status": "needs_human: task validity: The only verifier is test/units/plugins/lookup/test_env.py. It monkeypatches 'ansible.utils.py3compat.environ.get' with a two-positional-argument lambda and expects that patched value back. On Python 3.8, the original os.getenv already returns correctly decoded text. Other correct solutions also fail: keeping os.getenv/os.environ, using to_text on os.environ values, or using py3compat.environ[var] with a KeyError fallback or environ.get(var, default='') with a keyword argument. The tests check an internal implementation choice of the reference patch, not observable behavior. A rewritten instruction can only fix this by dictating the solution, so the task is not a meaningful debugging task.",
+      "source": "/home/vault/y500bb/y500bb12/OT_next_data/runs/bugsinpy/instruction-loop/opus55-medium-full-20261007-154717/results/ansible/needs_human/task_validity/reference_details/bugsinpy-original-ansible-12",
+      "local_directory": "bugsinpy-original-ansible-12"
+    },
+    {
+      "task_id": "bugsinpy-original-black-23",
+      "category": "task_validity/unrelated_changes",
+      "status": "needs_human: task validity: The only checked behavior, removing the space after `>>` in Python 2 `print >>file` statements, is unrelated to the reported issue about the built-in exec() function. An agent that fully fixes the reported exec problem would still get reward 0. Rewriting the instruction to describe the print-chevron formatting would make it a different task from the issue, and the verifier doesn't exercise the issue's behavior at all.",
+      "source": "/home/vault/y500bb/y500bb12/OT_next_data/runs/bugsinpy/instruction-loop/opus55-medium-full-20261007-154717/results/black/needs_human/task_validity/unrelated_changes/bugsinpy-original-black-23",
+      "local_directory": "bugsinpy-original-black-23"
+    },
+    {
+      "task_id": "bugsinpy-original-httpie-4",
+      "category": "task_validity/unreliable_tests",
+      "status": "needs_human: task validity: The only verifier test needs live internet access. It resolves httpbin.org by DNS at test time and makes a real HTTP request to that IP, then asserts 'HTTP/1.1 200 OK'. The result therefore depends on network availability, DNS and the uptime of the public httpbin.org service, which often returns 502/503 errors. The task can fail with a correct fix, or fail in any sandbox without network, regardless of the agent's change. A rewrite of the instruction cannot fix this; the test would need a local server, such as pytest-httpbin, or an assertion that does not depend on the network.",
+      "source": "/home/vault/y500bb/y500bb12/OT_next_data/runs/bugsinpy/instruction-loop/opus55-medium-full-20261007-154717/results/httpie/needs_human/task_validity/unreliable_tests/bugsinpy-original-httpie-4",
+      "local_directory": "bugsinpy-original-httpie-4"
+    },
+    {
+      "task_id": "bugsinpy-original-luigi-8",
+      "category": "task_validity/reference_details",
+      "status": "needs_human: task validity: The test is a mock assertion on the exact SQL text and the exact execute arguments. Other correct case-insensitive fixes would fail it, for example lowercasing the names in Python, using ILIKE/upper(), or formatting the query differently, even though they behave correctly against Redshift. The only way to make such solutions pass is to dictate the exact query string in the instruction, and that turns the task into copying the solution. The test checks how the reference is built internally, not the behavior.",
+      "source": "/home/vault/y500bb/y500bb12/OT_next_data/runs/bugsinpy/instruction-loop/opus55-medium-full-20261007-154717/results/luigi/needs_human/task_validity/reference_details/bugsinpy-original-luigi-8",
+      "local_directory": "bugsinpy-original-luigi-8"
+    },
+    {
+      "task_id": "bugsinpy-original-thefuck-16",
+      "category": "task_validity/reference_details",
+      "status": "needs_human: task validity: The tests are tied to the exact string layout of the reference alias. Several other correct fixes would fail, for example: `TF_CMD=$(PYTHONIOENCODING=utf-8 TF_ALIAS=fuck TF_SHELL_ALIASES=$(alias) thefuck ...)` (different order), using `env ... thefuck`, exporting the variables, or forcing utf-8 inside Python (e.g. wrapping stdout or encoding before printing). Each of these resolves the UnicodeEncodeError but breaks the substring/order assertions. The instruction could be rewritten to spell out the exact alias string, but then it would simply give away the solution. As written, the verifier checks how the reference is implemented rather than the behavior.",
+      "source": "/home/vault/y500bb/y500bb12/OT_next_data/runs/bugsinpy/instruction-loop/opus55-medium-full-20261007-154717/results/thefuck/needs_human/task_validity/reference_details/bugsinpy-original-thefuck-16",
+      "local_directory": "bugsinpy-original-thefuck-16"
+    },
+    {
+      "task_id": "bugsinpy-original-thefuck-3",
+      "category": "task_validity/reference_details",
+      "status": "needs_human: task validity: The test asserts the exact subprocess argv used by the reference patch (['fish', '--version']) and depends on the matching parsing of 'fish, version X' output. Valid fixes that avoid the recursion another way fail, for example running fish with --no-config/-N plus `echo $FISH_VERSION`, or another non-recursive way to get the version. The test checks how the reference fix is built internally rather than the behavior (no recursion, correct version string). Stating the exact command in the instruction would just hand over the solution.",
+      "source": "/home/vault/y500bb/y500bb12/OT_next_data/runs/bugsinpy/instruction-loop/opus55-medium-full-20261007-154717/results/thefuck/needs_human/task_validity/reference_details/bugsinpy-original-thefuck-3",
+      "local_directory": "bugsinpy-original-thefuck-3"
+    },
+    {
+      "task_id": "bugsinpy-original-tornado-6",
+      "category": "task_validity/reference_details",
+      "status": "needs_human: task validity: test_asyncio_close_leak asserts that exactly 1 entry is left after 10 asyncio-closed loops. That only happens with the reference's specific design: a strong dict plus a sweep of closed loops in BaseAsyncIOLoop.initialize, with the latest loop still referenced. Other correct designs fail. For example, a fix that removes the entry immediately when the asyncio loop closes (such as wrapping or hooking asyncio_loop.close) leaves 0 entries and fails. A fix limited to IOLoop.close(), which fixes the reported HTTPClient leak, leaves 10 and fails. Both tests also depend on the private attribute IOLoop._ioloop_for_asyncio staying a len()-able map of asyncio loops to IOLoops, so a redesign that drops it would fail too. Passing therefore depends on matching the reference's internal cleanup strategy, not only on fixing the leak.",
+      "source": "/home/vault/y500bb/y500bb12/OT_next_data/runs/bugsinpy/instruction-loop/opus55-medium-full-20261007-154717/results/tornado/needs_human/task_validity/reference_details/bugsinpy-original-tornado-6",
+      "local_directory": "bugsinpy-original-tornado-6"
+    }
+  ],
+  "exclusion_label": "flagged_by_instruction_loop"
+}

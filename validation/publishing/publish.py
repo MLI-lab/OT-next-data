@@ -80,6 +80,9 @@ def build_blocked(stage, item, reports):
 def judge(stage, item, not_required=()):
     """(outcome, reason): outcome is 'passed', 'archive' or 'not_run'."""
     status = item.get('status')
+    if item.get('not_robust'):
+        from validation.stages.outcome_retries import not_robust_text
+        return 'archive', not_robust_text(item['not_robust']['expected'], item['not_robust']['observed'])
     if stage == 1:
         if status == 'error':          # the checks could not be run on this task at all
             return 'not_run', 'static checks could not run: ' + str(item.get('error', 'unknown'))[:300]
@@ -169,6 +172,13 @@ def stage_timings(reports):
 def folder_of(task, mapping):
     prefix = re.sub(r'-\d+$', '', task)
     return mapping.get(prefix, prefix)
+
+
+def commit_title(run, what='validation run'):
+    """Lead the commit and pull-request title with the data source, so PR lists scan by dataset."""
+    match = re.fullmatch(r'\d{4}-\d{2}-\d{2}-(.+)-[0-9a-f]{12}', run or '')
+    name = match.group(1) if match else ''
+    return f'{name}: {what} {run}' if name else f'{what[0].upper()}{what[1:]} {run}'
 
 
 def run_name(folders):
@@ -320,6 +330,8 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
     }
     record['infrastructure_retries'] = {str(stage): report['retry_sources']
         for stage, report in reports.items() if report.get('retry_sources')}
+    record['outcome_retries'] = {str(stage): report['outcome_retries']
+        for stage, report in reports.items() if report.get('outcome_retries')}
     record['archive_details'] = archive_details
     record['task_findings'] = {}
     for stage, report in reports.items():
@@ -425,8 +437,35 @@ def analysis_text(analysis):
     return '\n'.join(lines) + '\n'
 
 
+def reproducibility_text(retries):
+    """Stage 4 and 5 reruns: how often a single run reproduced the earlier audit, or recovered a crash."""
+    if not retries:
+        return []
+    lines = ['### Reproducibility and retries', '',
+             '| Stage | Mode | Tasks with expectation | Matched first attempt | Matched after 1 / 2 / 3+ retries | Archived as not robust | Not-run retried | Recovered | Unresolved |',
+             '| --- | --- | --- | --- | --- | --- | --- | --- | --- |']
+    not_robust = []
+    for stage, summary in sorted(retries.items()):
+        after = summary.get('matched_after_retries', {})
+        later = sum(v for k, v in after.items() if int(k) >= 3)
+        lines.append(f"| {stage} | {summary['mode']} | {summary['tasks_with_expectation']} | {summary['matched_first_attempt']} "
+                     f"| {after.get('1', 0)} / {after.get('2', 0)} / {later} | {len(summary['not_robust'])} "
+                     f"| {summary['retried_not_run']} | {summary['recovered_not_run']} | {len(summary['unresolved_not_run'])} |")
+        not_robust += [f'stage {stage}: {cell(task)}' for task in summary['not_robust']]
+    lines += ['', 'Expected outcomes come from an earlier audit of the same task content (matched by content hash). '
+              'A task whose result differs from that audit is rerun up to the retry limit; a task that never matches is archived as not robust. '
+              'Without an expectation only tasks with no result (crash, node failure, missing reward or missing runner evidence) are rerun, and a task still without a result after the last attempt is archived as not robust. Stages 3, 4 and 5 are covered; the retries run after the whole pipeline.', '']
+    notes = {s.get('expected_outcomes_note') for s in retries.values() if s.get('expected_outcomes_note')}
+    for note in sorted(notes):
+        lines += ['Expected outcomes: ' + cell(note), '']
+    if not_robust:
+        lines += ['Archived as not robust: ' + '; '.join(not_robust), '']
+    return lines
+
+
 def description(record, repo=None, revision=None):
     lines = []
+    lines += reproducibility_text(record.get('outcome_retries'))
     for stage, reason in record.get('skipped_stages', {}).items():
         lines += [f'> Stage {cell(stage)} not run: {cell(reason)}', '']
     provenance = record.get('review_provenance', {})
@@ -524,6 +563,8 @@ def description(record, repo=None, revision=None):
         for script in scripts:
             links[script['path']] = f'{folder}: patch script'
     links.update(record.get('evidence_links', {}))
+    for path, info in (record.get('trajectories') or {}).get('files', {}).items():
+        links[path] = f"{path.split('/')[-2]}: {info['rows']} attempts of {path.rsplit('/', 1)[-1][:-len('.parquet')]} (trajectory, verifier record, reward)"
     if record.get('patcher_upload_notes'):
         lines += ['', *[cell(note) for note in record['patcher_upload_notes']], '']
     lines += ['', '## Files and evidence', '']
@@ -648,12 +689,15 @@ def main():
     ap.add_argument('--readme-work-dir', type=Path, help='cluster workspace for annotation inputs and Harbor jobs; defaults under --out')
     ap.add_argument('--readme-evidence', action='append', default=[], metavar='FOLDER=PATH',
                     help='generator script, source documentation, or patch excerpt to stage for an output folder; repeatable')
+    ap.add_argument('--no-trajectories', action='store_true',
+                    help='with stage 6: publish the results without the trajectories of the attempts (default: with them)')
     a = ap.parse_args()
     result = publish(a.reports, a.contract, a.repo, a.folder, a.not_required, a.out, a.run_id, a.dry_run,
                      analysis=a.analysis, analysis_model=a.analysis_model,
                      readme=a.readme, readme_model=a.readme_model, readme_evidence=a.readme_evidence,
                      readme_seed=a.readme_seed, readme_work_dir=a.readme_work_dir, readme_force=a.readme_force,
-                     conversion_archives=a.conversion_archive, patch_manifests=a.patch_manifest, image_cache=a.image_cache)
+                     conversion_archives=a.conversion_archive, patch_manifests=a.patch_manifest, image_cache=a.image_cache,
+                     trajectories=not a.no_trajectories)
     print(result['description'])
     print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
           if a.dry_run else f"Pull request: {result['pull_request']}")
@@ -672,7 +716,7 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             readme=False, readme_model='claude-fable-5-1', readme_evidence=(),
             readme_seed=0, readme_work_dir=None, annotation_runner=None, readme_force=False,
             conversion_archives=(), patch_manifests=(), image_cache=None, agent_patch_repair_loop=False,
-            patch_repair_summary=None, skipped_stages=None):
+            patch_repair_summary=None, skipped_stages=None, trajectories=True):
     """Build the files for one run and open the pull request; returns what was done."""
     contract = read(contract_path)
     if skipped_stages:
@@ -747,7 +791,7 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             repo_id=repo, repo_type='dataset', create_pr=True,
             operations=[CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(path))
                         for name, path in artifacts.items()],
-            commit_message=f"Environment images for {record['run']}",
+            commit_message=commit_title(record['run'], 'environment images for'),
             commit_description=description(record))
         manifest['revision'] = artifact_commit.oid
     manifest_path = record['environment_images']['manifest']
@@ -755,6 +799,17 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
     (out / manifest_path).write_text(json.dumps(manifest, indent=2) + '\n')
     files = write(tables, record, run_file, out, cards, manifest if manifest['tasks'] else None)
     files.extend([manifest_path, *patcher_files])
+    submission = Path(reports_dir).parent
+    if trajectories and 6 in reports and (submission / 'request.json').is_file():
+        # A run with agent trials publishes the attempts behind its numbers: every trial's
+        # trajectory and verifier record from the job's evidence archive.
+        from validation.publishing import trajectories as traces
+        request = json.loads((submission / 'request.json').read_text())['args']
+        extra, record['trajectories'] = traces.collect(
+            [(submission, (contract, request, reports[6]))], record['run'], out,
+            lambda task: folder_of(task, mapping))
+        files.extend(extra)
+        (out / run_file).write_text(json.dumps(record, indent=2) + '\n')
     result = {'run': record['run'], 'files': [*artifacts, *files], 'out': str(out), 'description': description(record),
               'analysis': (record.get('analysis') or {}).get('status')}
     if dry_run:
@@ -765,7 +820,7 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
         repo_id=repo, repo_type='dataset', create_pr=artifact_commit is None,
         **({'revision': artifact_commit.pr_revision, 'parent_commit': artifact_commit.oid} if artifact_commit else {}),
         operations=[CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(out / name)) for name in files],
-        commit_message=f"Validation run {record['run']}", commit_description=description(record))
+        commit_message=commit_title(record['run']), commit_description=description(record))
     result['pull_request'] = artifact_commit.pr_url if artifact_commit else commit.pr_url
     # The PR revision becomes available only after the commit is created.
     linked_description = description(record, repo, artifact_commit.pr_revision if artifact_commit else commit.pr_revision)

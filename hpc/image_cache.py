@@ -134,13 +134,15 @@ def restore(bundle, target):
 
 def prepare_images(tasks, images, shared, args):
     """Run outside task timers; independent srun steps enforce build-only resources."""
-    from harbor.utils.container_cache import environment_dir_hash_truncated, environment_dir_hash
+    from harbor_patches.image_context import environment_dir_hash_truncated, environment_dir_hash
     images, shared = Path(images), Path(shared)
     selected = {}
+    task_paths = {}
     for task in tasks:
         for dockerfile in task.rglob('Dockerfile'):
             key = environment_dir_hash_truncated(dockerfile.parent)
             selected.setdefault(key, (task.name, dockerfile))
+            task_paths.setdefault(key, task)
     memory = args.image_build_memory_mb
     cpus = min(args.image_build_cpus, args.cpus)
     timeout = args.image_build_timeout_sec
@@ -150,18 +152,19 @@ def prepare_images(tasks, images, shared, args):
         concurrency = min(concurrency, max(1, allocated_memory // memory))
     records = []
 
-    def build(item):
+    def build(item, local_images=None):
         key, (name, dockerfile) = item
-        image = images / f'build_{name}-{key}.sif'
-        matches = sorted(images.glob(f'*-{key}.sif'))
+        local_images = images if local_images is None else local_images
+        image = local_images / f'build_{name}-{key}.sif'
+        matches = sorted(local_images.glob(f'*-{key}.sif'))
         # Preserve explicitly staged legacy caches and shared base-image behavior.
-        direct = images / (name + '.sif')
+        direct = local_images / (name + '.sif')
         if direct.is_file():
             matches.append(direct)
         for line in dockerfile.read_text().splitlines():
             parts = line.split()
             if len(parts) > 1 and parts[0].upper() == 'FROM':
-                base = images / ('swesmith_base_' + hashlib.sha256(parts[1].encode()).hexdigest()[:12] + '.sif')
+                base = local_images / ('swesmith_base_' + hashlib.sha256(parts[1].encode()).hexdigest()[:12] + '.sif')
                 if base.is_file() and not args.force_build:
                     matches.append(base)
         if matches and not args.force_build:
@@ -176,16 +179,20 @@ def prepare_images(tasks, images, shared, args):
             for old in matches:
                 for suffix in ('.sif', '.deferred.json', '.overlay.img'):
                     old.with_suffix(suffix).unlink(missing_ok=True)
+        budget = 'no per-image timeout' if timeout == 0 else f'{timeout}s timeout'
         print(f'WARNING: no reusable cached image selected for {name} ({key}); '
-              f'building separately: {memory} MB, {cpus} CPUs, {timeout}s timeout', flush=True)
+              f'building separately: {memory} MB, {cpus} CPUs, {budget}', flush=True)
         command = [sys.executable, '-m', 'hpc.image_cache', '--build', str(dockerfile),
-                   '--output', str(image), '--memory-mb', str(memory), '--cpus', str(cpus)]
+                   '--output', str(image), '--memory-mb', str(memory), '--cpus', str(cpus),
+                   '--timeout-sec', str(timeout)]
         if os.environ.get('SLURM_JOB_ID'):
-            command = ['srun', '--quiet', '--exact', '--nodes=1', '--ntasks=1',
-                       '--cpu-bind=none', '--gres=none', '--kill-on-bad-exit=1',
-                       '-w', os.environ.get('SLURMD_NODENAME') or socket.gethostname().split('.')[0],
-                       f'--cpus-per-task={cpus}', f'--mem={memory}M',
-                       f'--time={max(1, (timeout + 59) // 60)}', *command]
+            step = ['srun', '--quiet', '--exact', '--nodes=1', '--ntasks=1',
+                    '--cpu-bind=none', '--gres=none', '--kill-on-bad-exit=1',
+                    '-w', os.environ.get('SLURMD_NODENAME') or socket.gethostname().split('.')[0],
+                    f'--cpus-per-task={cpus}', f'--mem={memory}M']
+            if timeout:
+                step.append(f'--time={max(1, (timeout + 59) // 60)}')
+            command = step + command
         started = time.monotonic()
         log = images / f'{key}.build.log'
         record = {'key': key, 'image': str(image), 'memory_mb': memory, 'cpus': cpus,
@@ -194,7 +201,16 @@ def prepare_images(tasks, images, shared, args):
                   'deferred_overlay_mb': int(os.environ.get('BRIDGE_DEFERRED_OVERLAY_MB', '2048'))}
         try:
             with log.open('w') as output:
-                subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=True, timeout=timeout)
+                options = {}
+                if getattr(args, 'prebuild_only', False):
+                    for folder in ('cache', 'tmp'):
+                        (local_images / folder).mkdir(exist_ok=True)
+                    options['env'] = {**os.environ,
+                                      'APPTAINER_CACHEDIR': str(local_images / 'cache'),
+                                      'APPTAINER_TMPDIR': str(local_images / 'tmp'),
+                                      'HARBOR_SIF_CACHE': str(local_images)}
+                subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=True,
+                               timeout=timeout or None, **options)
             record['status'] = 'built'
             try:
                 record['published'] = str(publish(image, shared, provenance={
@@ -216,15 +232,41 @@ def prepare_images(tasks, images, shared, args):
         record['seconds'] = round(time.monotonic() - started, 3)
         return record
 
+    def prepare_one(item):
+        if not getattr(args, 'prebuild_only', False):
+            return build(item)
+        key, (name, dockerfile) = item
+        local = images / key
+        started = time.monotonic()
+        record = {}
+        try:
+            from hpc.local_assets import stage_images
+            stage_images([task_paths[key]], shared, local, selected_keys={key})
+            record = build(item, local)
+            record['staging'] = json.loads((local / 'staging.json').read_text())
+        except Exception as exc:
+            log = images / f'{key}.build.log'
+            with log.open('a') as output:
+                output.write(f'Image preparation failed: {exc}\n')
+            record = {'key': key, 'task': name, 'status': 'error', 'error': str(exc),
+                      'log': str(log), 'seconds': round(time.monotonic() - started, 3)}
+        finally:
+            try:
+                if local.exists():
+                    shutil.rmtree(local)
+            except OSError as exc:
+                record.update(status='error', error=f'Cannot release image scratch: {exc}')
+        return record
+
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        for record in pool.map(build, selected.items()):
+        for record in pool.map(prepare_one, selected.items()):
             records.append(record)
             (images / 'preparation.json').write_text(json.dumps(records, indent=2))
     return records
 
 
 def verify_image_runtime(image, apptainer):
-    """Reject incomplete terminal tooling before publishing a newly built image."""
+    """Reject incomplete package installation before publishing a newly built image; warn when tmux is absent."""
     image = Path(image)
     overlay = image.with_suffix('.overlay.img')
     command = ['unshare', '-r', apptainer, 'exec', '--containall', '--cleanenv',
@@ -232,15 +274,32 @@ def verify_image_runtime(image, apptainer):
     if image.with_suffix('.deferred.json').exists():
         command += ['--overlay', str(overlay) + ':ro']
     command += [str(image), 'sh', '-ec',
-                'tmux -V; '
+                'tmux -V || echo "WARNING: image lacks tmux; the bridge installs it at task start" >&2; '
                 'if command -v dpkg >/dev/null 2>&1; then '
                 'audit=$(dpkg --audit); '
                 '[ -z "$audit" ] || { printf "%s\\n" "$audit" >&2; exit 1; }; fi']
     checked = subprocess.run(command, capture_output=True, text=True, timeout=120)
     if checked.returncode:
         raise RuntimeError('Image runtime verification failed; image will not be cached. '
-                           'Provide working tmux and complete package installation in the image. ' +
+                           'Complete the package installation in the image. ' +
                            ((checked.stderr or '') + (checked.stdout or ''))[-2000:])
+
+
+def use_image_certificate_store(environment=None):
+    """Build steps use CA roots installed in the image, not empty host-bind targets."""
+    environment = os.environ if environment is None else environment
+    for name in ('SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE'):
+        environment.pop(name, None)
+        environment.pop('APPTAINERENV_' + name, None)
+    for name in ('APPTAINER_BIND', 'APPTAINER_BINDPATH'):
+        binds = [entry for entry in environment.get(name, '').split(',') if entry]
+        binds = [entry for entry in binds
+                 if not any(f'/run/ot-certificates/{cert_name.lower()}.pem' in entry
+                            for cert_name in ('SSL_CERT_FILE', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE'))]
+        if binds:
+            environment[name] = ','.join(binds)
+        else:
+            environment.pop(name, None)
 
 
 def main():
@@ -249,21 +308,36 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--memory-mb', type=int, required=True)
     parser.add_argument('--cpus', type=int, required=True)
+    parser.add_argument('--timeout-sec', type=int, default=3600,
+                        help='image-build timeout; zero uses the remaining Slurm allocation')
     args = parser.parse_args()
+    if args.timeout_sec < 0:
+        parser.error('--timeout-sec must be nonnegative')
     from harbor_patches import bridge_worker as patch
     patch.worker.APPTAINER = shutil.which('apptainer') or shutil.which('singularity')
     if not patch.worker.APPTAINER:
         raise RuntimeError('Image preparation requires Apptainer or Singularity on the build node')
     # Size compression from the dedicated build allowance, never physical node RAM.
     os.environ['OT_IMAGE_COMPRESSION_ARGS'] = f'-processors {args.cpus} -mem {max(1, args.memory_mb // 4)}M'
+    # During image builds, /run/ot-certificates contains empty %files targets,
+    # not the host CA bundles. Use the image's system CA store instead; task
+    # containers still receive the staged host bundles at runtime.
+    use_image_certificate_store()
     # Image builds use host networking too. Deferred RUN uses --cleanenv, so
     # explicitly forward the configured proxy just as task containers do.
     patch.configure_explicit_host_network(force=True)
-    patch.configure_container_certificates()
     patch.worker._parse_copies = patch.parse_copies_docker_semantics
+    from harbor_patches.image_build import build_budget_commands
+    patch.worker.subprocess.run = build_budget_commands(patch.worker.subprocess.run, args.timeout_sec or None)
+    if args.timeout_sec == 0:
+        os.environ['OT_IMAGE_BUILD_NO_TIMEOUT'] = '1'
     patch.worker.subprocess.run = patch.run_container_commands(patch.worker.subprocess.run)
     from harbor_patches.image_build import certificate_build_mountpoints, file_backed_build_scripts, logged_build_commands
     patch.worker.subprocess.run = certificate_build_mountpoints(patch.worker.subprocess.run)
+    if os.environ.get('OT_IMAGE_BUILD_ARTIFACTS'):
+        from harbor_patches.image_build import artifact_build_mount
+        patch.worker.subprocess.run = artifact_build_mount(
+            patch.worker.subprocess.run, os.environ['OT_IMAGE_BUILD_ARTIFACTS'])
     patch.worker._run_unshared = file_backed_build_scripts(
         logged_build_commands(patch.worker.subprocess.run), patch.worker.APPTAINER)
     if os.environ.get('OT_IMAGE_DIRECTORY_BUILD', '1') == '1':

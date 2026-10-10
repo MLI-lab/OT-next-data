@@ -114,6 +114,11 @@ def description(record):
     for model, m in record['models'].items():
         lines.append(f"- `{model}`: {m.get('hf_repo')}, thinking {'on' if m.get('thinking') else 'off'}, context {m.get('context')}, "
                      f"reply limit {m.get('max_output_tokens')}, sampling {m.get('sampling')}")
+    traces = record.get('trajectories')
+    if traces:
+        lines += ['', f"Trajectories: {traces['rows']} attempts in `runs/{record['run']}/trajectories/<data source>/<model>.parquet` "
+                  '(one row per attempt: trajectory, trial record with verifier output, reward)'
+                  + (f"; {traces['without_trajectory']} attempts have no saved trajectory" if traces['without_trajectory'] else '') + '.']
     return '\n'.join(lines) + '\n'
 
 
@@ -139,11 +144,19 @@ def write(tables, record, run_file, out, previous=None):
     return [*files, run_file]
 
 
-def publish(submissions, repo, folders=(), out=None, run_id=None, dry_run=False):
+def publish(submissions, repo, folders=(), out=None, run_id=None, dry_run=False, trajectories=True):
     mapping = dict(item.split('=', 1) for item in folders)
     tables, record, run_file = build(submissions, mapping, run_id)
     out = Path(out) if out else Path(submissions[0]) / 'publish-pass-counts'
+    extra = []
+    if trajectories:
+        # The attempts behind the counts: every trial's trajectory and verifier record, from the
+        # jobs' evidence archives, as runs/<run>/trajectories/<data source>/<model>.parquet.
+        from validation.publishing import trajectories as traces
+        extra, record['trajectories'] = traces.collect(
+            [(s, load(s)) for s in submissions], record['run'], out, lambda task: folder_of(task, mapping))
     files = write(tables, record, run_file, out, None if dry_run and not repo else lambda folder: previous_rows(repo, folder))
+    files = [*files, *extra]
     result = {'run': record['run'], 'files': files, 'out': str(out), 'description': description(record)}
     if dry_run:
         return result
@@ -165,8 +178,10 @@ def main():
     ap.add_argument('--out', type=Path, help='where the files are written; default in the first submission folder')
     ap.add_argument('--run-id', help='default: date, data source name and a hash of the contracts')
     ap.add_argument('--dry-run', action='store_true', help='write the files and the description, open no pull request')
+    ap.add_argument('--no-trajectories', action='store_true',
+                    help='publish the counts only, without the trajectories of the attempts (default: with them)')
     a = ap.parse_args()
-    result = publish(a.submissions, a.repo, a.folder, a.out, a.run_id, a.dry_run)
+    result = publish(a.submissions, a.repo, a.folder, a.out, a.run_id, a.dry_run, trajectories=not a.no_trajectories)
     print(result['description'])
     print('files:', ', '.join(result['files']), '\nout:', result['out'])
     if result.get('pull_request'):

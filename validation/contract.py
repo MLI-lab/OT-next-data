@@ -38,6 +38,21 @@ def files_digest(files):
     return h.hexdigest()
 
 
+def comparable(value):
+    """Command-line values as the contract froze them: paths resolved to strings."""
+    return str(Path(value).resolve()) if isinstance(value, Path) else value
+
+
+def expected_outcomes_digest(args):
+    """Content hash of the earlier audit's expected-outcomes file, validated on the way."""
+    path = getattr(args, 'expected_outcomes', None)
+    if not path:
+        return None
+    from validation.stages.outcome_retries import load_expectations
+    load_expectations(path)
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 def task_digest(path):
     return files_digest((p.relative_to(path).as_posix(), p.read_bytes())
                         for p in path.rglob('*') if p.is_file())
@@ -151,6 +166,7 @@ def profile(args):
     apptainer = args.backend == 'apptainer'
     from validation.stages.runner import dependency_archive_spec
     return {
+        'operation': 'image-prebuild-only' if getattr(args, 'prebuild_only', False) else 'validation',
         'dependency_archives': dependency_archive_spec(args),
         'instruction_path_search_roots': getattr(args, 'resolve_path_root', []),
         # Agent defaults (maximum turns, parser, ...) with --agent-kwargs applied.
@@ -178,7 +194,8 @@ def profile(args):
             'verifier_review': {'timeout_fraction': 0.05, 'max_seconds': 60,
                                 'setup_script': 'tests/setup.sh'} if getattr(args, 'review_setup', None) is not None else None,
             'max_seconds': getattr(args, 'preparation_max_seconds', None) or (60.0 if getattr(args, 'review_setup', None) is not None else None),
-            'scope': 'fresh task preparation; review also measures verifier transfers and tests/setup.sh separately; excludes image builds, inspection and grading'},
+            'startup_policy': 'review records startup separately, bounded by each environment.build_timeout_sec; startup failures fail validation',
+            'scope': 'review preparation excludes container startup; fresh task preparation; review also measures verifier transfers and tests/setup.sh separately; excludes image builds, inspection and grading'},
         'force_build': args.force_build, 'trial_cpus': args.trial_cpus,
         'trial_memory_mb': args.trial_memory_mb,
         'agent': args.agent, 'model': args.model, 'review_agent': args.review_agent,
@@ -213,12 +230,14 @@ def protocol(contract):
     return '\n'.join([
         '# Validation contract', '', f"Contract SHA-256: `{contract['sha256']}`", '',
         f"Dataset: {source['source']}", f"Revision: {source['revision']}",
+        f"Operation: {execution.get('operation', 'validation')}",
         f"Instruction normalization: {source.get('normalization') or 'none'}",
         f"Task count: {len(task_records(contract))}; minimum acceptable: {criteria['minimum_tasks']}",
         f"Selection: {source['selection']}",
         f"Task manifest: {contract['task_manifest']['path']}",
         f"Task manifest SHA-256: `{contract['task_manifest']['sha256']}`",
-        f"Stages: {contract['stages']}", f"Static exclusions: {criteria['static_exclusions']}",
+        ("Stages: none, image preparation only" if execution.get('operation') == 'image-prebuild-only'
+         else f"Stages: {contract['stages']}"), f"Static exclusions: {criteria['static_exclusions']}",
         f"Imported static checkpoint: {contract.get('static_checkpoint') or 'none'}",
         f"Reused stage-3 report: {(contract.get('stage3_checkpoint') or {}).get('source_report', 'none')}",
         f"Accept previous path-check adaptation: {contract.get('arguments', {}).get('static_resume_accept_previous_path_check', False)}",
@@ -263,10 +282,10 @@ def create(args, numbers, destination):
     meta = json.loads(source_meta_path.read_text()) if source_meta_path.exists() else {}
     _, checks, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
     frozen = vars(args).copy()
-    for key in ('tasks', 'out', 'trials', 'serve_weights', 'dependency_archives', 'dependency_layout'):
+    for key in ('tasks', 'out', 'trials', 'serve_weights', 'dependency_archives', 'dependency_layout', 'expected_outcomes'):
         if frozen.get(key) is not None:
             frozen[key] = str(Path(frozen[key]).resolve())
-    for key in ('prepare_contract', 'contract', 'stages'):
+    for key in ('prepare_contract', 'contract', 'stages', 'shard'):
         frozen.pop(key, None)
     contract = {
         'schema_version': 2, 'created_at': datetime.now(timezone.utc).isoformat(),
@@ -286,6 +305,7 @@ def create(args, numbers, destination):
             'static_exclusions': exclusions, 'conditional_checks': {'check_ai_detection.py': 'only with GPTZERO_API_KEY; missing key or upstream API-unavailable skip is non-failing'}, 'failure_policy': 'collect all findings; fail acceptance on any selected failure/error/skip or insufficient coverage'},
         'execution_profile': profile(args), 'runtime_dependencies': dependencies(),
         'trajectory_input_sha256': task_digest(args.trials) if args.trials else None,
+        'expected_outcomes_sha256': expected_outcomes_digest(args),
         'upstream': PINS, 'implementation': implementation(),
         'arguments': frozen,
     }
@@ -363,6 +383,8 @@ def verify_source(args, contract):
         raise ValueError('upstream pins differ from the frozen contract')
     if args.trials and task_digest(Path(args.trials)) != contract['trajectory_input_sha256']:
         raise ValueError('trajectory evidence differs from the frozen contract')
+    if expected_outcomes_digest(args) != contract.get('expected_outcomes_sha256'):
+        raise ValueError('expected-outcomes file differs from the frozen contract')
     if implementation() != contract['implementation']:
         raise ValueError('validation implementation changed; prepare a new contract')
     if local_model_assets(args) != contract['execution_profile'].get('local_model_assets'):
@@ -375,7 +397,7 @@ def bind(args, numbers):
     if args.prepare_contract:
         if args.contract or args.tasks is None:
             raise ValueError('--prepare-contract requires tasks and cannot be combined with --contract')
-        if 1 in numbers and (getattr(args, 'fix_instruction_suffix', False) or
+        if not getattr(args, 'prebuild_only', False) and 1 in numbers and (getattr(args, 'fix_instruction_suffix', False) or
                              (getattr(args, 'fix_instruction_paths', True) and getattr(args, 'path_resolution_report', []))):
             from validation.checks.instruction_suffix import prepare
             prepare(args, args.prepare_contract.resolve().with_suffix('.stage1-tasks'))
@@ -386,12 +408,12 @@ def bind(args, numbers):
     contract = read(args.contract)
     explicit = {token.split('=')[0][2:].replace('-', '_') for token in sys.argv[1:] if token.startswith('--')}
     # Artifact destination and preview mode may change; execution inputs may not.
-    allowed = {'contract', 'out', 'dry_run'}
+    allowed = {'contract', 'out', 'dry_run', 'shard'}  # a shard runs part of the frozen list; the list itself is unchanged
     for key in explicit - allowed:
         if key == 'stages':
             if numbers != contract['stages']:
                 raise ValueError('--stages differs from contract')
-        elif key in contract['arguments'] and getattr(args, key, None) != contract['arguments'][key]:
+        elif key in contract['arguments'] and comparable(getattr(args, key, None)) != contract['arguments'][key]:
             raise ValueError(f'--{key.replace("_", "-")} differs from contract')
     if args.tasks is not None and str(args.tasks.resolve()) != contract['arguments']['tasks']:
         raise ValueError('task source path differs from contract')
@@ -429,10 +451,14 @@ def assess_stage(contract, number, report):
     count = len({Path(i.get('task', '')).name for i in report['items'] if i.get('task')})
     failures = []
     expected_ids = {t['task_id'] for t in task_records(contract)}
+    shard = report.get('shard')
+    if shard:
+        from validation.shards import slice_of
+        expected_ids = set(slice_of(sorted(expected_ids), (shard['index'], shard['count']), key=lambda t: t))
     actual_ids = {Path(i.get('task', '')).name for i in report['items'] if i.get('task')}
     if actual_ids != expected_ids:
         failures.append(f'task coverage mismatch: missing={sorted(expected_ids-actual_ids)}, unexpected={sorted(actual_ids-expected_ids)}')
-    if count < contract['success_criteria']['minimum_tasks']:
+    if not shard and count < contract['success_criteria']['minimum_tasks']:
         failures.append(f'coverage {count} below minimum {contract["success_criteria"]["minimum_tasks"]}')
     if any(i['status'] == 'skipped' for i in report['items']):
         failures.append('selected tasks were skipped')

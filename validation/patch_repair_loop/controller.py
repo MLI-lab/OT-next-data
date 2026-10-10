@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -15,7 +16,7 @@ import shutil
 import subprocess
 import time
 
-from validation.data.materialize import materialize, parquet_files
+from validation.data.materialize import parquet_files
 from validation.data.selection import discover_tasks
 from validation.patch_repair_loop.agents import ROLES, invoke, parse_json_answer
 from validation.patch_repair_loop.reports import STAGES, summarize
@@ -140,6 +141,17 @@ def load_config(path):
 
 
 def loop_settings(config):
+    validation_args(config)
+    if type(config.setdefault('prebuild_all_images', False)) is not bool:
+        raise ValueError('prebuild_all_images must be boolean')
+    if type(config.setdefault('allow_exclusions', True)) is not bool:
+        raise ValueError('allow_exclusions must be boolean')
+    if not isinstance(config.setdefault('user_instructions', ''), str):
+        raise ValueError('user_instructions must be a string')
+    prefix = config.setdefault('pilot_prefix_ids', [])
+    if (not isinstance(prefix, list) or any(not isinstance(task, str) or not task for task in prefix)
+            or len(prefix) != len(set(prefix))):
+        raise ValueError('pilot_prefix_ids must be a list of distinct nonempty task IDs')
     sizes = config.setdefault('pilot_sizes', [10, 50, 200])
     if (not isinstance(sizes, list) or not sizes or
             any(type(size) is not int or size < 1 for size in sizes) or
@@ -166,6 +178,46 @@ def loop_settings(config):
         if Path(path).resolve().is_relative_to(ROOT):
             raise ValueError('recovery_edit_paths are for dedicated files outside the repository; use supervisor_shared_infra for shared code')
     return config
+
+
+def validation_args(config):
+    """Allow resource/timing settings, never workflow or success-policy overrides."""
+    args = config.get('validation_args', [])
+    if not isinstance(args, list) or any(not isinstance(arg, str) for arg in args):
+        raise ValueError('validation_args must be an argv list')
+    numeric = {
+        '--preparation-median-target-seconds': float,
+        '--preparation-mean-target-seconds': float,
+        '--preparation-max-seconds': float,
+        '--image-build-timeout-sec': int,
+        '--image-build-memory-mb': int,
+        '--image-build-cpus': int,
+        '--image-build-concurrency': int,
+    }
+    seen = set()
+    index = 0
+    while index < len(args):
+        flag = args[index]
+        if flag in seen or flag not in {*numeric, '--pack-image-cache'}:
+            raise ValueError(f'unsupported or repeated validation_args option: {flag}')
+        seen.add(flag)
+        index += 1
+        if flag in numeric:
+            try:
+                value = numeric[flag](args[index])
+                if not math.isfinite(value) or (value < 0 if flag == '--image-build-timeout-sec' else value <= 0):
+                    raise ValueError()
+            except (ValueError, IndexError):
+                raise ValueError(f'{flag} requires a positive finite number (or zero for the image-build timeout)') from None
+            index += 1
+    return list(args)
+
+
+def require_retained_tasks(config, removed, evidence=None):
+    if not config.get('allow_exclusions', True) and removed:
+        raise LoopBlocked('human_review',
+                          f'Task exclusions are not authorized: {sorted(removed)}',
+                          str(evidence) if evidence else None)
 
 
 def check_limit(config, state, setting, counter):
@@ -250,23 +302,63 @@ def materialize_source(config, round_dir):
 
 
 def pilot_input(source, selected, destination):
+    files = parquet_files(source)
+    if files:
+        # Keep task archives packed on shared storage. Validation materializes
+        # them only in node-local scratch, including for the full stage-3 run.
+        import pyarrow as pa
+        import pyarrow.compute as pc
+        import pyarrow.parquet as pq
+        destination.mkdir(parents=True, exist_ok=True)
+        output = destination / 'tasks.parquet'
+        marker = destination / 'selected-ids.json'
+        expected = set(selected)
+        if len(expected) != len(selected) or not expected:
+            raise ValueError('pilot selection must contain distinct task IDs')
+        if output.exists():
+            if (not marker.exists() or set(json.loads(marker.read_text())) != expected
+                    or set(task_ids(output)) != expected):
+                raise ValueError('existing pilot Parquet does not match frozen selection')
+            return output
+        temporary = destination / 'tasks.parquet.tmp'
+        schema = pq.read_schema(files[0])
+        seen = set()
+        try:
+            with pq.ParquetWriter(temporary, schema) as writer:
+                for path in files:
+                    if not pq.read_schema(path).equals(schema, check_metadata=True):
+                        raise ValueError('pilot Parquet shards have incompatible schemas or metadata')
+                    for batch in pq.ParquetFile(path).iter_batches(batch_size=16):
+                        subset = pa.Table.from_batches([batch]).filter(pc.is_in(
+                            batch.column(batch.schema.get_field_index('path')),
+                            value_set=pa.array(selected)))
+                        ids = subset.column('path').to_pylist()
+                        if seen.intersection(ids) or len(ids) != len(set(ids)):
+                            raise ValueError('duplicate selected task in pilot source')
+                        seen.update(ids)
+                        if ids:
+                            writer.write_table(subset)
+            if seen != expected:
+                raise ValueError('pilot source did not contain all selected task IDs')
+            save(marker, sorted(expected))
+            temporary.replace(output)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return output
     if destination.exists():
         found = {path.name for path in discover_tasks(destination)}
         if found != set(selected):
             raise ValueError("existing pilot tree does not match frozen selection")
         return destination
     destination.mkdir(parents=True)
-    if parquet_files(source):
-        materialize(source, destination, selected_ids=set(selected))
-    else:
-        tasks = {path.name: path for path in discover_tasks(source)}
-        for task in selected:
-            shutil.copytree(tasks[task], destination / task)
+    tasks = {path.name: path for path in discover_tasks(source)}
+    for task in selected:
+        shutil.copytree(tasks[task], destination / task)
     return destination
 
 
 
-def submit(config, source, selected, round_dir, *, full=False, stages=None, review_setup=False, reuse_stage3=None):
+def submit(config, source, selected, round_dir, *, full=False, stages=None, review_setup=False, reuse_stage3=None, prebuild_only=False):
     pilot = source if full else pilot_input(source, selected, round_dir / "pilot/tasks")
     contract = round_dir / "contract.json"
     results = round_dir / "results"
@@ -295,6 +387,9 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
         options += ["--reuse-stage3", str(reuse_stage3)]
     if review_setup:
         options += ["--review-setup", str(config.get("review_setup_runs", 5))]
+    if prebuild_only:
+        options += ['--prebuild-only']
+    options += validation_args(config)
     for check, reason in policy["static_exclusions"].items():
         options += ["--exclude", f"{check}={reason}"]
     env = {**os.environ, "OT_WORKSPACE": config["workspace"], "PYTHONPATH": str(ROOT)}
@@ -356,8 +451,46 @@ def wait_for_job(job, poll_seconds, max_wait_hours=24):
 
 
 
+def wait_for_prebuild(job, poll_seconds, max_wait_hours=24):
+    submission = Path(job['submission'])
+    deadline = time.monotonic() + max_wait_hours * 3600
+    while True:
+        result = submission / 'image-prebuild.json'
+        execution = submission / 'execution.json'
+        if result.is_file() and execution.is_file():
+            status = json.loads(execution.read_text())
+            if status.get('status') in ('completed', 'findings') and status.get('evidence'):
+                return json.loads(result.read_text())
+        if time.monotonic() > deadline:
+            raise TimeoutError(f'prebuild job {job["job_id"]} exceeded {max_wait_hours}h')
+        result = subprocess.run(['sacct', '-X', '-n', '-P', '-j', job['job_id'],
+                                 '--format', 'JobIDRaw,State'], capture_output=True, text=True, check=True)
+        states = [line.split('|')[1] for line in result.stdout.splitlines()
+                  if line.split('|')[0] == job['job_id']]
+        if states and states[0] in ('FAILED', 'CANCELLED', 'TIMEOUT', 'OUT_OF_MEMORY', 'COMPLETED'):
+            raise RuntimeError(f'prebuild job {job["job_id"]} ended {states[0]} without archived results')
+        time.sleep(poll_seconds)
+
+
+def prebuild_gate(config, source, available, generation):
+    """Cache the whole generation before any pilot or validation submission."""
+    directory = generation / 'image-prebuild'
+    directory.mkdir(exist_ok=True)
+    job_path = directory / 'job.json'
+    job = json.loads(job_path.read_text()) if job_path.exists() else submit(
+        config, source, available, directory, full=True, stages=[3], prebuild_only=True)
+    save(job_path, job)
+    evidence(directory, job)
+    result = wait_for_prebuild(job, config['poll_seconds'], config.get('max_wait_hours', 24))
+    save(directory / 'outcome.json', result)
+    return directory, job, result
+
+
 def agent_call(config, role, context, round_dir, label, *, watched_paths=()):
-    context = {**context, "approved_validation_policy": validation_policy(config)}
+    context = {**context, "approved_validation_policy": validation_policy(config),
+               "user_instructions": config.get('user_instructions', ''),
+               "allow_exclusions": config.get('allow_exclusions', True),
+               "validation_args": validation_args(config)}
     if config.get("prior_repair_evidence"):
         context = {**context, "prior_repair_evidence": config["prior_repair_evidence"]}
     model = config.get("agent_models", {}).get(role, config.get("agent_model"))
@@ -392,9 +525,12 @@ def lock(path):
             fcntl.flock(stream, fcntl.LOCK_UN)
 
 
-def selection(ids, size, seed):
+def selection(ids, size, seed, prefix=()):
     """One stable ordering gives nested 10/50/200 pilots, including after repairs."""
+    if set(prefix) - set(ids):
+        raise LoopBlocked('human_review', 'pilot_prefix_ids contains unavailable tasks')
     ordered = sorted(ids, key=lambda task: hashlib.sha256(f'{seed}:{task}'.encode()).hexdigest())
+    ordered = list(prefix) + [task for task in ordered if task not in set(prefix)]
     return ordered if size is None else ordered[:size]
 
 
@@ -404,6 +540,28 @@ def dataset_hashes(config):
             for p in sorted(root.rglob('*')) if p.is_file()
             and not any(part.startswith('.') or part in ('__pycache__', 'pilot-results')
                         for part in p.relative_to(root).parts)}
+
+
+def fixer_idle(config, state):
+    """A fixer phase without partial dataset edits may be replaced by a fresh stage 3.
+
+    The fixer snapshot is written before its agent runs. When the dataset still
+    matches it (the fixer never started, or finished without a dataset change
+    such as a shared-infrastructure blocker), no in-progress edit needs to be
+    finished and the stale evidence can be superseded by a new generation.
+    """
+    if state.get('phase') != 'fixer':
+        return False
+    evidence_dir = (state.get('pending_evidence') or {}).get('evidence_dir')
+    before = Path(evidence_dir) / 'dataset-before.json' if evidence_dir else None
+    return before is None or not before.exists() or json.loads(before.read_text()) == dataset_hashes(config)
+
+
+def restart_stage3(state):
+    """Open a new generation from the first pilot with setup review enabled."""
+    state.update(phase='build', generation=state.get('generation', 0) + 1, pilot=0, review_setup=True)
+    for key in ('validation_finished_at', 'recovery_requires_stage3', 'pending_evidence'):
+        state.pop(key, None)
 
 
 def context(config, state):
@@ -425,15 +583,17 @@ def call(config, state, role, directory, extra=None):
                              watched_paths=[Path(config['patcher']).parent])
     result = parse_json_answer(answer)
     check_blocker(result, directory / f'agent-attempt-{state.get("agent_attempt", 0):04d}' / 'agents' / role)
+    require_retained_tasks(config, [item['task_id'] for item in exclusions(result)], directory)
     return result
 
 
-def exclusions(result):
+def exclusions(result, config=None):
     items = result.get('exclusions', [])
     if not isinstance(items, list) or any(not isinstance(item, dict) or
             any(not isinstance(item.get(key), str) or not item[key].strip()
                 for key in ('task_id', 'category', 'reason', 'evidence')) for item in items):
         raise ValueError('exclusions require task_id, category, reason, and evidence')
+    require_retained_tasks(config or {}, [item['task_id'] for item in items])
     return items
 
 
@@ -483,17 +643,21 @@ def drive(config, config_path, state_path, resume=False):
                 (version := work / f'generation-{state["generation"]:04d}' / 'dataset-version.json').exists() and
                 json.loads(version.read_text()) != dataset_hashes(config)):
             state.update(phase='build', generation=state['generation'] + 1, pilot=0)
+        elif state.get('recovery_requires_stage3') and fixer_idle(config, state):
+            # Accepted repairs (shared code or recovery edits) invalidate the
+            # evidence the idle fixer was given; validate again instead.
+            restart_stage3(state)
         state.pop('blocker', None)
     save(state_path, state)
     try:
         from validation.patch_repair_loop.recovery import infrastructure_revision, jobs
         revision = infrastructure_revision()
-        if state.get('status') != 'complete' and state.get('shared_infrastructure_revision', revision) != revision and state['phase'] not in (
-                'proposer', 'implementer', 'fixer') and not (work / 'publication/job.json').exists():
+        if state.get('status') != 'complete' and state.get('shared_infrastructure_revision', revision) != revision and (
+                state['phase'] not in ('proposer', 'implementer', 'fixer') or fixer_idle(config, state)
+                ) and not (work / 'publication/job.json').exists():
             if any(not job['finished'] for job in jobs(work)):
                 raise LoopBlocked('infrastructure', 'Shared infrastructure changed; wait for existing jobs before restarting stage 3')
-            state.update(phase='build', generation=state['generation'] + 1, pilot=0, review_setup=True)
-            state.pop('validation_finished_at', None)
+            restart_stage3(state)
         state['shared_infrastructure_revision'] = revision
         save(state_path, state)
         while state['status'] == 'running':
@@ -511,7 +675,7 @@ def drive(config, config_path, state_path, resume=False):
                              phase='implementer' if result['changes_needed'] else 'build')
             elif phase == 'implementer':
                 result = call(config, state, 'implementer', work / 'implementation')
-                state['exclusions'] += exclusions(result)
+                state['exclusions'] += exclusions(result, config)
                 save(work / 'implementation.json', result)
                 state['phase'] = 'build'
             elif phase == 'final_review':
@@ -521,6 +685,7 @@ def drive(config, config_path, state_path, resume=False):
                 result = call(config, state, 'final_failure_reviewer', directory, bundle)
                 save(directory / 'decision.json', result)
                 groups = decisions(result, bundle['outcome'])
+                require_retained_tasks(config, groups['archive'], directory / 'decision.json')
                 if groups['retry']:
                     save(work / 'infrastructure-findings' / f'generation-{state["generation"]:04d}-review-{state["final_attempt"]:04d}.json', {
                         'dataset': config['dataset'], 'decision': str(directory / 'decision.json'),
@@ -586,7 +751,7 @@ def drive(config, config_path, state_path, resume=False):
                     save(before_path, dataset_hashes(config))
                 result = call(config, state, 'fixer', directory, state['pending_evidence'])
                 save(directory / 'repair.json', result)
-                state['exclusions'] += exclusions(result)
+                state['exclusions'] += exclusions(result, config)
                 if json.loads(before_path.read_text()) == dataset_hashes(config):
                     raise LoopBlocked('human_review', 'Fixer made no dataset changes', str(directory))
                 state['review_setup'] |= result.get('requires_review_setup', False) is True
@@ -609,6 +774,9 @@ def drive(config, config_path, state_path, resume=False):
                     save(version_path, dataset_hashes(config))
                     state.pop('recovery_requires_stage3', None)
                 available = task_ids(source)
+                if not config.get('allow_exclusions', True):
+                    require_retained_tasks(config, set(task_ids(Path(config['source']))) - set(available),
+                                           generation / 'materialized.json')
                 if state['known_ids'] is not None:
                     missing = set(state['known_ids']) - set(available)
                     declared = {item['task_id'] for item in state['exclusions']}
@@ -618,9 +786,17 @@ def drive(config, config_path, state_path, resume=False):
                         raise ValueError('A repair unexpectedly added task IDs')
                 state['known_ids'] = available
                 save(state_path, state)
+                if config.get('prebuild_all_images', False):
+                    build_directory, build_job, build_result = prebuild_gate(config, source, available, generation)
+                    if not build_result['passed']:
+                        bundle = evidence(build_directory, build_job, build_result)
+                        state.update(phase='fixer', pending_evidence=bundle)
+                        save(state_path, state)
+                        continue
                 final = phase == 'validate'
                 size = None if final or state['pilot'] == len(config['pilot_sizes']) else config['pilot_sizes'][state['pilot']]
-                selected = state['stage3_passed_ids'] if final else selection(available, size, config['seed'])
+                selected = state['stage3_passed_ids'] if final else selection(
+                    available, size, config['seed'], config.get('pilot_prefix_ids', []))
                 if not selected or not set(selected) <= set(available):
                     raise ValueError('No valid retained tasks to validate')
                 directory = generation / ('validation' if final else f'stage3-{size or "full"}')

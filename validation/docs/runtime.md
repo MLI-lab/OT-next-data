@@ -155,7 +155,7 @@ are frozen in the contract:
 - `--dependency-archives DIR`: a folder on shared storage with one `<task>.tar` per task.
 - `--dependency-layout FILE`: a JSON file of the dataset with `target` (the file the task's own
   scripts read the archive from), `folder` (the container folder an archive is made of) and
-  `exclude` (tar patterns left out). InferredBugs: `data/inferredbugs/dependency_archives.json`.
+  `exclude` (tar patterns left out).
 
 By default, stage 4 writes the archives: an oracle trial starts without an archive, so its build downloads
 everything, and when the verifier gives reward 1 the worker saves the container's `folder` as
@@ -247,10 +247,21 @@ its `task.toml` verifier timeout, and no run above 60 seconds. For multiple step
 each verifier is evaluated separately against that step's timeout. A task may
 be flagged in both categories.
 
-Task timing includes container startup, setup upload and setup execution.
-Verifier timing includes separate-container startup when needed, test-file
-upload, task initialization in a fresh task-image verifier, submission transfer,
-verifier setup execution, and cleanup of temporary transfer files. Image builds, runtime inspection,
+Both preparation timers start after their container is ready. The **task timer**
+includes uploading setup files and running task setup. The **verifier timer**
+includes uploading setup/test files, running submission collect hooks, transferring submitted files,
+running `tests/setup.sh` and cleaning up temporary
+transfer files. These operations count even when performed by the runner outside
+a setup script.
+
+Task setup is not replayed in a separate verifier. Any initialization the verifier
+needs belongs in `tests/setup.sh`; its image is declared by the task's verifier
+configuration or `tests/Dockerfile`.
+
+Container startup is recorded separately and must finish within the environment’s
+`build_timeout_sec`. Startup failures still fail stage 3.
+
+Image builds, runtime inspection,
 teardown and verification checks are excluded. All work performed by a setup
 command counts, including any compilation it performs. Slurm prepares
 images before measurement; direct runs must have their images prepared already.
@@ -263,9 +274,11 @@ Use the standard scripts:
 - `tests/setup.sh`: verifier preparation.
 - `tests/test.sh`: verification checks and grading.
 
-Stage 3 runs only `setup.sh`, after task setup and the required uploads/transfers.
+Stage 3 runs only `setup.sh`, after task setup, collect hooks and the required uploads/transfers.
 Normal verification uploads the tests, runs `setup.sh`, then runs `test.sh` in the
-same environment and within the existing verifier timeout. Setup failure or
+same environment and within the existing verifier timeout. Stale rewards are cleared
+before setup. An explicit new reward 0 from failed setup is returned without running
+the tests; a failure without that reward is an infrastructure error. Setup failure or
 timeout prevents checks from running. Setup output is saved separately from test
 output. Omit `setup.sh` if no preparation is needed; no declaration file is required.
 
@@ -273,19 +286,25 @@ Some existing `test.sh` scripts mix setup and verification. Separate them first;
 the runner cannot identify arbitrary installation commands inside a test script.
 Do not call `setup.sh` again from `test.sh`, since the runner now calls it.
 For multi-step tasks, a step's tests overlay the shared tests, including `setup.sh`.
-A separate verifier image may bake these scripts into `/tests`.
+Every verifier receives the task's test files, even if its image already contains
+tests. Apptainer keeps the `/tests` upload mount for all images. Store image-only
+dependencies or generated assets outside `/tests` so this mount does not hide them.
 
 Submission transfers use the existing artifact declarations in `task.toml`.
+Stage 3 runs declared verifier collect hooks before transfer and includes their
+execution in verifier preparation timing; a failed hook fails setup review.
 Review runs transfer the files available after task setup, before an agent has
 produced a solution. The measured transfer size can therefore differ from a real
 submission.
 
 With `environment_mode = "separate"` under `[verifier]`, a task without a custom
-verifier image uses the original task image in a fresh container. Task setup runs again
-before artifacts are imported, and verifier scripts are uploaded from the task.
+verifier image uses the original task image in a fresh container. Submitted
+artifacts are imported, tests are uploaded, and `tests/setup.sh` runs before
+`tests/test.sh`. Any required initialization belongs explicitly in `tests/setup.sh`;
+the runtime does not infer or replay task setup in the verifier.
 No saved copy of the agent's modified environment is used. A custom verifier
 image (a verifier environment definition or Dockerfile in its tests directory)
-keeps its own preparation workflow. Existing shared-mode tasks remain shared
+uses the same upload and setup sequence. Existing shared-mode tasks remain shared
 until migrated with the correct artifact declarations.
 
 Failed or slow tasks fail stage 3. The two review indexes are
@@ -295,3 +314,60 @@ archives and timing/failure evidence under `review/setup-speed/`, without storin
 duplicate task archives. Review mode uses exactly the requested repetitions
 instead of the ordinary failure retry policy below. Five clean runs measure
 preparation speed; they do not execute the verifier checks.
+
+### Verifier execution evidence
+
+Reference and no-op validation use one structured execution check. Console
+messages such as `no tests ran` are diagnostic text, not execution evidence:
+pytest plugin tests can legitimately capture those messages from an inner run.
+The shared shell-verifier wrapper installs `ot_pytest_execution` for grading
+only, preserving existing `PYTHONPATH` and `PYTEST_PLUGINS` values. The plugin
+records each outer pytest invocation and ignores in-process and subprocess
+pytest runs nested inside it. Setup and agent commands are not instrumented.
+
+The wrapper writes `verifier/execution-context.json` with a fresh version-1
+context token. The grading environment receives `OT_VERIFIER_EXECUTION_TOKEN`.
+A runner adapter emits separate lines in the verifier log using
+`OT_VERIFIER_EXECUTION:<token>:BEGIN:<json>` and
+`OT_VERIFIER_EXECUTION:<token>:END:<json>`. Both records include `version: 1`
+and the same unique invocation `id`. END also includes `finished: true`, integer
+`executed`, `skipped`, `setup_errors`, `collection_errors`, and `exitstatus`.
+The counts describe the outer invocation, not captured child output. Each
+required top-level invocation needs its own record, including failed or empty
+invocations. A producer must not report completion before the runner finishes.
+
+The check rejects incomplete/malformed records, collection/internal/usage
+failures, and zero executed tests (subject to the existing explicitly declared
+missing-output setup rule). Ordinary assertion failures are execution evidence;
+reward checking still requires reference reward 1 and no-op reward 0. This does
+not change the task's test selection, assertions, or scoring implementation.
+
+There is no legacy text-summary fallback. Historical logs without a matching
+context cannot be certified by this check and need a fresh run. Non-pytest
+runners, Windows batch verifiers, and scripts that replace the plugin environment
+need an adapter producing the same records before their execution can be
+certified. Missing instrumentation is reported as missing evidence, not as a
+proven task defect. The current automatic recorder covers shell verifiers that
+load pytest's explicit plugins and, through a `sitecustomize` module uploaded on
+the same path, outer Twisted `trial` runs (counts come from the finished trial
+reporter; loader `ErrorHolder` entries are reported as `collection_errors`). It
+is not universal framework coverage. The plugin captures the token when pytest
+configures, so suites that clear `os.environ` still produce a matching END record.
+Verifier commands that assign `PYTHONPATH=` outright discard the recorder path and
+abort pytest; the one SWE-Lego task doing so is patched to append the inherited
+value instead.
+
+One no-op exception is accepted deliberately. When the no-op run has collection
+errors and executed no tests, and every `ModuleNotFoundError`/`ImportError`
+names a module or symbol that the reference patch (`solution/*.patch`) adds,
+removes or renames, the zero reward is a genuine result: the unpatched tree
+cannot import the code the tests target. Any other collection error, and any
+collection error in a reference run, remains a runner problem. Setup (fixture)
+errors that leave no test executed are treated the same way. When the verifier's
+one-line traceback mode hides where an error comes from, the no-op stage falls
+back on the oracle report of the same submission: if the reference run executed
+this suite and scored 1 in the same environment, a no-op that fails before any
+test runs is accepted as a genuine zero, and the stage report notes the strict
+finding it would otherwise have raised. A pytest usage error for an option the
+reference patch removes from the project configuration is accepted on the same
+basis.

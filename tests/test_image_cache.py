@@ -5,7 +5,24 @@ from types import SimpleNamespace
 
 import pytest
 
-from hpc.image_cache import publish, restore, prepare_images
+from hpc.image_cache import publish, restore, prepare_images, use_image_certificate_store
+
+
+def test_image_build_removes_host_ca_overrides_but_keeps_other_binds():
+    environment = {
+        'SSL_CERT_FILE': '/tmp/host/roots.pem',
+        'SSL_CERT_DIR': '/tmp/host/certs',
+        'REQUESTS_CA_BUNDLE': '/tmp/host/roots.pem',
+        'CURL_CA_BUNDLE': '/tmp/host/roots.pem',
+        'APPTAINERENV_SSL_CERT_FILE': '/run/ot-certificates/ssl_cert_file.pem',
+        'APPTAINERENV_REQUESTS_CA_BUNDLE': '/run/ot-certificates/requests_ca_bundle.pem',
+        'APPTAINER_BINDPATH': '/tmp/host/roots.pem:/run/ot-certificates/ssl_cert_file.pem:ro,/data:/data:ro',
+    }
+    use_image_certificate_store(environment)
+    assert not any(name in environment for name in (
+        'SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE',
+        'APPTAINERENV_SSL_CERT_FILE', 'APPTAINERENV_REQUESTS_CA_BUNDLE'))
+    assert environment['APPTAINER_BINDPATH'] == '/data:/data:ro'
 
 
 def test_bundle_roundtrip_and_concurrent_publication(tmp_path):
@@ -102,6 +119,7 @@ def test_builder_initializes_apptainer(tmp_path, monkeypatch, directory_setting)
                                   '--output', str(output), '--memory-mb', '8192', '--cpus', '4'])
     monkeypatch.setattr(image_cache.shutil, 'which', lambda name: '/bin/apptainer')
     monkeypatch.setattr(patch.worker, 'APPTAINER', None)
+    monkeypatch.setattr(patch.worker.subprocess, 'run', patch.worker.subprocess.run)
     monkeypatch.setattr(patch, 'configure_container_certificates', lambda: None)
     monkeypatch.setenv('https_proxy', 'http://proxy.example:3128')
     monkeypatch.setenv('APPTAINER_BINDPATH', '')
@@ -196,3 +214,61 @@ def test_packed_sparse_bundle_roundtrip_and_concurrent_publish(tmp_path):
     assert restored.read_bytes() == b'image'
     assert restored.with_suffix('.overlay.img').stat().st_size == overlay.stat().st_size
     assert restored.with_suffix('.overlay.img').stat().st_blocks * 512 < 1024 * 1024
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_prebuild_streams_each_image_and_releases_all_scratch(tmp_path, monkeypatch, failed):
+    from hpc import image_cache, local_assets
+    from harbor.utils.container_cache import environment_dir_hash_truncated
+    task = tmp_path / 'task'
+    for name in ('agent', 'verifier'):
+        env = task / name
+        env.mkdir(parents=True)
+        (env / 'Dockerfile').write_text(f'FROM test:{name}\n')
+    images, shared = tmp_path / 'images', tmp_path / 'shared'
+    images.mkdir()
+    monkeypatch.delenv('SLURM_JOB_ID', raising=False)
+    monkeypatch.delenv('SLURM_MEM_PER_NODE', raising=False)
+    monkeypatch.delenv('OT_REQUIRE_PREBUILT_IMAGES', raising=False)
+    original = image_cache.subprocess.run
+    built = []
+    def run(command, **kwargs):
+        if command[0] == 'cp':
+            return original(command, **kwargs)
+        image = Path(command[command.index('--output') + 1])
+        assert image.parent.parent == images
+        assert len([p for p in images.iterdir() if p.is_dir()]) == 1
+        assert kwargs['env']['APPTAINER_CACHEDIR'] == str(image.parent / 'cache')
+        image.write_bytes(b'image')
+        image.with_suffix('.overlay.img').write_bytes(b'overlay')
+        image.with_suffix('.deferred.json').write_text('{}')
+        (image.parent / 'abandoned-context').mkdir()
+        (image.parent / 'abandoned-context/file').write_text('temporary')
+        built.append(image)
+        if failed:
+            raise image_cache.subprocess.TimeoutExpired(command, kwargs['timeout'])
+    monkeypatch.setattr(image_cache.subprocess, 'run', run)
+    args = SimpleNamespace(image_build_memory_mb=8192, image_build_cpus=4,
+                           image_build_timeout_sec=3600, image_build_concurrency=1,
+                           cpus=8, force_build=False, prebuild_only=True)
+    first = prepare_images([task], images, shared, args)
+    assert [r['status'] for r in first] == ['error' if failed else 'built'] * 2
+    assert len(built) == 2
+    assert all(p.is_file() and (p.suffix == '.log' or p.name == 'preparation.json')
+               for p in images.iterdir())
+    assert len(list(images.glob('*.build.log'))) == 2
+    if not failed:
+        # Restore verifies each matching bundle, without staging its sibling environment.
+        original_restore = image_cache.restore
+        restored = []
+        def restore(bundle, target):
+            key = target.name
+            assert key in {environment_dir_hash_truncated(p) for p in task.iterdir()}
+            assert bundle.name.endswith(f'-{key}.sif')
+            restored.append(bundle)
+            return original_restore(bundle, target)
+        monkeypatch.setattr(image_cache, 'restore', restore)
+        second = prepare_images([task], images, shared, args)
+        assert [r['status'] for r in second] == ['cached'] * 2
+        assert len(built) == len(restored) == 2
+        assert all(not p.is_dir() for p in images.iterdir())

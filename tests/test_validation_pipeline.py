@@ -108,7 +108,8 @@ def test_stage_previews_and_real_harbor_config_schema(number, source, tmp_path, 
 
 @pytest.mark.parametrize('reward,exception,want', [(0, None, 'passed'), (1, None, 'failed'),
     (None, {'exception_type': 'BuildError'}, 'failed'), (float('nan'), None, 'failed')])
-def test_nop_requires_real_zero_reward(reward, exception, want):
+def test_nop_requires_real_zero_reward(reward, exception, want, monkeypatch):
+    monkeypatch.setattr(runtime, 'nop_execution_problem', lambda *a: None)
     results = [(Path('trial'), {'exception_info': exception, 'verifier_result': {'rewards': {'reward': reward}}})]
     result = runtime.assess_trials(results, 1, expected_reward=0)
     assert result['status'] == ('completed' if want == 'passed' else want)
@@ -187,10 +188,13 @@ def test_all_pipeline_continues_and_analyzes_both_job_types(source, tmp_path, mo
 def test_batch_schedules_all_tasks_and_accounts_per_task(
         source, tmp_path, upstream, monkeypatch, number, expected, unmatched):
     import shutil
+    # Execution evidence is exercised separately; this test isolates scheduling.
+    monkeypatch.setattr(runtime, 'nop_execution_problem', lambda *a: None)
     second = source.parent / 'second'
     shutil.copytree(source, second)
     a = args(source.parent, tmp_path)
     a.dry_run = False
+    a.outcome_retries = 0      # reruns of not-run tasks are covered by test_outcome_retries
     monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
     captured = []
     async def execute(config):
@@ -203,6 +207,7 @@ def test_batch_schedules_all_tasks_and_accounts_per_task(
             (d / 'result.json').write_text(json.dumps({
                 'task_name': 'dataset/' + Path(task['path']).name if i == 0 else 'old-name',
                 'config': {'task': {'path': task['path']}},
+                'finished_at': '2026-10-08T12:00:00Z',
                 'verifier_result': {'rewards': {'reward': i}}}))
         if unmatched:
             extra = job / 'unknown'
@@ -239,7 +244,8 @@ def test_reward_metrics_per_task_family_and_variance_groups():
     assert result['tasks_without_rewards'] == []
     assert result['tasks_without_trials'] == ['set-java-0004']
     assert result['families']['python'] == {'tasks': 2, 'attempts': 8, 'k': [4], 'mean_reward': 0.5,
-        'pass@1': 0.5, 'pass@k': 0.5, 'solved_rate': 0.5, 'partial_credit_rate': 0, 'zero_reward_rate': 0.5, 'no_reward_rate': 0}
+        'pass@1': 0.5, 'pass@k': 0.5, 'solved_rate': 0.5, 'partial_credit_rate': 0, 'zero_reward_rate': 0.5, 'no_reward_rate': 0,
+        'verifier_error_rate': 0}
     total = result['all_tasks']
     assert total['tasks'] == 5 and total['pass@k'] == 0.6 and total['pass@1'] == 0.3
     assert total['partial_credit_rate'] == 0.25 and total['no_reward_rate'] == 0.05
@@ -279,7 +285,7 @@ def test_trace_metrics_separate_budget_stops_and_errors_from_model_failures(tmp_
     assert total['errors']['verifier']['types'] == {'RewardFileNotFoundError': 1}
     assert total['errors']['environment']['trajectories'] == 1
     assert total['peak_context_fraction']['max'] == 0.95 and total['trajectories_above_90_percent_context'] == 1
-    assert total['throughput'] == {'wall_clock_hours': 1.0, 'trajectories_per_hour': 3.0, 'solved_trajectories_per_hour': 1.0}
+    assert total['throughput'] == {'wall_clock_hours': 1.0, 'trajectories_per_hour': 5.0, 'solved_trajectories_per_hour': 1.0}
     assert total['latency_seconds']['model_call']['n'] == 10 and total['latency_seconds']['tool_call'] is None
     assert out['families']['python']['trajectories'] == 2 and set(out['tasks']) == {'set-python-0001', 'set-java-0001'}
     assert out['trajectories'][1]['termination'] == 'task_timeout'

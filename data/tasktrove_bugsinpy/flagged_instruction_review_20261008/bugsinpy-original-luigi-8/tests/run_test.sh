@@ -1,0 +1,3 @@
+#!/bin/bash
+set -e
+pytest test/contrib/redshift_test.py::TestS3CopyToSchemaTable::test_s3_copy_to_table

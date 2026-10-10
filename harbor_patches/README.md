@@ -22,6 +22,8 @@ still consume part of the task memory budget.
 | Truncated tmux responses | Bound visible/full captures before Harbor adds protocol markers | Keep the global output cap; never replay commands |
 | Failed test uploads | Clean shell/PATH for upload bookkeeping; allow 600s RPC and 630s result polling | Enclosing phase timeout still applies; accepted uploads are not resubmitted |
 | Transient bridge HTTP failures | Bounded retries with request IDs, deduplication and retained results | Does not repair model API failures, task downloads or a dead bridge |
+| Image lacks tmux | Install tmux inside the running container at task start, before the persistent owner (upstream Harbor does the same in its bootstrap) | Needs the image's package manager and the proxy; the image itself is never changed |
+| Missing `/logs/artifacts` after a trial | Harbor collects a conventional artifacts directory from every finished container, and the bridge implemented that as a plain copy. Verifiers that never create the directory made the copy fail, which Harbor logged as a failed download and, in some runs, as a trial error even though the reward file had been written and read correctly. The bridge now checks whether the directory exists first and records it as empty when it does not; no copy is attempted. | Other configured artifacts are still copied best-effort as before |
 | `/tmp` cleanup deletes tmux socket | Put sockets in the container's private `/run/ot-harbor-tmux` | Does not prevent explicit tmux removal or shell exits |
 | Task OOM kills executor/terminal | Keep controller outside task limit; reopen preserved filesystem and restart terminal | Requires confirmed task OOM; process state is lost |
 | Failed startup keeps a Slurm slot | Remember early stop requests and check them while waiting for an executor | Cleanup remains scoped to that environment |
@@ -43,6 +45,17 @@ unchanged, and `pipefail` preserves errors. Both agent and worker patches are re
 test shells retain their configuration. Longer polling accommodates the upload's
 multiple operations and safe mkdir retries; it cannot fix missing files, broken
 archives, disk failures or a permanently failed worker.
+
+Directory uploads preserve symlinks. `artifact_transfer.py` keeps declared
+Apptainer submission directories in compressed archives between containers,
+without extracting container links on the host or packing the same directory
+again. Artifact manifests point to the retained archives. Required submission
+download failures stop the handoff instead of uploading a partial directory.
+
+Image builds can use `OT_IMAGE_BUILD_ARTIFACTS` for a read-only store mounted at
+`/run/ot-image-artifacts`. This is available only while building; image recipes
+must verify reused files before installing them. InferredBugs checks the same
+SHA-256 digests for local vendor files and downloaded files.
 
 ### Transport and terminal failures
 
@@ -137,6 +150,17 @@ loss of the shared bridge, node, allocation or its storage.
   `BRIDGE_STALE_READY_SEC` (default 3600s). Fakeroot cleanup removes only resources
   positively attributed to the stopped step, never node-wide orphans.
 
+## Container environment
+
+Besides the host proxy, DNS and certificate settings, every task container
+receives `CONDA_NUMBER_CHANNEL_NOTICES=0`. Conda images activate their
+environment both from the task's setup script and from the shells started at
+container start; conda 25.x fetches channel notices on activation, and the two
+activations race to create the same notices cache directory, which fails task
+setup with `CondaError: ... File exists` (SWE-Lego job 960179, six of eighteen
+trials). Channel notices are never needed for grading. Image builds can add the
+same setting permanently with `conda config --system --set number_channel_notices 0`.
+
 ## Command timeouts
 
 | Wait | Budget |
@@ -161,7 +185,7 @@ budget. Grace periods do not apply indiscriminately to startup/stop/transfers.
 | `tmux_capture`, `tmux_socket`, `tmux_runtime`, `tmux_diagnostics`, `oom_recovery` | Terminal protocol, lifecycle, diagnostics and feedback |
 | `upload_runtime`, `fakeroot_ipc` | Upload shell isolation and scoped cleanup |
 | `image_build`, `local_image_base` | Image preparation and verified local bases |
-| `fresh_verifier`, `verifier_setup` | Separate verifier preparation and optional `/tests/setup.sh` |
+| `verifier_setup` | Task-image reuse, test uploads for every verifier, and optional `/tests/setup.sh`; no automatic replay of task setup |
 | `reasoning_field` | Preserve vLLM reasoning in traces |
 
 Before removing patches after an upgrade, run their `tests/test_*` regressions

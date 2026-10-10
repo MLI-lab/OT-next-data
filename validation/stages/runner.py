@@ -58,8 +58,12 @@ def parser():
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
     ap.add_argument('--attempts', type=int, default=1)
+    ap.add_argument('--outcome-retries', type=int, default=3,
+                    help='after the run: rerun stage 3-5 tasks without a result (or differing from --expected-outcomes) up to N more times')
+    ap.add_argument('--expected-outcomes', type=Path,
+                    help='earlier audit results (ot-expected-outcomes-v1); differing tasks are rerun, never-matching ones archived as not robust')
     ap.add_argument('--review-setup', type=int, nargs='?', const=5, metavar='RUNS',
-                    help='stage 3 setup review: five fresh task/verifier preparations; mean task <=30s, verifier <=5%% of timeout, each <=60s')
+                    help='stage 3 setup review: five fresh task/verifier preparations; mean task <=30s, verifier <=5%% of timeout, each <=60s; excludes container startup')
     ap.add_argument('--preparation-runs', type=int, default=1,
                     help='stage 3 repetitions in fresh containers with prepared images')
     ap.add_argument('--preparation-mean-target-seconds', type=float,
@@ -83,7 +87,9 @@ def parser():
     ap.add_argument('--image-build-cpus', type=int, default=4)
     ap.add_argument('--image-build-concurrency', type=int, default=2)
     ap.add_argument('--image-build-timeout-sec', type=int, default=3600,
-                    help='per-image preparation timeout before task timers start')
+                    help='per-image preparation timeout; 0 uses the remaining Slurm allocation')
+    ap.add_argument('--prebuild-only', action='store_true',
+                    help='Slurm only: prepare and cache all selected images, archive build evidence, and run no validation stages')
     ap.add_argument('--dependency-archives',
                     help='folder with one <task>.tar of build dependencies per task: oracle validation (stage 4) '
                          'saves a task\'s archive, every other trial gets it mounted read-only; needs --dependency-layout')
@@ -93,6 +99,9 @@ def parser():
     ap.add_argument('--container-start-interval', type=float, default=0,
                     help='minimum seconds between Apptainer starts; default no added delay')
     ap.add_argument('--limit', type=int)
+    ap.add_argument('--shard', metavar='INDEX/COUNT',
+                    help='with --contract: run slice INDEX of COUNT of the frozen task list (tasks sorted by ID, round-robin); '
+                         'shard reports are merged with validation/shards.py merge')
     ap.add_argument('--task-id-range', nargs=2, metavar=('FIRST', 'LAST'),
                     help='inclusive task-ID range in lexicographic order; both endpoints must exist')
     ap.add_argument('--static-profile', choices=['training', 'portable', 'terminal-bench'], default='training',
@@ -202,6 +211,11 @@ def dependency_archive_spec(a):
 
 
 def check_args(a):
+    if getattr(a, 'prebuild_only', False):
+        if a.submit not in ('helma', 'zih'):
+            raise ValueError('--prebuild-only requires --submit helma or zih')
+        if getattr(a, 'serve_model', None) or getattr(a, 'publish_repo', None):
+            raise ValueError('--prebuild-only cannot serve models or publish validation results')
     from validation.stages.build_retries import configure_preparation_review
     configure_preparation_review(a)
     if getattr(a, 'resolve_path_root', None):
@@ -241,9 +255,11 @@ def check_args(a):
         raise ValueError('--gpus must be nonnegative')
     if getattr(a, 'container_start_concurrency', 8) < 1:
         raise ValueError('--container-start-concurrency must be positive')
-    for name in ('image_build_memory_mb', 'image_build_cpus', 'image_build_concurrency', 'image_build_timeout_sec'):
+    for name in ('image_build_memory_mb', 'image_build_cpus', 'image_build_concurrency'):
         if getattr(a, name, 1) < 1:
             raise ValueError('--' + name.replace('_', '-') + ' must be positive')
+    if getattr(a, 'image_build_timeout_sec', 1) < 0:
+        raise ValueError('--image-build-timeout-sec must be nonnegative')
     if not 0 <= getattr(a, 'container_start_interval', 0) < float('inf'):
         raise ValueError('--container-start-interval must be finite and nonnegative')
     if getattr(a, 'static_concurrency', None) is not None and a.static_concurrency < 1:
@@ -366,6 +382,9 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
     groups, unmatched = runtime.group_trial_results(results, [task for task, _ in selected])
     for task, item in selected:
         item.update(runtime.assess_trials(groups[task.name], args.attempts, expected, args.reward_key, task_path=task))
+        if number == 6:
+            from validation.checks.passk_completion import assess
+            item.update(assess(groups[task.name], args.attempts, args.reward_key))
         if 'path_search_roots' in diagnostic_kwargs:
             item['instruction_path_diagnostics'] = [
                 json.loads((trial / 'instruction-path-diagnostics.json').read_text())
@@ -387,10 +406,29 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
     return items
 
 
+def oracle_passed_tasks(out_root):
+    """Tasks whose oracle run in this submission executed its tests and scored 1.
+
+    A no-op that then fails before executing any test (collection or fixture
+    errors) is a genuine zero: the same environment just ran the suite with the
+    reference patch applied, so only the missing patch can be the cause."""
+    passed = set()
+    for summary in sorted(Path(out_root).glob('stage_4_oracle_validation/*/summary.json')):
+        try:
+            report = json.loads(summary.read_text())
+        except (OSError, ValueError):
+            continue
+        for item in report.get('items', []):
+            if item.get('status') == 'passed':
+                passed.add(Path(item['task']).name)
+    return passed
+
+
 def run_nop(selected, out, args):
     """Run one NOP baseline per task, after its setup when declared."""
     from collections import defaultdict
     from validation.stages.task_setup import detect
+    oracle_passed = oracle_passed_tasks(args.out.resolve()) if getattr(args, 'out', None) else set()
 
     plans = defaultdict(list)
     for task, item in selected:
@@ -420,7 +458,8 @@ def run_nop(selected, out, args):
             groups, unmatched = runtime.group_trial_results(
                 runtime.trial_results(job_dir), [task for task, _ in pairs])
             for task, item in pairs:
-                prepared = runtime.assess_trials(groups[task.name], args.attempts, 0, args.reward_key, task_path=task)
+                prepared = runtime.assess_trials(groups[task.name], args.attempts, 0, args.reward_key, task_path=task,
+                                                 oracle_passed=task.name in oracle_passed)
                 prepared['job_dir'] = str(job_dir)
                 if unmatched:
                     prepared['status'] = 'failed'
@@ -488,6 +527,12 @@ def run_stage(number, args):
     upstream = checkout('terminal-bench')
     all_sources = discover_tasks(args.tasks)
     sources = select_paths(all_sources, args)
+    from validation.shards import parse_shard, slice_of
+    shard = parse_shard(getattr(args, 'shard', None))
+    if shard:
+        if not contract:
+            raise ValueError('--shard requires a frozen contract')
+        sources = slice_of(sources, shard, key=lambda path: path.name)
     references = None
     suffixes = None
     if number == 2:
@@ -505,6 +550,8 @@ def run_stage(number, args):
     out.mkdir(parents=True)
     report = {'stage': number, 'name': NAMES[number], 'upstream': PINS,
               'backend': args.backend, 'dry_run': args.dry_run, 'items': [], 'complete': False}
+    if shard:
+        report['shard'] = {'index': shard[0], 'count': shard[1], 'tasks': [t.name for t in sources]}
     if number == 2:
         report['reference_solutions'] = references
         report['instruction_suffixes'] = suffixes
@@ -607,6 +654,8 @@ def run_stage(number, args):
             save(report_path, report)
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
     report['complete'] = True
+    if number == 6 and not args.dry_run:
+        report['complete'] = all(i['status'] == 'completed' for i in report['items'])
     if not args.dry_run:
         # Tasks at once: the other stages work through their tasks one by one.
         report['timing'] = stage_timing(clock, report['static_concurrency'] if number == 1 else

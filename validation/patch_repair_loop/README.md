@@ -67,6 +67,11 @@ python -m validation.patch_repair_loop status --config /path/to/config.json
 ```
 
 `supervise` handles recovery when the loop stops without a confirmed PR.
+After an accepted shared-infrastructure fix, a fixer that made no dataset change is
+not called again on its stale evidence: the controller opens a new generation and
+reruns stage 3 from the first pilot. Findings the supervisor has judged are recorded
+in `loop-state.json` (`reviewed_findings`); later stops go to the recovery agent
+unless new findings appear.
 Under `work_root`, find progress in `loop-state.json`, shared infrastructure issues
 in `infrastructure-findings/`, and failure/recovery records in `occurred-failures/`.
 Agent folders hold prompts, answers, logs, and available token counts and cost

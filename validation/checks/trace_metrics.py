@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import re
 
-from validation.checks.reward_metrics import group_of, trial_reward
+from validation.checks.reward_metrics import group_of, trial_reward, passk_reward, REWARD_POLICY
 from validation.checks.command_metrics import profile, mean_distribution
 
 PARSE_ERROR = 'Previous response had parsing errors'
@@ -91,13 +91,15 @@ def trial_metrics(trial, result, context_limit=None, key='reward'):
     errors = {kind: [e for e in exceptions if e in names] for kind, names in ERRORS.items()}
     known = set(TERMINATIONS) | {name for names in ERRORS.values() for name in names}
     errors['other'] = [e for e in exceptions if e not in known]
-    reward = trial_reward(result, key)
+    verifier_reward = trial_reward(result, key)
+    reward = passk_reward(result, key)
     if reward is None and not exceptions:
         errors['verifier'].append('no reward and no recorded exception')
     return {
         'trial': Path(trial).parent.parent.name if Path(trial).parent.name == 'attempts' else Path(trial).name,
         'trial_path': str(Path(trial).resolve()),
         'reward': reward, 'trajectory_found': steps is not None,
+        'verifier_reward': verifier_reward, 'reward_policy': REWARD_POLICY,
         'turns': metadata.get('n_episodes') or (len(agent_steps) if steps is not None else None),
         'input_tokens': agent.get('n_input_tokens'), 'output_tokens': agent.get('n_output_tokens'),
         'cached_tokens': agent.get('n_cache_tokens'),

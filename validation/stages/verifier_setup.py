@@ -4,6 +4,7 @@ Never infer a preparation prefix from test.sh: that can execute grading, and a
 tests/setup.sh is the preparation boundary; test.sh is never run here.
 """
 import asyncio
+import json
 import math
 import logging
 import shutil
@@ -19,8 +20,7 @@ async def review_task(task_path, out, args):
     from harbor.models.trial.paths import TrialPaths
     from harbor.trial.trial import ArtifactHandler
     from harbor.verifier.verifier import EnvironmentPaths, resolve_env_vars
-    from harbor_patches.verifier_setup import SETUP_COMMAND
-    from harbor_patches.fresh_verifier import build_context, uses_task_image, prepare_task
+    from harbor_patches.verifier_setup import SETUP_COMMAND, build_context
     from validation.stages import harbor as runtime
     from validation.stages.task_setup import detect, prepare, upload_setup
     from validation.checks.environment import inspect_environment
@@ -75,24 +75,38 @@ async def review_task(task_path, out, args):
         if result.return_code:
             raise RuntimeError(f'{phase} exited {result.return_code}: {result.stderr}')
 
+    async def start_container(env, spec, record):
+        record['startup_timeout_seconds'] = spec.build_timeout_sec
+        record['failure_phase'] = 'container_start'
+        await asyncio.wait_for(measured(record, 'container_start',
+            lambda: env.start(force_build=False)), timeout=spec.build_timeout_sec)
+        record.pop('failure_phase', None)
+
     agent_entry = {'environment': 'agent', 'timings_seconds': {}, 'status': 'error'}
     entries.append(agent_entry)
     try:
         started = time.monotonic()
+        preparation_started = None
         try:
             agent = create('agent', task.paths.environment_dir, task.config.environment)
+            await start_container(agent, task.config.environment, agent_entry)
+            preparation_started = time.monotonic()
+            agent_entry['failure_phase'] = 'preparation'
             command = detect(task_path)
             task_budget = min(task.config.environment.build_timeout_sec,
                               getattr(args, 'preparation_max_seconds', None) or 60.0)
             await asyncio.wait_for(prepare(agent, command=command,
-                timeout_sec=task_budget, force_build=False,
+                timeout_sec=task_budget, force_build=False, start_environment=False,
                 upload=lambda: upload_setup(agent, task_path), timings=agent_entry['timings_seconds']),
                 timeout=task_budget)
             agent_entry['status'] = 'passed'
+            agent_entry.pop('failure_phase', None)
         except Exception as exc:
             agent_entry['error'] = f'{type(exc).__name__}: {exc}'
         finally:
             agent_entry['timings_seconds']['start'] = time.monotonic() - started
+            if preparation_started is not None:
+                agent_entry['timings_seconds']['preparation'] = time.monotonic() - preparation_started
 
         # Preparation is measured before inspection: inspection must not warm or
         # otherwise change the state the verifier preparation is intended to test.
@@ -104,21 +118,28 @@ async def review_task(task_path, out, args):
             if agent_entry['status'] != 'passed':
                 record.update(status='blocked', error='task preparation failed')
                 continue
-            started = time.monotonic()
+            preparation_started = None
             try:
                 timeout = float(verifier.timeout_sec)
                 if not math.isfinite(timeout) or timeout <= 0:
                     raise ValueError('Verifier timeout must be positive and finite')
                 record['setup_command'] = SETUP_COMMAND
                 target = agent
+                if spec is not None:
+                    target = create(name, build_context(task, step), spec)
+                    await start_container(target, spec, record)
+                preparation_started = time.monotonic()
+                record['failure_phase'] = 'preparation'
                 async def preparation():
-                    nonlocal target
+                    hooks = list(task.config.verifier.collect)
+                    if step is not None:
+                        hooks += list(step.verifier.collect)
+                    for index, hook in enumerate(hooks):
+                        await execute(agent, hook.command, record, f'submission_collect_{index}',
+                                      min(timeout, hook.timeout_sec), user=hook.user)
                     if spec is not None:
-                        target = create(name, build_context(task, step), spec)
-                        await measured(record, 'container_start', lambda: target.start(force_build=False))
-                        if uses_task_image(task, step):
-                            await measured(record, 'task_setup', lambda: prepare_task(
-                                target, task, timeout_sec=min(timeout, 60.0)))
+                        if task.paths.setup_files_dir.is_dir():
+                            await measured(record, 'setup_files_upload', lambda: upload_setup(target, task_path))
                         # Use Harbor's existing artifact rules rather than inventing
                         # another transfer declaration for setup review.
                         handler = ArtifactHandler(artifacts=artifacts, logger=logging.getLogger(__name__))
@@ -130,8 +151,7 @@ async def review_task(task_path, out, args):
                         await measured(record, 'submission_upload', lambda: handler.upload_artifacts(
                             target, saved, source_artifacts_dir=source_paths.artifacts_dir,
                             target_artifacts_dir=target_paths.artifacts_dir))
-                    if spec is None:
-                        await execute(target, 'rm -f /tests/setup.sh', record, 'clear_stale_setup', timeout)
+                    await execute(target, 'rm -f /tests/setup.sh', record, 'clear_stale_setup', timeout)
                     for index, source in enumerate(sources):
                         await measured(record, f'tests_upload_{index}', lambda: target.upload_dir(
                             source_dir=source, target_dir='/tests'))
@@ -145,7 +165,8 @@ async def review_task(task_path, out, args):
                 # A slow run is rejected at the individual-run limit, even if
                 # task.toml allows hours for actual compilation/analysis.
                 await asyncio.wait_for(preparation(), timeout=min(timeout, 60.0))
-                record['timings_seconds']['preparation'] = time.monotonic() - started
+                record['timings_seconds']['preparation'] = time.monotonic() - preparation_started
+                record.pop('failure_phase', None)
                 if spec is not None:
                     inspection = await inspect_environment(target, task, context, name)
                     record['inspection'] = inspection
@@ -161,8 +182,8 @@ async def review_task(task_path, out, args):
                 record['timings_seconds']['transfer_cleanup'] = cleanup_seconds
                 if 'preparation' in record['timings_seconds']:
                     record['timings_seconds']['preparation'] += cleanup_seconds
-                else:
-                    record['timings_seconds']['preparation'] = time.monotonic() - started
+                elif preparation_started is not None:
+                    record['timings_seconds']['preparation'] = time.monotonic() - preparation_started
 
         if agent_entry['status'] == 'passed':
             try:
@@ -176,6 +197,11 @@ async def review_task(task_path, out, args):
                 await env.stop(delete=True)
             except Exception as exc:
                 agent_entry.update(status='error', cleanup_error=str(exc))
-    return {'status': 'passed' if agent_entry['status'] == 'passed' and all(
+    result = {'status': 'passed' if agent_entry['status'] == 'passed' and all(
             v['status'] == 'passed' for v in verifiers) else 'error',
             'environments': entries, 'verifier_preparation': verifiers}
+    # Keep failed preparation timings available while the full stage is running.
+    # Interrupted exec calls may never return stdout/stderr to the runner.
+    out.mkdir(parents=True, exist_ok=True)
+    (out / 'preparation-review.json').write_text(json.dumps(result, indent=2) + '\n')
+    return result

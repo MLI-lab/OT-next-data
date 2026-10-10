@@ -295,7 +295,7 @@ def test_gradle_direct_fallback_requires_rate_limit_and_success(tmp_path, monkey
     monkeypatch.setenv('https_proxy', 'http://proxy.example:3128')
     class Reply:
         status = 200
-        def read(self): return b'<artifactId>gson</artifactId>'
+        def read(self): return b'<artifactId>kotlin-stdlib</artifactId>'
         def __enter__(self): return self
         def __exit__(self, *args): pass
     class Opener:
@@ -448,3 +448,42 @@ def test_preinstallation_failure_is_fatal_and_dependencies_remain(tmp_path, monk
         assert 'testClasses' in arguments
         assert 'test' not in arguments and 'clean' not in arguments
         assert not (gradle_home/'gradle.properties').exists()
+
+def test_redux_install_skips_only_root_prepublication_and_restores_source():
+    from data.multiswe.patch import patched_image_prepare
+    script = patched_image_prepare({'repo':'redux', 'base_sha':'d'*40,
+                                    'files': {'prepare.sh':'yarn install || true\n'}})
+    assert 'delete p.scripts.prepublish' in script
+    assert 'cp "$backup" package.json' in script
+    assert 'yarn install' in script
+
+
+def test_material_ui_preinstall_skips_unused_playwright_browser_downloads():
+    from data.multiswe.patch import patched_image_prepare
+    script = patched_image_prepare({'repo':'material-ui', 'base_sha':'d'*40,
+                                   'files': {'prepare.sh':'yarn install\n'}})
+    assert script.startswith('export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1\n')
+
+
+def test_async_preinstall_repairs_stale_npm_ci_lockfile():
+    from data.multiswe.patch import patched_image_prepare
+    script = patched_image_prepare({'repo':'async', 'base_sha':'d'*40,
+                                   'files': {'prepare.sh':'npm ci\n'}})
+    assert 'npm install --no-audit --no-fund' in script
+    assert 'npm ci' not in script
+
+
+def test_fastjson_preinstalls_dependencies_but_keeps_verifier_tests():
+    from data.multiswe.patch import share_image
+    recipe = shared_recipe()
+    recipe.update(repo='fastjson2')
+    recipe['files']['prepare.sh'] = '#!/bin/bash\n./mvnw -Pgen-javadoc -Pgen-dokka clean package -Dmaven.test.skip=false || true\n'
+    recipe['files']['fix-run.sh'] = '#!/bin/bash\ngit apply /home/test.patch /home/fix.patch\n./mvnw -Pgen-javadoc -Pgen-dokka clean test -Dmaven.test.skip=false\n'
+    files = share_image(patch_files(original_files()), recipe,
+                        {recipe['base']:'mswebench/example@sha256:'+'b'*64})
+    assert b'./mvnw' not in files['setup_files/upstream/prepare.sh']
+    assert b'MAVEN_USER_HOME=/opt/multiswe-maven-user' in files['environment/Dockerfile']
+    verifier = files['setup_files/upstream/fix-run.sh']
+    assert b'-Dmaven.repo.local=/opt/multiswe-maven' in verifier
+    assert b'-Pgen-javadoc -Pgen-dokka clean test -Dmaven.test.skip=false' in verifier
+    assert b'-DskipTests' not in verifier

@@ -114,10 +114,19 @@ def test_shared_fix(decision, directory):
         raise RuntimeError('Shared infrastructure regression tests failed; see shared-fix-tests.log')
 
 
+def findings(config):
+    return sorted(str(path) for path in (Path(config['work_root']) / 'infrastructure-findings').glob('*.json'))
+
+
+def unreviewed_findings(config, state):
+    """Findings the supervisor has not judged yet; reviewed ones do not recur forever."""
+    reviewed = set(state.get('reviewed_findings', []))
+    return [path for path in findings(config) if path not in reviewed]
+
+
 def recover(config, state_path, failure):
     state = read(state_path)
-    findings = Path(config['work_root']) / 'infrastructure-findings'
-    needs_supervisor = (state.get('supervisor_pending') or any(findings.glob('*.json')) or
+    needs_supervisor = (state.get('supervisor_pending') or unreviewed_findings(config, state) or
                         (infrastructure_directory() / 'pending.json').exists())
     if not needs_supervisor:
         with infrastructure_lock():
@@ -311,10 +320,13 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
             'cause': decision['cause'], 'evidence': decision['evidence']})
     elif role == 'supervisor':
         state.pop('supervisor_pending', None)
+        state['reviewed_findings'] = sorted(set(state.get('reviewed_findings', [])) | set(findings(config)))
     if decision['action'] == 'restart':
         fresh = decision['restart_from'] == 'stage3' or state.get('recovery_requires_stage3', False)
         # An interrupted mutating agent must finish its reporting contract first.
-        if state.get('phase') in ('proposer', 'implementer', 'fixer'):
+        # An idle fixer holds no partial edit; its stale evidence is replaced by stage 3.
+        if state.get('phase') in ('proposer', 'implementer') or (
+                state.get('phase') == 'fixer' and not core.fixer_idle(config, state)):
             fresh = False
         if fresh:
             active = [job for job in jobs(config['work_root']) if not job['finished']]
@@ -323,10 +335,7 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
                 return 'wait'
             if (Path(config['work_root']) / 'publication/job.json').exists():
                 raise RuntimeError('Publication was submitted; reconcile it before replacing validated results')
-            state.update(phase='build', generation=state.get('generation', 0) + 1, pilot=0,
-                         review_setup=True)
-            state.pop('validation_finished_at', None)
-            state.pop('recovery_requires_stage3', None)
+            core.restart_stage3(state)
         state.update(status='running', agent_attempt=state.get('agent_attempt', 0) + 1,
                      recovery_handoff={'failure_dir': str(failure), 'decision': str(directory / 'decision.json'),
                                        'restart_prompt': decision['restart_prompt']})

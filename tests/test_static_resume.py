@@ -55,7 +55,8 @@ def test_resume_only_unchanged_successes(checkpoint):
     imported, record = static_resume.load(root, [task], manifest, checks, 'portable')
     assert checker.PATH_CHECK not in imported[task.name]
     assert checks[0] not in imported[task.name]
-    assert record['imported_checks'] == len(checks) - 2
+    assert not (set(checker.LOCAL_CHECKS) & set(imported[task.name]))
+    assert record['imported_checks'] == len(checks) - len({checker.PATH_CHECK, checks[0], *checker.LOCAL_CHECKS})
     assert all(c['resumed_from'] == record['sha256'] for c in imported[task.name].values())
 
 
@@ -91,7 +92,10 @@ def test_checker_executes_only_missing_checks(checkpoint, tmp_path, monkeypatch)
     assert checker.run_checks([task], out, profile='portable', resume=root) == 0
     final = json.loads((out / 'summary.json').read_text())
     assert final['complete'] and len(final['tasks']) == 1
-    assert calls == ([] if checks[-1] == checker.AI_CHECK else [checks[-1]])
+    expected = {p.name for name, p in checker.LOCAL_CHECKS.items() if name in checks}
+    if checks[-1] != checker.AI_CHECK:
+        expected.add(checker.LOCAL_CHECKS[checks[-1]].name if checks[-1] in checker.LOCAL_CHECKS else checks[-1])
+    assert set(calls) == expected and len(calls) == len(expected)
     assert len(final['tasks'][0]['checks']) == len(checks)
 
 
@@ -103,7 +107,7 @@ def test_explicit_previous_path_check_keeps_success(checkpoint):
     imported, record = static_resume.load(root, [task], manifest, checks, 'portable', accept_previous_path_check=True)
     assert checker.PATH_CHECK in imported[task.name]
     assert record['accepted_previous_path_check']
-    assert not record['rerun_changed_checks']
+    assert set(record['rerun_changed_checks']) == set(checker.LOCAL_CHECKS) & set(checks)
 
 
 @pytest.mark.parametrize('missing', [None, 1, 3, 4, 5])

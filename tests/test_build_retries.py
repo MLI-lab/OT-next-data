@@ -124,7 +124,7 @@ def test_setup_review_defaults_and_portable_evidence(tmp_path, monkeypatch, opti
     (source / 'instruction.md').write_text('task payload')
     async def build(*args):
         return {'status': 'passed', 'environments': [{'environment': 'agent',
-                'timings_seconds': {'start': 61}}]}
+                'timings_seconds': {'preparation': 61}}]}
     monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
     monkeypatch.setattr(build_retries.runtime, 'build_task', build)
     result = asyncio.run(build_retries.run_builds([source], tmp_path/'out', args, StringIO()))[0]
@@ -165,7 +165,7 @@ def test_review_has_independent_mean_budgets_and_buckets(tmp_path, monkeypatch, 
     async def build(*a):
         i = len(calls); calls.append(i)
         return {'status': 'error' if verifier_status == 'error' else 'passed',
-            'environments': [{'environment': 'agent', 'status': 'passed', 'timings_seconds': {'start': task_seconds[i]}}],
+            'environments': [{'environment': 'agent', 'status': 'passed', 'timings_seconds': {'start': task_seconds[i] + 120, 'container_start': 120, 'preparation': task_seconds[i]}}],
             'verifier_preparation': [{'environment': 'verifier', 'status': verifier_status,
                 'mean_target_seconds': 3, 'timings_seconds': {'preparation': verifier_seconds[i]}}]}
     monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)

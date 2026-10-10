@@ -209,13 +209,17 @@ images with a recorded build history.
 
 - **Setup:** start with git clones/checkouts, initial task files and small
   configuration changes. These are usually quick and let many tasks share an image.
+  Move a pinned repository checkout into the image only when setup review shows
+  that fetching it is too slow or unreliable; setup then copies it from the image.
 - **Task image:** install tools and dependencies the agent may use here when
   preparing them during setup is slow or unreliable. A dependency used by the
   verifier can also go here if the agent is allowed to have it. Dependencies
   the agent must not access belong in a **separate verifier image**.
 
 For clean verification, start a fresh container from the cached task image,
-repeat task setup, then copy in the submitted files. This gives the verifier
+copy in the submitted files and tests, then run `tests/setup.sh` before
+`tests/test.sh`. Declare verifier initialization explicitly in `tests/setup.sh`.
+This gives the verifier
 original tools even if the agent changed its installation, with **no additional
 unique image**. Set `environment_mode = "separate"` under `[verifier]`
 in `task.toml`; a verifier without its own image definition reuses the task image.
@@ -230,13 +234,15 @@ separately. Move expensive installation steps into images and repeat until:
 - **Verifier preparation:** mean at most **5% of the verifier timeout** in `task.toml`.
 - **Both:** every run succeeds and no individual run exceeds **60 seconds**.
 
-The **task timer** includes starting the agent container, uploading setup files
-and running task setup. The **verifier timer** includes starting a separate
-verifier container if needed, uploading test files, transferring declared
-submission files, repeating task setup when using the task image, and running
-verifier setup. File transfers performed by the runner count
-even when they are outside the setup script. Each timer is checked against its
-own limits above.
+Both preparation timers start after their container is ready. The **task timer**
+includes uploading setup files and running task setup. The **verifier timer**
+includes uploading test files and setup files, transferring submitted files,
+running verifier setup and cleaning up temporary transfer files. These operations
+count even when performed by the runner outside
+a setup script.
+
+Container startup is recorded separately and must finish within the environment’s
+`build_timeout_sec`. Startup failures still fail stage 3.
 
 Slow or failed tasks are saved in **task-setup-needs-review** and/or
 **verifier-setup-needs-review** buckets with timings and logs. These five runs
@@ -269,7 +275,64 @@ then fails normally and returns reward **0**, which passes the no-op check.
 mentioned in `instruction.md` as a valid no-op (reward **0**), even if no reward
 was written.
 
+The checker previously did not count a no-op as passed when the verifier executed
+no tests, to catch infrastructure errors such as pytest not being installed.
+However, this also failed tasks where the tests cannot run on the unpatched tree,
+for example because they import a module the reference patch creates. The checker
+now accepts a no-op that executed no tests when every error pytest reported can be
+traced to the reference patch, in one of two ways:
+
+1. the error names a module, symbol or attribute that the reference patch adds,
+   removes or renames, or
+2. the error is raised from a file the reference patch changes.
+
+If the verifier prints no traceback to check this, the no-op is accepted only when
+the reference run of the same submission executed the suite and scored 1 in the
+same image.
+
+## Retries after the run
+
+After all stages have run once, every task of stages 3, 4 and 5 is classified as
+the publisher classifies it: passed, archived, or not run (crash, node failure,
+missing reward, missing runner evidence). Tasks that are not run are rerun in
+those stages up to three more times, stage 3 first so a recovered build lets its
+trials run in the same round. A wrong reward or a failed build is a result and is
+not retried. A task still without a result after the last attempt is archived as
+not robust under this infrastructure, so every run ends in a decision for every
+task.
+
+When an earlier audit of the same tasks is supplied with `--expected-outcomes`
+(e.g. from a previous manual audit), results that differ from it are rerun
+instead of applying the classifier, and a task that never reproduces the audit
+is archived as not robust. The pull request reports, per stage, how many tasks
+matched on the first attempt, after one, two or three retries, or were archived,
+and where the expected outcomes came from.
+
 ## Stage 6: teacher agent trials
+
+Use both `Qwen/Qwen3-30B-A3B-Instruct-2507` and `Qwen/Qwen3-30B-A3B`
+for teacher evaluation, with separate runs and per-model results. For pass@16,
+run each model with `--attempts 16` on the same selected tasks.
+
+Acceptance checks collection completeness, independently of stages 3 through 5.
+Every selected task must have exactly the requested number of distinct terminal
+attempts.
+
+> An attempt succeeds only if verification returns a passing reward. Any other
+> outcome, including a verifier failure, counts as unsolved.
+
+This rule applies to recorded terminal attempts, regardless of the failure's
+cause. It does not turn missing or unfinished attempts into completed attempts.
+Completed attempts with a recorded error and no valid verifier reward receive
+**reward 0** in stage-6 and stage-7 results. The original verifier output and
+exceptions are preserved for diagnosis, separately from the assigned reward.
+No replacement attempt is generated. Reports expose the verifier-error rate;
+these scored failures do not contribute to the no-reward rate. Missing, duplicate, unfinished
+or unaccounted-for attempts keep collection incomplete. Reference and no-op
+validation retain their strict execution and reward requirements. In particular,
+stage 5 (NOP) still requires a measured zero reward and valid test execution,
+subject to its documented missing-file exception. The pass@k completion checker
+does not relax NOP validation.
 
 Runs the selected agent and model `k` times per task (`--attempts k`), saving
 rewards and trajectories. Each task gets a solved count: **0/k, 1/k, …, k/k**.

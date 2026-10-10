@@ -53,7 +53,7 @@ def save_preparation_review(sources, items, out):
         (directory / 'index.json').write_text(json.dumps({'flagged': selected}, indent=2) + '\n')
     (review / 'index.json').write_text(json.dumps({
         'evaluated': len(items), 'passed': len(items) - len(flagged), 'flagged': flagged,
-        'measurement': 'fresh container startup, setup upload and setup execution; prepared images reused',
+        'measurement': 'setup upload and execution after container readiness; startup recorded separately; prepared images reused',
     }, indent=2) + '\n')
 
 
@@ -109,7 +109,7 @@ async def run_builds(sources, out, args, outcomes):
             for result in history:
                 agent = next((e for e in result.get('environments', [])
                               if e.get('environment') == 'agent'), {})
-                value = agent.get('timings_seconds', {}).get('start')
+                value = agent.get('timings_seconds', {}).get('preparation' if review else 'start')
                 if isinstance(value, (int, float)) and math.isfinite(value) and value >= 0:
                     seconds.append(value)
             task_ok = lambda r: next((e.get('status', r['status']) for e in r.get('environments', []) if e.get('environment') == 'agent'), 'error') if review else r['status']
@@ -157,6 +157,10 @@ async def run_builds(sources, out, args, outcomes):
         if getattr(args, 'review_setup', None) is not None:
             save_preparation_review(sources, items, out)
         return items
+    if int(getattr(args, 'outcome_retries', 0) or 0):
+        # The run-level retry rule (outcome_retries) reruns tasks without a result
+        # after all stages; stage 3 is not treated differently from stages 4 and 5.
+        return [dict(history[0]) for history in histories]
     failed = [index for index, history in enumerate(histories) if history[0]['status'] != 'passed']
     # Keep the original failed cohort for every round, including recovered tasks.
     for attempt in range(1, 4):

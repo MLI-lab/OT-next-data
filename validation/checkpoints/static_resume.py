@@ -61,6 +61,9 @@ def load(directory, tasks, manifest, checks, profile, expected=None, accept_prev
         if previous.get(name) != current.get(name):
             raise ValueError(f'static checkpoint input transformation changed: {name}')
     reusable = set(checks) & set(old['checks'])
+    # Local checks and their Harbor schema may change independently of the
+    # upstream checksum manifest. Rerun instead of trusting stale evidence.
+    reusable.difference_update(checker.LOCAL_CHECKS)
     for name in list(reusable):
         if old.get('adaptations', {}).get(name) != checker.ADAPTATIONS.get(name):
             reusable.remove(name)

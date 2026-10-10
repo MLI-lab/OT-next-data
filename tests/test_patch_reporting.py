@@ -93,6 +93,11 @@ def test_manifest_requires_archive_and_matching_output_payloads(tmp_path):
     ('exception: BuildTimeoutError', 'build-execution-error'),
     ('exception: BridgeOutageError', 'infrastructure-error'),
     ('verifier did not run: pytest is not installed', 'verifier-execution-error'),
+    ('verifier execution evidence is missing; rerun with an instrumented runner', 'verifier-execution-error'),
+    ('invalid verifier execution context', 'verifier-execution-error'),
+    ('invalid verifier execution counts', 'verifier-execution-error'),
+    ('verifier invocation did not finish', 'verifier-execution-error'),
+    ('verifier invocation failed during collection or execution', 'verifier-execution-error'),
 ])
 def test_execution_failure_never_becomes_reward_failure(stage, finding, label):
     item = {'status': 'failed', 'rewards': [0 if stage == 4 else 1], 'findings': [finding]}

@@ -1,4 +1,5 @@
 import copy
+import re
 import io
 import json
 from pathlib import Path
@@ -7,7 +8,7 @@ import tarfile
 
 import pytest
 
-from data.swelego.patch import REVISION, dependencies, patch_files, patch_blob
+from data.swelego.patch import ARCHIVED_TASKS, REVISION, dependencies, patch_files, patch_blob
 
 
 def fixture():
@@ -20,6 +21,7 @@ def fixture():
     lock = {'source_revision': REVISION, 'base': 'example/base@sha256:' + 'b'*64,
             'environments': {'3.9.21': ['attrs=21.4.0=build', 'python=3.9.21=build']}}
     files = {'environment/Dockerfile': b'FROM example/task:latest\nWORKDIR /testbed\n',
+             'task.toml': b'schema_version = "1.0"\n[environment]\ncpus = 4\nmemory_mb = 4096\n',
              'tests/test.sh': ('#!/bin/bash\nmkdir -p /logs/verifier\nbase=' + commit + '\n').encode(),
              'tests/test.patch': b'original test patch', 'tests/required.json': b'["test_a"]',
              'solution/solve.sh': b'#!/bin/bash\nset -e\ngit apply /solution/gold.patch\n',
@@ -56,6 +58,127 @@ def test_unknown_local_dependency_is_not_silently_replaced():
     row['requirements'] = 'private-package @ file:///unavailable/private\n'
     with pytest.raises(ValueError, match='no frozen conda'):
         dependencies(row, ['python=3.9.21=build'])
+
+
+def test_pymor_runtime_repair_is_scoped_and_requires_original_pin():
+    from data.swelego.patch import environment_repairs
+    _, row, _ = fixture()
+    row['instance_id'] = 'pymor__pymor-1296'
+    row['base_commit'] = environment_repairs()[row['instance_id']]['base_commit']
+    row['requirements'] = 'numpy==2.0.2\nscipy==1.13.1\n'
+    result = dependencies(row, ['python=3.9.21=build'])
+    assert 'numpy==1.23.5\n' in result and 'numpy==2.0.2' not in result
+    assert 'scipy==1.13.1\n' in result
+    row['requirements'] = 'numpy==1.26.4\n'
+    with pytest.raises(ValueError, match='original pin'):
+        dependencies(row, [])
+    row['base_commit'] = '0' * 40
+    with pytest.raises(ValueError, match='commit mismatch'):
+        dependencies(row, [])
+
+
+def test_sympy_helper_keeps_exception_assertions_strict(monkeypatch):
+    import sys
+    import types
+    from data.swelego.swelego_sympy_pytest import pytest_configure
+    helper = types.SimpleNamespace()
+    monkeypatch.setitem(sys.modules, 'sympy', types.ModuleType('sympy'))
+    utilities = types.ModuleType('sympy.utilities')
+    utilities.pytest = helper
+    monkeypatch.setitem(sys.modules, 'sympy.utilities', utilities)
+    pytest_configure(None)
+    with helper.raises(ValueError):
+        raise ValueError('expected')
+    with pytest.raises(pytest.fail.Exception):
+        with helper.raises(ValueError):
+            pass
+    with pytest.raises(TypeError):
+        with helper.raises(ValueError):
+            raise TypeError('wrong exception')
+    existing = object()
+    helper.raises = existing
+    pytest_configure(None)
+    assert helper.raises is existing
+
+
+def test_f5_missing_feature_fails_during_execution_not_collection(tmp_path, monkeypatch):
+    import sys
+    import types
+    from data.swelego.f5_test_imports import repair
+    module = types.ModuleType('f5.bigip.tm.asm.tasks')
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    original = ('from f5.bigip.tm.asm.tasks import Import_Policy\n'
+                'def test_existing():\n    assert 1 == 1\n'
+                'def test_feature():\n    assert Import_Policy.value == 42\n')
+    paths = []
+    for kind in ('functional', 'unit'):
+        path = tmp_path / f'f5/bigip/tm/asm/test/{kind}/test_tasks.py'
+        path.parent.mkdir(parents=True)
+        path.write_text(original)
+        paths.append(path)
+    repair(tmp_path)
+    for path in paths:
+        scope = {}
+        exec(compile(path.read_text(), str(path), 'exec'), scope)
+        scope['test_existing']()
+        with pytest.raises(ImportError, match='Import_Policy'):
+            scope['test_feature']()
+        module.Import_Policy = types.SimpleNamespace(value=42)
+        scope['test_feature']()
+        del module.Import_Policy
+
+
+def test_f5_verifier_repair_preserves_grading_inputs():
+    files, row, lock = fixture()
+    row['instance_id'] = 'F5Networks__f5-common-python-967'
+    files['tests/test.sh'] += b'bash /tests/eval.sh | tee /logs/verifier/test-output.txt\n'
+    result = patch_files(files, row, lock)
+    for name in ('tests/test.patch', 'tests/required.json', 'solution/gold.patch'):
+        assert result[name] == files[name]
+    assert b'python /tests/f5_test_imports.py || exit $?' in result['tests/test.sh']
+    assert not any('f5_test_imports' in k for k in result if k.startswith(('environment/', 'setup_files/')))
+
+
+@pytest.mark.parametrize('task', ['msgpack__msgpack-python-388', 'sdss__sdss_access-69'])
+def test_verifier_fixes_preserve_inputs_and_require_reviewed_commit(task):
+    from data.swelego.patch import VERIFIER_FIXES
+    files, row, lock = fixture()
+    commit = VERIFIER_FIXES[task]['commit']
+    row.update(instance_id=task, base_commit=commit)
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, commit.encode())
+    files['tests/test.sh'] += b'bash /tests/eval.sh | tee /logs/verifier/test-output.txt\n'
+    result = patch_files(files, row, lock)
+    for name in ('tests/test.patch', 'tests/required.json', 'solution/gold.patch'):
+        assert result[name] == files[name]
+    if task.startswith('msgpack'):
+        assert b'MSGPACK_PUREPYTHON=1 bash /tests/eval.sh' in result['tests/test.sh']
+    else:
+        assert b'PYTEST_PLUGINS=swelego_sdss_clock${PYTEST_PLUGINS:+,$PYTEST_PLUGINS}' in result['tests/test.sh']
+        assert 'tests/swelego_sdss_clock.py' in result
+    subprocess.run(['bash', '-n'], input=result['tests/test.sh'], check=True)
+    row['base_commit'] = 'f' * 40
+    files['tests/test.sh'] = files['tests/test.sh'].replace(commit.encode(), b'f' * 40)
+    with pytest.raises(ValueError, match='Verifier fix task commit mismatch'):
+        patch_files(files, row, lock)
+
+
+def test_sdss_clock_is_local_to_grading_module(monkeypatch):
+    import datetime
+    import sys
+    import types
+    from data.swelego.sdss_verifier_clock import pytest_collection_modifyitems
+    module = types.ModuleType('sdss_access.path.path')
+    module.datetime = datetime
+    real_datetime = datetime.datetime
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    pytest_collection_modifyitems(None, None, [])
+    assert module.datetime.datetime.now().date() == datetime.date(2025, 4, 1)
+    assert module.datetime.datetime.now(datetime.timezone.utc).tzinfo == datetime.timezone.utc
+    assert module.datetime.timedelta is datetime.timedelta
+    assert datetime.datetime is real_datetime
+    monkeypatch.delitem(sys.modules, module.__name__)
+    with pytest.raises(RuntimeError, match='did not import'):
+        pytest_collection_modifyitems(None, None, [])
 
 
 @pytest.mark.parametrize('reverse', [False, True])
@@ -367,6 +490,112 @@ def test_toolkit_version_history_is_pinned_and_bounded():
     assert 'git remote remove origin\nfinish_phase conda' in setup
 
 
+def test_holoviews_repairs_only_malformed_tomli_metadata_before_install():
+    files, row, lock = fixture()
+    row['instance_id'] = 'holoviz__holoviews-6346'
+    from data.swelego.patch import environment_repairs
+    row['base_commit'] = environment_repairs()[row['instance_id']]['base_commit']
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    setup = patch_files(files, row, lock)['setup_files/setup.sh'].decode()
+    cleanup = 'metadata_path="$site_packages/tomli-2.0.1.dist-info/METADATA"'
+    assert cleanup in setup
+    assert setup.index(cleanup) < setup.index('python -m pip install --no-deps')
+    assert 'if [ -d "$metadata_path" ] && [ ! -L "$metadata_path" ]; then rm -rf -- "$metadata_path"; fi' in setup
+
+
+@pytest.mark.parametrize('task,commit', [
+    ('astropy__astropy-16241', '33265f16ebb00d3c6c5812911df0d9b4e1bbb8e0'),
+    ('astropy__pyvo-357', '861298fbff5395d61af8192b9b739cff911cb025'),
+])
+def test_astropy_date_sensitive_repairs_install_verified_leap_table(task, commit):
+    files, row, lock = fixture()
+    row['instance_id'] = task
+    row['base_commit'] = commit
+    from data.swelego.patch import environment_repairs
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, commit.encode())
+    result = patch_files(files, row, lock)
+    setup = result['setup_files/setup.sh'].decode()
+    assert 'shutil.copyfile("/setup_files/Leap_Second.dat", astropy_iers_data.IERS_LEAP_SECOND_FILE)' in setup
+    assert result['setup_files/Leap_Second.dat']
+    assert 'Bulletin 72' in environment_repairs()[task]['reason']
+
+
+def test_setuptools_scm_restores_full_pinned_history_for_version_test():
+    files, row, lock = fixture()
+    row['instance_id'] = 'pypa__setuptools_scm-854'
+    row['base_commit'] = '8856af656b576f8b8c3612303007bbaa92ec8d50'
+    files['tests/test.sh'] = files['tests/test.sh'].replace(
+        b'a' * 40, row['base_commit'].encode())
+    setup = patch_files(files, row, lock)['setup_files/setup.sh'].decode()
+    assert 'git fetch --depth 2147483647 origin 8856af656b576f8b8c3612303007bbaa92ec8d50' in setup
+
+
+def test_pytrakt_fixes_only_the_verifier_local_calendar_clock():
+    files, row, lock = fixture()
+    row['instance_id'] = 'moogar0880__PyTrakt-54'
+    row['base_commit'] = 'f574c1c1dfc6f65f21296184659aadc2879f2be6'
+    files['tests/test.sh'] = files['tests/test.sh'].replace(
+        b'a' * 40, row['base_commit'].encode())
+    files['tests/test.sh'] += b'bash /tests/eval.sh | tee /logs/verifier/test-output.txt\n'
+    original_patch = files['solution/gold.patch']
+    result = patch_files(files, row, lock)
+    assert b'PYTEST_PLUGINS=swelego_pytrakt_clock${PYTEST_PLUGINS:+,$PYTEST_PLUGINS}' in result['tests/test.sh']
+    assert 'tests/swelego_pytrakt_clock.py' in result
+    assert result['solution/gold.patch'] == original_patch
+    import datetime, sys, types
+    from data.swelego.swelego_pytrakt_clock import pytest_collection_modifyitems
+    module = types.ModuleType('trakt.utils')
+    module.datetime = datetime.datetime
+    sys.modules[module.__name__] = module
+    try:
+        pytest_collection_modifyitems(None, None, [])
+        assert module.datetime.now().strftime('%Y-%m-%d') == '2026-11-05'
+        assert datetime.datetime.now() != module.datetime.now()
+    finally:
+        del sys.modules[module.__name__]
+
+
+def test_rpyc_verifier_uses_an_allowed_cpu_without_changing_task_source():
+    files, row, lock = fixture()
+    row['instance_id'] = 'tomerfiliba-org__rpyc-479'
+    from data.swelego.patch import environment_repairs
+    row['base_commit'] = environment_repairs()[row['instance_id']]['base_commit']
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    files['tests/test.sh'] += b'bash /tests/eval.sh | tee /logs/verifier/test-output.txt\n'
+    original_solution = files['solution/gold.patch']
+    result = patch_files(files, row, lock)
+    assert b'min(self._os.sched_getaffinity(0))' in result['tests/swelego_rpyc_affinity.py']
+    assert b'python /tests/swelego_rpyc_affinity.py /testbed/tests/test_affinity.py' in result['tests/test.sh']
+    assert result['solution/gold.patch'] == original_solution
+    from data.swelego.swelego_rpyc_affinity import rewrite
+    changed = rewrite('self._os.sched_setaffinity(0, {0, })')
+    assert rewrite(changed) == changed
+
+
+def test_live_service_and_expired_license_archives_have_explicit_reasons():
+    for task in ('takeontom__PyPeri-29', 'takeontom__PyPeri-35',
+                 'kivy__kivy-6954', 'sphinx-doc__sphinx-5203',
+                 'cisagov__check-cve-2019-19781-10'):
+        assert ARCHIVED_TASKS[task]['category'] == 'unreliable-live-service-dependency'
+        assert 'live' in ARCHIVED_TASKS[task]['reason'].lower()
+    assert ARCHIVED_TASKS['PyPSA__linopy-77']['category'] == 'unsupported-expired-proprietary-license'
+    assert 'expired on 2026-02-28' in ARCHIVED_TASKS['PyPSA__linopy-77']['reason']
+    assert ARCHIVED_TASKS['Yelp__bravado-410']['category'] == 'proxy-sensitive-verification'
+    assert 'HTTP 503' in ARCHIVED_TASKS['Yelp__bravado-410']['reason']
+
+
+def test_dask_1150_gets_measured_8_gib_task_memory_limit():
+    files, row, lock = fixture()
+    row['instance_id'] = 'dask__dask-1150'
+    result = patch_files(files, row, lock)
+    assert b'memory_mb = 8192' in result['task.toml']
+    from data.swelego.patch import TASK_RESOURCE_FIXES
+    fix = TASK_RESOURCE_FIXES[row['instance_id']]
+    assert fix['label'] == 'task-memory-8gib'
+    assert '7,527,284 KiB' in fix['reason']
+    assert '4 GiB' in fix['reason'] and '8 GiB' in fix['reason']
+
+
 def test_recovered_requirement_sources_are_guarded_by_task_commit():
     from data.swelego.patch import REQUIREMENT_SOURCES
     _, row, _ = fixture()
@@ -377,3 +606,203 @@ def test_recovered_requirement_sources_are_guarded_by_task_commit():
     row['base_commit'] = 'f' * 40
     with pytest.raises(ValueError, match='source task commit mismatch'):
         dependencies(row, ['python=3.9.21=build'])
+
+
+def test_added_build_tool_cannot_override_recorded_runtime(monkeypatch):
+    import data.swelego.patch as patch
+    _, row, _ = fixture()
+    row.update(instance_id='example__project-1', requirements='tomli==2.2.1\n')
+    monkeypatch.setattr(patch, 'build_backends', lambda: {
+        row['instance_id']: {'base_commit': row['base_commit'], 'install': ['tomli==2.0.1']}})
+    with pytest.raises(ValueError, match='conflicts with frozen runtime'):
+        dependencies(row, ['python=3.9.21=build'])
+
+
+def test_multiple_recovered_sources_preserve_unrelated_pins_and_require_exact_commit():
+    from data.swelego.patch import REQUIREMENT_SOURCES, ADDITIONAL_REQUIREMENT_SOURCES
+    _, row, _ = fixture()
+    task = 'pgmpy__pgmpy-1905'
+    first = REQUIREMENT_SOURCES[task]
+    second = ADDITIONAL_REQUIREMENT_SOURCES[task]
+    row.update(instance_id=task, base_commit=first[0],
+               requirements=first[1] + '\n' + second[1] + '\nnumpy==2.0.2\n')
+    assert dependencies(row, ['python=3.9.21=build']).splitlines() == [
+        first[2], second[2], 'numpy==2.0.2']
+    row.update(base_commit='f' * 40, requirements=second[1])
+    with pytest.raises(ValueError, match='source task commit mismatch'):
+        dependencies(row, ['python=3.9.21=build'])
+
+
+def test_mtgjson_verifier_appends_the_inherited_pythonpath():
+    files, row, lock = fixture()
+    row['instance_id'] = 'mtgjson__mtgjson-469'
+    row['base_commit'] = 'b3d7bc4531bdca514dc1cf9f4ea5f6eac1104f89'
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    files['tests/test.sh'] += b'bash /tests/eval.sh | tee /logs/verifier/test-output.txt\n'
+    files['tests/eval.sh'] = (b'#!/bin/bash\ncd /testbed\nLANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONPATH=. pytest --no-header '
+                              b'-rA tests/mtgjson4/test_format.py\nstatus=$?\necho "SWELEGO_PYTEST_EXIT=$status"\nexit 0\n')
+    result = patch_files(files, row, lock)
+    evaluate = result['tests/eval.sh'].decode()
+    assert ' PYTHONPATH=.${PYTHONPATH:+:$PYTHONPATH} pytest --no-header -rA tests/mtgjson4/test_format.py' in evaluate
+    assert evaluate.count('pytest') == 1 and 'PYTHONPATH=. pytest' not in evaluate
+    assert result['tests/required.json'] == files['tests/required.json']
+    assert result['tests/test.patch'] == files['tests/test.patch']
+    assert result['solution/gold.patch'] == files['solution/gold.patch']
+    from data.swelego.patch import VERIFIER_FIXES
+    assert VERIFIER_FIXES[row['instance_id']]['label'] == 'verifier-pythonpath-append'
+    # A rewritten verifier command is refused rather than silently left broken.
+    files['tests/eval.sh'] = files['tests/eval.sh'].replace(b'PYTHONPATH=. pytest', b'pytest')
+    with pytest.raises(ValueError, match='mtgjson verifier command'):
+        patch_files(files, row, lock)
+
+
+def test_holoviews_also_restores_full_history_for_its_setuptools_scm_version():
+    files, row, lock = fixture()
+    row['instance_id'] = 'holoviz__holoviews-6346'
+    from data.swelego.patch import environment_repairs
+    repair = environment_repairs()[row['instance_id']]
+    row['base_commit'] = repair['base_commit']
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    setup = patch_files(files, row, lock)['setup_files/setup.sh'].decode()
+    assert 'git fetch --depth 2147483647 origin ' + row['base_commit'] in setup
+    assert 'tomli-2.0.1.dist-info/METADATA' in setup
+    assert 'restore-git-version-history' in repair['additional_labels']
+    assert 'shallow' in repair['reason']
+
+
+@pytest.mark.parametrize('task, limit, label, evidence', [
+    ('dask__dask-4050', 8192, 'task-memory-8gib', '7.17 GiB'),
+    ('dask__dask-4181', 8192, 'task-memory-8gib', '6.65 GiB'),
+    ('tobymao__sqlglot-1889', 10240, 'task-memory-10gib', '7.82 GiB'),
+    ('microsoft__electionguard-python-381', 8192, 'task-memory-8gib', 'four of five'),
+])
+def test_measured_memory_limits_cite_their_probe(task, limit, label, evidence):
+    files, row, lock = fixture()
+    row['instance_id'] = task
+    from data.swelego.patch import build_backends
+    if task in build_backends():
+        row['base_commit'] = build_backends()[task]['base_commit']
+        files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    result = patch_files(files, row, lock)
+    assert ('memory_mb = %d' % limit).encode() in result['task.toml']
+    assert result['tests/test.sh'] != b'' and result['solution/gold.patch'] == files['solution/gold.patch']
+    from data.swelego.patch import TASK_RESOURCE_FIXES
+    fix = TASK_RESOURCE_FIXES[task]
+    assert fix['label'] == label and evidence in fix['reason'] and 'job 9' in fix['reason']
+
+
+def test_modin_5058_is_archived_after_bounded_ray_still_exceeded_12_gib():
+    from data.swelego.patch import TASK_RESOURCE_FIXES
+    assert 'modin-project__modin-5058' not in TASK_RESOURCE_FIXES
+    entry = ARCHIVED_TASKS['modin-project__modin-5058']
+    assert entry['category'] == 'verifier-memory-exceeds-limits'
+    assert 'MODIN_CPUS=4' in entry['reason'] and '964168' in entry['reason'] and '12 GiB' in entry['reason']
+
+
+
+def test_zarr_restores_the_preceding_release_tag_and_gets_a_measured_memory_limit():
+    files, row, lock = fixture()
+    row['instance_id'] = 'zarr-developers__zarr-python-2784'
+    from data.swelego.patch import build_backends, environment_repairs, TASK_RESOURCE_FIXES
+    row['base_commit'] = build_backends()[row['instance_id']]['base_commit']
+    assert environment_repairs()[row['instance_id']]['base_commit'] == row['base_commit']
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    history = json.loads((Path(__file__).resolve().parents[1] / 'data/swelego/base-environments.json').read_text())['checkout_tags'][row['instance_id']]
+    assert history['base_commit'] == row['base_commit'] and history['tag'] == 'v3.0.2'
+    result = patch_files(files, row, {**lock, 'checkout_tags': {row['instance_id']: history}})
+    setup = result['setup_files/setup.sh'].decode()
+    assert 'git fetch --depth 2147483647 origin ' + row['base_commit'] in setup
+    assert 'git merge-base --is-ancestor ' + history['tag_commit'] + ' HEAD' in setup
+    assert 'git tag -f v3.0.2 ' + history['tag_commit'] in setup
+    assert b'memory_mb = 10240' in result['task.toml']
+    assert '8.11 GiB' in TASK_RESOURCE_FIXES[row['instance_id']]['reason']
+    assert result['solution/gold.patch'] == files['solution/gold.patch']
+
+
+@pytest.mark.parametrize('task, key, label, host', [
+    ('tcgdex__python-sdk-2', 'no_proxy', 'recorded-http', 'api.tcgdex.net'),
+    ('contentful__contentful-management.py-117', 'no_proxy', 'recorded-http', 'api.contentful.com'),
+    ('h2non__pook-83', 'runtime_unset', 'mocked-http', 'HTTP_PROXY'),
+    ('googleapis__google-auth-library-python-424', 'runtime_unset', 'mocked-http', 'http_proxy'),
+])
+def test_proxy_sensitive_verifiers_keep_recorded_or_mocked_hosts_direct(task, key, label, host):
+    files, row, lock = fixture()
+    row['instance_id'] = task
+    from data.swelego.patch import TASK_RESOURCE_FIXES, select_image, build_backends
+    if task in build_backends():
+        row['base_commit'] = build_backends()[task]['base_commit']
+        files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    fix = TASK_RESOURCE_FIXES[task]
+    assert fix['label'] == label and host in fix[key] and re.search(r'jobs? 9\d{5}', fix['reason'])
+    selected, identity = select_image(row, lock)
+    assert identity.endswith(':' + label)
+    dockerfile = patch_files(files, row, lock)['environment/Dockerfile'].decode()
+    if key == 'no_proxy':
+        assert selected['_no_proxy'] == host and 'NO_PROXY=' + host in dockerfile
+    else:
+        assert host in selected['_runtime_unset'] and 'unset ' in dockerfile and 'HTTPS_PROXY' not in selected['_runtime_unset']
+    assert b'memory_mb = 4096' in patch_files(files, row, lock)['task.toml']
+
+
+def test_tox_restores_the_preceding_release_tag_for_its_provisioning_check():
+    files, row, lock = fixture()
+    row['instance_id'] = 'tox-dev__tox-2643'
+    from data.swelego.patch import environment_repairs, build_backends
+    row['base_commit'] = environment_repairs()[row['instance_id']]['base_commit']
+    if row['instance_id'] in build_backends():
+        assert build_backends()[row['instance_id']]['base_commit'] == row['base_commit']
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    history = json.loads((Path(__file__).resolve().parents[1] / 'data/swelego/base-environments.json').read_text())['checkout_tags'][row['instance_id']]
+    assert history['tag'] == '4.0.2' and history['base_commit'] == row['base_commit']
+    setup = patch_files(files, row, {**lock, 'checkout_tags': {row['instance_id']: history}})['setup_files/setup.sh'].decode()
+    assert 'git fetch --depth 2147483647 origin ' + row['base_commit'] in setup
+    assert 'git tag -f 4.0.2 ' + history['tag_commit'] in setup
+    assert '0.1.dev1' in environment_repairs()[row['instance_id']]['reason']
+
+
+def test_diagnosed_verifier_defects_are_archived_with_their_evidence():
+    expected = {'lundberg__respx-13': 'incompatible-verifier-dependency',
+                'lundberg__respx-21': 'incompatible-verifier-dependency',
+                'mdsol__rwslib-111': 'incompatible-verifier-dependency',
+                'getsentry__sentry-python-79': 'incompatible-verifier-dependency',
+                '2gis__k8s-handle-120': 'version-sensitive-test-expectation',
+                'pytest-dev__pytest-asyncio-1029': 'version-sensitive-test-expectation',
+                'ctypesgen__ctypesgen-150': 'unsupported-host-environment',
+                'openstates__pyopenstates-15': 'no-op-passes-required-tests'}
+    for task, category in expected.items():
+        assert ARCHIVED_TASKS[task]['category'] == category, task
+        reason = ARCHIVED_TASKS[task]['reason']
+        assert re.search(r'jobs? 9\d{5}', reason) and 'original payload preserved' in reason, task
+
+
+def test_pook_111_verifier_runs_without_any_proxy_but_setup_keeps_them():
+    files, row, lock = fixture()
+    row['instance_id'] = 'h2non__pook-111'
+    row['base_commit'] = 'fac40e9f571152ba09bc16954548ce51d590ccea'
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    files['tests/test.sh'] += b'bash /tests/eval.sh | tee /logs/verifier/test-output.txt\n'
+    result = patch_files(files, row, lock)
+    test = result['tests/test.sh'].decode()
+    assert 'env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy -u ALL_PROXY -u all_proxy bash /tests/eval.sh | tee' in test
+    assert 'unset' not in result['environment/Dockerfile'].decode()
+    assert result['solution/gold.patch'] == files['solution/gold.patch']
+
+
+@pytest.mark.parametrize('task, command', [
+    ('sigmavirus24__github3.py-1167', 'pytest --no-header -rA tests/unit/test_github.py'),
+    ('pybamm-team__PyBaMM-4644', 'pytest -m unit --no-header -rA tests/unit/test_solvers/test_processed_variable.py'),
+])
+def test_xdist_auto_workers_are_bounded_even_with_marker_options(task, command):
+    files, row, lock = fixture()
+    row['instance_id'] = task
+    from data.swelego.patch import environment_repairs, build_backends
+    row['base_commit'] = environment_repairs()[task]['base_commit']
+    if task in build_backends():
+        assert build_backends()[task]['base_commit'] == row['base_commit']
+    files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
+    files['tests/eval.sh'] = ('#!/bin/bash\ncd /testbed\nLANG=C.UTF-8 ' + command + '\nstatus=$?\nexit 0\n').encode()
+    files['tests/test.sh'] += b'bash /tests/eval.sh | tee /logs/verifier/test-output.txt\n'
+    result = patch_files(files, row, lock)
+    assert ' pytest -n 2 ' + command.split('pytest ', 1)[1] in result['tests/eval.sh'].decode()
+    assert b'OMP_NUM_THREADS=1' in result['tests/test.sh']
+    assert '384-CPU host' in environment_repairs()[task]['reason']

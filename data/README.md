@@ -30,6 +30,10 @@ Keep git clones/checkouts, initial files and small configuration changes in
 **setup** when fast, so tasks can share images. Put slow or unreliable dependency
 installation in the **image**.
 
+Move a repository snapshot into the image only when setup review shows that
+fetching it is too slow or unreliable. Setup then copies the pinned checkout
+from the image. Keep fast checkouts in setup to avoid unnecessary image variants.
+
 Dependencies the agent may use belong in the **task image**, even if verification
 also needs them. Use a **separate verifier container with the same task image**
 when verification needs original tools that the agent might have changed. This
@@ -39,6 +43,4 @@ Build a **different verifier image** when it needs dependencies the agent must
 not access. Put verifier preparation in `tests/setup.sh` and grading in
 `tests/test.sh`.
 
-Iterate with [stage 3's](../validation/PROTOCOL.md#what-goes-in-setup-vs-image)  `--review-setup`: all **five fresh runs** must succeed,
-**task preparation has a mean ≤30 seconds**, **verifier preparation averages ≤5% of
-its timeout**, and **no run exceeds 60 seconds**.
+Iterate with [stage 3’s](../validation/PROTOCOL.md#what-goes-in-setup-vs-image) `--review-setup`: all **five fresh runs** must succeed, **task preparation has a mean ≤30 seconds**, **verifier preparation averages ≤5% of its timeout**, and **no preparation run exceeds 60 seconds**. Container startup is timed separately and excluded from these limits. Uploads, submission transfers and setup scripts count toward preparation. Startup failures still fail validation.

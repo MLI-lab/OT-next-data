@@ -134,6 +134,10 @@ def content_keyed_payload(payload):
     files = payload.get('files_b64') or {}
     if 'Dockerfile' not in files:
         return payload
+    from harbor_patches.image_context import dockerfile_only_context
+    if dockerfile_only_context(base64.b64decode(files['Dockerfile'], validate=True),
+                               base64.b64decode(files.get('.dockerignore', ''), validate=True)):
+        files = {'Dockerfile': files['Dockerfile']}
     h = hashlib.sha256()
     for name in sorted(files, key=Path):
         rel = name.encode()
@@ -264,7 +268,9 @@ def start_with_anchor(self, payload):
 def start_anchor(self):
     """Keep tmux alive in the container for commands that reconnect later."""
     from harbor_patches.tmux_socket import SOCKET_ROOT, prepare_socket_directory
-    cmd = [worker.APPTAINER, 'exec', '--pwd', '/tmp',
+    # Popen bypasses run_container_commands: match its clean environment so an
+    # inherited host TMUX cannot send the anchor to a different socket.
+    cmd = [worker.APPTAINER, 'exec', '--cleanenv', '--pwd', '/tmp',
            f'instance://{self.instance_name}', '/usr/bin/env',
            f'TMUX_TMPDIR={SOCKET_ROOT}', '/bin/bash', '-c']
     from harbor_patches.tmux_runtime import ensure_tmux
@@ -317,43 +323,14 @@ def stop_with_anchor(self, payload):
         stop_anchor(self)
 
 
-_baked_tests = {}
-
-
-def image_bakes_tests(sif):
-    """Does this SIF already contain /tests/test.sh? Probed once per image, then cached."""
-    if sif not in _baked_tests:
-        apptainer = worker.APPTAINER or worker.detect_apptainer()
-        probe = subprocess.run([apptainer, 'exec', sif, 'test', '-f', '/tests/test.sh'],
-                               capture_output=True, timeout=120)
-        _baked_tests[sif] = probe.returncode == 0
-        if _baked_tests[sif]:
-            print(f'[worker] {os.path.basename(sif)} bakes /tests; not masking it with a bind',
-                  flush=True)
-    return _baked_tests[sif]
-
-
 def instance_start_command(cmd, net_flags):
-    """Add isolation/archive mounts and avoid masking tests baked into an image."""
+    """Keep the tests upload mount for every image, plus isolation/archive mounts."""
     flags = list(net_flags)
     if '--contain' not in cmd and '--containall' not in cmd:
         flags.append('--contain')
     archive = getattr(_trial, 'archive', None)
     if archive:
         flags += ['--bind', f'{archive}:{dependency_archives()["target"]}:ro']
-    sif = next((c for c in cmd if isinstance(c, str) and c.endswith('.sif')), '')
-    if sif and image_bakes_tests(sif):
-        # Separate verifier images COPY their tests into /tests. An empty
-        # staging bind would hide them; ordinary uploaded tests keep the bind.
-        args, kept = iter(cmd[3:]), []
-        for arg in args:
-            if arg == '--bind':
-                mount = next(args)
-                if not mount.endswith(':/tests:rw'):
-                    kept.extend([arg, mount])
-            else:
-                kept.append(arg)
-        return cmd[:3] + flags + kept
     return cmd[:3] + flags + cmd[3:]
 
 
@@ -395,19 +372,24 @@ def seed_image_workspace(cmd, original_run):
     with tempfile.TemporaryDirectory(prefix='workspace-image-', dir=workspace.parent) as temp:
         image_workspace = Path(temp) / 'contents'
         image_workspace.mkdir()
+        copy_scratch = Path(temp) / 'scratch'
+        copy_scratch.mkdir()
+        # Keep the archive on job-local disk, outside Apptainer's small
+        # session tmpfs. TemporaryDirectory cleans it even on exec timeout.
         # A read-only-only overlay can expose fuse-overlayfs whiteout files
         # through kernel OverlayFS on Helma. A disposable writable upper layer
         # makes Apptainer apply the whiteouts before we copy the merged view.
         # Never copy or filter raw layer entries: that could resurrect deletions.
         probe = [cmd[0], 'exec', '--containall', '--cleanenv', '--no-home',
                  '--writable-tmpfs', '--pwd', '/',
-                 '--bind', f'{image_workspace}:/_ot_workspace_init:rw', *overlays,
+                 '--bind', f'{image_workspace}:/_ot_workspace_init:rw',
+                 '--bind', f'{copy_scratch}:/_ot_copy_scratch:rw', *overlays,
                  cmd[-2], 'sh', '-ec',
                  'if [ -d /workspace ]; then '
                  # cp -a also copies filesystem ACLs, which can fail between
                  # fuse-overlayfs and the bind destination. Tar preserves the
                  # actual files, links and mode bits without copying those ACLs.
-                 'archive=$(mktemp); trap \'rm -f "$archive"\' EXIT; '
+                 'archive=$(mktemp /_ot_copy_scratch/workspace.XXXXXX); trap \'rm -f "$archive"\' EXIT; '
                  'tar -C /workspace -cpf "$archive" .; '
                  'tar --no-same-owner -xpf "$archive" -C /_ot_workspace_init; '
                  'elif [ -e /workspace ] || [ -L /workspace ]; then '
@@ -432,6 +414,9 @@ def run_image_build(original_run, cmd, args, kwargs, clock=time.monotonic, sleep
     # Only retry registry imports into the worker's temporary image. Never
     # rerun arbitrary Dockerfile RUN steps or overwrite a published image.
     registry_import = cmd[-1].startswith('docker://') and cmd[-2].endswith('.tmp')
+    if os.environ.get('OT_IMAGE_BUILD_NO_TIMEOUT') == '1':
+        kwargs = dict(kwargs)
+        kwargs.pop('timeout', None)
     deadline = clock() + kwargs['timeout'] if kwargs.get('timeout') is not None else None
     for attempt in range(3):
         options = dict(kwargs)
@@ -495,6 +480,8 @@ def run_container_commands(original_run, net_flags=(), clock=time.monotonic):
     def run(cmd, *args, **kwargs):
         from harbor_patches.upload_runtime import upload_command
         cmd = upload_command(cmd)
+        from harbor_patches.workdir_seed import workdir_seed_command
+        cmd = workdir_seed_command(cmd)
         if (isinstance(cmd, list) and len(cmd) > 2 and cmd[1] == 'exec'
                 and os.path.basename(cmd[0]) in ('apptainer', 'singularity')
                 and any(str(arg).startswith('instance://') for arg in cmd)
@@ -596,6 +583,17 @@ def configure_explicit_host_network(force=False):
     for name in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'no_proxy', 'NO_PROXY'):
         if os.environ.get(name):
             os.environ['APPTAINERENV_' + name] = os.environ[name]
+    if any(os.environ.get(name) for name in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY')):
+        # Loopback traffic must never go through the cluster proxy: verifiers
+        # that start local HTTP servers or expect a refused connection to an
+        # unused local port (google-auth-424, sentry-python-79) otherwise get the
+        # proxy's answer instead of their own server's.
+        for name in ('no_proxy', 'NO_PROXY'):
+            current = [h for h in os.environ.get('APPTAINERENV_' + name, '').split(',') if h]
+            for host in ('localhost', '127.0.0.1', '::1'):
+                if host not in current:
+                    current.append(host)
+            os.environ['APPTAINERENV_' + name] = ','.join(current)
 
 
 def cleanup_own_staging_only(hostname, staging_base):
@@ -648,6 +646,13 @@ def configure_worker(staging_base, sif_cache, child=False):
     # APPTAINERENV changes only the container environment, not worker staging.
     for name in ('TMPDIR', 'TMP', 'TEMP'):
         os.environ[f'APPTAINERENV_{name}'] = '/tmp'
+    # Conda images activate their environment both from the task's setup script
+    # and from the shells started at container start. conda 25.x fetches channel
+    # notices on activation and both activations then create the same notices
+    # cache directory; the loser aborts setup with "File exists" (SWE-Lego job
+    # 960179, six of eighteen trials). Notices are advertising, never needed for
+    # grading, so they stay off in every task container.
+    os.environ.setdefault('APPTAINERENV_CONDA_NUMBER_CHANNEL_NOTICES', '0')
     worker._INSTANCE_START_SEM = ContainerStartGate(
         int(os.environ.get('BRIDGE_START_CONCURRENCY', '8')),
         float(os.environ.get('BRIDGE_START_INTERVAL', '0')))

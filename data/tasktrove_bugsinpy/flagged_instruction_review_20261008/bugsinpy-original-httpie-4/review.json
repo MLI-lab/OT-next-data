@@ -1,0 +1,19 @@
+{
+  "instruction_verifier_alignment": {
+    "rating": "PASS",
+    "description": "The verifier runs tests/test_regressions.py::test_Host_header_overwrite, which runs `http --print=hH http://<httpbin ip>/get host:httpbin.org` and checks that the output contains HTTP 200 and exactly one case-insensitive 'host:'. The instruction describes this reproduction and expected result directly. No new names or paths are required, and /app is an absolute path."
+  },
+  "solution_leakage": {
+    "rating": "PASS",
+    "description": "The instruction states only the symptom and expected behavior. It does not name httpie/models.py, the HTTPRequest headers property, or the fix (checking membership against the case-insensitive original headers instead of the plain dict copy). Saying header names are case-insensitive is part of the expected behavior and is not a step-by-step fix."
+  },
+  "instruction_quality": {
+    "rating": "PASS",
+    "description": "This is a short, clear bug report with a reproduction, the observed output and a precise success criterion (one Host header and a 200 OK response). It contains no unnecessary boilerplate."
+  },
+  "task_validity": {
+    "rating": "FAIL",
+    "reason": "unreliable_tests",
+    "description": "The only verifier test needs live internet access. It resolves httpbin.org by DNS at test time and makes a real HTTP request to that IP, then asserts 'HTTP/1.1 200 OK'. The result therefore depends on network availability, DNS and the uptime of the public httpbin.org service, which often returns 502/503 errors. The task can fail with a correct fix, or fail in any sandbox without network, regardless of the agent's change. A rewrite of the instruction cannot fix this; the test would need a local server, such as pytest-httpbin, or an assertion that does not depend on the network."
+  }
+}

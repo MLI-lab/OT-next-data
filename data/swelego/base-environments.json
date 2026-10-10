@@ -12970,6 +12970,71 @@
     ],
     "pycontribs__jira-1364": [
       "libkrb5-dev"
+    ],
+    "scikit-hep__pylhe-80": [
+      "git",
+      "graphviz",
+      "texlive-latex-base",
+      "texlive-fonts-extra",
+      "texlive-extra-utils"
+    ],
+    "agronholm__apscheduler-898": [
+      "docker-compose"
+    ],
+    "pybamm-team__PyBaMM-4072": [
+      "dvipng",
+      "gcc",
+      "gfortran",
+      "graphviz",
+      "libopenblas-dev",
+      "pandoc",
+      "texlive-latex-extra"
+    ],
+    "networkx__networkx-4176": [
+      "graphviz",
+      "libgraphviz-dev"
+    ],
+    "just-work__fffw-64": [
+      "ffmpeg",
+      "mediainfo"
+    ],
+    "just-work__fffw-68": [
+      "ffmpeg",
+      "mediainfo"
+    ],
+    "just-work__fffw-89": [
+      "ffmpeg",
+      "mediainfo"
+    ],
+    "ttu__ruuvitag-sensor-41": [
+      "bluez",
+      "bluez-hcidump"
+    ],
+    "vertica__vertica-python-372": [
+      "libkrb5-dev"
+    ],
+    "bmcfee__pumpp-91": [
+      "ffmpeg",
+      "graphviz",
+      "imagemagick"
+    ],
+    "bmcfee__pumpp-57": [
+      "ffmpeg",
+      "graphviz",
+      "imagemagick"
+    ],
+    "sphinx-doc__sphinx-3971": [
+      "ffmpeg",
+      "graphviz",
+      "imagemagick"
+    ],
+    "sphinx-doc__sphinx-4157": [
+      "ffmpeg",
+      "graphviz",
+      "imagemagick"
+    ],
+    "tornadoweb__tornado-2075": [
+      "libcurl4-openssl-dev"
     ]
   },
   "checkout_tags": {
@@ -13020,6 +13085,107 @@
       "tag": "3.3.4",
       "tag_commit": "520f72ccf8c2713c62075d158a3aefebc2aaf633",
       "depth": 22
+    },
+    "DigitalSlideArchive__tifftools-69": {
+      "base_commit": "e3eb6bb6c75b0f09716f2972c566dc76014964e8",
+      "tag": "v1.3.1",
+      "tag_commit": "e3eb6bb6c75b0f09716f2972c566dc76014964e8",
+      "depth": 1
+    },
+    "hylang__hy-1906": {
+      "base_commit": "d5c7a1553271c8d448ebcf1770b73305606aeaf1",
+      "tag": "0.18.0",
+      "tag_commit": "6cc4c233b439f9e15f2d80cdebce8711bf50cb54",
+      "depth": 38
+    },
+    "just-work__fffw-64": {
+      "base_commit": "fefda959ec043f1869b38026fc3c8a9679bf45bc",
+      "tag": "3.1.0",
+      "tag_commit": "fefda959ec043f1869b38026fc3c8a9679bf45bc",
+      "depth": 1
+    },
+    "just-work__fffw-68": {
+      "base_commit": "ec1451b6347ac0c9a8da3947651d7b15ebf0212d",
+      "tag": "3.1.0",
+      "tag_commit": "fefda959ec043f1869b38026fc3c8a9679bf45bc",
+      "depth": 3
+    },
+    "just-work__fffw-89": {
+      "base_commit": "05f7e819b81f44bb6b95c970e871d956e5098c07",
+      "tag": "3.2.0",
+      "tag_commit": "05f7e819b81f44bb6b95c970e871d956e5098c07",
+      "depth": 1
+    },
+    "holoviz__holoviews-5383": {
+      "base_commit": "67f1fcf35586fdd2e9d83786e3110f87310123dd",
+      "tag": "v1.15.0",
+      "tag_commit": "2d2b72809eb2e2d75f1e26f3fad97892b2d6a720",
+      "depth": 4,
+      "tag_object": "98adbaa9e7ee5d3d430f1c427bbab24d42701a53"
+    },
+    "just-work__fffw-70": {
+      "base_commit": "448ed0a0b1dee4640a86e0ecce056f5fb1505c3b",
+      "tag": "3.1.0",
+      "tag_commit": "fefda959ec043f1869b38026fc3c8a9679bf45bc",
+      "depth": 5
+    },
+    "onicagroup__runway-2526": {
+      "base_commit": "ccb36a6c6730a8e97a032a5252aeb2935317451e",
+      "tag": "v2.6.15",
+      "tag_commit": "1ae271ff383c70a1035ada945f97919d2d3e4daf",
+      "depth": 2147483647
+    },
+    "mattboyer__git-guilt-34": {
+      "base_commit": "58f92d3e37a115596a890ad3e2fe674636c682ee",
+      "tag": "0.30",
+      "tag_commit": "f8647296e8fd5903c265218fdd2ba01d37565267",
+      "depth": 3,
+      "tag_object": "2d2d6d04b952e8e6d1885082f4e5a408de26eb97"
+    },
+    "borgbackup__borg-5263": {
+      "base_commit": "5ebde5cebc3ef572552b368228eaad4d29f0ee39",
+      "tag": "1.2.0a8",
+      "tag_commit": "1c7d267e1f921ecf9d7d4e0d876959394d4dd77d",
+      "tag_object": "076bfeab3121d509cc023fa46600bd269f374f8b",
+      "depth": 2147483647,
+      "complete_history": true
+    },
+    "dask__fastparquet-940": {
+      "base_commit": "0f7a98eac60771685f853f8a955787b7c82a5d18",
+      "tag": "2024.10.0",
+      "tag_commit": "5bb9fa7738c151c5556c5ec6ca5338218c6bbd79",
+      "tag_object": "dde62e5051cdea0659e169e49d56b4d8e39a895b",
+      "depth": 2147483647,
+      "complete_history": true
+    },
+    "sunpy__sunpy-7522": {
+      "base_commit": "27f7e032c1a7f9a911dca618f8b2011ad82d7a78",
+      "tag": "v6.0dev",
+      "tag_commit": "cfb7ed4c5b0411cb157a3cea6d56220e5c7b126b",
+      "tag_object": "56a62900bb24e70c5c810326a7160aefae9b1f87",
+      "depth": 2147483647,
+      "complete_history": true
+    },
+    "gitpython-developers__GitPython-1832": {
+      "base_commit": "afa575454f85b34800460881cc9c3cd7fe78c8e3",
+      "tag": "0.1.6",
+      "tag_commit": "9a4b1d4d11eee3c5362a4152216376e634bd14cf",
+      "depth": 2147483647,
+      "complete_history": true
+    },
+    "zarr-developers__zarr-python-2784": {
+      "base_commit": "c66f32b93f1dfe4b4e6deebb22a5ea45d40c5aa5",
+      "tag": "v3.0.2",
+      "tag_commit": "cab29d21dd7ef88a2ccaab0749faa59db345c86e",
+      "depth": 2147483647,
+      "complete_history": true
+    },
+    "tox-dev__tox-2643": {
+      "base_commit": "267d3275ad929b12e951dc8a6d2b73aa3e61b168",
+      "tag": "4.0.2",
+      "tag_commit": "5c0863ce39fcfe03df4dd2e80d1d690e3d1fecdf",
+      "depth": 2147483647,
+      "complete_history": true
     }
   },
   "no_recommends_tasks": [

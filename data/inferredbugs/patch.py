@@ -18,7 +18,7 @@ its first line; no recipe is trusted because of where it came from):
      which compiles inside a per-task sandbox container and returns a recipe;
   4. otherwise the task row is left unchanged and reported with a warning.
 
-Packaging ships, per task: a Dockerfile for one of eight shared images, the repository
+Packaging ships, per task: a Dockerfile based on one of eight shared images, the repository
 snapshot on which the warning was reproduced with the buggy file, ``setup_files/build_setup.sh``
 (the recipe's setup step, when any) and ``setup_files/build.sh`` (its build step), the
 analyzer's install script, a verifier, and any vendored artifacts. The verifier replays
@@ -80,7 +80,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 SOURCE_COMMIT = '550c852ee7b7356ca69ea0603be7f50373f2c58f'   # microsoft/InferredBugs
-VERSION = 3
+VERSION = 6
 TASKTROVE_REVISION = '946884702046be1a7dcea2638186ad6b0d2ea103'
 TASK_CPUS = 2
 TASK_MEMORY_MB = 8192
@@ -965,7 +965,7 @@ def java_bootstrap_dockerfile() -> str:
     script64 = base64.b64encode(JAVA_BOOTSTRAP.encode()).decode()
     manifest64 = base64.b64encode(manifest).decode()
     return ('\n# Prepare shared Java tools and verified dependency repairs once, at image build.\n'
-            'RUN mkdir -p /opt/inferredbugs/bootstrap && touch /opt/inferredbugs/dependencies.tar '
+            'RUN mkdir -p /opt/inferredbugs/bootstrap '
             f'&& printf %s {script64} | base64 -d > /opt/inferredbugs/bootstrap/bootstrap.py '
             f'&& printf %s {manifest64} | base64 -d > /opt/inferredbugs/bootstrap/manifest.json '
             '&& python3 /opt/inferredbugs/bootstrap/bootstrap.py install\n')
@@ -1061,9 +1061,12 @@ def dockerfile_text(tag: str, vendor_dir: Path | None, analyzer: str | None = No
         # the task's own install_analyzer.sh, in the Dockerfile itself: the build needs no other file.
         # Under a name of its own: an apptainer build sees the host's /tmp, and so do builds beside it.
         script = base64.b64encode(install_analyzer_script(analyzer)).decode()
+        # InferSharp's bundled dotnet-install.sh preserves archive owners by default. Rootless
+        # Apptainer cannot chown those files to the archive's original UID/GID.
+        tar_options = 'TAR_OPTIONS=--no-same-owner ' if analyzer.startswith('InferSharp ') else ''
         text += ('# %s, the static analyzer of the task (install_analyzer.sh)\n'
-                 'RUN f=$(mktemp) && printf %%s %s | base64 -d > "$f" && bash "$f" && rm -f "$f"\n'
-                 % (analyzer_release(analyzer), script))
+                 'RUN f=$(mktemp) && printf %%s %s | base64 -d > "$f" && %sbash "$f" && rm -f "$f"\n'
+                 % (analyzer_release(analyzer), script, tar_options))
         text += image_vendor_dockerfile(tag, analyzer)
     return text
 
@@ -1948,6 +1951,11 @@ def find_recipe(task: Task, checkout: Path, cache: Path, work: Path, args, table
 # verifies every object against the commit hash), the recipe is two shell scripts, and only
 # artifacts that exist on no public host are shipped (or downloaded from --vendor-url).
 
+def image_provided_maven_artifact(rel: str) -> bool:
+    """Maven distributions are installed in the image and symlinked into the task cache."""
+    return bool(re.match(r'(?:m2/audit-tools|tools)/apache-maven-[^/]+/', rel))
+
+
 def executable_asset(rel: str) -> bool:
     """Files of a shipped tool that must carry the executable bit: launchers under bin/, and the
     helpers a JRE forks (jspawnhelper, jexec). Blobs are stored by content, without modes."""
@@ -1961,6 +1969,8 @@ def vendored_artifacts(row: dict | None, vendor_dir: Path | None, sources: list 
     (and re-published) under its actual hash rather than failing the task."""
     out = {}
     for a in (row or {}).get('non_central_artifacts', []):
+        if image_provided_maven_artifact(a['path']):
+            continue
         blob = vendor_dir / a['sha256'] if vendor_dir else None
         if blob and blob.is_file():
             out[a['path']] = blob.read_bytes(); continue
@@ -1985,7 +1995,9 @@ def vendored_artifacts(row: dict | None, vendor_dir: Path | None, sources: list 
 
 def deps_manifest(row: dict | None) -> bytes:
     # one "<sha256>  <cache-relative path>" line per artifact the task must have locally
-    return ''.join(f'{a["sha256"]}  {a["path"]}\n' for a in sorted((row or {}).get('non_central_artifacts', []), key=lambda x: x['path'])).encode()
+    artifacts = (a for a in (row or {}).get('non_central_artifacts', [])
+                 if not image_provided_maven_artifact(a['path']))
+    return ''.join(f'{a["sha256"]}  {a["path"]}\n' for a in sorted(artifacts, key=lambda x: x['path'])).encode()
 
 
 # BUGGY_SNAPSHOT (task -> the older commit that holds its buggy project) is read from the recipe
@@ -2013,7 +2025,7 @@ swh_tree() {{
     sleep 20
   done
   [ "$status" = done ] || return 1
-  curl -fsSL --retry 5 "${{api}}raw/" | tar -xz --strip-components=1 -C "$DIR" || return 1
+  curl -fsSL --retry 5 "${{api}}raw/" | tar --no-same-owner -xz --strip-components=1 -C "$DIR" || return 1
   git add -A -f >/dev/null && [ "$(git write-tree)" = "$1" ]
 }}
 if [ "$ok" != 1 ]; then
@@ -2267,12 +2279,8 @@ def local_wrapper(command, env):
 
 
 def cached_maven_command(command, env):
-    mode = env.get('INFERREDBUGS_MAVEN_CACHE_FIRST')
-    if mode is None:
-        # Setup and capture run in separate processes. Detect the mounted archive
-        # here as well; an export in build_setup.sh cannot reach later capture.
-        archive = Path(env.get('INFERREDBUGS_DEPENDENCY_CACHE', '/opt/inferredbugs/dependencies.tar'))
-        mode = '1' if archive.is_file() and archive.stat().st_size > 0 else '0'
+    # Dependencies are prepared in the image; go online only for missing artifacts.
+    mode = env.get('INFERREDBUGS_MAVEN_CACHE_FIRST', '1')
     if mode != '1':
         return None
     for i, arg in enumerate(command):
@@ -2588,7 +2596,7 @@ export HOME=${HOME:-/tmp/home}; mkdir -p "$HOME" /cache/m2 /cache/gradle /cache/
 unset MAVEN_CONFIG
 export GRADLE_USER_HOME=/cache/gradle NUGET_PACKAGES=/cache/nuget
 # The Maven wrapper keeps the Maven it downloaded under ~/.m2/wrapper: put that into /cache, so the
-# verifier's build and a dependency archive have it and it is not downloaded again.
+# verifier's build can reuse it without downloading it again.
 mkdir -p "$HOME/.m2" /cache/m2-wrapper 2>/dev/null || true
 [ -e "$HOME/.m2/wrapper" ] || ln -s /cache/m2-wrapper "$HOME/.m2/wrapper" 2>/dev/null || true
 # A runner may start the container with a PATH of its own, without the image's JDK (the Harbor
@@ -2602,30 +2610,10 @@ fi
 # on 408, 429, 5xx and connection errors (a release archive of a recipe, 2026-10-03).
 curl() { command curl --retry 5 --retry-delay 30 "$@"; }
 export -f curl
-{java_proxy}# Dependencies of an earlier build of this task, where the runner mounts their archive: unpacked
-# once, and nothing that is already in /cache is replaced.
-IB_DEPENDENCIES="${INFERREDBUGS_DEPENDENCY_CACHE:-{dependency_archive}}"
-if [ -s "$IB_DEPENDENCIES" ] && [ ! -e {dependency_marker} ]; then
-  # Maven distributions already provided by the image must not be unpacked
-  # through their cache symlinks. Only project downloads need archive prefill.
-  IB_TAR_EXCLUDES=()
-  for tool in /cache/m2/audit-tools/apache-maven-*; do
-    [ -L "$tool" ] || continue
-    case "$(readlink -f "$tool")" in
-      /opt/inferredbugs/bootstrap/maven/apache-maven-*)
-        IB_TAR_EXCLUDES+=("--exclude=${tool#/cache/}" "--exclude=./${tool#/cache/}") ;;
-    esac
-  done
-  tar --no-same-owner -xf "$IB_DEPENDENCIES" -C /cache --skip-old-files --anchored "${IB_TAR_EXCLUDES[@]}"
-  touch {dependency_marker}
-fi
-# Each fresh container gets image-owned bootstrap files. Repair known bad POMs
+{java_proxy}# Each fresh container gets image-owned bootstrap files. Repair known bad POMs
 # from verified local copies and reject any other malformed POM before Maven runs.
 if [ -f /opt/inferredbugs/bootstrap/bootstrap.py ]; then
   python3 /opt/inferredbugs/bootstrap/bootstrap.py seed /cache
-  if [ -s "$IB_DEPENDENCIES" ]; then
-    export INFERREDBUGS_MAVEN_CACHE_FIRST=${INFERREDBUGS_MAVEN_CACHE_FIRST:-1}
-  fi
 fi
 if [ -z "${INFERREDBUGS_TRANSPORT_ACTIVE:-}" ]; then
   export INFERREDBUGS_TRANSPORT_ACTIVE=1
@@ -2755,7 +2743,6 @@ fi
         body = portable_recipe(body or 'true')
         body = warning_audit_wrap_mvnw(body, 'audit_mvn_transport')
         return (head.replace('{name}', name).replace('{vendor_url}', (vendor_url or '').rstrip('/'))
-                .replace('{dependency_archive}', DEPENDENCY_ARCHIVE).replace('{dependency_marker}', DEPENDENCY_MARKER)
                 .replace('{repository}', repository or '').replace('{java_proxy}', java_proxy)
                 .replace('{body}', (body or 'true').rstrip('\n'))).encode()
     return make('build_setup.sh', setup), make('build.sh', build)
@@ -2776,7 +2763,166 @@ def task_resource_config(toml: str) -> str:
     return prefix + resources + body.rstrip() + '\n\n' + suffix
 
 
-def package(files: dict, task: Task, proposal: dict, image_tag: str, row: dict | None, vendored: dict, args, audited: dict | None = None) -> dict:
+
+WARM_SETUP_IMAGE_TASKS = frozenset({
+    'inferredbugs-3684', 'inferredbugs-5861', 'inferredbugs-7625', 'inferredbugs-3595',
+    'inferredbugs-9799', 'inferredbugs-10950', 'inferredbugs-5863', 'inferredbugs-7626',
+    'inferredbugs-7627', 'inferredbugs-10947', 'inferredbugs-10035', 'inferredbugs-5862',
+    'inferredbugs-11036', 'inferredbugs-7622', 'inferredbugs-3602', 'inferredbugs-5860',
+    'inferredbugs-10949', 'inferredbugs-3596', 'inferredbugs-5869', 'inferredbugs-7623',
+    'inferredbugs-10951', 'inferredbugs-5064', 'inferredbugs-10759',
+})
+
+# These preparation recipes build supporting modules, excluding the module
+# containing the target. Only target-file changes can reuse their image outputs.
+PRECOMPILED_SUPPORT_TASKS = frozenset({'inferredbugs-3602', 'inferredbugs-10759'})
+
+
+def dockerfile_script_runs(encoded: str, stem: str) -> str:
+    """Emit bounded RUN commands for a base64 build-time script."""
+    encoded_path = f'/tmp/{stem}.b64'
+    script_path = f'/tmp/{stem}.sh'
+    lines = [f'RUN : > {encoded_path}']
+    chunk_size = 24 * 1024
+    for offset in range(0, len(encoded), chunk_size):
+        lines.append(f'RUN printf %s {encoded[offset:offset + chunk_size]} >> {encoded_path}')
+    lines.append(f'RUN base64 -d {encoded_path} > {script_path} && bash {script_path} '
+                 f'&& rm -f {encoded_path} {script_path}')
+    return '\n'.join(lines)
+
+
+def bake_setup_dependencies(files: dict, task_id: str | None = None) -> dict:
+    """Use reviewed recipe splits, never infer which shell commands are safe to skip."""
+    recipe = json.loads(files['tests/recipe.json'])
+    key = hashlib.sha256(recipe.get('setup_shell', '').encode()).hexdigest()
+    profiles = json.loads(Path(__file__).with_name('setup_images.json').read_text())
+    profile = profiles.get(key)
+    marker = '# InferredBugs prepared external setup ' + key
+    if task_id is None:
+        task_id = json.loads(files.get('tests/infer/task.json', b'{}')).get('task_id')
+    if profile is None or task_id not in profile['tasks'] or marker.encode() in files['environment/Dockerfile']:
+        return files
+    build, _ = runner_script(profile['image_setup'], 'true')
+    # Historical third-party artifacts are needed by some external builds too.
+    # Keep each task's pinned bytes; the same coordinate can differ across audits.
+    support = {'build_setup.sh': build, 'maven_transport.py': MAVEN_TRANSPORT.encode(),
+               'audit-settings.xml': PORTABLE_SETTINGS.encode(),
+               'deps.sha256': files.get('setup_files/deps.sha256', b'')}
+    script = 'set -euo pipefail\nmkdir -p /setup_files /app\n'
+    for name, content in support.items():
+        script += f'printf %s {shlex.quote(base64.b64encode(content).decode())} | base64 -d > /setup_files/{name}\n'
+    # The image's vendor directory holds only the artifacts of its analyzer profile; this task's
+    # manifest can name others (project snapshots, repository backups). Take them from the
+    # builder's artifact mount, digest-checked, so build_setup.sh finds them here and the
+    # verifier finds them in the image later.
+    script += ('mkdir -p /opt/inferredbugs/vendor\n'
+               'while read -r sum rel; do\n'
+               '  [ -n "$sum" ] && [ ! -f "/opt/inferredbugs/vendor/$sum" ] || continue\n'
+               '  if [ -f "/run/ot-image-artifacts/$sum" ] '
+               '&& echo "$sum  /run/ot-image-artifacts/$sum" | sha256sum -c --quiet - >/dev/null 2>&1; then\n'
+               '    cp "/run/ot-image-artifacts/$sum" "/opt/inferredbugs/vendor/$sum"\n'
+               '  fi\n'
+               'done < /setup_files/deps.sha256\n')
+    # TAR_OPTIONS: a recipe's own installers (dotnet-install.sh) unpack with tar's default
+    # --same-owner; the rootless image build cannot chown to the archive's owner.
+    script += ('cd /app\nTAR_OPTIONS=--no-same-owner bash /setup_files/build_setup.sh /app\n'
+               'cd /\nrm -rf /setup_files /app/.git\n')
+    encoded = base64.b64encode(script.encode()).decode()
+    # Keep every Dockerfile line and shell argument below Linux's per-argument
+    # limit; a single encoded command can exceed it for large source files.
+    files['environment/Dockerfile'] += ('\n' + marker + '\n'
+                                        + dockerfile_script_runs(encoded, 'inferredbugs-prepared-setup')
+                                        + '\n').encode()
+    # Replace only the already-adapted recipe body. Keep the task's wrapper,
+    # vendor manifest and source/path adaptations unchanged.
+    runtime = warning_audit_wrap_mvnw(portable_recipe(profile['runtime_setup']), 'audit_mvn_transport')
+    for name in ('setup_files/build_setup.sh', 'tests/build_setup.sh'):
+        text = files[name].decode()
+        start = text.index("CMD=$(cat <<'INFERREDBUGS_RECIPE'\n") + len("CMD=$(cat <<'INFERREDBUGS_RECIPE'\n")
+        end = text.index('\nINFERREDBUGS_RECIPE\n', start)
+        files[name] = (text[:start] + runtime.rstrip('\n') + text[end:]).encode()
+    recipe['prepared_setup_profile'] = key
+    files['tests/recipe.json'] = json.dumps(recipe, indent=2).encode()
+    return reuse_image_build_artifacts(files)
+
+
+def reuse_image_build_artifacts(files: dict) -> dict:
+    """Derivative images may reuse verified vendor bytes from prepared originals."""
+    marker = '# Reuse build-only local artifacts when available'
+    text = files['environment/Dockerfile'].decode()
+    if marker in text or '/opt/inferredbugs/vendor-assets.json' not in text:
+        return files
+    command = ("import json, pathlib, shutil; "
+               "src=pathlib.Path('/run/ot-image-artifacts'); dst=pathlib.Path('/opt/inferredbugs/vendor'); "
+               "dst.mkdir(parents=True, exist_ok=True); "
+               "[shutil.copyfile(src/d, dst/d) for d in json.load(open('/opt/inferredbugs/vendor-assets.json')) "
+               "if (src/d).is_file()]")
+    index = text.index('RUN python3 -c ', text.index('# Prepare pinned project artifacts'))
+    text = text[:index] + marker + '\nRUN python3 -c ' + shlex.quote(command) + '\n' + text[index:]
+    # IMAGE_VENDOR_INSTALL still verifies every digest before accepting a file.
+    files['environment/Dockerfile'] = text.encode()
+    return files
+
+
+def bake_repository_snapshot(files: dict, task_id: str) -> dict:
+    """Bake the pristine source and diff baseline, shared by agent and fresh verifier."""
+    marker = '# InferredBugs pinned source snapshot'
+    if marker.encode() in files['environment/Dockerfile']:
+        return files
+    recipe = json.loads(files['tests/recipe.json'])
+    target = safe_path(recipe['target_file'])
+    snapshot = '/opt/inferredbugs/source-snapshot'
+    fetch = files['setup_files/fetch_repository.sh'].replace(
+        b'tar -xz --strip-components=1', b'tar --no-same-owner -xz --strip-components=1')
+    # Embed the fetcher so the bridge's Dockerfile COPY emulation is not needed.
+    # The pinned checkout is reverted before the build layer finishes; neither
+    # fixing history nor the fixed target is retained in the image.
+    script = ('set -euo pipefail\n'
+              'unset INFERREDBUGS_REPOSITORY_CACHE\n'
+              'f=$(mktemp)\n'
+              f'printf %s {base64.b64encode(fetch).decode()} | base64 -d > "$f"\n'
+              f'bash "$f" {snapshot}\nrm -f "$f"\n'
+              f'mkdir -p {shlex.quote(str(PurePosixPath(snapshot, target).parent))}\n'
+              f'printf %s {base64.b64encode(files["setup_files/buggy_target"]).decode()} | base64 -d > {shlex.quote(snapshot + "/" + target)}\n'
+              f'test -f {shlex.quote(snapshot + "/" + target)}\n'
+              f'test -z "$(find {snapshot} -name .git -print -quit)"\n')
+    if task_id in WARM_SETUP_IMAGE_TASKS:
+        # Warm downloads against buggy source. Selected tasks can reuse installed
+        # supporting modules only after checking submitted build inputs.
+        script += 'mkdir -p /setup_files\n'
+        for name in ('build_setup.sh', 'maven_transport.py', 'audit-settings.xml', 'deps.sha256'):
+            content = files['setup_files/' + name]
+            script += f'printf %s {shlex.quote(base64.b64encode(content).decode())} | base64 -d > /setup_files/{name}\n'
+        script += (f'w=$(mktemp -d)\ncp -a {snapshot}/. "$w"/\n'
+                   'bash /setup_files/build_setup.sh "$w"\nrm -rf "$w" /setup_files\n')
+        if task_id in PRECOMPILED_SUPPORT_TASKS:
+            helper = Path(__file__).with_name('precompiled_support.py').read_bytes()
+            manifest = '/opt/inferredbugs/precompiled-support.json'
+            script += (f'printf %s {base64.b64encode(helper).decode()} | base64 -d > /tmp/precompiled-support.py\n'
+                       f'python3 /tmp/precompiled-support.py record {snapshot} {manifest} {shlex.quote(target)}\n'
+                       'rm /tmp/precompiled-support.py\n')
+            files['tests/precompiled_support.py'] = helper
+            files['tests/precompiled_support.json'] = json.dumps({
+                'manifest': manifest, 'excluded_target': target,
+                'policy': 'Reuse image-installed supporting modules only for an unchanged project except the target file; otherwise run the original setup build.'
+            }, indent=2).encode()
+    helper = Path(__file__).with_name('submission.py').read_bytes()
+    script += (f'printf %s {base64.b64encode(helper).decode()} | base64 -d > /tmp/inferredbugs-submission.py\n'
+               f'python3 /tmp/inferredbugs-submission.py record {snapshot}\n'
+               'rm /tmp/inferredbugs-submission.py\n')
+    encoded = base64.b64encode(script.encode()).decode()
+    files['environment/Dockerfile'] += ('\n' + marker + '\n'
+                                        + dockerfile_script_runs(encoded, 'inferredbugs-source-snapshot')
+                                        + '\n').encode()
+    local = (f'#!/bin/bash\nset -euo pipefail\nDIR="${{1:-/app}}"\n'
+             f'test -d {snapshot}\nmkdir -p "$DIR"\n'
+             f'cp -a {snapshot}/. "$DIR"/\n').encode()
+    files['setup_files/fetch_repository.sh'] = local
+    files['tests/fetch_repository.sh'] = local
+    return reuse_image_build_artifacts(files)
+
+
+def package(files: dict, task: Task, proposal: dict, image_tag: str, row: dict | None, vendored: dict, args, audited: dict | None = None, metadata_out: dict | None = None) -> dict:
     """`audited`: the task's analyzer, snapshot and warning keys as a run of pipeline.py decided them
     (default: the table stored in this script)."""
     environment = proposal.get('environment') or task.environment
@@ -2788,7 +2934,8 @@ def package(files: dict, task: Task, proposal: dict, image_tag: str, row: dict |
         raise ValueError(f'unknown environment {environment!r}')
     task = replace(task, environment=environment)
     target = safe_path(task.target_file)
-    files = {k: v for k, v in files.items() if not k.startswith(('tests/', 'setup_files/', 'solution/', 'environment/'))}
+    files = {k: v for k, v in files.items() if k in ('instruction.md', 'task.toml', 'README.md')
+             or PurePosixPath(k).name in ('LICENSE', 'LICENSE.md', 'LICENSE.txt')}
     analyzer = audited['analyzer'] if audited and audited.get('analyzer') else task_analyzer(task)
     files['environment/Dockerfile'] = task_dockerfile(image_tag, args.vendor_dir, analyzer if audited else None).encode()
     install = install_analyzer_script(analyzer)
@@ -2815,7 +2962,7 @@ cp /setup_files/buggy_target {shlex.quote('/app/' + target)}
         'tests/maven_transport.py': MAVEN_TRANSPORT.encode(),
         'setup_files/maven_transport.py': MAVEN_TRANSPORT.encode(),
         'setup_files/build_setup.sh': setup_sh, 'setup_files/build.sh': build_sh,
-        'setup_files/install_analyzer.sh': install, 'tests/install_analyzer.sh': install,
+        'setup_files/install_analyzer.sh': install,
         'setup_files/audit-settings.xml': PORTABLE_SETTINGS.encode(), 'setup_files/deps.sha256': manifest,
         'tests/fetch_repository.sh': fetch, 'tests/build_setup.sh': setup_sh, 'tests/build.sh': build_sh,
         'tests/audit-settings.xml': PORTABLE_SETTINGS.encode(), 'tests/deps.sha256': manifest,
@@ -2833,15 +2980,31 @@ cp /setup_files/buggy_target {shlex.quote('/app/' + target)}
         for rel, data in vendored.items():
             files['setup_files/deps/' + rel] = data
     t = args.verify_timeout
+    submission = Path(__file__).with_name('submission.py').read_bytes()
+    files['setup_files/collect_submission.py'] = submission
+    files['tests/apply_submission.py'] = submission
     fetch_submission = f"""set -euo pipefail
 mkdir -p /logs/verifier
-echo 0 > /logs/verifier/reward.txt
+rm -f /logs/verifier/reward.txt
+# Missing capture is infrastructure failure, distinct from a legitimate empty diff.
+if [ ! -f /tmp/inferredbugs-submission.patch ]; then
+  echo 'Missing submission capture' >&2
+  exit 1
+fi
+# From here, invalid patches and dependency/build failures are explicit agent failures.
 trap 'code=$?; if [ "$code" -ne 0 ]; then echo 0 > /logs/verifier/reward.txt; fi' EXIT
-cp -- {shlex.quote('/app/' + target)} /logs/verifier/submitted-source
-mkdir -p /workspace && find /workspace -mindepth 1 -maxdepth 1 -exec rm -rf {{}} +
-bash /tests/fetch_repository.sh /workspace > /logs/verifier/fetch.log 2>&1
+mkdir -p /app /workspace
+find /app /workspace -mindepth 1 -maxdepth 1 -exec rm -rf {{}} +
+bash /tests/fetch_repository.sh /app > /logs/verifier/fetch.log 2>&1
+python3 -I /tests/apply_submission.py apply /app /tmp/inferredbugs-submission.patch > /logs/verifier/submission.log
+bash /tests/fetch_repository.sh /workspace >> /logs/verifier/fetch.log 2>&1
+if grep -qx dependency-manifests-changed /logs/verifier/submission.log; then
+  # Re-resolve dependencies from the submitted manifests. Never swallow failures.
+  timeout {t} bash /tests/build_setup.sh /app > /logs/verifier/dependency-setup.log 2>&1
+  timeout {t} bash /tests/build.sh /app > /logs/verifier/dependency-build.log 2>&1
+fi
 """
-    single_file = f"cp -- /logs/verifier/submitted-source /workspace/{shlex.quote(target)}\n"
+    single_file = f"cp -- /app/{shlex.quote(target)} /workspace/{shlex.quote(target)}\n"
     prep = ('Then prepare the build once (dependency fixes needed for this historical commit):\n```bash\nbash /setup_files/build_setup.sh /app\n```\n'
             if (proposal.get('setup_shell') or '').strip() or manifest else '')
     if audited:
@@ -2903,7 +3066,7 @@ set -euo pipefail
 code=0
 # -I: only the standard library, nothing that lies beside the script or in the environment
 python3 -I /tests/infer/verify.py --grade /app --prepared --workspace /workspace --logs /logs/verifier --timeout {t} --analysis-timeout {getattr(args, 'analysis_timeout', None) or t} || code=$?
-if [ "$code" -eq 0 ]; then echo 1 > /logs/verifier/reward.txt; fi
+if [ "$code" -eq 0 ]; then echo 1 > /logs/verifier/reward.txt; else echo 0 > /logs/verifier/reward.txt; fi
 {poison}""".encode()
         files['tests/setup.sh'] = f"""#!/bin/bash
 # Runs in a fresh container from the task image. /app contains only submitted project files.
@@ -2984,13 +3147,26 @@ bash /setup_files/build.sh /app
             agent_seconds, verifier_seconds = task_timeouts(task.task_id) if audited else (900, 2 * t + 300)
         toml = re.sub(r'(\[agent\][\s\S]*?timeout_sec\s*=\s*)[\d.]+', lambda m: m[1] + str(agent_seconds), toml)
         toml = re.sub(r'(\[verifier\][\s\S]*?timeout_sec\s*=\s*)[\d.]+', lambda m: m[1] + str(verifier_seconds), toml)
-        # Only the project is transferred. Tools, caches and verifier files come from
-        # the fresh image and trusted task payload. Directory transfer preserves deletions.
+        # Transfer edits only; the verifier reconstructs the project from its image.
         toml = re.sub(r'(?m)^artifacts\s*=.*\n?', '', toml)
-        toml = 'artifacts = [{source = "/app", exclude = [".git"]}]\n' + toml
+        toml = 'artifacts = [{source = "/tmp/inferredbugs-submission.patch"}]\n' + toml
         toml = re.sub(r'(?m)^environment_mode\s*=.*\n?', '', toml)
         toml = toml.replace('[verifier]', '[verifier]\nenvironment_mode = "separate"', 1)
+        toml = re.sub(r'(?ms)^\[\[verifier\.collect\]\]\n.*?(?=^\[|\Z)', '', toml)
+        toml += '\n[[verifier.collect]]\ncommand = "rm -f /tmp/inferredbugs-submission.patch && python3 -I /setup_files/collect_submission.py collect /app /opt/inferredbugs/source-snapshot /tmp/inferredbugs-submission.patch"\ntimeout_sec = 60\n'
         files['task.toml'] = task_resource_config(toml).encode()
+    files = bake_repository_snapshot(bake_setup_dependencies(files, task.task_id), task.task_id)
+    recipe = json.loads(files.pop('tests/recipe.json'))
+    if metadata_out is not None:
+        metadata_out['recipe'] = recipe
+    return explicit_verifier_image(files)
+
+
+def explicit_verifier_image(files: dict) -> dict:
+    """Declare the same prepared image without replaying agent workspace setup."""
+    files['tests/Dockerfile'] = files['environment/Dockerfile']
+    # Tests are uploaded at verification time, never baked into a shared image.
+    files['tests/.dockerignore'] = b'*\n!Dockerfile\n'
     return files
 
 
@@ -3666,7 +3842,11 @@ def fresh_cache_check(task: Task, proposal: dict, row: dict | None, vendored: di
                '--memory', a.memory, '-e', 'HOME=/tmp/home', '-e', 'MAVEN_OPTS=' + AUDIT_MAVEN_OPTS]
         for mount, ro in (('tests', True), ('setup_files', True), ('app', False), ('logs', False), ('workspace', False), ('cache', False)):
             cmd += ['-v', f'{rt / mount}:/{mount}' + (':ro' if ro else '')]
-        cmd += [image, 'bash', '-c', 'bash /tests/setup.sh && bash /tests/test.sh']
+        cmd += [image, 'bash', '-c',
+                'set -euo pipefail; cp ' + shlex.quote('/app/' + task.target_file) + ' /tmp/submitted-target; '
+                'bash /setup_files/fetch_repository.sh /app; cp /tmp/submitted-target ' + shlex.quote('/app/' + task.target_file) + '; '
+                'python3 -I /setup_files/collect_submission.py collect /app /opt/inferredbugs/source-snapshot /tmp/inferredbugs-submission.patch; '
+                'bash /tests/setup.sh && bash /tests/test.sh']
         try:
             with (CHECK_SLOTS or threading.BoundedSemaphore(1)), (BUILD_SLOTS or threading.BoundedSemaphore(1)):
                 code, _, _ = run_process(cmd, timeout=2 * a.verify_timeout + 900, log_path=work / 'fresh-cache.log')
@@ -3685,18 +3865,12 @@ def fresh_cache_check(task: Task, proposal: dict, row: dict | None, vendored: di
         return code == 0 and reward.exists() and reward.read_text().strip() == '1'
 
 
-CHECK_FORMAT = 'packaged-v6'   # current packaged layout: workspace = parent of the fixing commit
-# Layouts whose packaged check is still valid for tasks WITHOUT vendored artifacts: the later
-# changes (install-if-absent dependencies, parent-chain vendoring) only affect vendored tasks.
-CHECK_FORMAT_OK_WITHOUT_VENDORED = {CHECK_FORMAT, 'fetch-pinned-commit-v3', 'fetch-pinned-commit-v4'}
+CHECK_FORMAT = 'packaged-v7-patch-artifact'
 
 
 def needs_recheck(record: dict, a) -> bool:
-    if not a.verify_package or not str(record.get('status', '')).startswith('verified'):
-        return False
-    if record.get('check_format') == CHECK_FORMAT:
-        return False
-    return bool(record.get('vendored')) or record.get('check_format') not in CHECK_FORMAT_OK_WITHOUT_VENDORED
+    return bool(a.verify_package and str(record.get('status', '')).startswith('verified')
+                and record.get('check_format') != CHECK_FORMAT)
 
 
 def _recheck(a, task, table_row, record, record_path):
@@ -4085,8 +4259,8 @@ def warning_audit_prepare(args):
             before,after=blob(base+'/file_before.txt'),blob(base+'/file_after.txt')
             (record_dir/'file_before.txt').write_bytes(before)
             task=Task(row['task_id'],row['language'],row['project'],str(row['bug_id']),record_dir,row['commit'],row['target_file'],row['file_after_sha256'],row['repository'],file_before_sha256=row.get('file_before_sha256',''),parent=row.get('parent',''))
-            files=package({},task,row_proposal(row),resolve_image(row['image'],row['language']),row,{},SimpleNamespace(vendor_dir=None,vendor_url=DEFAULT_VENDOR_URL,verify_timeout=args.timeout))
-            meta['recipe']=json.loads(files['tests/recipe.json']);meta['runtime_key']=resolve_image(row['image'],row['language']).removeprefix('inferredbugs-').replace(':','-')
+            files=package({},task,row_proposal(row),resolve_image(row['image'],row['language']),row,{},SimpleNamespace(vendor_dir=None,vendor_url=DEFAULT_VENDOR_URL,verify_timeout=args.timeout), metadata_out=meta)
+            meta['runtime_key']=resolve_image(row['image'],row['language']).removeprefix('inferredbugs-').replace(':','-')
             db.execute('INSERT OR REPLACE INTO tasks VALUES (?,?,?,?,?)',(row['task_id'],json.dumps(meta),pack(files),before,after))
     cat.stdin.close();cat.wait();db.commit()
     rows=db.execute('SELECT id,metadata FROM tasks ORDER BY id').fetchall();db.close();assert len(rows)==len(warnings)
@@ -5084,8 +5258,6 @@ ANALYZERS = {
 }
 # Optional project download archives seed each fresh container once. They accelerate builds;
 # verifier isolation comes from a fresh task-image container, not resetting the agent's cache.
-DEPENDENCY_ARCHIVE = '/opt/inferredbugs/dependencies.tar'    # or the path in INFERREDBUGS_DEPENDENCY_CACHE
-DEPENDENCY_MARKER = '/cache/.inferredbugs-dependencies'
 
 
 _INSTALL_HEAD = r'''#!/bin/bash
@@ -12594,13 +12766,27 @@ def prepare_verification(a, logs):
             continue
         source = workspace / TASK['target_file']
         original = source.read_bytes()
+        # Explicit task-owned optimization. Check the submitted build inputs
+        # before our own formatter/wrapper compatibility edits alter them.
+        reuse_support = False
+        support_config = HERE.parent / 'precompiled_support.json'
+        if support_config.is_file():
+            support = json.loads(support_config.read_text())
+            if support['excluded_target'] != TASK['target_file']:
+                raise ValueError('Precompiled support target differs from graded target')
+            reuse_support = subprocess.run([
+                sys.executable, '-I', str(HERE.parent / 'precompiled_support.py'), 'check',
+                str(workspace), support['manifest'], support['excluded_target']]).returncode == 0
         if TASK['language'] == 'java':
             warning_audit_strip_formatters(workspace)
             for properties in workspace.rglob('maven-wrapper.properties'):
                 properties.write_text(properties.read_text().replace('https://repo1.maven.org/maven2/', 'https://repo.maven.apache.org/maven2/'))
         run = Run(workspace, logs / name, a.timeout, False, [], a.analysis_timeout)
         try:
-            if not run.stage('setup', 'bash %s/build_setup.sh %s' % (run.files, run.ws)):
+            if reuse_support:
+                run.result['steps']['setup'] = {'exit_code': 0, 'seconds': 0,
+                    'reused_image_support': True, 'reason': 'Supporting build inputs match image manifest'}
+            elif not run.stage('setup', 'bash %s/build_setup.sh %s' % (run.files, run.ws)):
                 detail = (run.logs / 'setup.log').read_text(errors='replace') if (run.logs / 'setup.log').exists() else ''
                 raise RuntimeError('%s verifier setup failed: %s\n%s' % (name, run.result['status'], detail[-8000:]))
             if not source.is_file() or source.read_bytes() != original:
@@ -12707,8 +12893,7 @@ def verifier_script() -> bytes:
             'import argparse\nimport json\nimport os\nfrom pathlib import Path, PurePosixPath\nimport re\nimport shutil\nimport signal\nimport tempfile\n'
             'import sqlite3\nimport subprocess\nimport sys\nimport time\n\n')
     constants = ('AUDIT_CAPTURE_SH', 'AUDIT_CAPTURE_PY', 'AUDIT_JAVAC_SHIM', 'AUDIT_INFER_JAVAC', 'AUDIT_CSHARP_BUILD_SH',
-                 'AUDIT_NO_REFORMAT', 'AUDIT_UNSKIPPABLE_FORMATTERS', '_AUDIT_SOURCE_ROOT', 'SOURCE_SUFFIXES', 'BUILD_DIRECTORIES', 'ANALYZER_CONFIGURATION',
-                 'DEPENDENCY_ARCHIVE', 'DEPENDENCY_MARKER')
+                 'AUDIT_NO_REFORMAT', 'AUDIT_UNSKIPPABLE_FORMATTERS', '_AUDIT_SOURCE_ROOT', 'SOURCE_SUFFIXES', 'BUILD_DIRECTORIES', 'ANALYZER_CONFIGURATION')
     functions = (warning_audit_file, warning_audit_strip_formatters, warning_audit_infersharp_version, warning_audit_legacy_infersharp,
                  warning_audit_assemblies, warning_audit_captured_procedures, warning_key)
     values = globals()
@@ -12853,7 +13038,7 @@ _REVIEWED_PAIRS = frozenset(map(tuple, REVIEWED_WARNING_PAIRS))
 
 
 # Tasks left out of the output parquet, by reason, and the reference_similar_warning tag written into
-# kept tasks' tests/recipe.json. Generated from the historical warning audit by
+# kept tasks' external recipe metadata. Generated from the historical warning audit by
 # runs/inferredbugs-20260927/discard_table.py, whose docstring defines each reason (do not edit by hand).
 # BEGIN DISCARDED_TASKS
 DISCARDED_TASKS = {

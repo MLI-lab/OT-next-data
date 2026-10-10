@@ -24,8 +24,6 @@ INFRASTRUCTURE_RETRY = {'max_retries': 0}
 
 
 def install_runtime_patches():
-    from harbor_patches.fresh_verifier import install as install_fresh_verifier
-    install_fresh_verifier()
     from harbor_patches.verifier_setup import install as install_verifier_setup
     install_verifier_setup()
     from validation.stages.task_setup import install as install_task_setup
@@ -45,7 +43,7 @@ def install_runtime_patches():
     # The pinned bridge keys images only by Dockerfile text. Include COPY
     # payloads as well, or distinct review tasks can reuse stale baked evidence.
     from harbor.environments.apptainer import apptainer as bridge
-    from harbor.utils.container_cache import environment_dir_hash_truncated
+    from harbor_patches.image_context import environment_dir_hash_truncated
     bridge.dockerfile_hash_truncated = lambda path: environment_dir_hash_truncated(path.parent)
     if not getattr(bridge, '_bridge_exec_without_cap', False):
         # The bridge client runs a command without its own limit, such as the verifier's test.sh,
@@ -243,7 +241,7 @@ def nop_missing_instruction_files(path, result, task_path, reward_key):
     if score is not None and (isinstance(score, bool) or score != 0):
         return []
     problem = nop_execution_problem(path, verifier, task_path)
-    if problem and problem.startswith('verifier did not run:'):
+    if problem and problem != 'verifier executed no tests (empty, skipped, or setup errors)':
         return []
     output = verifier_output(path, verifier)
     errors = re.findall(r'^(?:E\s+)?([\w.]+(?:Error|Exception)):\s*(.*)$', output, re.M)
@@ -262,25 +260,142 @@ def nop_missing_instruction_files(path, result, task_path, reward_key):
     return sorted(paths)
 
 
-def nop_execution_problem(path, verifier, task_path=None):
-    """Recognize runner failures that wrappers sometimes turn into reward zero.
+def reference_patch_lines(task_path):
+    """Changed lines and touched paths of the reference patch (solution/*.patch, *.diff)."""
+    lines, paths = [], set()
+    if task_path is None or not (Path(task_path) / 'solution').is_dir():
+        return lines, paths
+    for patch in sorted((Path(task_path) / 'solution').rglob('*')):
+        if not patch.is_file() or patch.suffix not in ('.patch', '.diff'):
+            continue
+        for line in patch.read_text(errors='replace').splitlines():
+            match = re.match(r'(?:diff --git a/(\S+) b/(\S+)|\+\+\+ b/(\S+)|--- a/(\S+)|rename (?:from|to) (\S+))$', line)
+            if match:
+                paths.update(p for p in match.groups() if p)
+            if match or (line[:1] in '+-' and not line.startswith(('+++', '---'))):
+                lines.append(line)
+    return lines, paths
 
-    This is deliberately conservative: arbitrary verifiers need not use pytest,
-    and assertion failures (including missing task outputs) are valid NOP results.
+
+def _patched_file(path, patched):
+    """A traceback path refers to a patched file when their package-relative tails agree."""
+    parts = re.sub(r'^/testbed/', '', path).split('/')
+    for candidate in patched:
+        tail = candidate.split('/')
+        for n in (3, 2, 1):
+            if len(parts) >= n and len(tail) >= n and parts[-n:] == tail[-n:]:
+                return True
+    return False
+
+
+ERROR_BLOCK = re.compile(r'^_+ ERROR (collecting|at setup of) (.+?) _+$', re.M)
+NAMED_SYMBOLS = [
+    re.compile(r"^E\s+ModuleNotFoundError: No module named '([\w.]+)'", re.M),
+    re.compile(r"^E\s+ImportError: cannot import name '(\w+)'", re.M),
+    re.compile(r"^E\s+AttributeError: (?:module '[\w.]+'|'[\w.]+' object|type object '[\w.]+') has no attribute '(\w+)'", re.M),
+    re.compile(r"^E\s+NameError: name '(\w+)' is not defined", re.M),
+    re.compile(r"^E\s+KeyError: '(\w+)'$", re.M),
+    re.compile(r"^E\s+AttributeError: `np\.(\w+)` was removed in the NumPy 2\.0 release", re.M),
+]
+TRACEBACK_FILES = re.compile(r'^(?:E\s+)?(?:File "([^"]+\.py)", line \d+|(\S+\.py):\d+: in )', re.M)
+
+
+def reference_explains_errors(output, task_path, kind):
+    """Every pytest error block of the given kind ("collecting" or "at setup of") is
+    explained by the reference patch: either the error names a module, symbol or
+    attribute that the patch adds, removes or renames, or it is raised from a file
+    the patch changes. The unpatched tree then fails exactly where the task's fix
+    goes, and the no-op zero is a genuine result rather than a runner problem.
+    Errors elsewhere, or blocks of another kind, leave the zero unexplained."""
+    changed, patched = reference_patch_lines(task_path)
+    if not changed:
+        return False
+    text = '\n'.join(changed)
+    headers = list(ERROR_BLOCK.finditer(output))
+    if not headers or any(h.group(1) != kind for h in headers):
+        return False
+    for index, header in enumerate(headers):
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(output)
+        block = output[header.end():end]
+        block = re.split(r'^(?:-{5,} Captured .* -{5,}|={5,} .*={5,})$', block, maxsplit=1, flags=re.M)[0]
+        names = [name for pattern in NAMED_SYMBOLS for name in pattern.findall(block)]
+        explained = bool(names) and all(
+            name in text or name.replace('.', '/') in text
+            or re.search(r'(?<![\w])' + re.escape(name.rsplit('.', 1)[-1]) + r'(?![\w])', text)
+            for name in names)
+        if not explained:
+            files = [a or b for a, b in TRACEBACK_FILES.findall(block)]
+            files = [f for f in files if '/site-packages/_pytest/' not in f and '/importlib/' not in f and '/pluggy/' not in f]
+            # A failing script or config the error message names (repobee-1272's
+            # scripts/install.sh exit status) counts like a traceback frame.
+            files += re.findall(r"'(/testbed/[\w./-]+\.(?:sh|py|cfg|toml|ini|txt|json|ya?ml))'", block)
+            explained = bool(files) and any(_patched_file(f, patched) for f in files)
+        if not explained:
+            return False
+    return True
+
+
+def reference_removes_rejected_option(output, task_path):
+    """pytest exited with a usage error for options that come from the project's own
+    configuration and that the reference patch removes (poliastro-192 carried
+    pytest-benchmark flags in setup.cfg). No test and no plugin ran, so there is
+    no invocation record; the zero is still the unpatched project's own doing."""
+    options = re.findall(r'^pytest: error: unrecognized arguments: (.+)$', output, re.M)
+    if not options or not re.search(r'^\s*inifile: ', output, re.M):
+        return False
+    changed, _ = reference_patch_lines(task_path)
+    removed = '\n'.join(line for line in changed if line.startswith('-'))
+    flags = [flag for group in options for flag in group.split()]
+    return bool(flags) and all(flag in removed for flag in flags)
+
+
+def reference_explains_collection_errors(output, task_path):
+    return reference_explains_errors(output, task_path, 'collecting')
+
+
+def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, oracle_passed=False):
+    """Use current-run execution evidence, never infer execution from log prose.
+
+    Runners without evidence need an adapter or a fresh instrumented run. Do not
+    silently certify a reward-zero wrapper that may never have run its tests.
     """
+    from validation.stages.execution_evidence import MANIFEST, scope_output
+    context = path / 'verifier' / MANIFEST
+    if not context.is_file():
+        return 'verifier execution evidence is missing; rerun with an instrumented runner'
+    try:
+        record = json.loads(context.read_text())
+        token = record['token']
+        if record['version'] != 1 or not re.fullmatch(r'[0-9a-f]{32}', token):
+            raise ValueError('invalid context')
+    except (ValueError, KeyError, TypeError):
+        return 'invalid verifier execution context'
     output = verifier_output(path, verifier)
-    if re.search(r'^\S*python[\w.]*: No module named [\'"]?pytest\b', output, re.M):
-        return 'verifier did not run: pytest is not installed'
-    if re.search(r'^(?:[^\n]*: )?(?:\S*/)?pytest: (?:command )?not found\s*$', output, re.M):
-        return 'verifier did not run: pytest command not found'
-    if re.search(r'^=+.*\b\d+ errors? during collection\b.*=+\s*$', output, re.M):
-        return 'verifier could not collect tests'
-    # Match pytest summaries, not traceback source lines or application messages.
-    summaries = re.findall(r'^(?:=+ )?((?:\d+ (?:passed|failed|skipped|deselected|xfailed|xpassed|errors?)'
-                           r'(?:, )?)+|no tests ran) in [\d.]+s(?: .*?)?(?: =+)?\s*$', output, re.M)
-    for summary in summaries:
-        if not re.search(r'\b[1-9]\d* (?:passed|failed|xfailed|xpassed)\b', summary):
-            if re.fullmatch(r'\d+ errors?', summary) and expected_missing_output_setup(output, task_path):
+    _, invocations, problem = scope_output(output, token)
+    if problem:
+        return problem
+    if not invocations:
+        if expected_reward == 0 and reference_removes_rejected_option(output, task_path):
+            # pytest refused the unpatched project's own addopts before any
+            # plugin loaded; the reference patch removes that option.
+            return None
+        return 'verifier execution evidence is missing; runner instrumentation did not report an invocation'
+    for invocation in invocations:
+        if invocation['collection_errors'] or invocation['exitstatus'] in (2, 3, 4):
+            if (expected_reward == 0 and invocation['collection_errors'] and not invocation['executed']
+                    and (oracle_passed or reference_explains_collection_errors(output, task_path))):
+                # The unpatched task cannot even import the tested code: a
+                # genuine zero for a change the reference patch makes. The
+                # reference run of the same job executing this suite proves the
+                # environment itself can run it.
+                continue
+            return 'verifier invocation failed during collection or execution'
+        if not invocation['executed']:
+            if invocation['setup_errors'] and expected_missing_output_setup(output, task_path):
+                continue
+            if (expected_reward == 0 and invocation['setup_errors']
+                    and (oracle_passed or reference_explains_errors(output, task_path, 'at setup of'))):
+                # Every fixture failed inside the code the reference patch changes.
                 continue
             return 'verifier executed no tests (empty, skipped, or setup errors)'
     return None
@@ -298,8 +413,9 @@ def trial_seconds(result, phase=None):
         return None
 
 
-def assess_trials(results, expected_count, expected_reward=None, reward_key='reward', *, task_path=None):
+def assess_trials(results, expected_count, expected_reward=None, reward_key='reward', *, task_path=None, oracle_passed=False):
     findings = []
+    notes = []
     missing_file_zeros = []
     if len(results) != expected_count:
         findings.append(f'expected {expected_count} trials, found {len(results)}')
@@ -321,9 +437,13 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
                 continue
         verifier = result.get('verifier_result') or {}
         if expected_reward in (0, 1):
-            problem = nop_execution_problem(path, verifier, task_path)
+            problem = nop_execution_problem(path, verifier, task_path, expected_reward, oracle_passed)
             if problem:
                 findings.append(f'{path.name}: {problem}')
+            elif oracle_passed and expected_reward == 0:
+                strict = nop_execution_problem(path, verifier, task_path, expected_reward)
+                if strict:
+                    notes.append(f'{path.name}: {strict}; accepted because the reference run of this job executed the suite')
         rewards = verifier.get('rewards') or {}
         score = rewards.get(reward_key)
         if not isinstance(score, (int, float)) or isinstance(score, bool) or not math.isfinite(score):
@@ -333,6 +453,7 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
         if expected_reward is not None and score != expected_reward:
             findings.append(f'{path.name}: expected reward {expected_reward}, got {score}')
     return {'status': 'failed' if findings else 'completed', 'findings': findings, 'rewards': scores,
+            **({'notes': notes} if notes else {}),
             **({'missing_file_zeros': missing_file_zeros} if missing_file_zeros else {}),
             'trial_seconds': [trial_seconds(result) for _, result in results],
             # How long the solution and the verifier themselves ran: the slow tasks can be found later.
@@ -361,12 +482,12 @@ async def build_task(task_path, out, args):
         for step in task.config.steps:
             env = resolve_effective_verifier_env_config(task.config, step)
             if env is not None:
-                from harbor_patches.fresh_verifier import build_context
+                from harbor_patches.verifier_setup import build_context
                 specs.append((f'verifier-{step.name}', build_context(task, step), env))
     else:
         env = resolve_effective_verifier_env_config(task.config, None)
         if env is not None:
-            from harbor_patches.fresh_verifier import build_context
+            from harbor_patches.verifier_setup import build_context
             specs.append(('verifier', build_context(task), env))
     results = []
     for label, context, spec in specs:

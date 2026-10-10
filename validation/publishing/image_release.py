@@ -48,7 +48,7 @@ def prepare_release(tables, cache, out, repo):
     if cache is None:
         manifest['cache_status'] = 'not_configured'
         return manifest, artifacts
-    from harbor.utils.container_cache import environment_dir_hash
+    from harbor_patches.image_context import environment_dir_hash
     candidates = {}
     if cache:
         for directory in sorted([*(Path(cache) / 'bundles-v1').glob('*.sif'), *(Path(cache) / 'bundles-v1').glob('*.sif.tar')]):
@@ -106,9 +106,9 @@ def prepare_release(tables, cache, out, repo):
     return manifest, artifacts
 
 
-def stage_published(tasks, cache, target, download=None):
+def stage_published(tasks, cache, target, download=None, *, selected_keys=None):
     """Restore published references carried from Parquet by materialize()."""
-    from harbor.utils.container_cache import environment_dir_hash
+    from harbor_patches.image_context import environment_dir_hash
     from validation.contract import task_digest
     if download is None:
         from huggingface_hub import hf_hub_download
@@ -131,6 +131,8 @@ def stage_published(tasks, cache, target, download=None):
             if relative.is_absolute() or '..' in relative.parts:
                 raise ValueError('Unsafe environment path')
             env_hash = environment_dir_hash(task / str(relative))
+            if selected_keys is not None and env_hash[:12] not in selected_keys:
+                continue
             if env_hash != environment['environment_sha256']:
                 raise ValueError('Published environment hash mismatch')
             bundle = manifest['bundles'][environment['bundle']]

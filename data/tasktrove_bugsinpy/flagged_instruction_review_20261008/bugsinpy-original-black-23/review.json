@@ -1,0 +1,19 @@
+{
+  "instruction_verifier_alignment": {
+    "rating": "FAIL",
+    "description": "The verifier runs only tests.test_black.BlackTestCase.test_python2, which formats a new tests/python2.py fixture of Python 2 code (print chevron statements, backtick repr, exec statements, tuple parameters). On the unmodified /app this file already parses, and the test fails only because black outputs `print >> sys.stderr` where the fixture expects `print >>sys.stderr`, with no space after the chevron. The instruction (the issue) never mentions print statements or the chevron; it only covers `exec(...)` being called as a function. The required no-space-after-`>>` rule for `print` can't be found from the instruction. Also, the issue says black reformats `exec(\"code\", {}, {})` to `exec (\"code\", ...)`, but in this environment black fails with `Cannot parse: 2:11` on that input. So the situation described doesn't match the environment. The exec-as-function fix (covered by tests/function.py) is not even checked by the verifier."
+  },
+  "solution_leakage": {
+    "rating": "PASS",
+    "description": "The instruction is the original bug report. It doesn't reveal the grammar-fallback approach, the files to change, or any test details."
+  },
+  "instruction_quality": {
+    "rating": "FAIL",
+    "description": "The issue itself is understandable, but it describes the wrong task compared with what success requires. Successful completion actually depends on how black formats Python 2 print statements, which the instruction never mentions. The issue also has leftover template fields (OS, Python version, black version), and its described symptom (`exec (`) doesn't match the current behavior (a parse error)."
+  },
+  "task_validity": {
+    "rating": "FAIL",
+    "reason": "unrelated_changes",
+    "description": "The only checked behavior, removing the space after `>>` in Python 2 `print >>file` statements, is unrelated to the reported issue about the built-in exec() function. An agent that fully fixes the reported exec problem would still get reward 0. Rewriting the instruction to describe the print-chevron formatting would make it a different task from the issue, and the verifier doesn't exercise the issue's behavior at all."
+  }
+}

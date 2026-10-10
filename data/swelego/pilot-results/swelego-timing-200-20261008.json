@@ -19,7 +19,7 @@
     "concurrency": 8,
     "dedicated_cpu_node": true
   },
-  "candidate_parquet": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v32/source.parquet",
+  "candidate_parquet": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v50/source.parquet",
   "items": {
     "0b01001001__spectree-64": {
       "payload_sha256": "861d44e1813a43547593a4775aec334652dd391e83f067626858fd6001c5b2bb",

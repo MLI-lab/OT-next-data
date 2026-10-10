@@ -37,7 +37,7 @@ def detect(task: Path) -> str | None:
     return next(iter(calls), None)
 
 
-async def prepare(environment, *, command, timeout_sec, force_build, upload, logger=None, timings=None):
+async def prepare(environment, *, command, timeout_sec, force_build, upload, logger=None, timings=None, start_environment=True):
     """Caller enforces timeout_sec around this entire operation, including uploads."""
     deadline = time.monotonic() + timeout_sec
     async def measured(name, operation):
@@ -47,7 +47,8 @@ async def prepare(environment, *, command, timeout_sec, force_build, upload, log
         finally:
             if timings is not None:
                 timings[name] = time.monotonic() - started
-    await measured('container_start', lambda: environment.start(force_build=force_build))
+    if start_environment:
+        await measured('container_start', lambda: environment.start(force_build=force_build))
     if not command:
         return
     await measured('setup_upload', upload)

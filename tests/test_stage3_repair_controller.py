@@ -442,3 +442,257 @@ def test_explicit_missing_oracle_publication_keeps_other_gates(tmp_path, monkeyp
     record = {'run': 'example', 'data_sources': {}, 'static_exclusions': {}, 'not_required_checks': [],
               'skipped_stages': {'4': 'No reference solutions supplied'}}
     assert 'Stage 4 not run: No reference solutions supplied' in p.description(record)
+
+
+@pytest.mark.parametrize('args', [
+    ['--stages', '3'], ['--out', '/tmp'], ['--contract', '/tmp/a'],
+    ['--exclude', 'check=reason'], ['--review-setup', '1'],
+    ['--image-build-cpus', '0'], ['--image-build-cpus', '1.5'],
+    ['--preparation-max-seconds', 'nan'], ['--preparation-max-seconds', 'inf'],
+    ['--image-build-timeout-sec'], ['--pack-image-cache', '--pack-image-cache'],
+    '--pack-image-cache', [3],
+])
+def test_validation_args_reject_workflow_override_and_invalid_limits(args):
+    with pytest.raises(ValueError):
+        c.validation_args({'validation_args': args})
+
+
+def test_validation_args_are_preserved_in_contract_preparation(tmp_path, monkeypatch):
+    args = ['--preparation-median-target-seconds', '30',
+            '--preparation-mean-target-seconds', '60', '--preparation-max-seconds', '60',
+            '--pack-image-cache', '--image-build-timeout-sec', '7200']
+    commands = []
+    def run(command, **kwargs):
+        commands.append(command)
+        if '--prepare-contract' in command:
+            Path(command[command.index('--prepare-contract') + 1]).write_text('{}')
+        else:
+            record = tmp_path / 'results/submissions/job/submission.json'
+            record.parent.mkdir(parents=True)
+            record.write_text(json.dumps({'status': 'submitted', 'job_id': '1'}))
+    monkeypatch.setattr(c.subprocess, 'run', run)
+    config = dict(python='python', partition='cpu', cpus=4, memory='16G', concurrency=2,
+                  time='01:00:00', network_mode='host', dataset='example',
+                  source_revision='pinned', workspace=str(tmp_path), validation_args=args)
+    c.submit(config, tmp_path, ['a'], tmp_path, full=True, stages=[3], review_setup=True)
+    command = commands[0]
+    offset = command.index(args[0])
+    assert command[offset:offset + len(args)] == args
+    assert command[command.index('--stages') + 1] == '3'
+    assert command[command.index('--review-setup') + 1] == '5'
+
+
+@pytest.mark.parametrize('role', sorted(agents.ROLES))
+def test_user_policy_reaches_every_agent_role(tmp_path, monkeypatch, role):
+    seen = []
+    monkeypatch.setattr(c, 'invoke', lambda role, context, **kwargs: seen.append(context))
+    config = {'agent_provider': 'codex', 'supervisor_model': 'explicit-model',
+              'allow_exclusions': False, 'user_instructions': 'Preserve all tasks.'}
+    c.agent_call(config, role, {}, tmp_path, role)
+    assert seen[0]['allow_exclusions'] is False
+    assert seen[0]['user_instructions'] == 'Preserve all tasks.'
+
+
+def test_no_exclusions_blocks_declared_exclusions():
+    payload = {'exclusions': [{'task_id': 'a', 'category': 'unsupported',
+                              'reason': 'cannot repair', 'evidence': '/logs'}]}
+    with pytest.raises(c.LoopBlocked) as raised:
+        c.exclusions(payload, {'allow_exclusions': False})
+    assert raised.value.kind == 'human_review'
+    assert c.exclusions(payload) == payload['exclusions']
+
+
+def test_no_exclusions_blocks_missing_source_before_submission(tmp_path, monkeypatch):
+    patcher = tmp_path / 'patch.py'
+    patcher.write_text('# patch')
+    config = {'dataset': 'example', 'patcher': str(patcher), 'source': '/original',
+              'source_revision': 'pinned', 'work_root': str(tmp_path),
+              'allow_exclusions': False, 'publish': False}
+    path = tmp_path / 'config.json'
+    path.write_text(json.dumps(config))
+    monkeypatch.setattr(c, 'call', lambda *a, **kw: {'changes_needed': False, 'reason': 'ready'})
+    monkeypatch.setattr(c, 'materialize_source', lambda *a: Path('/generated'))
+    monkeypatch.setattr(c, 'task_ids', lambda p: ['a', 'b'] if str(p) == '/original' else ['a'])
+    monkeypatch.setattr(c, 'submit', lambda *a, **kw: pytest.fail('must not submit dropped tasks'))
+    state_path = tmp_path / 'loop-state.json'
+    with pytest.raises(c.LoopBlocked, match='Task exclusions'):
+        c.drive(config, path, state_path)
+    assert json.loads(state_path.read_text())['blocker']['kind'] == 'human_review'
+
+
+def test_pilot_prefix_preserves_existing_sample_and_nested_expansion():
+    ids = [f'task-{i}' for i in range(250)]
+    prefix = ids[-50:]
+    assert c.selection(ids, 50, 42, prefix) == prefix
+    assert c.selection(ids, 200, 42, prefix)[:50] == prefix
+    assert set(c.selection(ids, None, 42, prefix)) == set(ids)
+    with pytest.raises(c.LoopBlocked, match='unavailable'):
+        c.selection(ids[:-1], 50, 42, prefix)
+
+
+def test_no_exclusions_blocks_final_reviewer_archive(tmp_path, monkeypatch):
+    import hashlib
+    patcher = tmp_path / 'patch.py'
+    patcher.write_text('# patch')
+    config = {'dataset': 'example', 'patcher': str(patcher), 'source': '/original',
+              'source_revision': 'pinned', 'work_root': str(tmp_path),
+              'allow_exclusions': False, 'publish': False}
+    path = tmp_path / 'config.json'
+    path.write_text(json.dumps(config))
+    frozen = {k: v for k, v in config.items() if not k.startswith('publish')}
+    state_path = tmp_path / 'loop-state.json'
+    state_path.write_text(json.dumps({
+        'version': c.VERSION, 'config_sha256': hashlib.sha256(
+            json.dumps(frozen, sort_keys=True).encode()).hexdigest(),
+        'status': 'running', 'phase': 'final_review', 'generation': 0,
+        'final_attempt': 0, 'history': [], 'pending_evidence': {
+            'evidence_dir': str(tmp_path), 'outcome': {'failures': [{'task_id': 'a'}]}}}))
+    monkeypatch.setattr(c, 'call', lambda *a, **kw: {'findings': [
+        {'task_id': 'a', 'action': 'archive', 'reason': 'cannot repair', 'evidence': ['/logs']}]})
+    with pytest.raises(c.LoopBlocked, match='Task exclusions'):
+        c.drive(config, path, state_path)
+    assert json.loads(state_path.read_text())['blocker']['kind'] == 'human_review'
+
+
+def test_parquet_pilot_stays_packed_and_preserves_metadata(tmp_path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    source = tmp_path / 'source.parquet'
+    table = pa.table({'path': ['a', 'b', 'c'], 'task_binary': [b'A', b'B', b'C']})
+    table = table.replace_schema_metadata({b'ot.images.v1': b'{"example":"manifest"}'})
+    pq.write_table(table, source)
+    destination = tmp_path / 'pilot'
+    output = c.pilot_input(source, ['c', 'a'], destination)
+    actual = pq.read_table(output)
+    assert actual.to_pydict() == {'path': ['a', 'c'], 'task_binary': [b'A', b'C']}
+    assert actual.schema.equals(table.schema, check_metadata=True)
+    assert sorted(p.name for p in destination.iterdir()) == ['selected-ids.json', 'tasks.parquet']
+    assert c.pilot_input(source, ['a', 'c'], destination) == output
+    with pytest.raises(ValueError, match='frozen selection'):
+        c.pilot_input(source, ['a', 'b'], destination)
+    pq.write_table(table.slice(0, 1), output)
+    with pytest.raises(ValueError, match='frozen selection'):
+        c.pilot_input(source, ['a', 'c'], destination)
+
+
+def test_parquet_pilot_missing_task_cannot_leave_partial_output(tmp_path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    source = tmp_path / 'source.parquet'
+    pq.write_table(pa.table({'path': ['a'], 'task_binary': [b'A']}), source)
+    destination = tmp_path / 'pilot'
+    with pytest.raises(ValueError, match='all selected'):
+        c.pilot_input(source, ['a', 'missing'], destination)
+    assert not list(destination.iterdir())
+    assert c.task_ids(c.pilot_input(source, ['a'], destination)) == ['a']
+
+
+@pytest.mark.parametrize('passed', [False, True])
+def test_prebuild_gate_precedes_any_validation(tmp_path, monkeypatch, passed):
+    patcher = tmp_path / 'patch.py'
+    patcher.write_text('# patch')
+    config = {'dataset': 'example', 'patcher': str(patcher), 'source': '/original',
+              'source_revision': 'pinned', 'work_root': str(tmp_path),
+              'prebuild_all_images': True, 'publish': False, 'seed': 42, 'poll_seconds': 5}
+    path = tmp_path / 'config.json'
+    path.write_text(json.dumps(config))
+    ids = ['a', 'b', 'c']
+    events = []
+    def call(cfg, state, role, *a):
+        if role == 'proposer':
+            return {'changes_needed': False, 'reason': 'ready'}
+        assert role == 'fixer' and not passed
+        events.append('repair')
+        raise c.LoopBlocked('human_review', 'test stopped after reaching fixer')
+    def submit(cfg, source, selected, directory, **options):
+        if options.get('prebuild_only'):
+            assert selected == ids and options['full']
+            events.append('prebuild')
+            return {'job_id': '1', 'submission': str(tmp_path / 'submission')}
+        assert passed and events == ['prebuild']
+        events.append('validation')
+        raise c.LoopBlocked('human_review', 'test stopped before validation submission')
+    monkeypatch.setattr(c, 'call', call)
+    monkeypatch.setattr(c, 'materialize_source', lambda *a: Path('/generated'))
+    monkeypatch.setattr(c, 'task_ids', lambda p: ids)
+    monkeypatch.setattr(c, 'submit', submit)
+    monkeypatch.setattr(c, 'wait_for_prebuild', lambda *a: {'passed': passed, 'failures': [] if passed else [{'error': 'download'}]})
+    with pytest.raises(c.LoopBlocked, match='test stopped'):
+        c.drive(config, path, tmp_path / 'loop-state.json')
+    assert events == ['prebuild', 'validation' if passed else 'repair']
+
+
+def test_prebuild_wait_returns_archived_findings(tmp_path):
+    c.save(tmp_path / 'image-prebuild.json', {'passed': False, 'failures': [{'error': 'quota'}]})
+    c.save(tmp_path / 'execution.json', {'status': 'findings', 'evidence': '/evidence.tar.gz'})
+    result = c.wait_for_prebuild({'submission': str(tmp_path), 'job_id': '1'}, 5)
+    assert result['passed'] is False
+
+
+def idle_fixer_state(tmp_path, config, **extra):
+    import hashlib
+    frozen = {k: v for k, v in config.items() if not k.startswith(('publish', 'recovery_'))
+              and k not in ('max_repairs', 'max_infra_retries', 'max_recoveries')}
+    evidence = tmp_path / 'generation-0000/stage3-10'
+    evidence.mkdir(parents=True)
+    c.save(evidence / 'dataset-before.json', c.dataset_hashes(config))
+    return {'version': c.VERSION, 'config_sha256': hashlib.sha256(json.dumps(frozen, sort_keys=True).encode()).hexdigest(),
+            'status': 'running', 'phase': 'fixer', 'generation': 0, 'pilot': 0, 'history': [],
+            'review_setup': False, 'agent_attempt': 3,
+            'pending_evidence': {'evidence_dir': str(evidence), 'outcome': {'failures': [{'task_id': 'a'}]}}, **extra}
+
+
+@pytest.mark.parametrize('trigger', ['shared_revision', 'resume_after_repair'])
+def test_idle_fixer_is_superseded_by_fresh_stage3(tmp_path, monkeypatch, trigger):
+    from validation.patch_repair_loop import recovery as r
+    patcher = tmp_path / 'data/example/patch.py'
+    patcher.parent.mkdir(parents=True)
+    patcher.write_text('# original')
+    config = {'dataset': 'example', 'patcher': str(patcher), 'work_root': str(tmp_path),
+              'source': '/source', 'source_revision': 'pinned', 'poll_seconds': 5, 'publish': False}
+    path = tmp_path / 'config.json'
+    path.write_text(json.dumps(config))
+    state = idle_fixer_state(tmp_path, config, shared_infrastructure_revision='old')
+    if trigger == 'resume_after_repair':
+        state.update(status='blocked', recovery_requires_stage3=True, blocker={'kind': 'infrastructure', 'reason': 'x'})
+    state_path = tmp_path / 'loop-state.json'
+    state_path.write_text(json.dumps(state))
+    monkeypatch.setattr(r, 'infrastructure_revision', lambda: 'new' if trigger == 'shared_revision' else 'old')
+    monkeypatch.setattr(r, 'jobs', lambda work: [])
+    monkeypatch.setattr(c, 'call', lambda *a, **k: pytest.fail('The fixer must not rerun on stale evidence'))
+    def materialize(config, directory):
+        assert directory.name == 'generation-0001'
+        raise RuntimeError('Reached fresh materialization')
+    monkeypatch.setattr(c, 'materialize_source', materialize)
+    with pytest.raises(RuntimeError, match='fresh materialization'):
+        c.drive(config, path, state_path, resume=trigger == 'resume_after_repair')
+    saved = json.loads(state_path.read_text())
+    assert saved['phase'] == 'build' and saved['generation'] == 1 and saved['pilot'] == 0
+    assert saved['review_setup'] is True and 'pending_evidence' not in saved
+    assert 'recovery_requires_stage3' not in saved
+
+
+def test_fixer_with_partial_edit_keeps_its_evidence(tmp_path, monkeypatch):
+    from validation.patch_repair_loop import recovery as r
+    patcher = tmp_path / 'data/example/patch.py'
+    patcher.parent.mkdir(parents=True)
+    patcher.write_text('# original')
+    config = {'dataset': 'example', 'patcher': str(patcher), 'work_root': str(tmp_path),
+              'source': '/source', 'source_revision': 'pinned', 'poll_seconds': 5, 'publish': False}
+    path = tmp_path / 'config.json'
+    path.write_text(json.dumps(config))
+    state = idle_fixer_state(tmp_path, config, shared_infrastructure_revision='old')
+    patcher.write_text('# half-finished repair')
+    state_path = tmp_path / 'loop-state.json'
+    state_path.write_text(json.dumps(state))
+    monkeypatch.setattr(r, 'infrastructure_revision', lambda: 'new')
+    monkeypatch.setattr(r, 'jobs', lambda work: [])
+    seen = []
+    def call(config, state, role, directory, extra=None):
+        seen.append((role, extra['evidence_dir']))
+        raise RuntimeError('fixer resumed')
+    monkeypatch.setattr(c, 'call', call)
+    with pytest.raises(RuntimeError, match='fixer resumed'):
+        c.drive(config, path, state_path)
+    assert seen == [('fixer', str(tmp_path / 'generation-0000/stage3-10'))]
+    assert json.loads(state_path.read_text())['generation'] == 0

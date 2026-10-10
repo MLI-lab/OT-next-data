@@ -1,0 +1,32 @@
+{
+  "source": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v55/source.parquet",
+  "source_sha256": "fcb9399c32a8ded63ce7b25fbe42b47c6d49684a5691b5e4397c48f012849e11",
+  "source_tasks": 4321,
+  "tasks": 2107,
+  "already_passed_both": 2214,
+  "already_passed_by_stage": {
+    "4": 2453,
+    "5": 2495
+  },
+  "remaining_by_stage": {
+    "4": 1868,
+    "5": 1826
+  },
+  "review_setup": false,
+  "status": "started",
+  "batch_count": 54,
+  "max_active_jobs": 4,
+  "concurrency_per_job": 8,
+  "cpus_per_job": 96,
+  "walltime_per_job": "12:00:00",
+  "initial_jobs": [
+    "956630",
+    "956631",
+    "956632",
+    "956633"
+  ],
+  "plan": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v56-plan.json",
+  "live_state": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v56-batch-state.json",
+  "manager_log": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v56-manager.log",
+  "note": "Skip each previously passed stage only when the tested task payload matches the final candidate exactly. The manager submits remaining batches as capacity becomes available; failed batches retain evidence for later repair."
+}

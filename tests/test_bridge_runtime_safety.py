@@ -48,6 +48,19 @@ def test_worker_corrects_old_client_cache_key(patch, tmp_path):
     assert patch.content_keyed_payload(b) == b
 
 
+def test_worker_preserves_explicit_verifier_shared_image_key(patch, tmp_path):
+    from harbor_patches.image_context import environment_dir_hash_truncated
+    (tmp_path / 'Dockerfile').write_text('FROM ubuntu\nRUN echo prepared\n')
+    key = environment_dir_hash_truncated(tmp_path)
+    (tmp_path / '.dockerignore').write_text('*\n!Dockerfile\n')
+    (tmp_path / 'test.sh').write_text('private verification')
+    payload = {'dockerfile_hash': key, 'sif_path': f'/cache/build_task-{key}.sif',
+               'files_b64': {p.name: base64.b64encode(p.read_bytes()).decode()
+                             for p in tmp_path.iterdir()}}
+    assert environment_dir_hash_truncated(tmp_path) == key
+    assert patch.content_keyed_payload(payload) == payload
+
+
 def test_host_ca_files_are_mounted_read_only_in_containers(patch, tmp_path, monkeypatch):
     for name in ('SSL_CERT_FILE', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE'):
         monkeypatch.delenv(name, raising=False)
@@ -98,6 +111,19 @@ def test_explicit_host_mode_supplies_dns_and_proxy(patch, monkeypatch):
     import os
     assert '/etc/resolv.conf:/etc/resolv.conf:ro' in os.environ['APPTAINER_BINDPATH']
     assert os.environ['APPTAINERENV_https_proxy'] == 'http://proxy.example:8080'
+    # Loopback never goes through the proxy, whatever the host's no_proxy says.
+    for name in ('no_proxy', 'NO_PROXY'):
+        hosts = os.environ['APPTAINERENV_' + name].split(',')
+        assert {'localhost', '127.0.0.1', '::1'} <= set(hosts)
+
+
+def test_host_mode_keeps_the_hosts_no_proxy_and_adds_loopback_once(patch, monkeypatch):
+    import os
+    monkeypatch.setenv('OT_NET_ISOLATION', '0')
+    monkeypatch.setenv('http_proxy', 'http://proxy.example:8080')
+    monkeypatch.setenv('no_proxy', 'intranet.example,localhost')
+    patch.configure_explicit_host_network()
+    assert os.environ['APPTAINERENV_no_proxy'] == 'intranet.example,localhost,127.0.0.1,::1'
 
 
 def test_namespace_fallback_uses_host_dns_and_proxy(patch, monkeypatch, tmp_path):
@@ -193,6 +219,81 @@ def test_slow_readiness_probe_is_repeated_until_the_stall_budget(patch, monkeypa
     assert stopped == ['env-1']
 
 
+@pytest.mark.parametrize('inherited_tmux', [False, True])
+def test_anchor_and_probe_reconnect_to_same_tmux(patch, monkeypatch, tmp_path, inherited_tmux):
+    """Exercise real tmux with an adapter for Apptainer's cleanenv boundary."""
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+    from types import SimpleNamespace
+    from harbor_patches import protected_step, tmux_socket
+
+    if not shutil.which('tmux'):
+        pytest.skip('tmux is required')
+    real_run, real_popen = subprocess.run, subprocess.Popen
+    # Unix socket paths must stay short, regardless of pytest's temp directory.
+    with tempfile.TemporaryDirectory(prefix='anchor-') as directory:
+        root = Path(directory)
+        private = root / 'private'
+        foreign = root / 'foreign.sock'
+        clean = dict(os.environ)
+        for name in ('TMUX', 'TMUX_PANE'):
+            clean.pop(name, None)
+            monkeypatch.delenv(name, raising=False)
+        real_run(['tmux', '-S', str(foreign), 'new-session', '-d', '-s', 'host',
+                  'sleep 60'], env=clean, check=True)
+        if inherited_tmux:
+            monkeypatch.setenv('TMUX', f'{foreign},123,0')
+            monkeypatch.setenv('TMUX_PANE', '%0')
+        monkeypatch.setattr(tmux_socket, 'SOCKET_ROOT', str(private))
+        monkeypatch.setattr(patch.worker, 'APPTAINER', 'apptainer')
+        calls = []
+
+        def translate(cmd):
+            calls.append(cmd)
+            env = dict(os.environ)
+            if '--cleanenv' in cmd:
+                env.pop('TMUX', None)
+                env.pop('TMUX_PANE', None)
+            return cmd[cmd.index('/usr/bin/env'):], env
+
+        def run(cmd, **kwargs):
+            command, env = translate(cmd)
+            return real_run(command, env=env, **kwargs)
+
+        def launch(cmd, **kwargs):
+            command, env = translate(cmd)
+            return real_popen(command, env=env, **kwargs)
+
+        monkeypatch.setattr(patch.subprocess, 'run', patch.run_container_commands(run))
+        monkeypatch.setattr(protected_step, 'popen_in_step', launch)
+        # Fail quickly on the old socket mismatch without changing production budgets.
+        import time
+        monkeypatch.setattr(patch, 'time', SimpleNamespace(
+            monotonic=lambda: time.monotonic() * 100,
+            sleep=lambda seconds: time.sleep(.01)))
+        env = SimpleNamespace(instance_name='test', env_id='test', staging_dir=str(tmp_path))
+        try:
+            patch.start_anchor(env)
+            assert all(cmd.count('--cleanenv') == 1 for cmd in calls)
+            assert real_run(['tmux', '-S', str(foreign), 'has-session', '-t', 'host'],
+                            env=clean).returncode == 0
+            assert real_run(['tmux', '-S', str(foreign), 'has-session', '-t', '_pilot_anchor'],
+                            env=clean, capture_output=True).returncode != 0
+        finally:
+            proc = getattr(env, '_helma_tmux_anchor', None)
+            if proc is not None:
+                proc.terminate()
+                proc.wait(timeout=5)
+            log = getattr(env, '_helma_tmux_log', None)
+            if log is not None:
+                log.close()
+            for socket in [foreign, *private.glob('tmux-*/default')]:
+                real_run(['tmux', '-S', str(socket), 'kill-server'], env=clean,
+                         capture_output=True)
+
+
 def test_container_start_gate_spaces_starts_and_releases_after_error(patch):
     now = [10.0]
     delays = []
@@ -243,7 +344,6 @@ def test_dependency_archive_is_mounted_only_for_the_trial_that_has_one(patch, mo
     assert patch.dependency_archive({'task_name': 'task-1',
         'task_env_config': {'disable_dependency_archive': True}}) is None
     seen = []
-    monkeypatch.setattr(patch, 'image_bakes_tests', lambda sif: False)
     run = patch.run_container_commands(lambda cmd, *a, **k: seen.append(cmd))
     start = ['apptainer', 'instance', 'start', '--cleanenv', 'image.sif', 'hb_env_1']
     run(start)
@@ -304,7 +404,6 @@ def test_only_old_half_written_archives_are_removed_at_startup(patch, monkeypatc
 
 
 def test_instances_get_private_filesystems_without_losing_task_mounts(patch, monkeypatch):
-    monkeypatch.setattr(patch, 'image_bakes_tests', lambda sif: False)
     seen = []
     run = patch.run_container_commands(lambda cmd, **kwargs: seen.append(cmd))
     command = ['apptainer', 'instance', 'start', '--bind', '/stage/tmp:/tmp:rw', '--fakeroot', 'task.sif', 'env']
@@ -321,12 +420,11 @@ def test_instances_get_private_filesystems_without_losing_task_mounts(patch, mon
     assert seen[3].count('--cleanenv') == 1
 
 
-def test_startup_preserves_baked_tests_and_other_mounts(patch, monkeypatch):
-    monkeypatch.setattr(patch, 'image_bakes_tests', lambda sif: True)
+def test_startup_preserves_tests_upload_and_other_mounts(patch, monkeypatch):
     command = ['apptainer', 'instance', 'start', '--bind', '/stage/tests:/tests:rw',
                '--bind', '/stage/logs:/logs:rw', 'verifier.sif', 'env']
     result = patch.instance_start_command(command, patch.NET_FLAGS)
-    assert '/stage/tests:/tests:rw' not in result
+    assert '/stage/tests:/tests:rw' in result
     assert '/stage/logs:/logs:rw' in result
     assert '--contain' in result and '--net' in result
     assert result[-2:] == ['verifier.sif', 'env']
@@ -539,6 +637,9 @@ def test_workspace_seed_executes_copy_with_hidden_files_and_links(patch, tmp_pat
     image = tmp_path / 'image'
     (image / '.git').mkdir(parents=True)
     (image / '.git/HEAD').write_text('image head')
+    # Larger than the site's 16 MiB container session filesystem.
+    with (image / 'large.bin').open('wb') as output:
+        output.truncate(20 * 1024 * 1024)
     (image / 'run').write_text('#!/bin/sh\n')
     (image / 'run').chmod(0o751)
     os.link(image / 'run', image / 'hardlink')
@@ -550,16 +651,23 @@ def test_workspace_seed_executes_copy_with_hidden_files_and_links(patch, tmp_pat
 
     def run(cmd, **kwargs):
         target = cmd[cmd.index('--bind') + 1].split(':')[0]
-        script = cmd[-1].replace('/workspace', str(image)).replace('/_ot_workspace_init', target)
+        binds = [cmd[i + 1].split(':') for i, arg in enumerate(cmd[:-1]) if arg == '--bind']
+        scratch = next(host for host, dest, mode in binds if dest == '/_ot_copy_scratch')
+        assert Path(scratch).parent.parent == workspace.parent
+        assert 'mktemp /_ot_copy_scratch/' in cmd[-1]
+        script = cmd[-1].replace('/workspace ', str(image) + ' ').replace('/_ot_workspace_init', target)
+        script = script.replace('/_ot_copy_scratch', scratch)
         return subprocess.run(['sh', '-ec', script], **kwargs)
 
     patch.seed_image_workspace(['apptainer', 'instance', 'start', '--bind',
                                f'{workspace}:/workspace:rw', '/image.sif', 'test'], run)
+    assert (workspace / 'large.bin').stat().st_size == 20 * 1024 * 1024
     assert (workspace / '.git/HEAD').read_text() == 'image head'
     assert (workspace / '.git/config').read_text() == 'task config'
     assert (workspace / 'run').stat().st_mode & 0o777 == 0o751
     assert (workspace / 'run').stat().st_ino == (workspace / 'hardlink').stat().st_ino
     assert (workspace / 'link').readlink() == Path('run')
+    assert not list(tmp_path.glob('workspace-image-*'))
 
 
 def test_workspace_merge_does_not_follow_symlinks(patch, tmp_path):
@@ -590,6 +698,9 @@ def test_workspace_copy_failure_prevents_instance_start(patch, tmp_path, failure
     calls = []
     def run(cmd, **kwargs):
         calls.append(cmd)
+        binds = [cmd[i + 1].split(':') for i, arg in enumerate(cmd[:-1]) if arg == '--bind']
+        scratch = next(Path(host) for host, dest, mode in binds if dest == '/_ot_copy_scratch')
+        (scratch / 'partial.tar').write_bytes(b'partial archive')
         if failure == 'timeout':
             raise subprocess.TimeoutExpired(cmd, 300)
         return subprocess.CompletedProcess(cmd, 1, '', 'copy failed')

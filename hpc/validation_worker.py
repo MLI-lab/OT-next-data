@@ -1,5 +1,6 @@
 """Allocation-side bridge and optional local serving, with archived task evidence."""
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,20 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from validation.upstream import ROOT
 from validation.stages.runner import save
+
+
+def evidence_fallback(folder):
+    """Where a submission's evidence goes when its own filesystem is out of quota.
+
+    OT_EVIDENCE_FALLBACK, else $HOME; the submission path is mirrored below it so
+    the evidence can be moved back with one copy. The job fails only if this is full too.
+    """
+    for root in (os.environ.get('OT_EVIDENCE_FALLBACK'), os.environ.get('HOME')):
+        if root and Path(root).is_dir():
+            target = Path(root) / 'validation-evidence-fallback' / Path(folder).resolve().relative_to('/')
+            target.mkdir(parents=True, exist_ok=True)
+            return target
+    raise RuntimeError('no fallback location for evidence: set OT_EVIDENCE_FALLBACK')
 
 
 def wait_ready(url, processes, timeout=120, workers=False, diagnostics=False):
@@ -155,9 +170,24 @@ def trial_capacity(tasks, args):
             'trial_cpu_budget': available, 'reserved_cpus_per_trial': per_trial}
 
 
+def prebuild_result(preparation):
+    """A prebuild succeeds only when every image is available to later jobs."""
+    failures = [record for record in preparation
+                if record.get('status') not in ('built', 'cached')
+                or record.get('cache_warning')
+                or (record.get('status') == 'built' and not record.get('published'))]
+    counts = {name: sum(record.get('status') == name for record in preparation)
+              for name in ('built', 'cached', 'error')}
+    counts.update(total=len(preparation), unavailable=len(failures))
+    return {'operation': 'image-prebuild-only', 'complete': True, 'passed': not failures,
+            'counts': counts, 'images': preparation, 'failures': failures,
+            'validation_stages_run': []}
+
+
 def main(request):
     data = json.loads(request.read_text())
     args = argparse.Namespace(**data['args'])
+    prebuild_only = getattr(args, 'prebuild_only', False)
     base = Path(os.environ['OT_WORKSPACE'])
     scratch = Path(os.environ['TMPDIR']) / ('validation-' + request.parent.name)
     scratch.mkdir(parents=True)
@@ -237,23 +267,27 @@ def main(request):
         from validation.stages.runner import static_concurrency
         args.static_concurrency = static_concurrency(args)
         from validation.stages.normalize_paths import enabled as path_normalization_enabled, candidates as path_candidates
-        if path_normalization_enabled(args, data['stages']):
+        if not prebuild_only and path_normalization_enabled(args, data['stages']):
             args._path_candidates = path_candidates(args, tasks)
         from data.utils.resolve_pip_pins import enabled as pip_enabled, check as pip_check
-        if pip_enabled(args, data['stages']):
+        if not prebuild_only and pip_enabled(args, data['stages']):
             args._pip_findings = pip_check(tasks, args, scratch / 'pip-precheck')
         preparation_tasks = [task for task in tasks if task in getattr(args, '_path_candidates', [])
                              or getattr(args, '_pip_findings', {}).get(task.name)]
-        static_only = set(data['stages']) == {1} and not preparation_tasks
+        static_only = not prebuild_only and set(data['stages']) == {1} and not preparation_tasks
         budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
                    'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
-                  if static_only else trial_capacity(tasks, args))
+                  if static_only or prebuild_only else trial_capacity(tasks, args))
         args.concurrency = min(args.concurrency, budget['max_concurrency'])
         save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency,
                                                'static_concurrency': args.static_concurrency})
         args.out = scratch / 'results'
         from hpc.local_assets import stage_images, copy_asset
-        images = stage_images(tasks, base / 'images', scratch / 'images')
+        if prebuild_only:
+            images = scratch / 'images'
+            images.mkdir()
+        else:
+            images = stage_images(tasks, base / 'images', scratch / 'images')
         if os.environ.get('OT_LOCAL_RUNTIME'):
             shutil.copyfile(Path(os.environ['OT_LOCAL_RUNTIME']) / 'staging.json', scratch / 'runtime-staging.json')
         if args.trials:
@@ -282,7 +316,7 @@ def main(request):
         from validation.stages.runner import dependency_archive_spec
         archives = (frozen['execution_profile'].get('dependency_archives') if getattr(args, 'contract', None)
                     else dependency_archive_spec(args))
-        if archives:
+        if archives and not prebuild_only:
             from hpc.local_assets import stage_dependencies
             local_archives, original = stage_dependencies(archives, tasks, scratch / 'dependencies')
             dependency_output = (local_archives['directory'], archives['directory'], original)
@@ -297,12 +331,26 @@ def main(request):
             for name, default in [('memory_mb', 8192), ('cpus', 4), ('concurrency', 2), ('timeout_sec', 3600)]:
                 if not hasattr(args, 'image_build_' + name):
                     setattr(args, 'image_build_' + name, default)
-            image_tasks = preparation_tasks if set(data['stages']) == {1} else tasks
-            preparation = prepare_images(image_tasks, images, base / 'images', args)
+            image_tasks = preparation_tasks if set(data['stages']) == {1} and not prebuild_only else tasks
+            try:
+                preparation = prepare_images(image_tasks, images, base / 'images', args)
+            finally:
+                # Keep build logs and finished records when the allocation ends mid-preparation.
+                shutil.copytree(images, scratch / 'image-build-logs',
+                                ignore=lambda directory, names: [n for n in names if not n.endswith('.build.log')])
+                if (images / 'preparation.json').is_file():
+                    shutil.copyfile(images / 'preparation.json', scratch / 'image-preparation.json')
             save(scratch / 'image-preparation.json', preparation)
-            shutil.copytree(images, scratch / 'image-build-logs',
-                            ignore=lambda directory, names: [n for n in names if not n.endswith('.build.log')])
             os.environ['OT_IMAGES_PREPARED'] = '1'
+        if prebuild_only:
+            result = prebuild_result(preparation)
+            result['contract_sha256'] = status.get('contract_sha256')
+            save(scratch / 'image-prebuild.json', result)
+            save(request.parent / 'image-prebuild.json', result)
+            code = int(not result['passed'])
+            status.update(status='completed' if not code else 'findings', exit_code=code,
+                          operation='image-prebuild-only', image_counts=result['counts'])
+            return code
         # Both service ports stay below Linux's ephemeral client-port range.
         port = free_port(25000 + int(os.environ['SLURM_JOB_ID']) % 5000)
         bridge = f'http://127.0.0.1:{port}'
@@ -409,37 +457,65 @@ def main(request):
                     # Retain local archives in the evidence if persistence fails.
                     with tarfile.open(request.parent / 'dependency-recovery.tar', 'w') as recovery:
                         recovery.add(dependency_output[0], arcname='dependencies')
-            archive = request.parent / 'evidence.tar.gz'
-            # Do not archive container overlays/cache; only task inputs, logs and results.
-            with tarfile.open(archive.with_suffix('.tmp'), 'w:gz') as tar:
-                effective_contract = Path(args.contract) if getattr(args, 'contract', None) else None
-                normalized = effective_contract is not None and effective_contract != scratch / 'contract.json'
-                if normalized:
-                    tar.add(effective_contract, arcname='contract.json')
-                    tar.add(args.tasks, arcname='tasks')
-                for path in scratch.iterdir():
-                    if path.name in ('results', 'tasks', 'input-trials', 'image-build-logs') or path.suffix in ('.log', '.json', '.md'):
-                        if normalized and path.name in ('contract.json', 'tasks'):
-                            tar.add(path, arcname='input-' + path.name)
-                        elif not normalized or path != effective_contract:
-                            tar.add(path, arcname=path.name)
-            archive.with_suffix('.tmp').replace(archive)
-            status['evidence'] = str(archive)
-            save(request.parent / 'execution.json', status)
+            def pack(folder):
+                # Do not archive container overlays/cache; only task inputs, logs and results.
+                archive = folder / 'evidence.tar.gz'
+                try:
+                    with tarfile.open(archive.with_suffix('.tmp'), 'w:gz') as tar:
+                        effective_contract = Path(args.contract) if getattr(args, 'contract', None) else None
+                        normalized = effective_contract is not None and effective_contract != scratch / 'contract.json'
+                        if normalized:
+                            tar.add(effective_contract, arcname='contract.json')
+                            tar.add(args.tasks, arcname='tasks')
+                        for path in scratch.iterdir():
+                            if path.name in ('results', 'tasks', 'input-trials', 'image-build-logs') or path.suffix in ('.log', '.json', '.md'):
+                                if normalized and path.name in ('contract.json', 'tasks'):
+                                    tar.add(path, arcname='input-' + path.name)
+                                elif not normalized or path != effective_contract:
+                                    tar.add(path, arcname=path.name)
+                    archive.with_suffix('.tmp').replace(archive)
+                except BaseException:
+                    try:
+                        archive.with_suffix('.tmp').unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                    raise
+                return archive
+
+            output = request.parent
             try:
-                from validation.reporting.report import write_report
-                write_report(archive, request.parent / 'report')
-            except Exception as exc:
-                save(request.parent / 'report-error.json', {'error': str(exc), 'archive': str(archive)})
-            if getattr(args, 'publish_repo', None) and getattr(args, 'contract', None) and (request.parent / 'report').is_dir():
+                archive = pack(output)
+            except OSError as exc:
+                if exc.errno not in (errno.EDQUOT, errno.ENOSPC):
+                    raise
+                # The submission folder's filesystem is out of quota (file count or space):
+                # keep the evidence, reports and status on the fallback filesystem instead of
+                # losing the run. A pointer is left beside the request when that is still possible.
+                output = evidence_fallback(request.parent)
+                print(f'{request.parent} is out of quota ({exc}); evidence and reports go to {output}', flush=True)
+                archive = pack(output)
+                status['evidence_relocated'] = {'reason': str(exc), 'folder': str(output)}
+                try:
+                    save(request.parent / 'evidence-relocated.json', status['evidence_relocated'])
+                except OSError as pointer_error:
+                    print(f'Relocation pointer not written: {pointer_error}', flush=True)
+            status['evidence'] = str(archive)
+            save(output / 'execution.json', status)
+            if not prebuild_only:
+                try:
+                    from validation.reporting.report import write_report
+                    write_report(archive, output / 'report')
+                except Exception as exc:
+                    save(output / 'report-error.json', {'error': str(exc), 'archive': str(archive)})
+            if not prebuild_only and getattr(args, 'publish_repo', None) and getattr(args, 'contract', None) and (output / 'report').is_dir():
                 # The pull request is a proposal; the reports stay the record if this fails.
                 try:
                     from validation.publishing.publish import publish
                     if getattr(args, 'publish_require_complete', False):
                         from validation.publishing.publish import require_complete
-                        require_complete(request.parent / 'report', args.contract)
-                    result = publish(request.parent / 'report', args.contract, args.publish_repo,
-                                     getattr(args, 'publish_folder', None) or [], out=request.parent / 'publish',
+                        require_complete(output / 'report', args.contract)
+                    result = publish(output / 'report', args.contract, args.publish_repo,
+                                     getattr(args, 'publish_folder', None) or [], out=output / 'publish',
                                      analysis=bool(getattr(args, 'publish_analysis', False)),
                                      readme=bool(getattr(args, 'publish_readme', False)),
                                      readme_force=bool(getattr(args, 'publish_readme_force', False)),
@@ -449,12 +525,12 @@ def main(request):
                                      patch_manifests=getattr(args, 'publish_patch_manifest', ()),
                                      conversion_archives=getattr(args, 'publish_conversion_archive', ()),
                                      readme_work_dir=scratch / 'annotation-runs')
-                    save(request.parent / 'publish.json', {k: v for k, v in result.items() if k != 'description'})
+                    save(output / 'publish.json', {k: v for k, v in result.items() if k != 'description'})
                     status['pull_request'] = result.get('pull_request')
                 except Exception as exc:
                     status['pull_request_error'] = str(exc)
-                    save(request.parent / 'publish-error.json', {'error': str(exc)})
-                save(request.parent / 'execution.json', status)
+                    save(output / 'publish-error.json', {'error': str(exc)})
+                save(output / 'execution.json', status)
         finally:
             for process in reversed(processes):
                 if process.poll() is None:

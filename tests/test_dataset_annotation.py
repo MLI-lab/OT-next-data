@@ -285,7 +285,9 @@ def test_harbor_runtime_collects_verified_artifact(tmp_path, monkeypatch):
         configs.append(config)
         return tmp_path / 'jobs/job'
     monkeypatch.setattr(runtime, 'execute_job', execute)
-    monkeypatch.setattr(runtime, 'trial_results', lambda job: [(trial, {'verifier_result': {'rewards': {'reward': 1}}})])
+    from test_nop_verifier_failures import execution_evidence
+    output = execution_evidence(trial, '')
+    monkeypatch.setattr(runtime, 'trial_results', lambda job: [(trial, {'verifier_result': {'rewards': {'reward': 1}, 'stdout': output}})])
     result, provenance = annotation_runtime.run(task, 'test-model')
     assert result == answer()
     assert provenance['trial_dir'] == str(trial)

@@ -38,8 +38,8 @@ def copy_asset(source, target, *, reserve=20 * GIB):
     return target, {'source': str(source), 'local': str(target), 'bytes': required}
 
 
-def stage_images(tasks, source, target):
-    from harbor.utils.container_cache import environment_dir_hash_truncated
+def stage_images(tasks, source, target, *, selected_keys=None):
+    from harbor_patches.image_context import environment_dir_hash_truncated
     target.mkdir(parents=True, exist_ok=True)
     selected = set()
     bundles = set()
@@ -48,6 +48,8 @@ def stage_images(tasks, source, target):
     for task in tasks:
         for dockerfile in task.rglob('Dockerfile'):
             key = environment_dir_hash_truncated(dockerfile.parent)
+            if selected_keys is not None and key not in selected_keys:
+                continue
             bundles.update((source / 'bundles-v1').glob('*-' + key + '.sif'))
             bundles.update((source / 'bundles-v1').glob('*-' + key + '.sif.tar'))
             selected.update(source.glob('*-' + key + '.sif'))
@@ -81,7 +83,7 @@ def stage_images(tasks, source, target):
         local = restore(bundle, target)
         records.append({'source': str(bundle), 'local': str(local), 'verified_bundle': True})
     from validation.publishing.image_release import stage_published
-    records.extend(stage_published(tasks, source, target))
+    records.extend(stage_published(tasks, source, target, selected_keys=selected_keys))
     (target / 'staging.json').write_text(json.dumps(records, indent=2))
     return target
 

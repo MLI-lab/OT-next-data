@@ -40,8 +40,9 @@ def main():
     # only after observing 429 through that proxy and verifying direct access.
     proxy = os.environ.get('https_proxy') or os.environ.get('HTTPS_PROXY')
     if proxy:
-        for host in ('repo.maven.apache.org', 'repo1.maven.org'):
-            url = f'https://{host}/maven2/com/google/code/gson/gson/2.10.1/gson-2.10.1.pom'
+        for host in ('repo.maven.apache.org', 'repo1.maven.org', 'plugins.gradle.org'):
+            prefix = 'm2' if host == 'plugins.gradle.org' else 'maven2'
+            url = f'https://{host}/{prefix}/org/jetbrains/kotlin/kotlin-stdlib/1.9.24/kotlin-stdlib-1.9.24.pom'
             try:
                 with build_opener(ProxyHandler({'https': proxy})).open(url, timeout=5) as response:
                     response.read()
@@ -50,7 +51,7 @@ def main():
                     continue
                 try:
                     with build_opener(ProxyHandler({})).open(url, timeout=5) as response:
-                        if response.status != 200 or b'<artifactId>gson</artifactId>' not in response.read():
+                        if response.status != 200 or b'<artifactId>kotlin-stdlib</artifactId>' not in response.read():
                             continue
                 except OSError:
                     continue

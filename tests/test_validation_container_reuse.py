@@ -88,6 +88,8 @@ def test_cleanup_attempts_every_environment_after_error(fake_environment):
 @pytest.mark.parametrize('nop_reward', [0, 1])
 def test_bundle_order_rewards_and_journals(tmp_path, monkeypatch, fake_environment, nop_reward):
     from validation.stages import run_reused_containers, runner
+    # Runner records are tested separately; isolate container lifecycle here.
+    monkeypatch.setattr(run_reused_containers.runtime, 'nop_execution_problem', lambda *a: None)
     from validation import contract
     from validation.data import selection
     tasks = [tmp_path / name for name in ('a', 'b')]
@@ -143,6 +145,8 @@ def test_bundle_order_rewards_and_journals(tmp_path, monkeypatch, fake_environme
 def test_pipeline_dispatch(tmp_path, monkeypatch, stages, enabled, bundles, singles):
     from validation import run
     from validation.stages import run_reused_containers, runner
+    # Runner records are tested separately; isolate container lifecycle here.
+    monkeypatch.setattr(run_reused_containers.runtime, 'nop_execution_problem', lambda *a: None)
     args = runner.parser().parse_args([str(tmp_path), '--out', str(tmp_path / 'out')])
     args.reuse_validation_containers = enabled
     args.fix_instruction_paths = False  # This test exercises dispatch, not task preparation.

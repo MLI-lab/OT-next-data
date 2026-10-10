@@ -1,0 +1,116 @@
+diff --git a/changelogs/fragments/65541-fix-utf8-issue-env-lookup.yml b/changelogs/fragments/65541-fix-utf8-issue-env-lookup.yml
+new file mode 100644
+index 0000000000..0f2ad9b03b
+--- /dev/null
++++ b/changelogs/fragments/65541-fix-utf8-issue-env-lookup.yml
+@@ -0,0 +1,2 @@
++bugfixes:
++  - env lookup plugin - Fix handling of environment variables values containing utf-8 characters. (https://github.com/ansible/ansible/issues/65298)
+diff --git a/lib/ansible/plugins/lookup/env.py b/lib/ansible/plugins/lookup/env.py
+index 6892feb8c5..5926bfeea4 100644
+--- a/lib/ansible/plugins/lookup/env.py
++++ b/lib/ansible/plugins/lookup/env.py
+@@ -27,9 +27,8 @@ RETURN = """
+       - values from the environment variables.
+     type: list
+ """
+-import os
+-
+ from ansible.plugins.lookup import LookupBase
++from ansible.utils import py3compat
+ 
+ 
+ class LookupModule(LookupBase):
+@@ -39,6 +38,6 @@ class LookupModule(LookupBase):
+         ret = []
+         for term in terms:
+             var = term.split()[0]
+-            ret.append(os.getenv(var, ''))
++            ret.append(py3compat.environ.get(var, ''))
+ 
+         return ret
+diff --git a/test/integration/targets/lookups/runme.sh b/test/integration/targets/lookups/runme.sh
+index 698ff19045..59015bee74 100755
+--- a/test/integration/targets/lookups/runme.sh
++++ b/test/integration/targets/lookups/runme.sh
+@@ -8,7 +8,8 @@ source virtualenv.sh
+ # because plugins and requirements are loaded before the task runs
+ pip install passlib
+ 
+-ANSIBLE_ROLES_PATH=../ ansible-playbook lookups.yml "$@"
++# UNICODE_VAR is used in testing the env lookup plugin unicode functionality
++ANSIBLE_ROLES_PATH=../ UNICODE_VAR=café ansible-playbook lookups.yml "$@"
+ 
+ ansible-playbook template_lookup_vaulted.yml --vault-password-file test_vault_pass "$@"
+ 
+diff --git a/test/integration/targets/lookups/tasks/main.yml b/test/integration/targets/lookups/tasks/main.yml
+index 452515261b..faa051c3ed 100644
+--- a/test/integration/targets/lookups/tasks/main.yml
++++ b/test/integration/targets/lookups/tasks/main.yml
+@@ -154,6 +154,25 @@
+     that:
+         - "test_val == home_var_value.stdout"
+ 
++# UNICODE LOOKUP
++
++# https://github.com/ansible/ansible/issues/65297
++- name: get UNICODE_VAR environment var value
++  shell: "echo $UNICODE_VAR"
++  register: unicode_var_value
++
++- name: use env lookup to get UNICODE_VAR value
++  set_fact:
++    test_unicode_val: "{{ lookup('env', 'UNICODE_VAR') }}"
++
++- debug: var=unicode_var_value
++- debug: var=test_unicode_val
++
++- name: compare unicode values
++  assert:
++    that:
++      - "test_unicode_val == unicode_var_value.stdout"
++
+ 
+ # PIPE LOOKUP
+ 
+diff --git a/test/units/plugins/lookup/test_env.py b/test/units/plugins/lookup/test_env.py
+new file mode 100644
+index 0000000000..5d9713fe9c
+--- /dev/null
++++ b/test/units/plugins/lookup/test_env.py
+@@ -0,0 +1,35 @@
++# -*- coding: utf-8 -*-
++# Copyright: (c) 2019, Abhay Kadam <abhaykadam88@gmail.com>
++# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
++
++# Make coding more python3-ish
++from __future__ import (absolute_import, division, print_function)
++__metaclass__ = type
++
++import pytest
++
++from ansible.plugins.loader import lookup_loader
++
++
++@pytest.mark.parametrize('env_var,exp_value', [
++    ('foo', 'bar'),
++    ('equation', 'a=b*100')
++])
++def test_env_var_value(monkeypatch, env_var, exp_value):
++    monkeypatch.setattr('ansible.utils.py3compat.environ.get', lambda x, y: exp_value)
++
++    env_lookup = lookup_loader.get('env')
++    retval = env_lookup.run([env_var], None)
++    assert retval == [exp_value]
++
++
++@pytest.mark.parametrize('env_var,exp_value', [
++    ('simple_var', 'alpha-β-gamma'),
++    ('the_var', 'ãnˈsiβle')
++])
++def test_utf8_env_var_value(monkeypatch, env_var, exp_value):
++    monkeypatch.setattr('ansible.utils.py3compat.environ.get', lambda x, y: exp_value)
++
++    env_lookup = lookup_loader.get('env')
++    retval = env_lookup.run([env_var], None)
++    assert retval == [exp_value]

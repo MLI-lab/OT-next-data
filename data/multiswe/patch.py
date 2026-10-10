@@ -58,6 +58,26 @@ def docker_setup():
     return '\n' + MARKER + '\nUSER root\n' + ''.join('RUN ' + command + '\n' for command in commands)
 
 
+def patched_image_prepare(recipe):
+    """Repair only the baseline install command for known Multi-SWE task families."""
+    script = recipe['files']['prepare.sh']
+    if recipe['repo'] == 'material-ui':
+        # The pinned Multi-SWE material-ui verifiers run unit tests only.
+        script = 'export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1\n' + script
+    if recipe['repo'] == 'async':
+        # Some pinned commits have package manifests newer than their lockfiles.
+        script = re.sub(r'(?<!\S)npm ci\b', 'npm install --no-audit --no-fund', script)
+    if recipe['repo'] == 'redux' and re.search(r'(?m)^\s*yarn install\b', script):
+        # Skip only the legacy root prepublish hook for dependency installation.
+        script = re.sub(r'\s*\|\|\s*true\b', '', script)
+        disable = 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));delete p.scripts.prepublish;fs.writeFileSync("package.json",JSON.stringify(p));'
+        install = ('( backup=$(mktemp); cp package.json "$backup"; '
+                   'trap \'cp "$backup" package.json; rm -f "$backup"\' EXIT; '
+                   'node -e ' + shlex.quote(disable) + '; yarn install )')
+        script = re.sub(r'(?m)^yarn install\s*$', lambda _: install, script)
+    return script
+
+
 def patch_files(files):
     """Keep task/reference semantics; make grader infrastructure failures explicit."""
     files = dict(files)
@@ -151,22 +171,29 @@ unset electron_https_proxy electron_http_proxy
 
 PREINSTALLED_REPOS = {
     'insomnia', 'github-readme-stats', 'async', 'trpc', 'redux', 'material-ui',
-    'dayjs', 'react-router', 'checkstyle', 'junit5', 'logstash', 'mockito', 'spotbugs',
+    'dayjs', 'react-router', 'checkstyle', 'fastjson2', 'junit5', 'logstash', 'mockito', 'spotbugs',
 }
 
 
 def preinstalled_docker(recipe):
-    helper = Path(__file__).with_name('preinstall.py').read_text()
+    # Keep the already-built cache keys for repositories whose baseline
+    # installer has not changed. The current shared helper adds setup paths for
+    # Fastjson2 and JUnit 5; embedding those branches in every image would
+    # invalidate unrelated image caches.
+    helper_name = ('preinstall.py' if recipe['repo'] in ('fastjson2', 'junit5')
+                   else 'preinstall_cache_v8.py')
+    helper = Path(__file__).with_name(helper_name).read_text()
     proxy = Path(__file__).with_name('gradle_proxy.py').read_text().split("\nif __name__ == '__main__':", 1)[0]
     proxy = proxy.replace('def main():', 'def configure_gradle_proxy():')
     program = proxy + '\n' + helper + '\npreinstall(json.loads(sys.argv[1]), configure_gradle_proxy)\n'
     # Only baseline preparation enters the image, never the solution or test patch.
     spec = {key: recipe[key] for key in ('repo', 'base_sha')}
-    spec['prepare'] = recipe['files']['prepare.sh']
+    spec['prepare'] = patched_image_prepare(recipe)
     spec['electron_proxy'] = ELECTRON_PROXY if recipe['repo'] == 'insomnia' else ''
     return ('\n# Install baseline dependencies once, for this exact source commit.\n'
             'ENV GRADLE_USER_HOME=/opt/multiswe-gradle\n'
-            'RUN /opt/multiswe-python/bin/python3 -c ' + shlex.quote('exec(' + repr(program) + ')')
+            + ('ENV MAVEN_USER_HOME=/opt/multiswe-maven-user\n' if recipe['repo'] == 'fastjson2' else '')
+            + 'RUN /opt/multiswe-python/bin/python3 -c ' + shlex.quote('exec(' + repr(program) + ')')
             + ' ' + shlex.quote(json.dumps(spec, sort_keys=True)) + '\n')
 
 
@@ -190,6 +217,19 @@ def share_image(files, recipe, locks):
     recipe = repair_recipe(recipe)
     updated = dict(files)
     updated['environment/Dockerfile'] = docker.replace(old, 'FROM ' + pinned, 1).encode()
+    if recipe['repo'] == 'logstash':
+        # Azul renamed its signed Release metadata. Accept only those fields for
+        # the Azul source, without disabling signature or package verification.
+        azul = ('RUN set -eu; azul_list=$(mktemp --suffix=.list); '
+                'trap \'rm -f "$azul_list"\' EXIT; '
+                'for source in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do '
+                '[ -f "$source" ] || continue; '
+                'grep -E \'^deb[[:space:]].*https?://repos.azul.com/zulu/deb([/[:space:]]|$)\' "$source" >> "$azul_list" || true; done; '
+                'if [ -s "$azul_list" ]; then apt-get -o Dir::Etc::sourcelist="$azul_list" '
+                '-o Dir::Etc::sourceparts=- --allow-releaseinfo-change-origin '
+                '--allow-releaseinfo-change-label update; fi\n')
+        updated['environment/Dockerfile'] = updated['environment/Dockerfile'].replace(
+            (MARKER + '\nUSER root\n').encode(), (MARKER + '\nUSER root\n' + azul).encode(), 1)
     preinstalled = recipe['repo'] in PREINSTALLED_REPOS
     if preinstalled:
         updated['environment/Dockerfile'] += preinstalled_docker(recipe).encode()
@@ -316,6 +356,12 @@ def repair_recipe(recipe):
     if recipe['repo'] == 'checkstyle':
         recipe['files']['fix-run.sh'] = recipe['files']['fix-run.sh'].replace(
             'mvn ', 'mvn -s /opt/multiswe-maven-settings.xml -Dmaven.repo.local=/opt/multiswe-maven ')
+    if recipe['repo'] == 'fastjson2':
+        recipe['files']['fix-run.sh'] = recipe['files']['fix-run.sh'].replace(
+            './mvnw ', './mvnw -s /opt/multiswe-maven-settings.xml -Dmaven.repo.local=/opt/multiswe-maven ')
+    if recipe['repo'] == 'junit5':
+        recipe['files']['fix-run.sh'] = recipe['files']['fix-run.sh'].replace(
+            './gradlew ', './gradlew --init-script /opt/multiswe-junit-local.gradle ')
     run = recipe['files']['fix-run.sh']
     # git apply rejects an empty fix.patch, preventing no-op tests from running.
     def split_apply(match):
@@ -432,6 +478,16 @@ def main():
                 recipe = recipes[row['path']]
                 if recipe['repo'] in PREINSTALLED_REPOS:
                     reasons[row['path']] += ' Preinstall baseline dependencies in the image for the exact source commit; remove dependency installation and baseline test execution from task setup.'
+                if recipe['repo'] == 'redux':
+                    reasons[row['path']] += ' Suppress only the root prepublish release/test hook during dependency installation and restore package.json afterward.'
+                if recipe['repo'] == 'material-ui':
+                    reasons[row['path']] += ' Skip Playwright browser downloads; these tasks use unit-test verifiers.'
+                if recipe['repo'] == 'async':
+                    reasons[row['path']] += ' Reconcile stale package-lock entries with npm install while retaining existing locked versions.'
+                if recipe['repo'] == 'junit5':
+                    reasons[row['path']] += ' Resolve the matching Vintage engine dependency from the baseline project during installation and verification; verify direct Gradle plugin downloads after proxy rate limits.'
+                if recipe['repo'] == 'logstash':
+                    reasons[row['path']] += ' Accept the Azul repository Origin and Label metadata rename only for its signed apt source.'
                 else:
                     reasons[row['path']] += ' Initialize the task checkout in setup while sharing its compatible base image.'
                 if recipe['repo'] in ('dayjs', 'darkreader'):
@@ -447,9 +503,9 @@ def main():
             'dataset': 'PrimeIntellect/Multi-SWE-RL-Verified', 'revision': REVISION,
             'url': f'https://huggingface.co/datasets/PrimeIntellect/Multi-SWE-RL-Verified/tree/{REVISION}'},
             dropped={}, change_labels=labels, change_reasons=reasons, unresolved=unresolved,
-            patches=[{'version': 'multiswe-preinstalled-dependencies-v6', 'python': '3.11.13', 'grader': '1.1.2', 'share_images': args.share_images,
+            patches=[{'version': 'multiswe-preinstalled-dependencies-v10', 'python': '3.11.13', 'grader': '1.1.2', 'share_images': args.share_images,
                       'helper_sha256': {name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
-                                        for name in ('extract_fix_patch.py', 'gradle_proxy.py', 'preinstall.py')},
+                                        for name in ('extract_fix_patch.py', 'gradle_proxy.py', 'preinstall.py', 'preinstall_cache_v8.py')},
                       'base_image_lock': locks if args.share_images else {}}])
         if args.share_images:
             (args.output / (source.stem + '.shared-images.json')).write_text(json.dumps({

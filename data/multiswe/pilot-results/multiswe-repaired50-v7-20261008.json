@@ -1,0 +1,29 @@
+{
+  "status": "submitted",
+  "job_id": "956522",
+  "tasks": 50,
+  "stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "setup_runs": 5,
+  "median_seconds": 30,
+  "max_seconds": 60,
+  "output": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-repaired50-v7-20261008",
+  "contract_sha256": "6e2ccb99f37ecd46a8d42aab1a55284ce98b7f48fb25f9dca0bb71b7d7205852",
+  "tests": {
+    "passed": 1216,
+    "skipped": 2
+  },
+  "next_gate": "All 50 tasks must pass before expanding to 200",
+  "changes": [
+    "Redux root prepublish suppression with package restoration",
+    "MUI unit-test browser-download suppression",
+    "Gradle redirect-host proxy bypass after verified direct download",
+    "matching JUnit Vintage project substitution",
+    "deferred workdir copy includes installed layer",
+    "upload extraction ignores foreign ownership"
+  ]
+}

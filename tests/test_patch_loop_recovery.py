@@ -449,3 +449,67 @@ def test_claude_agents_and_codex_supervisor_have_separate_provider_and_effort(tm
     c.agent_call(config, 'supervisor', {}, tmp_path, 'supervisor')
     assert calls == [('proposer', 'claude', 'claude-opus-5-5', None),
                      ('supervisor', 'codex', 'gpt-6-astra', 'medium')]
+
+
+def fixer_state(config, state_path, *, partial=False):
+    evidence = Path(config['work_root']) / 'generation-0000/stage3-10'
+    evidence.mkdir(parents=True)
+    c.save(evidence / 'dataset-before.json', c.dataset_hashes(config))
+    if partial:
+        Path(config['patcher']).write_text('# fixer edit in progress\n')
+    state = r.read(state_path)
+    state.update(phase='fixer', pending_evidence={'evidence_dir': str(evidence), 'outcome': {}})
+    c.save(state_path, state)
+    return state
+
+
+def test_idle_fixer_restarts_stage3_after_supervisor_fix(setup, monkeypatch):
+    config, state_path, failure = setup
+    config['supervisor_model'] = 'strong-supervisor'
+    fixer_state(config, state_path)
+    finding = Path(config['work_root']) / 'infrastructure-findings/manual.json'
+    c.save(finding, {'cause': 'tmux readiness timeout'})
+    monkeypatch.setattr(c, 'agent_call', lambda *a, **k: json.dumps(decision(restart_from='stage3')))
+    monkeypatch.setattr(r, 'jobs', lambda work: [])
+    assert r.recover(config, state_path, failure) == 'restart'
+    saved = r.read(state_path)
+    assert saved['phase'] == 'build' and saved['generation'] == 1 and saved['pilot'] == 0
+    assert saved['review_setup'] is True and 'pending_evidence' not in saved
+    assert saved['reviewed_findings'] == [str(finding)]
+
+
+def test_fixer_with_partial_edit_resumes_its_checkpoint(setup, monkeypatch):
+    config, state_path, failure = setup
+    fixer_state(config, state_path, partial=True)
+    monkeypatch.setattr(c, 'agent_call', lambda *a, **k: json.dumps(decision(restart_from='stage3')))
+    monkeypatch.setattr(r, 'jobs', lambda work: [])
+    assert r.recover(config, state_path, failure) == 'restart'
+    saved = r.read(state_path)
+    assert saved['phase'] == 'fixer' and saved['generation'] == 0
+    assert saved['pending_evidence']['evidence_dir'].endswith('stage3-10')
+
+
+def test_reviewed_findings_return_later_failures_to_local_recovery(setup, monkeypatch):
+    config, state_path, failure = setup
+    config['supervisor_model'] = 'strong-supervisor'
+    c.save(Path(config['work_root']) / 'infrastructure-findings/manual.json', {'cause': 'Bridge defect'})
+    roles = []
+    def agent(config, role, *a, **k):
+        roles.append(role)
+        return json.dumps(decision())
+    monkeypatch.setattr(c, 'agent_call', agent)
+    monkeypatch.setattr(r, 'jobs', lambda work: [])
+    assert r.recover(config, state_path, failure) == 'restart'
+    state = r.read(state_path)
+    state['status'] = 'blocked'
+    c.save(state_path, state)
+    later = r.record_failure(Path(config['work_root']), state, RuntimeError('agent returned no JSON'))
+    assert r.recover(config, state_path, later) == 'restart'
+    assert roles == ['supervisor', 'recovery']
+    c.save(Path(config['work_root']) / 'infrastructure-findings/generation-0001-review-0000.json', {'findings': []})
+    state = r.read(state_path)
+    state['status'] = 'blocked'
+    c.save(state_path, state)
+    third = r.record_failure(Path(config['work_root']), state, RuntimeError('worker lost'))
+    assert r.recover(config, state_path, third) == 'restart'
+    assert roles == ['supervisor', 'recovery', 'supervisor']

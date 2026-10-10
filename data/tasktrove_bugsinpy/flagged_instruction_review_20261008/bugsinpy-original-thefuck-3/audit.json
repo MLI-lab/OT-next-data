@@ -1,0 +1,34 @@
+{
+  "task_id": "bugsinpy-original-thefuck-3",
+  "agent": "claude-code",
+  "model": "anthropic/claude-opus-5-5",
+  "start": "existing_instruction",
+  "instruction": "# Task\n\nWork in the thefuck project at `/app` to fix the issue described below.\n\n# Issue\n\nthefuck -v hangs Fish Shell initialisation with Oh-My-Fish plugin\n\nOh-My-Fish's TheFuck [plugin](/oh-my-fish/plugin-thefuck) uses `thefuck -v` to decide when to regenerate functions. That triggers a recursive loop because of [shells/fish.py:Fish.info()](/nvbn/thefuck/blob/25142f81f83cf63c73764ec6e1f581a37af6838f/thefuck/shells/fish.py#L108).\n\nFix is on it's way.\n\nReference: oh-my-fish/plugin-thefuck#11\n\nModify the project files to resolve this issue.\n\nYou have 900 seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.\n",
+  "rounds": [
+    {
+      "round": 1,
+      "instruction": "# Task\n\nWork in the thefuck project at `/app` to fix the issue described below.\n\n# Issue\n\nthefuck -v hangs Fish Shell initialisation with Oh-My-Fish plugin\n\nOh-My-Fish's TheFuck [plugin](/oh-my-fish/plugin-thefuck) uses `thefuck -v` to decide when to regenerate functions. That triggers a recursive loop because of [shells/fish.py:Fish.info()](/nvbn/thefuck/blob/25142f81f83cf63c73764ec6e1f581a37af6838f/thefuck/shells/fish.py#L108).\n\nFix is on it's way.\n\nReference: oh-my-fish/plugin-thefuck#11\n\nModify the project files to resolve this issue.\n\nYou have 900 seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.\n",
+      "review": {
+        "instruction_verifier_alignment": {
+          "rating": "FAIL",
+          "description": "The only test run is tests/shells/test_fish.py::TestFish::test_info. It mocks Popen so stdout returns b'fish, version 3.5.9\\n' and asserts that Popen.call_args[0][0] == ['fish', '--version']. The instruction only says that `thefuck -v` recurses because Fish.info() spawns fish. It never says the version must come from exactly `fish --version`, or that the output has the form 'fish, version X'. Other correct fixes would fail this assertion, for example `fish --no-config -c 'echo $FISH_VERSION'`, `fish -N -c ...`, or skipping the subprocess entirely. So the test requires a specific argv that the instruction does not state."
+        },
+        "solution_leakage": {
+          "rating": "PASS",
+          "description": "The instruction is the original bug report. It names shells/fish.py:Fish.info() as the place where the recursion starts, which is a fair part of a real report and still leaves the diagnosis and fix to the agent. It does not give the replacement command, the parsing change, or any test details."
+        },
+        "instruction_quality": {
+          "rating": "UNCERTAIN",
+          "description": "The problem is understandable: Fish.info() launches an interactive-config fish, which runs `thefuck -v` again and loops. But the instruction never says what success looks like, beyond 'resolve this issue'. It also contains noise from the issue: relative or broken links ('/oh-my-fish/plugin-thefuck', '/nvbn/thefuck/blob/...'), 'Fix is on it's way', and a cross-repo reference. None of these help the agent."
+        },
+        "task_validity": {
+          "rating": "FAIL",
+          "reason": "reference_details",
+          "description": "The test asserts the exact subprocess argv used by the reference patch (['fish', '--version']) and depends on the matching parsing of 'fish, version X' output. Valid fixes that avoid the recursion another way fail, for example running fish with --no-config/-N plus `echo $FISH_VERSION`, or another non-recursive way to get the version. The test checks how the reference fix is built internally rather than the behavior (no recursion, correct version string). Stating the exact command in the instruction would just hand over the solution."
+        }
+      }
+    }
+  ],
+  "status": "needs_human: task validity: The test asserts the exact subprocess argv used by the reference patch (['fish', '--version']) and depends on the matching parsing of 'fish, version X' output. Valid fixes that avoid the recursion another way fail, for example running fish with --no-config/-N plus `echo $FISH_VERSION`, or another non-recursive way to get the version. The test checks how the reference fix is built internally rather than the behavior (no recursion, correct version string). Stating the exact command in the instruction would just hand over the solution.",
+  "folder": "task_validity/reference_details"
+}

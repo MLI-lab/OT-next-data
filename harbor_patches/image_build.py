@@ -4,6 +4,61 @@ import os
 import re
 import shutil
 import tempfile
+import subprocess
+import signal
+import threading
+import time
+from collections import deque
+
+
+def build_budget_commands(run, seconds, clock=time.monotonic):
+    """Stream build diagnostics; zero leaves timing to the Slurm allocation."""
+    deadline = clock() + seconds if seconds else None
+
+    def execute(command, *args, **kwargs):
+        inner = command[2:] if command[:2] == ['unshare', '-r'] else command
+        tool = Path(inner[0]).name if inner else ''
+        build = tool in ('apptainer', 'singularity') and inner[1:2] == ['build']
+        deferred = command[:2] == ['unshare', '-r'] and (
+            tool == 'mkfs.ext3' or (tool in ('apptainer', 'singularity') and '--overlay' in inner))
+        if not (build or deferred):
+            return run(command, *args, **kwargs)
+        remaining = deadline - clock() if deadline is not None else None
+        if remaining is not None and remaining <= 0:
+            raise subprocess.TimeoutExpired(command, seconds)
+        options = dict(kwargs)
+        options.pop('timeout', None)
+        options.pop('capture_output', None)
+        options.pop('text', None)
+        options.pop('stdout', None)
+        options.pop('stderr', None)
+        check = options.pop('check', False)
+        tail = deque(maxlen=100)
+        if remaining is None:
+            print('[build] no per-image timeout; the Slurm allocation sets the deadline', flush=True)
+        else:
+            print(f'[build] remaining image budget: {remaining:.1f}s', flush=True)
+        with subprocess.Popen(command, *args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              text=True, errors='replace', start_new_session=True, **options) as process:
+            def stream():
+                for line in process.stdout:
+                    tail.append(line[-2000:])
+                    print(line, end='', flush=True)
+            reader = threading.Thread(target=stream, daemon=True)
+            reader.start()
+            try:
+                code = process.wait(timeout=remaining)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+                reader.join(timeout=5)
+                raise subprocess.TimeoutExpired(command, seconds, output=''.join(tail))
+            reader.join(timeout=5)
+        output = ''.join(tail)
+        if check and code:
+            raise subprocess.CalledProcessError(code, command, output=output, stderr=output)
+        return subprocess.CompletedProcess(command, code, stdout=output, stderr=output if code else '')
+    return execute
 
 
 def certificate_build_mountpoints(run):
@@ -33,6 +88,32 @@ def certificate_build_mountpoints(run):
             content += '\n%files\n' + ''.join(f'    {empty} {target}\n' for target in sorted(targets))
             definition.write_text(content)
             return run([*command[:-1], str(definition)], *args, **kwargs)
+    return execute
+
+
+def artifact_build_mount(run, directory):
+    """Expose an optional build-only artifact store read-only in both build paths."""
+    source = Path(directory).resolve(strict=True)
+    if not source.is_dir():
+        raise ValueError('Image build artifact store must be a directory')
+    target = '/run/ot-image-artifacts'
+
+    def execute(command, *args, **kwargs):
+        offset = 2 if command[:2] == ['unshare', '-r'] else 0
+        inner = command[offset:]
+        if not (isinstance(command, list) and len(inner) > 2
+                and Path(inner[0]).name in ('apptainer', 'singularity')
+                and inner[1] in ('exec', 'build')):
+            return run(command, *args, **kwargs)
+        adapted = command[:offset + 2] + ['--bind', f'{source}:{target}:ro'] + command[offset + 2:]
+        if inner[1] == 'build' and str(command[-1]).endswith('.def'):
+            with tempfile.TemporaryDirectory(prefix='image-artifact-target-') as temporary:
+                empty = Path(temporary) / 'empty'
+                empty.mkdir()
+                definition = Path(temporary) / 'build.def'
+                definition.write_text(Path(command[-1]).read_text() + f'\n%files\n    {empty}/ {target}/\n')
+                return run([*adapted[:-1], str(definition)], *args, **kwargs)
+        return run(adapted, *args, **kwargs)
     return execute
 
 
@@ -80,8 +161,10 @@ def directory_overlay_builds(run_unshared, apptainer):
             print('[build] using native directory scratch for deferred RUN steps', flush=True)
             # Build against the image filesystem, not site-wide host /home or
             # working-directory mounts. Explicit DNS/certificate binds remain.
+            # Containment's empty /tmp and /var/tmp would hide COPY inputs and
+            # discard RUN outputs there. Use the image's overlaid directories.
             result = run_unshared(command[:2] + ['--userns', '--containall', '--no-home',
-                '--no-mount', 'hostfs,bind-paths,cwd'] + command[2:], timeout=timeout)
+                '--no-mount', 'hostfs,bind-paths,cwd,tmp'] + command[2:], timeout=timeout)
             path.rename(tree)
             path.touch(mode=0o600, exist_ok=False)
             with path.open('wb') as stream:
