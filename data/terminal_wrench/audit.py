@@ -11,6 +11,9 @@ reward.txt as Harbor does:
 - ``oracle``: solution/solve.sh; expected reward 1.
 - ``exploit:<model>/<label>``: the shell keystrokes of a recorded trajectory
   that Terminal Wrench judged a rewarded serious exploit.
+- ``legitimate:<model>/<label>``: the keystrokes of a recorded attacker run
+  that Terminal Wrench judged a legitimate solve; expected reward 1. It checks
+  that a hardened verifier still accepts honest work.
 
 Keystrokes go as one stdin stream to an interactive login bash, like the
 Terminus tmux pane: startup files run, syntax errors are not fatal, Ctrl-C
@@ -21,6 +24,11 @@ reads stdin consumes the lines typed after it. Each exploit is classified:
 - ``blocked``: reward 0 after a replay that parsed and ran to the end;
 - ``inconclusive``: anything else (no reward, timeout, a replay that did not
   parse or whose last command failed). It is no evidence either way.
+
+A legitimate solve is ``accepted`` (reward 1), ``rejected`` (reward 0 after a
+replay that parsed and did not time out, whatever its last command returned:
+honest runs often end on a failing check) or ``inconclusive``. A solve that
+is accepted before a hardening and rejected after it is a false failure.
 """
 import argparse
 import hashlib
@@ -209,7 +217,16 @@ def outcome(record):
     return 'inconclusive'
 
 
-def audit_task(task, sidecar, upstream, out, max_exploits, ca_bundle=None, pip_verifier=False):
+def legitimate_outcome(record):
+    if (record.get('status') != 'ok' or record.get('reward') is None
+            or 'timeout' in (record.get('agent_exit'), record.get('verifier_exit'))):
+        return 'inconclusive'
+    if record['reward'] == 1.0:
+        return 'accepted'
+    return 'rejected' if record.get('replay_parses') else 'inconclusive'
+
+
+def audit_task(task, sidecar, upstream, out, max_exploits, ca_bundle=None, pip_verifier=False, max_legitimate=0):
     config = tomllib.loads((task / 'task.toml').read_text())
     timeouts = {'agent': float(config.get('agent', {}).get('timeout_sec', 600)),
                 'verifier': float(config.get('verifier', {}).get('timeout_sec', 600))}
@@ -237,25 +254,34 @@ def audit_task(task, sidecar, upstream, out, max_exploits, ca_bundle=None, pip_v
                'build_seconds': round(time.time() - started, 1), 'cases': []}
     if build.returncode:
         return summary
-    exploits = [e for e in json.loads(Path(sidecar).read_text())['exploits']
-                if e['classification'] == 'rewarded_serious_exploit' and e['trajectory']]
+    trials = json.loads(Path(sidecar).read_text())['exploits']
+    exploits = [e for e in trials if e['classification'] == 'rewarded_serious_exploit' and e['trajectory']]
+    legitimate = [e for e in trials if e['classification'] == 'attacker_legitimate_solve' and e['trajectory']]
     cases = [('nop', None, 0.0), ('oracle', '', 1.0)]
     for e in exploits[:max_exploits]:
         cases.append((f'exploit:{e["model"]}/{e["label"]}', keystrokes(upstream / e['trajectory']), None))
+    for e in legitimate[:max_legitimate]:
+        cases.append((f'legitimate:{e["model"]}/{e["label"]}', keystrokes(upstream / e['trajectory']), 1.0))
     with (out / 'cases.log').open('w') as log:
         for case, script, expected in cases:
             record = run_case(image, task, case, script, timeouts, log, ca_bundle, pip_verifier)
             record['expected'] = expected
             if case.startswith('exploit:'):
                 record['outcome'] = outcome(record)
+            elif case.startswith('legitimate:'):
+                record['outcome'] = legitimate_outcome(record)
             summary['cases'].append(record)
             print(json.dumps({'task': task.name, **record}), flush=True)
     rewards = {c['case']: c.get('reward') for c in summary['cases']}
     exploit_cases = [c for c in summary['cases'] if c['case'].startswith('exploit:')]
+    legitimate_cases = [c for c in summary['cases'] if c['case'].startswith('legitimate:')]
     summary.update(oracle_passed=rewards.get('oracle') == 1.0, nop_passed=rewards.get('nop') == 0.0,
                    exploits_replayed=len(exploit_cases),
                    **{f'exploits_{k}': sum(c['outcome'] == k for c in exploit_cases)
-                      for k in ('reproduced', 'blocked', 'inconclusive')})
+                      for k in ('reproduced', 'blocked', 'inconclusive')},
+                   legitimate_replayed=len(legitimate_cases),
+                   **{f'legitimate_{k}': sum(c['outcome'] == k for c in legitimate_cases)
+                      for k in ('accepted', 'rejected', 'inconclusive')})
     return summary
 
 
@@ -266,6 +292,8 @@ def main():
     ap.add_argument('--tasks', nargs='+', required=True, help='task directory names, e.g. seta-env-1012')
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--max-exploits', type=int, default=3, help='rewarded serious exploits replayed per task')
+    ap.add_argument('--max-legitimate', type=int, default=0,
+                    help='recorded legitimate solves replayed per task, to check that honest work still passes')
     ap.add_argument('--ca-bundle', type=Path, help='CA bundle to trust in containers, for hosts whose egress re-signs TLS')
     ap.add_argument('--pip-verifier', action='store_true',
                     help='replace the wrapper\'s uv download with a PyPI venv; for hosts that block astral.sh')
@@ -276,13 +304,16 @@ def main():
     for name in args.tasks:
         results.append(audit_task(args.patched / 'tasks' / name, args.patched / 'exploits' / f'{name}.json',
                                   args.upstream.resolve(), args.out / name, args.max_exploits,
-                                  args.ca_bundle.resolve() if args.ca_bundle else None, args.pip_verifier))
+                                  args.ca_bundle.resolve() if args.ca_bundle else None, args.pip_verifier,
+                                  args.max_legitimate))
         (args.out / 'summary.json').write_text(json.dumps(results, indent=2) + '\n')
     totals = {'tasks': len(results),
               'build_errors': sum(r.get('build') != 'ok' for r in results),
               'oracle_and_nop_passed': sum(bool(r.get('oracle_passed') and r.get('nop_passed')) for r in results)}
     for key in ('replayed', 'reproduced', 'blocked', 'inconclusive'):
         totals[f'exploits_{key}'] = sum(r.get(f'exploits_{key}', 0) for r in results)
+    for key in ('replayed', 'accepted', 'rejected', 'inconclusive'):
+        totals[f'legitimate_{key}'] = sum(r.get(f'legitimate_{key}', 0) for r in results)
     print(json.dumps(totals, indent=2))
 
 

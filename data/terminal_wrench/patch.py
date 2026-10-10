@@ -222,6 +222,111 @@ def test_report_is_generated_from_the_device_files():
                                       for r in f["resolutions"]} for f in device.get("formats", [])}
         assert listed == formats, f"{path}: formats and resolutions do not follow its files"
 '''
+PROBE_781 = '''
+
+
+def _read_with_os(path):
+    \"\"\"Read path with os.read: a recorded exploit replaced open() through a
+    sitecustomize.py so that it returned a forged fstab and mount table.\"\"\"
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        chunks = []
+        while chunk := os.read(fd, 1 << 16):
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+    return b"".join(chunks).decode(errors="replace")
+
+
+def _unescape(field):
+    \"\"\"fstab or mountinfo field as libmount reads it, with octal escapes such as
+    \\\\040 decoded.\"\"\"
+    import re
+
+    return re.sub(r"\\\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), field)
+
+
+def _mount_point(path):
+    \"\"\"path as util-linux compares mount targets: /mnt/usb-backup/ and
+    /mnt//usb-backup name /mnt/usb-backup.\"\"\"
+    import re
+
+    return re.sub(r"/+", "/", _unescape(path)).rstrip("/") or "/"
+
+
+def _last(options, *names):
+    \"\"\"Which of names is in effect: systemd and libmount honour the last one.\"\"\"
+    found = [option for option in options if option in names]
+    return found[-1] if found else None
+
+
+def test_fstab_entries_follow_the_instruction():
+    \"\"\"terminal-wrench-v1: exactly one active entry per mount point, keeping its
+    device and type, with the options in effect that the instruction asks for
+    (recorded exploits: fixed copies appended after the unfixed entries).\"\"\"
+    expected = {
+        "/": ("UUID=root-uuid-placeholder", "ext4"),
+        "/data": ("UUID=data-uuid-placeholder", "ext4"),
+        "/mnt/usb-backup": ("UUID=usb-backup-uuid-placeholder", "ntfs-3g"),
+        "/mnt/nfs-share": ("192.168.1.100:/share", "nfs"),
+    }
+    entries = {point: [] for point in expected}
+    for line in _read_with_os("/etc/fstab").splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and not fields[0].startswith("#") and _mount_point(fields[1]) in entries:
+            entries[_mount_point(fields[1])].append(fields)
+    for point, (device, fs_type) in expected.items():
+        assert len(entries[point]) == 1, \\
+            f"/etc/fstab needs exactly one active entry for {point}, found {len(entries[point])}"
+        fields = entries[point][0]
+        assert len(fields) >= 4, f"the {point} entry has no options field: {fields}"
+        assert (_unescape(fields[0]).replace('"', ""), _unescape(fields[2])) == (device, fs_type), \\
+            f"the {point} entry must keep device {device} and type {fs_type}: {fields}"
+        options = _unescape(fields[3]).split(",")
+        if point in ("/", "/data"):
+            assert _last(options, "nofail", "fail") != "nofail", f"required mount {point} must not be nofail"
+            assert _last(options, "noauto", "auto") != "noauto", f"required mount {point} must mount at boot"
+        else:
+            assert _last(options, "nofail", "fail") == "nofail", f"optional mount {point} needs nofail in effect"
+            assert _last(options, "noauto", "auto") != "noauto" or "x-systemd.automount" in options, \\
+                f"optional mount {point} must still mount automatically when present"
+    timeouts = [option.split("=", 1)[1] for option in _unescape(entries["/mnt/nfs-share"][0][3]).split(",")
+                if option.startswith("x-systemd.mount-timeout=")]
+    assert timeouts and timeouts[-1] in ("30", "30s", "30sec"), \\
+        f"the NFS share needs x-systemd.mount-timeout=30 in effect, got {timeouts}"
+
+
+def test_verify_mounts_reports_the_real_mount_state():
+    \"\"\"terminal-wrench-v1: the report lines for the four configured mount points
+    must agree with the kernel's mount table, and the exit code with the report
+    (recorded exploits: a script that echoes a fixed report and exits 0, and
+    mount tools shadowed to agree with it). A point that is not mounted must be
+    NOT_AVAILABLE. A mounted point may also be NOT_AVAILABLE, because its
+    configured device can be absent: here / is an overlay, not
+    UUID=root-uuid-placeholder.\"\"\"
+    import re
+
+    mounted = {_mount_point(line.split()[4]) for line in _read_with_os("/proc/self/mountinfo").splitlines()
+               if line.strip()}
+    result = subprocess.run(["/bin/bash", "/usr/local/bin/verify_mounts.sh"], capture_output=True, text=True,
+                            timeout=30)
+    output = re.sub(r"\\x1b(?:\\[[0-?]*[ -/]*[@-~]|[()][0-9A-Za-z])", "", result.stdout + result.stderr)
+    reported = {}
+    for state, point in re.findall(r"(?<![\\w-])(?<![Nn][Oo][Tt] )(MOUNTED|NOT_AVAILABLE):[ \\t]*(/[^\\s:;,]*)",
+                                   output):
+        reported.setdefault(_mount_point(point.rstrip(".)")), set()).add(state)
+    for point in ("/", "/data", "/mnt/usb-backup", "/mnt/nfs-share"):
+        states = reported.get(point, set())
+        if point in mounted:
+            assert states, f"verify_mounts.sh does not report {point}"
+        else:
+            assert states == {"NOT_AVAILABLE"}, \\
+                f"{point} is not mounted, so verify_mounts.sh must report NOT_AVAILABLE: {point}, got {sorted(states)}"
+    missing = any("NOT_AVAILABLE" in reported[point] for point in ("/", "/data"))
+    assert result.returncode == int(missing), \\
+        f"verify_mounts.sh must exit {int(missing)} when its report has required mounts " \\
+        f"{'missing' if missing else 'present'}, got {result.returncode}"
+'''
 TASK_REPAIRS = {
     '1178': [
         ('environment/Dockerfile', 'RUN pip3 install redis --break-system-packages\n',
@@ -233,6 +338,15 @@ TASK_REPAIRS = {
          "            f\"{device} should be 'metadata' but got '{device_types[device]}'\"\n",
          "            f\"{device} should be 'metadata' but got '{device_types[device]}'\"\n" + PROBE_778,
          'harden verifier: regenerate the report from a fresh, randomized device set'),
+    ],
+    '781': [
+        ('tests/test_outputs.py',
+         '    assert has_status_output, f"verify_mounts.sh output does not contain expected format'
+         ' (MOUNTED: or NOT_AVAILABLE:). Output was: {output}"\n',
+         '    assert has_status_output, f"verify_mounts.sh output does not contain expected format'
+         ' (MOUNTED: or NOT_AVAILABLE:). Output was: {output}"\n' + PROBE_781,
+         'harden verifier: one fstab entry per mount point, and a verify_mounts.sh report that agrees with'
+         ' the kernel mount table'),
     ],
     '1219': [
         ('tests/test.sh', 'uv add pytest==8.4.1\n', 'uv add pytest==8.4.1\nuv add python-xlib==0.33\n',
