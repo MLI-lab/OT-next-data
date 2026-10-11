@@ -16,6 +16,7 @@ COMMANDS = {
     'facet': ['build-source', 'prepare-pilot'],
     'seta': ['download'], 'calibforge': ['prepare-pilot'],
     'tmax': ['prepare-pilot'], 'termigen': ['prepare-pilot'],
+    'endless_terminals': ['build-source'],
 }
 
 

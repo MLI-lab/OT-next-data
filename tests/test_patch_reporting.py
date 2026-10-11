@@ -41,6 +41,17 @@ def report(tmp_path, **overrides):
     return write_patch_report(tmp_path / 'original.parquet', tmp_path / 'patched.parquet', **options)
 
 
+def test_label_reasons_are_kept_per_label_and_shown_once_per_label(tmp_path):
+    inputs(tmp_path)
+    reasons = {'set-1': {'instruction-clarified': 'Clarified the instruction.', 'verifier-aligned': 'Aligned the tests.'}}
+    document = report(tmp_path, label_reasons=reasons, change_reasons={'set-1': 'Both changes.'})
+    assert document['tasks'][0]['label_reasons'] == reasons['set-1']
+    assert document['tasks'][0]['reason'] == 'Both changes.'
+    with pytest.raises(ValueError, match='labels the task does not carry'):
+        report(tmp_path, archive=tmp_path / 'archive2.parquet', manifest=tmp_path / 'manifest2.json',
+               label_reasons={'set-1': {'other': 'No such label.'}})
+
+
 def test_source_comparison_and_combined_archive(tmp_path):
     original, patched = inputs(tmp_path)
     document = report(tmp_path)
