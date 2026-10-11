@@ -116,3 +116,27 @@ test generation. Keep large data, models, environments, caches and results in
 the workspace, with compute execution staged to node-local scratch.
 Snapshot code per run and reuse site-local data/model caches. Do not assume the
 Helma launcher works unchanged on CLAIX or LRZ merely because SSH works there.
+
+## Scale SWE unattended continuation, 2026-10-12
+
+The current run has a Helma-side reconnecting controller at:
+
+```text
+/home/hpc/y500bb/y500bb12/.local/state/ot-next-data/zih-scaleswe-control-20261012
+```
+
+Read `status.json`, `watch.log` and `process.json` there before starting another
+controller. `watch.py` retries connections for up to 12 hours from startup;
+it is a temporary process, not a permanent service. `remote_gate.py` checks
+both pilots and submits their prepared full arrays only after successful Slurm
+completion, passing stages 3 through 7, exact task/attempt coverage, oracle 1,
+NOP 0, real verifier rewards, nonempty agent/tool trajectories and no recorded
+infrastructure errors or task timeouts. An agent reward of zero is allowed.
+
+The run-specific controller records `pilot-gate.json` on ZIH and an exclusive
+`gated-submission.json` per full array before calling Slurm. A submission marked
+`submission_started` without a confirmed job ID requires reconciliation against
+Slurm, not blind resubmission. Failed pilots stop the gate for investigation.
+At controller startup, Instruct pilot `4406612` was running, the thinking model
+was still downloading, and the Mac tunnel was timing out. These are historical
+observations; read current records rather than assuming completion.
