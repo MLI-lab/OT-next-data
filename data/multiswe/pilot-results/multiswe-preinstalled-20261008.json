@@ -1,0 +1,57 @@
+{
+  "dataset": "PrimeIntellect/Multi-SWE-RL-Verified",
+  "revision": "80de95c62ac792c99dcfa8e26569bcd7d036bdc3",
+  "status": "cancelled_after_slow_build_failures",
+  "job_id": "954592",
+  "node_at_start": "h31-39",
+  "partition": "cpu",
+  "stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "setup_review": {
+    "runs": 5,
+    "median_seconds": 30,
+    "maximum_seconds": 60
+  },
+  "tasks": [
+    "Kong__insomnia-8131",
+    "anuraghazra__github-readme-stats-391",
+    "caolan__async-1078",
+    "checkstyle__checkstyle-10979",
+    "checkstyle__checkstyle-13482",
+    "checkstyle__checkstyle-15149",
+    "elastic__logstash-13523",
+    "iamkun__dayjs-2705",
+    "junit-team__junit5-2885",
+    "junit-team__junit5-4049",
+    "mui__material-ui-25547",
+    "mui__material-ui-41306",
+    "reduxjs__redux-1818",
+    "remix-run__react-router-10433",
+    "trpc__trpc-5119"
+  ],
+  "unique_images": 15,
+  "image_policy": "baseline dependency installation at the exact source commit; standard dependency stores baked into the image; no cross-commit cache warmer or runtime restore step",
+  "removed_helpers": [
+    "warm_gradle_cache.py",
+    "gradle-cache-profiles.json"
+  ],
+  "timeout_changes": "Maven skips test execution while preparing test classes; Gradle prepares test classes and Test-task runtime dependencies, without executing the full baseline test suite. Verifier retains tests.",
+  "scope": "Retry nine slow tasks and six timeout tasks; six ownership-error tasks remain deferred.",
+  "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-preinstalled-20261008/results/submissions/82e3ed032b50",
+  "contract": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-preinstalled-20261008/contract.json",
+  "patched_source": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/datasets/multiswe/preinstalled-15-v3/source-15.parquet",
+  "image_overlay_capacity_mb": 32768,
+  "tests": {
+    "focused_passed": 39,
+    "full_passed": 1073,
+    "full_failed": 1,
+    "failure": "tests/test_image_release.py::test_publisher_pins_artifact_commit_in_same_pr",
+    "log": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-preinstalled-20261008/pytest-final.log"
+  },
+  "superseded_by_job": "954983",
+  "preserved_build_diagnostics": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-preinstalled-20261008/old-builder-diagnostics.tar.gz"
+}

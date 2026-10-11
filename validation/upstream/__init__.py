@@ -1,7 +1,6 @@
-"""Checkout management and file-based imports; upstream checkouts stay unchanged."""
+"""Pinned upstream assets, checkout management and file-based imports."""
 from __future__ import annotations
 
-import argparse
 import importlib.util
 import json
 from pathlib import Path
@@ -10,6 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 PINS = json.loads((Path(__file__).parent / 'upstream.lock.json').read_text())
+from config.runtime import harbor_commit
+PINS['harbor-validation']['commit'] = harbor_commit()
 
 
 def checkout(name):
@@ -42,10 +43,3 @@ def setup():
             subprocess.run(['git', '-C', str(path), 'checkout', '--detach', pin['commit']], check=True)
         checkout(name)  # Never reset an existing user's checkout.
         print(f'{name}: {pin["commit"]}')
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['setup'])
-    parser.parse_args()
-    setup()

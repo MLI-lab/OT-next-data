@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-09T08:00:18.775902+00:00",
+  "scope": "Import and dependency diagnosis only. Production task payloads and patcher were not changed. Diagnostic task payloads are not production acceptance evidence.",
+  "candidate": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v55/source.parquet",
+  "unchanged_grading_artifacts_vs_original": {
+    "sdss__sdss_access-69": {
+      "tests/required.json": "966aa41ed7db9e3cc2e6c2d92231268d80e7510d401b5f99597437c8a8638876",
+      "tests/test.patch": "4b739c5c1ae46499bb876d1668564e9f44ab0791769c019b608924535efe02f2",
+      "solution/gold.patch": "f9c6f9bb602d43ac53c38e0626333692838252e7476d4cabef6b1642a6ad0fac"
+    },
+    "msgpack__msgpack-python-388": {
+      "tests/required.json": "070293ea1f88b6102942b2c5a705c6534f49776d1261ed2a45478916abee914f",
+      "tests/test.patch": "45a6ba70643f43da12c78ef939795fe175c1d0c09d0d6e131468ef4f6d9260ee",
+      "solution/gold.patch": "58b34a1958f739e3f3b4a6510847cf74019e27434df61addee5ddf533312fd9c"
+    }
+  },
+  "baseline": {
+    "job_id": "958737",
+    "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/import-probe-v59b-results/submissions/4a8c3336dfdf/evidence.tar.gz"
+  },
+  "controlled": {
+    "job_id": "958736",
+    "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/controlled-probe-v60-results/submissions/50d2f435816b/evidence.tar.gz",
+    "stage_4": "both passed, reward 1",
+    "stage_5": "both passed, reward 0"
+  },
+  "msgpack": {
+    "task": "msgpack__msgpack-python-388",
+    "commit": "7a8ce0f9ca910a851b6835d26b1d6970a188fa4e",
+    "import": "/testbed/msgpack/__init__.py",
+    "default_backend": "/testbed/msgpack/_cmsgpack.cpython-37m-x86_64-linux-gnu.so",
+    "baseline_nop_reward": 1,
+    "baseline_tests": "7 passed",
+    "controlled_setting": "MSGPACK_PUREPYTHON=1",
+    "controlled_nop_reward": 0,
+    "controlled_nop_tests": "1 failed, 6 passed",
+    "failing_test": "test/test_sequnpack.py::test_readbytes",
+    "controlled_oracle_reward": 1,
+    "controlled_oracle_tests": "7 passed",
+    "finding": "The unchanged upstream verifier selects the compiled backend, while the reference patch repairs msgpack/fallback.py. The pinned checkout is imported correctly. Upstream CI at the pinned commit tests both default and MSGPACK_PUREPYTHON backends.",
+    "recommendation": "Have the verifier exercise the pure-Python backend, preferably alongside the compiled backend."
+  },
+  "sdss": {
+    "task": "sdss__sdss_access-69",
+    "commit": "1519bc3870486d8bc3b6293d8c76680fabee909a",
+    "import": "/testbed/python/sdss_access/path/path.py",
+    "tree_import": "/opt/conda/envs/testbed/lib/python3.9/site-packages/tree/__init__.py",
+    "dependency": "sdss-tree==4.0.7, matches original frozen recipe",
+    "dependency_wheel_sha256": "89e63bc544e47419916c684183a1875ac7d8bc1d5e84b7943b4e14e749ca9af7",
+    "dr19_release_date": "2025-07-11",
+    "baseline_nop_reward": 1,
+    "baseline_tests": "83 passed, 6 skipped",
+    "controlled_setting": "Local datetime proxy in sdss_access.path.path fixed at 2025-04-01; versions and assertions unchanged",
+    "controlled_nop_reward": 0,
+    "controlled_nop_tests": "1 failed, 82 passed, 6 skipped",
+    "failing_test": "tests/path/test_path.py::test_is_sdss5[DR19]",
+    "controlled_oracle_reward": 1,
+    "controlled_oracle_tests": "83 passed, 6 skipped",
+    "finding": "The test derives its expected value from whether DR19 is public today. After its pinned release date it no longer detects the missing fix. The correct pinned checkout and dependency are imported.",
+    "recommendation": "Make the verifier date deterministic or construct a release-date fixture that explicitly exercises the pre-release case."
+  },
+  "logs": {
+    "sdss-baseline-probe.txt": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/import-investigation/sdss-baseline-probe.txt",
+    "msgpack-baseline-probe.txt": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/import-investigation/msgpack-baseline-probe.txt",
+    "sdss-controlled-nop.txt": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/import-investigation/sdss-controlled-nop.txt",
+    "msgpack-controlled-oracle.txt": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/import-investigation/msgpack-controlled-oracle.txt",
+    "sdss-controlled-oracle.txt": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/import-investigation/sdss-controlled-oracle.txt",
+    "msgpack-controlled-nop.txt": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/import-investigation/msgpack-controlled-nop.txt"
+  }
+}

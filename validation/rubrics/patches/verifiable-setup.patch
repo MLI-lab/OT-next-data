@@ -1,0 +1,11 @@
+--- rubric.toml
++++ rubric.toml
+@@ -6,7 +6,7 @@
+ 
+ The verifier needs to be almost perfect, but not provably perfect. Using LLM-as-a-judge is permissible in rare and extraordinary circumstances, but only if it can be shown that the verifier essentially never makes a mistake. One way to show this is by having multiple different LLMs always make the same determination. It must be documented what alternate approaches could have substituted for LLM-as-a-judge and why those are insufficient.
+ 
+-Reliability also means avoiding runtime network installs at verify time. `apt-get install`, `curl ... | sh`, `pip install`, etc. inside `test.sh` introduce flakiness (intermittent network, rate limits, upstream version churn) and slow every trial. Bake those dependencies into `tests/Dockerfile` instead. Exception: a separate verifier may install the agent's pinned dependency manifest in `test.sh` — its build context is `tests/`, so the agent's deps arrive only at verify time (see `separate_verifier_configured`).
++Reliability also means avoiding runtime network installs at verify time. `apt-get install`, `curl ... | sh`, `pip install`, etc. inside `tests/setup.sh` or `tests/test.sh` introduce flakiness (intermittent network, rate limits, upstream version churn) and slow every trial. Bake those dependencies into `tests/Dockerfile` instead. Exception: a separate verifier may install the agent's pinned dependency manifest in `test.sh` — its build context is `tests/`, so the agent's deps arrive only at verify time (see `separate_verifier_configured`).
+ 
+ Reject tasks where there is no way to verify the task has been solved or where grading is subjective (e.g., "make this game more fun"). PASS if the verifier is deterministic, reliable, programmatic, and does not perform runtime network installs for verifier dependencies at verify time. FAIL if verification depends on subjective judgment, is non-deterministic, uses LLM-as-a-judge without documented justification, or relies on `test.sh` to install verifier tooling that could be baked into `tests/Dockerfile` (the agent's pinned manifest excepted)."""
+ 

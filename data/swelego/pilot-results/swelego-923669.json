@@ -1,0 +1,167 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-optiagent/swelego-20-pilot/results/submissions/e48de4f46116/evidence.tar.gz",
+  "contract_sha256": "831bd5523effcb1eaeee105e79241fedba302ea635cf96b3aa5119b07102e6bb",
+  "network_status": {
+    "requested": "host",
+    "effective": "host",
+    "reason": "host networking explicitly requested"
+  },
+  "instruction_fixup": {
+    "operation": "canonical-timeout-anticheat-suffix-v1",
+    "original_path": "/hnvme/workspace/y500bb12-optiagent/swelego-20-pilot/input/tasks",
+    "description": "Our extension to the upstream Terminal-Bench suffix check appends the sentence when missing and overwrites the saved instruction.md in the validation copy; an existing canonical suffix is updated without duplication. Original inputs are unchanged.",
+    "sentence_template": "You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.",
+    "timeout_source": "[agent].timeout_sec",
+    "saved_dataset": "/hnvme/workspace/y500bb12-optiagent/swelego-20-pilot/contract.stage1-tasks",
+    "original_manifest_sha256": "0da2f72c95f4bfce34a0e8359d88902977ee1d57f3190aed76471f433425f86b",
+    "original_source_files": [],
+    "original_selection": {
+      "limit": null,
+      "task_id_range": null
+    }
+  },
+  "contract_status": "bound",
+  "requested_stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "static_checks",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "passed": 18,
+        "failed": 2
+      },
+      "report": "results/stage_1_static_checks/026806b43910/summary.json",
+      "contract_sha256": "831bd5523effcb1eaeee105e79241fedba302ea635cf96b3aa5119b07102e6bb",
+      "timing": {
+        "node": "h32-19",
+        "slurm_job_id": "923669",
+        "started_at": "2026-10-02T12:04:52+00:00",
+        "wall_seconds": 21.9,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 3,
+      "name": "build_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "passed": 20
+      },
+      "report": "results/stage_3_build_validation/be2f632ad2a6/summary.json",
+      "contract_sha256": "831bd5523effcb1eaeee105e79241fedba302ea635cf96b3aa5119b07102e6bb",
+      "timing": {
+        "node": "h32-19",
+        "slurm_job_id": "923669",
+        "started_at": "2026-10-02T12:05:15+00:00",
+        "wall_seconds": 536.3,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 4,
+      "name": "oracle_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "passed": 20
+      },
+      "report": "results/stage_4_oracle_validation/589b479cc6d4/summary.json",
+      "contract_sha256": "831bd5523effcb1eaeee105e79241fedba302ea635cf96b3aa5119b07102e6bb",
+      "timing": {
+        "node": "h32-19",
+        "slurm_job_id": "923669",
+        "started_at": "2026-10-02T12:14:13+00:00",
+        "wall_seconds": 47.0,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 5,
+      "name": "nop_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "passed": 19,
+        "failed": 1
+      },
+      "report": "results/stage_5_nop_validation/57f1ad46fca7/summary.json",
+      "contract_sha256": "831bd5523effcb1eaeee105e79241fedba302ea635cf96b3aa5119b07102e6bb",
+      "timing": {
+        "node": "h32-19",
+        "slurm_job_id": "923669",
+        "started_at": "2026-10-02T12:15:00+00:00",
+        "wall_seconds": 36.4,
+        "concurrency": 8
+      }
+    }
+  ],
+  "review_groups": null,
+  "pipelines": [
+    {
+      "stages": [
+        {
+          "stage": 1,
+          "report": "/tmp/923669.helma/validation-e48de4f46116/results/stage_1_static_checks/026806b43910/summary.json",
+          "status": "findings"
+        },
+        {
+          "stage": 3,
+          "report": "/tmp/923669.helma/validation-e48de4f46116/results/stage_3_build_validation/be2f632ad2a6/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 4,
+          "report": "/tmp/923669.helma/validation-e48de4f46116/results/stage_4_oracle_validation/589b479cc6d4/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 5,
+          "report": "/tmp/923669.helma/validation-e48de4f46116/results/stage_5_nop_validation/57f1ad46fca7/summary.json",
+          "status": "findings"
+        }
+      ],
+      "complete": true,
+      "dry_run": false,
+      "contract_sha256": "831bd5523effcb1eaeee105e79241fedba302ea635cf96b3aa5119b07102e6bb"
+    }
+  ],
+  "failures": [
+    {
+      "stage": 1,
+      "task": "Zulko__moviepy-1768",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923669.helma/validation-e48de4f46116/results/stage_1_static_checks/026806b43910/static/checks.log"
+    },
+    {
+      "stage": 1,
+      "task": "zopefoundation__zope.site-11",
+      "status": "failed",
+      "check": "check-task-absolute-path.sh",
+      "benchmark_policy": false,
+      "reason": "exit_code=1",
+      "evidence": "/tmp/923669.helma/validation-e48de4f46116/results/stage_1_static_checks/026806b43910/static/checks.log"
+    },
+    {
+      "stage": 5,
+      "task": "zopefoundation__zope.site-11",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: verifier executed no tests (empty, skipped, or setup errors)\"]",
+      "evidence": "/tmp/923669.helma/validation-e48de4f46116/results/stage_5_nop_validation/57f1ad46fca7/jobs/job"
+    }
+  ]
+}

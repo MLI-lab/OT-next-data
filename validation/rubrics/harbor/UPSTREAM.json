@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/harbor-framework/harbor",
+  "commit": "d5ac1be17f575852eaf4fffc4072fd18481c209b",
+  "source_path": "src/harbor/cli/quality_checker/default-rubric.toml",
+  "source_url": "https://raw.githubusercontent.com/harbor-framework/harbor/d5ac1be17f575852eaf4fffc4072fd18481c209b/src/harbor/cli/quality_checker/default-rubric.toml",
+  "source_sha256": "0b2bf9e42e8a6290d9f43dab68c9ba61e5e00784deef0f586ca53af608f2903d",
+  "patch": "patches/remove-training-inapplicable-criteria.patch",
+  "patch_reason": "Removed pinned_dependencies because Stage 1 check-pip-pinning.sh checks dependency pinning more cheaply and reliably than an LLM judge. Removed test_deps_in_image because training tasks may install reusable test tooling (such as pytest) in shared task images to reduce unique image storage and setup time."
+}

@@ -1,0 +1,27 @@
+{
+  "agent_model": "gpt-6-astra",
+  "agent_provider": "codex",
+  "concurrency": 8,
+  "cpus": 48,
+  "dataset": "PrimeIntellect/Multi-SWE-RL-Verified",
+  "memory": "128G",
+  "network_mode": "host",
+  "partition": "cpu",
+  "patch_command": [
+    "{python}",
+    "{patcher}",
+    "--source",
+    "{source}",
+    "--output",
+    "{output}"
+  ],
+  "patcher": "/home/hpc/y500bb/y500bb12/OT_next_data/data/multiswe/patch.py",
+  "python": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/bin/python",
+  "source": "/hnvme/workspace/y500bb12-optiagent/full-sources/multiswe/tasks.parquet",
+  "source_revision": "80de95c62ac792c99dcfa8e26569bcd7d036bdc3",
+  "time": "06:00:00",
+  "usage_retry_seconds": 600,
+  "work_root": "/hnvme/workspace/y500bb12-optiagent/repair-queue/multiswe/loop",
+  "workspace": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke",
+  "agent_reasoning_effort": "medium"
+}

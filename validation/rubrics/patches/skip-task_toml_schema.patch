@@ -1,0 +1,44 @@
+--- rubric.toml
++++ rubric.toml
+@@ -362,41 +362,2 @@
+ 
+-[[criteria]]
+-name = "task_toml_schema"
+-description = "task.toml contains only valid fields — no extra or invented fields in any section"
+-guidance = """
+-task.toml must contain only fields recognized by Harbor. Extra fields are silently ignored, clutter the task definition, and create the false impression that they serve a purpose.
+-
+-Valid sections and their fields (defined by the Harbor library):
+-
+-[metadata] — free-form in Harbor, but this benchmark expects only these fields:
+-- author_name, author_email, author_github, author_organization
+-- difficulty_explanation, solution_explanation, verification_explanation
+-- category, subcategory, tags, expert_time_estimate_hours
+-- relevant_experience
+-- referral (optional — email of the person who referred the contributor; see CONTRIBUTING.md)
+-
+-[verifier]:
+-- timeout_sec, env, user, environment_mode
+-- environment (subsection with the same fields as top-level [environment]; used in separate verifier mode to override resource limits)
+-- collect (list of [[verifier.collect]] blocks, each running a command in a compose service after the agent phase to snapshot state for artifact collection; fields: command, service, timeout_sec, user)
+-
+-[agent]:
+-- timeout_sec, user
+-
+-[environment]:
+-- build_timeout_sec, docker_image, cpus, memory_mb, storage_mb, gpus, gpu_types
+-- allow_internet, env, skills_dir, mcp_servers
+-- healthcheck (subsection: command, interval_sec, timeout_sec, start_period_sec, start_interval_sec, retries)
+-
+-[solution]:
+-- env
+-
+-Root level:
+-- schema_version, task, metadata, verifier, agent, environment, solution, source
+-- artifacts (entries uploaded from a container into the verifier container in separate verifier mode). Each entry is either an absolute path string or a table with fields: source, destination, exclude, service.
+-
+-Do not add invented fields (e.g., "skills", "prerequisites", "estimated_difficulty", "notes") to any section.
+-
+-PASS if task.toml contains only valid fields in all sections. FAIL if any invented or extra fields are present."""
+-
+ [[criteria]]

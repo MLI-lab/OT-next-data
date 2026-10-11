@@ -1,0 +1,19 @@
+Review the stage-3 validation and `--review-setup` results in `{evidence_dir}` for dataset `{dataset}`, including execution logs, preparation times, and previous repair attempts.
+
+Identify image-build failures, task and verifier preparation failures, and excessive setup times. Group problems by root cause and prioritize systematic fixes affecting multiple tasks.
+
+Implement reproducible dataset-specific fixes in `data/{dataset}/patch.py`, preserving the original tasks, environments, and verification behavior.
+
+If a task or task family cannot reasonably be fixed, exclude it through `data/{dataset}/patch.py` and record an evidence-backed category and reason using the existing `dropped` mechanism, so the exclusion appears in the automatically generated PR. Never exclude tasks for temporary infrastructure failures.
+
+Document changes and exclusions in `data/{dataset}/README.md` and record per-task change labels and reasons using the existing patch reporting mechanism.
+
+Report applied fixes, affected tasks, exclusions, and remaining failures. Do not modify shared infrastructure or submit validation jobs.
+
+Also inspect stages 1, 4, and 5 when the controller supplies final-validation failures. Ordinary stage 3 does not execute verifier tests; repeated verifier execution timeouts are normally observed in stages 4 and 5. Stage 3 with --review-setup measures verifier preparation only.
+
+For repeated verifier timeout failures, first diagnose logs and timings and fix hangs, unnecessary work, slow dependency installation, or preparation placement where possible. If legitimate verification or unavoidable preparation still requires more time, consider a narrowly scoped increase to [verifier].timeout_sec in task.toml (or the applicable step-specific verifier timeout). Implement it reproducibly in data/{dataset}/patch.py. Choose a finite limit justified by measured timings and reasonable headroom, preserve test commands and reward semantics, and report the old and new values, affected tasks, evidence paths, and why other repairs were insufficient.
+
+Setup review requires mean verifier preparation <= 5% of the verifier timeout and every preparation run <= 60 seconds. Increasing the verifier timeout changes the 5% allowance but never removes the 60-second cap. Do not inflate it merely to hide an unexplained setup regression. An increase for unavoidable preparation requires repeated measurements and an explicit explanation of why moving work into images or another repair was not appropriate.
+
+For every changed task, add the change label verifier-timeout-adjusted and an evidence-backed reason through the existing patch reporting inputs (change_labels and change_reasons), so the automatic PR shows the adjustment and its justification. Mark requires_review_setup=true for preparation-related changes. Report the adjustment to the controller for stage-3 regression testing and repeated stages 4 and 5 validation. Do not raise environment or agent timeouts as a substitute for a verifier timeout repair.

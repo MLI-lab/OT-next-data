@@ -1,0 +1,527 @@
+{
+  "job_id": "948526",
+  "node": "h24-24",
+  "elapsed_seconds": 961,
+  "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-20-resolvers-20261007/results-h200-2h/submissions/e36b840bd38c/evidence.tar.gz",
+  "complete": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "static_checks",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "passed": 20
+      },
+      "report": "results/stage_1_static_checks/735a1e572fd5/summary.json",
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "948526",
+        "started_at": "2026-10-07T10:16:25+00:00",
+        "wall_seconds": 1.1,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 3,
+      "name": "build_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "failed": 6,
+        "passed": 14
+      },
+      "report": "results/stage_3_build_validation/09a78e88df67/summary.json",
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "948526",
+        "started_at": "2026-10-07T10:16:26+00:00",
+        "wall_seconds": 48.6,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 4,
+      "name": "oracle_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "skipped": 6,
+        "failed": 14
+      },
+      "report": "results/stage_4_oracle_validation/85893f40499a/summary.json",
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "948526",
+        "started_at": "2026-10-07T10:17:15+00:00",
+        "wall_seconds": 764.4,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 5,
+      "name": "nop_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "skipped": 6,
+        "passed": 14
+      },
+      "report": "results/stage_5_nop_validation/35aa43381cbc/summary.json",
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "948526",
+        "started_at": "2026-10-07T10:29:59+00:00",
+        "wall_seconds": 17.9,
+        "concurrency": 8
+      }
+    }
+  ],
+  "build_failures": [
+    {
+      "task": "OpenMathLib__OpenBLAS-4419",
+      "category": "fakeroot_executable_unavailable",
+      "reason": "build retry check: 0/3 additional attempts passed; all 3 required",
+      "evidence": "results/stage_3_build_validation/09a78e88df67/summary.json"
+    },
+    {
+      "task": "facebook__zstd-947",
+      "category": "fakeroot_glibc_mismatch",
+      "reason": "build retry check: 0/3 additional attempts passed; all 3 required",
+      "evidence": "results/stage_3_build_validation/09a78e88df67/summary.json"
+    },
+    {
+      "task": "jqlang__jq-2945",
+      "category": "network_probe_missing_curl_or_python",
+      "reason": "build retry check: 0/3 additional attempts passed; all 3 required",
+      "evidence": "results/stage_3_build_validation/09a78e88df67/summary.json"
+    },
+    {
+      "task": "libsdl-org__SDL-10158",
+      "category": "fakeroot_executable_unavailable",
+      "reason": "build retry check: 0/3 additional attempts passed; all 3 required",
+      "evidence": "results/stage_3_build_validation/09a78e88df67/summary.json"
+    },
+    {
+      "task": "mruby__mruby-2261",
+      "category": "fakeroot_executable_unavailable",
+      "reason": "build retry check: 0/3 additional attempts passed; all 3 required",
+      "evidence": "results/stage_3_build_validation/09a78e88df67/summary.json"
+    },
+    {
+      "task": "mruby__mruby-2828",
+      "category": "fakeroot_executable_unavailable",
+      "reason": "build retry check: 0/3 additional attempts passed; all 3 required",
+      "evidence": "results/stage_3_build_validation/09a78e88df67/summary.json"
+    }
+  ],
+  "verifier_logs": [
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/beego__beego-4036__Di2D8fg/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/beego__beego-4036__Di2D8fg/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/caddyserver__caddy-6264__7hbCpb2/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/caddyserver__caddy-6264__7hbCpb2/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/cli__cli-1631__K9cMzbn/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/cli__cli-1631__K9cMzbn/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/cli__cli-2055__Vz3dwz2/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/cli__cli-2055__Vz3dwz2/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "warning: could not open directory 'pkg/cmd/render/': No such file or directory\nMulti-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/cli__cli-6384__bhsiJ4i/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/cli__cli-6384__bhsiJ4i/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/etcd-io__etcd-17943__eLAXWXs/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/etcd-io__etcd-17943__eLAXWXs/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/fatedier__frp-2421__CrTJn7N/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/fatedier__frp-2421__CrTJn7N/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/go-gorm__gorm-2410__sh2MYHz/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/go-gorm__gorm-2410__sh2MYHz/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-10800__9uhvySW/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-10800__9uhvySW/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-12332__nXEw4kd/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-12332__nXEw4kd/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-5358__Gnw6EyH/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-5358__Gnw6EyH/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-6086__nUCB9Dy/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-6086__nUCB9Dy/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-7981__dLfnqbk/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-7981__dLfnqbk/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-9587__jouz8aW/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 4,
+      "file": "results/stage_4_oracle_validation/85893f40499a/jobs/job/gohugoio__hugo-9587__jouz8aW/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/beego__beego-4036__W6XstmE/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/beego__beego-4036__W6XstmE/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/caddyserver__caddy-6264__vYvCVvq/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/caddyserver__caddy-6264__vYvCVvq/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/cli__cli-1631__qDYEqsB/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/cli__cli-1631__qDYEqsB/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/cli__cli-2055__yn7R4v9/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/cli__cli-2055__yn7R4v9/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/cli__cli-6384__LJQxD7X/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/cli__cli-6384__LJQxD7X/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/etcd-io__etcd-17943__pwaPUPb/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/etcd-io__etcd-17943__pwaPUPb/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/fatedier__frp-2421__TdNpDyF/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/fatedier__frp-2421__TdNpDyF/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/go-gorm__gorm-2410__R9dVwza/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/go-gorm__gorm-2410__R9dVwza/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-10800__EuAEK4c/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-10800__EuAEK4c/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-12332__9FCct2g/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-12332__9FCct2g/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-5358__iaiEPB2/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-5358__iaiEPB2/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-6086__VXdZsRE/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-6086__VXdZsRE/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-7981__wHoLUtV/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-7981__wHoLUtV/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-9587__n9thvTf/attempts/000/verifier/grader_install.log",
+      "missing_pip": true,
+      "missing_grader": false,
+      "tail": "/usr/bin/python3: No module named pip\n"
+    },
+    {
+      "stage": 5,
+      "file": "results/stage_5_nop_validation/35aa43381cbc/nop-jobs-0/job/gohugoio__hugo-9587__n9thvTf/attempts/000/verifier/test-stdout.txt",
+      "missing_pip": false,
+      "missing_grader": true,
+      "tail": "Multi-SWE grader error: ModuleNotFoundError: No module named 'multi_swe_bench'\n"
+    }
+  ],
+  "resolvers": {
+    "pip_enabled": true,
+    "paths_enabled": true,
+    "pip_flags_after_checker_fix": 0,
+    "path_flags": 0,
+    "automatic_replacements": 0
+  },
+  "notes": [
+    "The checker fix removed false pip failures for SHA-256-pinned direct references and shell redirections.",
+    "No supported missing pip pins or relative-path warnings were present, so this sample did not exercise successful resolver edits."
+  ]
+}

@@ -1,0 +1,2069 @@
+{
+  "cohort": "50 new tasks",
+  "accepted": true,
+  "tasks": 50,
+  "runs": 250,
+  "median_seconds": 13.634938233532012,
+  "max_seconds": 32.56054372503422,
+  "rule": {
+    "runs_per_task": 5,
+    "median_target_seconds": 30,
+    "max_seconds": 60,
+    "fresh_containers": true,
+    "cached_images": true
+  },
+  "integrity_audit": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v9-integrity.json",
+  "final_dataset": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v9/source.parquet",
+  "items": {
+    "3YOURMIND__django-migration-linter-258": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          15.369427300058305,
+          14.164122376940213,
+          13.15938779595308,
+          13.389553937013261,
+          12.844811383052729
+        ],
+        "mean_seconds": 13.785460558603518,
+        "median_seconds": 13.389553937013261,
+        "max_seconds": 15.369427300058305,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "805c628dad6fb32a953511f84e975d21b3c855737dd0d49f437cdbf1d97ee010"
+    },
+    "FactoryBoy__factory_boy-841": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          25.189782525063492,
+          24.373463160009123,
+          23.043360083014704,
+          22.962510907906108,
+          26.14710657997057
+        ],
+        "mean_seconds": 24.343244651192798,
+        "median_seconds": 24.373463160009123,
+        "max_seconds": 26.14710657997057,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "747df494f5e36bf2bc5d07074339f1601ddf29021f6eaf3ce107817dda4e98f0"
+    },
+    "G-Node__python-odml-304": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          14.527513421955518,
+          13.020064838929102,
+          13.014547058963217,
+          12.645406987983733,
+          14.344749518088065
+        ],
+        "mean_seconds": 13.510456365183927,
+        "median_seconds": 13.020064838929102,
+        "max_seconds": 14.527513421955518,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "b4f4f741add92ddab501b93b0c6a6e3129a0a52425f5631fa1a82a9965197589"
+    },
+    "Parquery__icontract-172": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          21.06376187794376,
+          25.540163410943933,
+          24.613261221908033,
+          19.023882003035396,
+          18.515974815934896
+        ],
+        "mean_seconds": 21.751408665953203,
+        "median_seconds": 21.06376187794376,
+        "max_seconds": 25.540163410943933,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "63b741f6fc6f26a5e0a0c5afc065f1733edb29c25d393e83b98aa667cd9e7a64"
+    },
+    "ShawHahnLab__igseq-74": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          9.694990784977563,
+          9.506234513013624,
+          9.500875066965818,
+          9.332315554027446,
+          7.987599567044526
+        ],
+        "mean_seconds": 9.204403097205795,
+        "median_seconds": 9.500875066965818,
+        "max_seconds": 9.694990784977563,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "dc45913d5ac28eec00294d92ad4510686df9d726a42e8e67c95573d40219f789"
+    },
+    "UXARRAY__uxarray-877": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2bdcc275bb3c/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/027644d10042/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          13.388118773000315,
+          11.517317146062851,
+          12.722744034952484,
+          11.648760356940329,
+          10.648936675977893
+        ],
+        "mean_seconds": 11.985175397386774,
+        "median_seconds": 11.648760356940329,
+        "max_seconds": 13.388118773000315,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/1ee17b7ae95a/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/72620f1c367f/summary.json"
+      },
+      "payload_sha256": "33b14c66fd46777f34ce72c300fc778836d607c84ff48be3f462604b4496b91f"
+    },
+    "albumentations-team__albumentations-1193": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          24.57062116090674,
+          25.683973498060368,
+          23.53406960691791,
+          19.592474011005834,
+          26.135382915032096
+        ],
+        "mean_seconds": 23.90330423838459,
+        "median_seconds": 24.57062116090674,
+        "max_seconds": 26.135382915032096,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "ebf52748ae2b946910c3f4e66668af8692fb179a786eb033890c05f7671ef75b"
+    },
+    "astropy__astropy-16127": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          6.268293860950507,
+          4.523128270055167,
+          4.0177994050318375,
+          5.018328304984607,
+          5.157607657951303
+        ],
+        "mean_seconds": 4.9970314997946845,
+        "median_seconds": 5.018328304984607,
+        "max_seconds": 6.268293860950507,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "63873def836cb18af8b0fb9bb2d102ec362e083eebe6f226fe4dbd2a347b4964"
+    },
+    "atollk__flake8-classmethod-staticmethod-4": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          12.751016177935526,
+          14.324265919975005,
+          13.985580521984957,
+          10.622336674947292,
+          14.212554045021534
+        ],
+        "mean_seconds": 13.179150667972863,
+        "median_seconds": 13.985580521984957,
+        "max_seconds": 14.324265919975005,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "c244ddc85c9020a301613cd759eccba0037791d2dcc7d6766466f7427ca9718c"
+    },
+    "cityofaustin__knackpy-110": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          16.13818042294588,
+          19.57317652599886,
+          21.673012697021477,
+          17.1311948049115,
+          16.642349423957057
+        ],
+        "mean_seconds": 18.231582774966956,
+        "median_seconds": 17.1311948049115,
+        "max_seconds": 21.673012697021477,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "7a3588bf2679484b75a21e673e8c65e58672d3b32467a21d3e50379eaf61bf20"
+    },
+    "cosmicBboy__pandera-64": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          23.998723502038047,
+          25.88761632400565,
+          28.4401254610857,
+          24.16387502697762,
+          22.652848048019223
+        ],
+        "mean_seconds": 25.028637672425248,
+        "median_seconds": 24.16387502697762,
+        "max_seconds": 28.4401254610857,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "fcd9425b857dda69ef9c042e4b008368f1d993c4bbcbf29a4fb8d6d0aa54b98a"
+    },
+    "django__asgiref-325": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          8.658170751994476,
+          9.616590928053483,
+          12.68125104403589,
+          8.803244117065333,
+          8.666040495038033
+        ],
+        "mean_seconds": 9.685059467237442,
+        "median_seconds": 8.803244117065333,
+        "max_seconds": 12.68125104403589,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "2af01e8d47717d32352da05fa89306f7db775da8505b0c3f26349cb36d5ad561"
+    },
+    "dr-prodigy__python-holidays-1257": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          15.991024641087279,
+          16.99218118796125,
+          19.541909210034646,
+          17.101031196070835,
+          15.832177557982504
+        ],
+        "mean_seconds": 17.091664758627303,
+        "median_seconds": 16.99218118796125,
+        "max_seconds": 19.541909210034646,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "ee9d1f49aa8559a6ef8d2f420d6a087320740f4bc419d7125134bdf51e14e918"
+    },
+    "ekalinin__nodeenv-281": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          16.128763251006603,
+          16.02911589597352,
+          20.067609400954098,
+          18.144726405036636,
+          16.63797897193581
+        ],
+        "mean_seconds": 17.401638784981333,
+        "median_seconds": 16.63797897193581,
+        "max_seconds": 20.067609400954098,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "d234a542c2cc9872dd19e1be2dc7aabfeba1660c1caff4251295471c16c96b4f"
+    },
+    "fatiando__pooch-315": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair2-v9-results/submissions/794d259984ce/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/04882c0d6858/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair2-v9-results/submissions/794d259984ce/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/181e837af8d2/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          13.582748861052096,
+          14.440049799974076,
+          13.134085201076232,
+          12.767667450010777,
+          13.159565866109915
+        ],
+        "mean_seconds": 13.41682343564462,
+        "median_seconds": 13.159565866109915,
+        "max_seconds": 14.440049799974076,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair2-v9-results/submissions/794d259984ce/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/981a1d237c5c/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair2-v9-results/submissions/794d259984ce/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/3c8cd8e043f0/summary.json"
+      },
+      "payload_sha256": "304df0dd02efb71b79103c4e424fbb278f3c141265bbe345812562308889acd0"
+    },
+    "fatiando__pooch-365": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair2-v9-results/submissions/794d259984ce/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/04882c0d6858/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair2-v9-results/submissions/794d259984ce/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/181e837af8d2/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          9.376908355974592,
+          8.172497360035777,
+          7.302053088089451,
+          8.133347249007784,
+          7.638138531008735
+        ],
+        "mean_seconds": 8.124588916823267,
+        "median_seconds": 8.133347249007784,
+        "max_seconds": 9.376908355974592,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair2-v9-results/submissions/794d259984ce/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/981a1d237c5c/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair2-v9-results/submissions/794d259984ce/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/3c8cd8e043f0/summary.json"
+      },
+      "payload_sha256": "e6207aceede6adf422d73ff7b4f73a9fb6747316e50cbf3de4c157bd8685af84"
+    },
+    "gammapy__gammapy-3911": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          16.13600163999945,
+          17.14366068900563,
+          14.846470395103097,
+          15.131587978918105,
+          15.494093917077407
+        ],
+        "mean_seconds": 15.750362924020738,
+        "median_seconds": 15.494093917077407,
+        "max_seconds": 17.14366068900563,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "dcc0d3ecf05bc9337f421ab74bd1ab4fca0c7b083f2cadeb92810c52917e9aa2"
+    },
+    "globocom__m3u8-231": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          10.122139796963893,
+          10.951451373985037,
+          9.615189546020702,
+          10.481158073991537,
+          9.979948093998246
+        ],
+        "mean_seconds": 10.229977376991883,
+        "median_seconds": 10.122139796963893,
+        "max_seconds": 10.951451373985037,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "2006665dd5c1dd8fdeaa9f83191f4c6363591370f28a5c4fa85b969e346fd5ba"
+    },
+    "hgrecco__pint-527": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          10.669586890959181,
+          8.48055746499449,
+          8.625365165062249,
+          8.1212370430585,
+          8.479646375053562
+        ],
+        "mean_seconds": 8.875278587825596,
+        "median_seconds": 8.48055746499449,
+        "max_seconds": 10.669586890959181,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "1c80e35c00641285585926251e8cc4467be20723cda7637f9f61ddd25375190b"
+    },
+    "hhm970__c10-games-tracker-project-88": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          22.666048083920032,
+          20.004537058994174,
+          23.012435414013453,
+          20.50495327601675,
+          23.514369428972714
+        ],
+        "mean_seconds": 21.940468652383423,
+        "median_seconds": 22.666048083920032,
+        "max_seconds": 23.514369428972714,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "4f38af3c49c20da75dbcc9c70c4ee38c7368efa7c270c1fa5dc87aaff141c29d"
+    },
+    "idaholab__MontePy-707": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          29.176783006056212,
+          28.669057814986445,
+          30.72002867399715,
+          28.518881834927015,
+          32.56054372503422
+        ],
+        "mean_seconds": 29.92905901100021,
+        "median_seconds": 29.176783006056212,
+        "max_seconds": 32.56054372503422,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "8cdc1cda0867d390beb044405c40bf302b4def6b218525004bb8adc7663003fb"
+    },
+    "ifosch__accloudtant-82": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          11.6219555150019,
+          11.129192447988316,
+          11.128002156037837,
+          10.664029630017467,
+          12.627003391971812
+        ],
+        "mean_seconds": 11.434036628203467,
+        "median_seconds": 11.129192447988316,
+        "max_seconds": 12.627003391971812,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "5bdf548c6b495afe13cf1c507107553a7351f57622129dae8c408fde0c4d47d8"
+    },
+    "kylebgorman__wikipron-392": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          20.532775640953332,
+          23.155810624943115,
+          20.839885858935304,
+          24.843023038934916,
+          25.00231872696895
+        ],
+        "mean_seconds": 22.874762778147122,
+        "median_seconds": 23.155810624943115,
+        "max_seconds": 25.00231872696895,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "2b6a11e980232e3a5de103df7e0a361dc039e0bba96f7e0da3891df326aaab30"
+    },
+    "modernatx__seqlike-76": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          11.485955649986863,
+          10.665318763931282,
+          9.66291730699595,
+          10.623512507998385,
+          12.128647407051176
+        ],
+        "mean_seconds": 10.91327032719273,
+        "median_seconds": 10.665318763931282,
+        "max_seconds": 12.128647407051176,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "858f4937f8818564f0e3bf2d46ccd3fb30675cd609aa81b730fb60f406a3dc1b"
+    },
+    "mwouts__itables-352": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          6.615483473986387,
+          6.62388324807398,
+          6.470713597955182,
+          6.299965016078204,
+          5.9737165491096675
+        ],
+        "mean_seconds": 6.396752377040684,
+        "median_seconds": 6.470713597955182,
+        "max_seconds": 6.62388324807398,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "3f97a0813b5485be3b34302957d79adaab4374f3c1c9af031bab90d252e872e2"
+    },
+    "mystor__git-revise-64": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          8.112380946055055,
+          7.1148284850642085,
+          8.829750605975278,
+          7.970148658961989,
+          7.471208233968355
+        ],
+        "mean_seconds": 7.899663386004977,
+        "median_seconds": 7.970148658961989,
+        "max_seconds": 8.829750605975278,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "af0d8ad2c4f47cdea8b2fb2e194fd56564d28da0e927e4a5d15f9dcf28818097"
+    },
+    "pgmpy__pgmpy-1470": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          21.005760848987848,
+          18.68167648394592,
+          21.724911683006212,
+          21.64680992695503,
+          25.033601653994992
+        ],
+        "mean_seconds": 21.618552119378002,
+        "median_seconds": 21.64680992695503,
+        "max_seconds": 25.033601653994992,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "2192392d11eeddd1834e5607450ca80d2deb27e04fc6bed3822f95795f1a595c"
+    },
+    "psf__black-2037": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          20.330397344077937,
+          21.33456801297143,
+          25.086902437964454,
+          20.33881178696174,
+          21.91667937510647
+        ],
+        "mean_seconds": 21.801471791416407,
+        "median_seconds": 21.33456801297143,
+        "max_seconds": 25.086902437964454,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "b9bb23895b5a71f41e83e2f46316276a5d7e9b4acb1527408984483586e36489"
+    },
+    "pydicom__pydicom-888": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          9.971052543027326,
+          9.617218355066143,
+          9.977106917998753,
+          10.248525688890368,
+          12.482919209054671
+        ],
+        "mean_seconds": 10.459364542807453,
+        "median_seconds": 9.977106917998753,
+        "max_seconds": 12.482919209054671,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "762e89a4acd3b90b89a1c9e2c51788b85f33279855ba628ea3a67c40ba5b3a10"
+    },
+    "pynamodb__PynamoDB-700": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          11.121838153921999,
+          10.621182727976702,
+          11.982614653999917,
+          10.98580949101597,
+          13.625695441034622
+        ],
+        "mean_seconds": 11.667428093589843,
+        "median_seconds": 11.121838153921999,
+        "max_seconds": 13.625695441034622,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "ff1bff5e2f890fec43e330e00b7bd9dfe9f576b572d1ddb7fb04ab6142f0f573"
+    },
+    "pypest__pyemu-565": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          23.152807330014184,
+          21.431381045025773,
+          21.70950900297612,
+          22.09169968601782,
+          22.088201715028845
+        ],
+        "mean_seconds": 22.094719755812548,
+        "median_seconds": 22.088201715028845,
+        "max_seconds": 23.152807330014184,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "133830ab681be79cf4915aac056d0ce5af131d27af8254f0707e122af13223e7"
+    },
+    "python-graphblas__python-graphblas-303": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          15.176996281021275,
+          17.141402635956183,
+          15.987212821957655,
+          15.636966181918979,
+          16.144453967921436
+        ],
+        "mean_seconds": 16.017406377755105,
+        "median_seconds": 15.987212821957655,
+        "max_seconds": 17.141402635956183,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "bbcb378b263e28dfb05720f82078adc028e6bf89905302877e8547b0f2b187b1"
+    },
+    "python-trio__outcome-18": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          8.411482185940258,
+          7.83304111903999,
+          7.324685098021291,
+          7.333001155056991,
+          7.970369091955945
+        ],
+        "mean_seconds": 7.774515730002895,
+        "median_seconds": 7.83304111903999,
+        "max_seconds": 8.411482185940258,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "be1e25d10ee676b059020ac49cc6b2a3f6ba19058f5c0e1f1a060760b48e5bb5"
+    },
+    "rapidpro__rapidpro-python-66": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          11.122234813985415,
+          13.484852422960103,
+          11.587015726021491,
+          11.121430924977176,
+          11.120150822098367
+        ],
+        "mean_seconds": 11.687136942008511,
+        "median_seconds": 11.122234813985415,
+        "max_seconds": 13.484852422960103,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "07e0a88bd8cfd55042a0640e63ba461527a4fad991ddb0fc39bfc15b547a054b"
+    },
+    "reagento__dishka-143": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          12.121829238021746,
+          13.321187917026691,
+          11.09842077002395,
+          11.122306605917402,
+          9.61764425795991
+        ],
+        "mean_seconds": 11.45627775778994,
+        "median_seconds": 11.122306605917402,
+        "max_seconds": 13.321187917026691,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "a70aaed3edf74ec44a85810731e3c013445078a351027ab3949c52c4873de162"
+    },
+    "roaldnefs__salt-lint-35": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          10.664752418058924,
+          11.480430499999784,
+          11.431947277043946,
+          10.83119146397803,
+          10.170425602933392
+        ],
+        "mean_seconds": 10.915749452402816,
+        "median_seconds": 10.83119146397803,
+        "max_seconds": 11.480430499999784,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "0c6828fd6a3a53afff99e4eb1a874c5aee932c0c9343f5f2151162662dcb76be"
+    },
+    "robotpy__robotpy-cppheaderparser-42": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          7.619061658042483,
+          9.98019201203715,
+          7.400803355034441,
+          8.466132052941248,
+          7.467369987047277
+        ],
+        "mean_seconds": 8.18671181302052,
+        "median_seconds": 7.619061658042483,
+        "max_seconds": 9.98019201203715,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "6f6c530b18df226c429b3cf9202cebf082dc6904e02aafbf271008768404445b"
+    },
+    "rsagroup__rsatoolbox-375": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2bdcc275bb3c/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/027644d10042/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          18.711741439066827,
+          19.02515860297717,
+          17.344357733032666,
+          18.66487478208728,
+          17.85719413496554
+        ],
+        "mean_seconds": 18.320665338425897,
+        "median_seconds": 18.66487478208728,
+        "max_seconds": 19.02515860297717,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/1ee17b7ae95a/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/72620f1c367f/summary.json"
+      },
+      "payload_sha256": "a0305b0b9057f097323e4d4c2c6365070cae359066277bf6bfe35424553ac49c"
+    },
+    "snakemake__snakemake-469": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          19.489438965916634,
+          21.016532107023522,
+          21.158364816918038,
+          17.999125728965737,
+          17.993618523003533
+        ],
+        "mean_seconds": 19.53141602836549,
+        "median_seconds": 19.489438965916634,
+        "max_seconds": 21.158364816918038,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "27af9caa71bc744e40450fe862d803c7753f24eedcc66751619b4b6a47d57dab"
+    },
+    "sphinx-doc__sphinx-12875": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          26.398784807068296,
+          31.037089915014803,
+          27.326911640935577,
+          25.11646941700019,
+          24.149998874985613
+        ],
+        "mean_seconds": 26.805850931000897,
+        "median_seconds": 26.398784807068296,
+        "max_seconds": 31.037089915014803,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "347d65b37e0a75f665238d28bcfc5166fe924497466a96df946ef03ddefbf09c"
+    },
+    "stfc__PSyclone-834": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          14.62630058103241,
+          16.576361739076674,
+          13.6441810260294,
+          11.97762799798511,
+          12.669668928021565
+        ],
+        "mean_seconds": 13.898828054429032,
+        "median_seconds": 13.6441810260294,
+        "max_seconds": 16.576361739076674,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "6408f1b681198b4162d0e5158d5304001fe223ef58fb542edd6d99e32e7d8e0c"
+    },
+    "tianocore__edk2-pytool-library-372": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          17.259330841945484,
+          15.695852808072232,
+          11.987464939942583,
+          11.627879070932977,
+          12.128668366000056
+        ],
+        "mean_seconds": 13.739839205378667,
+        "median_seconds": 12.128668366000056,
+        "max_seconds": 17.259330841945484,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "2eb0639482b82fb59901ffc3c24433918dc8dc2d85aab3928e2cff528e755367"
+    },
+    "tinosulzer__PyBaMM-66": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          26.450691194972023,
+          24.939699089038186,
+          19.194404236972332,
+          25.22445131908171,
+          21.83013982407283
+        ],
+        "mean_seconds": 23.527877132827417,
+        "median_seconds": 24.939699089038186,
+        "max_seconds": 26.450691194972023,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "062e68498c2f01b36f122b39bab02be9e2ff629a4f5acbb734e80785043ac14b"
+    },
+    "tobymao__sqlglot-1944": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2bdcc275bb3c/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/027644d10042/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          25.112938949023373,
+          26.55640772206243,
+          22.218362472951412,
+          25.87976076907944,
+          21.525230624945834
+        ],
+        "mean_seconds": 24.258540107612497,
+        "median_seconds": 25.112938949023373,
+        "max_seconds": 26.55640772206243,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/1ee17b7ae95a/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/repair3-v8-results/submissions/4138b0a38094/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/72620f1c367f/summary.json"
+      },
+      "payload_sha256": "453287172610e8c621a7cda4abcf0665480e61f49b4185bfa0f67aa83db8d533"
+    },
+    "ucfopen__canvasapi-277": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          17.172878585988656,
+          13.487112166010775,
+          11.80663781799376,
+          11.979318483034149,
+          14.483653168892488
+        ],
+        "mean_seconds": 13.785920044383966,
+        "median_seconds": 13.487112166010775,
+        "max_seconds": 17.172878585988656,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "0cab2c424c1952354a9b086d981b3fffb9fa18007b9df7af6ed1346fa54f2156"
+    },
+    "vertexproject__synapse-294": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          9.72262969892472,
+          9.385763391968794,
+          8.974154604016803,
+          8.472832397092134,
+          8.659828001982532
+        ],
+        "mean_seconds": 9.043041618796996,
+        "median_seconds": 8.974154604016803,
+        "max_seconds": 9.72262969892472,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "598791931f87d1ea7c2dd79e632634178f308bea8c2e981ca384b815aec3d0e4"
+    },
+    "wireservice__agate-637": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          17.305373365059495,
+          20.02336339605972,
+          16.135804068064317,
+          16.330388242960908,
+          16.492631844012067
+        ],
+        "mean_seconds": 17.257512183231302,
+        "median_seconds": 16.492631844012067,
+        "max_seconds": 20.02336339605972,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "dedde262a067152aab3d6a1f47e4e4d520df26b3a054c72dc2d37b328e5f9e29"
+    },
+    "xCDAT__xcdat-263": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          11.385414805961773,
+          11.071512389928102,
+          10.477969591971487,
+          10.994789825053886,
+          10.47423562197946
+        ],
+        "mean_seconds": 10.880784446978941,
+        "median_seconds": 10.994789825053886,
+        "max_seconds": 11.385414805961773,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "1a6af571385d17f518dd0f29bc71fc54bb6ebfe6fad680a09cbb17e545b0184d"
+    },
+    "xCDAT__xcdat-313": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          10.819437150028534,
+          12.004211302963085,
+          10.62937952997163,
+          10.127047722926363,
+          9.66284739994444
+        ],
+        "mean_seconds": 10.64858462116681,
+        "median_seconds": 10.62937952997163,
+        "max_seconds": 12.004211302963085,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "8ebbf338de70c1c56ba0ae241830a91c88396c1322d9513fe2d2dae2acdfc634"
+    },
+    "zalando-stups__senza-397": {
+      "1": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_1_static_checks/2339df024fc5/summary.json"
+      },
+      "3": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_3_build_validation/fc8c2a551a8a/summary.json"
+      },
+      "preparation_timing": {
+        "seconds": [
+          17.178433466004208,
+          17.149832836003043,
+          15.883707002038136,
+          17.57633434399031,
+          15.63776890898589
+        ],
+        "mean_seconds": 16.685215311404317,
+        "median_seconds": 17.149832836003043,
+        "max_seconds": 17.57633434399031,
+        "mean_target_seconds": null,
+        "required_runs": 5,
+        "all_runs_successful": true,
+        "median_target_seconds": 30.0,
+        "max_limit_seconds": 60.0,
+        "accepted": true
+      },
+      "4": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_4_oracle_validation/7805126cd037/summary.json"
+      },
+      "5": {
+        "status": "passed",
+        "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pilot50-v7-results/submissions/0c04f5464aa3/evidence.tar.gz",
+        "member": "results/stage_5_nop_validation/90424e146537/summary.json"
+      },
+      "payload_sha256": "a54736e623e2b9d5ff1ee6b834b9b85a02091ff9391b47cf7c49713639cb8bc8"
+    }
+  }
+}

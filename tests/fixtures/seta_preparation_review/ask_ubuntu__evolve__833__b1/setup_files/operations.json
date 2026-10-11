@@ -1,0 +1,89 @@
+{
+  "recipe": "FROM ubuntu@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4\nRUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends bash ca-certificates coreutils curl gzip tar tmux python3 openssh-client dbus && rm -rf /var/lib/apt/lists/*\nWORKDIR /app\n",
+  "operations": [
+    {
+      "op": "WORKDIR",
+      "path": "/app",
+      "line": 3
+    },
+    {
+      "op": "ENV",
+      "assignments": {
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 5
+    },
+    {
+      "op": "RUN",
+      "command": "apt-get update && apt-get install -y --no-install-recommends openvpn wireguard-tools rsync acl attr build-essential git curl tmux && rm -rf /var/lib/apt/lists/*",
+      "cwd": "/app",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 8,
+      "shell": [
+        "/bin/sh",
+        "-c"
+      ]
+    },
+    {
+      "op": "COPY",
+      "source": "server.conf",
+      "destination": "/tmp/build/server.conf",
+      "line": 21,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-003.tar",
+      "sha256": "72d1ec69a718d08738ea6e44c35136b1ab921fcbf808dad4f0ca4f3e2977d733"
+    },
+    {
+      "op": "COPY",
+      "source": "client1.ovpn",
+      "destination": "/tmp/build/client1.ovpn",
+      "line": 22,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-004.tar",
+      "sha256": "d9aa3517c631f6a41177d5f15be69c1f2520c99150a6788166b00a1828b98988"
+    },
+    {
+      "op": "COPY",
+      "source": "setup_env.sh",
+      "destination": "/tmp/build/setup_env.sh",
+      "line": 23,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-005.tar",
+      "sha256": "92d5af95f9abe9afdf28f6a27d8e0d557de63fde0d6a4febb1b7dd1056555aee"
+    },
+    {
+      "op": "RUN",
+      "command": "chmod +x /tmp/build/setup_env.sh && /tmp/build/setup_env.sh",
+      "cwd": "/app",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 26,
+      "shell": [
+        "/bin/sh",
+        "-c"
+      ]
+    },
+    {
+      "op": "WORKDIR",
+      "path": "/app",
+      "line": 28
+    }
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "DEBIAN_FRONTEND": "noninteractive"
+  },
+  "workdir": "/app",
+  "source_workdir": "/app",
+  "dependency_runs": [],
+  "lifecycle": null,
+  "mount_scaffold": []
+}

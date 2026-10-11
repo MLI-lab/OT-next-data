@@ -1,0 +1,1708 @@
+{
+  "updated_at": "2026-10-09T09:14:32.628786+00:00",
+  "candidate": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v65/source.parquet",
+  "retained_tasks": 4299,
+  "archived_tasks": 24,
+  "new_proxy_archives": 22,
+  "archive_payload_integrity": "All 24 payloads in full-v62/source.archive.parquet exactly match original immutable source payloads.",
+  "repair_task_count": 33,
+  "repairs": {
+    "borgbackup__borg-5263": {
+      "base_commit": "5ebde5cebc3ef572552b368228eaad4d29f0ee39",
+      "label": "restored-git-version-history",
+      "reason": "Restore the pinned base commit ancestry and its verified historical release tag, without checking out later code. Our depth-one checkout lost the history needed for the source version and, for Sunpy, triggered a shallow-repository warning treated as an error."
+    },
+    "dask__fastparquet-940": {
+      "base_commit": "0f7a98eac60771685f853f8a955787b7c82a5d18",
+      "label": "restored-git-version-history",
+      "reason": "Restore the pinned base commit ancestry and its verified historical release tag, without checking out later code. Our depth-one checkout lost the history needed for the source version and, for Sunpy, triggered a shallow-repository warning treated as an error."
+    },
+    "gitpython-developers__GitPython-1812": {
+      "base_commit": "307f1987596a99fb7b7192d8a5308a0df736ca7b",
+      "label": "restored-git-test-history",
+      "reason": "Restore the pinned base commit ancestry and attach HEAD to a local task branch at that same commit. GitPython tests inspect parents, historical commits and symbolic HEAD; our shallow detached checkout omitted those inputs. Preserve source, test assertions and reference patch.",
+      "full_history": true,
+      "branch": "swelego-task"
+    },
+    "gitpython-developers__GitPython-1547": {
+      "base_commit": "cc92d5126b2fc80f7cc6866fc8f99b3ffb0189ae",
+      "label": "restored-git-test-history",
+      "reason": "Restore the pinned base commit ancestry and attach HEAD to a local task branch at that same commit. GitPython tests inspect parents, historical commits and symbolic HEAD; our shallow detached checkout omitted those inputs. Preserve source, test assertions and reference patch.",
+      "full_history": true,
+      "branch": "swelego-task"
+    },
+    "gitpython-developers__GitPython-1832": {
+      "base_commit": "afa575454f85b34800460881cc9c3cd7fe78c8e3",
+      "label": "restored-git-test-history",
+      "reason": "Restore the pinned base commit ancestry and attach HEAD to a local task branch at that same commit. GitPython tests inspect parents, historical commits and symbolic HEAD; our shallow detached checkout omitted those inputs. Preserve source, test assertions and reference patch. Restore the verified historical 0.1.6 tag explicitly queried by test_diff_interface.",
+      "full_history": true,
+      "branch": "swelego-task"
+    },
+    "sunpy__sunpy-7522": {
+      "base_commit": "27f7e032c1a7f9a911dca618f8b2011ad82d7a78",
+      "label": "restored-git-version-history",
+      "reason": "Restore the pinned base commit ancestry and its verified historical release tag, without checking out later code. Our depth-one checkout lost the history needed for the source version and, for Sunpy, triggered a shallow-repository warning treated as an error. After restoring history, collection exposed an expired leap-second table. Restore the IERS Bulletin72 table, valid through 2027-06-28, from a checksum-pinned local artifact; preserve astropy and other dependency versions and avoid a verification-time download.",
+      "additional_labels": [
+        "refreshed-leap-second-data"
+      ],
+      "leap_second_table": {
+        "source": "https://hpiers.obspm.fr/iers/bul/bulc/Leap_Second.dat",
+        "bulletin": 72,
+        "expires": "2027-06-28",
+        "sha256": "6cb6f5d4b819f2e568e25db4b0b26d89dedf031fdffb18bc94d40f4e94e268d7"
+      }
+    },
+    "vyperlang__vyper-3384": {
+      "base_commit": "5ae0a0784426697529c71e4724ccf43ad9c36f07",
+      "label": "restored-generated-version-metadata",
+      "reason": "Restore the setuptools-scm build plugin declared by the pinned source so installation generates its version module. The runtime freeze omitted this build tool; our installation without build isolation did not regenerate the file. This repairs environment reconstruction, not the task code or reference patch."
+    },
+    "vyperlang__vyper-4253": {
+      "base_commit": "6bcdb00e1c9faaf940395b44756d4970919fd58c",
+      "label": "restored-generated-version-metadata",
+      "reason": "Restore the setuptools-scm build plugin declared by the pinned source so installation generates its version module. The runtime freeze omitted this build tool; our installation without build isolation did not regenerate the file. This repairs environment reconstruction, not the task code or reference patch."
+    },
+    "pimutils__khal-1305": {
+      "base_commit": "25c5c2671908a72f82f4d2add02068374ffb3242",
+      "label": "restored-generated-version-metadata",
+      "reason": "Restore the setuptools-scm build plugin declared by the pinned source so installation generates its version module. The runtime freeze omitted this build tool; our installation without build isolation did not regenerate the file. This repairs environment reconstruction, not the task code or reference patch."
+    },
+    "statsmodels__statsmodels-8339": {
+      "base_commit": "35b803767bd7803ca5f9fc35d4546aa8cb7be844",
+      "label": "restored-generated-version-metadata",
+      "reason": "Restore the setuptools-scm build plugin declared by the pinned source so installation generates its version module. The runtime freeze omitted this build tool; our installation without build isolation did not regenerate the file. This repairs environment reconstruction, not the task code or reference patch."
+    },
+    "statsmodels__statsmodels-8831": {
+      "base_commit": "3e739c26729e2c844394f5918846e2897ad0f871",
+      "label": "restored-generated-version-metadata",
+      "reason": "Restore the setuptools-scm build plugin declared by the pinned source so installation generates its version module. The runtime freeze omitted this build tool; our installation without build isolation did not regenerate the file. This repairs environment reconstruction, not the task code or reference patch."
+    },
+    "pytest-dev__pytest-xdist-667": {
+      "base_commit": "7f2426b11d2c7890e5637fdaa3aa1c75b4f31758",
+      "label": "restored-generated-version-metadata",
+      "reason": "Restore the setuptools-scm build plugin declared by the pinned source so installation generates its version module. The runtime freeze omitted this build tool; our installation without build isolation did not regenerate the file. This repairs environment reconstruction, not the task code or reference patch."
+    },
+    "zarr-developers__zarr-python-659": {
+      "base_commit": "da4f790ace08ae9ee2ff25289a7d3f40c6ecb61a",
+      "label": "restored-generated-version-metadata",
+      "reason": "Restore the setuptools-scm build plugin declared by the pinned source so installation generates its version module. The runtime freeze omitted this build tool; our installation without build isolation did not regenerate the file. This repairs environment reconstruction, not the task code or reference patch."
+    },
+    "sympy__sympy-10635": {
+      "base_commit": "72058725d8bd819aa68450ddfb619b681d9e1dd2",
+      "label": "verifier-legacy-pytest-helper",
+      "reason": "Restore the missing raises export in the legacy SymPy pytest helper using pytest.raises during verification. The source defines raises only outside pytest mode, so selected tests fail collection under the recorded pytest runner. Preserve assertions, test selection, dependency versions and reference patch.",
+      "pytest_plugin": "swelego_sympy_pytest"
+    },
+    "sympy__sympy-10753": {
+      "base_commit": "b23618db3be6f3af9f288002064a14b5aa4ea932",
+      "label": "verifier-legacy-pytest-helper",
+      "reason": "Restore the missing raises export in the legacy SymPy pytest helper using pytest.raises during verification. The source defines raises only outside pytest mode, so selected tests fail collection under the recorded pytest runner. Preserve assertions, test selection, dependency versions and reference patch.",
+      "pytest_plugin": "swelego_sympy_pytest"
+    },
+    "sympy__sympy-10762": {
+      "base_commit": "325341a268a9e7aa07511245b964a3d727167150",
+      "label": "verifier-legacy-pytest-helper",
+      "reason": "Restore the missing raises export in the legacy SymPy pytest helper using pytest.raises during verification. The source defines raises only outside pytest mode, so selected tests fail collection under the recorded pytest runner. Preserve assertions, test selection, dependency versions and reference patch.",
+      "pytest_plugin": "swelego_sympy_pytest"
+    },
+    "sympy__sympy-10808": {
+      "base_commit": "0da63c857cc29ff62c4a4b25158d43c3cf3776e6",
+      "label": "verifier-legacy-pytest-helper",
+      "reason": "Restore the missing raises export in the legacy SymPy pytest helper using pytest.raises during verification. The source defines raises only outside pytest mode, so selected tests fail collection under the recorded pytest runner. Preserve assertions, test selection, dependency versions and reference patch.",
+      "pytest_plugin": "swelego_sympy_pytest"
+    },
+    "sympy__sympy-10827": {
+      "base_commit": "c6c5dfb9ba567c340a420af67ca0b46eace7a45a",
+      "label": "verifier-legacy-pytest-helper",
+      "reason": "Restore the missing raises export in the legacy SymPy pytest helper using pytest.raises during verification. The source defines raises only outside pytest mode, so selected tests fail collection under the recorded pytest runner. Preserve assertions, test selection, dependency versions and reference patch.",
+      "pytest_plugin": "swelego_sympy_pytest"
+    },
+    "sympy__sympy-11149": {
+      "base_commit": "db73ed37b955474ad9f1b3d2c5c762e32ce2cbfe",
+      "label": "verifier-legacy-pytest-helper",
+      "reason": "Restore the missing raises export in the legacy SymPy pytest helper using pytest.raises during verification. The source defines raises only outside pytest mode, so selected tests fail collection under the recorded pytest runner. Preserve assertions, test selection, dependency versions and reference patch.",
+      "pytest_plugin": "swelego_sympy_pytest"
+    },
+    "pymor__pymor-1296": {
+      "base_commit": "6114612e5574117570df66cb2404ce1f822dc145",
+      "label": "aligned-build-runtime-numpy",
+      "reason": "Replace runtime numpy==2.0.2 with numpy==1.23.5 for this legacy PyMOr checkout, matching the NumPy headers used by its isolated numpy.distutils build. The original frozen NumPy 2 runtime cannot load the resulting NumPy 1 ABI extension. Preserve other runtime pins and the reference patch.",
+      "runtime_replacements": {
+        "numpy==2.0.2": "numpy==1.23.5"
+      }
+    },
+    "deepset-ai__haystack-9242": {
+      "base_commit": "cdc53cae78d080d67ecaa184ff16a83dba13a010",
+      "label": "restored-verifier-dependencies",
+      "reason": "Install pytest-asyncio==0.26.0, declared by the pinned Haystack development dependencies but absent from the recorded runtime freeze. This enables the existing strict asyncio marker and async fixtures without changing tests or reference code.",
+      "test_dependencies": [
+        "pytest-asyncio==0.26.0"
+      ]
+    },
+    "pymor__pymor-1068": {
+      "base_commit": "d7b624f892daa4194b4504e753d198461626aaa0",
+      "label": "aligned-build-runtime-numpy",
+      "reason": "Replace runtime numpy==2.0.2 with numpy==1.23.5 for this legacy PyMOr checkout, matching the NumPy headers used by its isolated numpy.distutils build. The original frozen NumPy 2 runtime cannot load the resulting NumPy 1 ABI extension. Preserve other runtime pins and the reference patch.",
+      "runtime_replacements": {
+        "numpy==2.0.2": "numpy==1.23.5"
+      }
+    },
+    "blue-yonder__tsfresh-578": {
+      "base_commit": "c3d35c42c799d1f36a1aca1d90ec0ab6450ce264",
+      "label": "bounded-verifier-parallelism",
+      "reason": "Use two pytest workers and one numerical-library thread per worker for this verifier. Upstream automatic worker selection sees the 384-CPU host instead of the task allocation, causing excessive process startup and resource contention. Preserve selected tests, assertions, dependencies and reference patch.",
+      "pytest_workers": 2
+    },
+    "pybamm-team__PyBaMM-3968": {
+      "base_commit": "09ee982ba84055ec2c56f73b4cc63742c2ca0721",
+      "label": "bounded-verifier-parallelism",
+      "reason": "Use two pytest workers and one numerical-library thread per worker for this verifier. Upstream automatic worker selection sees the 384-CPU host instead of the task allocation, causing excessive process startup and resource contention. Preserve selected tests, assertions, dependencies and reference patch. Install the declared citation extra pybtex and its missing latexcodec dependency so the unfixed package imports during collection. The original regression test then deliberately removes optional dependencies and still exercises the missing-dependency bug during test execution.",
+      "pytest_workers": 2,
+      "test_dependencies": [
+        "pybtex==0.24.0",
+        "latexcodec==3.0.0"
+      ],
+      "additional_labels": [
+        "restored-verifier-dependencies"
+      ]
+    },
+    "pybamm-team__PyBaMM-4179": {
+      "base_commit": "088ca3827c831e1b93c4667b6f4353f64fb32cbf",
+      "label": "bounded-verifier-parallelism",
+      "reason": "Use two pytest workers and one numerical-library thread per worker for this verifier. Upstream automatic worker selection sees the 384-CPU host instead of the task allocation, causing excessive process startup and resource contention. Preserve selected tests, assertions, dependencies and reference patch.",
+      "pytest_workers": 2
+    },
+    "pybamm-team__PyBaMM-4221": {
+      "base_commit": "b50dfa595dd93a2943aa2a5a8aa14ac9468aea8e",
+      "label": "bounded-verifier-parallelism",
+      "reason": "Use two pytest workers and one numerical-library thread per worker for this verifier. Upstream automatic worker selection sees the 384-CPU host instead of the task allocation, causing excessive process startup and resource contention. Preserve selected tests, assertions, dependencies and reference patch.",
+      "pytest_workers": 2
+    },
+    "pybamm-team__PyBaMM-4267": {
+      "base_commit": "668e563b01749bcbb55a017e39b0cf94d8256619",
+      "label": "bounded-verifier-parallelism",
+      "reason": "Use two pytest workers and one numerical-library thread per worker for this verifier. Upstream automatic worker selection sees the 384-CPU host instead of the task allocation, causing excessive process startup and resource contention. Preserve selected tests, assertions, dependencies and reference patch.",
+      "pytest_workers": 2
+    },
+    "common-workflow-language__cwltool-1964": {
+      "base_commit": "8ff1fd05a12a124d104a67b7fd8ac3382c3e5212",
+      "label": "bounded-verifier-parallelism",
+      "reason": "Use two pytest workers and one numerical-library thread per worker for this verifier. Upstream automatic worker selection sees the 384-CPU host instead of the task allocation, causing excessive process startup and resource contention. Preserve selected tests, assertions, dependencies and reference patch.",
+      "pytest_workers": 2
+    },
+    "pybamm-team__PyBaMM-4192": {
+      "base_commit": "deca7e2bc404d94a8c944507fb2adee71546b5b0",
+      "label": "bounded-verifier-parallelism",
+      "reason": "Use two pytest workers and one numerical-library thread per worker for this verifier. Upstream automatic worker selection sees the 384-CPU host instead of the task allocation, causing excessive process startup and resource contention. Preserve selected tests, assertions, dependencies and reference patch.",
+      "pytest_workers": 2
+    },
+    "pybamm-team__PyBaMM-4072": {
+      "base_commit": "5f35628f21d44a4152419b7d8215a40f201709bc",
+      "label": "bounded-verifier-parallelism",
+      "reason": "Use two pytest workers and one numerical-library thread per worker for this verifier. Upstream automatic worker selection sees the 384-CPU host instead of the task allocation, causing excessive process startup and resource contention. Preserve selected tests, assertions, dependencies and reference patch.",
+      "pytest_workers": 2
+    },
+    "tobymao__sqlglot-3166": {
+      "base_commit": "cdbe39e7ec36b30e211942b1f62ae86946c7b520",
+      "label": "bounded-verifier-process-pool",
+      "reason": "Bound the optimizer test module ProcessPoolExecutor to two spawned workers. Its default creates a host-sized pool for each fixture group, despite the smaller task allocation; spawning also avoids forking after DuckDB initializes threads. Preserve submitted fixture jobs, result assertions, selected tests, dependencies and reference patch.",
+      "pytest_plugin": "swelego_sqlglot_workers"
+    },
+    "tobymao__sqlglot-4004": {
+      "base_commit": "fcaae87d50653600048917945652cdf463bcc3cf",
+      "label": "bounded-verifier-process-pool",
+      "reason": "Bound the optimizer test module ProcessPoolExecutor to two spawned workers. Its default creates a host-sized pool for each fixture group, despite the smaller task allocation; spawning also avoids forking after DuckDB initializes threads. Preserve submitted fixture jobs, result assertions, selected tests, dependencies and reference patch.",
+      "pytest_plugin": "swelego_sqlglot_workers"
+    },
+    "python-lsp__python-lsp-server-309": {
+      "base_commit": "cd9941c485516a1993c9c3beb7d407696b06c9cd",
+      "label": "bounded-verifier-process-pool",
+      "reason": "Bound the pinned Rope 1.13.0 autoimport cache ProcessPoolExecutor to two spawned workers. Its default sizes to the host rather than the task allocation; the diagnostic run exhausted task memory while initializing the cache. Preserve indexed packages, cache generation work, test assertions and reference patch.",
+      "pytest_plugin": "swelego_rope_workers"
+    }
+  },
+  "attribution": "History and generated-version failures include omissions in our reconstructed shallow checkout and non-isolated build setup. This audit does not claim all were missing from the original task image.",
+  "timeout_findings": {
+    "pytest": "Live diagnostic logs showed 384 workers for tsfresh and CWLTool. Pinned PyBaMM pyproject files also specify -nauto. All use bounded workers in the candidate.",
+    "sqlglot": "Both pinned optimizer test modules use ProcessPoolExecutor() for each fixture group. Saved SQLGlot3166 stack trace is in multiprocessing.process.start, with process-resource failures and eventual segmentation fault.",
+    "rope": "Pinned Rope1.13.0 autoimport sqlite module uses ProcessPoolExecutor() in module and resource cache generation. Diagnostic Python LSP initialization exhausted task memory.",
+    "image_conclusion": "Observed bottlenecks are excessive verification worker creation, not repeated package installation. Separate verifier images are not established as a remedy.",
+    "diagnostic_log": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-3166-timeout-probe.txt",
+    "repaired_reference_verifier_seconds": {
+      "blue-yonder__tsfresh-578": 5.7,
+      "pybamm-team__PyBaMM-3968": 6.6,
+      "pybamm-team__PyBaMM-4179": 13.8,
+      "pybamm-team__PyBaMM-4221": 11.3,
+      "pybamm-team__PyBaMM-4267": 9.4,
+      "common-workflow-language__cwltool-1964": 8.1,
+      "tobymao__sqlglot-3166": 25.7,
+      "pybamm-team__PyBaMM-4192": 10.7,
+      "python-lsp__python-lsp-server-309": 13.9,
+      "pybamm-team__PyBaMM-4072": 7.3,
+      "tobymao__sqlglot-4004": 25.6
+    },
+    "repaired_reference_verifier_range_seconds": [
+      5.7,
+      25.7
+    ]
+  },
+  "validation": {
+    "local_tests": "39 passed; 4 pre-existing temporary-directory cleanup warnings",
+    "acceptance": "Require completed stages1,3,4,5 with reference reward1 and valid no-op reward0; diagnostic probes never count as acceptance.",
+    "submissions": [
+      {
+        "name": "environment-repairs-v62-0-results",
+        "job_id": "958961",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "environment-repairs-v62-1-results",
+        "job_id": "958962",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "environment-repairs-v62-2-results",
+        "job_id": "958963",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "environment-repairs-v62-3-results",
+        "job_id": "958964",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "verifier-workers-v63-0-results",
+        "job_id": "958967",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "verifier-workers-v63-1-results",
+        "job_id": "958968",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "verifier-workers-v63-2-results",
+        "job_id": "958969",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "sqlglot-workers-v63-0-results",
+        "job_id": "958973",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "rope-workers-v63-0-results",
+        "job_id": "958978",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/rope-workers-v63-0-results/submissions/4f3d925ebbc3",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "sunpy-data-v64-0-results",
+        "job_id": "958986",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sunpy-data-v64-0-results/submissions/43348b62fdf2",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "gitpython-tag-v64-0-results",
+        "job_id": "958987",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/gitpython-tag-v64-0-results/submissions/2c052511f346",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "pybamm-extra-v65-0-results",
+        "job_id": "958992",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pybamm-extra-v65-0-results/submissions/bb24d5495c72",
+        "diagnostic_only": false,
+        "complete": true
+      },
+      {
+        "name": "timeout-probe-v62-0-results",
+        "job_id": "958949",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/timeout-probe-v62-0-results/submissions/49f6bae57345",
+        "diagnostic_only": true,
+        "complete": true
+      },
+      {
+        "name": "timeout-probe-v62-1-results",
+        "job_id": "958951",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/timeout-probe-v62-1-results/submissions/db136a211a9c",
+        "diagnostic_only": true,
+        "complete": false
+      },
+      {
+        "name": "timeout-probe-v62-2-results",
+        "job_id": "958952",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/timeout-probe-v62-2-results/submissions/dc244abc9323",
+        "diagnostic_only": true,
+        "complete": true
+      },
+      {
+        "name": "timeout-probe-v62-3-results",
+        "job_id": "958953",
+        "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/timeout-probe-v62-3-results/submissions/82c005594fcc",
+        "diagnostic_only": true,
+        "complete": true
+      }
+    ],
+    "accepted_repaired_tasks": 33,
+    "all_repaired_stages": [
+      1,
+      3,
+      4,
+      5
+    ],
+    "five_run_setup_timing_repeated": false,
+    "interrupted_diagnostic": {
+      "job_id": "958951",
+      "reason": "Stopped after reproducing excessive worker creation and successful bounded-worker replacements; preserved partial results before cancellation. Not acceptance evidence.",
+      "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/timeout-probe-v62-1-interrupted-evidence.tar.gz"
+    }
+  },
+  "integrity_and_acceptance": {
+    "candidate": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v65/source.parquet",
+    "candidate_sha256": "b61e883f8b90c92378af7eb385c2ff5aeb98693b616d75f83428ebf152244091",
+    "retained": 4299,
+    "archived": 24,
+    "new_archives": [
+      "Azure__azure-cli-3409",
+      "burnash__gspread-1030",
+      "burnash__gspread-1040",
+      "burnash__gspread-1095",
+      "burnash__gspread-1211",
+      "burnash__gspread-1229",
+      "burnash__gspread-1269",
+      "burnash__gspread-1308",
+      "burnash__gspread-1404",
+      "burnash__gspread-1415",
+      "burnash__gspread-1417",
+      "burnash__gspread-1498",
+      "cdent__gabbi-186",
+      "cdent__gabbi-191",
+      "cdent__wsgi-intercept-47",
+      "desihub__desitransfer-5",
+      "getsentry__sentry-python-2009",
+      "getsentry__sentry-python-3351",
+      "lundberg__respx-60",
+      "pdm-project__pdm-3255",
+      "radiasoft__pykern-107",
+      "radiasoft__pykern-259"
+    ],
+    "changed": [
+      "blue-yonder__tsfresh-578",
+      "borgbackup__borg-5263",
+      "common-workflow-language__cwltool-1964",
+      "dask__fastparquet-940",
+      "deepset-ai__haystack-9242",
+      "gitpython-developers__GitPython-1547",
+      "gitpython-developers__GitPython-1812",
+      "gitpython-developers__GitPython-1832",
+      "pimutils__khal-1305",
+      "pybamm-team__PyBaMM-3968",
+      "pybamm-team__PyBaMM-4072",
+      "pybamm-team__PyBaMM-4179",
+      "pybamm-team__PyBaMM-4192",
+      "pybamm-team__PyBaMM-4221",
+      "pybamm-team__PyBaMM-4267",
+      "pymor__pymor-1068",
+      "pymor__pymor-1296",
+      "pytest-dev__pytest-xdist-667",
+      "python-lsp__python-lsp-server-309",
+      "statsmodels__statsmodels-8339",
+      "statsmodels__statsmodels-8831",
+      "sunpy__sunpy-7522",
+      "sympy__sympy-10635",
+      "sympy__sympy-10753",
+      "sympy__sympy-10762",
+      "sympy__sympy-10808",
+      "sympy__sympy-10827",
+      "sympy__sympy-11149",
+      "tobymao__sqlglot-3166",
+      "tobymao__sqlglot-4004",
+      "vyperlang__vyper-3384",
+      "vyperlang__vyper-4253",
+      "zarr-developers__zarr-python-659"
+    ],
+    "unchanged_retained": 4266,
+    "grading_inputs_preserved": true,
+    "archive_payloads_preserved": true,
+    "validation_normalization": "Runner adds the canonical anti-cheat instruction suffix. Verified every other task file is byte-identical between original submitted inputs and normalized validation inputs.",
+    "stage3": "One normal preparation run; no review-setup or five-run timing certification.",
+    "passed_all_four": 33,
+    "missing": {},
+    "proof": {
+      "sympy__sympy-10635": {
+        "1": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "7a6292873a7af63f363de5bdffb91049f9feb1caaa2350224484ef2276ed28d0"
+        },
+        "3": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "7a6292873a7af63f363de5bdffb91049f9feb1caaa2350224484ef2276ed28d0"
+        },
+        "4": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            5.4
+          ],
+          "payload_sha256": "7a6292873a7af63f363de5bdffb91049f9feb1caaa2350224484ef2276ed28d0"
+        },
+        "5": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            4.8
+          ],
+          "payload_sha256": "7a6292873a7af63f363de5bdffb91049f9feb1caaa2350224484ef2276ed28d0"
+        }
+      },
+      "sympy__sympy-10827": {
+        "1": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "07c02220348a5267dbf1367f24c4176537559318eb0f927c0878d9e289363202"
+        },
+        "3": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "07c02220348a5267dbf1367f24c4176537559318eb0f927c0878d9e289363202"
+        },
+        "4": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            8.6
+          ],
+          "payload_sha256": "07c02220348a5267dbf1367f24c4176537559318eb0f927c0878d9e289363202"
+        },
+        "5": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            12.0
+          ],
+          "payload_sha256": "07c02220348a5267dbf1367f24c4176537559318eb0f927c0878d9e289363202"
+        }
+      },
+      "pybamm-team__PyBaMM-4072": {
+        "1": {
+          "job_id": "958969",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "812795607fac6d308a78bb56777c7b1b1de74a5a4e5f62a3f098d21170be6502"
+        },
+        "3": {
+          "job_id": "958969",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "812795607fac6d308a78bb56777c7b1b1de74a5a4e5f62a3f098d21170be6502"
+        },
+        "4": {
+          "job_id": "958969",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            7.3
+          ],
+          "payload_sha256": "812795607fac6d308a78bb56777c7b1b1de74a5a4e5f62a3f098d21170be6502"
+        },
+        "5": {
+          "job_id": "958969",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            7.2
+          ],
+          "payload_sha256": "812795607fac6d308a78bb56777c7b1b1de74a5a4e5f62a3f098d21170be6502"
+        }
+      },
+      "vyperlang__vyper-4253": {
+        "1": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "3fa74ce6ac4ee8959f9a5bfcf433c0953e9fa9d56f47d5c2b9a65903181a41e8"
+        },
+        "3": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "3fa74ce6ac4ee8959f9a5bfcf433c0953e9fa9d56f47d5c2b9a65903181a41e8"
+        },
+        "4": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            10.6
+          ],
+          "payload_sha256": "3fa74ce6ac4ee8959f9a5bfcf433c0953e9fa9d56f47d5c2b9a65903181a41e8"
+        },
+        "5": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            6.1
+          ],
+          "payload_sha256": "3fa74ce6ac4ee8959f9a5bfcf433c0953e9fa9d56f47d5c2b9a65903181a41e8"
+        }
+      },
+      "gitpython-developers__GitPython-1832": {
+        "1": {
+          "job_id": "958987",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/gitpython-tag-v64-0-results/submissions/2c052511f346",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "d74129d34ea17b51de51ae30c2a536ffad560662aa29beb8a718c3aa1f870450"
+        },
+        "3": {
+          "job_id": "958987",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/gitpython-tag-v64-0-results/submissions/2c052511f346",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "d74129d34ea17b51de51ae30c2a536ffad560662aa29beb8a718c3aa1f870450"
+        },
+        "4": {
+          "job_id": "958987",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/gitpython-tag-v64-0-results/submissions/2c052511f346",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            7.2
+          ],
+          "payload_sha256": "d74129d34ea17b51de51ae30c2a536ffad560662aa29beb8a718c3aa1f870450"
+        },
+        "5": {
+          "job_id": "958987",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/gitpython-tag-v64-0-results/submissions/2c052511f346",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            6.4
+          ],
+          "payload_sha256": "d74129d34ea17b51de51ae30c2a536ffad560662aa29beb8a718c3aa1f870450"
+        }
+      },
+      "pimutils__khal-1305": {
+        "1": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "99ebd9ea4fe071830dfb9ad6f2e8036146d815b8fccffa607f843c05ba0793be"
+        },
+        "3": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "99ebd9ea4fe071830dfb9ad6f2e8036146d815b8fccffa607f843c05ba0793be"
+        },
+        "4": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            5.8
+          ],
+          "payload_sha256": "99ebd9ea4fe071830dfb9ad6f2e8036146d815b8fccffa607f843c05ba0793be"
+        },
+        "5": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            9.9
+          ],
+          "payload_sha256": "99ebd9ea4fe071830dfb9ad6f2e8036146d815b8fccffa607f843c05ba0793be"
+        }
+      },
+      "pybamm-team__PyBaMM-3968": {
+        "1": {
+          "job_id": "958992",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pybamm-extra-v65-0-results/submissions/bb24d5495c72",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "1198db50a9552f6b0985ee9be0c7846ad9271a71c3b1198575ecb06a98ed18da"
+        },
+        "3": {
+          "job_id": "958992",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pybamm-extra-v65-0-results/submissions/bb24d5495c72",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "1198db50a9552f6b0985ee9be0c7846ad9271a71c3b1198575ecb06a98ed18da"
+        },
+        "4": {
+          "job_id": "958992",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pybamm-extra-v65-0-results/submissions/bb24d5495c72",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            6.6
+          ],
+          "payload_sha256": "1198db50a9552f6b0985ee9be0c7846ad9271a71c3b1198575ecb06a98ed18da"
+        },
+        "5": {
+          "job_id": "958992",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/pybamm-extra-v65-0-results/submissions/bb24d5495c72",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            7.4
+          ],
+          "payload_sha256": "1198db50a9552f6b0985ee9be0c7846ad9271a71c3b1198575ecb06a98ed18da"
+        }
+      },
+      "tobymao__sqlglot-3166": {
+        "1": {
+          "job_id": "958973",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "86b76f8a020307d7996386c7d608de6ec2226f8363e96f92e1106331f888dce8"
+        },
+        "3": {
+          "job_id": "958973",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "86b76f8a020307d7996386c7d608de6ec2226f8363e96f92e1106331f888dce8"
+        },
+        "4": {
+          "job_id": "958973",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            25.7
+          ],
+          "payload_sha256": "86b76f8a020307d7996386c7d608de6ec2226f8363e96f92e1106331f888dce8"
+        },
+        "5": {
+          "job_id": "958973",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            25.8
+          ],
+          "payload_sha256": "86b76f8a020307d7996386c7d608de6ec2226f8363e96f92e1106331f888dce8"
+        }
+      },
+      "pybamm-team__PyBaMM-4179": {
+        "1": {
+          "job_id": "958968",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "384736e749e1d79c6289e3564a703046bac3ba2018b2c667ac5d299898735feb"
+        },
+        "3": {
+          "job_id": "958968",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "384736e749e1d79c6289e3564a703046bac3ba2018b2c667ac5d299898735feb"
+        },
+        "4": {
+          "job_id": "958968",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            13.8
+          ],
+          "payload_sha256": "384736e749e1d79c6289e3564a703046bac3ba2018b2c667ac5d299898735feb"
+        },
+        "5": {
+          "job_id": "958968",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            8.4
+          ],
+          "payload_sha256": "384736e749e1d79c6289e3564a703046bac3ba2018b2c667ac5d299898735feb"
+        }
+      },
+      "gitpython-developers__GitPython-1812": {
+        "1": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "5a1dc249cb5ba62b2287e0808eaa64fdf7a1229b757ab78dc3db85688815afb8"
+        },
+        "3": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "5a1dc249cb5ba62b2287e0808eaa64fdf7a1229b757ab78dc3db85688815afb8"
+        },
+        "4": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            5.9
+          ],
+          "payload_sha256": "5a1dc249cb5ba62b2287e0808eaa64fdf7a1229b757ab78dc3db85688815afb8"
+        },
+        "5": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            6.6
+          ],
+          "payload_sha256": "5a1dc249cb5ba62b2287e0808eaa64fdf7a1229b757ab78dc3db85688815afb8"
+        }
+      },
+      "sympy__sympy-10753": {
+        "1": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "fe54ebb72690331fce19eaca00d4c0b561a85996824a26b90c0a4ea9ade8dff5"
+        },
+        "3": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "fe54ebb72690331fce19eaca00d4c0b561a85996824a26b90c0a4ea9ade8dff5"
+        },
+        "4": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            4.2
+          ],
+          "payload_sha256": "fe54ebb72690331fce19eaca00d4c0b561a85996824a26b90c0a4ea9ade8dff5"
+        },
+        "5": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            4.2
+          ],
+          "payload_sha256": "fe54ebb72690331fce19eaca00d4c0b561a85996824a26b90c0a4ea9ade8dff5"
+        }
+      },
+      "dask__fastparquet-940": {
+        "1": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "79d5d9499195c9146fdb4d3deb1f7acef7c4ac85ae054aeb0030d8e1cab791c0"
+        },
+        "3": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "79d5d9499195c9146fdb4d3deb1f7acef7c4ac85ae054aeb0030d8e1cab791c0"
+        },
+        "4": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            5.3
+          ],
+          "payload_sha256": "79d5d9499195c9146fdb4d3deb1f7acef7c4ac85ae054aeb0030d8e1cab791c0"
+        },
+        "5": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            5.3
+          ],
+          "payload_sha256": "79d5d9499195c9146fdb4d3deb1f7acef7c4ac85ae054aeb0030d8e1cab791c0"
+        }
+      },
+      "statsmodels__statsmodels-8339": {
+        "1": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "fa6a4bfd64cea093f6c34a5ab39ba2ce2dd707b9152eaeaa8c8e7ae823f7cb58"
+        },
+        "3": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "fa6a4bfd64cea093f6c34a5ab39ba2ce2dd707b9152eaeaa8c8e7ae823f7cb58"
+        },
+        "4": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            14.8
+          ],
+          "payload_sha256": "fa6a4bfd64cea093f6c34a5ab39ba2ce2dd707b9152eaeaa8c8e7ae823f7cb58"
+        },
+        "5": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            5.7
+          ],
+          "payload_sha256": "fa6a4bfd64cea093f6c34a5ab39ba2ce2dd707b9152eaeaa8c8e7ae823f7cb58"
+        }
+      },
+      "pybamm-team__PyBaMM-4221": {
+        "1": {
+          "job_id": "958969",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "0901558637e4949731e8d070633f0ba9374380e18cff7f7ef330c6b127b2b4a7"
+        },
+        "3": {
+          "job_id": "958969",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "0901558637e4949731e8d070633f0ba9374380e18cff7f7ef330c6b127b2b4a7"
+        },
+        "4": {
+          "job_id": "958969",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            11.3
+          ],
+          "payload_sha256": "0901558637e4949731e8d070633f0ba9374380e18cff7f7ef330c6b127b2b4a7"
+        },
+        "5": {
+          "job_id": "958969",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-2-results/submissions/2f807fdbcb20",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            6.9
+          ],
+          "payload_sha256": "0901558637e4949731e8d070633f0ba9374380e18cff7f7ef330c6b127b2b4a7"
+        }
+      },
+      "pybamm-team__PyBaMM-4192": {
+        "1": {
+          "job_id": "958968",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "a5c72245c1e068f8063e862899c29599d4b5dba9bb2cd3ca2f70faa2509a90d8"
+        },
+        "3": {
+          "job_id": "958968",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "a5c72245c1e068f8063e862899c29599d4b5dba9bb2cd3ca2f70faa2509a90d8"
+        },
+        "4": {
+          "job_id": "958968",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            10.7
+          ],
+          "payload_sha256": "a5c72245c1e068f8063e862899c29599d4b5dba9bb2cd3ca2f70faa2509a90d8"
+        },
+        "5": {
+          "job_id": "958968",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-1-results/submissions/8ca63fcd5a5e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            8.9
+          ],
+          "payload_sha256": "a5c72245c1e068f8063e862899c29599d4b5dba9bb2cd3ca2f70faa2509a90d8"
+        }
+      },
+      "tobymao__sqlglot-4004": {
+        "1": {
+          "job_id": "958973",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "319ef2c0ce4b99cb747ee2d00033293ad1de21a31d7309a4c08309f30866ee52"
+        },
+        "3": {
+          "job_id": "958973",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "319ef2c0ce4b99cb747ee2d00033293ad1de21a31d7309a4c08309f30866ee52"
+        },
+        "4": {
+          "job_id": "958973",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            25.6
+          ],
+          "payload_sha256": "319ef2c0ce4b99cb747ee2d00033293ad1de21a31d7309a4c08309f30866ee52"
+        },
+        "5": {
+          "job_id": "958973",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sqlglot-workers-v63-0-results/submissions/735bb6abdf0e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            26.2
+          ],
+          "payload_sha256": "319ef2c0ce4b99cb747ee2d00033293ad1de21a31d7309a4c08309f30866ee52"
+        }
+      },
+      "python-lsp__python-lsp-server-309": {
+        "1": {
+          "job_id": "958978",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/rope-workers-v63-0-results/submissions/4f3d925ebbc3",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "16ef45c6564e12f559bad1e2a8c674e67f05684269fd4ab4c727ad4bc26081aa"
+        },
+        "3": {
+          "job_id": "958978",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/rope-workers-v63-0-results/submissions/4f3d925ebbc3",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "16ef45c6564e12f559bad1e2a8c674e67f05684269fd4ab4c727ad4bc26081aa"
+        },
+        "4": {
+          "job_id": "958978",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/rope-workers-v63-0-results/submissions/4f3d925ebbc3",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            13.9
+          ],
+          "payload_sha256": "16ef45c6564e12f559bad1e2a8c674e67f05684269fd4ab4c727ad4bc26081aa"
+        },
+        "5": {
+          "job_id": "958978",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/rope-workers-v63-0-results/submissions/4f3d925ebbc3",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            13.1
+          ],
+          "payload_sha256": "16ef45c6564e12f559bad1e2a8c674e67f05684269fd4ab4c727ad4bc26081aa"
+        }
+      },
+      "deepset-ai__haystack-9242": {
+        "1": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "570944ed0b1d2af0f6cfaadf28bcf0e7fdb0aa84322d3450c3339d72172e8d17"
+        },
+        "3": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "570944ed0b1d2af0f6cfaadf28bcf0e7fdb0aa84322d3450c3339d72172e8d17"
+        },
+        "4": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            5.6
+          ],
+          "payload_sha256": "570944ed0b1d2af0f6cfaadf28bcf0e7fdb0aa84322d3450c3339d72172e8d17"
+        },
+        "5": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            10.0
+          ],
+          "payload_sha256": "570944ed0b1d2af0f6cfaadf28bcf0e7fdb0aa84322d3450c3339d72172e8d17"
+        }
+      },
+      "sunpy__sunpy-7522": {
+        "1": {
+          "job_id": "958986",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sunpy-data-v64-0-results/submissions/43348b62fdf2",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "a0fff77f92806dfbb9928190be27768f938b62482467b87d84f7a2a3ddb60816"
+        },
+        "3": {
+          "job_id": "958986",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sunpy-data-v64-0-results/submissions/43348b62fdf2",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "a0fff77f92806dfbb9928190be27768f938b62482467b87d84f7a2a3ddb60816"
+        },
+        "4": {
+          "job_id": "958986",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sunpy-data-v64-0-results/submissions/43348b62fdf2",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            12.3
+          ],
+          "payload_sha256": "a0fff77f92806dfbb9928190be27768f938b62482467b87d84f7a2a3ddb60816"
+        },
+        "5": {
+          "job_id": "958986",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/sunpy-data-v64-0-results/submissions/43348b62fdf2",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            15.1
+          ],
+          "payload_sha256": "a0fff77f92806dfbb9928190be27768f938b62482467b87d84f7a2a3ddb60816"
+        }
+      },
+      "vyperlang__vyper-3384": {
+        "1": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "890c5a67b3ef87823bd5ca5f38f4820877ece00c43e8bb9411f64b067c339674"
+        },
+        "3": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "890c5a67b3ef87823bd5ca5f38f4820877ece00c43e8bb9411f64b067c339674"
+        },
+        "4": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            14.3
+          ],
+          "payload_sha256": "890c5a67b3ef87823bd5ca5f38f4820877ece00c43e8bb9411f64b067c339674"
+        },
+        "5": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            14.3
+          ],
+          "payload_sha256": "890c5a67b3ef87823bd5ca5f38f4820877ece00c43e8bb9411f64b067c339674"
+        }
+      },
+      "pymor__pymor-1296": {
+        "1": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "ec9e5c95f0a9578ba22e269a0eb2d3d633b93cab21fa7482958b8d7532c37520"
+        },
+        "3": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "ec9e5c95f0a9578ba22e269a0eb2d3d633b93cab21fa7482958b8d7532c37520"
+        },
+        "4": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            20.8
+          ],
+          "payload_sha256": "ec9e5c95f0a9578ba22e269a0eb2d3d633b93cab21fa7482958b8d7532c37520"
+        },
+        "5": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            16.9
+          ],
+          "payload_sha256": "ec9e5c95f0a9578ba22e269a0eb2d3d633b93cab21fa7482958b8d7532c37520"
+        }
+      },
+      "sympy__sympy-10762": {
+        "1": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "3be8bd1b8448287ea4565d394aa7962d604941c05d12230a50bcd7d521e3dbb7"
+        },
+        "3": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "3be8bd1b8448287ea4565d394aa7962d604941c05d12230a50bcd7d521e3dbb7"
+        },
+        "4": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            7.4
+          ],
+          "payload_sha256": "3be8bd1b8448287ea4565d394aa7962d604941c05d12230a50bcd7d521e3dbb7"
+        },
+        "5": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            6.8
+          ],
+          "payload_sha256": "3be8bd1b8448287ea4565d394aa7962d604941c05d12230a50bcd7d521e3dbb7"
+        }
+      },
+      "gitpython-developers__GitPython-1547": {
+        "1": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "06e8a76dcdbaadc91fc1a23a516f9f11554a3565ea1873addcc0b90fc80a4200"
+        },
+        "3": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "06e8a76dcdbaadc91fc1a23a516f9f11554a3565ea1873addcc0b90fc80a4200"
+        },
+        "4": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            5.3
+          ],
+          "payload_sha256": "06e8a76dcdbaadc91fc1a23a516f9f11554a3565ea1873addcc0b90fc80a4200"
+        },
+        "5": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            9.1
+          ],
+          "payload_sha256": "06e8a76dcdbaadc91fc1a23a516f9f11554a3565ea1873addcc0b90fc80a4200"
+        }
+      },
+      "pybamm-team__PyBaMM-4267": {
+        "1": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "b939dd1b9c332625c3e816be6d43dfe6bb553b9afd222b7d14cf03be54f5aa6f"
+        },
+        "3": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "b939dd1b9c332625c3e816be6d43dfe6bb553b9afd222b7d14cf03be54f5aa6f"
+        },
+        "4": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            9.4
+          ],
+          "payload_sha256": "b939dd1b9c332625c3e816be6d43dfe6bb553b9afd222b7d14cf03be54f5aa6f"
+        },
+        "5": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            8.5
+          ],
+          "payload_sha256": "b939dd1b9c332625c3e816be6d43dfe6bb553b9afd222b7d14cf03be54f5aa6f"
+        }
+      },
+      "blue-yonder__tsfresh-578": {
+        "1": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "ed1305708d6647d6f8252d02a19a2325250f063d540ed01bb3c9682e56c3c8ec"
+        },
+        "3": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "ed1305708d6647d6f8252d02a19a2325250f063d540ed01bb3c9682e56c3c8ec"
+        },
+        "4": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            5.7
+          ],
+          "payload_sha256": "ed1305708d6647d6f8252d02a19a2325250f063d540ed01bb3c9682e56c3c8ec"
+        },
+        "5": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            6.1
+          ],
+          "payload_sha256": "ed1305708d6647d6f8252d02a19a2325250f063d540ed01bb3c9682e56c3c8ec"
+        }
+      },
+      "sympy__sympy-11149": {
+        "1": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "510447accc25bc80ed307156cd3c62dbf77b3423d2898053f94fb898b21bd341"
+        },
+        "3": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "510447accc25bc80ed307156cd3c62dbf77b3423d2898053f94fb898b21bd341"
+        },
+        "4": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            4.8
+          ],
+          "payload_sha256": "510447accc25bc80ed307156cd3c62dbf77b3423d2898053f94fb898b21bd341"
+        },
+        "5": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            4.8
+          ],
+          "payload_sha256": "510447accc25bc80ed307156cd3c62dbf77b3423d2898053f94fb898b21bd341"
+        }
+      },
+      "borgbackup__borg-5263": {
+        "1": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "87e0c9cc01a2690ef98805dcafd4a1c0b83225ff4605d2dc1b09b52480cc416e"
+        },
+        "3": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "87e0c9cc01a2690ef98805dcafd4a1c0b83225ff4605d2dc1b09b52480cc416e"
+        },
+        "4": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            29.5
+          ],
+          "payload_sha256": "87e0c9cc01a2690ef98805dcafd4a1c0b83225ff4605d2dc1b09b52480cc416e"
+        },
+        "5": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            15.1
+          ],
+          "payload_sha256": "87e0c9cc01a2690ef98805dcafd4a1c0b83225ff4605d2dc1b09b52480cc416e"
+        }
+      },
+      "zarr-developers__zarr-python-659": {
+        "1": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "df0a0eec278b0a2d65501a78f1f30143ff42278f1c780f97a99db3cf9b8a1cac"
+        },
+        "3": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "df0a0eec278b0a2d65501a78f1f30143ff42278f1c780f97a99db3cf9b8a1cac"
+        },
+        "4": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            4.4
+          ],
+          "payload_sha256": "df0a0eec278b0a2d65501a78f1f30143ff42278f1c780f97a99db3cf9b8a1cac"
+        },
+        "5": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            4.1
+          ],
+          "payload_sha256": "df0a0eec278b0a2d65501a78f1f30143ff42278f1c780f97a99db3cf9b8a1cac"
+        }
+      },
+      "common-workflow-language__cwltool-1964": {
+        "1": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "0c55f99ebff6ec0d9fba4f9e206b5f6ac0863dbfe3afa4f007c0d439a7675473"
+        },
+        "3": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "0c55f99ebff6ec0d9fba4f9e206b5f6ac0863dbfe3afa4f007c0d439a7675473"
+        },
+        "4": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            8.1
+          ],
+          "payload_sha256": "0c55f99ebff6ec0d9fba4f9e206b5f6ac0863dbfe3afa4f007c0d439a7675473"
+        },
+        "5": {
+          "job_id": "958967",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/verifier-workers-v63-0-results/submissions/d5ccaded8a1e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            7.3
+          ],
+          "payload_sha256": "0c55f99ebff6ec0d9fba4f9e206b5f6ac0863dbfe3afa4f007c0d439a7675473"
+        }
+      },
+      "pymor__pymor-1068": {
+        "1": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "7f5737525ed0e1caa1b2c2d5de2f6e499b90d080b55c1b438df0aa311f554c8e"
+        },
+        "3": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "7f5737525ed0e1caa1b2c2d5de2f6e499b90d080b55c1b438df0aa311f554c8e"
+        },
+        "4": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            29.8
+          ],
+          "payload_sha256": "7f5737525ed0e1caa1b2c2d5de2f6e499b90d080b55c1b438df0aa311f554c8e"
+        },
+        "5": {
+          "job_id": "958964",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-3-results/submissions/916af95af14d",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            72.0
+          ],
+          "payload_sha256": "7f5737525ed0e1caa1b2c2d5de2f6e499b90d080b55c1b438df0aa311f554c8e"
+        }
+      },
+      "statsmodels__statsmodels-8831": {
+        "1": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "4f3fe8bba9395869b24e6df62723cc8ed28c75feab0676baf170bfb3b447562a"
+        },
+        "3": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "4f3fe8bba9395869b24e6df62723cc8ed28c75feab0676baf170bfb3b447562a"
+        },
+        "4": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            16.4
+          ],
+          "payload_sha256": "4f3fe8bba9395869b24e6df62723cc8ed28c75feab0676baf170bfb3b447562a"
+        },
+        "5": {
+          "job_id": "958962",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-1-results/submissions/9b94e6b0ee9e",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            16.3
+          ],
+          "payload_sha256": "4f3fe8bba9395869b24e6df62723cc8ed28c75feab0676baf170bfb3b447562a"
+        }
+      },
+      "sympy__sympy-10808": {
+        "1": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "3991f9ffa8c9b127e6bc98edf6335525a149e259a84fd008b741575c69b08bc9"
+        },
+        "3": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "3991f9ffa8c9b127e6bc98edf6335525a149e259a84fd008b741575c69b08bc9"
+        },
+        "4": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            10.9
+          ],
+          "payload_sha256": "3991f9ffa8c9b127e6bc98edf6335525a149e259a84fd008b741575c69b08bc9"
+        },
+        "5": {
+          "job_id": "958961",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-0-results/submissions/da385ff3cb06",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            11.4
+          ],
+          "payload_sha256": "3991f9ffa8c9b127e6bc98edf6335525a149e259a84fd008b741575c69b08bc9"
+        }
+      },
+      "pytest-dev__pytest-xdist-667": {
+        "1": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "faffdffe86fa5b98d11693349fe873ba8f73a1a7a06b5c065c96d8394aed4075"
+        },
+        "3": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": null,
+          "verifier_seconds": null,
+          "payload_sha256": "faffdffe86fa5b98d11693349fe873ba8f73a1a7a06b5c065c96d8394aed4075"
+        },
+        "4": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            1.0
+          ],
+          "verifier_seconds": [
+            7.7
+          ],
+          "payload_sha256": "faffdffe86fa5b98d11693349fe873ba8f73a1a7a06b5c065c96d8394aed4075"
+        },
+        "5": {
+          "job_id": "958963",
+          "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/environment-repairs-v62-2-results/submissions/8173a90080a6",
+          "rewards": [
+            0.0
+          ],
+          "verifier_seconds": [
+            7.3
+          ],
+          "payload_sha256": "faffdffe86fa5b98d11693349fe873ba8f73a1a7a06b5c065c96d8394aed4075"
+        }
+      }
+    }
+  }
+}

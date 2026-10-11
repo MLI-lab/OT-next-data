@@ -1,0 +1,16 @@
+{
+  "retained": 4321,
+  "archived": 2,
+  "original_archive_payloads_preserved": true,
+  "unchanged_retained_payloads": 4320,
+  "changed_retained_payloads": [
+    "F5Networks__f5-common-python-967"
+  ],
+  "changed_task_matches_validated_f5_candidate": true,
+  "candidate": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v55/source.parquet",
+  "candidate_sha256": "fcb9399c32a8ded63ce7b25fbe42b47c6d49684a5691b5e4397c48f012849e11",
+  "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v55/source.archive.parquet",
+  "manifest": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v55/source.manifest.json",
+  "archive_table": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v55/archive-table.txt",
+  "evidence": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v55/correctness-investigation.json"
+}

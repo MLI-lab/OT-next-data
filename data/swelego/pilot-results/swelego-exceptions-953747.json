@@ -1,0 +1,138 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-exceptions-20261008/results-v5/submissions/24058060b103/evidence.tar.gz",
+  "contract_sha256": "598ad0ff105b80db9c02f4064c0aafe3c1f9df766ec53db5659e9fedf4d39fb1",
+  "network_status": {
+    "requested": "host",
+    "effective": "host",
+    "reason": "host networking explicitly requested"
+  },
+  "instruction_fixup": {
+    "operation": "automatic-instruction-normalization-v1",
+    "original_path": "/tmp/953747.helma/validation-24058060b103/tasks",
+    "description": "Our extension to the upstream Terminal-Bench suffix check appends the sentence when missing and overwrites the saved instruction.md in the validation copy; an existing canonical suffix is updated without duplication. Original inputs are unchanged.",
+    "sentence_template": "You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.",
+    "timeout_source": "[agent].timeout_sec",
+    "saved_dataset": "/tmp/953747.helma/validation-24058060b103/results/path-normalization/45e50883acb0/tasks",
+    "original_manifest_sha256": "ffaffff0641cc231a1062032c58dfb849784e7afa989074346edf25506a44861",
+    "original_source_files": [],
+    "original_selection": {
+      "limit": null,
+      "task_id_range": null
+    },
+    "instruction_paths": {
+      "enabled": true,
+      "evidence_reports": [
+        "/tmp/953747.helma/validation-24058060b103/results/path-normalization/45e50883acb0/resolver-evidence.json"
+      ],
+      "tasks": [
+        {
+          "task": "dask__dask-1150",
+          "oracle_status": "passed",
+          "edits": [
+            {
+              "start": 30,
+              "end": 50,
+              "old": "dask/array/random.py",
+              "new": "/testbed/dask/array/random.py",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            }
+          ]
+        }
+      ]
+    },
+    "suffix_enabled": true,
+    "parent_contract_sha256": "d280c470e2bd24a64aa0ee3e5f23a9a326662d4dff0b6b351050145f299915e1"
+  },
+  "contract_status": "bound",
+  "requested_stages": [
+    1,
+    4,
+    5
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "static_checks",
+      "complete": true,
+      "tasks": 23,
+      "counts": {
+        "passed": 23
+      },
+      "report": "results/stage_1_static_checks/7a95f2d0db8b/summary.json",
+      "contract_sha256": "598ad0ff105b80db9c02f4064c0aafe3c1f9df766ec53db5659e9fedf4d39fb1",
+      "timing": {
+        "node": "h24-21",
+        "slurm_job_id": "953747",
+        "started_at": "2026-10-08T07:50:21+00:00",
+        "wall_seconds": 1.8,
+        "concurrency": 5
+      }
+    },
+    {
+      "stage": 4,
+      "name": "oracle_validation",
+      "complete": true,
+      "tasks": 23,
+      "counts": {
+        "passed": 23
+      },
+      "report": "results/stage_4_oracle_validation/d8b9dae401f7/summary.json",
+      "contract_sha256": "598ad0ff105b80db9c02f4064c0aafe3c1f9df766ec53db5659e9fedf4d39fb1",
+      "timing": {
+        "node": "h24-21",
+        "slurm_job_id": "953747",
+        "started_at": "2026-10-08T07:50:23+00:00",
+        "wall_seconds": 601.8,
+        "concurrency": 5
+      }
+    },
+    {
+      "stage": 5,
+      "name": "nop_validation",
+      "complete": true,
+      "tasks": 23,
+      "counts": {
+        "passed": 23
+      },
+      "report": "results/stage_5_nop_validation/3712acae022d/summary.json",
+      "contract_sha256": "598ad0ff105b80db9c02f4064c0aafe3c1f9df766ec53db5659e9fedf4d39fb1",
+      "timing": {
+        "node": "h24-21",
+        "slurm_job_id": "953747",
+        "started_at": "2026-10-08T08:00:24+00:00",
+        "wall_seconds": 635.6,
+        "concurrency": 5
+      }
+    }
+  ],
+  "review_groups": null,
+  "pipelines": [
+    {
+      "stages": [
+        {
+          "stage": 1,
+          "report": "/tmp/953747.helma/validation-24058060b103/results/stage_1_static_checks/7a95f2d0db8b/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 4,
+          "report": "/tmp/953747.helma/validation-24058060b103/results/stage_4_oracle_validation/d8b9dae401f7/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 5,
+          "report": "/tmp/953747.helma/validation-24058060b103/results/stage_5_nop_validation/3712acae022d/summary.json",
+          "status": "completed"
+        }
+      ],
+      "complete": true,
+      "dry_run": false,
+      "contract_sha256": "598ad0ff105b80db9c02f4064c0aafe3c1f9df766ec53db5659e9fedf4d39fb1"
+    }
+  ],
+  "failures": [],
+  "plots": []
+}

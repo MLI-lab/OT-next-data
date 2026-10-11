@@ -1,0 +1,454 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-20-resolvers-20261007/results-h200-2h/submissions/e36b840bd38c/evidence.tar.gz",
+  "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+  "network_status": {
+    "requested": "host",
+    "effective": "host",
+    "reason": "host networking explicitly requested"
+  },
+  "instruction_fixup": {
+    "operation": "canonical-timeout-anticheat-suffix-v1",
+    "original_path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-20-resolvers-20261007/multiswe-20-pilot/input/tasks",
+    "description": "Our extension to the upstream Terminal-Bench suffix check appends the sentence when missing and overwrites the saved instruction.md in the validation copy; an existing canonical suffix is updated without duplication. Original inputs are unchanged.",
+    "sentence_template": "You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.",
+    "timeout_source": "[agent].timeout_sec",
+    "saved_dataset": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-20-resolvers-20261007/contract-h200-2h.stage1-tasks",
+    "original_manifest_sha256": "f2577940cbafba30731d82622ccb294711852ae890927471f0ebf31fd193db96",
+    "original_source_files": [],
+    "original_selection": {
+      "limit": null,
+      "task_id_range": null
+    },
+    "instruction_paths": {
+      "enabled": true,
+      "evidence_reports": [],
+      "tasks": []
+    },
+    "suffix_enabled": true
+  },
+  "contract_status": "bound",
+  "requested_stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "static_checks",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "passed": 20
+      },
+      "report": "results/stage_1_static_checks/735a1e572fd5/summary.json",
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "948526",
+        "started_at": "2026-10-07T10:16:25+00:00",
+        "wall_seconds": 1.1,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 3,
+      "name": "build_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "failed": 6,
+        "passed": 14
+      },
+      "report": "results/stage_3_build_validation/09a78e88df67/summary.json",
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "948526",
+        "started_at": "2026-10-07T10:16:26+00:00",
+        "wall_seconds": 48.6,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 4,
+      "name": "oracle_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "skipped": 6,
+        "failed": 14
+      },
+      "report": "results/stage_4_oracle_validation/85893f40499a/summary.json",
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "948526",
+        "started_at": "2026-10-07T10:17:15+00:00",
+        "wall_seconds": 764.4,
+        "concurrency": 8
+      }
+    },
+    {
+      "stage": 5,
+      "name": "nop_validation",
+      "complete": true,
+      "tasks": 20,
+      "counts": {
+        "skipped": 6,
+        "passed": 14
+      },
+      "report": "results/stage_5_nop_validation/35aa43381cbc/summary.json",
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "948526",
+        "started_at": "2026-10-07T10:29:59+00:00",
+        "wall_seconds": 17.9,
+        "concurrency": 8
+      }
+    }
+  ],
+  "review_groups": null,
+  "pipelines": [
+    {
+      "stages": [
+        {
+          "stage": 1,
+          "report": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_1_static_checks/735a1e572fd5/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 3,
+          "report": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_3_build_validation/09a78e88df67/summary.json",
+          "status": "findings"
+        },
+        {
+          "stage": 4,
+          "report": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/summary.json",
+          "status": "findings"
+        },
+        {
+          "stage": 5,
+          "report": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_5_nop_validation/35aa43381cbc/summary.json",
+          "status": "findings"
+        }
+      ],
+      "complete": true,
+      "dry_run": false,
+      "contract_sha256": "5387427869f3cb43e41412b76f38d65d43cd42d6d77f3ab0ab455ac36a5fa2aa"
+    }
+  ],
+  "failures": [
+    {
+      "stage": 3,
+      "task": "OpenMathLib__OpenBLAS-4419",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_3_build_validation/09a78e88df67/00000-OpenMathLib__OpenBLAS-4419"
+    },
+    {
+      "stage": 3,
+      "task": "facebook__zstd-947",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_3_build_validation/09a78e88df67/00007-facebook__zstd-947"
+    },
+    {
+      "stage": 3,
+      "task": "jqlang__jq-2945",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_3_build_validation/09a78e88df67/00016-jqlang__jq-2945"
+    },
+    {
+      "stage": 3,
+      "task": "libsdl-org__SDL-10158",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_3_build_validation/09a78e88df67/00017-libsdl-org__SDL-10158"
+    },
+    {
+      "stage": 3,
+      "task": "mruby__mruby-2261",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_3_build_validation/09a78e88df67/00018-mruby__mruby-2261"
+    },
+    {
+      "stage": 3,
+      "task": "mruby__mruby-2828",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_3_build_validation/09a78e88df67/00019-mruby__mruby-2828"
+    },
+    {
+      "stage": 4,
+      "task": "",
+      "status": "failed",
+      "check": "validation-contract",
+      "benchmark_policy": false,
+      "reason": "selected tasks were skipped",
+      "evidence": "results/stage_4_oracle_validation/85893f40499a/summary.json"
+    },
+    {
+      "stage": 4,
+      "task": "OpenMathLib__OpenBLAS-4419",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_4_oracle_validation/85893f40499a/summary.json"
+    },
+    {
+      "stage": 4,
+      "task": "facebook__zstd-947",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_4_oracle_validation/85893f40499a/summary.json"
+    },
+    {
+      "stage": 4,
+      "task": "jqlang__jq-2945",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_4_oracle_validation/85893f40499a/summary.json"
+    },
+    {
+      "stage": 4,
+      "task": "libsdl-org__SDL-10158",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_4_oracle_validation/85893f40499a/summary.json"
+    },
+    {
+      "stage": 4,
+      "task": "mruby__mruby-2261",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_4_oracle_validation/85893f40499a/summary.json"
+    },
+    {
+      "stage": 4,
+      "task": "mruby__mruby-2828",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_4_oracle_validation/85893f40499a/summary.json"
+    },
+    {
+      "stage": 4,
+      "task": "beego__beego-4036",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "caddyserver__caddy-6264",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "cli__cli-1631",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "cli__cli-2055",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "cli__cli-6384",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "etcd-io__etcd-17943",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "fatedier__frp-2421",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "go-gorm__gorm-2410",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-10800",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-12332",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-5358",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-6086",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-7981",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 4,
+      "task": "gohugoio__hugo-9587",
+      "status": "failed",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "[\"000: expected reward 1, got 0.0\"]",
+      "evidence": "/tmp/948526.helma/validation-e36b840bd38c/results/stage_4_oracle_validation/85893f40499a/jobs/job"
+    },
+    {
+      "stage": 5,
+      "task": "",
+      "status": "failed",
+      "check": "validation-contract",
+      "benchmark_policy": false,
+      "reason": "selected tasks were skipped",
+      "evidence": "results/stage_5_nop_validation/35aa43381cbc/summary.json"
+    },
+    {
+      "stage": 5,
+      "task": "OpenMathLib__OpenBLAS-4419",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_5_nop_validation/35aa43381cbc/summary.json"
+    },
+    {
+      "stage": 5,
+      "task": "facebook__zstd-947",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_5_nop_validation/35aa43381cbc/summary.json"
+    },
+    {
+      "stage": 5,
+      "task": "jqlang__jq-2945",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_5_nop_validation/35aa43381cbc/summary.json"
+    },
+    {
+      "stage": 5,
+      "task": "libsdl-org__SDL-10158",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_5_nop_validation/35aa43381cbc/summary.json"
+    },
+    {
+      "stage": 5,
+      "task": "mruby__mruby-2261",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_5_nop_validation/35aa43381cbc/summary.json"
+    },
+    {
+      "stage": 5,
+      "task": "mruby__mruby-2828",
+      "status": "skipped",
+      "check": "",
+      "benchmark_policy": false,
+      "reason": "\"build retry check: 0/3 additional attempts passed; all 3 required\"",
+      "evidence": "results/stage_5_nop_validation/35aa43381cbc/summary.json"
+    }
+  ],
+  "plots": []
+}

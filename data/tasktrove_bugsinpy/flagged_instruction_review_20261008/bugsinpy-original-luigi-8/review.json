@@ -1,0 +1,19 @@
+{
+  "instruction_verifier_alignment": {
+    "rating": "PASS",
+    "description": "The verifier runs only TestS3CopyToSchemaTable::test_s3_copy_to_table, which asserts cursor.execute was called with the exact information_schema query using lower(%s) placeholders and tuple(task.table.split('.')) as params. The instruction states this exact query string and parameter form, and /app/luigi/contrib/redshift.py does contain the described case-sensitive does_table_exist. Paths are absolute. Nothing the tests require is left out."
+  },
+  "solution_leakage": {
+    "rating": "FAIL",
+    "description": "The instruction gives away the whole fix: it names the method and file, says to do the lowercasing in SQL, says how to pass the parameters, and quotes the exact replacement query strings, which are word for word the lines in reference.patch. Nothing is left for the agent to work out; it only has to paste two strings."
+  },
+  "instruction_quality": {
+    "rating": "FAIL",
+    "description": "The first paragraph describes the bug clearly. The second paragraph, though, reads like a paraphrase of the test assertion (exact query text, exact execute arguments, 'leave everything else as it is'). It tells the agent how to implement the fix rather than what behavior is needed, and it over-specifies to fit a string-matching mock assertion."
+  },
+  "task_validity": {
+    "rating": "FAIL",
+    "reason": "reference_details",
+    "description": "The test is a mock assertion on the exact SQL text and the exact execute arguments. Other correct case-insensitive fixes would fail it, for example lowercasing the names in Python, using ILIKE/upper(), or formatting the query differently, even though they behave correctly against Redshift. The only way to make such solutions pass is to dictate the exact query string in the instruction, and that turns the task into copying the solution. The test checks how the reference is built internally, not the behavior."
+  }
+}

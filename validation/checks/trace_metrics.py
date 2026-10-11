@@ -1,16 +1,11 @@
-"""Cost, tool, termination and error statistics read from saved agent trials.
-
-Everything is read from Harbor's `result.json` and ATIF `agent/trajectory.json`.
-A value the agent did not record is reported as null, never estimated.
-"""
+"""Summarize recorded costs, tools, termination reasons and errors from agent trials."""
 from collections import Counter
 from datetime import datetime
 import json
 from pathlib import Path
 import re
 
-from validation.verify.pass_at_k import group_of
-from validation.checks.reward_metrics import trial_reward
+from validation.checks.reward_metrics import group_of, trial_reward, passk_reward, REWARD_POLICY
 from validation.checks.command_metrics import profile, mean_distribution
 
 PARSE_ERROR = 'Previous response had parsing errors'
@@ -24,6 +19,7 @@ TERMINATIONS = {
     'TurnCapExhaustedError': 'turn_limit',
     'ContextLengthExceededError': 'context_limit', 'ContextBudgetExceededError': 'context_limit',
     'OutputLengthExceededError': 'output_cap',
+    'TaskMemoryLimitError': 'task_memory_limit',
 }
 ERRORS = {
     'model_server': ('LLMRequestTimeoutError', 'OpenAITransportConnectTimeoutError', 'ModelAuthenticationError',
@@ -95,19 +91,22 @@ def trial_metrics(trial, result, context_limit=None, key='reward'):
     errors = {kind: [e for e in exceptions if e in names] for kind, names in ERRORS.items()}
     known = set(TERMINATIONS) | {name for names in ERRORS.values() for name in names}
     errors['other'] = [e for e in exceptions if e not in known]
-    reward = trial_reward(result, key)
+    verifier_reward = trial_reward(result, key)
+    reward = passk_reward(result, key)
     if reward is None and not exceptions:
         errors['verifier'].append('no reward and no recorded exception')
     return {
         'trial': Path(trial).parent.parent.name if Path(trial).parent.name == 'attempts' else Path(trial).name,
         'trial_path': str(Path(trial).resolve()),
         'reward': reward, 'trajectory_found': steps is not None,
+        'verifier_reward': verifier_reward, 'reward_policy': REWARD_POLICY,
         'turns': metadata.get('n_episodes') or (len(agent_steps) if steps is not None else None),
         'input_tokens': agent.get('n_input_tokens'), 'output_tokens': agent.get('n_output_tokens'),
         'cached_tokens': agent.get('n_cache_tokens'),
         'peak_context_tokens': peak, 'context_limit': limit,
         'peak_context_fraction': peak / limit if peak and limit else None,
         'context_summarizations': metadata.get('summarization_count'),
+        'oom_recoveries': metadata.get('oom_recoveries'),
         'model_call_seconds': [ms / 1000 for ms in metadata.get('api_request_times_msec') or []] or None,
         'agent_seconds': seconds(result.get('agent_execution')), 'verifier_seconds': seconds(result.get('verifier')),
         'trial_seconds': seconds(result),
@@ -154,6 +153,8 @@ def aggregate(rows, wall_hours=None):
         'terminations': dict(sorted(Counter(r['termination'] for r in rows).items())),
         'command_distribution': mean_distribution(r.get('command_profile') for r in rows),
         'output_cap_events': total('output_cap_events'),
+        'oom_recoveries': sum(r.get('oom_recoveries') or 0 for r in rows),
+        'trajectories_with_oom_recovery': sum(bool(r.get('oom_recoveries')) for r in rows),
         'malformed_tool_calls': total('malformed_tool_calls'),
         'trajectories_with_malformed_tool_calls': sum(bool(r['malformed_tool_calls']) for r in rows),
         'errors': {kind: {'trajectories': sum(bool(r['errors'][kind]) for r in rows),

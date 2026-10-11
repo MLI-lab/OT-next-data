@@ -1,8 +1,9 @@
-# For wherever you run the patcher, the checks and the analysis: a cluster login
-# node or your laptop. The task containers need none of it (each task's verifier
-# is standard library only), and the GPU side runs in hpc/<cluster>/runtime.def.
-pyarrow>=15
-pyyaml
-pytest
-matplotlib>=3.8        # validation/verify/plot_pass_rates.py only
-huggingface_hub>=0.20  # downloading upstream datasets, opening a dataset PR
+# vLLM selects compatible torch/transformers/CUDA wheel dependencies.
+pyarrow==25.0.1  # Read and write Parquet datasets.
+PyYAML==6.0.3  # Read and write YAML configuration files.
+pytest==9.1.1  # Run this repo's tests.
+matplotlib==3.11.2  # Plot evaluation results.
+huggingface_hub==1.33.0  # Download models and datasets; upload dataset patches.
+vllm==0.30.0  # Serve local LLMs for teacher generation and judging.
+ray[default]==2.55.1  # One model across several nodes
+harbor @ https://github.com/marin-community/harbor/archive/7faf878c14b6d72737579ec936ebf5f74ba3194d.zip  # Run task environments, agents and verifiers; record trajectories.

@@ -1,0 +1,17 @@
+--- rubric.toml
++++ rubric.toml
+@@ -297,14 +297,2 @@
+ 
+-[[criteria]]
+-name = "category_and_tags"
+-description = "Category, subcategory, and tags are meaningful and relevant to the task"
+-guidance = """
+-The taxonomy fields must reflect the primary domain of the task (see docs/TAXONOMY.yaml). `category` must be one of the seven domains — Science, Software, ML, Operations, Security, Hardware, or Media — and should match the primary skill the task exercises, not incidental tooling (e.g. a finance task that happens to use Python is still Operations). `subcategory` is the subdomain within that category and should be the closest fit from the taxonomy (a new subdomain is allowed only when none fit). Tags should be specific, relevant keywords that help classify the task and make it discoverable.
+-
+-Tags should describe the skills, tools, or domains involved — not generic terms. Good tags: ["debugging", "python", "memory-leak", "profiling"]. Bad tags: ["hard", "coding", "task"].
+-
+-The template defaults are category = "", subcategory = "", and tags = []. If these are unchanged, the author likely forgot to set them.
+-
+-PASS if the category and subcategory accurately reflect the task domain and tags are specific and relevant. FAIL if the category is not one of the seven domains, the category/subcategory is a poor fit for the task, tags are generic or irrelevant, or defaults were left unchanged. Suggest a better category, subcategory, or tags if applicable."""
+-
+ [[criteria]]

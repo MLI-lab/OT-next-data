@@ -1,0 +1,66 @@
+{
+  "candidate": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v61/source.parquet",
+  "candidate_sha256": "9c7edd4d453b22c29f200aff96480db867927c58034d951d19f6af82f3211789",
+  "tasks": 4321,
+  "changed_tasks": [
+    "sdss__sdss_access-69",
+    "msgpack__msgpack-python-388"
+  ],
+  "unchanged_tasks": 4319,
+  "grading_inputs_images_and_dependency_pins_preserved": true,
+  "validation_subset_matches_full_candidate": true,
+  "status": "passed",
+  "job_id": "958825",
+  "submission": "/home/vault/y500bb/y500bb12/ot-next-data/swelego-full-validation/verifier-fixes-v61-results/submissions/0ebe99961edf",
+  "evidence_archive": "/home/vault/y500bb/y500bb12/ot-next-data/swelego-full-validation/verifier-fixes-v61-results/submissions/0ebe99961edf/evidence.tar.gz",
+  "stages": {
+    "1": {
+      "passed": 2
+    },
+    "3": {
+      "passed": 2
+    },
+    "4": {
+      "passed": 2
+    },
+    "5": {
+      "passed": 2
+    }
+  },
+  "local_tests": {
+    "passed": 37,
+    "command": "python -m pytest tests/test_swelego_patch.py -q --disable-warnings"
+  },
+  "changes": {
+    "msgpack__msgpack-python-388": {
+      "commit": "7a8ce0f9ca910a851b6835d26b1d6970a188fa4e",
+      "label": "verifier-python-backend",
+      "reason": "Run verification with MSGPACK_PUREPYTHON=1 so the existing regression tests exercise msgpack/fallback.py, which the reference patch repairs. The default compiled backend already passes without the fix. Preserve test assertions, required results, dependency versions and reference patch."
+    },
+    "sdss__sdss_access-69": {
+      "commit": "1519bc3870486d8bc3b6293d8c76680fabee909a",
+      "label": "verifier-fixed-date",
+      "reason": "Fix the verifier-local sdss_access.path.path clock at 2025-04-01, before the pinned sdss-tree 4.0.7 DR19 release date of 2025-07-11. This preserves the pre-release regression case that otherwise stops detecting the missing fix after release. Preserve test assertions, required results, dependency versions and reference patch."
+    }
+  },
+  "manifest": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v61/source.manifest.json",
+  "rendered_change_table": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v61/verifier-change-table.txt",
+  "rewards": {
+    "4": {
+      "msgpack__msgpack-python-388": [
+        1.0
+      ],
+      "sdss__sdss_access-69": [
+        1.0
+      ]
+    },
+    "5": {
+      "msgpack__msgpack-python-388": [
+        0.0
+      ],
+      "sdss__sdss_access-69": [
+        0.0
+      ]
+    }
+  }
+}

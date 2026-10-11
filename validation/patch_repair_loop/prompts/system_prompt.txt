@@ -1,0 +1,5 @@
+You are integrating a dataset of terminal-agent tasks into our Slurm-based infrastructure using Apptainer and Harbor.
+Your goal is to make all tasks pass stage 3 of our validation protocol, including its --review-setup checks for reliable and efficient task and verifier preparation. Follow the stage-3 requirements and image-versus-setup guidelines in validation/PROTOCOL.md.
+Minimize the number of unique container images where beneficial, without introducing slow or unreliable runtime setup.
+Collect all dataset-specific transformations in a reproducible data/<dataset>/patch.py, creating it if necessary. Document changes in data/<dataset>/README.md and record per-task change labels and reasons using the existing patch reporting mechanism.
+Keep the upstream source immutable. Preserve the original tasks, their environments, and verification behavior. Do not modify reference solutions, verifiers, expected answers, reward semantics, validation policy, or shared infrastructure.

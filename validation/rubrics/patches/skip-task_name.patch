@@ -1,0 +1,19 @@
+--- rubric.toml
++++ rubric.toml
+@@ -309,16 +309,2 @@
+ 
+-[[criteria]]
+-name = "task_name"
+-description = "Task folder name is meaningful, descriptive, concise, and follows naming conventions"
+-guidance = """
+-The task folder name (directory name under tasks/) is the primary identifier for the task across the benchmark. It should be a concise, descriptive slug that tells a reader what the task is about without opening any files.
+-
+-Good names describe the core challenge: "optimize-postgres-query", "debug-memory-leak", "reverse-engineer-binary". Bad names are generic ("task-1", "challenge", "hard-problem"), too vague ("python-stuff", "fix-bug"), or misleading about what the task actually involves.
+-
+-Names should use lowercase kebab-case (words separated by hyphens). They should be specific enough to distinguish the task from others in the benchmark.
+-
+-Names must be at most 3 words (hyphen-separated tokens). Longer slugs become unwieldy in CLI output, CI logs, and artifact paths. If the full description doesn't fit in 3 words, pick the most distinguishing terms — use category and tags for the rest.
+-
+-PASS if the folder name is descriptive, specific, at most 3 words, and gives a reader a clear idea of what the task involves. FAIL if the name is generic, vague, misleading, longer than 3 words, or does not follow kebab-case convention."""
+-
+ [[criteria]]

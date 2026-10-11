@@ -1,0 +1,62 @@
+{
+  "dataset": "PrimeIntellect/Multi-SWE-RL-Verified",
+  "revision": "80de95c62ac792c99dcfa8e26569bcd7d036bdc3",
+  "status": "running",
+  "job_id": "954983",
+  "node": "h31-39",
+  "tasks": [
+    "Kong__insomnia-8131",
+    "anuraghazra__github-readme-stats-391",
+    "caolan__async-1078",
+    "checkstyle__checkstyle-10979",
+    "checkstyle__checkstyle-13482",
+    "checkstyle__checkstyle-15149",
+    "elastic__logstash-13523",
+    "iamkun__dayjs-2705",
+    "junit-team__junit5-2885",
+    "junit-team__junit5-4049",
+    "mui__material-ui-25547",
+    "mui__material-ui-41306",
+    "reduxjs__redux-1818",
+    "remix-run__react-router-10433",
+    "trpc__trpc-5119"
+  ],
+  "stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "review_setup": {
+    "runs": 5,
+    "median_seconds": 30,
+    "maximum_seconds": 60,
+    "mean_limit_seconds": 60,
+    "note": "Mean limit is redundant with the per-run maximum; original median/max policy retained explicitly."
+  },
+  "image_build": {
+    "directory_build": true,
+    "overlay_capacity_mb": 32768,
+    "concurrency": 4,
+    "memory_mb": 16384,
+    "changes": [
+      "Use isolated native directory overlays for installation, then freeze into ext3 image artifacts",
+      "Stream dependency installer logs and retain the initial package error"
+    ],
+    "probe": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-preinstalled-20261008/native-build-probe.json"
+  },
+  "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-native-retry-20261008/results/submissions/e5a698872b9b",
+  "contract": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-native-retry-20261008/contract.json",
+  "patched_source": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/datasets/multiswe/preinstalled-native-15-v1/source-15.parquet",
+  "tests": {
+    "focused_passed": 55,
+    "full_suite_passed": 1111,
+    "full_suite_failed": 0,
+    "log": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-preinstalled-20261008/pytest-native.log"
+  },
+  "known_limitations": [
+    "Probe demonstrates React Router installation and reopening packaged dependencies, not successful oracle/NOP validation.",
+    "Exact contribution of native storage versus isolated filesystem versus network variability was not separately established.",
+    "Maven/Gradle failures need their new streamed logs if they recur."
+  ]
+}

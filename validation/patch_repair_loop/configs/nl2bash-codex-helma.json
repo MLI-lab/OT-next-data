@@ -1,0 +1,34 @@
+{
+  "agent_model": "gpt-6-astra",
+  "agent_models": {},
+  "agent_provider": "codex",
+  "agent_reasoning_effort": "medium",
+  "concurrency": 8,
+  "cpus": 48,
+  "dataset": "open-thoughts/TaskTrove/nl2bash",
+  "memory": "128G",
+  "network_mode": "host",
+  "partition": "cpu",
+  "patch_command": [
+    "{python}",
+    "{patcher}",
+    "--source",
+    "{source}",
+    "--output",
+    "{output}"
+  ],
+  "patcher": "/home/hpc/y500bb/y500bb12/OT_next_data/data/tasktrove_nl2bash/patch.py",
+  "prior_repair_evidence": {
+    "failed_patcher_log": "/hnvme/workspace/y500bb12-optiagent/repair-queue/nl2bash/loop/wave-10/iteration-01/patch.log",
+    "previous_source": "/hnvme/workspace/y500bb12-optiagent/repair-queue/nl2bash/loop/wave-10/iteration-00/source",
+    "proposal": "/hnvme/workspace/y500bb12-optiagent/repair-queue/nl2bash/loop/wave-10/iteration-00/proposal.json",
+    "rejected_review": "/hnvme/workspace/y500bb12-optiagent/repair-queue/nl2bash/loop/wave-10/iteration-00/agents/review-code/answer.txt"
+  },
+  "python": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/bin/python",
+  "source": "/hnvme/workspace/y500bb12-optiagent/tasktrove-20-pilots/cache/datasets--open-thoughts--TaskTrove/snapshots/946884702046be1a7dcea2638186ad6b0d2ea103/DCAgent2__nl2bash-tasks-cleaned-oracle-v2/tasks.parquet",
+  "source_revision": "946884702046be1a7dcea2638186ad6b0d2ea103",
+  "time": "06:00:00",
+  "usage_retry_seconds": 600,
+  "work_root": "/hnvme/workspace/y500bb12-optiagent/repair-queue/nl2bash/loop",
+  "workspace": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke"
+}

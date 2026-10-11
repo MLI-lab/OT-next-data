@@ -1,0 +1,28 @@
+diff --git a/tests/shells/test_fish.py b/tests/shells/test_fish.py
+index 6d8a66f..047a802 100644
+--- a/tests/shells/test_fish.py
++++ b/tests/shells/test_fish.py
+@@ -114,5 +114,6 @@ class TestFish(object):
+         assert not shell.how_to_configure().can_configure_automatically
+ 
+     def test_info(self, shell, Popen):
+-        Popen.return_value.stdout.read.side_effect = [b'3.5.9']
++        Popen.return_value.stdout.read.side_effect = [b'fish, version 3.5.9\n']
+         assert shell.info() == 'Fish Shell 3.5.9'
++        assert Popen.call_args[0][0] == ['fish', '--version']
+diff --git a/thefuck/shells/fish.py b/thefuck/shells/fish.py
+index 1435f90..8b4ca57 100644
+--- a/thefuck/shells/fish.py
++++ b/thefuck/shells/fish.py
+@@ -105,9 +105,9 @@ class Fish(Generic):
+ 
+     def info(self):
+         """Returns the name and version of the current shell"""
+-        proc = Popen(['fish', '-c', 'echo $FISH_VERSION'],
++        proc = Popen(['fish', '--version'],
+                      stdout=PIPE, stderr=DEVNULL)
+-        version = proc.stdout.read().decode('utf-8').strip()
++        version = proc.stdout.read().decode('utf-8').split()[-1]
+         return u'Fish Shell {}'.format(version)
+ 
+     def put_to_history(self, command):

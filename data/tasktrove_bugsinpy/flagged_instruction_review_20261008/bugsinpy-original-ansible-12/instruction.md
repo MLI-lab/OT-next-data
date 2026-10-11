@@ -1,0 +1,5 @@
+The `env` lookup plugin in Ansible (at `/app`) mishandles environment variables whose values contain non-ASCII UTF-8 characters. For example, with `UNICODE_VAR=café` set, `{{ lookup('env', 'UNICODE_VAR') }}` should return the text string `café`, the same value the shell prints for `$UNICODE_VAR`. Right now that doesn't work reliably.
+
+Fix the `env` lookup so it always returns environment variable values as correctly decoded text, including values with UTF-8 characters such as `alpha-β-gamma` or `ãnˈsiβle`. Ordinary values like `bar` or `a=b*100` must still come back unchanged. A variable that isn't set should still return `''`.
+
+The lookup has to read each variable through Ansible's text-environment mapping, `ansible.utils.py3compat.environ`, by calling `environ.get(name, default)` with the variable name and the default as two positional arguments. Tests replace that `get` method to supply values. For each term, `LookupModule.run(terms, variables)` must return a list with one value per term.

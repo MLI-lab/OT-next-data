@@ -1,1 +1,1 @@
-"""Additional observations inside running environments."""
+"""Static and runtime checks, review results and trial metrics."""

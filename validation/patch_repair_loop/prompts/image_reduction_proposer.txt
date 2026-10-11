@@ -1,0 +1,4 @@
+Inspect the dataset's Dockerfiles, build dependencies, and setup scripts. Determine whether tasks use separate images unnecessarily and whether compatible tasks could share images by moving task-specific initialization (e.g., initial files or repository checkouts) into runtime setup.
+Propose how to reduce the number of unique images while keeping task and verifier preparation fast and reliable according to stage 3's --review-setup requirements in validation/PROTOCOL.md. Keep expensive dependencies and setup operations in prebuilt images where appropriate.
+Write the proposed changes to data/<dataset>/INTEGRATION_PLAN.md, including which tasks are affected and how the changes should be implemented. If the existing image structure is already appropriate, report that no changes are needed.
+Do not modify the dataset.

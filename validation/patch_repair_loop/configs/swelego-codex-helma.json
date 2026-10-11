@@ -1,0 +1,27 @@
+{
+  "dataset": "PrimeIntellect/SWE-Lego-Real-Data-Verified",
+  "source_revision": "8b0d2bed6f04ef571ca04abebf737ea23cbceaf3",
+  "source": "/hnvme/workspace/y500bb12-optiagent/full-sources/swelego/tasks.parquet",
+  "patcher": "/home/hpc/y500bb/y500bb12/OT_next_data/data/swelego/patch.py",
+  "patch_command": [
+    "{python}",
+    "{patcher}",
+    "--source",
+    "{source}",
+    "--output",
+    "{output}"
+  ],
+  "work_root": "/hnvme/workspace/y500bb12-optiagent/repair-queue/swelego-codex/loop",
+  "workspace": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke",
+  "python": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/envs/prep/bin/python",
+  "agent_provider": "codex",
+  "agent_model": "gpt-6-astra",
+  "agent_reasoning_effort": "medium",
+  "usage_retry_seconds": 600,
+  "time": "06:00:00",
+  "partition": "cpu",
+  "cpus": 48,
+  "memory": "128G",
+  "concurrency": 8,
+  "network_mode": "host"
+}

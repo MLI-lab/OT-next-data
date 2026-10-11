@@ -1,0 +1,36 @@
+{
+  "schema": "entries: {sha256 of the ORIGINAL environment/Dockerfile: {\"versions\": {normalized package name: version}, \"base_image\": ..., \"harvested\": date, \"source\": freeze image}}",
+  "revision": "03bddac74ada2fa344df0e93b4a3ace2034294d1",
+  "entries": {
+    "4b3c12eaf9c7bdb9247a217d7ae3c05cd116fc8827ca364a5b89bf109694e9f0": {
+      "versions": {"yara-python": "4.5.4"},
+      "base_image": "unknown (not stated in proposal)",
+      "harvested": "2026-10-02",
+      "source": "pip3 freeze in cached image agent-ee73b24e37a5 (yara_malware_signature_writing_medium), /hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/images"
+    },
+    "f93d1732949fb7772f272db42139f43ef8f3647fe504c46e9a9a9a57619c5e63": {
+      "versions": {"clickhouse-connect": "1.9.0"},
+      "base_image": "unknown (not stated in proposal)",
+      "harvested": "2026-10-02",
+      "source": "pip3 freeze in cached 20-task-pilot image for clickhouse_materialized_view_medium, /hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/images"
+    },
+    "668066ee59463e24357e1d37f678781c85a42190c3cc7c3190d1c08098c191cf": {
+      "versions": {"pandas": "2.3.2", "numpy": "2.5.3", "scikit-learn": "1.9.1", "scipy": "1.16.1"},
+      "base_image": "unknown (not stated in proposal)",
+      "harvested": "2026-10-02",
+      "source": "pip3 freeze in cached 20-task-pilot image for outlier_detection_isolation_hard, /hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/images"
+    },
+    "96ea5e1bbf9d570308bad7906bd1dfb292aacb0e46be3e228b80e9e033b5119a": {
+      "versions": {"numpy": "2.5.3", "torch": "2.14.1", "transformers": "5.18.0", "datasets": "5.0.1", "scikit-learn": "1.9.1", "accelerate": "1.15.0"},
+      "base_image": "unknown (not stated in proposal)",
+      "harvested": "2026-10-02",
+      "source": "pip3 freeze in cached 20-task-pilot image for prompt_tuning_soft_prompts_hard, /hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/images"
+    },
+    "a28c081a2dafce96cfd26bc548d49af9bb68b22287510efc502881a01e090f7b": {
+      "versions": {"numpy": "2.5.3", "trimesh": "5.1.1", "pyrender": "0.1.45", "pillow": "12.3.0"},
+      "base_image": "unknown (not stated in proposal)",
+      "harvested": "2026-10-02",
+      "source": "pip --dry-run --report in build_shap_values_explanation_medium-agent-1794b69b9260.sif (resolve only, not build-verified; pyrender_offscreen_egl_init_medium, task cannot build until the Errno 17 bridge defect is fixed)"
+    }
+  }
+}

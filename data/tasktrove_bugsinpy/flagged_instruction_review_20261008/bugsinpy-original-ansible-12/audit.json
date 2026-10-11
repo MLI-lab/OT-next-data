@@ -1,0 +1,34 @@
+{
+  "task_id": "bugsinpy-original-ansible-12",
+  "agent": "claude-code",
+  "model": "anthropic/claude-opus-5-5",
+  "start": "from_scratch",
+  "instruction": "The `env` lookup plugin in Ansible (at `/app`) mishandles environment variables whose values contain non-ASCII UTF-8 characters. For example, with `UNICODE_VAR=caf\u00e9` set, `{{ lookup('env', 'UNICODE_VAR') }}` should return the text string `caf\u00e9`, the same value the shell prints for `$UNICODE_VAR`. Right now that doesn't work reliably.\n\nFix the `env` lookup so it always returns environment variable values as correctly decoded text, including values with UTF-8 characters such as `alpha-\u03b2-gamma` or `\u00e3n\u02c8si\u03b2le`. Ordinary values like `bar` or `a=b*100` must still come back unchanged. A variable that isn't set should still return `''`.\n\nThe lookup has to read each variable through Ansible's text-environment mapping, `ansible.utils.py3compat.environ`, by calling `environ.get(name, default)` with the variable name and the default as two positional arguments. Tests replace that `get` method to supply values. For each term, `LookupModule.run(terms, variables)` must return a list with one value per term.\n",
+  "rounds": [
+    {
+      "round": 1,
+      "instruction": "The `env` lookup plugin in Ansible (at `/app`) mishandles environment variables whose values contain non-ASCII UTF-8 characters. For example, with `UNICODE_VAR=caf\u00e9` set, `{{ lookup('env', 'UNICODE_VAR') }}` should return the text string `caf\u00e9`, the same value the shell prints for `$UNICODE_VAR`. Right now that doesn't work reliably.\n\nFix the `env` lookup so it always returns environment variable values as correctly decoded text, including values with UTF-8 characters such as `alpha-\u03b2-gamma` or `\u00e3n\u02c8si\u03b2le`. Ordinary values like `bar` or `a=b*100` must still come back unchanged. A variable that isn't set should still return `''`.\n\nThe lookup has to read each variable through Ansible's text-environment mapping, `ansible.utils.py3compat.environ`, by calling `environ.get(name, default)` with the variable name and the default as two positional arguments. Tests replace that `get` method to supply values. For each term, `LookupModule.run(terms, variables)` must return a list with one value per term.\n",
+      "review": {
+        "instruction_verifier_alignment": {
+          "rating": "FAIL",
+          "description": "Everything the unit tests need (call ansible.utils.py3compat.environ.get(name, default) positionally, return one value per term, '' default) is stated, so the instruction itself covers what the tests check. However, the situation it describes does not match the environment. The runtime is Python 3.8 with a C.UTF-8 locale, and the current os.getenv-based lookup already returns 'caf\u00e9' correctly, both with the default locale and with LC_ALL=C (verified). The claim 'Right now that doesn't work reliably' cannot be reproduced; the original bug only existed on Python 2. The only reason the existing code fails the tests is that they monkeypatch py3compat.environ.get, not any observable decoding bug."
+        },
+        "solution_leakage": {
+          "rating": "FAIL",
+          "description": "The final paragraph gives the complete fix: read each variable via ansible.utils.py3compat.environ with environ.get(name, default) and two positional arguments. That is exactly the one-line change in the reference patch (os.getenv -> py3compat.environ.get(var, '')). It also exposes verifier internals ('Tests replace that get method to supply values'). This detail is needed only because the tests are tied to the implementation, but it still leaves nothing for the agent to diagnose or design."
+        },
+        "instruction_quality": {
+          "rating": "FAIL",
+          "description": "The first two paragraphs describe a plausible goal, but the bug they describe doesn't exist in this Python 3 environment, so the agent cannot reproduce it or confirm a fix by observing behavior. The last paragraph reads like a paraphrase of the test harness (monkeypatched method, positional arguments, LookupModule.run signature) rather than a natural task description."
+        },
+        "task_validity": {
+          "rating": "FAIL",
+          "reason": "reference_details",
+          "description": "The only verifier is test/units/plugins/lookup/test_env.py. It monkeypatches 'ansible.utils.py3compat.environ.get' with a two-positional-argument lambda and expects that patched value back. On Python 3.8, the original os.getenv already returns correctly decoded text. Other correct solutions also fail: keeping os.getenv/os.environ, using to_text on os.environ values, or using py3compat.environ[var] with a KeyError fallback or environ.get(var, default='') with a keyword argument. The tests check an internal implementation choice of the reference patch, not observable behavior. A rewritten instruction can only fix this by dictating the solution, so the task is not a meaningful debugging task."
+        }
+      }
+    }
+  ],
+  "status": "needs_human: task validity: The only verifier is test/units/plugins/lookup/test_env.py. It monkeypatches 'ansible.utils.py3compat.environ.get' with a two-positional-argument lambda and expects that patched value back. On Python 3.8, the original os.getenv already returns correctly decoded text. Other correct solutions also fail: keeping os.getenv/os.environ, using to_text on os.environ values, or using py3compat.environ[var] with a KeyError fallback or environ.get(var, default='') with a keyword argument. The tests check an internal implementation choice of the reference patch, not observable behavior. A rewritten instruction can only fix this by dictating the solution, so the task is not a meaningful debugging task.",
+  "folder": "task_validity/reference_details"
+}

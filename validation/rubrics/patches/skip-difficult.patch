@@ -1,0 +1,17 @@
+--- rubric.toml
++++ rubric.toml
+@@ -22,14 +22,2 @@
+ 
+-[[criteria]]
+-name = "difficult"
+-description = "Genuinely hard for good reasons — requires professional experience or domain expertise"
+-guidance = """
+-Tasks should require either significant professional experience (e.g., PhD in related fields) or several years of domain expertise to solve. Difficulty is judged primarily by how hard it would be for a human.
+-
+-As a general rule, any task that could be solved by an average undergraduate student in under a few days is too easy. Typical course projects — simple compilers, operating systems, standard algorithms — are unlikely to be accepted. Obscure factual knowledge generally does not make tasks hard. Tedious tasks can be very difficult if it is easy to make mistakes, but contrived instruction-following problems with large volumes of non-fundamental work are not acceptable.
+-
+-Tasks can be hard and still solvable by current models, because current models are already quite good. It is OK if a problem has been solved a few times before on the internet.
+-
+-PASS if the task requires genuine expertise and would challenge an experienced professional. FAIL if an average undergraduate could solve it in a few days, or if difficulty comes solely from tedium, obscure facts, or LLM-specific tricks."""
+-
+ [[criteria]]

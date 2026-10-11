@@ -1,0 +1,149 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-shared-20261007/results-v6/submissions/babf39ad5489/evidence.tar.gz",
+  "contract_sha256": "fc7cb25ffb59a6753b40bf413b7be4b230eadb93d78e7fb8a3cb62dbab79e4be",
+  "network_status": {
+    "requested": "host",
+    "effective": "host",
+    "reason": "host networking explicitly requested"
+  },
+  "instruction_fixup": {
+    "operation": "canonical-timeout-anticheat-suffix-v1",
+    "original_path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-shared-20261007/patched-v6/pilot-source.parquet",
+    "description": "Our extension to the upstream Terminal-Bench suffix check appends the sentence when missing and overwrites the saved instruction.md in the validation copy; an existing canonical suffix is updated without duplication. Original inputs are unchanged.",
+    "sentence_template": "You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.",
+    "timeout_source": "[agent].timeout_sec",
+    "saved_dataset": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-shared-20261007/contract-v6.stage1-tasks",
+    "original_manifest_sha256": "a263ab9c423acca4889b12415bcef0300000514d17826e3e1f39e519b84cbf4e",
+    "original_source_files": [
+      {
+        "path": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-shared-20261007/patched-v6/pilot-source.parquet",
+        "sha256": "d983d39a4974490369a6c3937ef994a680724c0220296ad8ce8d8ab0c6926124"
+      }
+    ],
+    "original_selection": {
+      "limit": null,
+      "task_id_range": null
+    },
+    "instruction_paths": {
+      "enabled": true,
+      "evidence_reports": [],
+      "tasks": []
+    },
+    "suffix_enabled": true
+  },
+  "contract_status": "bound",
+  "requested_stages": [
+    1,
+    3,
+    4,
+    5
+  ],
+  "missing_stages": [],
+  "complete": true,
+  "stages": [
+    {
+      "stage": 1,
+      "name": "static_checks",
+      "complete": true,
+      "tasks": 10,
+      "counts": {
+        "passed": 10
+      },
+      "report": "results/stage_1_static_checks/c335eaf31131/summary.json",
+      "contract_sha256": "fc7cb25ffb59a6753b40bf413b7be4b230eadb93d78e7fb8a3cb62dbab79e4be",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "950536",
+        "started_at": "2026-10-07T15:00:07+00:00",
+        "wall_seconds": 0.8,
+        "concurrency": 5
+      }
+    },
+    {
+      "stage": 3,
+      "name": "build_validation",
+      "complete": true,
+      "tasks": 10,
+      "counts": {
+        "passed": 10
+      },
+      "report": "results/stage_3_build_validation/3fbdb7b522a1/summary.json",
+      "contract_sha256": "fc7cb25ffb59a6753b40bf413b7be4b230eadb93d78e7fb8a3cb62dbab79e4be",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "950536",
+        "started_at": "2026-10-07T15:00:08+00:00",
+        "wall_seconds": 121.0,
+        "concurrency": 5
+      }
+    },
+    {
+      "stage": 4,
+      "name": "oracle_validation",
+      "complete": true,
+      "tasks": 10,
+      "counts": {
+        "passed": 10
+      },
+      "report": "results/stage_4_oracle_validation/6e5f60cc871f/summary.json",
+      "contract_sha256": "fc7cb25ffb59a6753b40bf413b7be4b230eadb93d78e7fb8a3cb62dbab79e4be",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "950536",
+        "started_at": "2026-10-07T15:02:09+00:00",
+        "wall_seconds": 131.3,
+        "concurrency": 5
+      }
+    },
+    {
+      "stage": 5,
+      "name": "nop_validation",
+      "complete": true,
+      "tasks": 10,
+      "counts": {
+        "passed": 10
+      },
+      "report": "results/stage_5_nop_validation/149f4e7eb2cb/summary.json",
+      "contract_sha256": "fc7cb25ffb59a6753b40bf413b7be4b230eadb93d78e7fb8a3cb62dbab79e4be",
+      "timing": {
+        "node": "h24-24",
+        "slurm_job_id": "950536",
+        "started_at": "2026-10-07T15:04:21+00:00",
+        "wall_seconds": 114.6,
+        "concurrency": 5
+      }
+    }
+  ],
+  "review_groups": null,
+  "pipelines": [
+    {
+      "stages": [
+        {
+          "stage": 1,
+          "report": "/tmp/950536.helma/validation-babf39ad5489/results/stage_1_static_checks/c335eaf31131/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 3,
+          "report": "/tmp/950536.helma/validation-babf39ad5489/results/stage_3_build_validation/3fbdb7b522a1/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 4,
+          "report": "/tmp/950536.helma/validation-babf39ad5489/results/stage_4_oracle_validation/6e5f60cc871f/summary.json",
+          "status": "completed"
+        },
+        {
+          "stage": 5,
+          "report": "/tmp/950536.helma/validation-babf39ad5489/results/stage_5_nop_validation/149f4e7eb2cb/summary.json",
+          "status": "completed"
+        }
+      ],
+      "complete": true,
+      "dry_run": false,
+      "contract_sha256": "fc7cb25ffb59a6753b40bf413b7be4b230eadb93d78e7fb8a3cb62dbab79e4be"
+    }
+  ],
+  "failures": [],
+  "plots": []
+}

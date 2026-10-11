@@ -1,7 +1,7 @@
 # Conversion pilots
 
 Storage: `/data/horse/ws/frwe188h-trp-shared/conversion-pilots`.
-Runner: [`hpc/zih/conversion_pilot.py`](../../hpc/zih/conversion_pilot.py).
+Historical conversion results; the one-off conversion launcher has been retired.
 Each run saves the fixed selection, source revision, adapter hashes, task hashes,
 and a `conversion-report.json`. These are conversion checks, not completed
 stage-1/3/4/5 validation.

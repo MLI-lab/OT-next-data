@@ -1,0 +1,15 @@
+{
+  "status": "running",
+  "tmux_session": "multiswe-repair",
+  "controller_config": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-unattended-20261008/config.json",
+  "state": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-unattended-20261008/loop-state.json",
+  "current_job": "956522",
+  "sequence": "50 -> 200 -> 2232 tasks at stage3; then stages1,4,5 with verified stage3 reuse",
+  "allow_exclusions": false,
+  "publish": false,
+  "setup_runs": 5,
+  "setup_median_seconds": 30,
+  "setup_max_seconds": 60,
+  "controller_tests_passed": 123,
+  "adopted_pilot_payloads_verified": 50
+}

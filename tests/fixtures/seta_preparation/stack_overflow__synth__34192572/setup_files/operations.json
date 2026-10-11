@@ -1,0 +1,136 @@
+{
+  "recipe": "FROM ubuntu@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4\nRUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends bash ca-certificates coreutils curl gzip tar tmux python3 openssh-client dbus && rm -rf /var/lib/apt/lists/*\nWORKDIR /app\n",
+  "operations": [
+    {
+      "op": "ENV",
+      "assignments": {
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 3
+    },
+    {
+      "op": "WORKDIR",
+      "path": "/home/user/loganalyzer",
+      "line": 4
+    },
+    {
+      "op": "RUN",
+      "command": "apt-get update && apt-get install -y openjdk-17-jdk-headless build-essential git curl tmux wget && rm -rf /var/lib/apt/lists/*",
+      "cwd": "/home/user/loganalyzer",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 6
+    },
+    {
+      "op": "RUN",
+      "command": "curl -LsSf https://astral.sh/uv/0.10.11/install.sh | sh",
+      "cwd": "/home/user/loganalyzer",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 15
+    },
+    {
+      "op": "RUN",
+      "command": "mkdir -p src/com/logtools/analyzer lib data dist",
+      "cwd": "/home/user/loganalyzer",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 17
+    },
+    {
+      "op": "COPY",
+      "source": "LogAnalyzer.java",
+      "destination": "/home/user/loganalyzer/src/com/logtools/analyzer/LogAnalyzer.java",
+      "line": 19,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-005.tar",
+      "sha256": "9858e186aeb6d984d2de3346152e1c1d6a4fd125aa09cea41925c87f257a01f8"
+    },
+    {
+      "op": "COPY",
+      "source": "LogParser.java",
+      "destination": "/home/user/loganalyzer/src/com/logtools/analyzer/LogParser.java",
+      "line": 20,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-006.tar",
+      "sha256": "1c0f0a07b8c27aab8a920bcf980fd092be2eb827cc02f195da622b2dfe4b6fc8"
+    },
+    {
+      "op": "COPY",
+      "source": "ReportGenerator.java",
+      "destination": "/home/user/loganalyzer/src/com/logtools/analyzer/ReportGenerator.java",
+      "line": 21,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-007.tar",
+      "sha256": "d5a793b917dc25290759a52095fcfd29c125ff49f6a333bb821b76708d68ef22"
+    },
+    {
+      "op": "COPY",
+      "source": "build.sh",
+      "destination": "/home/user/loganalyzer/build.sh",
+      "line": 23,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-008.tar",
+      "sha256": "88365acd4e0175381b3c32bc1511c5c4ff4100435b5017f8b888614a905aafbd"
+    },
+    {
+      "op": "COPY",
+      "source": "run.sh",
+      "destination": "/home/user/loganalyzer/run.sh",
+      "line": 24,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-009.tar",
+      "sha256": "3af9f173ec142fd87c787817c663bfc046e6745694c7589ab9e3cdb54443820b"
+    },
+    {
+      "op": "RUN",
+      "command": "chmod +x build.sh run.sh",
+      "cwd": "/home/user/loganalyzer",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 25
+    },
+    {
+      "op": "COPY",
+      "source": "access.log",
+      "destination": "/home/user/loganalyzer/data/access.log",
+      "line": 27,
+      "restore_source_write_bits": true,
+      "directory": false,
+      "archive": "copy-011.tar",
+      "sha256": "c3e2d4ecf8dd07f577d70c0f60a13b60313786b145a439d7e851928c52732d74"
+    },
+    {
+      "op": "RUN",
+      "command": "wget -q -O lib/commons-cli-1.5.0.jar \"https://repo1.maven.org/maven2/commons-cli/commons-cli/1.5.0/commons-cli-1.5.0.jar\"",
+      "cwd": "/home/user/loganalyzer",
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "DEBIAN_FRONTEND": "noninteractive"
+      },
+      "line": 29
+    }
+  ],
+  "env": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "DEBIAN_FRONTEND": "noninteractive"
+  },
+  "workdir": "/app",
+  "source_workdir": "/home/user/loganalyzer",
+  "dependency_runs": [],
+  "lifecycle": null,
+  "mount_scaffold": []
+}

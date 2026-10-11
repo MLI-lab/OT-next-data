@@ -1,0 +1,13 @@
+Review the failed tasks in {evidence_dir}. Use the validation reports, execution logs, Slurm logs, and previous attempts. Do not edit files or submit jobs.
+
+Choose one action for each failed task:
+- retry: Infrastructure problems prevented a valid result, such as a lost connection, bridge or worker outage, node failure, unavailable shared storage, or temporary network failure. Also use retry when execution evidence is missing. Explain what needs to recover; never archive a task for an infrastructure failure.
+- repair: The failure can be fixed through patch.py, for example by correcting the build or setup, or adjusting a task.toml timeout or resource limit that the logs show is too low. The repair must preserve the verifier, instructions, expected answers, and task intent. Explain the proposed fix and the evidence for it.
+- archive: A completed check shows a genuine task failure that cannot be repaired without changing the verifier, instructions, expected answers, or task intent, or substantially altering the supplied environment beyond what is needed to integrate it into our infrastructure. Explain why a repair would change the original task.
+
+For infrastructure findings, name the observed cause and whether it appears shared across tasks. Cite the logs; distinguish a suspected cause from a confirmed one. The controller saves these findings for later infrastructure review. Do not implement shared infrastructure changes yourself.
+
+Return JSON only:
+{"findings": [{"task_id": "...", "action": "retry|repair|archive", "reason": "short explanation", "evidence": ["report or log paths"]}]}
+
+Include every failed task exactly once and no passing tasks. Successful retries replace earlier failures in the final report.

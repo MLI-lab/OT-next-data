@@ -1,0 +1,8 @@
+{
+  "source": "bugsinpy",
+  "project": "fastapi",
+  "bug_id": "5",
+  "test_command": "pytest tests/test_filter_pydantic_sub_model.py::test_filter_sub_model",
+  "buggy_commit": "7cea84b74ca3106a7f861b774e9d215e5228728f",
+  "fixed_commit": "75a07f24bf01a31225ee687f3e2b3fc1981b67ab"
+}

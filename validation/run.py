@@ -18,7 +18,7 @@ def main():
             raise ValueError('choose unique stages from 1 through 10')
     except ValueError as exc:
         ap.error(str(exc))
-    from hpc.helma.validation_submit import maybe_submit
+    from hpc.validation_submit import maybe_submit
     try:
         from validation.contract import bind
         numbers = bind(args, numbers)
@@ -33,6 +33,12 @@ def main():
 
 
 def run_selected(args, numbers):
+    if getattr(args, 'prebuild_only', False):
+        raise ValueError('--prebuild-only must run through the Slurm image preparation worker')
+    from validation.stages.normalize_paths import prepare as normalize_paths
+    normalize_paths(args, numbers)
+    from data.utils.resolve_pip_pins import prepare as normalize_pip_pins
+    normalize_pip_pins(args, numbers)
     report = {'stages': [], 'complete': False, 'dry_run': args.dry_run}
     if getattr(args, 'contract', None):
         from validation.contract import read
@@ -40,14 +46,16 @@ def run_selected(args, numbers):
     summary = args.out.resolve() / f'pipeline-{uuid4().hex[:12]}.json'
     analysis_jobs, given_trials = [], args.trials
     save(summary, report)
-    bundled = {n for n in numbers if n in (3, 4, 5)} if getattr(args, 'reuse_validation_containers', False) else set()
+    args._build_failures = {}
+    stage_runs = {}
+    bundled = {n for n in numbers if n in (4, 5)} if getattr(args, 'reuse_validation_containers', False) else set()
     if len(bundled) < 2:
         bundled = set()  # Standalone stages retain ordinary fresh-start behavior.
     bundle_finished = False
     for number in numbers:
         if number in bundled:
             if not bundle_finished:
-                from validation.stages.paired import run_validation_bundle
+                from validation.stages.run_reused_containers import run_validation_bundle
                 try:
                     for stage, path, result in run_validation_bundle(args, bundled):
                         report['stages'].append({'stage': stage, 'report': str(path),
@@ -70,15 +78,49 @@ def run_selected(args, numbers):
                 path, result = run_stage(number, args)
                 report['stages'].append({'stage': number, 'report': str(path),
                                          'status': 'findings' if result['has_findings'] else 'completed'})
+                stage_runs[number] = (path, result)
+                if number == 3 and not args.dry_run:
+                    args._build_failures = {i['task']: {'report': str(path), 'reason': i.get('reason', 'build validation failed')}
+                                            for i in result['items'] if i['status'] != 'passed'}
                 if number in (6, 9):
                     analysis_jobs.extend(i['job_dir'] for i in result['items'] if i.get('job_dir') and i['job_dir'] not in analysis_jobs)
             except Exception as exc:
                 report['stages'].append({'stage': number, 'status': 'error', 'reason': str(exc)})
             save(summary, report)
+    retried = retry_unsettled(args, stage_runs, numbers)
+    if retried:
+        report['outcome_retries'] = {str(stage): {k: v for k, v in s.items() if k != 'history'}
+                                     for stage, s in retried.items()}
+        for entry in report['stages']:
+            if entry.get('stage') in stage_runs and 'report' in entry:
+                entry['status'] = 'findings' if stage_runs[entry['stage']][1]['has_findings'] else 'completed'
     report['complete'] = True
     save(summary, report)
     print(f'Pipeline report: {summary}')
     return int(any(s['status'] in ('findings', 'error') or (s['status'] == 'skipped' and not args.dry_run) for s in report['stages']))
+
+
+def retry_unsettled(args, stage_runs, numbers):
+    """One rule after the run: rerun stage 3-5 tasks without a settled outcome (see outcome_retries)."""
+    gated = {n: stage_runs[n] for n in (3, 4, 5) if n in stage_runs}
+    if not gated or args.dry_run or not int(getattr(args, 'outcome_retries', 0) or 0):
+        return None
+    import asyncio
+    from validation.contract import read
+    from validation.stages.build_retries import run_builds
+    from validation.stages.outcome_retries import retry_round
+    from validation.stages.runner import checkout, run_trial_batch
+    contract = read(args.contract) if getattr(args, 'contract', None) else None
+    upstream = checkout('terminal-bench')
+
+    def batch_for(number):
+        if number == 3:
+            def build(sources, out):
+                with (out / 'outcomes.jsonl').open('a') as outcomes:
+                    return asyncio.run(run_builds(sources, out, args, outcomes))
+            return build
+        return lambda sources, out: run_trial_batch(number, sources, out, args, upstream, gated[number][1], contract)
+    return retry_round(gated, args, contract, batch_for, save)
 
 
 if __name__ == '__main__':

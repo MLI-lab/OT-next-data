@@ -1,5 +1,12 @@
 # CrossCodeEval
 
+The full patcher automatically writes `<output>.archive.parquet` and
+`<output>.manifest.json`. Dropped tasks retain their original payloads and explicit
+drop labels; retained changes receive labels for the files actually changed.
+`--pin-only` carries this comparison forward when its input has a new-format
+manifest and the recorded original Parquet is still available.
+See [patch reporting](../INVENTORY.md#reporting-patches-in-the-datasource-pr).
+
 Cross-file code completion: the agent sees a file cut at a cursor and must write
 the next statement, which depends on code in *other* files of the repository.
 Upstream benchmark: amazon-science/cceval, pinned at `40c68d2b`. TaskTrove
@@ -28,32 +35,31 @@ gaps where tasks were dropped.
 Each task carries its own verifier (`tests/cceval_verifier.py`) — that is what
 grades an agent in production. The repo-level tests are elsewhere by design:
 
-- `tests/test_crosscodeeval_patch.py` — 36 pytest cases on the patch rules
+- `tests/test_crosscodeeval_patch.py` — pytest cases on the patch rules
   (truncation, comment handling per language, the solvability verdicts, the
   report contents).
-- `tests/test_rewards_contract.py` — grades the reference and wrong answers with
+- `tests/test_dataset_reward_plugins.py` — grades the reference and wrong answers with
   the task verifier, on one built task.
-- `patch.py --review reviews/` — the filter's own audit: per-task verdicts and a
-  sample of dropped tasks, written by the same pass that does the filtering.
+- `review/dropped.jsonl` and `review/sample.md`, written beside the output on
+  every patcher run — the filter's own audit: every dropped task with its reason,
+  and a sample of 40 for hand review, from the same pass that does the filtering.
 
 ## Files here
 
 - `patch.py` — the whole pipeline for this dataset in one module: verifier,
-  context selection, solvability rules and their audit (`--review`), oracle. One
+  context selection, solvability rules and their audit (`review/`), oracle. One
   file on purpose: a filter that disagrees with the grader silently keeps
   unsolvable tasks, and a separate audit script can drift from the filter.
-- `rewards.py` — how an answer is graded locally and which wrong answers to try.
-  Used by `tests/test_rewards_contract.py`.
-- `published_tasktrove_pr3.task_hashes.json` — a hash of every task's files as
-  published in [TaskTrove PR #3](https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/3)
-  (csharp-v5, java-v4, python-v3, typescript-v3, patched from TaskTrove revision
-  96567362), so `validation/verify/check_reproducible.py` can prove the patcher still
-  produces exactly those tasks. A later publication gets its own file.
-  Since the pip pin (2026-09-29) the patcher's output differs from those hashes in
-  every task's Dockerfile; the check compares against the published state on purpose.
-- `strict_subset_1000.json` — which of the 1,000 evaluated tasks survive the
-  strict reading of the "parts" rule (750 do), with the name that fails for each
-  of the others. Reporting only; nothing is filtered by it.
+- `patch.py rewards TASK` — how an answer is graded locally and which wrong answers to try.
+  Used by `tests/test_dataset_reward_plugins.py`.
+
+Reproducibility is checked against the published dataset itself, by a hash over
+each task's files; no hash file is stored here:
+`python validation/checks/dataset_checks.py reproduce --parquet NEW --reference PUBLISHED`.
+The tasks of [TaskTrove PR #3](https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/3)
+(csharp-v5, java-v4, python-v3, typescript-v3, patched from TaskTrove revision
+96567362) predate the pip pin of 2026-09-29, so the current patcher's output
+differs from them in every task's Dockerfile.
 
 ## Validation status and plan
 
@@ -82,4 +88,3 @@ To do, in order:
    trajectories this time and publish them to Hugging Face next to the tasks.
 3. **Stage 8**, LLM trajectory analysis, on a sample of those trials.
 4. **Stage 2**, LLM rubric review, on a sample, to see what the reviewer objects to.
-

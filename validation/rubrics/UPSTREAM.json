@@ -1,0 +1,122 @@
+{
+  "repository": "https://github.com/harbor-framework/terminal-bench",
+  "commit": "1dcda8716784493721921c23e4bc7f7d988b4494",
+  "source_directory": "docs/prompts",
+  "upstream_files": {
+    "task-implementation.toml": {
+      "url": "https://raw.githubusercontent.com/harbor-framework/terminal-bench/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/task-implementation.toml",
+      "sha256": "19b879cd424cc22cc2f56d8f80ed98c9c386a8df0885377f7cb9d4ebab21df5a"
+    },
+    "trial-analysis.toml": {
+      "url": "https://raw.githubusercontent.com/harbor-framework/terminal-bench/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.toml",
+      "sha256": "5fc90fa302dca7178915db656def369de768aeb61f682d3c9fe2ee2111698309"
+    }
+  },
+  "patches": [
+    {
+      "path": "patches/verifiable-setup.patch",
+      "criterion": "verifiable",
+      "when": "always"
+    },
+    {
+      "path": "patches/skip-solvable.patch",
+      "criterion": "solvable",
+      "when": "complete datasource inventory has zero solution/solve.sh files"
+    },
+    {
+      "path": "patches/skip-difficult.patch",
+      "criterion": "difficult",
+      "when": "always",
+      "reason": "It is a good criterion for constructing a challenging benchmark, but it is too restrictive for selecting useful RL training tasks."
+    },
+    {
+      "path": "patches/skip-novel.patch",
+      "criterion": "novel",
+      "when": "always",
+      "reason": "Removed because novelty is mainly an evaluation concern, ensuring tasks cannot be solved through memorization of training data, which is not a requirement for RL training tasks."
+    },
+    {
+      "path": "patches/concision-canary.patch",
+      "criterion": "instruction_concision",
+      "when": "always"
+    },
+    {
+      "path": "patches/concision-timeout.patch",
+      "criterion": "instruction_concision",
+      "when": "unless every task in the complete datasource ends with the standard timeout and anti-cheat sentence"
+    },
+    {
+      "path": "patches/concision-formatting.patch",
+      "criterion": "instruction_concision",
+      "when": "always",
+      "reason": "Training tasks do not need to follow benchmark formatting conventions."
+    },
+    {
+      "path": "patches/skip-separate_verifier_configured.patch",
+      "criterion": "separate_verifier_configured",
+      "when": "always",
+      "reason": "Removed because our RL training datasets contain many more tasks than a typical evaluation benchmark. We balance image reuse and storage costs with fast task-specific setup, rather than requiring a dedicated task image and verifier image for every task."
+    },
+    {
+      "path": "patches/skip-environment_hygiene.patch",
+      "criterion": "environment_hygiene",
+      "when": "always",
+      "reason": "Removed because this criterion prescribes benchmark-specific image and dependency management. Our RL training infrastructure balances shared images, storage costs, and fast task-specific setup, without requiring separate agent and verifier images for every task."
+    },
+    {
+      "path": "patches/skip-difficulty_explanation_quality.patch",
+      "criterion": "difficulty_explanation_quality",
+      "when": "always",
+      "reason": "Removed because RL training tasks are not required to include a Difficulty explanation section in README.md. This criterion evaluates benchmark documentation rather than whether a task is useful for RL training."
+    },
+    {
+      "path": "patches/skip-solution_explanation_quality.patch",
+      "criterion": "solution_explanation_quality",
+      "when": "always",
+      "reason": "Removed because RL training tasks are not required to include a Solution explanation section in README.md or a benchmark-style justification for an absent reference solution. This criterion evaluates benchmark documentation rather than whether a task is useful for RL training."
+    },
+    {
+      "path": "patches/skip-verification_explanation_quality.patch",
+      "criterion": "verification_explanation_quality",
+      "when": "always",
+      "reason": "Removed because RL training tasks are not required to include a Verification explanation section in README.md. This criterion evaluates benchmark documentation; the verifier itself must still check correctness reliably, with appropriate tolerance bounds where applicable."
+    },
+    {
+      "path": "patches/skip-category_and_tags.patch",
+      "criterion": "category_and_tags",
+      "when": "always",
+      "reason": "Removed because RL training tasks are not required to follow Terminal-Bench's category, subcategory, and tag taxonomy. Dataset classification can use its own metadata conventions; compliance with benchmark taxonomy is not a requirement for training usefulness."
+    },
+    {
+      "path": "patches/skip-task_name.patch",
+      "criterion": "task_name",
+      "when": "always",
+      "reason": "Removed because RL training datasets may preserve source task IDs and their own naming conventions. Descriptive kebab-case names of at most three words are benchmark presentation requirements, not requirements for training usefulness. Task identifiers must still satisfy runtime safety and uniqueness requirements."
+    },
+    {
+      "path": "patches/skip-task_readme.patch",
+      "criterion": "task_readme",
+      "when": "always",
+      "reason": "Removed because RL training tasks are not required to include a benchmark reviewer README with Difficulty explanation, Solution explanation, Verification explanation, Relevant experience, and metadata sections. These documentation requirements are not prerequisites for training usefulness."
+    },
+    {
+      "path": "patches/skip-expert_time_estimate.patch",
+      "criterion": "expert_time_estimate",
+      "when": "always",
+      "reason": "Removed because RL training tasks do not require an expert time estimate."
+    },
+    {
+      "path": "patches/skip-task_toml_schema.patch",
+      "criterion": "task_toml_schema",
+      "when": "always",
+      "reason": "Moved to the Stage 1 static check check-task-toml-schema.py. Schema validity and unrecognized fields can be checked more cheaply and reliably with code than with an LLM judge."
+    },
+    {
+      "path": "patches/skip-binary_reward.patch",
+      "criterion": "binary_reward",
+      "when": "always",
+      "reason": "Removed because binary rewards are not necessarily required for every RL training task. No replacement static check is added."
+    }
+  ],
+  "usage": "Stage 2 applies these diffs to the pinned implementation rubric when staging each review. The effective rubric and automatic skips are saved with the staged task."
+}

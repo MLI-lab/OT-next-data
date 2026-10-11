@@ -1,0 +1,34 @@
+{
+  "task_id": "bugsinpy-original-luigi-8",
+  "agent": "claude-code",
+  "model": "anthropic/claude-opus-5-5",
+  "start": "from_scratch",
+  "instruction": "In the Luigi repo at `/app`, `S3CopyToTable.does_table_exist` in the Redshift contrib module does not handle mixed-case table names. Redshift stores unquoted identifiers in lowercase, so if a task's `table` is something like `MySchema.MyTable` or `MyTable`, the existence check finds nothing. The task then keeps trying to create a table that already exists.\n\nChange the existence check so the lookup ignores case. Do the lowercasing in SQL, not in Python: pass the schema and table names to `cursor.execute` unchanged, as `tuple(self.table.split('.'))`, and apply `lower()` to each placeholder in the query. The query text must match these exactly:\n\n- Schema-qualified table (`table` contains a `.`):\n  `\"select 1 as table_exists from information_schema.tables where table_schema = lower(%s) and table_name = lower(%s) limit 1\"`\n- Unqualified table:\n  `\"select 1 as table_exists from pg_table_def where tablename = lower(%s) limit 1\"`\n\nLeave everything else about the method as it is.\n",
+  "rounds": [
+    {
+      "round": 1,
+      "instruction": "In the Luigi repo at `/app`, `S3CopyToTable.does_table_exist` in the Redshift contrib module does not handle mixed-case table names. Redshift stores unquoted identifiers in lowercase, so if a task's `table` is something like `MySchema.MyTable` or `MyTable`, the existence check finds nothing. The task then keeps trying to create a table that already exists.\n\nChange the existence check so the lookup ignores case. Do the lowercasing in SQL, not in Python: pass the schema and table names to `cursor.execute` unchanged, as `tuple(self.table.split('.'))`, and apply `lower()` to each placeholder in the query. The query text must match these exactly:\n\n- Schema-qualified table (`table` contains a `.`):\n  `\"select 1 as table_exists from information_schema.tables where table_schema = lower(%s) and table_name = lower(%s) limit 1\"`\n- Unqualified table:\n  `\"select 1 as table_exists from pg_table_def where tablename = lower(%s) limit 1\"`\n\nLeave everything else about the method as it is.\n",
+      "review": {
+        "instruction_verifier_alignment": {
+          "rating": "PASS",
+          "description": "The verifier runs only TestS3CopyToSchemaTable::test_s3_copy_to_table, which asserts cursor.execute was called with the exact information_schema query using lower(%s) placeholders and tuple(task.table.split('.')) as params. The instruction states this exact query string and parameter form, and /app/luigi/contrib/redshift.py does contain the described case-sensitive does_table_exist. Paths are absolute. Nothing the tests require is left out."
+        },
+        "solution_leakage": {
+          "rating": "FAIL",
+          "description": "The instruction gives away the whole fix: it names the method and file, says to do the lowercasing in SQL, says how to pass the parameters, and quotes the exact replacement query strings, which are word for word the lines in reference.patch. Nothing is left for the agent to work out; it only has to paste two strings."
+        },
+        "instruction_quality": {
+          "rating": "FAIL",
+          "description": "The first paragraph describes the bug clearly. The second paragraph, though, reads like a paraphrase of the test assertion (exact query text, exact execute arguments, 'leave everything else as it is'). It tells the agent how to implement the fix rather than what behavior is needed, and it over-specifies to fit a string-matching mock assertion."
+        },
+        "task_validity": {
+          "rating": "FAIL",
+          "reason": "reference_details",
+          "description": "The test is a mock assertion on the exact SQL text and the exact execute arguments. Other correct case-insensitive fixes would fail it, for example lowercasing the names in Python, using ILIKE/upper(), or formatting the query differently, even though they behave correctly against Redshift. The only way to make such solutions pass is to dictate the exact query string in the instruction, and that turns the task into copying the solution. The test checks how the reference is built internally, not the behavior."
+        }
+      }
+    }
+  ],
+  "status": "needs_human: task validity: The test is a mock assertion on the exact SQL text and the exact execute arguments. Other correct case-insensitive fixes would fail it, for example lowercasing the names in Python, using ILIKE/upper(), or formatting the query differently, even though they behave correctly against Redshift. The only way to make such solutions pass is to dictate the exact query string in the instruction, and that turns the task into copying the solution. The test checks how the reference is built internally, not the behavior.",
+  "folder": "task_validity/reference_details"
+}

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Move finished run directories from $HOME to $HPCVAULT, one tar file per directory.
 
-$HOME on Helma allows 500,000 files and a run directory easily holds 50,000. The vault takes
-few large files (200,000 files, 1 TB). It is mounted on the login nodes and the cpu partition
+Packing runs reduces pressure on the home file-count quota (see config/clusters.py).
+The vault is mounted on the login nodes and the cpu partition
 but not on the GPU nodes, so run this on a login node or at the end of a cpu job.
 
     archive_to_vault.py runs/inferredbugs-20260925     # pack, verify, remove the directory

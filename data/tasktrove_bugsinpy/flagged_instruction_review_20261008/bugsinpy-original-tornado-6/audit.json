@@ -1,0 +1,34 @@
+{
+  "task_id": "bugsinpy-original-tornado-6",
+  "agent": "claude-code",
+  "model": "anthropic/claude-opus-5-5",
+  "start": "existing_instruction",
+  "instruction": "# Task\n\nWork in the tornado project at `/app` to fix the issue described below.\n\n# Issue\n\nSynchronous HTTPClient leaks memory in 5.0.1\n\nThe synchronous HTTPClient leaks memory for each request made since upgrading to Tornado 5.0.1.\n\n```python\nfrom tornado import httpclient\n\nwhile True:\n    try:\n        http_client = httpclient.HTTPClient()\n        response = http_client.fetch(\"http://localhost\")\n    except Exception:\n        pass\n    finally:\n        http_client.close()\n```\n\nRunning this script for 3 minutes in docker (`python:3.6-stretch`): \n- `tornado==4.5.3`: 18.52MiB / 1.952GiB\n- `tornado==5.0.1`: 350.28MiB / 1.952GiB\n\nNote, I cannot seem to reproduce the issue on macOS.\n\nModify the project files to resolve this issue.\n\nYou have 900 seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.\n",
+  "rounds": [
+    {
+      "round": 1,
+      "instruction": "# Task\n\nWork in the tornado project at `/app` to fix the issue described below.\n\n# Issue\n\nSynchronous HTTPClient leaks memory in 5.0.1\n\nThe synchronous HTTPClient leaks memory for each request made since upgrading to Tornado 5.0.1.\n\n```python\nfrom tornado import httpclient\n\nwhile True:\n    try:\n        http_client = httpclient.HTTPClient()\n        response = http_client.fetch(\"http://localhost\")\n    except Exception:\n        pass\n    finally:\n        http_client.close()\n```\n\nRunning this script for 3 minutes in docker (`python:3.6-stretch`): \n- `tornado==4.5.3`: 18.52MiB / 1.952GiB\n- `tornado==5.0.1`: 350.28MiB / 1.952GiB\n\nNote, I cannot seem to reproduce the issue on macOS.\n\nModify the project files to resolve this issue.\n\nYou have 900 seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.\n",
+      "review": {
+        "instruction_verifier_alignment": {
+          "rating": "FAIL",
+          "description": "The instruction is only the upstream issue: the synchronous HTTPClient leaks memory per request, and the client is created and closed with IOLoop.close(). The verifier runs two LeakTest tests that inspect the private mapping IOLoop._ioloop_for_asyncio. test_ioloop_close_leak (create and close AsyncIOLoop through Tornado, expect zero growth) matches the issue. test_asyncio_close_leak also requires handling event loops that are closed through asyncio's own loop.close(), never through IOLoop.close(). The instruction never mentions that scenario, and it is not the HTTPClient path. That test also asserts exactly one leftover entry after 10 such loops. This number comes from the reference's choice to purge closed loops lazily when the next IOLoop is created. Nothing in the instruction or the environment points to that exact count. A fix that fully solves the reported HTTPClient leak (cleanup in close()) leaves 10 entries and fails. I checked the current code: both tests show growth of 10."
+        },
+        "solution_leakage": {
+          "rating": "PASS",
+          "description": "The instruction is the original bug report: symptom, reproduction script and memory numbers. It does not name the mapping, the WeakKeyDictionary reference cycle, the files to change or the fix."
+        },
+        "instruction_quality": {
+          "rating": "PASS",
+          "description": "The bug report is clear and includes a small reproduction script and measurements, which is enough to see the goal (no per-request leak from HTTPClient create/close). The '900 seconds' and 'do not cheat' lines are boilerplate but harmless."
+        },
+        "task_validity": {
+          "rating": "FAIL",
+          "reason": "reference_details",
+          "description": "test_asyncio_close_leak asserts that exactly 1 entry is left after 10 asyncio-closed loops. That only happens with the reference's specific design: a strong dict plus a sweep of closed loops in BaseAsyncIOLoop.initialize, with the latest loop still referenced. Other correct designs fail. For example, a fix that removes the entry immediately when the asyncio loop closes (such as wrapping or hooking asyncio_loop.close) leaves 0 entries and fails. A fix limited to IOLoop.close(), which fixes the reported HTTPClient leak, leaves 10 and fails. Both tests also depend on the private attribute IOLoop._ioloop_for_asyncio staying a len()-able map of asyncio loops to IOLoops, so a redesign that drops it would fail too. Passing therefore depends on matching the reference's internal cleanup strategy, not only on fixing the leak."
+        }
+      }
+    }
+  ],
+  "status": "needs_human: task validity: test_asyncio_close_leak asserts that exactly 1 entry is left after 10 asyncio-closed loops. That only happens with the reference's specific design: a strong dict plus a sweep of closed loops in BaseAsyncIOLoop.initialize, with the latest loop still referenced. Other correct designs fail. For example, a fix that removes the entry immediately when the asyncio loop closes (such as wrapping or hooking asyncio_loop.close) leaves 0 entries and fails. A fix limited to IOLoop.close(), which fixes the reported HTTPClient leak, leaves 10 and fails. Both tests also depend on the private attribute IOLoop._ioloop_for_asyncio staying a len()-able map of asyncio loops to IOLoops, so a redesign that drops it would fail too. Passing therefore depends on matching the reference's internal cleanup strategy, not only on fixing the leak.",
+  "folder": "task_validity/reference_details"
+}

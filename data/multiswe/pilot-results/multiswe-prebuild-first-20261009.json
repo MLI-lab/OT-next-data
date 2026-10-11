@@ -1,0 +1,30 @@
+{
+  "dataset": "PrimeIntellect/Multi-SWE-RL-Verified",
+  "run": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-prebuild-first-20261009",
+  "job_id": "958714",
+  "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-prebuild-first-20261009/generation-0000/image-prebuild/results/submissions/d73453f3ab0f",
+  "tasks": 2232,
+  "unique_images": 778,
+  "operation": "image-prebuild-only",
+  "status": "submitted",
+  "validation_gate": "all images must be cached before validation",
+  "sequence": [
+    "prebuild all images",
+    "stage3 50 tasks",
+    "stage3 200 tasks",
+    "stage3 all tasks",
+    "stages1,4,5"
+  ],
+  "tests": {
+    "full_suite_passed": 1306,
+    "full_suite_skipped": 2,
+    "missing_plugin_failures": 2,
+    "missing_plugin_rerun_passed": 2
+  },
+  "changes": [
+    "Fastjson2 Maven preparation baked into image",
+    "Logstash signed Azul metadata rename acceptance",
+    "configured image budget propagated and partial build output streamed",
+    "bounded per-image scratch with shared cache publication"
+  ]
+}

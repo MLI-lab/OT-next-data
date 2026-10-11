@@ -1,1 +1,1 @@
-"""Stage entry points, orchestration and upstream review adapters."""
+"""Stage orchestration, runtime integration and upstream task staging."""

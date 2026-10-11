@@ -1,0 +1,94 @@
+{
+  "source": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/full-v55/source.parquet",
+  "source_sha256": "fcb9399c32a8ded63ce7b25fbe42b47c6d49684a5691b5e4397c48f012849e11",
+  "source_tasks": 4321,
+  "tasks": 174,
+  "already_passed_both": 4147,
+  "already_passed_by_stage": {
+    "4": 4221,
+    "5": 4208
+  },
+  "remaining_by_stage": {
+    "4": 100,
+    "5": 113
+  },
+  "review_setup": false,
+  "status": "running",
+  "created_at": "2026-10-09T07:33:08.490017+00:00",
+  "archived_tasks": [
+    "richardkiss__pycoin-353",
+    "fatiando__pooch-291"
+  ],
+  "batch_count": 5,
+  "max_active_jobs": 5,
+  "concurrency_per_job": 8,
+  "cpus_per_job": 96,
+  "walltime_per_job": "12:00:00",
+  "attempts_per_stage": 1,
+  "jobs": [
+    {
+      "name": "001",
+      "job_id": "958625",
+      "tasks": 40,
+      "stages": [
+        4
+      ],
+      "requested_dependency": null,
+      "observed_dependency": null,
+      "observed_state": "RUNNING",
+      "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v58-batch-001-a1-results/submissions/a68c4087b7e3"
+    },
+    {
+      "name": "002",
+      "job_id": "958626",
+      "tasks": 21,
+      "stages": [
+        4
+      ],
+      "requested_dependency": null,
+      "observed_dependency": null,
+      "observed_state": "RUNNING",
+      "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v58-batch-002-a1-results/submissions/36165dc03518"
+    },
+    {
+      "name": "003",
+      "job_id": "958627",
+      "tasks": 39,
+      "stages": [
+        4,
+        5
+      ],
+      "requested_dependency": null,
+      "observed_dependency": null,
+      "observed_state": "RUNNING",
+      "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v58-batch-003-a1-results/submissions/0d4509aa0c52"
+    },
+    {
+      "name": "004",
+      "job_id": "958628",
+      "tasks": 40,
+      "stages": [
+        5
+      ],
+      "requested_dependency": null,
+      "observed_dependency": null,
+      "observed_state": "RUNNING",
+      "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v58-batch-004-a1-results/submissions/9c40182e64d9"
+    },
+    {
+      "name": "005",
+      "job_id": "958629",
+      "tasks": 34,
+      "stages": [
+        5
+      ],
+      "requested_dependency": "afterany:958625",
+      "observed_dependency": null,
+      "observed_state": "RUNNING",
+      "submission": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v58-batch-005-a1-results/submissions/dfe68b78fbd3"
+    }
+  ],
+  "plan": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v58-plan.json",
+  "submission_state": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/swelego-timing-20261008/correctness-v58-submissions.json",
+  "note": "Only stages without a matching passing record were submitted. Prior passing records require byte-identical task payloads and expected recorded rewards. These submissions include previous failures; completion and passing results are not yet established."
+}

@@ -1,73 +1,21 @@
 ---
 name: verify-dataset
-description: Prove a patched dataset before spending GPU hours - verifier discrimination, solvability, oracle parity, isolation.
+description: Validate patched tasks with the shared pipeline before teacher generation.
 ---
 
-# Verifying a dataset
+# Verify a dataset
 
-A reward number is worthless until these hold. `python verify_pipeline.py all
-<tasks dir>` runs them all in order, cheapest first; each is also a script of its
-own, described below.
+Follow `validation/README.md`. Run the relevant repository tests, then prepare a
+contract for stages 1, 3, 4 and 5 on a diverse ten-task pilot. Fix dataset issues
+in `data/<dataset>/patch.py` and rerun the pilot before validating the full set.
 
-## 1. Tests
+Check that reference solutions score 1 and no-op agents score 0. Inspect verifier
+failures; a successful process exit alone is not evidence that a task is correct.
+Use `validation/checks/dataset_checks.py` for reproduction, image counts and isolation.
 
-```bash
-source env.sh && pytest tests -q          # expect: 43 passed
-```
-Check the output for `failed`, not only for `passed` — `grep ' passed'` matches
-`1 failed, 42 passed`, which is how a stale test once went unnoticed for a day.
+Generate teachers through stages 6 and 7 only after the task checks pass. Inspect
+recorded trajectories, missing rewards, timeouts and infrastructure failures when
+interpreting pass@k. Use stages 2 and 8 for rubric-based LLM review.
 
-## 2. Reward sanity — every task, not a sample
-
-Gold must score 1 and nonsense must score 0, graded by each task's own verifier.
-Two levels, and both matter:
-
-```bash
-tar -xzf $PILOT_ROOT/tasks/<selection>.tar.gz -C $DIR
-python verify/check_reward.py $DIR                  # this machine, no container
-python verify/check_reward_harbor.py $DIR $OUT      # inside a Slurm job: build + sandbox + test.sh
-python verify/check_images.py $DIR                  # how many distinct images the dataset needs
-```
-
-The local one catches verifier bugs; the Harbor one catches a broken image, a
-missing python in the container, or a reward that never reaches
-`/logs/verifier/reward.json`.
-
-Variants graded: gold, re-indented gold (must still be 1 — whitespace must not
-matter), empty, garbage, lone `}` / `;` / `{`, `return null;`, and the gold with
-one identifier renamed (the near miss that catches a prefix-matching verifier).
-Anything other than "gold N/N, every nonsense 0/N" is a defect in the verifier,
-not in the tasks. The nine variants each exist because a broken verifier passed
-the other eight - drop one only if you know which failure you stop catching.
-
-## 3. Solvability and reproducibility
-
-The solvability filter lives inside the patcher, so its audit comes from the same
-pass: `python data/<dataset>/patch.py ... --review reviews/` writes per-task
-verdicts and a sample of dropped tasks for hand review. Read the sample: the rules are heuristics, and the lenient "parts" rule
-(camelCase parts appearing anywhere) passes names the agent cannot actually
-infer. The strict variant is in `data/crosscodeeval/strict_subset_1000.json`;
-report scores on both.
-
-For a published dataset, also prove it is reproducible:
-
-```bash
-python verify/check_reproducible.py out-*.parquet --expect data/<dataset>/published_<where>.task_hashes.json
-```
-
-## 4. Oracle parity and isolation, on the cluster
-
-- Oracle stage of a run (`PILOT_ORACLE_CHECK=1`, the default) executes every
-  `solution/solve.sh` through the real harness: expect reward 1 from all of them.
-- `python verify/check_isolation.py` — two containers at once: separate cgroups,
-  no shared temp files, an OOM in one contained, loopback not shared.
-
-## Reporting
-
-```bash
-python verify/pass_at_k.py <run dirs...> --k 1 4 16
-```
-Report all tasks *and* the strict subset, and state the timeout rate: timeouts
-count as failures, so a run with a broken serving path looks like a weak model.
-A trajectory review beats a guess — when a score looks wrong, read ten failed
-trajectories per language before touching the verifier.
+Record dataset source revisions and patch provenance. See
+`data/INVENTORY.md#reporting-patches-in-the-datasource-pr` for output and publication conventions.

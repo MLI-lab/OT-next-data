@@ -1,0 +1,17 @@
+{
+  "run": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/runs/multiswe-rollout-20261009",
+  "prebuild_job": "958714",
+  "pilots": [
+    50,
+    250
+  ],
+  "additional_second_pilot_tasks": 200,
+  "setup_review_runs": 5,
+  "median_target_seconds": 30,
+  "maximum_setup_seconds": 60,
+  "prebuild_all_images": true,
+  "all_tasks_stage3_before_final_stages": true,
+  "automatic_repairs": true,
+  "allow_exclusions": false,
+  "publish": false
+}

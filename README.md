@@ -1,88 +1,78 @@
 # OT-next-data
 
-Build agent-task datasets, validate them, and run teacher models on the
-resulting tasks. This repo keeps dataset patches, validation scripts, cluster
-launchers, and some Harbor patches, and reports pass@k.
+This repo collects patches to fix and harden existing RL environments and provides an automated task-validation pipeline. It runs static checks, checks that tasks build, reference solutions score 1 and no-op agents score 0, then measures teacher pass@k and trajectory statistics. It also supports LLM-as-a-judge reviews, with separate rubrics for instructions and agent traces.
 
 ## Setup
 
+On Helma, install Python with `uv` (already available), then run setup:
+
 ```bash
-./setup.sh /path/to/workspace
-source env.sh
+uv python install 3.12.14
+./setup.sh /path/to/workspace --cluster helma --python "$(uv python find 3.12.14)"
+source env.sh # to activate the environment in a new shell
+python -m validation.upstream setup
 ```
 
-Installs fixed versions of the official [OpenThoughts-Agent](https://github.com/open-thoughts/OpenThoughts-Agent)
-and the Marin Harbor fork. The experiment wrapper and attempt accounting live
-in `teacher_traces/`; no private OT-Agent checkout is required. For an existing
-workspace cloned from the private repository, use a fresh workspace directory.
-Teacher runs use Terminus-2 and require Slurm, Apptainer, model weights, and a
-built runtime image. Cluster scripts are in `hpc/<cluster>/`; Helma is supported.
+`/path/to/workspace`, saved as `$OT_WORKSPACE`, saves datasets, model weights,
+cached task images and a copy of the repo's Python environment. Jobs copy the
+files they need to a temporary folder on the compute node for faster file access.
+Choose a shared directory accessible from compute nodes. Save downloaded and
+prepared datasets under `$OT_WORKSPACE/datasets/<dataset>/`; the repo's `data/`
+has code, patches and small metadata. Download model weights with `python config/models.py --download MODEL` into
+`/path/to/workspace/models/`; set `OT_MODELS` to use another directory. For run outputs, pass `--out "$OT_WORKSPACE/runs/NAME"`;
+without `--out`, validation currently writes to the repo's `validation/results/`.
+
+Setup installs the Python packages in `requirements.txt` into one virtual
+environment for validation and teacher generation. The default location is
+`/path/to/workspace/envs/prep`. To choose another location, run
+`export OT_PREP_ENV=/path/to/venv` before setup.
+
+Helma already provides Apptainer at `/usr/bin/apptainer`, Slurm and CUDA;
+no separate installation is needed. Setup loads the CUDA module automatically.
+`config/clusters.py` specifies the versions, modules to load,
+and Slurm settings. Setup and jobs load those modules automatically. Currently only
+Helma is fully configured. 
+
+See [storage locations](hpc/README.md#storage-locations) for cluster directories,
+their `$` names, disk/file quotas, and dataset and result locations. Quotas are
+currently recorded only for your Helma account.
+
+Helma and ZIH use the same Slurm pipeline; see [cluster setup](hpc/README.md).
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `requirements.txt` | Python dependencies and versions |
+| `setup.sh` | Install the environment and generate `env.sh` |
+| `config/` | Cluster requirements, runtime checks and model settings |
+| `data/` | Dataset patches |
+| `validation/` | Validation, teacher generation, reports and Hugging Face uploads |
+| `hpc/` | Cluster launchers and runtime staging |
+| `harbor_patches/` | Harbor task-execution fixes |
+| `tests/` | Repository tests |
 
 ## Use
 
-**Prepare tasks:** add a patch script under `data/<dataset>/`.
-See [CrossCodeEval](data/crosscodeeval/README.md) for an example.
-
-**Validate tasks:** everything for checking a dataset is in [`validation/`](validation/README.md).
-
-The ten validation stages wrap a pinned Terminal-Bench checkout: static checks,
-LLM rubric review, container build, oracle and NOP, agent trials, trace metrics,
-LLM trajectory analysis, adversarial trials, and the hacker-fixer loop. Apptainer
-is the default backend. A run needs a contract, which is prepared first:
+Prepare a dataset with `data/<dataset>/patch.py`. See the
+[data layout and commands](data/INVENTORY.md#dataset-code) for source subcommands and shared helpers. A contract is a JSON file
+that fixes the input tasks, validation stages and settings for a run.
+Create one, then run it (this example checks 10 tasks on Helma without an LLM):
 
 ```bash
-python -m validation.upstream setup
 python validation/run.py /path/to/tasks --stages 1,3,4,5 \
-  --submit helma --time 02:00:00 \
-  --prepare-contract /path/to/contracts/check.json
-python validation/run.py --contract /path/to/contracts/check.json
+  --limit 10 --submit helma --partition cpu --cpus 48 --time 02:00:00 \
+  --out "$OT_WORKSPACE/runs/check" \
+  --prepare-contract "$OT_WORKSPACE/contracts/check.json"
 ```
 
-Three checks that the stages do not cover are run separately, without a contract:
+Then run validation:
 
 ```bash
-python validation/dataset_checks.py all /path/to/dataset
-python validation/dataset_checks.py images /path/to/dataset
+python validation/run.py --contract "$OT_WORKSPACE/contracts/check.json"
 ```
 
-| Check | What it does |
-| --- | --- |
-| `images` | counts the distinct container images a dataset needs |
-| `reproduce` | the patcher still produces exactly the published tasks |
-| `isolation` | two containers running at once cannot see each other |
-
-Unit tests of this repository: `python -m pytest tests -q`.
-
-**Run teachers:**
-
-```bash
-python config/models.py                         # list models
-python config/models.py --download coder-30b
-python teacher_traces/submit.py --dataset-config /path/to/dataset.json \
-    --model coder-30b --tasks-per-group 5 --attempts 8 --time 00:45:00
-```
-
-See [dataset configuration](docs/datasets.md). `--tasks-per-group` takes the
-first N tasks of each group, or all of them by default; start with a small
-number to try a model. Add `--dry-run` to preview the submission.
-Omitting `--dataset-config` uses the existing CrossCodeEval setup.
-The run itself is described in [teacher traces](teacher_traces/README.md).
-
-**Report results:**
-
-```bash
-python validation/verify/pass_at_k.py /path/to/run --k 1 4 8
-python validation/verify/plot_pass_rates.py "Model=/path/to/run" -o pass_rates.png
-```
-
-## Models tested
-
-| Model | Precision | Result |
-| --- | --- | --- |
-| [Qwen3-Coder-30B-A3B-Instruct](https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct) | BF16 | Completed 1,000-task evaluations |
-| [Qwen3.5-122B-A10B](https://huggingface.co/Qwen/Qwen3.5-122B-A10B) | BF16 | Completed 1,000-task evaluation |
-| [Qwen3-Coder-480B-A35B-Instruct-FP8](https://huggingface.co/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8) | FP8 | Completed four-task smoke test |
-| GLM-5.1-FP8 | FP8 | Failed during model loading |
-| [GLM-5.3](https://huggingface.co/zai-org/GLM-5.3) | FP8 | Served successfully; smoke evaluation incomplete |
-
-TO DO: test https://huggingface.co/laion/snowball-67b-a2b-sft-s3-nemotron-terminal-step1888
+See the [validation workflow](validation/README.md#quickstart) for the full
+validation protocol and the [dataset inventory](data/INVENTORY.md) for datasets
+to validate and their status.
+Run repository tests with `python -m pytest tests -q`.

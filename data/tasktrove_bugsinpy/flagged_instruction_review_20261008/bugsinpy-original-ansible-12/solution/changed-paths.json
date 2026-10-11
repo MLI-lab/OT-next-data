@@ -1,0 +1,1 @@
+["changelogs/fragments/65541-fix-utf8-issue-env-lookup.yml", "lib/ansible/plugins/lookup/env.py", "test/integration/targets/lookups/runme.sh", "test/integration/targets/lookups/tasks/main.yml", "test/units/plugins/lookup/test_env.py"]

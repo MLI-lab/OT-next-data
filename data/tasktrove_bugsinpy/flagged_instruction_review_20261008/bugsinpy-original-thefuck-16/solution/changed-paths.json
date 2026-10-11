@@ -1,0 +1,1 @@
+["tests/shells/test_bash.py", "tests/shells/test_zsh.py", "thefuck/shells/bash.py", "thefuck/shells/fish.py", "thefuck/shells/zsh.py", "thefuck/types.py"]

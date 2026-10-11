@@ -1,5 +1,12 @@
 # Current CrossCodeEval results
 
+The 6,710-task full validation was resubmitted as Helma job `923204` after
+job `922945` stopped before all stages on a CPU-worker `gpus=0` argument
+error. The new contract, submission record, and eventual reports are under
+`/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/full-6710-dual-nop-20261002/`.
+The new task manifest matches the old one. Job `923204` is a submission,
+not a validation pass.
+
 This README is a manually maintained index. Contracts and reports are generated
 automatically by the pipeline. Folder names describe the model/test and task count.
 Older completed local attempts were deleted. Generated contracts live in each run

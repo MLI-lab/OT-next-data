@@ -1,0 +1,152 @@
+{
+  "dataset": "SWE-Lego Real Data / Verified",
+  "source_candidate": "full-v65; fresh Stage 4 plus nine-task v67 retry evidence",
+  "as_of": "2026-10-09",
+  "scope": "The 17 reference failures previously grouped as test or HTTP-mock failures. This diagnoses recorded evidence; uncertainty is explicit.",
+  "items": [
+    {
+      "task_id": "2gis__k8s-handle-120",
+      "diagnosis": "reference_output_assertion",
+      "evidence": "The reference run fails only test_generate_templates in this selection: generated YAML order and blank-line placement differ from the expected literal. The gold patch changes tag filtering, not template serialization; this looks unrelated to the targeted fix.",
+      "confidence": "high",
+      "next_step": "Compare no-op and reference rendered strings; decide whether the expected snapshot is stale or the pinned renderer changed."
+    },
+    {
+      "task_id": "RightBrain-Networks__auto-semver-51",
+      "diagnosis": "shared_git_fixture_state",
+      "evidence": "The verifier output contains fatal duplicate-tag errors (0.1.0, 0.1.1, 0.1.3, 1.2.0), followed by 11 failures in merge/version tests. Tests are contaminating a shared checkout with git tags.",
+      "confidence": "high",
+      "next_step": "Create a temporary repo or clean fixture tags between tests, then rerun reference and no-op."
+    },
+    {
+      "task_id": "airbrake__pybrake-77",
+      "diagnosis": "unreliable_live_network",
+      "evidence": "Both failing tests make unmocked HTTP calls: one to the default Airbrake endpoint and one to an invalid external hostname. The first got a non-JSON response; the second did not get the expected DNS URLError. Archived under unreliable live-service verification.",
+      "confidence": "high",
+      "next_step": "No further task validation; preserve original payload in archive."
+    },
+    {
+      "task_id": "astropy__astropy-16241",
+      "diagnosis": "expired_leap_second_data",
+      "evidence": "The sole reference failure was Astropy reporting an expired leap-second table. The checksum-pinned replacement passed stages 3,4,5 in job 959935.",
+      "confidence": "confirmed_fixed",
+      "next_step": "Promote after merging the updated patcher candidate."
+    },
+    {
+      "task_id": "contentful__contentful-management.py-117",
+      "diagnosis": "stale_vcr_payload",
+      "evidence": "The reference change omits defaultValue when it is None. Thirteen ContentType tests then request bodies that differ from old RecordMode.ONCE cassettes; 17 tests pass. This is a verifier fixture mismatch caused by the intended serialization change.",
+      "confidence": "high",
+      "next_step": "Update cassettes or make the HTTP tests assert serialization while matching requests independent of omitted null fields; verify no external fallback."
+    },
+    {
+      "task_id": "ctypesgen__ctypesgen-150",
+      "diagnosis": "host_header_sysroot_mismatch",
+      "evidence": "The old parser reports syntax errors in the installed glibc sys/cdefs.h; its version test exits 2. This is a host-header/sysroot compatibility issue, not a failed application assertion.",
+      "confidence": "high",
+      "next_step": "Pin a compatible system-header set/sysroot for this verifier or provide a task-local supported header set."
+    },
+    {
+      "task_id": "getsentry__sentry-python-79",
+      "diagnosis": "mixed_local_transport_and_repr_assertions",
+      "evidence": "test_transport_works did not observe the expected request at its local HTTP server, which may be proxy routing; safe_repr also failed a Hypothesis string property. These are separate failures and only the first is plausibly proxy-related.",
+      "confidence": "medium",
+      "next_step": "Inspect the exact traceback and inherited proxy variables; rerun the local-server test with localhost bypassed and isolate the safe_repr failing example."
+    },
+    {
+      "task_id": "googleapis__google-auth-library-python-424",
+      "diagnosis": "connection_error_expectation",
+      "evidence": "One reference test, test_connection_error, expected the request path to raise a connection error but it did not; the other 21 tests passed. The saved output does not show whether the adapter/mock or exception conversion is responsible.",
+      "confidence": "low",
+      "next_step": "Inspect the test\u2019s adapter fixture and request exception path; rerun that single test with traceback."
+    },
+    {
+      "task_id": "h2non__pook-111",
+      "diagnosis": "local_mock_query_constructor",
+      "evidence": "Two tests for Mock(params=...) and Mock(param_exists=...) fail with PookNoMatches, while the single-param case is explicitly xfailed. The mock URL/query matcher does not match the expected query string; this is a local mock API/implementation issue, not a live-service result.",
+      "confidence": "high",
+      "next_step": "Compare constructed raw URL with the expected query serialization and test under the pinned pook dependencies."
+    },
+    {
+      "task_id": "h2non__pook-83",
+      "diagnosis": "nested_pytest_child_failure",
+      "evidence": "The outer test runs and 8/9 selected tests pass, but test_engines launches a nested pytest command that returns nonzero. The child output is not preserved in the outer report, so the root cause is not yet established.",
+      "confidence": "medium",
+      "next_step": "Capture the nested command stdout/stderr and exit status in test_engines; retry the child command directly."
+    },
+    {
+      "task_id": "lundberg__respx-13",
+      "diagnosis": "reference_mock_pattern_type_error",
+      "evidence": "Many local mock tests crash at respx/mock.py:229 because a string is used where the matcher expects an object with attachment. The failure is inside the reference-patched mock implementation, not network access.",
+      "confidence": "high",
+      "next_step": "Fix construction/normalization of RequestPattern before calling matching code; verify both sync and async client cases."
+    },
+    {
+      "task_id": "lundberg__respx-21",
+      "diagnosis": "reference_mock_pattern_type_error",
+      "evidence": "The same string-versus-pattern AttributeError occurs at respx/mock.py:273, with additional unmatched-mock assertions. The failure is inside the reference-patched mock implementation.",
+      "confidence": "high",
+      "next_step": "Fix the pattern object handling and rerun the new assert_all_mocked behavior."
+    },
+    {
+      "task_id": "mdsol__rwslib-111",
+      "diagnosis": "httpretty_api_compatibility",
+      "evidence": "Seventeen tests fail because the pinned HTTPrettyRequest object has no headers attribute under Python 3.7; 24 pass. This matches PyPeri-8\u2019s pinned HTTPretty compatibility failure, rather than live network dependence.",
+      "confidence": "high",
+      "next_step": "Test a compatible HTTPretty version or an adapter shim; only archive if it cannot be fixed without changing task semantics."
+    },
+    {
+      "task_id": "pypa__setuptools_scm-854",
+      "diagnosis": "shallow_git_checkout",
+      "evidence": "The only failure warns that /testbed is shallow. A full-history setup repair is queued in job 960195 for stages 4,5.",
+      "confidence": "high",
+      "next_step": "If the full-history retry passes reference 1 and no-op 0, keep the repair and promote."
+    },
+    {
+      "task_id": "pytest-dev__pytest-asyncio-1029",
+      "diagnosis": "event_loop_warning_count_mismatch",
+      "evidence": "Three nested pytester tests expect particular unclosed-loop warning counts; actual warning/error summaries differ and a Unix socket unraisable warning appears. The tests execute; this is a loop-cleanup/runtime warning mismatch, not missing runner evidence.",
+      "confidence": "medium",
+      "next_step": "Compare Python/pytest/pytest-asyncio versions and captured nested output; determine if expected warning counts are brittle for this runtime."
+    },
+    {
+      "task_id": "tcgdex__python-sdk-2",
+      "diagnosis": "stale_vcr_api_interactions",
+      "evidence": "The gold patch changes the API locale path from fixed /en to the configured language, while numerous RecordMode.ONCE fixtures no longer match requests. This points to cassette interactions not matching the patched request. The task allows internet, so unmatched VCR calls may fall through; saved evidence does not prove which requests reached the service.",
+      "confidence": "medium",
+      "next_step": "Compare exact request URI/headers against cassettes; update fixtures or mock transport so verification never needs a live API."
+    },
+    {
+      "task_id": "tox-dev__tox-2643",
+      "diagnosis": "nested_tox_environment_commands_exit_1",
+      "evidence": "Four Tox integration tests fail because child tox commands exit 1, including the change_dir regression even though the gold patch adds directory creation. The saved outer report retains only exit codes, not child output; it cannot distinguish a patch defect from child-environment failure.",
+      "confidence": "low",
+      "next_step": "Preserve child tox stdout/stderr and inspect why commands exit 1; rerun each failing case in isolation."
+    }
+  ],
+  "updates_after_diagnosis": {
+    "airbrake__pybrake-77": "archived under unreliable live-service verification",
+    "astropy__astropy-16241": "patched leap-second table passed stages 3,4,5 in job 959935",
+    "astropy__pyvo-357": "patched leap-second table passed stages 3,4,5 in job 959935",
+    "tomerfiliba-org__rpyc-479": "affinity fix passed stages 3,4,5 in job 959924",
+    "pypa__setuptools_scm-854": "full-history verification pending job 960195",
+    "moogar0880__PyTrakt-54": "fixed-clock plugin passed Stage 4 reference reward 1.0 and Stage 5 no-op reward 0.0 in job 960175",
+    "runner_evidence_retry_job_960175": "mtgjson, skew, uncurl, and towncrier remain inconclusive: missing invocation evidence, overlapping evidence, or no tests executed; see stage reports in pytrakt-runner-retry-v68-results"
+  },
+  "memory_probe_update": {
+    "job": "960179",
+    "status": "running at report update",
+    "task_limit_used": "12 GiB per task",
+    "completed_trial_max_rss": {
+      "dask__dask-4050": {
+        "kib": 7128748,
+        "gib": 6.8
+      },
+      "dask__dask-4181": {
+        "kib": 6800208,
+        "gib": 6.49
+      }
+    },
+    "interpretation": "These peaks occurred during the verifier trial/test execution after setup and exceed the original 4 GiB per-task limit. Full task-by-task outcomes are pending."
+  }
+}
