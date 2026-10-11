@@ -22,6 +22,14 @@ or `/tmp`, rejects shared filesystems, and removes its own scratch directory on
 exit. The full Python environment and selected inputs must fit locally.
 
 CPU and external-API model stages share the same launcher. Local GPU serving
-also requires configuring ZIH's GPU partition and CUDA module; those settings
-are deliberately unset until verified on the site. The migration is covered by
-submission/staging tests; execution on ZIH still needs a cluster smoke test.
+defaults to Capella with `CUDA/13.0.0`, four H100 GPUs per node and account
+`p_agents_finetuning`. Submit from a Capella login host using `--submit zih`.
+Alpha is another GPU cluster, but its serving settings have not been verified.
+Barnard, Romeo and Julia are not GPU serving targets.
+
+Capella preflight job `4406590` on 2026-10-11 verified an H100 with 95,830 MiB,
+driver 580.159.04, CUDA 13.0, user namespaces and executable XFS node-local
+scratch. Apptainer is 1.5.0 on the login node and 1.5.2 on the compute node.
+This checks the allocation and system tools only. The shared launcher, packaged
+Python runtime and model generation still require an end-to-end pilot before
+submitting the full dataset.

@@ -89,9 +89,11 @@ CLUSTERS = [
             ),
             note='NHR@FAU; GPU jobs must request --gres, max 32 cores per GPU, '
                  'file-count quota on the shared filesystem'),
-    Cluster(name='zih', hostname_pattern=r'(login\d*\.|.*\.)?(taurus|barnard|capella)',
-            apptainer_version='1.4.5', apptainer_login_version='1.4.5',
-            cpu_partition='barnard', gpu_partition='', gpu_gres='gpu:{n}',
+    Cluster(name='zih', hostname_pattern=r'(?:login\d*\.)?(?:taurus|barnard|capella|alpha|romeo|julia)(?:\.|$)|c\d+\.capella(?:\.|$)',
+            # Capella preflight 4406590, 2026-10-11: compute and login differ.
+            apptainer_version='1.5.2', apptainer_login_version='1.5.0',
+            cuda_module='CUDA/13.0.0', cuda_version='13.0',
+            cpu_partition='barnard', gpu_partition='capella', gpu_gres='gpu:{n}',
             account='p_agents_finetuning', cpu_allocation_step=1, max_cpus_per_gpu=0,
             # Available mounts depend on the partition; verify with ws_list on ZIH.
             # Quotas have not been measured there; do not assume Helma's values.
@@ -102,7 +104,7 @@ CLUSTERS = [
                 Storage('CAT', '/data/cat', 'Workspace filesystem; verify availability for the partition.'),
                 Storage('SCRATCH', '$TMPDIR', 'Temporary job-local files; set by the launcher.'),
             ),
-            note='TU Dresden; configure site modules and GPU partition before local model serving'),
+            note='TU Dresden; Capella H100 serving defaults; verify other clusters before using their GPUs'),
 ]
 
 def detect_cluster(hostname: str | None = None) -> Cluster | None:

@@ -14,8 +14,19 @@ def test_zih_selects_cpu_without_helma_gpu_fallback():
     assert choose_allocation(args)['partition'] == cluster_config('zih').cpu_partition
     assert choose_allocation(args)['gpus'] == 0
     args.serve_model = 'coder-30b'
-    with pytest.raises(ValueError, match='Configure zih GPU partition'):
+    assert choose_allocation(args)['partition'] == 'capella'
+    assert choose_allocation(args)['gpus'] == 1
+    args.partition = 'barnard'
+    with pytest.raises(ValueError, match='CPU partition cannot serve'):
         choose_allocation(args)
+
+
+@pytest.mark.parametrize('host', ['login1.barnard.hpc.tu-dresden.de',
+    'login1.alpha.hpc.tu-dresden.de', 'login1.romeo.hpc.tu-dresden.de',
+    'julia.hpc.tu-dresden.de', 'c1.capella.hpc.tu-dresden.de'])
+def test_zih_login_hostnames_select_the_site(host):
+    from config.clusters import detect_cluster
+    assert detect_cluster(host).name == 'zih'
 
 
 def test_zih_wrapper_stages_on_local_scratch_and_cleans_only_its_directory(tmp_path):
