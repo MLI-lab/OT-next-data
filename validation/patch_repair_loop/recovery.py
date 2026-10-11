@@ -171,20 +171,24 @@ def controller_locks(config):
 def jobs(work):
     """Unknown or active Slurm jobs prevent starting a fresh validation generation."""
     identifiers = set()
+    uncertain = []
     for root in [*Path(work).glob('generation-*'), Path(work) / 'publication']:
         for name in ('job.json', 'submission.json'):
             for path in root.rglob(name):
                 value = read(path)
-                if value.get('job_id'):
+                if value.get('status') == 'submitting' and not value.get('job_id'):
+                    uncertain.append({'job_id': None, 'state': 'UNKNOWN', 'finished': False,
+                                      'submission': str(path)})
+                if value.get('job_id') and not (value.get('shards') or value.get('array')):
                     identifiers.add(str(value['job_id']))
     if not identifiers:
-        return []
+        return uncertain
     terminal = {'COMPLETED', 'FAILED', 'CANCELLED', 'TIMEOUT', 'OUT_OF_MEMORY',
                 'NODE_FAIL', 'PREEMPTED', 'BOOT_FAIL', 'DEADLINE', 'REVOKED'}
     states = {}
     try:
         result = subprocess.run(['sacct', '-X', '-n', '-P', '-j', ','.join(sorted(identifiers)),
-                                 '--format', 'JobIDRaw,State'], capture_output=True,
+                                 '--format', 'JobID,State'], capture_output=True,
                                 text=True, check=True, timeout=30)
         for line in result.stdout.splitlines():
             fields = line.split('|')
@@ -193,7 +197,7 @@ def jobs(work):
     except (OSError, subprocess.SubprocessError):
         pass
     return [{'job_id': job, 'state': states.get(job, 'UNKNOWN'),
-             'finished': states.get(job) in terminal} for job in sorted(identifiers)]
+             'finished': states.get(job) in terminal} for job in sorted(identifiers)] + uncertain
 
 
 def file_snapshot(paths):
@@ -248,6 +252,11 @@ def validate_decision(value, role='recovery'):
         raise ValueError('Restart requires checkpoint or stage3 and a restart prompt')
     if value['action'] == 'wait' and not value.get('wait_reason'):
         raise ValueError('Wait requires the condition that must recover')
+    if value.get('resource_changes'):
+        from validation.patch_repair_loop.resources import validate
+        if role != 'supervisor' or value['action'] != 'restart' or value['restart_from'] != 'stage3':
+            raise ValueError('Only a supervisor stage3 restart may change execution resources')
+        validate(value['resource_changes'])
     return value
 
 
@@ -256,6 +265,8 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
     if shared and role != 'supervisor':
         raise ValueError('Only the supervisor role may edit shared infrastructure')
     state = read(state_path)
+    from validation.patch_repair_loop.resources import effective, FIELDS
+    config = effective(config, state)
     for phase, setting, counter in [('fixer', 'max_repairs', 'repair_count'),
                                      ('final_retry', 'max_infra_retries', 'infra_retry_count')]:
         if state.get('phase') == phase:
@@ -288,6 +299,8 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
             'jobs': jobs(config['work_root']), 'source': config['source'],
             'recovery_history': str(Path(config['work_root']) / 'occurred-failures'),
             'publication_status': read(Path(config['work_root']) / 'publication/publish-status.json'),
+            'execution_resources': {key: config[key] for key in FIELDS if key in config},
+            'allowed_resource_changes': sorted(FIELDS) if role == 'supervisor' else [],
         }, directory, role, watched_paths=editable)
         decision = validate_decision(parse_json_answer(answer), role)
         core.save(directory / 'decision.json', decision)
@@ -322,6 +335,16 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
         state.pop('supervisor_pending', None)
         state['reviewed_findings'] = sorted(set(state.get('reviewed_findings', [])) | set(findings(config)))
     if decision['action'] == 'restart':
+        if decision.get('resource_changes'):
+            active = [job for job in jobs(config['work_root']) if not job['finished']]
+            if active:
+                core.save(directory / 'restart.json', {'status': 'waiting', 'jobs': active})
+                return 'wait'
+            if (Path(config['work_root']) / 'publication/job.json').exists():
+                raise RuntimeError('Publication was submitted; reconcile it before changing resources')
+            from validation.patch_repair_loop.resources import approve
+            approve(state, decision['resource_changes'], decision=directory / 'decision.json',
+                    evidence=decision['evidence'])
         fresh = decision['restart_from'] == 'stage3' or state.get('recovery_requires_stage3', False)
         # An interrupted mutating agent must finish its reporting contract first.
         # An idle fixer holds no partial edit; its stale evidence is replaced by stage 3.

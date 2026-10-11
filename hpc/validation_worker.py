@@ -147,6 +147,17 @@ def free_port(start, attempts=200):
     raise RuntimeError(f'no free port pair found from {start}')
 
 
+def review_runtime_tasks(tasks, stages, scratch):
+    """Stage-2 sources are review payloads, not environments to build or run."""
+    if set(stages) != {2}:
+        return tasks
+    from validation.stages.prepare_review_tasks import stage_review
+    from validation.upstream import checkout
+    # Every implementation review uses the same container and resource config.
+    # Keep original tasks untouched, including legacy or intentionally bad ones.
+    return [stage_review(tasks[0], scratch / 'review-environment', checkout('terminal-bench'))]
+
+
 def trial_capacity(tasks, args):
     # Reserve both agent and verifier steps: an agent may stay alive while its
     # separate verifier starts, so filling every CPU with agents can deadlock.
@@ -245,16 +256,25 @@ def main(request):
             (scratch / 'protocol.md').write_text(protocol(frozen))
             status['contract_sha256'] = frozen['sha256']
             save(request.parent / 'execution.json', status)
+        from validation.shards import parse_shard, slice_ids
+        shard = parse_shard(getattr(args, 'shard', None))
+        if shard and not getattr(args, 'contract', None):
+            raise ValueError('--shard requires a frozen contract')
+        shard_ids = set(slice_ids(frozen, shard)) if shard else None
         from validation.data.selection import discover_tasks
         from validation.data.materialize import parquet_files, materialize
         source = Path(args.tasks)
         args.tasks = scratch / 'tasks'
         if parquet_files(source):
             selected_ids = {t['task_id'] for t in task_records(frozen)} if getattr(args, 'contract', None) else None
+            if shard_ids is not None:
+                selected_ids = shard_ids  # this job holds, stages and validates only its slice
             tasks = materialize(source, args.tasks, args.limit, selected_ids=selected_ids)
         else:
             from validation.data.selection import select_paths
             tasks = select_paths(discover_tasks(source), args)
+            if shard_ids is not None:
+                tasks = [task for task in tasks if task.name in shard_ids]
             args.tasks.mkdir()
             for task in tasks:
                 shutil.copytree(task, args.tasks / task.name)
@@ -275,9 +295,10 @@ def main(request):
         preparation_tasks = [task for task in tasks if task in getattr(args, '_path_candidates', [])
                              or getattr(args, '_pip_findings', {}).get(task.name)]
         static_only = not prebuild_only and set(data['stages']) == {1} and not preparation_tasks
+        runtime_tasks = tasks if prebuild_only else review_runtime_tasks(tasks, data['stages'], scratch)
         budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
                    'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
-                  if static_only or prebuild_only else trial_capacity(tasks, args))
+                  if static_only or prebuild_only else trial_capacity(runtime_tasks, args))
         args.concurrency = min(args.concurrency, budget['max_concurrency'])
         save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency,
                                                'static_concurrency': args.static_concurrency})
@@ -287,7 +308,7 @@ def main(request):
             images = scratch / 'images'
             images.mkdir()
         else:
-            images = stage_images(tasks, base / 'images', scratch / 'images')
+            images = stage_images(runtime_tasks, base / 'images', scratch / 'images')
         if os.environ.get('OT_LOCAL_RUNTIME'):
             shutil.copyfile(Path(os.environ['OT_LOCAL_RUNTIME']) / 'staging.json', scratch / 'runtime-staging.json')
         if args.trials:
@@ -331,7 +352,7 @@ def main(request):
             for name, default in [('memory_mb', 8192), ('cpus', 4), ('concurrency', 2), ('timeout_sec', 3600)]:
                 if not hasattr(args, 'image_build_' + name):
                     setattr(args, 'image_build_' + name, default)
-            image_tasks = preparation_tasks if set(data['stages']) == {1} and not prebuild_only else tasks
+            image_tasks = preparation_tasks if set(data['stages']) == {1} and not prebuild_only else runtime_tasks
             try:
                 preparation = prepare_images(image_tasks, images, base / 'images', args)
             finally:
@@ -429,6 +450,7 @@ def main(request):
             args.model = 'openai/' + key
             args.api_base = f'http://127.0.0.1:{serving_port}/v1'
             args._local_server_ready = True
+            args._serving_gpu_count = plan['gpus']
             os.environ['OPENAI_API_KEY'] = 'EMPTY'
             from config.models import serving_agent_kwargs
             args.agent_kwargs = serving_agent_kwargs(spec, args.serve_context, args.agent_kwargs)

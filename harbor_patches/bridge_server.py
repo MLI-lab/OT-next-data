@@ -13,6 +13,11 @@ import time
 import uuid
 from pathlib import Path
 
+try:
+    from harbor_patches import start_wait
+except ModuleNotFoundError:  # run as a script from this directory
+    import start_wait
+
 REPLAY_SECONDS = 300
 
 
@@ -36,6 +41,17 @@ def install_transport(server):
 
         def do_POST(self):
             request_id = self.headers.get('X-Bridge-Request-ID')
+            if self.path == '/worker/phase':
+                # A worker reports that a start is waiting for resources (see start_wait).
+                try:
+                    data = json.loads(self._read_body())
+                    with server._lock:
+                        env = server._envs.get(data.get('env_id'))
+                        if env is not None:
+                            start_wait.record_phase(env, bool(data.get('waiting')), time.time())
+                except (ValueError, UnicodeError, AttributeError):
+                    return self._json({'error': 'invalid JSON object'}, 400)
+                return self._json({'recorded': True})
             if self.path != '/job/ack' and self.path not in routes:
                 return super().do_POST()  # Upstream worker registration and updates.
             if self.path in routes and not request_id:
@@ -105,7 +121,26 @@ def install_transport(server):
                     response = (result, 200)
                 else:
                     response = ({'state': job['state']}, 200)
+                    env = server._envs.get(job.get('env_id'))
+                    if job.get('type') == server.JOB_START and (job['state'] == 'pending' or (env and 'wait_since' in env)):
+                        # Waiting for a worker or a Slurm step: not start time (start_wait).
+                        response[0]['waiting'] = True
             self._json(*response)
+
+        def _handle_env_status(self, env_id):
+            with server._lock:
+                env = server._envs.get(env_id)
+                if not env:
+                    return self._json({'error': 'Unknown env'}, 404)
+                queued = None
+                if env['state'] != server.ENV_PENDING and 'queue_seconds' not in env:
+                    start = next((j for j in server._jobs.values()
+                                  if j.get('env_id') == env_id and j.get('type') == server.JOB_START and 'started' in j), None)
+                    queued = (start['started'] - start['submitted']) if start else None
+                response = {'env_id': env_id, 'state': env['state'], 'task_name': env['task_name'],
+                            'worker_id': env['worker_id'],
+                            'waited_seconds': round(start_wait.waited_seconds(env, time.time(), queued), 3)}
+            self._json(response)
 
         def _handle_worker_result(self, data):
             super()._handle_worker_result(data)
@@ -163,6 +198,11 @@ def cleanup_once(server, now, stale_sec, batch_cap):
         for job in list(server._jobs.values()):
             if job['state'] == 'running':
                 elapsed = now - job.get('started', now)
+                waiting_env = server._envs.get(job['env_id']) if job.get('type') == getattr(server, 'JOB_START', 'start') else None
+                if waiting_env:
+                    # Time a start spent waiting for its Slurm step is not worker run time.
+                    step_wait = waiting_env.get('waited', 0.0) + (now - waiting_env['wait_since'] if 'wait_since' in waiting_env else 0.0)
+                    elapsed -= min(step_wait, start_wait.WAIT_LIMIT)
                 timeout = job['payload'].get('timeout_sec', 600)
                 if workers_dead or elapsed > timeout * 2 + 120:
                     job['state'] = 'error'

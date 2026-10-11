@@ -100,3 +100,40 @@ def test_incomplete_shard_marks_the_merged_report_incomplete(tmp_path, monkeypat
     summary = shards.merge('contract.json', tmp_path, tmp_path / 'merged' / 'report')
     assert not summary['complete']
     assert json.loads(Path(summary['stages'][4]).read_text())['shards']['incomplete'] == [1]
+
+
+def test_shard_job_verifies_only_its_slice_of_the_materialized_tasks(tmp_path, monkeypatch):
+    import validation.contract as contract_module
+    from types import SimpleNamespace
+    contract = fake_contract(monkeypatch)
+    contract['implementation'] = {}
+    monkeypatch.setattr(contract_module, 'implementation', lambda: {})
+    monkeypatch.setattr(contract_module, 'task_digest', lambda path: SHA)
+    mine = shards.slice_ids(contract, (1, 3))
+    for name in mine:
+        (tmp_path / name).mkdir(); (tmp_path / name / 'task.toml').write_text('')
+    args = SimpleNamespace(contract='contract.json', tasks=tmp_path, limit=None, task_id_range=None, shard='1/3')
+    assert contract_module.verify_materialized(args) is contract
+    args.shard = '0/3'   # another slice's tasks are not here
+    with pytest.raises(ValueError, match='differ from frozen contract'):
+        contract_module.verify_materialized(args)
+    args.shard = None    # an unsharded job needs the whole inventory
+    with pytest.raises(ValueError, match='differ from frozen contract'):
+        contract_module.verify_materialized(args)
+
+
+def test_a_shard_refuses_to_derive_its_own_path_contract(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from validation.stages import normalize_paths
+    import validation.contract, validation.data.selection
+    # Import first: a module first imported while the names below are patched would keep the patched functions.
+    import validation.stages.runner, validation.checks.instruction_suffix, data.utils.resolve_absolute_paths  # noqa: F401
+    task = tmp_path / 'task-a'
+    task.mkdir()
+    monkeypatch.setattr(validation.contract, 'verify_materialized', lambda args: None)
+    monkeypatch.setattr(validation.data.selection, 'discover_tasks', lambda tasks: [task])
+    monkeypatch.setattr(validation.data.selection, 'select_paths', lambda tasks, args: tasks)
+    args = SimpleNamespace(fix_instruction_paths=True, dry_run=False, tasks=tmp_path, out=tmp_path / 'out',
+                           shard='0/2', _path_candidates=[task])
+    with pytest.raises(ValueError, match='resolve paths before preparing the contract of a sharded run'):
+        normalize_paths.prepare(args, [1, 3])

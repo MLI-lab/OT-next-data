@@ -138,6 +138,33 @@ node, concurrency 28, total 3 h 23 min:
 
 ## Image build scratch and packaging
 
+Helma node-local storage is shared by jobs placed on the same node. On
+2026-10-10, three Scale SWE jobs on `h35-04` staged roughly 600 images
+(about 300 GB) plus trial workspace copies and exhausted `/tmp`. The Claude
+session recorded `TmpDisk=0`, so scheduler disk accounting did not prevent
+overcommit. The shard launcher used `--exclusive` to prevent co-location.
+This was a scratch-capacity precaution, not a dataset validation requirement.
+
+On 2026-10-11, the Scale SWE session removed exclusivity after estimating that
+five 24-task shards would use about 70 GB together on a node whose disk had
+filled at roughly 400 GB. These are historical estimates, not guarantees for
+other datasets. `validation/shards.py` now makes `--exclusive` opt-in, but
+already-submitted jobs retain their original request. CalibForge array
+`978995` inherited the old exclusive default.
+
+Before sharing a node, budget aggregate scratch for all co-located jobs:
+runtime extraction, staged images, unpacking/copying peaks, build directories,
+overlays, and trial workspaces. Image-only prebuild releases each image's
+scratch after publishing, so its peak depends on concurrent image operations;
+ordinary validation can retain the whole shard's image set. Check the frozen
+worker implementation and actual image sizes before transferring an estimate
+between these modes or changing a queued allocation.
+
+History: Claude session
+`/home/hpc/y500bb/y500bb12/.claude/projects/-home-hpc-y500bb-y500bb12/c67e8930-5973-4121-934e-f74c9dc03717.jsonl`,
+messages at `2026-10-10T12:26:09Z` (disk exhaustion) and
+`2026-10-11T14:38:47Z` (sharing small shards after checking disk usage).
+
 For dependency-heavy image builds, run deferred Dockerfile RUN steps in a native
 directory overlay on node-local scratch, then package the completed tree into
 the cached ext3 overlay. Keep dependencies inside the resulting image; do not

@@ -11,10 +11,10 @@ always ends in a decision for every task.
 
 With an expected-outcomes file (``--expected-outcomes``, frozen into the
 contract) the classifier is not used for the tasks it names: the outcome of each
-stage is compared with the stages the earlier audit passed for the same task
-content, any difference is rerun the same way, and a task that never reproduces
+stage is compared with the stages the earlier audit passed for the task of the
+same ID, any difference is rerun the same way, and a task that never reproduces
 the audit is archived as not robust with every observed outcome. Tasks absent
-from the file, or with another content hash, follow the classifier rule.
+from the file follow the classifier rule.
 
 Stage 1 is left out: its checks are deterministic and the pipeline rewrites some
 task files itself before running them.
@@ -38,19 +38,14 @@ def load_expectations(path):
     if data.get('format') != FORMAT or not isinstance(data.get('tasks'), dict):
         raise ValueError(f'{path} is not an expected-outcomes file ({FORMAT})')
     for task, record in data['tasks'].items():
-        if not isinstance(record.get('sha256'), str) or not isinstance(record.get('stages_passed'), list):
-            raise ValueError(f'expected outcome of {task} needs sha256 and stages_passed')
+        if not isinstance(record.get('stages_passed'), list):
+            raise ValueError(f'expected outcome of {task} needs stages_passed')
     return data['tasks']
 
 
-def expectation(expected, hashes, task):
-    """The earlier audit's record for this exact task content, else None."""
-    if expected is None:
-        return None
-    record = expected.get(task)
-    if record is None or hashes.get(task) != record['sha256']:
-        return None
-    return record
+def expectation(expected, task):
+    """The earlier audit's record for this task, found by task ID, else None."""
+    return None if expected is None else expected.get(task)
 
 
 def outcome_of(stage, item):
@@ -80,8 +75,6 @@ def retry_round(stage_runs, args, contract, batch_for, save):
     expected_path = getattr(args, 'expected_outcomes', None)
     expected_file = load_expectations_file(expected_path) if expected_path else None
     expected = expected_file['tasks'] if expected_file else None
-    from validation.contract import task_records
-    hashes = {t['task_id']: t['sha256'] for t in task_records(contract)} if contract else {}
 
     def by_task(number):
         return {Path(i['task']).name: i for i in stage_runs[number][1]['items'] if i.get('task')}
@@ -91,7 +84,7 @@ def retry_round(stage_runs, args, contract, batch_for, save):
     for n in stages:
         for task, item in by_task(n).items():
             paths.setdefault(task, Path(item['task']))
-            record = expectation(expected, hashes, task)
+            record = expectation(expected, task)
             history[n][task] = {'mode': 'expected' if record else 'classifier',
                                 'expected': (('passed' if n in record['stages_passed'] else 'not passed')
                                              if record else 'result'),
@@ -99,7 +92,7 @@ def retry_round(stage_runs, args, contract, batch_for, save):
 
     def pending(n):
         return sorted(task for task, entry in history[n].items()
-                      if mismatch(n, entry['outcomes'][-1], expectation(expected, hashes, task)))
+                      if mismatch(n, entry['outcomes'][-1], expectation(expected, task)))
 
     for attempt in range(1, retries + 1):
         if not any(pending(n) for n in stages):

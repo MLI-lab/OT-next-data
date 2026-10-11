@@ -45,9 +45,15 @@ class SetupEnvironment:
             cleared = await self.environment.exec(CLEAR_REWARDS_COMMAND, *args, **kwargs)
             if cleared.return_code:
                 raise VerifierRuntimeError('Could not clear stale verifier rewards before setup')
+            import json
+            import time
+            started = time.monotonic()
             result = await self.environment.exec(SETUP_COMMAND, *args, **kwargs)
+            seconds = time.monotonic() - started
             directory = self.verifier.trial_paths.verifier_dir
             directory.mkdir(parents=True, exist_ok=True)
+            # tests/setup.sh only; uploads and the submission transfer are not in this number
+            (directory / 'setup-timing.json').write_text(json.dumps({'setup_execution': round(seconds, 3)}) + '\n')
             (directory / 'setup-stdout.txt').write_text(result.stdout or '')
             (directory / 'setup-stderr.txt').write_text(result.stderr or '')
             if result.return_code != 0:
@@ -61,7 +67,6 @@ class SetupEnvironment:
                     + (result.stderr or result.stdout or '')[-1000:])
             # The module is uploaded outside task code and loaded only by pytest.
             # Each verifier call has its own token; stale logs cannot certify it.
-            import json
             from pathlib import Path
             import shlex
             from uuid import uuid4

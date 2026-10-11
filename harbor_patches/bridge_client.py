@@ -155,9 +155,17 @@ class BridgeClient:
             timeout_sec = budget
         interval = poll_interval
         state = 'unknown'
+        waited, wait_limit, previous = 0.0, start_wait_limit(), time.monotonic()
         while time.monotonic() < deadline:
             result = await self.get(f'{bridge_url}/job/result/{job_id}', deadline - time.monotonic())
             state = result.get('state', 'unknown')
+            now = time.monotonic()
+            if result.get('waiting') and waited < wait_limit:
+                # The start is queued for a worker or a Slurm step (start_wait):
+                # that is not start time, so it does not consume this deadline.
+                waited += now - previous
+                deadline += now - previous
+            previous = now
             if result.get('state') == 'done':
                 return result
             if result.get('state') == 'error':
@@ -166,6 +174,14 @@ class BridgeClient:
             interval = min(.5, interval * 1.3)
         raise TimeoutError(f'Bridge job {job_id} timed out after {timeout_sec}s '
                            f'(last state: {state}; result-wait budget, not command runtime)')
+
+
+def start_wait_limit():
+    try:
+        from harbor_patches.start_wait import WAIT_LIMIT
+    except ModuleNotFoundError:
+        from start_wait import WAIT_LIMIT
+    return WAIT_LIMIT
 
 
 def install():

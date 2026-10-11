@@ -21,6 +21,11 @@ from pathlib import Path
 from functools import partial
 from harbor.environments.apptainer import worker
 
+try:
+    from harbor_patches import start_wait
+except ModuleNotFoundError:  # launched as a script from this directory
+    import start_wait
+
 _original_start = worker.ApptainerInstance.start
 _original_stop = worker.ApptainerInstance.stop
 _original_build_sif = worker.ApptainerInstance._build_sif
@@ -41,7 +46,9 @@ class ContainerStartGate:
         self.last_start = None
 
     def __enter__(self):
-        self.semaphore.acquire()
+        # Queueing behind other starts is waiting for resources, not start time.
+        with start_wait.waiting(start_wait.current_env(), 'the container start gate'):
+            self.semaphore.acquire()
         try:
             with self.lock:
                 if self.last_start is not None:
@@ -111,7 +118,9 @@ def trial_step_prefix(payload, env_id):
         # A model served over several nodes: Slurm would otherwise place a trial step
         # on any of them, where this node's staging directory does not exist (934839).
         nested = ['--nodes=1', '-w', os.environ.get('SLURMD_NODENAME') or socket.gethostname().split('.')[0]]
-    return ['srun', '--quiet', '--exact', '-n1', *nested,
+    # Not --quiet: srun's own messages (step creation delayed, RPC rate limited)
+    # land in the step log, whose tail is printed when a start waits or fails.
+    return ['srun', '--exact', '-n1', *nested,
             f'-c{cpus}', f'--mem={mem}', '--gres=none', '--job-name', f'trial-{env_id}']
 
 
@@ -703,6 +712,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--staging-base', default='')
     parser.add_argument('--sif-cache', default='')
+    parser.add_argument('--bridge-url', default='')
     args, _ = parser.parse_known_args()
+    start_wait.configure(args.bridge_url)
     configure_worker(args.staging_base, args.sif_cache)
     worker.main()

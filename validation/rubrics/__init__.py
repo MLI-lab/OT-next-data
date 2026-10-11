@@ -127,3 +127,21 @@ def harbor_rubric():
             'explanation': 'Automatically skipped: training tasks may install reusable test tooling such as pytest in shared task images to reduce unique image storage and task setup time.'},
     }
     return target_text, skipped
+
+
+def select_criteria(rubric, skipped, criteria=None):
+    """Restrict a review to named criteria without changing their guidance."""
+    if criteria is None:
+        return rubric, skipped
+    if not criteria or len(criteria) != len(set(criteria)):
+        raise ValueError('--review-criteria requires distinct criterion names')
+    blocks = re.findall(r'(?ms)^\[\[criteria\]\][ \t]*\n.*?(?=^\[\[criteria\]\]|\Z)', rubric)
+    named = {tomllib.loads(block)['criteria'][0]['name']: block for block in blocks}
+    unknown = set(criteria) - (named.keys() | skipped.keys())
+    if unknown:
+        raise ValueError('Unknown review criteria: ' + ', '.join(sorted(unknown))
+                         + '; available: ' + ', '.join(sorted(named.keys() | skipped.keys())))
+    selected = ''.join(block for name, block in named.items() if name in criteria)
+    if not selected:
+        raise ValueError('Selected review criteria are all automatically skipped; no LLM review is needed')
+    return selected, {name: value for name, value in skipped.items() if name in criteria}

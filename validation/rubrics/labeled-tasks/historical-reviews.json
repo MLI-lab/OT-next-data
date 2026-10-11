@@ -1,0 +1,613 @@
+{
+  "description": "Reviewed source references and current PR metadata; upstream labels remain unchanged.",
+  "tasks": {
+    "build-stp": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/934",
+        "https://github.com/harbor-framework/terminal-bench-1/pull/934#discussion_r2320914529"
+      ],
+      "pr": {
+        "number": 934,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/934",
+        "title": "New task: build stp",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-09-05T02:14:09Z",
+        "merge_commit_sha": "d77f9a689f7e78391360b86181952e1b823262a0",
+        "base_revision": "3291187652102247305f2b24b56b8e897ec4a2d1",
+        "head_revision": "5a33adf0c65db228b83628576c4bda9b33f77357"
+      },
+      "before_revision": "4d5f5c410583b3545847d95b42b0cc6c58490cf3",
+      "label_binding": "review_comment_commit",
+      "reason": "Use original_commit_id of the review comment describing the labeled defect."
+    },
+    "query-optimize": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/968",
+        "https://github.com/harbor-framework/terminal-bench-1/pull/968#discussion_r2317632769"
+      ],
+      "pr": {
+        "number": 968,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/968",
+        "title": "add a new task: query optimization",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-09-05T22:05:00Z",
+        "merge_commit_sha": "bd83f0e352e2007ff3643b0b1c8ef6a9112f02b2",
+        "base_revision": "638db2c75c0b89cb01761a0bdf79e7357714e246",
+        "head_revision": "b090a220df8197fcaf6d23f8fb62355ad5d941d6"
+      },
+      "before_revision": "58cf74842d7b69569f8e1b11e7edd9bfad8e961d",
+      "label_binding": "review_comment_commit",
+      "reason": "Use original_commit_id of the review comment describing the labeled defect.",
+      "spot_check": {
+        "method": "source diff inspection; no task execution",
+        "result": "supports_assumed_pass",
+        "finding": "Compared tests at the review-comment commit and final PR head. The later tests add a 2000-character SQL limit and a database hash check; the golden query returns more rows. These address the reported hardcoded VALUES shortcut. This is a source inspection, not an adversarial execution.",
+        "files": [
+          "tests/test_outputs.py",
+          "tests/golden.sql"
+        ]
+      }
+    },
+    "sanitize-git-repo": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1034"
+      ],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "PR 1034 changes eleven other tasks, not sanitize-git-repo.",
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "evidence_points_to_different_tasks",
+        "finding": "Cannot establish a fix for this label. PR 1034 edits other tasks, not sanitize-git-repo. The downloaded task still clones a Git repository without removing .git, but its tests deliberately use Git history to check unrelated files. Presence of .git alone does not establish the alleged bypass.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/sanitize-git-repo/setup.sh",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/sanitize-git-repo/tests/test_outputs.py",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/1034",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/1159"
+        ]
+      },
+      "exclusion_reason": "PR 1034 does not change this task; the claimed git-history exploit has no verified reviewed version or fix for sanitize-git-repo."
+    },
+    "install-windows-3.11": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/886",
+        "https://github.com/laude-institute/terminal-bench/pull/1400"
+      ],
+      "pr": {
+        "number": 1400,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/1400",
+        "title": "fix(install-windows-3.11): auto-detect QEMU monitor socket path",
+        "state": "open",
+        "merged": false,
+        "merged_at": null,
+        "merge_commit_sha": null,
+        "base_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "head_revision": "004c44d16388616bc9c7cdbcd4690e3aa331ae36"
+      },
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "fix_pr_base",
+      "reason": "This PR fixes an existing task; use its base version for the reported defect. Upstream also links unrelated POV-Ray PR 886; use the task-specific PR 1400, which is open."
+    },
+    "vimscript-vim-quine": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1175"
+      ],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "PR 1175 and its answer-isolation review concern large-scale-text-editing, not vimscript-vim-quine.",
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "evidence_points_to_different_tasks",
+        "finding": "This entry is already labeled pass, not fail. PR 1175 isolates expected.csv for large-scale-text-editing. The downloaded vimscript-vim-quine task instead implements LayoutQuine and has no such answer CSV. That positive review cannot be transferred between these tasks.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/vimscript-vim-quine/task.yaml",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/vimscript-vim-quine/tests/test_outputs.py",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/1175",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/623"
+        ]
+      },
+      "exclusion_reason": "The upstream pass evidence is for large-scale-text-editing (PR 1175), not vimscript-vim-quine."
+    },
+    "chess-best-move": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/988"
+      ],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "PR 988 adds chess-beat-kendrick, not chess-best-move.",
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "evidence_points_to_different_tasks",
+        "finding": "PR 988 adds chess-beat-kendrick; its Stockfish concern concerns that task. The downloaded chess-best-move asks the agent to read a board image and output a move, without forbidding a chess engine. It is not a verified before/fix pair for the upstream label.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/chess-best-move/task.yaml",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/chess-best-move/tests/test_outputs.py",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/988",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/673"
+        ]
+      },
+      "exclusion_reason": "The Stockfish review concerns chess-beat-kendrick (PR 988), not the downloaded chess-best-move task."
+    },
+    "password-recovery": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/961"
+      ],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "PR 961 adds hack-hidden-password, not password-recovery.",
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "evidence_points_to_different_tasks",
+        "finding": "PR 961 discusses a running secret process in hack-hidden-password. The downloaded password-recovery task performs deleted-file recovery from a disk image; its setup and solution do not implement that running-secret-script scenario. A fix in PR 961 cannot establish a pass for this different task.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/password-recovery/task.yaml",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/password-recovery/setup.sh",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/password-recovery/solution.sh",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/961",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/216"
+        ]
+      },
+      "exclusion_reason": "The /proc file-descriptor review concerns hack-hidden-password (PR 961), not password-recovery."
+    },
+    "cartpole-rl-training": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1095"
+      ],
+      "pr": {
+        "number": 1095,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/1095",
+        "title": "Fixed #1092: Removed cartpole Mokeypatch exploit",
+        "state": "open",
+        "merged": false,
+        "merged_at": null,
+        "merge_commit_sha": null,
+        "base_revision": "94e8728501d2892a92d8508dc499b5b0120becde",
+        "head_revision": "2209d84faf244fbed0e7eb594900ba2a272c586e"
+      },
+      "before_revision": "94e8728501d2892a92d8508dc499b5b0120becde",
+      "label_binding": "fix_pr_base",
+      "reason": "This PR fixes an existing task; use its base version for the reported defect."
+    },
+    "causal-inference-r": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1068"
+      ],
+      "pr": {
+        "number": 1068,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/1068",
+        "title": "Clean up causal-inference-r",
+        "state": "open",
+        "merged": false,
+        "merged_at": null,
+        "merge_commit_sha": null,
+        "base_revision": "94e8728501d2892a92d8508dc499b5b0120becde",
+        "head_revision": "deecab8552397b82348b42798117dd4491d30fb1"
+      },
+      "before_revision": "94e8728501d2892a92d8508dc499b5b0120becde",
+      "label_binding": "fix_pr_base",
+      "reason": "This PR fixes an existing task; use its base version for the reported defect."
+    },
+    "modernize-scientific-stack": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/966"
+      ],
+      "pr": {
+        "number": 966,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/966",
+        "title": "add modernize-scientific-stack task",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-10-13T15:31:30Z",
+        "merge_commit_sha": "a0d0f7f706c2e92db5c5b63b8c7951b213a274a6",
+        "base_revision": "78d9392a30dcfb569e62d460fbcac5061398ced3",
+        "head_revision": "884b669b12553f52f2ae20d5665e8a69412df60e"
+      },
+      "before_revision": "ad6c97b34f14d34b22f5e4f277f1b0a663227299",
+      "label_binding": "upstream_commit",
+      "reason": "Use the pre-fix commit explicitly supplied by upstream.",
+      "spot_check": {
+        "method": "source diff inspection; no task execution",
+        "result": "supports_assumed_pass",
+        "finding": "The later tests remove source-string checks for API/import spellings and execute the modernized script, checking numeric station results. This addresses functional verification, without establishing passes for other criteria.",
+        "files": [
+          "tests/test_outputs.py"
+        ]
+      }
+    },
+    "form-filling": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1064"
+      ],
+      "pr": {
+        "number": 1064,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/1064",
+        "title": "fix form-filling task",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-09-08T22:27:32Z",
+        "merge_commit_sha": "263b96d73d7cb4b40c297a28b6bf8032a53c5387",
+        "base_revision": "1b96dfd551f68e5fe47023220ae6a572ccbc357d",
+        "head_revision": "5c29c62f05fc272e6bd4e985ff45259833d3cda0"
+      },
+      "before_revision": "e5e9f8a5003324d7ccc8747b6a2f4bd715dbc07a",
+      "label_binding": "upstream_commit",
+      "reason": "Use the pre-fix commit explicitly supplied by upstream.",
+      "spot_check": {
+        "method": "source diff inspection; no task execution",
+        "result": "supports_assumed_pass",
+        "finding": "The later test removes any existing output, executes form_filler.py, and checks freshly generated JSON. Previously it could skip execution when output already existed. This directly addresses functional verification.",
+        "files": [
+          "tests/test_outputs.py"
+        ]
+      }
+    },
+    "mailman": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/922"
+      ],
+      "pr": {
+        "number": 922,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/922",
+        "title": "Task: create a mailing list",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-09-03T03:54:54Z",
+        "merge_commit_sha": "34857e2e06c3e772304d41c6ef22219289e1440c",
+        "base_revision": "5187850c04fe326b4a12b526f2ae3f88c69fbfb8",
+        "head_revision": "eccc6b644cf68845763984a0e3ed2c558456713d"
+      },
+      "before_revision": "c006cd3ac1a0e69f452d0e8bec870122a55699f3",
+      "label_binding": "upstream_commit",
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    "protocol-analysis-rs": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/838"
+      ],
+      "pr": {
+        "number": 838,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/838",
+        "title": "fix task: protocol-analysis-rs",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-08-29T17:58:46Z",
+        "merge_commit_sha": "537a8c0a0dac887828b383cd77b486aab89b73a2",
+        "base_revision": "a6820d5c66958fd550fd823caa5c5db6e5ece9c7",
+        "head_revision": "fe9a2df385b5720f190af4163af3826453b6e58f"
+      },
+      "before_revision": "aeb3d8acfd83a0b4cab1fdff50796f25b89c2ec7",
+      "label_binding": "upstream_commit",
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    "mcmc-sampling-stan": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/832"
+      ],
+      "pr": {
+        "number": 832,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/832",
+        "title": "Fix task: mcmc-sampling-stan",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-08-28T22:07:40Z",
+        "merge_commit_sha": "152de4f397f91e8929ecbc7461e976aa5ca3b7f1",
+        "base_revision": "a6820d5c66958fd550fd823caa5c5db6e5ece9c7",
+        "head_revision": "2c74c168adb97302388749d2b788c36b821bd9cb"
+      },
+      "before_revision": "79a98f58ef2ca86f463d307b3fc046127f1cdce8",
+      "label_binding": "upstream_commit",
+      "reason": "Use the pre-fix commit explicitly supplied by upstream.",
+      "spot_check": {
+        "method": "source diff inspection; no task execution",
+        "result": "assumption_remains_uncertain",
+        "finding": "The later solution changes apt dependencies and pins three system packages. Several R dependencies are pinned, but remotes is still installed from a live repository without a version. The merged revision qualifies under the requested rule; determinism is not established by this inspection.",
+        "files": [
+          "solution.sh"
+        ]
+      }
+    },
+    "financial-document-processor": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/954"
+      ],
+      "pr": {
+        "number": 954,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/954",
+        "title": "New Task: sort and process financial documents",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-09-02T22:01:37Z",
+        "merge_commit_sha": "12742248e869408cda43fe2127f18443356635e5",
+        "base_revision": "3649ff565c7bd7c86555f29d5aaa1167156942ab",
+        "head_revision": "953965e510853d78145c3376d79c7a53fd2aa626"
+      },
+      "before_revision": "04e43d4f210dc5dfcf3629e40fb884a73a116a1e",
+      "label_binding": "upstream_commit",
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    "winning-avg-corewars": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/783"
+      ],
+      "pr": {
+        "number": 783,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/783",
+        "title": "New task: write a CoreWars program with a winning average against simple bots",
+        "state": "closed",
+        "merged": true,
+        "merged_at": "2025-08-28T02:32:18Z",
+        "merge_commit_sha": "535c9e7760c074423e59199484bd68c27f8537b1",
+        "base_revision": "8ada017cb277fd0684c7a652ecf701996f196743",
+        "head_revision": "58569a50df5af57b7529ff254d38eddd4f88825a"
+      },
+      "before_revision": "a4dec5e7342e5634b16ba346f2dca7f54b7ff13f",
+      "label_binding": "upstream_commit",
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    "train-fasttext": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1399"
+      ],
+      "pr": {
+        "number": 1399,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/1399",
+        "title": "fix(train-fasttext): use CLI for model evaluation",
+        "state": "open",
+        "merged": false,
+        "merged_at": null,
+        "merge_commit_sha": null,
+        "base_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "head_revision": "05f3b6fa6fc166700c43cc37a50f36f7f45fc154"
+      },
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "fix_pr_base",
+      "reason": "This PR fixes an existing task; use its base version for the reported defect."
+    },
+    "mteb-retrieve": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1393"
+      ],
+      "pr": {
+        "number": 1393,
+        "html_url": "https://github.com/harbor-framework/terminal-bench-1/pull/1393",
+        "title": "Add SciFact encoding parameter hint for mteb-retrieve",
+        "state": "open",
+        "merged": false,
+        "merged_at": null,
+        "merge_commit_sha": null,
+        "base_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "head_revision": "d8ba679e69406c1551f162b1044e993729aae7bc"
+      },
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "fix_pr_base",
+      "reason": "This PR fixes an existing task; use its base version for the reported defect."
+    },
+    "build-linux-kernel-qemu": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "related_pr_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/867"
+      ],
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "reported_issues_still_present",
+        "finding": "The solution still downloads linux-6.9.tar.xz from cdn.kernel.org, and test_expect still mentions post-agent.txt although it checks captured stdout. Merged PR 867 fixes initramfs generation and architecture settings, not these two reported issues.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/build-linux-kernel-qemu/solution.sh",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/build-linux-kernel-qemu/tests/test_outputs.py",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/867",
+          "https://github.com/harbor-framework/terminal-bench-1/commit/0ded4e32fd79fe14b52c20c85e21dc4f82889735"
+        ]
+      },
+      "exclusion_reason": "The reviewed version and full label set are unverified. Source still shows the live kernel download and stale post-agent.txt message; PR 867 does not fix those issues, so no assumed-pass version is justified."
+    },
+    "prove-plus-comm": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "related_pr_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/1076"
+      ],
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "reported_concerns_still_present",
+        "finding": "The instruction still asks for elementary addition commutativity and uses relative plus_comm.v/plus_comm.vo paths. PR 1076 changes difficulty metadata only. These source facts match the upstream notes, but whether they fail interesting or instruction_concision remains a rubric judgment, not an execution result.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/prove-plus-comm/task.yaml",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/1076",
+          "https://github.com/harbor-framework/terminal-bench-1/commit/53b6eb90ee9e74bb2f7e561fdf5024f616f3231c"
+        ]
+      },
+      "exclusion_reason": "No exact human-reviewed version is supplied. PR 1076 changes difficulty metadata, not the elementary exercise or relative-path wording; the full upstream label set is not verified for this snapshot."
+    },
+    "raman-fitting": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "related_pr_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/230"
+      ],
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "partial_changes_reported_concerns_remain",
+        "finding": "PR 1168 relaxes numeric tolerances, but the instruction still does not specify the Lorentzian fit used by the solution. Tests still compare fitted parameters against fixed numeric targets. This is evidence of remaining specification concerns, not proof that every upstream criterion label is correct.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/raman-fitting/task.yaml",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/raman-fitting/solution.sh",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/raman-fitting/tests/test_outputs.py",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/230",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/1168",
+          "https://github.com/harbor-framework/terminal-bench-1/commit/24da3cf072a29bc9d9d57d111949fe176b1bb222"
+        ]
+      },
+      "exclusion_reason": "The original reviewed version is unknown. PR 1168 adjusts tolerances but leaves the unspecified fit model and fixed expected values; it does not justify flipping all retained failures to passes."
+    },
+    "cron-broken-network": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "related_pr_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/133",
+        "https://github.com/harbor-framework/terminal-bench-1/pull/1318"
+      ],
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "unmerged_fix_reported_dependency_remains",
+        "finding": "The downloaded tests still call live example.com and compare its HTML. PR 1318 proposes an archive.org snapshot but remains open; even that proposal depends on an external service. The separate anti-cheat label is not established merely because the Dockerfile reveals how the fault is created.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/cron-broken-network/Dockerfile",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/cron-broken-network/tests/test_outputs.py",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/133",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/1318"
+        ]
+      },
+      "exclusion_reason": "No exact reviewed version is given. The live-site dependency remains, and PR 1318 is unmerged; the separate anti-cheat label also lacks verified evidence for this snapshot."
+    },
+    "extract-moves-from-video": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "related_pr_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/685"
+      ],
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "reported_issues_still_present",
+        "finding": "The instruction still depends on a YouTube video. The solution emits fixed moves, and tests compare against a hardcoded transcript with a 90% similarity threshold absent from the instruction. PR 1329 changes entries in those fixed move lists, not the video dependency, implementation approach, or undisclosed threshold. A hardcoded oracle alone does not prove that the task is unsolvable.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/extract-moves-from-video/task.yaml",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/extract-moves-from-video/solution.sh",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/extract-moves-from-video/tests/test_outputs.py",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/685",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/1329",
+          "https://github.com/harbor-framework/terminal-bench-1/commit/9fd5cc26363b5edbac35c8189daa80b923c23fed"
+        ]
+      },
+      "exclusion_reason": "No reviewed commit is supplied. PR 1329 edits fixed move lists but leaves the reported design issues; the full label set, including solvable=fail, is not independently established."
+    },
+    "nginx-request-logging": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "related_pr_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/483",
+        "https://github.com/harbor-framework/terminal-bench-1/pull/610"
+      ],
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "partial_changes_reported_concerns_remain",
+        "finding": "PR 610 clarifies configuration placement and relaxes log-format naming checks. Rate limiting is still checked by a regex in configuration text, rather than a request-rate behavior test. The instruction remains a nine-step recipe. This supports the source-level concerns, not an automatic pass after that PR.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/nginx-request-logging/task.yaml",
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/nginx-request-logging/tests/test_outputs.py",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/483",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/610",
+          "https://github.com/harbor-framework/terminal-bench-1/commit/378e1867473b6ae983ef66b9e0a812ae9f1072d0"
+        ]
+      },
+      "exclusion_reason": "No reviewed commit is supplied. PR 610 fixes other specification details but leaves regex-only rate-limit verification and the step-by-step recipe; the full upstream label set remains unverified."
+    },
+    "sqlite-with-gcov": {
+      "checked_on": "2026-10-11",
+      "evidence_urls": [],
+      "before_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+      "label_binding": "unverified_snapshot",
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "related_pr_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/75",
+        "https://github.com/harbor-framework/terminal-bench-1/pull/736",
+        "https://github.com/harbor-framework/terminal-bench-1/pull/753"
+      ],
+      "inspection": {
+        "checked_on": "2026-10-11",
+        "method": "Read task source, inspect relevant Git changes and available PR evidence; no task execution.",
+        "inspected_revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "compared_repository_head": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+        "same_task_tree_at_head": true,
+        "outcome": "reported_typo_still_present",
+        "finding": "The solution builds in /app/sqlite but still appends PATH=$PATH:/sqlite to .bashrc. PR 753 vendors the SQLite source and changes extraction, but retains the wrong PATH entry. The symlink into /usr/local/bin can make execution work despite that typo; this remains a typos label, not proof of runtime failure.",
+        "evidence_urls": [
+          "https://github.com/harbor-framework/terminal-bench-1/blob/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/sqlite-with-gcov/solution.sh",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/75",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/736",
+          "https://github.com/harbor-framework/terminal-bench-1/pull/753",
+          "https://github.com/harbor-framework/terminal-bench-1/commit/b589f1ece17df768f6a8eae009ba47eda36f110f"
+        ]
+      },
+      "exclusion_reason": "The upstream reviewed version is missing. The /sqlite versus /app/sqlite typo is still present after PR 753, so that PR cannot supply an assumed typos=pass counterpart."
+    }
+  }
+}

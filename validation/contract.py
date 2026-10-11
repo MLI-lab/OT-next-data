@@ -199,6 +199,8 @@ def profile(args):
         'force_build': args.force_build, 'trial_cpus': args.trial_cpus,
         'trial_memory_mb': args.trial_memory_mb,
         'agent': args.agent, 'model': args.model, 'review_agent': args.review_agent,
+        'review_rubric': getattr(args, 'review_rubric', 'terminal-bench'),
+        'review_criteria': getattr(args, 'review_criteria', None),
         'review_model': args.review_model, 'analysis_agent': getattr(args, 'analysis_agent', None),
         'analysis_model': getattr(args, 'analysis_model', None),
         'review_defaults_source': getattr(args, 'review_defaults_source', None), 'agent_kwargs': args.agent_kwargs,
@@ -280,6 +282,14 @@ def create(args, numbers, destination):
         raise ValueError(f'selected {len(tasks)} tasks, below minimum {minimum}')
     source_meta_path = (args.tasks if args.tasks.is_dir() else args.tasks.parent) / 'source.json'
     meta = json.loads(source_meta_path.read_text()) if source_meta_path.exists() else {}
+    if getattr(args, 'expected_outcomes', None):
+        # Expectations are found by task ID. A file naming none of the selected tasks would silently disable them.
+        from validation.stages.outcome_retries import load_expectations_file
+        known = load_expectations_file(args.expected_outcomes)['tasks']
+        matched = sum(1 for t in tasks if t['task_id'] in known)
+        if not matched:
+            raise ValueError('the expected-outcomes file names none of the selected tasks')
+        print(f'Expected outcomes: {matched} of {len(tasks)} selected tasks have an expectation', flush=True)
     _, checks, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
     frozen = vars(args).copy()
     for key in ('tasks', 'out', 'trials', 'serve_weights', 'dependency_archives', 'dependency_layout', 'expected_outcomes'):
@@ -438,8 +448,16 @@ def verify_materialized(args):
     contract = read(args.contract)
     if implementation() != contract['implementation']:
         raise ValueError('validation implementation changed after contract was frozen')
-    observed = sorted(({'task_id': p.name, 'sha256': task_digest(p)} for p in select_paths(discover_tasks(args.tasks), args)), key=lambda r: r['task_id'])
-    if observed != task_records(contract):
+    paths, expected = select_paths(discover_tasks(args.tasks), args), task_records(contract)
+    from validation.shards import parse_shard, slice_ids
+    shard = parse_shard(getattr(args, 'shard', None))
+    if shard:
+        # A shard job holds and verifies only its slice; the source files were verified whole at job start.
+        wanted = set(slice_ids(contract, shard))
+        paths = [p for p in paths if p.name in wanted]
+        expected = [r for r in expected if r['task_id'] in wanted]
+    observed = sorted(({'task_id': p.name, 'sha256': task_digest(p)} for p in paths), key=lambda r: r['task_id'])
+    if observed != expected:
         raise ValueError('materialized task IDs/content differ from frozen contract')
     return contract
 
@@ -453,8 +471,8 @@ def assess_stage(contract, number, report):
     expected_ids = {t['task_id'] for t in task_records(contract)}
     shard = report.get('shard')
     if shard:
-        from validation.shards import slice_of
-        expected_ids = set(slice_of(sorted(expected_ids), (shard['index'], shard['count']), key=lambda t: t))
+        from validation.shards import slice_ids
+        expected_ids = set(slice_ids(contract, (shard['index'], shard['count'])))
     actual_ids = {Path(i.get('task', '')).name for i in report['items'] if i.get('task')}
     if actual_ids != expected_ids:
         failures.append(f'task coverage mismatch: missing={sorted(expected_ids-actual_ids)}, unexpected={sorted(actual_ids-expected_ids)}')

@@ -95,6 +95,16 @@ that location is full too.
 
 Run `python validation/run.py --help` for all options.
 
+Large contracts run as an array of shards under the same contract:
+
+```bash
+python validation/shards.py plan --contract "$OT_WORKSPACE/contracts/check.json" --count 40 --out "$OT_WORKSPACE/runs/check" --time 06:00:00 --submit
+python validation/shards.py merge "$OT_WORKSPACE/runs/check" --contract "$OT_WORKSPACE/contracts/check.json" --out "$OT_WORKSPACE/runs/check/merged/report"
+```
+
+Each shard validates one slice of the frozen task list; `merge` writes one report per stage
+once every slice has reported, and `publish.py` takes the merged directory like any run.
+
 ## Publishing after validation
 
 After validation, you can automatically open a Hugging Face PR containing the

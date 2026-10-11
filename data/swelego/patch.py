@@ -54,17 +54,17 @@ TASK_RESOURCE_FIXES = {
         'label': 'task-memory-8gib',
         'reason': 'Raise the task memory limit from 4 GiB to 8 GiB. With a 12 GiB limit the unchanged verifier passed reference (reward 1) and no-op (reward 0) in job 960179; its steps recorded 6.49 GiB and 6.65 GiB MaxRSS. At 4 GiB the verifier was killed before scoring.'},
     'tobymao__sqlglot-1889': {
-        'memory_mb': 10240,
-        'label': 'task-memory-10gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 10 GiB. With a 12 GiB limit the unchanged reference verifier passed (reward 1) in job 960179 and recorded 7.82 GiB MaxRSS even with its two bounded worker processes; 8 GiB would leave too little margin. At 4 GiB the verifier was killed before scoring.'},
+        'memory_mb': 16384,
+        'label': 'task-memory-16gib',
+        'reason': 'Raise the task memory limit from 4 GiB to 16 GiB. With a 12 GiB limit the unchanged reference verifier passed (reward 1) in job 960179 and recorded 7.82 GiB MaxRSS even with its two bounded worker processes; 8 GiB would leave too little margin, and 16 GiB is the next size the static resource check allows (1, 2, 4, 8, 16, 32 GiB; a 10 GiB limit failed that check in job 965822). At 4 GiB the verifier was killed before scoring.'},
     'microsoft__electionguard-python-381': {
         'memory_mb': 8192,
         'label': 'task-memory-8gib',
         'reason': 'Raise the task memory limit from 4 GiB to 8 GiB. The big-integer key-ceremony and decryption tests passed reference in four of five 4 GiB attempts and were killed by the task memory limit in the fifth (job 959908); the 12 GiB rerun in job 960179 passed with 3.06 GiB MaxRSS. 8 GiB removes the limit-dependent flakiness without changing tests or dependencies.'},
     'zarr-developers__zarr-python-2784': {
-        'memory_mb': 10240,
-        'label': 'task-memory-10gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 10 GiB. With a 12 GiB limit the verifier ran to completion in job 964135 and its reference and no-op steps recorded 8.11 GiB and 8.09 GiB MaxRSS; at 4 GiB it was killed before scoring. Tests and dependency versions are unchanged.'},
+        'memory_mb': 16384,
+        'label': 'task-memory-16gib',
+        'reason': 'Raise the task memory limit from 4 GiB to 16 GiB. With a 12 GiB limit the verifier ran to completion in job 964135 and its reference and no-op steps recorded 8.11 GiB and 8.09 GiB MaxRSS, above 8 GiB; 16 GiB is the next size the static resource check allows (1, 2, 4, 8, 16, 32 GiB; a 10 GiB limit failed that check in job 965822). At 4 GiB it was killed before scoring. Tests and dependency versions are unchanged.'},
     'tcgdex__python-sdk-2': {
         'no_proxy': 'api.tcgdex.net',
         'label': 'recorded-http',

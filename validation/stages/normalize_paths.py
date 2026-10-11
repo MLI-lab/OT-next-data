@@ -82,6 +82,10 @@ def prepare(args, numbers):
         selected = candidates(args, tasks)
     if not selected:
         return
+    if getattr(args, 'shard', None):
+        # A shard cannot derive its own contract: every shard must run the one frozen task list.
+        raise ValueError(f'{len(selected)} tasks of this shard need instruction path discovery, e.g. {selected[0].name}; '
+                         'resolve paths before preparing the contract of a sharded run')
     out = args.out.resolve() / 'path-normalization' / uuid4().hex[:12]
     out.mkdir(parents=True)
     print(f'Automatic path discovery: {len(selected)} tasks; starting setup/reference containers.', flush=True)

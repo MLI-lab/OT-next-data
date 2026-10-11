@@ -231,8 +231,9 @@ runner-evidence retry (job 960175) are recorded in the patcher with labels:
   its setuptools_scm version lookup rejected the shallow checkout during conftest
   import, as for setuptools_scm #854.
 - Measured task memory limits: 8 GiB for Dask #4050 and #4181 and ElectionGuard
-  #381, 10 GiB for SQLGlot #1889 (`task-memory-8gib`, `task-memory-10gib`). Each
-  reason cites the probe job and the recorded peak RSS. Dask #1150 was raised earlier.
+  #381, 16 GiB for SQLGlot #1889 and zarr #2784 (`task-memory-8gib`,
+  `task-memory-16gib`; the static resource check allows only 1, 2, 4, 8, 16 or 32 GiB,
+  and both peak near 8 GiB). Each reason cites the probe job and the recorded peak RSS. Dask #1150 was raised earlier.
 - `bounded-ray` for Modin #5058, as for Modin #1842: Ray 2.7 sized its workers and
   object store from the 384-CPU host, ran out the 1800 s verifier limit and
   exceeded 12 GiB.

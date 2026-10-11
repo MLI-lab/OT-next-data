@@ -77,4 +77,27 @@ in `infrastructure-findings/`, and failure/recovery records in `occurred-failure
 Agent folders hold prompts, answers, logs, and available token counts and cost
 estimates, which may be incomplete.
 
+## Large datasets and execution resources
+
+Set `shard_size` to the maximum tasks per Slurm job and `shard_concurrency` to
+the number of simultaneous array jobs. Selections larger than `shard_size` use
+`validation.shards` with one frozen contract. This applies to image prebuilding,
+full stage 3, final validation and large retry selections. Completed shards are
+read again on controller restart; existing arrays are never blindly resubmitted.
+Reports are merged only after checking task coverage and contract identity.
+Terminal incomplete shards retain observed results and identify unfinished tasks
+as errors. Their archives and build logs are included in the fixer's evidence.
+
+`prebuild_all_images` caches images in a separate allocation before the pilots.
+Combined with sharding, it bounds per-node image scratch use. Successful cached
+images survive later repair attempts. `time` is the limit for each job, not the
+entire loop; `max_wait_hours` also needs room for scheduler queueing.
+
+The supervisor may return `resource_changes` with a stage-3 restart decision.
+The runner validates the allowed execution settings, records `resource_history`
+and `resource_overrides` in loop state, and applies them to subsequent submissions.
+Dataset identity, validation success criteria and retry limits remain outside this
+resource-change interface. Active or uncertain jobs and unresolved publication
+prevent a fresh restart.
+
 See the [validation protocol](../PROTOCOL.md) for stage definitions.

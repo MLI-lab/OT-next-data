@@ -487,3 +487,26 @@ def test_fastjson_preinstalls_dependencies_but_keeps_verifier_tests():
     assert b'-Dmaven.repo.local=/opt/multiswe-maven' in verifier
     assert b'-Pgen-javadoc -Pgen-dokka clean test -Dmaven.test.skip=false' in verifier
     assert b'-DskipTests' not in verifier
+
+
+@pytest.mark.parametrize('fail', [False, True])
+def test_maven_wrapper_proxy_reaches_bootstrap_and_is_restored(monkeypatch, fail):
+    from data.multiswe.gradle_proxy import properties
+    from data.multiswe.maven_proxy import maven_wrapper_proxy
+    monkeypatch.setenv('MAVEN_OPTS', '-Xmx512m')
+    monkeypatch.setenv('https_proxy', 'http://build-proxy.invalid:3128')
+    monkeypatch.setenv('no_proxy', 'localhost,.example.invalid')
+    try:
+        with maven_wrapper_proxy(properties):
+            options = subprocess.check_output(
+                ['bash', '-c', 'printf "%s" "$MAVEN_OPTS"'], text=True)
+            assert '-Xmx512m' in options
+            assert '-Dhttps.proxyHost=build-proxy.invalid' in options
+            assert '-Dhttps.proxyPort=3128' in options
+            assert '*.example.invalid' in options
+            if fail:
+                raise RuntimeError('download failed')
+    except RuntimeError:
+        assert fail
+    import os
+    assert os.environ['MAVEN_OPTS'] == '-Xmx512m'

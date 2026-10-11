@@ -413,7 +413,7 @@ def trial_seconds(result, phase=None):
         return None
 
 
-def assess_trials(results, expected_count, expected_reward=None, reward_key='reward', *, task_path=None, oracle_passed=False):
+def assess_trials(results, expected_count, expected_reward=None, reward_key='reward', *, task_path=None, oracle_passed=False, require_execution=True):
     findings = []
     notes = []
     missing_file_zeros = []
@@ -436,7 +436,7 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
             if expected_reward is not None or result['exception_info'].get('exception_type') != 'AgentTimeoutError':
                 continue
         verifier = result.get('verifier_result') or {}
-        if expected_reward in (0, 1):
+        if require_execution and expected_reward in (0, 1):
             problem = nop_execution_problem(path, verifier, task_path, expected_reward, oracle_passed)
             if problem:
                 findings.append(f'{path.name}: {problem}')
@@ -510,12 +510,16 @@ async def build_task(task_path, out, args):
                 trial_paths=paths, task_env_config=spec, **config['kwargs'])
             from validation.stages.task_setup import detect, prepare, upload_setup
             command = detect(task_path) if label == 'agent' else None
-            await asyncio.wait_for(
+            from harbor_patches.start_wait import run_with_budget, status_reader
+            waited = status_reader(environment)
+            # Working time only: waiting for a worker or a Slurm step is added on top.
+            await run_with_budget(
                 prepare(environment, command=command, timeout_sec=spec.build_timeout_sec,
                         force_build=args.force_build,
                         timings=entry['timings_seconds'],
-                        upload=lambda: upload_setup(environment, task_path)),
-                timeout=spec.build_timeout_sec)
+                        upload=lambda: upload_setup(environment, task_path), waited=waited),
+                spec.build_timeout_sec, waited,
+                record=lambda wait: entry['timings_seconds'].__setitem__('start_wait', wait))
             if command:
                 entry['setup_command'] = command
                 entry['preparation_budget_seconds'] = spec.build_timeout_sec
@@ -538,7 +542,10 @@ async def build_task(task_path, out, args):
                 from data.utils.resolve_absolute_paths import resolve_in_environment
                 entry['instruction_paths'] = await resolve_in_environment(environment, task_path, args.resolve_path_root)
         except Exception as exc:
-            entry.update(status='error', error=str(exc))
+            # A bare timeout has no text; the publisher needs the cause to classify it.
+            entry.update(status='error', error=str(exc) or f'{type(exc).__name__} during {phase}')
+            if getattr(exc, 'diagnostics', None):
+                entry['setup_diagnostics'] = exc.diagnostics
         finally:
             entry['timings_seconds'][phase] = time.monotonic() - started
             if environment is not None:

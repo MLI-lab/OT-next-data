@@ -1,12 +1,14 @@
 """Write an expected-outcomes file (ot-expected-outcomes-v1) for --expected-outcomes.
 
+Expectations are found by task ID when a later run uses the file.
+
 Two sources:
 
   from-run    the stage reports of a finished validation (a results directory or a
               submission's report/ folder) plus its contract: every task receives the
               stages it passed there, judged as the publisher judges them.
   audited     a task source whose tasks all passed the given stages in an audit that
-              was spread over many runs; the content hashes are taken from the source
+              was spread over many runs; the task IDs are taken from the source
               and the stages from --stages. Use only for an audit you have accounted
               for task by task.
 """
@@ -21,7 +23,7 @@ from validation.stages.outcome_retries import FORMAT
 
 def record(tasks, stages_by_task, note):
     return {'format': FORMAT, 'created_at': datetime.now(timezone.utc).isoformat(), 'note': note,
-            'tasks': {t['task_id']: {'sha256': t['sha256'], 'stages_passed': sorted(stages_by_task.get(t['task_id'], []))}
+            'tasks': {t['task_id']: {'stages_passed': sorted(stages_by_task.get(t['task_id'], []))}
                       for t in tasks}}
 
 

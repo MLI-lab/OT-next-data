@@ -93,8 +93,9 @@ def test_task_without_a_result_after_the_last_attempt_is_archived_as_not_robust(
     assert len(batches.calls) == 3 and len(item['outcome_attempts']) == 3
     assert item['not_robust'] == {'expected': 'result', 'observed': ['not_run'] * 4}
     outcome, reason = judge(5, item)
-    assert outcome == 'archive' and reason == ('not robust: no result in 4 attempts under this infrastructure; '
-                                               'observed not_run, not_run, not_run, not_run')
+    assert outcome == 'archive' and reason.startswith('not robust: no result in 4 attempts under this infrastructure; '
+                                                      'observed not_run, not_run, not_run, not_run')
+    assert reason.endswith('EnvironmentStartTimeoutError"}')      # the observed cause follows
     assert summary[5]['unresolved_not_run'] == ['crash'] and stage[5][1]['has_findings'] is True
 
 
@@ -145,13 +146,14 @@ def test_never_matching_task_is_archived_as_not_robust(tmp_path):
     assert summary[3]['not_robust'] == ['broken'] and summary[3]['matched_first_attempt'] == 0
 
 
-def test_changed_or_unknown_content_falls_back_to_the_classifier(tmp_path):
-    expected = expectations(tmp_path, changed=('b' * 64, [1, 3, 4, 5]))
-    stage = runs(tmp_path, s4=[trial('changed', 'failed', [0.0], WRONG), trial('unknown', 'failed', [0.0], WRONG)])
-    batches = Scripted({})
-    summary = retry_round(stage, args_for(expected), contract_for('changed', 'unknown'), batches, saved)
-    assert batches.calls == [] and summary[4]['tasks_with_expectation'] == 0
-    assert all(h['mode'] == 'classifier' for h in summary[4]['history'].values())
+def test_expectations_are_found_by_task_id_and_unknown_tasks_use_the_classifier(tmp_path):
+    # 'rebuilt' has other content than in the audit (its file entry even carries an old hash): still found by ID.
+    expected = expectations(tmp_path, rebuilt=('b' * 64, [1, 3, 4, 5]))
+    stage = runs(tmp_path, s4=[trial('rebuilt', 'failed', [0.0], WRONG), trial('unknown', 'failed', [0.0], WRONG)])
+    batches = Scripted({4: {'rebuilt': [trial('rebuilt')]}})
+    summary = retry_round(stage, args_for(expected), contract_for('rebuilt', 'unknown'), batches, saved)
+    assert [c[1] for c in batches.calls] == [['rebuilt']] and summary[4]['tasks_with_expectation'] == 1
+    assert summary[4]['history']['rebuilt']['mode'] == 'expected' and summary[4]['history']['unknown']['mode'] == 'classifier'
 
 
 def test_expected_not_passed_is_a_match_when_the_stage_fails_again(tmp_path):
@@ -196,7 +198,7 @@ def test_builder_writes_the_format_from_a_source(tmp_path, monkeypatch):
     monkeypatch.setattr(builder, 'inventory', lambda source: ([{'task_id': 'a', 'sha256': SHA}], []))
     out = tmp_path / 'expected.json'
     builder.main(['audited', str(tmp_path), '--stages', '1,3,4,5', '--note', 'test', '--out', str(out)])
-    assert load_expectations(out) == {'a': {'sha256': SHA, 'stages_passed': [1, 3, 4, 5]}}
+    assert load_expectations(out) == {'a': {'stages_passed': [1, 3, 4, 5]}}
 
 
 def test_pipeline_runs_the_round_once_after_all_stages(tmp_path, monkeypatch):
@@ -228,3 +230,10 @@ def test_pipeline_runs_the_round_once_after_all_stages(tmp_path, monkeypatch):
     assert set(pipeline['outcome_retries']) == {'3', '4', '5'}
     assert 'history' not in pipeline['outcome_retries']['3']
     assert all(entry['status'] == 'findings' for entry in pipeline['stages'])
+
+
+def test_reviewed_cause_replaces_the_generic_not_robust_text():
+    item = {'task': '/tasks/gone', 'status': 'failed', 'findings': ['not robust: ...'],
+            'not_robust': {'expected': 'passed', 'observed': ['archive'] * 4},
+            'archive_cause': 'the source repository is no longer available'}
+    assert judge(3, item) == ('archive', 'the source repository is no longer available (same result in all 4 attempts)')

@@ -115,6 +115,17 @@ def test_nop_requires_real_zero_reward(reward, exception, want, monkeypatch):
     assert result['status'] == ('completed' if want == 'passed' else want)
 
 
+@pytest.mark.parametrize('reward,exception,expected', [
+    (1, None, 'completed'), (0, None, 'failed'),
+    (None, None, 'failed'), (1, {'exception_type': 'AgentError'}, 'failed')])
+def test_review_file_verifier_does_not_require_test_invocations(tmp_path, reward, exception, expected):
+    results = [(tmp_path, {'exception_info': exception,
+                          'verifier_result': {'rewards': {'reward': reward}}})]
+    assert runtime.assess_trials(results, 1, 1, require_execution=False)['status'] == expected
+    # Ordinary task verification still requires execution evidence.
+    assert runtime.assess_trials(results, 1, 1)['status'] == 'failed'
+
+
 def test_missing_results_and_rubric_entries_are_not_passes(tmp_path):
     assert runtime.assess_trials([], 1, 1)['status'] == 'failed'
     rubric = tmp_path / 'rubric.toml'
@@ -698,6 +709,7 @@ def test_review_defaults_match_pinned_upstream_and_are_frozen(source, tmp_path, 
     assert a.review_agent == defaults['review_agent']
     assert frozen['execution_profile']['analysis_model'] == defaults['analyze_model']
     assert frozen['execution_profile']['review_defaults_source']['commit']
+    assert frozen['arguments']['resolved_review_pricing']['2']['source']['status'] == 'no_verified_match'
 
 
 def test_judge_overrides_and_static_runs_need_no_review_model(source):
@@ -839,7 +851,7 @@ def test_stage_review_json_preserves_details_while_run_summary_is_short(tmp_path
     assert summary['failures'][0]['reason'] == 'failed criteria: difficult; proposal: Reject'
     assert 'Too easy | short' not in (out / 'summary.json').read_text()
     assert summary['review_groups']['implementation']['groups']['has_fail'] == ['alpha']
-    assert not (out / 'stage-2-run.json').exists()
+    assert json.loads((out / 'stage-2-run.json').read_text()) == stage
     assert not (out / 'rubric-reviews.md').exists()
     assert not (out / 'review-groups.json').exists()
 
@@ -1381,3 +1393,41 @@ def test_pr_carries_one_historical_archive_label_without_current_warning(tmp_pat
     row = next(r for r in tables['set-python'][1] if r['path'] == names[0])
     assert row['archive_labels'] == ['build-execution-error']
     assert '| build-execution-error | 1 | Previous build failed. |' in publish.description(record)
+
+
+def test_stage2_prepares_review_environment_for_legacy_payload(tmp_path):
+    from hpc.validation_worker import review_runtime_tasks
+    legacy = tmp_path / 'legacy'
+    legacy.mkdir()
+    (legacy / 'task.yaml').write_text('instruction: inspect me\n')
+    (legacy / 'Dockerfile').write_text('FROM deliberately-invalid\n')
+    staged = review_runtime_tasks([legacy], [2], tmp_path)[0]
+    assert (staged / 'task.toml').is_file()
+    assert 'legacy Terminal-Bench task' in (staged / 'instruction.md').read_text()
+    assert 'deliberately-invalid' not in (staged / 'environment/Dockerfile').read_text()
+    assert (staged / 'setup_files/task-under-review/legacy/task.yaml').read_bytes() == (legacy / 'task.yaml').read_bytes()
+    assert review_runtime_tasks([legacy], [3], tmp_path) == [legacy]
+
+
+def test_stage2_runs_reviews_with_bounded_concurrency(source, tmp_path, upstream, monkeypatch):
+    import asyncio
+    import shutil
+    dataset = tmp_path / 'dataset'
+    for name in ('one', 'two', 'three'):
+        shutil.copytree(source, dataset / name)
+    options = args(dataset, tmp_path)
+    options.dry_run = False
+    options.concurrency = 2
+    active = peak = 0
+    async def review(number, source, item_dir, args, upstream, references, suffixes):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return {'status': 'passed', 'verdicts': [{'checks': {'agentic': {'outcome': 'pass'}}}]}
+    monkeypatch.setattr(stages, 'run_review_async', review)
+    _, report = stages.run_stage(2, options)
+    assert peak == 2
+    assert len(report['items']) == 3
+    assert report['complete']

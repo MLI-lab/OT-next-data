@@ -64,13 +64,28 @@ def patched_image_prepare(recipe):
     if recipe['repo'] == 'material-ui':
         # The pinned Multi-SWE material-ui verifiers run unit tests only.
         script = 'export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1\n' + script
+        # These baselines use Puppeteer 1.x, which predates the
+        # PUPPETEER_SKIP_DOWNLOAD environment variable.
+        if recipe['base_sha'] in {
+                '0543dd7bd0f8bacf850780e16d48b0c8aa6f4df7',
+                'dfc94e03d391384155cbdd1a0e3b0fe16e2e1042',
+                '161fb8565f532df5766b0e152f21e4a88a8d8baa'}:
+            script = 'export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1\n' + script
     if recipe['repo'] == 'async':
         # Some pinned commits have package manifests newer than their lockfiles.
         script = re.sub(r'(?<!\S)npm ci\b', 'npm install --no-audit --no-fund', script)
     if recipe['repo'] == 'redux' and re.search(r'(?m)^\s*yarn install\b', script):
         # Skip only the legacy root prepublish hook for dependency installation.
         script = re.sub(r'\s*\|\|\s*true\b', '', script)
-        disable = 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));delete p.scripts.prepublish;fs.writeFileSync("package.json",JSON.stringify(p));'
+        disabled_hooks = 'delete p.scripts.prepublish;'
+        if recipe['base_sha'] in {
+                'beb1fc29ca6ebe45226caa3a064476072cd9ed26',
+                '51365e5b4a5c1b0b7ff4f40b89452eb5edf4b0b9'}:
+            # These commits run the root test/build hook through `prepare`
+            # during yarn install. Stage 3 runs the actual task tests later.
+            disabled_hooks += 'delete p.scripts.prepare;'
+        disable = ('const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));'
+                   + disabled_hooks + 'fs.writeFileSync("package.json",JSON.stringify(p));')
         install = ('( backup=$(mktemp); cp package.json "$backup"; '
                    'trap \'cp "$backup" package.json; rm -f "$backup"\' EXIT; '
                    'node -e ' + shlex.quote(disable) + '; yarn install )')
@@ -183,9 +198,23 @@ def preinstalled_docker(recipe):
     helper_name = ('preinstall.py' if recipe['repo'] in ('fastjson2', 'junit5')
                    else 'preinstall_cache_v8.py')
     helper = Path(__file__).with_name(helper_name).read_text()
+    # Five JUnit 5 commits hit a Gradle ConcurrentModificationException while
+    # resolving test runtime classpaths with two workers. Keep the original
+    # helper and cache keys for every other baseline.
+    if recipe['repo'] == 'junit5' and recipe['base_sha'] in {
+            '2e27ea70bd9ad30049a922bce882719e5e726f81',
+            '686e49f95918a4ee07e366afb5cfd1764696f81d',
+            '511ab7d04dd5deec372157381b37a42003778b18',
+            '28a261e1211965ce41d418a0a8bccf17fae9aeec',
+            'bebff4123850e39517ac67dd31bbb0eff41fa0fc'}:
+        helper = helper.replace('--max-workers 2', '--max-workers 1')
     proxy = Path(__file__).with_name('gradle_proxy.py').read_text().split("\nif __name__ == '__main__':", 1)[0]
     proxy = proxy.replace('def main():', 'def configure_gradle_proxy():')
-    program = proxy + '\n' + helper + '\npreinstall(json.loads(sys.argv[1]), configure_gradle_proxy)\n'
+    invocation = 'preinstall(json.loads(sys.argv[1]), configure_gradle_proxy)\n'
+    if recipe['repo'] == 'fastjson2':
+        helper += '\n' + Path(__file__).with_name('maven_proxy.py').read_text()
+        invocation = 'with maven_wrapper_proxy(properties):\n    ' + invocation
+    program = proxy + '\n' + helper + '\n' + invocation
     # Only baseline preparation enters the image, never the solution or test patch.
     spec = {key: recipe[key] for key in ('repo', 'base_sha')}
     spec['prepare'] = patched_image_prepare(recipe)

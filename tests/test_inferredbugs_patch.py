@@ -261,19 +261,21 @@ def test_discarded_tasks_are_known_ids():
     assert all(t.startswith('inferredbugs-') for t in audit.DISCARDED)
     assert set(audit.DISCARDED_TASKS) <= {'reference_retains_warning', 'reference_same_warning_key', 'buggy_never_compiles',
                                           'reference_not_analyzed', 'warning_not_reproduced', 'build_or_analysis_failure',
-                                          'verifier_accepts_buggy_file'}
+                                          'verifier_accepts_buggy_file', 'not_kept_by_final_audit'}
     listed = {t for ids in audit.DISCARDED_TASKS.values() for t in ids}
     assert not listed & audit.REFERENCE_SIMILAR_WARNING
     assert sum(map(len, audit.DISCARDED_TASKS.values())) == len(listed)   # one reason per task
-    # by rule, not by list: the tasks whose buggy project would be the fixing commit
-    on_fix = {t for t, row in audit.embedded_warnings().items() if row['environment'] == 'fix-commit'}
-    assert len(on_fix) == 10 and set(audit.DISCARDED) == listed | on_fix and all(audit.DISCARDED[t] == 'buggy_never_compiles' for t in on_fix)
+    # the rule for tasks whose buggy project would be the fixing commit finds none among the kept tasks
+    assert not any(row['environment'] == 'fix-commit' for row in audit.embedded_warnings().values())
+    assert set(audit.DISCARDED) == listed
+    # every task is either discarded or has its audited warning; none is packaged compile-only
+    assert set(audit.embedded_warnings()) == {r['task_id'] for r in audit.embedded_recipes()} - listed
 
 
 def test_every_kept_task_has_an_installable_analyzer():
     from types import SimpleNamespace
     kept = [r for r in audit.embedded_recipes() if r['task_id'] not in audit.DISCARDED]
-    assert len(kept) == 6076
+    assert len(kept) == 6398
     analyzers = {r['task_id']: audit.task_analyzer(SimpleNamespace(task_id=r['task_id'], language=r['language'])) for r in kept}
     assert {audit.analyzer_release(a) for a in analyzers.values()} <= set(audit.ANALYZERS)
     # Packaging prefers the audited analyzer over the recipe's fallback.
@@ -284,6 +286,68 @@ def test_every_kept_task_has_an_installable_analyzer():
     assert all(row['originals'] and not {w['hash'] for w in row['originals']} & set(row['allowed']) for row in table.values())
 
 
+# The audit row of the fixture task as the historical audit recorded it. The final audit does not
+# keep this task, so the table no longer has it; the packaging tests pass the row explicitly.
+FIXTURE_AUDIT = {'allowed': [],
+ 'analyzer': 'Infer 0.17.0',
+ 'environment': 'fix-commit',
+ 'originals': [{'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 125,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 125.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 130,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 130.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 135,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 135.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 140,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 140.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 145,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 145.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 151,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 151.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 155,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 155.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 159,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 159.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 164,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 164.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 169,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 169.'},
+               {'bug_type': 'NULL_DEREFERENCE',
+                'hash': '5d54c51bffce27c87106e0a58cda4710',
+                'line': 174,
+                'procedure': 'com.jsql.util.TamperingUtil.tamper(java.lang.String):java.lang.String',
+                'qualifier': 'object `sqlQuery` last assigned on line 105 could be null and is dereferenced by call to `eval(...)` at line 174.'}]}
+
+
 def packaged(task_id, tmp_path, before=b'class A {}\n'):
     from types import SimpleNamespace
     row = next(r for r in audit.embedded_recipes() if r['task_id'] == task_id)
@@ -292,7 +356,8 @@ def packaged(task_id, tmp_path, before=b'class A {}\n'):
                       row['file_after_sha256'], row['repository'], file_before_sha256=row.get('file_before_sha256', ''), parent=row.get('parent', ''))
     return row, audit.package({'instruction.md': b'# task\n\n## Task\n\nFix the bug in the code.\n\n\n## Deliverable Requirement\nWrite the file. The directory does not exist yet.\n```bash\nmkdir -p /app/x\n```', 'task.toml': b'[agent]\ntimeout_sec = 900.0\n\n[verifier]\ntimeout_sec = 100\n'}, task, audit.row_proposal(row),
                               audit.resolve_image(row['image'], row['language']), row, {},
-                              SimpleNamespace(vendor_dir=None, vendor_url=audit.DEFAULT_VENDOR_URL, verify_timeout=5400))
+                              SimpleNamespace(vendor_dir=None, vendor_url=audit.DEFAULT_VENDOR_URL, verify_timeout=5400),
+                              audited=audit.embedded_warnings().get(task_id) or FIXTURE_AUDIT)
 
 
 def test_packaged_task_has_its_analyzer_in_the_image_and_the_verifier_checks_it(tmp_path, monkeypatch):
@@ -319,7 +384,7 @@ def test_packaged_task_has_its_analyzer_in_the_image_and_the_verifier_checks_it(
     assert set(public) == {'task_id', 'language', 'analyzer', 'target_file'}
     assert not any(name.startswith('setup_files/') and b'"allowed"' in data for name, data in files.items())
     # the reference's warnings in the other files it changed reach the verifier
-    monkeypatch.setitem(audit.embedded_warnings()['inferredbugs-7544'], 'allowed_elsewhere', ['e' * 32])
+    monkeypatch.setitem(audit.embedded_warnings(), 'inferredbugs-7544', dict(FIXTURE_AUDIT, allowed_elsewhere=['e' * 32]))
     assert json.loads(packaged('inferredbugs-7544', tmp_path)[1]['tests/infer/task.json'])['allowed_elsewhere'] == ['e' * 32]
     instruction = files['instruction.md'].decode()
     assert 'bash /setup_files/install_analyzer.sh' in instruction and instruction.count('## Deliverable Requirement') == 1
@@ -330,7 +395,7 @@ def test_packaged_task_has_its_analyzer_in_the_image_and_the_verifier_checks_it(
     assert b'bash /solution/fetch_fix.sh' in files['solution/solve.sh']
     assert 'ENVIRONMENT=fix-commit' in files['solution/fetch_fix.sh'].decode() and 'BUGGY_COMMIT=\n' in files['solution/fetch_fix.sh'].decode()
     assert files['tests/build.capture.sh'] == audit.warning_audit_capture_build(files['tests/build.sh'].decode()).encode()
-    csharp, files = packaged('inferredbugs-0216', tmp_path)
+    csharp, files = packaged('inferredbugs-0002', tmp_path)
     install = files['setup_files/install_analyzer.sh'].decode()
     assert 'infersharp-linux64-v1.3.tar.gz' in install and 'Python-2.7' not in install and 'tests/build.capture.sh' not in files
 
@@ -776,6 +841,37 @@ def test_source_image_restores_buggy_snapshot_after_agent_changes(tmp_path):
     assert (verifier / 'src/main.cs').read_bytes() == b'buggy'
     assert files['setup_files/fetch_repository.sh'] == files['tests/fetch_repository.sh']
     assert audit.bake_repository_snapshot(files, 'inferredbugs-1676')['environment/Dockerfile'].decode() == docker
+
+
+def test_other_tasks_fetch_the_snapshot_at_setup_and_share_their_image(tmp_path):
+    import subprocess
+    snapshot = tmp_path / 'opt/snapshot'
+    files = {'environment/Dockerfile': b'FROM example\n',
+             'tests/recipe.json': json.dumps({'target_file': 'src/main.cs'}).encode(),
+             'setup_files/fetch_repository.sh': b'#!/bin/bash\nmkdir -p "$1/src"\nprintf fixed > "$1/src/main.cs"\necho fetched >> "$FETCHES"\n',
+             'setup_files/buggy_target': b'buggy',
+             'setup_files/collect_submission.py': Path(audit.__file__).with_name('submission.py').read_bytes()}
+    assert 'inferredbugs-0002' not in audit.SOURCE_SNAPSHOT_IMAGE_TASKS
+    audit.bake_repository_snapshot(files, 'inferredbugs-0002')
+    assert files['environment/Dockerfile'] == b'FROM example\n'          # no task-specific image
+    root = tmp_path / 'setup_files'
+    for name, data in files.items():
+        if name.startswith('setup_files/'):
+            path = tmp_path / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data.replace(b'/opt/inferredbugs/source-snapshot', str(snapshot).encode())
+                                 .replace(b'/setup_files/', str(root).encode() + b'/').replace(b'python3 -I', b'python3'))
+    env = dict(os.environ, FETCHES=str(tmp_path / 'fetches'))
+    agent, second = tmp_path / 'agent', tmp_path / 'second'
+    subprocess.run(['bash', str(root / 'fetch_repository.sh'), str(agent)], check=True, env=env)
+    assert (agent / 'src/main.cs').read_bytes() == b'buggy' and (snapshot / '.git/inferredbugs-baseline').exists()
+    (agent / 'src/main.cs').write_text('agent changes')
+    subprocess.run(['bash', str(root / 'fetch_repository.sh'), str(second)], check=True, env=env)
+    assert (second / 'src/main.cs').read_bytes() == b'buggy'
+    assert (tmp_path / 'fetches').read_text() == 'fetched\n'              # one fetch per container
+    patch = tmp_path / 'submission.patch'
+    subprocess.run(['python3', str(root / 'collect_submission.py'), 'collect', str(agent), str(snapshot), str(patch)], check=True)
+    assert b'agent changes' in patch.read_bytes() and b'fixed' not in patch.read_bytes()
 
 
 def test_large_buggy_target_uses_bounded_dockerfile_commands():

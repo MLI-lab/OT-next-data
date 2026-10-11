@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import asyncio
+import copy
 from datetime import datetime, timezone
 import json
 import os
@@ -51,8 +52,12 @@ def parser():
     ap.add_argument('--review-agent', help='override the pinned upstream reviewer agent (also applies to analysis unless separately overridden)')
     ap.add_argument('--model', help='model for solver/cheat/hacker/fixer')
     ap.add_argument('--review-model', help='override pinned upstream rubric/trajectory judge model')
+    ap.add_argument('--review-pricing', type=json.loads,
+                    help='review token rates in USD per million: JSON with input/output and optional cache_read/cache_write; reported cost is retained separately')
     ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor'], default='terminal-bench',
                     help='Stage 2 implementation rubric: patched Terminal-Bench (default) or patched Harbor default rubric')
+    ap.add_argument('--review-criteria', nargs='+', metavar='CRITERION',
+                    help='Stage 2: review only these criterion names from the chosen rubric; default all')
     ap.add_argument('--review-local', action='store_true', help='use the local served model with Terminus-2 for implementation/proposal/trajectory reviews')
     ap.add_argument('--analysis-agent', help='override only the trajectory-analysis agent')
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
@@ -157,6 +162,8 @@ def resolve_review_defaults(args, numbers):
         return
     fields = ('review_agent', 'review_model', 'analysis_agent', 'analysis_model')
     if all(getattr(args, key, None) for key in fields):
+        from validation.reporting.review_pricing import freeze
+        freeze(args, numbers)
         return
     import hashlib
     import yaml
@@ -172,6 +179,8 @@ def resolve_review_defaults(args, numbers):
         raise ValueError('upstream review defaults must contain nonempty agent/model names')
     args.review_defaults_source = {'commit': PINS['terminal-bench']['commit'],
         'file': '.github/harbor-run-defaults.yml', 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+    from validation.reporting.review_pricing import freeze
+    freeze(args, numbers)
 
 
 def static_concurrency(args):
@@ -211,6 +220,11 @@ def dependency_archive_spec(a):
 
 
 def check_args(a):
+    if getattr(a, 'review_criteria', None) is not None:
+        from validation.rubrics import ROOT as RUBRICS, harbor_rubric, implementation_rubric, select_criteria
+        rubric, skipped = (harbor_rubric() if getattr(a, 'review_rubric', 'terminal-bench') == 'harbor'
+                           else implementation_rubric(RUBRICS / 'upstream/task-implementation.toml'))
+        select_criteria(rubric, skipped, a.review_criteria)
     if getattr(a, 'prebuild_only', False):
         if a.submit not in ('helma', 'zih'):
             raise ValueError('--prebuild-only requires --submit helma or zih')
@@ -235,6 +249,8 @@ def check_args(a):
             raise ValueError('--reuse-validation-containers requires Apptainer, --attempts 1, and no --force-build')
     if getattr(a, 'review_local', False) and not a.serve_model:
         raise ValueError('--review-local requires --serve-model')
+    from validation.reporting.review_usage import validate_pricing
+    validate_pricing(getattr(a, 'review_pricing', None))
     if getattr(a, 'serve_context', None) is None:
         # The limit is the model's own (config/models.py); 32768 keeps contracts without a served model unchanged.
         from config.models import resolve
@@ -283,16 +299,25 @@ def stage_clock():
     return datetime.now(timezone.utc), time.monotonic()
 
 
-def stage_timing(clock, concurrency):
+def stage_timing(clock, concurrency, serving_gpu_count=None):
     """Where a stage ran, how long it took and how many tasks ran at once."""
     started_at, started = clock
+    seconds = round(time.monotonic() - started, 1)
     return {'node': os.environ.get('SLURMD_NODENAME') or socket.gethostname().split('.')[0],
             'slurm_job_id': os.environ.get('SLURM_JOB_ID'),
             'started_at': started_at.isoformat(timespec='seconds'),
-            'wall_seconds': round(time.monotonic() - started, 1), 'concurrency': concurrency}
+            'wall_seconds': seconds, 'concurrency': concurrency,
+            **({'serving_gpu_count': serving_gpu_count,
+                'serving_gpu_hours': serving_gpu_count * seconds / 3600,
+                'gpu_hours_scope': 'Serving GPUs reserved during this stage wall time; excludes model startup and final teardown; not utilization-weighted.'}
+               if serving_gpu_count is not None else {})}
 
 
 def run_review(number, source, item_dir, args, upstream, references=None, suffixes=None):
+    return asyncio.run(run_review_async(number, source, item_dir, args, upstream, references, suffixes))
+
+
+async def run_review_async(number, source, item_dir, args, upstream, references=None, suffixes=None):
     """Run an implementation (stage 2) or trajectory (stage 8) rubric review."""
     resolve_review_defaults(args, [number])
     agent, model = (args.review_agent, args.review_model) if number == 2 else (args.analysis_agent, args.analysis_model)
@@ -300,7 +325,8 @@ def run_review(number, source, item_dir, args, upstream, references=None, suffix
         agent, model = 'terminus-2', args.model
     if number == 2:
         task = prepare_review_tasks.stage_review(source, item_dir / 'input' / 'rubric-review', upstream,
-                                                 references, suffixes, getattr(args, 'review_rubric', 'terminal-bench'))
+                                                 references, suffixes, getattr(args, 'review_rubric', 'terminal-bench'),
+                                                 getattr(args, 'review_criteria', None))
         verdict_name, rubric_name = 'verdicts.json', 'task-implementation.toml'
     else:
         task = prepare_review_tasks.stage_analysis(source, args.current_trial, item_dir / 'input' / 'trajectory-analysis', upstream)
@@ -313,9 +339,16 @@ def run_review(number, source, item_dir, args, upstream, references=None, suffix
     skipped = json.loads((task / 'rubric-skips.json').read_text()) if number == 2 else {}
     if args.dry_run:
         return {'status': 'previewed', 'config': str(item_dir / 'job.json'), 'automatic_skips': skipped}
-    job_dir = asyncio.run(runtime.execute_job(config))
+    job_dir = await runtime.execute_job(config)
     results = runtime.trial_results(job_dir)
-    result = runtime.assess_trials(results, args.attempts, 1, 'reward', task_path=task)
+    # The review verifier checks an output file, not a test suite. Validate the
+    # verdict schema below; pytest invocation evidence applies to task tests.
+    result = runtime.assess_trials(results, args.attempts, 1, 'reward', task_path=task,
+                                   require_execution=False)
+    from validation.reporting.review_usage import collect
+    from validation.reporting.review_pricing import for_stage
+    pricing = for_stage(args, number)
+    result['usage'] = collect(results, agent, model, pricing['rates'], args.attempts, pricing['source'])
     result['job_dir'] = str(job_dir)
     rubric = task / 'rubric.toml' if number == 2 else upstream / 'docs/prompts' / rubric_name
     result['automatic_skips'] = skipped
@@ -527,12 +560,15 @@ def run_stage(number, args):
     upstream = checkout('terminal-bench')
     all_sources = discover_tasks(args.tasks)
     sources = select_paths(all_sources, args)
-    from validation.shards import parse_shard, slice_of
+    from validation.shards import parse_shard, slice_ids
     shard = parse_shard(getattr(args, 'shard', None))
     if shard:
         if not contract:
             raise ValueError('--shard requires a frozen contract')
-        sources = slice_of(sources, shard, key=lambda path: path.name)
+        wanted = set(slice_ids(contract, shard))
+        sources = [path for path in sources if path.name in wanted]
+        if {path.name for path in sources} != wanted:
+            raise ValueError('materialized tasks do not cover this shard of the contract')
     references = None
     suffixes = None
     if number == 2:
@@ -550,12 +586,16 @@ def run_stage(number, args):
     out.mkdir(parents=True)
     report = {'stage': number, 'name': NAMES[number], 'upstream': PINS,
               'backend': args.backend, 'dry_run': args.dry_run, 'items': [], 'complete': False}
+    if number in (2, 8):
+        report['review_pricing'] = getattr(args, 'review_pricing', None)
+        report['review_attempts'] = args.attempts
     if shard:
         report['shard'] = {'index': shard[0], 'count': shard[1], 'tasks': [t.name for t in sources]}
     if number == 2:
         report['reference_solutions'] = references
         report['instruction_suffixes'] = suffixes
         report['review_rubric'] = getattr(args, 'review_rubric', 'terminal-bench')
+        report['review_criteria'] = getattr(args, 'review_criteria', None)
     report_path = out / 'summary.json'
     save(report_path, report)
     clock = stage_clock()
@@ -598,6 +638,26 @@ def run_stage(number, args):
         if number == 6:
             from validation.checks.reward_metrics import summarize
             report['reward_metrics'] = summarize(report['items'])
+    elif number == 2 and not args.dry_run:
+        async def reviews():
+            semaphore = asyncio.Semaphore(args.concurrency)
+            async def one(index, source):
+                async with semaphore:
+                    item_dir = out / f'{index:05d}-{source.name}'
+                    item_dir.mkdir()
+                    try:
+                        result = await run_review_async(2, source, item_dir, copy.copy(args), upstream,
+                                                        references, suffixes)
+                    except Exception as exc:
+                        result = {'status': 'error', 'reason': f'{type(exc).__name__}: {exc}'}
+                    result.update(task=str(source), output=str(item_dir))
+                    report['items'].append(result)
+                    from validation.reporting.review_usage import summarize_items
+                    report['usage'] = summarize_items(report['items'], args.attempts)
+                    save(report_path, report)
+                    print(f"stage 2 {source.name}: {result['status']}", flush=True)
+            await asyncio.gather(*(one(index, source) for index, source in enumerate(sources)))
+        asyncio.run(reviews())
     else:
         work = [(task, None) for task in sources]
         if number in (7, 8):
@@ -651,6 +711,9 @@ def run_stage(number, args):
             if trial:
                 result['source_trial'] = str(trial)
             report['items'].append(result)
+            if number in (2, 8):
+                from validation.reporting.review_usage import summarize_items
+                report['usage'] = summarize_items(report['items'], args.attempts)
             save(report_path, report)
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
     report['complete'] = True
@@ -659,10 +722,15 @@ def run_stage(number, args):
     if not args.dry_run:
         # Tasks at once: the other stages work through their tasks one by one.
         report['timing'] = stage_timing(clock, report['static_concurrency'] if number == 1 else
-                                        args.concurrency if number in (3, 4, 5, 6, 9) else 1)
+                                        args.concurrency if number in (2, 3, 4, 5, 6, 9) else 1,
+                                        getattr(args, '_serving_gpu_count', None))
     if number == 2:
         from validation.checks.review_results import group_reviews
         report['implementation_review_groups'] = group_reviews(report['items'])
+    if number in (2, 8):
+        from validation.reporting.review_usage import summarize_items
+        report['usage'] = summarize_items(report['items'], args.attempts)
+        report['resolved_review_pricing'] = getattr(args, 'resolved_review_pricing', {}).get(str(number))
     report['has_findings'] = any(i['status'] in ('failed', 'findings', 'error') for i in report['items'])
     from validation.contract import assess_stage
     assess_stage(contract, number, report)

@@ -174,6 +174,62 @@ review error.
 The default is Claude Code (`claude-code`) with `anthropic/claude-sonnet-5`.
 Change these with `--review-agent` and `--review-model`.
 
+Stage 2 and stage 8 save per-attempt input/output token counts, cache-read
+counts, cache-write counts when available, and reported USD cost in each task's
+`usage`. Input tokens include cache tokens, so do not add the cache counts to
+input again. Failed review attempts with usage evidence are included.
+Stage reports contain totals and averages per distinct task, including all
+attempts. The exported `report/summary.json` includes combined `review_usage`;
+`report/reviews.json` preserves per-task usage, and `report/stage-2-*.json`
+preserves the full stage report. Shard merges recompute totals from task records.
+
+By default, review pricing uses the small audited Together price table in
+`validation/reporting/review_pricing.py`. Local model keys resolve to their HF
+model IDs; API model IDs must match a verified entry. The initial table covers
+GLM-5.3 and gpt-oss-120b, checked on 2026-10-11. Other models remain unpriced
+(`null`, not zero). Each stage freezes its own resolved rates, source URL, model
+ID and check date in the contract, and preserves them with the usage records.
+Validation does not fetch changing prices while a job runs. Together prices are
+reference API-equivalent estimates, including when the actual endpoint is local
+or hosted by a different provider; they are not billed local GPU costs.
+
+To override the default, pass `--review-pricing` as a JSON object of
+USD rates per million tokens with `input` and `output`, optionally `cache_read`
+and `cache_write`. For example, `--review-pricing '{"input": 1, "output": 4}'`
+uses illustrative rates, not a model price recommendation. Unspecified cache
+rates equal the input rate. This rate card applies to both review stages, so
+run judges with different prices separately. The contract freezes the rate card.
+Reported cost and token-based estimates remain separate; `cost_usd` prefers
+reported cost and otherwise uses the estimate. These are agent-reported or
+estimated costs, not a reconciliation of the provider invoice. GPU and container
+compute are excluded.
+In the pinned runtime, Claude Code reads `total_cost_usd` from its session result.
+The Terminus raw-response adapter hardcodes its internal cost to zero and the
+agent exports this as null, even for an API endpoint. Our reporting helper applies
+the default or supplied token rates to estimate USD cost.
+
+For locally served models, stage timing records `serving_gpu_count` and
+`serving_gpu_hours` (the serving GPU count multiplied by stage wall hours).
+These measure reserved GPU time during the stage, including idle time, and
+exclude model startup and final teardown. They are not utilization-weighted.
+GPU hours are never converted into dollars. External endpoints have no local
+GPU-hour measurement. GPU hardware information remains in `execution.json`.
+
+Unknown usage stays null. Each metric has a `known_subtotal` and
+`trials_with_data`; `total` and `average_per_task` are null when any expected
+attempt lacks that metric. Missing cache counts also prevent an estimate if
+the supplied cache rate differs from the input rate. Local models still record
+tokens; supply zero rates for a zero API-cost estimate, or comparison rates
+to estimate equivalent API spend.
+
+Reprice a saved stage report without another model call:
+
+```bash
+python -m validation.reporting.review_usage report/stage-2-ID.json \
+  --pricing '{"input": 1, "output": 4, "cache_read": 0.1}' \
+  --out report/repriced-stage-2.json
+```
+
 Start with a small pilot because LLM reviews are expensive. Use
 [`create_pilot.py`](data/create_pilot.py) to select a diverse sample from earlier
 runs, as explained under [Sampling a diverse pilot](#sampling-a-diverse-pilot).
@@ -307,6 +363,16 @@ instead of applying the classifier, and a task that never reproduces the audit
 is archived as not robust. The pull request reports, per stage, how many tasks
 matched on the first attempt, after one, two or three retries, or were archived,
 and where the expected outcomes came from.
+
+## Sharded runs of one contract
+
+A frozen contract may be executed in shards. Each shard job validates one slice of the
+contract's task list (tasks sorted by ID, taken round-robin by shard index), verifies the
+source files against the contract and the content of its own slice, and marks its stage
+reports with the slice. `validation/shards.py merge` combines the shard reports into one report per stage
+only when every slice is present exactly once and belongs to the same contract; the merged
+report records each shard's job and timing. Retries on unexpected outcomes run inside each
+shard. A merged run is published like a single run.
 
 ## Stage 6: teacher agent trials
 

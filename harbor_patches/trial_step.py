@@ -135,7 +135,14 @@ class StepSlot:
         if self.control.exists():
             tail = self.log_tail()
             if tail:
-                print(f'[{tag}] lifecycle log tail:\n{tail}', flush=True)
+                # A step that does not exit on the close request is terminated, then
+                # killed, above. Slurm then writes "STEP ... CANCELLED ... DUE to SIGNAL
+                # Killed" into the step log. That line is this teardown: it is not a
+                # memory kill and says nothing about the task (run 965822 on 2026-10-11:
+                # 306 such lines, all 247 tasks passed every stage). Real memory kills
+                # appear as "oom_kill events" and in the trial's own findings.
+                note = ' (teardown of a stopped step, not a task failure)' if 'DUE to SIGNAL' in tail else ''
+                print(f'[{tag}] lifecycle log tail{note}:\n{tail}', flush=True)
             shutil.rmtree(self.control)
 
 

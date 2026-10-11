@@ -22,7 +22,9 @@ from validation.publishing.pr_tables import cell, primary_label, label_table
 
 GATES = (1, 3, 4, 5)
 # Start failures that come from the node or the bridge, not from the task's image.
-NODE_FAILURE = re.compile(r'timed out after|No space left on device|no LD_PRELOAD in fakeroot|BridgeOutage|workers? (?:are )?dead', re.I)
+NODE_FAILURE = re.compile(r'timed out after|waited \d+ s for a worker or Slurm step|TimeoutError during start|'
+                          r'Container environment damaged|'
+                          r'No space left on device|no LD_PRELOAD in fakeroot|BridgeOutage|workers? (?:are )?dead', re.I)
 COLUMNS = ('path', 'task_binary', 'content_sha256', 'stages_passed', 'archive_stage', 'archive_reason', 'run',
            'validation_labels', 'archive_labels', 'patch_labels', 'patch_changed', 'source_task_id')
 
@@ -82,7 +84,14 @@ def judge(stage, item, not_required=()):
     status = item.get('status')
     if item.get('not_robust'):
         from validation.stages.outcome_retries import not_robust_text
-        return 'archive', not_robust_text(item['not_robust']['expected'], item['not_robust']['observed'])
+        attempts = len(item['not_robust']['observed'])
+        if item.get('archive_cause'):
+            # A reviewed cause speaks for itself; the expectation it missed adds nothing.
+            return 'archive', f"{item['archive_cause']} (same result in all {attempts} attempts)"
+        reason = not_robust_text(item['not_robust']['expected'], item['not_robust']['observed'])
+        # Say what was observed, not only that it never matched.
+        cause = next((str(f) for f in item.get('findings', []) if not str(f).startswith('not robust')), '')
+        return 'archive', reason + ('; ' + cause[:300] if cause else '')
     if stage == 1:
         if status == 'error':          # the checks could not be run on this task at all
             return 'not_run', 'static checks could not run: ' + str(item.get('error', 'unknown'))[:300]
@@ -104,6 +113,12 @@ def judge(stage, item, not_required=()):
             for e in item.get('environments', []) if e.get('status') != 'passed')
         if (status == 'error' and not item.get('environments')) or NODE_FAILURE.search(reason or ''):
             return 'not_run', 'node or bridge failure: ' + reason[:300]
+        if status == 'error' and not item.get('reason') and any(
+                e.get('status') == 'error' and 'error' in e and not e['error'] and not e.get('checks')
+                                     for e in item.get('environments', [])):
+            # Reports written before the cause was recorded: a start that ended with no
+            # error text ran into its time limit. That is no verdict on the task.
+            return 'not_run', 'container start ended without a recorded cause (start time limit)'
         return 'archive', 'container did not build or start: ' + (reason or status or 'unknown')[:300]
     findings = [str(f) for f in item.get('findings', [])]
     # A crashed or skipped trial says nothing about the task's reward.
@@ -453,7 +468,7 @@ def reproducibility_text(retries):
                      f"| {after.get('1', 0)} / {after.get('2', 0)} / {later} | {len(summary['not_robust'])} "
                      f"| {summary['retried_not_run']} | {summary['recovered_not_run']} | {len(summary['unresolved_not_run'])} |")
         not_robust += [f'stage {stage}: {cell(task)}' for task in summary['not_robust']]
-    lines += ['', 'Expected outcomes come from an earlier audit of the same task content (matched by content hash). '
+    lines += ['', 'Expected outcomes come from an earlier audit of the same tasks (matched by task ID). '
               'A task whose result differs from that audit is rerun up to the retry limit; a task that never matches is archived as not robust. '
               'Without an expectation only tasks with no result (crash, node failure, missing reward or missing runner evidence) are rerun, and a task still without a result after the last attempt is archived as not robust. Stages 3, 4 and 5 are covered; the retries run after the whole pipeline.', '']
     notes = {s.get('expected_outcomes_note') for s in retries.values() if s.get('expected_outcomes_note')}
@@ -466,6 +481,8 @@ def reproducibility_text(retries):
 
 def description(record, repo=None, revision=None):
     lines = []
+    if record.get('note'):
+        lines += [cell(record['note']), '']
     lines += reproducibility_text(record.get('outcome_retries'))
     for stage, reason in record.get('skipped_stages', {}).items():
         lines += [f'> Stage {cell(stage)} not run: {cell(reason)}', '']
@@ -690,6 +707,7 @@ def main():
     ap.add_argument('--readme-work-dir', type=Path, help='cluster workspace for annotation inputs and Harbor jobs; defaults under --out')
     ap.add_argument('--readme-evidence', action='append', default=[], metavar='FOLDER=PATH',
                     help='generator script, source documentation, or patch excerpt to stage for an output folder; repeatable')
+    ap.add_argument('--note', help='one short remark shown at the top of the pull request and stored in the run file')
     ap.add_argument('--no-trajectories', action='store_true',
                     help='with stage 6: publish the results without the trajectories of the attempts (default: with them)')
     a = ap.parse_args()
@@ -698,7 +716,7 @@ def main():
                      readme=a.readme, readme_model=a.readme_model, readme_evidence=a.readme_evidence,
                      readme_seed=a.readme_seed, readme_work_dir=a.readme_work_dir, readme_force=a.readme_force,
                      conversion_archives=a.conversion_archive, patch_manifests=a.patch_manifest, image_cache=a.image_cache,
-                     trajectories=not a.no_trajectories)
+                     trajectories=not a.no_trajectories, note=a.note)
     print(result['description'])
     print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
           if a.dry_run else f"Pull request: {result['pull_request']}")
@@ -717,7 +735,7 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             readme=False, readme_model='claude-fable-5-1', readme_evidence=(),
             readme_seed=0, readme_work_dir=None, annotation_runner=None, readme_force=False,
             conversion_archives=(), patch_manifests=(), image_cache=None, agent_patch_repair_loop=False,
-            patch_repair_summary=None, skipped_stages=None, trajectories=True):
+            patch_repair_summary=None, skipped_stages=None, trajectories=True, note=None):
     """Build the files for one run and open the pull request; returns what was done."""
     contract = read(contract_path)
     if skipped_stages:
@@ -734,6 +752,8 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             cache[folder] = {} if dry_run and not repo else previous_rows(repo, folder)
         return cache[folder]
     tables, record, run_file = build(contract, reports, mapping, checks, previous, run_id)
+    if note:
+        record['note'] = str(note)
     if agent_patch_repair_loop:
         record['review_provenance'] = {'workflow': 'agent_patch_repair_loop', 'human_audited': False}
         if patch_repair_summary is not None:
@@ -741,7 +761,8 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
     if skipped_stages:
         record['skipped_stages'] = skipped_stages
     add_conversion_archives(tables, record, run_file, conversion_archives, mapping)
-    patch_provenance.attach(record, tables, patch_manifests)
+    patch_provenance.attach(record, tables, patch_manifests,
+                            patch_provenance.source_binaries(contract) if patch_manifests else None)
     patch_provenance.attach_automations(record, tables, contract)
     from validation.publishing.pr_runtime import collect
     record['runtime_summary'] = collect(contract, reports_dir)

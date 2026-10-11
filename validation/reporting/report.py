@@ -49,6 +49,7 @@ def review_task(item):
         },
         'findings': item.get('findings', []),
         'error': item.get('reason'),
+        'usage': item.get('usage'),
     }
 
 
@@ -59,6 +60,7 @@ def summarize(archive):
     network_status = None
     instruction_fixup = None
     pipelines = []
+    review_items = []
     with tarfile.open(archive, mode='r|gz') as tar:
         for member in tar:
             path = Path(member.name)
@@ -83,6 +85,13 @@ def summarize(archive):
             stages.append({'stage': number, 'name': report['name'], 'complete': report['complete'],
                            'tasks': len(items), 'counts': dict(counts), 'report': str(path),
                            'contract_sha256': report.get('contract_sha256'), 'timing': report.get('timing')})
+            if number in (2, 8):
+                from validation.reporting.review_usage import summarize_items
+                stages[-1]['usage'] = summarize_items(items, report.get('review_attempts', 1))
+                stages[-1]['review_pricing'] = report.get('review_pricing')
+                stages[-1]['resolved_review_pricing'] = report.get('resolved_review_pricing')
+                review_items.extend({**item, 'usage': item.get('usage') or {
+                    'trials': [], 'expected_trials': report.get('review_attempts', 1)}} for item in items)
             if number == 2:
                 from validation.checks.review_results import group_reviews
                 stages[-1]['implementation_review_groups'] = report.get('implementation_review_groups') or group_reviews(items)
@@ -126,7 +135,9 @@ def summarize(archive):
     stage_two = next((stage for stage in stages if stage['stage'] == 2), None)
     review_groups = ({'implementation': stage_two['implementation_review_groups'],
                       'proposal': stage_two['proposal_review_groups']} if stage_two else None)
+    from validation.reporting.review_usage import summarize_items
     return {'archive': str(archive.resolve()), 'contract_sha256': contract_hash, 'network_status': network_status,
+            'review_usage': summarize_items(review_items),
             'instruction_fixup': instruction_fixup,
             'contract_status': 'bound' if contract_hash and all(s['contract_sha256'] == contract_hash for s in stages) else 'absent-or-unbound-exploratory',
             'requested_stages': requested,
@@ -165,6 +176,8 @@ def write_report(archive, out):
             if path.parts[1].startswith('stage_2_'):
                 stage = json.loads(content)
                 reviews.extend(review_task(item) for item in stage.get('items', []))
+                # Preserve a portable stage report for repricing and shard merging.
+                (out / ('stage-2-' + path.parts[2] + '.json')).write_bytes(content)
             else:
                 exported = out / ('stage-' + path.parts[1].split('_')[1] + '-' + path.parts[2] + '.json')
                 exported.write_bytes(content)

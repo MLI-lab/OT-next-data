@@ -39,18 +39,35 @@ def slice_of(items, shard, key):
     return [item for position, item in enumerate(ordered) if position % count == index]
 
 
-def plan(contract_path, count, out, *, time, cpus, memory, partition, array_concurrency, submit):
-    from validation.contract import read
+def slice_ids(contract, shard):
+    """Task IDs of one slice of a contract's frozen task list."""
+    from validation.contract import task_records
+    return slice_of([t['task_id'] for t in task_records(contract)], shard, key=lambda task_id: task_id)
+
+
+def snapshot_matches(contract_path, code_root):
+    """Whether the code snapshot the shards will run is the implementation the contract froze."""
+    check = ('import json,sys; from validation.contract import implementation, read; '
+             'sys.exit(0 if implementation() == read(sys.argv[1])["implementation"] else 3)')
+    return subprocess.run([sys.executable, '-c', check, str(contract_path)], cwd=code_root,
+                          env={**__import__('os').environ, 'PYTHONPATH': str(code_root)}).returncode == 0
+
+
+def plan(contract_path, count, out, *, time, cpus, memory, partition, array_concurrency, submit, exclusive=False):
+    from validation.contract import read, task_records
     from hpc.validation_submit import snapshot_code
     from validation.stages.runner import save
     contract = read(contract_path)
-    if count < 1 or count > len(contract['tasks']):
-        raise ValueError(f'shard count must be between 1 and the {len(contract["tasks"])} frozen tasks')
+    total = len(task_records(contract))
+    if count < 1 or count > total:
+        raise ValueError(f'shard count must be between 1 and the {total} frozen tasks')
     out = Path(out).resolve()
     if (out / 'shards').exists():
         raise ValueError(f'{out / "shards"} exists; use a new directory')
     out.mkdir(parents=True, exist_ok=True)
     code_root = snapshot_code(out)  # frozen code for every shard, like a single submission
+    if not snapshot_matches(Path(contract_path).resolve(), code_root):
+        raise ValueError('the checkout changed since the contract was prepared; prepare a new contract, then plan again')
     for index in range(count):
         folder = out / 'shards' / f'{index:04d}'
         folder.mkdir(parents=True)
@@ -64,10 +81,11 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
                       'shard=$(printf \'%04d\' "${SLURM_ARRAY_TASK_ID:?}")\n'
                       f'exec bash "{code_root}/hpc/helma/validation.sbatch" "{out}/shards/$shard/request.json"\n')
     command = ['sbatch', '--parsable', f'--partition={partition}', '--nodes=1', '--ntasks=1', f'--cpus-per-task={cpus}',
-               '--exclusive', f'--mem={memory}', f'--time={time}', f'--array=0-{count - 1}%{array_concurrency}',
+               *(['--exclusive'] if exclusive else []), f'--mem={memory}', f'--time={time}',
+               f'--array=0-{count - 1}%{array_concurrency}',
                f'--export=ALL,VALIDATION_REPO={code_root}', str(script)]
     save(out / 'plan.json', {'contract': str(Path(contract_path).resolve()), 'contract_sha256': contract['sha256'], 'count': count,
-                             'stages': contract['stages'], 'tasks': len(contract['tasks']), 'command': command})
+                             'stages': contract['stages'], 'tasks': total, 'command': command})
     if submit:
         job = subprocess.check_output(command, text=True).strip()
         (out / 'array-job-id.txt').write_text(job + '\n')
@@ -155,6 +173,12 @@ def merge(contract_path, root, out):
         if any('reward_metrics' in r for _, r in reports):
             from validation.checks.reward_metrics import summarize
             merged['reward_metrics'] = summarize(merged['items'])
+        if stage in (2, 8):
+            from validation.reporting.review_usage import summarize_items
+            merged['usage'] = summarize_items(merged['items'], merged.get('review_attempts', 1))
+        if stage == 2:
+            from validation.checks.review_results import group_reviews
+            merged['implementation_review_groups'] = group_reviews(merged['items'])
         target = out / f'stage-{stage}-merged.json'
         target.write_text(json.dumps(merged, indent=2, default=str) + '\n')
         written[stage] = str(target)
@@ -186,6 +210,7 @@ def main(argv=None):
     p.add_argument('--memory', default='128G')
     p.add_argument('--partition', default='cpu')
     p.add_argument('--array-concurrency', type=int, default=16)
+    p.add_argument('--exclusive', action='store_true', help='one whole node per shard')
     p.add_argument('--submit', action='store_true')
     m = sub.add_parser('merge', help='merge the shard reports under ROOT into one results directory')
     m.add_argument('root', type=Path)
@@ -194,7 +219,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.mode == 'plan':
         job = plan(a.contract, a.count, a.out, time=a.time, cpus=a.cpus, memory=a.memory, partition=a.partition,
-                   array_concurrency=a.array_concurrency, submit=a.submit)
+                   array_concurrency=a.array_concurrency, submit=a.submit, exclusive=a.exclusive)
         print(json.dumps({'planned': a.count, 'out': str(a.out), 'job': job}))
     else:
         print(json.dumps(merge(a.contract, a.root, a.out), indent=1))

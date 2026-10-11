@@ -20,9 +20,11 @@ import time
 try:
     from harbor_patches.trial_step import StepSlot
     from harbor_patches.fakeroot_ipc import OwnedFakerootIPC
+    from harbor_patches import start_wait
 except ModuleNotFoundError:
     from trial_step import StepSlot
     from fakeroot_ipc import OwnedFakerootIPC
+    import start_wait
 
 ACTIVE = ContextVar('protected_task_controller', default=None)
 AGENT_TAG = '# ot-agent-terminal '
@@ -177,14 +179,20 @@ class ProtectedInstance:
             raise RuntimeError('Protected execution requires a Slurm task step')
         self.slot = StepSlot(command)
         deadline = time.monotonic() + (wait_limit if wait_limit is not None else float(os.environ.get('OT_TRIAL_STEP_WAIT', '3600')))
-        while not self.slot.ready():
-            if self.stopping.is_set() or self.is_abandoned(self.env_id):
-                raise RuntimeError('Task was stopped while its executor was starting')
-            if self.slot.process.poll() is not None:
-                raise RuntimeError('Task executor failed to start: ' + self.slot.log_tail())
-            if time.monotonic() >= deadline:
-                raise TimeoutError('Timed out starting task executor')
-            time.sleep(.1)
+        # Slurm creates the step; on Helma that is rate limited per user and can
+        # take minutes. It is waiting for resources, not container start time.
+        waited = time.monotonic()
+        with start_wait.waiting(self.env_id, 'its Slurm step', detail=lambda: self.slot.log_tail()):
+            while not self.slot.ready():
+                if self.stopping.is_set() or self.is_abandoned(self.env_id):
+                    raise RuntimeError('Task was stopped while its executor was starting')
+                if self.slot.process.poll() is not None:
+                    raise RuntimeError('Task executor failed to start: ' + self.slot.log_tail())
+                if time.monotonic() >= deadline:
+                    raise start_wait.StartWaitTimeout(
+                        start_wait.wait_message(time.monotonic() - waited, deadline - waited)
+                        + '; ' + self.slot.log_tail())
+                time.sleep(.1)
         if self.stopping.is_set() or self.is_abandoned(self.env_id):
             raise RuntimeError('Task was stopped before its executor became ready')
         self.info = self.slot.request(self.env_id, 'info', {}, 10)
@@ -239,7 +247,7 @@ class ProtectedInstance:
                 self._new_step()
                 # The real instance start already takes the shared start gate.
                 # Taking it twice here can deadlock concurrent controllers.
-                with active(self):
+                with active(self), start_wait.starting(self.env_id):
                     result = self.inner.start(payload)
                 if self._oom():
                     raise RuntimeError('Task memory limit exceeded during environment startup')

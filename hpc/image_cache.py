@@ -2,7 +2,7 @@
 import argparse
 from contextlib import contextmanager
 import tarfile
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
@@ -258,10 +258,22 @@ def prepare_images(tasks, images, shared, args):
                 record.update(status='error', error=f'Cannot release image scratch: {exc}')
         return record
 
-    with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        for record in pool.map(prepare_one, selected.items()):
+    pool = ThreadPoolExecutor(max_workers=concurrency)
+    try:
+        pending = [pool.submit(prepare_one, item) for item in selected.items()]
+        for future in as_completed(pending):
+            record = future.result()
             records.append(record)
-            (images / 'preparation.json').write_text(json.dumps(records, indent=2))
+            temporary = images / 'preparation.json.tmp'
+            temporary.write_text(json.dumps(records, indent=2))
+            temporary.replace(images / 'preparation.json')
+    except BaseException:
+        # Return to the worker's evidence archiver immediately on allocation
+        # signals. Waiting for all queued builds consumes Slurm's cleanup grace.
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    else:
+        pool.shutdown(wait=True)
     return records
 
 

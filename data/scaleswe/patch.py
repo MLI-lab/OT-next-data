@@ -78,8 +78,8 @@ RECHECK_ARCHIVE = json.loads((HERE / 'archived_tasks.json').read_text()) if (HER
 
 ARCHIVED_TASKS = {
     **{f'matan1008_pykdebugparser_pr{pr}': {
-        'category': 'verifier-execution-error',
-        'reason': 'Reference and no-op cannot collect tests because the repository is absent from the verifier import path. A diagnostic import-path repair exposes a missing construct dependency in the test interpreter, still preventing execution in both modes. Archived without dependency repair at user request; no reference implementation defect has been established.'}
+        'category': 'image-missing-test-dependency',
+        'reason': 'The task image lacks the construct package that the test modules import, so neither the reference nor the no-op run can collect a single test, even with the repository on the import path. Installing it at verification time would make the verifier depend on PyPI; archived until the image is fixed.'}
        for pr in (5, 6)},
     'biocommons_hgvs_pr699': {
         'category': 'verifier-external-dependency',

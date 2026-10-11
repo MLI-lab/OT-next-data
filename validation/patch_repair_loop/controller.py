@@ -142,6 +142,9 @@ def load_config(path):
 
 def loop_settings(config):
     validation_args(config)
+    for key in ('shard_size', 'shard_concurrency'):
+        if key in config and (type(config[key]) is not int or config[key] < 1):
+            raise ValueError(f'{key} must be a positive integer')
     if type(config.setdefault('prebuild_all_images', False)) is not bool:
         raise ValueError('prebuild_all_images must be boolean')
     if type(config.setdefault('allow_exclusions', True)) is not bool:
@@ -413,6 +416,9 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
             subprocess.run(base + [str(pilot), *options, "--prepare-contract", str(contract)],
                            cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
         save(prepared, {"path": str(contract), "policy": policy})
+    if config.get('shard_size') and len(selected) > config['shard_size']:
+        from validation.patch_repair_loop.sharding import submit as submit_shards
+        return submit_shards(config, contract, selected, round_dir)
     with (round_dir / "submit.log").open("w") as log:
         subprocess.run(base + ["--contract", str(contract)], cwd=ROOT, env=env,
                        stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -428,6 +434,9 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
 
 
 def wait_for_job(job, poll_seconds, max_wait_hours=24):
+    if job.get('shards'):
+        from validation.patch_repair_loop.sharding import collect
+        return collect(job, poll_seconds, max_wait_hours)
     submission = Path(job["submission"])
     deadline = time.monotonic() + max_wait_hours * 3600
     while True:
@@ -439,11 +448,12 @@ def wait_for_job(job, poll_seconds, max_wait_hours=24):
             if summary.get("complete"):
                 return submission / "report"
         result = subprocess.run(["sacct", "-X", "-n", "-P", "-j", job["job_id"],
-                                 "--format", "JobIDRaw,State"], capture_output=True,
+                                 "--format", "JobID,State", "--noheader"], capture_output=True,
                                 text=True, check=True)
-        states = [line.split("|")[1] for line in result.stdout.splitlines()
+        states = [line.split("|")[1].split()[0].rstrip('+') for line in result.stdout.splitlines()
                   if line.split("|")[0] == job["job_id"]]
-        if states and states[0] in ("FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "COMPLETED"):
+        if states and states[0] in ("FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "COMPLETED",
+                                    "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "REVOKED"):
             if report.is_file() and json.loads(report.read_text()).get("complete"):
                 return submission / "report"
             raise RuntimeError(f"job {job['job_id']} ended {states[0]} without a complete report: {submission}")
@@ -452,6 +462,9 @@ def wait_for_job(job, poll_seconds, max_wait_hours=24):
 
 
 def wait_for_prebuild(job, poll_seconds, max_wait_hours=24):
+    if job.get('shards'):
+        from validation.patch_repair_loop.sharding import collect_prebuild
+        return collect_prebuild(job, poll_seconds, max_wait_hours)
     submission = Path(job['submission'])
     deadline = time.monotonic() + max_wait_hours * 3600
     while True:
@@ -464,10 +477,11 @@ def wait_for_prebuild(job, poll_seconds, max_wait_hours=24):
         if time.monotonic() > deadline:
             raise TimeoutError(f'prebuild job {job["job_id"]} exceeded {max_wait_hours}h')
         result = subprocess.run(['sacct', '-X', '-n', '-P', '-j', job['job_id'],
-                                 '--format', 'JobIDRaw,State'], capture_output=True, text=True, check=True)
-        states = [line.split('|')[1] for line in result.stdout.splitlines()
+                                 '--format', 'JobID,State'], capture_output=True, text=True, check=True)
+        states = [line.split('|')[1].split()[0].rstrip('+') for line in result.stdout.splitlines()
                   if line.split('|')[0] == job['job_id']]
-        if states and states[0] in ('FAILED', 'CANCELLED', 'TIMEOUT', 'OUT_OF_MEMORY', 'COMPLETED'):
+        if states and states[0] in ('FAILED', 'CANCELLED', 'TIMEOUT', 'OUT_OF_MEMORY', 'COMPLETED',
+                                    'NODE_FAIL', 'PREEMPTED', 'BOOT_FAIL', 'DEADLINE', 'REVOKED'):
             raise RuntimeError(f'prebuild job {job["job_id"]} ended {states[0]} without archived results')
         time.sleep(poll_seconds)
 
@@ -615,16 +629,25 @@ def evidence(directory, job=None, outcome=None, error=None):
                'slurm_logs': [str(p) for p in submission.glob('slurm-*.out')] if submission else [],
                'archive_note': 'Detailed execution logs and timing samples are in evidence.tar.gz. '
                                'Report paths may name expired node-local scratch; find matching archive members.'}
+    if job and job.get('shards'):
+        payload['shard_evidence'] = [
+            {'job': child, 'evidence_archive': str(Path(child['submission']) / 'evidence.tar.gz'),
+             'slurm_log': str(submission / f'slurm-{child["job_id"]}.out')}
+            for child in job['shards']]
     save(directory / 'evidence.json', payload)
     return payload
+
+
+def config_digest(raw):
+    frozen_config = {key: value for key, value in raw.items()
+                     if not key.startswith(('publish', 'recovery_', 'supervisor_')) and key not in ('max_repairs', 'max_infra_retries', 'max_recoveries', 'max_supervisor_reviews')}
+    return hashlib.sha256(json.dumps(frozen_config, sort_keys=True).encode()).hexdigest()
 
 
 def drive(config, config_path, state_path, resume=False):
     loop_settings(config)
     work = Path(config['work_root'])
-    frozen_config = {key: value for key, value in json.loads(Path(config_path).read_text()).items()
-                     if not key.startswith(('publish', 'recovery_', 'supervisor_')) and key not in ('max_repairs', 'max_infra_retries', 'max_recoveries', 'max_supervisor_reviews')}
-    digest = hashlib.sha256(json.dumps(frozen_config, sort_keys=True).encode()).hexdigest()
+    digest = config_digest(json.loads(Path(config_path).read_text()))
     state = json.loads(state_path.read_text()) if state_path.exists() else {
         'version': VERSION, 'config_sha256': digest, 'dataset': config['dataset'],
         'status': 'running', 'phase': 'proposer', 'generation': 0, 'pilot': 0,
@@ -634,6 +657,9 @@ def drive(config, config_path, state_path, resume=False):
         raise ValueError('Legacy loop state: use a new work_root for the stage-3-first workflow')
     if state['config_sha256'] != digest:
         raise ValueError('Configuration changed; use a new work_root')
+    from validation.patch_repair_loop.resources import effective
+    config = effective(config, state)
+    loop_settings(config)
     if resume:
         if state['status'] != 'blocked':
             raise ValueError('resume requires a blocked controller')

@@ -673,7 +673,7 @@ def test_holoviews_also_restores_full_history_for_its_setuptools_scm_version():
 @pytest.mark.parametrize('task, limit, label, evidence', [
     ('dask__dask-4050', 8192, 'task-memory-8gib', '7.17 GiB'),
     ('dask__dask-4181', 8192, 'task-memory-8gib', '6.65 GiB'),
-    ('tobymao__sqlglot-1889', 10240, 'task-memory-10gib', '7.82 GiB'),
+    ('tobymao__sqlglot-1889', 16384, 'task-memory-16gib', '7.82 GiB'),
     ('microsoft__electionguard-python-381', 8192, 'task-memory-8gib', 'four of five'),
 ])
 def test_measured_memory_limits_cite_their_probe(task, limit, label, evidence):
@@ -714,7 +714,7 @@ def test_zarr_restores_the_preceding_release_tag_and_gets_a_measured_memory_limi
     assert 'git fetch --depth 2147483647 origin ' + row['base_commit'] in setup
     assert 'git merge-base --is-ancestor ' + history['tag_commit'] + ' HEAD' in setup
     assert 'git tag -f v3.0.2 ' + history['tag_commit'] in setup
-    assert b'memory_mb = 10240' in result['task.toml']
+    assert b'memory_mb = 16384' in result['task.toml']
     assert '8.11 GiB' in TASK_RESOURCE_FIXES[row['instance_id']]['reason']
     assert result['solution/gold.patch'] == files['solution/gold.patch']
 
@@ -806,3 +806,10 @@ def test_xdist_auto_workers_are_bounded_even_with_marker_options(task, command):
     assert ' pytest -n 2 ' + command.split('pytest ', 1)[1] in result['tests/eval.sh'].decode()
     assert b'OMP_NUM_THREADS=1' in result['tests/test.sh']
     assert '384-CPU host' in environment_repairs()[task]['reason']
+
+
+def test_every_memory_fix_uses_a_size_the_static_resource_check_allows():
+    from data.swelego.patch import TASK_RESOURCE_FIXES
+    allowed = {1024, 2048, 4096, 8192, 16384, 32768}      # upstream check-resource-sizes.sh
+    sizes = {task: fix['memory_mb'] for task, fix in TASK_RESOURCE_FIXES.items() if 'memory_mb' in fix}
+    assert sizes and not {task: size for task, size in sizes.items() if size not in allowed}
