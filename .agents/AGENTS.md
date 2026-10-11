@@ -19,6 +19,7 @@ the displayed text.
 | Validation stages and checks | `validation/PROTOCOL.md` |
 | Runtime, staging, bridge behavior | `validation/docs/runtime.md` |
 | Cluster launchers | `hpc/README.md`, `hpc/zih/README.md` |
+| SSH access to CLAIX, LRZ and ZIH; agent and Mac VPN tunnel | [Cluster access](cluster-access.md) |
 | Patch outputs and publication | `data/INVENTORY.md#reporting-patches-in-the-datasource-pr` |
 | Helma mounts and quotas | `config/clusters.py`, `hpc/README.md#storage-locations` |
 | Helma performance measurements | [Helma measurements](#helma-measurements) below |
