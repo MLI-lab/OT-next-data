@@ -9,9 +9,12 @@ report per stage as a single job would have, so the publisher sees one run.
 import argparse
 import collections
 import json
+import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -53,14 +56,41 @@ def snapshot_matches(contract_path, code_root):
                           env={**__import__('os').environ, 'PYTHONPATH': str(code_root)}).returncode == 0
 
 
-def plan(contract_path, count, out, *, time, cpus, memory, partition, array_concurrency, submit, exclusive=False):
+def plan(contract_path, count, out, *, time, cpus, memory, partition, array_concurrency, submit, exclusive=False, cluster=None):
     from validation.contract import read, task_records
-    from hpc.validation_submit import snapshot_code
+    from hpc.validation_submit import snapshot_code, choose_allocation, selected_cluster
+    from config.models import placement, resolve
     from validation.stages.runner import save
     contract = read(contract_path)
     total = len(task_records(contract))
     if count < 1 or count > total:
         raise ValueError(f'shard count must be between 1 and the {total} frozen tasks')
+    if array_concurrency < 1 or cpus < 1:
+        raise ValueError('array concurrency and CPU count must be positive')
+    arguments = contract['arguments']
+    site = cluster or arguments.get('submit')
+    if site not in ('helma', 'zih'):
+        site = os.environ.get('OT_CLUSTER', 'helma')
+    allocation_args = SimpleNamespace(submit=site, partition=partition,
+                                     serve_model=arguments.get('serve_model'), gpus=arguments.get('gpus'))
+    config = selected_cluster(allocation_args)
+    allocation = choose_allocation(allocation_args)
+    partition, gpus = allocation['partition'], allocation['gpus']
+    if allocation_args.serve_model:
+        replicas = arguments.get('serve_replicas', 1)
+        serving = placement(resolve(allocation_args.serve_model)[1], gpus_per_node=config.gpus_per_node, replicas=replicas)
+        if serving['nodes'] != 1:
+            raise ValueError('shard arrays currently require a model that fits on one node')
+        gpus = max(gpus, serving['gpus'])
+        if arguments.get('serve_cpus', 4) * replicas >= cpus:
+            raise ValueError('allocation must leave CPUs for trials besides the model server')
+    if gpus:
+        if gpus > config.gpus_per_node or (config.max_cpus_per_gpu and cpus > gpus * config.max_cpus_per_gpu):
+            raise ValueError(f'{config.name} GPU/CPU request exceeds the limits in config/clusters.py')
+        if config.name == 'helma' and memory:
+            raise ValueError('Helma GPU jobs assign memory by GPU count; omit --memory')
+    else:
+        cpus = -(-cpus // config.cpu_allocation_step) * config.cpu_allocation_step
     out = Path(out).resolve()
     if (out / 'shards').exists():
         raise ValueError(f'{out / "shards"} exists; use a new directory')
@@ -73,19 +103,24 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
         folder.mkdir(parents=True)
         payload = dict(contract['arguments'])
         payload.update(contract=str(Path(contract_path).resolve()), prepare_contract=None, submit='never',
-                       out=str(folder), shard=f'{index}/{count}', partition=partition, gpus=0, cpus=cpus,
+                       out=str(folder), shard=f'{index}/{count}', partition=partition, gpus=gpus, cpus=cpus,
                        time=time, memory=memory)
         save(folder / 'request.json', {'args': payload, 'stages': contract['stages']})
     script = out / 'array.sbatch'
     script.write_text('#!/bin/bash\n#SBATCH --job-name=validation-shards\nset -euo pipefail\n'
                       'shard=$(printf \'%04d\' "${SLURM_ARRAY_TASK_ID:?}")\n'
-                      f'exec bash "{code_root}/hpc/helma/validation.sbatch" "{out}/shards/$shard/request.json"\n')
+                      f'exec bash {shlex.quote(str(code_root / "hpc" / config.name / "validation.sbatch"))} '
+                      f'{shlex.quote(str(out / "shards"))}/"$shard"/request.json\n')
     command = ['sbatch', '--parsable', f'--partition={partition}', '--nodes=1', '--ntasks=1', f'--cpus-per-task={cpus}',
-               *(['--exclusive'] if exclusive else []), f'--mem={memory}', f'--time={time}',
+               *(['--exclusive'] if exclusive else []), *([f'--mem={memory}'] if memory else []), f'--time={time}',
+               *([f'--account={config.account}'] if config.account else []),
+               *(['--gres=' + config.gpu_gres.format(partition=partition, n=gpus)] if gpus else []),
+               '--signal=B:USR1@120', f'--output={out}/slurm-%A_%a.out',
                f'--array=0-{count - 1}%{array_concurrency}',
-               f'--export=ALL,VALIDATION_REPO={code_root}', str(script)]
+               f'--export=ALL,VALIDATION_REPO={code_root},OT_CLUSTER={config.name}', str(script)]
     save(out / 'plan.json', {'contract': str(Path(contract_path).resolve()), 'contract_sha256': contract['sha256'], 'count': count,
-                             'stages': contract['stages'], 'tasks': total, 'command': command})
+                             'stages': contract['stages'], 'tasks': total, 'command': command,
+                             'allocation': {'cluster': config.name, 'partition': partition, 'gpus': gpus, 'cpus': cpus}})
     if submit:
         job = subprocess.check_output(command, text=True).strip()
         (out / 'array-job-id.txt').write_text(job + '\n')
@@ -207,7 +242,8 @@ def main(argv=None):
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--time', required=True, help='Slurm time limit per shard, HH:MM:SS')
     p.add_argument('--cpus', type=int, default=48)
-    p.add_argument('--memory', default='128G')
+    p.add_argument('--memory', default='128G', help='Slurm memory; use an empty value for automatic GPU memory')
+    p.add_argument('--cluster', choices=['helma', 'zih'], help='default: contract submission site or OT_CLUSTER')
     p.add_argument('--partition', default='cpu')
     p.add_argument('--array-concurrency', type=int, default=16)
     p.add_argument('--exclusive', action='store_true', help='one whole node per shard')
@@ -219,7 +255,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.mode == 'plan':
         job = plan(a.contract, a.count, a.out, time=a.time, cpus=a.cpus, memory=a.memory, partition=a.partition,
-                   array_concurrency=a.array_concurrency, submit=a.submit, exclusive=a.exclusive)
+                   array_concurrency=a.array_concurrency, submit=a.submit, exclusive=a.exclusive, cluster=a.cluster)
         print(json.dumps({'planned': a.count, 'out': str(a.out), 'job': job}))
     else:
         print(json.dumps(merge(a.contract, a.root, a.out), indent=1))

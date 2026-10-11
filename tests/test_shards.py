@@ -20,6 +20,49 @@ def fake_contract(monkeypatch, stages=(4, 5)):
     return contract
 
 
+@pytest.mark.parametrize('site,partition,model,expected_gpus', [
+    ('helma', 'cpu', None, 0),
+    ('zih', 'barnard', None, 0),
+    ('zih', 'capella', 'qwen3-30b-instruct-2507', 1),
+])
+def test_array_plan_uses_site_resources_and_keeps_task_slices(tmp_path, monkeypatch, site, partition, model, expected_gpus):
+    from hpc import validation_submit
+    contract = fake_contract(monkeypatch, stages=(6, 7) if model else (4, 5))
+    contract['arguments'].update(submit=site, serve_model=model, gpus=None, serve_cpus=4)
+    def snapshot(folder):
+        target = folder / 'code'
+        target.mkdir()
+        return target
+    monkeypatch.setattr(validation_submit, 'snapshot_code', snapshot)
+    monkeypatch.setattr(shards, 'snapshot_matches', lambda *args: True)
+    out = tmp_path / 'run with spaces'
+    shards.plan(tmp_path / 'contract.json', 3, out, time='01:00:00', cpus=12, memory='128G',
+                partition=partition, array_concurrency=2, submit=False)
+    plan = json.loads((out / 'plan.json').read_text())
+    command = plan['command']
+    assert plan['allocation']['cluster'] == site
+    assert plan['allocation']['gpus'] == expected_gpus
+    assert f'--partition={partition}' in command and '--array=0-2%2' in command
+    assert f'OT_CLUSTER={site}' in next(c for c in command if c.startswith('--export='))
+    assert f'hpc/{site}/validation.sbatch' in (out / 'array.sbatch').read_text()
+    if site == 'zih':
+        assert '--account=p_agents_finetuning' in command
+    assert ('--gres=gpu:1' in command) == bool(expected_gpus)
+    requests = [json.loads(p.read_text()) for p in sorted(out.glob('shards/*/request.json'))]
+    assert [r['args']['shard'] for r in requests] == ['0/3', '1/3', '2/3']
+    assert all(r['args']['gpus'] == expected_gpus and r['args']['serve_model'] == model for r in requests)
+    assert all(r['args']['cpus'] == (48 if site == 'helma' else 12) for r in requests)
+
+
+def test_gpu_array_rejects_cpu_partition_before_writing(tmp_path, monkeypatch):
+    contract = fake_contract(monkeypatch)
+    contract['arguments'].update(submit='zih', serve_model='qwen3-30b-thinking', gpus=None)
+    with pytest.raises(ValueError, match='CPU partition cannot serve'):
+        shards.plan('contract.json', 3, tmp_path / 'run', time='01:00:00', cpus=12, memory='128G',
+                    partition='barnard', array_concurrency=2, submit=False)
+    assert not (tmp_path / 'run').exists()
+
+
 def report_for(stage, shard, count, status='passed', complete=True, retries=None, contract_sha='c' * 64):
     tasks = shards.slice_of(TASKS, (shard, count), key=lambda t: t)
     report = {'stage': stage, 'name': 'x', 'backend': 'apptainer', 'dry_run': False, 'complete': complete,
