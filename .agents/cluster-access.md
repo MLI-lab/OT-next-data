@@ -182,3 +182,24 @@ a 1200-second agent limit. Sampling and task limits remain unchanged.
 These pilots were pending when this note was written. Inspect their evidence
 before adopting the settings; the full arrays still use concurrency one.
 Do not silently edit frozen contracts or submit overlapping replacement shards.
+
+An automatic continuation was started directly on `c1.capella` on 2026-10-12
+at 12:18 UTC, PID `2959059`. Its code, log, lock and status live in
+`acceleration-controller/` inside the same ZIH run directory. It polls each
+pilot every 60 seconds for up to 72 hours, independently of the Mac tunnel.
+Read `status.json` and `process.json` before restarting anything. The gate
+requires exact attempt coverage, real verifier rewards, nonempty saved tool
+trajectories, no infrastructure errors, execution concurrency three, and at
+least 1.05 times the previous pilot's per-attempt throughput. Active agent
+timeouts with verifier zero remain recorded benchmark outcomes.
+
+Prepared replacement contracts and arrays live under `full-c3/<model>/`.
+After a pilot passes, the controller cancels only pending original array
+elements using Slurm's state filter, then checks accounting to exclude any
+element that started during the transition. It submits only verified
+never-started cancelled indices. Running and finished original shards retain
+ownership of their task slices. Per-model `*-coverage.json` records both
+disjoint execution groups and their immutable contracts. The existing
+single-contract merge command cannot merge these groups directly; preserve
+their provenance when collecting results. Ambiguous submissions or failed
+gates stop that model's transition and are recorded as blocked.
