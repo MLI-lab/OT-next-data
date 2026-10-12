@@ -156,8 +156,8 @@ The full Scale SWE pass@8 arrays were then submitted on Capella:
 
 - Instruct: `4407591`.
 - Thinking: `4407592`.
-- Each model: 16,786 tasks, eight attempts per task, 1,400 shards, at most eight
-  active shards, one H100 per shard, 12 CPUs and 128 GiB requested per shard.
+- Each model: 16,786 tasks, eight attempts per task, 1,400 shards, initially at
+  most eight active shards, one H100 per shard, 12 CPUs and 128 GiB per shard.
 - Code snapshot: `d08ecfe`; exact reproduction Parquet preserved.
 - Evidence of pilot inspection: `pilot-gate.json` in the ZIH run directory.
 - Array records: `full/<model>/array/gated-submission.json` in that directory.
@@ -165,3 +165,20 @@ The full Scale SWE pass@8 arrays were then submitted on Capella:
 The old 12-hour controller expired during the outage. Full submission was
 performed after reconnecting and checking the evidence, not by an active
 overnight watcher. Do not restart a controller or submit duplicate arrays.
+
+The user's three-day target prompted live array throttle increases on
+2026-10-12: Instruct `4407591` now permits 64 active shards and thinking
+`4407592` permits 220. The combined cap matches the observed normal QoS
+per-user limit of 284 GPUs. This does not reserve those GPUs or guarantee the
+deadline. Original submission plans retain their historical settings.
+Current adjustments are recorded in `deadline-acceleration.json` in the run.
+
+Separate throughput pilots were submitted as `4407635` (Instruct) and
+`4407630` (thinking), under `throughput-pilot-instruct-c3` and
+`throughput-pilot-thinking-c3`. Each tests three simultaneous attempts on one
+GPU, with 14 CPUs, two serving CPUs, two tasks and two attempts per task.
+All 16,786 task payloads were checked: each requests four CPUs, 4096 MiB and
+a 1200-second agent limit. Sampling and task limits remain unchanged.
+These pilots were pending when this note was written. Inspect their evidence
+before adopting the settings; the full arrays still use concurrency one.
+Do not silently edit frozen contracts or submit overlapping replacement shards.
