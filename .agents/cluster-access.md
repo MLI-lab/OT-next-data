@@ -250,3 +250,53 @@ That configuration uses `ProxyJump tum` and connection multiplexing. No cause
 for the direct-route failures was established. Do not stop the shared SSH
 master used by other repair sessions. CLAIX jobs and its download/controller
 processes continue independently of the Helma connection.
+
+The first CLAIX generation pilot `4948096` failed before task execution:
+FlashInfer's CUDA JIT inherited `CC=icx`, which nvcc rejected as an unsupported
+Intel compiler. Its evidence is preserved under `pilot/submission/`.
+The controller now explicitly exports `CC=/usr/bin/gcc`, `CXX=/usr/bin/g++`
+and `CUDAHOSTCXX=/usr/bin/g++`; loading CUDA/13.1.0 was verified to preserve
+these settings. Retry `4948206` uses the same frozen task/model contract and
+writes to `pilot/submission-gcc/`. Its submission record is
+`pilot-job-gcc.json`; compiler settings are recorded in `compiler-retry.json`.
+The restarted controller PID is `477006`, with log `watch-gcc.log`.
+Read its status before concluding that the generation pilot passed; the
+earlier CUDA tensor preflight did not exercise model-server JIT compilation.
+
+### SWE-Lego approved CLAIX/ZIH split (2026-10-12)
+
+This supersedes the unsplit 360-shard CLAIX plan above. Pilot `4948206`
+started the model with GCC successfully, but `PSLmodels__microdf-219` failed
+setup because RWTH intentionally blocks `repo.anaconda.com` for licensing.
+The user approved retaining the exact task payloads and running the 138
+explicitly affected tasks on ZIH, with the remaining 4,139 on CLAIX.
+The old unsplit controller PID `477006` was stopped; its full array was never
+submitted. Its running pilot and evidence were preserved.
+
+The new run directory on each site is `runs/swelego-split-20261012` under
+its existing OT workspace. Each has `split-manifest.json`, recording all
+original task payload hashes, disjoint task lists and source Parquet SHA256.
+Local audit artifacts are at
+`/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke/swelego-split-20261012`.
+All 4,277 tasks remain in scope, Instruct only, eight attempts each.
+
+- CLAIX: 4,139 tasks, 345 shards, array cap 32, five simultaneous attempts,
+  24 CPUs and 120 GiB per H100. Fresh five-task pilot `4948657` started.
+- ZIH Capella: 138 tasks, 24 shards, array cap 16, one attempt at a time,
+  12 CPUs and 128 GiB per GPU. Its eight-task pilot covers all eight cached
+  environments required by this subset, including the failed microdf task.
+  `fetch-hf-images.py` downloads those eight original bundles directly from
+  the pinned HF revision, preserving sparse files and checking SHA256.
+
+Each site's `controller.py` runs detached and records `controller.pid`,
+`controller.log` and `status.json`. It requires successful pilot accounting,
+stage-6/7 coverage, real verifier rewards, nonempty tool trajectories, no
+infrastructure errors and cached image reuse before submitting its full
+array. Only active agent timeouts with verifier zero are allowed. Submission
+claims prevent duplicate submission after ambiguous errors. The ZIH pilot
+waits for its eight bundles; CLAIX full submission waits for the original
+101-bundle downloader. Read `pilot-job.json`, `pilot-gate.json` and
+`full-job.json` for actual submission and acceptance, not the prepared plans.
+The controllers do not send chat notifications. They stop on failures.
+Keep each group's contract provenance when combining final results; an
+ordinary single-contract merge cannot combine the two site contracts.
