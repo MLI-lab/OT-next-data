@@ -316,3 +316,33 @@ UTC localhost port 22231 refused connections, so no later ZIH status was
 verified. Its controller PID `3587227` runs on Capella and continues without
 the tunnel. Reconnect and read its status and submission records before
 claiming ZIH pilot success or full-array submission. Do not submit duplicates.
+
+### Alpha/Capella SWE-Lego pilot race (2026-10-12, 14:01 UTC)
+
+Alpha login recovered. Its A100 GPUs have 40 GiB each, so the same Instruct
+model is served with `OT_SERVE_GPUS=2`, `OT_GPUS_PER_NODE=8`, two allocated
+GPUs and 12 CPUs. Alpha enforces at most six CPU cores per requested GPU.
+Pilot `2366905` is submitted from Alpha using the same eight original tasks.
+Its records and separately frozen pilot/full contracts are under
+`runs/swelego-split-20261012/alpha` in the shared ZIH workspace. Capella pilot
+`4407852` remains submitted. Neither running pilot was cancelled.
+
+Both controllers now use a shared `full-race.lock` and
+`full-race-claim.json` in the parent split run. The first pilot that passes
+all acceptance checks claims the full 138-task collection and submits the
+24-shard array on its own cluster. The other controller exits without a
+second full submission. An ambiguous submission remains blocked. A local
+concurrency test verified that simultaneous successful gates produce exactly
+one full submission. Scripts are archived locally in `/tmp/swelego-alpha-race`
+and persist at the remote run paths. Capella's original controller was backed
+up as `controller.before-alpha-race.py` before replacement; current PIDs are
+recorded in each run's `controller.pid`.
+
+CLAIX array `4949476` had 11 running shards, no failed Slurm jobs and 55
+completed attempt log entries at about 14:00 UTC. No infrastructure-error
+lines were found in the array logs at that check. This is early evidence,
+not final acceptance. Initial throughput including startup was 22.5 attempts
+per allocated GPU-hour, implying about 46 hours for the 33,112 CLAIX attempts
+if 32 GPUs stay active, or about 134 hours if only 11 stay active. These are
+provisional extrapolations; no full shard had finished and queue growth,
+task variation and retries can materially change them.
