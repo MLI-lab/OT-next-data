@@ -203,3 +203,50 @@ disjoint execution groups and their immutable contracts. The existing
 single-contract merge command cannot merge these groups directly; preserve
 their provenance when collecting results. Ambiguous submissions or failed
 gates stop that model's transition and are recorded as blocked.
+
+## SWE-Lego migration to CLAIX, 2026-10-12
+
+The user requested cancelling the queued Helma run and moving it to CLAIX.
+Helma jobs `987455`, `987456`, `987457` (all 90 elements), and `987458` were
+confirmed cancelled before starting. The actual frozen source contains 4,277
+tasks, not the 1,800 in an earlier conversation table. Preserve its 34,216
+planned attempts with `qwen3-30b-instruct-2507`.
+
+CLAIX workspace: `/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-swelego`.
+Run directory: `runs/swelego-pass8-20261012` beneath that workspace.
+GPU preflight `4948018` completed successfully on `c23g`: H100 95,830 MiB,
+driver 580.178.04, CUDA module 13.1.0, PyTorch 2.13.0+cu130 CUDA execution,
+and Apptainer 1.5.4. Model weights were downloaded at revision
+`0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe` into the workspace's `models/`.
+Pilot `4948096` was submitted and observed running. The isolated code snapshot
+uses the CLAIX launcher with `gpu:hopper:1`; other repair work was not modified.
+
+All 101 required image environments were already published in
+[SWE-Lego PR 9](https://huggingface.co/datasets/FWeindel/validated-tasks/discussions/9).
+The downloader pins dataset revision `65cc78ebebb1201ab7bd4590cd359d55bc57a912`
+and manifest `images/manifests/2026-10-11-swelego-real-data-verified-d15f2a1ef8c8.json`.
+The 101 bundles cover all 4,277 tasks. They occupy about 230 GiB sparsely, but
+their logical file sizes total about 1.17 TiB. Download one file at a time,
+copy with sparse preservation, verify its manifest SHA256 and publish each
+complete bundle atomically. Do not materialize all dense overlays at once.
+The first pilot images were copied from Helma; the remaining Helma transfer
+was stopped after verifying the HF publication. CLAIX fetches the remaining
+images directly using `fetch-hf-images.py` (initial PID `274257`), with
+progress in `hf-image-status.json` and `hf-images.log`.
+
+The CLAIX controller is `controller.py` (initial PID `217101`) with
+`status.json`, `watch.log`, `pilot-job.json` and eventually `full-job.json`.
+It waits for the pilot, checks exact coverage, real verifier rewards, saved
+tool trajectories, absence of infrastructure errors and cached-image reuse,
+then waits for all image downloads before submitting the prepared full array.
+The full plan uses 360 shards, cap 32, five simultaneous attempts per GPU,
+24 CPUs, 120 GiB memory and a 24-hour limit per shard. It has not been submitted
+merely because the pilot started. Read the current records before acting.
+
+Direct SSH to `rwth` intermittently timed out during this work. The existing
+route through TUM worked:
+`ssh -F /home/hpc/y500bb/y500bb12/cluster-repair-20261012/ssh_config rwth`.
+That configuration uses `ProxyJump tum` and connection multiplexing. No cause
+for the direct-route failures was established. Do not stop the shared SSH
+master used by other repair sessions. CLAIX jobs and its download/controller
+processes continue independently of the Helma connection.
