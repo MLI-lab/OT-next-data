@@ -72,6 +72,9 @@ def test_confirmed_oom_returns_feedback_without_replaying_command(tmp_path, monk
 @pytest.mark.parametrize('error', [None, ConnectionResetError('local connection')])
 def test_no_recovery_without_oom_evidence(tmp_path, monkeypatch, error):
     obj, calls, recovered = controller(tmp_path, monkeypatch, oom=False, error=error)
+    clock = [0.0]
+    monkeypatch.setattr(p.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(p.time, 'sleep', lambda seconds: clock.__setitem__(0, clock[0] + seconds))
     payload = {'command': p.AGENT_TAG + 'nonce\nexit 137'}
     if error:
         with pytest.raises(ConnectionResetError):
@@ -79,6 +82,60 @@ def test_no_recovery_without_oom_evidence(tmp_path, monkeypatch, error):
     else:
         assert obj.exec(payload)['return_code'] == 7
     assert len(calls) == 1 and not recovered
+
+
+@pytest.mark.parametrize('evidence', ['counter', 'log'])
+def test_delayed_oom_evidence_prevents_terminal_protocol_error(tmp_path, monkeypatch, evidence):
+    obj, calls, recovered = controller(tmp_path, monkeypatch, oom=False)
+    monkeypatch.delattr(obj, '_oom')
+    events = tmp_path / 'memory.events'
+    events.write_text('oom_kill 0\n')
+    obj.info = {'memory_events': str(events)}
+    obj.oom_baseline = 0
+    log = ['']
+    obj.slot = SimpleNamespace(log_tail=lambda: log[0])
+    clock = [0.0]
+    monkeypatch.setattr(p.time, 'monotonic', lambda: clock[0])
+    def advance(seconds):
+        clock[0] += seconds
+        if clock[0] >= .3:
+            if evidence == 'counter':
+                events.write_text('oom_kill 1\n')
+            else:
+                events.unlink(missing_ok=True)
+                log[0] = 'Detected 1 oom_kill event in this step'
+    monkeypatch.setattr(p.time, 'sleep', advance)
+    result = obj.exec({'command': p.AGENT_TAG + 'nonce\nmutate-files', 'timeout_sec': 20})
+    assert result['stdout'].startswith(p.OOM_PREFIX + 'nonce\n')
+    assert len(calls) == len(recovered) == 1
+    assert .3 <= clock[0] < 2
+
+
+@pytest.mark.parametrize('version', [1, 2])
+def test_memory_counter_never_uses_parent_job_limit(tmp_path, monkeypatch, version):
+    monkeypatch.setenv('SLURM_STEP_ID', '3')
+    membership = tmp_path / 'membership'
+    root = tmp_path / 'cgroup'
+    group = '/slurm/job_7/step_3/task_0'
+    if version == 1:
+        membership.write_text('0::/system.slice/slurmd.service\n4:memory:' + group + '\n')
+        path = root / 'memory' / group.lstrip('/')
+        limit, events, unlimited = 'memory.limit_in_bytes', 'memory.oom_control', str((1 << 63) - 4096)
+    else:
+        membership.write_text('0::' + group + '\n')
+        path = root / group.lstrip('/')
+        limit, events, unlimited = 'memory.max', 'memory.events', 'max'
+    path.mkdir(parents=True)
+    (path / limit).write_text(unlimited)
+    (path / events).write_text('oom_kill 0\n')
+    (path.parent / limit).write_text('4294967296')
+    (path.parent / events).write_text('oom_kill 2\n')
+    assert p.memory_events_path(membership, root) == str(path.parent / events)
+    (path.parent / limit).write_text(unlimited)
+    (path.parent.parent / limit).write_text('128849018880')
+    (path.parent.parent / events).write_text('oom_kill 10\n')
+    with pytest.raises(RuntimeError, match='enforcing task-step'):
+        p.memory_events_path(membership, root)
 
 
 def test_setup_oom_is_not_replayed_or_converted_to_agent_feedback(tmp_path, monkeypatch):
@@ -124,6 +181,13 @@ def test_executor_preserves_binary_results_timeouts_and_background_processes(exe
     assert proc.poll() is None
     proc.terminate()
     assert proc.wait(5) != 0
+
+
+def test_interrupt_stops_real_executor_without_removing_control_files(executor):
+    executor.interrupt('test')
+    executor.process.wait(timeout=5)
+    assert executor.control.exists()
+    executor.interrupt('test')  # Safe when a concurrent exit has already won.
 
 
 def test_cgroup_counter_is_not_inferred_from_exit_code(tmp_path):
@@ -186,3 +250,37 @@ def test_recovery_subprocesses_share_remaining_budget(tmp_path, monkeypatch):
     with pytest.raises(TimeoutError, match='budget exhausted'):
         obj.remote_run(['apptainer', 'exec'], {'timeout': 120})
     assert len(calls) == 1
+
+
+def test_stop_interrupts_command_before_waiting_for_controller_lock(tmp_path, monkeypatch):
+    import threading
+    entered, interrupted, released = threading.Event(), threading.Event(), threading.Event()
+    calls = []
+    class Inner:
+        staging_dir = tmp_path / 'staging'
+        def exec(self, payload):
+            entered.set()
+            assert interrupted.wait(3), 'stop is blocked behind the running command'
+            released.set()
+            return {'return_code': 1, 'stdout': '', 'stderr': 'interrupted'}
+    Inner.staging_dir.mkdir()
+    obj = p.ProtectedInstance('test', '', '', 1000,
+        instance_factory=lambda *a: Inner(), step_prefix=lambda *a: [])
+    obj.slot = SimpleNamespace(interrupt=lambda tag: (calls.append(tag), interrupted.set()), alive=lambda: False)
+    monkeypatch.setattr(obj, '_oom', lambda: False)
+    def close():
+        assert released.is_set(), 'cannot clean files while command still owns the lock'
+        calls.append('close')
+    monkeypatch.setattr(obj, '_close_step', close)
+    command = threading.Thread(target=lambda: obj.exec({'command': 'blocked verifier'}))
+    command.start()
+    assert entered.wait(1)
+    try:
+        assert obj.stop({}) == {'stopped': True}
+    finally:
+        interrupted.set()
+        command.join(3)
+    assert not command.is_alive()
+    assert calls == ['test', 'close']
+    assert not Inner.staging_dir.exists()
+    assert obj.slot is None

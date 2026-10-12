@@ -114,6 +114,25 @@ class StepSlot:
             log.seek(max(0, log.tell() - 8192))
             return log.read().decode(errors='replace').strip()
 
+    def interrupt(self, tag='step'):
+        """Stop this executor even while another thread waits for its command.
+
+        Do not delete control files here; the owning controller does that after
+        the in-flight RPC releases its lock. Slurm reaps the step descendants.
+        """
+        if self.process is None or self.process.poll() is not None:
+            return
+        try:
+            if self.ready():
+                self.request(tag, 'close', {}, 2)
+        except Exception:
+            pass
+        if self.process.poll() is None:
+            try:
+                self.process.terminate()
+            except ProcessLookupError:
+                pass
+
     def close(self, tag='step'):
         """End the step and remove its control files; harmless when repeated."""
         if self.process is not None and self.process.poll() is None:

@@ -57,18 +57,29 @@ def unpack(value):
     return value
 
 
-def memory_events_path():
-    """Find the nearest enforcing cgroup, not a node-wide OOM counter."""
-    group = next(line.split('::', 1)[1].strip() for line in Path('/proc/self/cgroup').read_text().splitlines()
-                 if line.startswith('0::'))
-    path = Path('/sys/fs/cgroup') / group.lstrip('/')
+def memory_events_path(cgroup_file='/proc/self/cgroup', cgroup_root='/sys/fs/cgroup'):
+    """Find an enforcing task-step counter on both cgroup v1 and v2 clusters."""
+    groups = [line.split(':', 2) for line in Path(cgroup_file).read_text().splitlines()]
     step = 'step_' + os.environ.get('SLURM_STEP_ID', '')
-    while step in path.parts:
-        limit = path / 'memory.max'
-        if limit.exists() and limit.read_text().strip() != 'max':
-            return str(path / 'memory.events')
-        path = path.parent
-    raise RuntimeError('OOM recovery requires an enforcing cgroup v2 memory limit')
+    for _, controllers, group in groups:
+        if not controllers:
+            path = Path(cgroup_root) / group.lstrip('/')
+            limit_name, events_name = 'memory.max', 'memory.events'
+        elif 'memory' in controllers.split(','):
+            path = Path(cgroup_root) / 'memory' / group.lstrip('/')
+            limit_name, events_name = 'memory.limit_in_bytes', 'memory.oom_control'
+        else:
+            continue
+        while step in path.parts:
+            limit, events = path / limit_name, path / events_name
+            if limit.exists() and events.exists():
+                value = limit.read_text().strip()
+                # v1 expresses unlimited as page-aligned LONG_MAX. Never climb
+                # into the job cgroup: another trial's OOM is not ours.
+                if value.isdigit() and 0 < int(value) < (1 << 60) and oom_count(events) is not None:
+                    return str(events)
+            path = path.parent
+    raise RuntimeError('OOM recovery requires an enforcing task-step cgroup memory limit')
 
 
 def oom_count(path):
@@ -227,6 +238,22 @@ class ProtectedInstance:
         # This log belongs exclusively to this environment's executor generation.
         return 'oom_kill event' in self.slot.log_tail()
 
+    def _confirmed_exec_oom(self, result, error):
+        if self._oom():
+            return True
+        if error is None and result.get('return_code', 0) == 0:
+            return False
+        # A failing exec can return before Slurm publishes the OOM counter/log.
+        # Allow a bounded reporting delay before Harbor classifies the response
+        # as a terminal protocol error. No command is re-executed, and an exit
+        # code or "Cannot allocate memory" string alone is never OOM evidence.
+        deadline = time.monotonic() + 2.0
+        while not self.stopping.is_set() and time.monotonic() < deadline:
+            time.sleep(.1)
+            if self._oom():
+                return True
+        return False
+
     def _close_step(self):
         # Ownership was observed by the in-step helper while daemons were live.
         # The protected controller can still reclaim those exact resources if
@@ -292,7 +319,7 @@ class ProtectedInstance:
                 result = self.inner.exec(payload)
             except Exception as exc:
                 error = exc
-            if self._oom():
+            if self._confirmed_exec_oom(result, error):
                 # Only marked terminal interactions may recover. Setup/verifier
                 # OOMs fail their own phase and cannot silently rerun that work.
                 token = next((line[len(AGENT_TAG):] for line in payload.get('command', '').splitlines()
@@ -321,7 +348,19 @@ class ProtectedInstance:
 
     def stop(self, payload):
         self.stopping.set()
-        with self.lock:
+        # exec/upload/download hold this lock while waiting on their RPC. A
+        # cancelled client does not cancel that remote command. Interrupt its
+        # executor before waiting for the lock, or cleanup can wait for days
+        # while the abandoned step keeps CPUs and memory reserved.
+        acquired = self.lock.acquire(timeout=.1)
+        if not acquired:
+            slot = self.slot
+            if slot is not None:
+                slot.interrupt(self.env_id)
+            acquired = self.lock.acquire(timeout=10)
+        if not acquired:
+            raise RuntimeError('Task executor was interrupted but its controller did not release the lock within 10s')
+        try:
             try:
                 if self.slot and self.slot.alive():
                     with active(self):
@@ -337,6 +376,8 @@ class ProtectedInstance:
                 staging = getattr(self.inner, 'staging_dir', None)
                 if staging and Path(staging).exists():
                     shutil.rmtree(staging)
+        finally:
+            self.lock.release()
 
 
 def serve_executor(control_dir):
