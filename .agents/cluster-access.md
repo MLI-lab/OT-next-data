@@ -300,3 +300,19 @@ waits for its eight bundles; CLAIX full submission waits for the original
 The controllers do not send chat notifications. They stop on failures.
 Keep each group's contract provenance when combining final results; an
 ordinary single-contract merge cannot combine the two site contracts.
+
+At 2026-10-12 13:38 UTC, CLAIX split pilot `4948657` passed its gate:
+all five tasks had real verifier rewards and saved tool trajectories, with
+no infrastructure findings. NetworkX and Firefly received reward 1; the
+other three received 0. Dataspec reached its agent time limit with a saved
+active trajectory and real verifier zero, as permitted by the gate.
+All 101 HF image bundles finished downloading. The controller submitted
+CLAIX full array `4949476`, indices 0-344, cap 32, covering 4,139 tasks.
+
+ZIH downloaded all eight required image bundles and submitted pilot
+`4407852` at 13:15 UTC. Last verified scheduler state was PENDING (Priority),
+with no start estimate. The Mac tunnel subsequently timed out and by 13:38
+UTC localhost port 22231 refused connections, so no later ZIH status was
+verified. Its controller PID `3587227` runs on Capella and continues without
+the tunnel. Reconnect and read its status and submission records before
+claiming ZIH pilot success or full-array submission. Do not submit duplicates.
