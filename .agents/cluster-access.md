@@ -131,7 +131,9 @@ it is a temporary process, not a permanent service. `remote_gate.py` checks
 both pilots and submits their prepared full arrays only after successful Slurm
 completion, passing stages 3 through 7, exact task/attempt coverage, oracle 1,
 NOP 0, real verifier rewards, nonempty agent/tool trajectories and no recorded
-infrastructure errors or task timeouts. An agent reward of zero is allowed.
+infrastructure errors. Initially task timeouts also blocked automatic submission;
+a specific timeout may be accepted only after inspecting its saved evidence.
+An agent reward of zero is allowed.
 
 The run-specific controller records `pilot-gate.json` on ZIH and an exclusive
 `gated-submission.json` per full array before calling Slurm. A submission marked
@@ -140,3 +142,26 @@ Slurm, not blind resubmission. Failed pilots stop the gate for investigation.
 At controller startup, Instruct pilot `4406612` was running, the thinking model
 was still downloading, and the Mac tunnel was timing out. These are historical
 observations; read current records rather than assuming completion.
+
+After the user restored the tunnel on 2026-10-12, both model downloads and both
+pilots were confirmed complete. Pilots `4406612` (Instruct) and `4406624`
+(thinking) passed task builds, oracle 1 and NOP 0 on both selected tasks, with
+saved generation trajectories and no model-server, environment or verifier
+infrastructure errors. The thinking model's `beetbox_beets_pr3814` attempt hit
+its unchanged 1200-second task limit after active editing and received verifier
+reward zero. Inspection confirmed an unsolved benchmark attempt; its timeout,
+edits and reward are preserved. The gate records that specific reviewed case.
+
+The full Scale SWE pass@8 arrays were then submitted on Capella:
+
+- Instruct: `4407591`.
+- Thinking: `4407592`.
+- Each model: 16,786 tasks, eight attempts per task, 1,400 shards, at most eight
+  active shards, one H100 per shard, 12 CPUs and 128 GiB requested per shard.
+- Code snapshot: `d08ecfe`; exact reproduction Parquet preserved.
+- Evidence of pilot inspection: `pilot-gate.json` in the ZIH run directory.
+- Array records: `full/<model>/array/gated-submission.json` in that directory.
+
+The old 12-hour controller expired during the outage. Full submission was
+performed after reconnecting and checking the evidence, not by an active
+overnight watcher. Do not restart a controller or submit duplicate arrays.
