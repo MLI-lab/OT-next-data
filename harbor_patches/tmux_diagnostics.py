@@ -27,7 +27,8 @@ def install():
     async def send_keys_and_capture(self, keystroke_batches):
         try:
             return await original(self, keystroke_batches)
-        except (module.TmuxSessionEndedError, module.TmuxCommandError) as exc:
+        except (module.TmuxSessionEndedError, module.TmuxCommandError,
+                module.TmuxBatchProtocolError) as exc:
             report = {'session': self._session_name,
                       'exception_type': type(exc).__name__, 'error': str(exc),
                       'keystrokes': [{'keys': b.keystrokes, 'duration_sec': b.duration_sec} for b in keystroke_batches]}

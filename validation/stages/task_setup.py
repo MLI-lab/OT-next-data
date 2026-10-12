@@ -2,6 +2,7 @@
 import re
 import json
 import time
+import shlex
 from pathlib import Path, PurePosixPath
 
 
@@ -86,13 +87,38 @@ async def prepare(environment, *, command, timeout_sec, force_build, upload, log
 
 DAMAGED = 'Container environment damaged (Python standard library not importable after the failed setup)'
 
+PIP_DIAGNOSTICS = '''
+import importlib, sys
+from pathlib import Path
+print("executable:", sys.executable)
+print("sys.path:", repr(sys.path))
+for name in ("pip", "pip._vendor.requests.sessions", "pip._vendor.packaging.markers"):
+    try:
+        module = importlib.import_module(name)
+        print(name, "import ok:", module.__file__)
+    except Exception as exc:
+        print(name, type(exc).__name__, str(exc)[:300])
+root = Path(sys.prefix) / "lib" / ("python%d.%d" % sys.version_info[:2]) / "site-packages"
+for name in ("pip/__init__.py", "pip/_vendor/requests/sessions.py", "pip/_vendor/packaging/markers.py"):
+    path = root / name
+    try:
+        st = path.stat()
+        print(str(path), "mode", oct(st.st_mode), "bytes", st.st_size)
+        with path.open("rb") as stream:
+            print("readable bytes:", len(stream.read(128)))
+    except OSError as exc:
+        print(str(path), type(exc).__name__, str(exc)[:300])
+'''
+
 SETUP_DIAGNOSTICS = (
     'echo "== mounts"; grep -E " / | /opt| /testbed|overlay|fuse" /proc/mounts | cut -c1-300; '
     'echo "== space"; df -h / /tmp 2>&1 | tail -n +2; df -i / 2>&1 | tail -1; '
     'echo "== python"; for p in /opt/conda/envs/testbed/bin/python /opt/conda/bin/python; do '
     '[ -x "$p" ] && { "$p" -c "import sys, keyword, collections, encodings.utf_8; print(sys.version.split()[0], \'stdlib ok\')" 2>&1 | tail -2; '
     'd=$(dirname "$(dirname "$p")")/lib; ls "$d" | head -3; ls "$d"/python3*/ 2>/dev/null | wc -l; }; done; '
-    'echo "== processes"; ps -e -o comm= 2>/dev/null | sort | uniq -c | sort -rn | head -8')
+    'echo "== processes"; ps -e -o comm= 2>/dev/null | sort | uniq -c | sort -rn | head -8; '
+    'echo "== pip"; p=/opt/conda/envs/testbed/bin/python; '
+    f'[ ! -x "$p" ] || "$p" -c {shlex.quote(PIP_DIAGNOSTICS)} 2>&1')
 
 
 async def setup_diagnostics(environment):
@@ -104,7 +130,7 @@ async def setup_diagnostics(environment):
     """
     try:
         result = await environment.exec(SETUP_DIAGNOSTICS, timeout_sec=60, user='root')
-        return ((result.stdout or '') + (result.stderr or ''))[-4000:]
+        return ((result.stdout or '') + (result.stderr or ''))[-8000:]
     except Exception as exc:
         return f'diagnostics unavailable: {type(exc).__name__}: {exc}'
 

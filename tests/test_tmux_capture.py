@@ -25,7 +25,8 @@ def bridge(tmp_path, monkeypatch):
     full, visible, sent = [tmp_path / name for name in ('full', 'visible', 'sent')]
     full.write_text('history\nrecent\n')
     visible.write_text('recent\n')
-    state = {'capture_rc': 0, 'absent': False, 'calls': 0}
+    state = {'capture_rc': 0, 'absent': False, 'calls': 0, 'end_after_send': False,
+             'send_rc': 0}
 
     def execute(cmd, **kwargs):
         state['calls'] += 1
@@ -35,10 +36,14 @@ def bridge(tmp_path, monkeypatch):
 tmux() {{
   case "$1" in
     has-session)
-      if {'true' if state['absent'] else 'false'}; then
+      if {'true' if state['absent'] else 'false'} || [ "$session_ended" = yes ]; then
         echo "can't find session: test"; return 1
       fi;;
-    send-keys) printf '%s\\n' "$*" >> {shlex.quote(str(sent))};;
+    send-keys)
+      if [ "$session_ended" = yes ]; then return 1; fi
+      if [ {state['send_rc']} -ne 0 ]; then return {state['send_rc']}; fi
+      printf '%s\\n' "$*" >> {shlex.quote(str(sent))}
+      if {'true' if state['end_after_send'] else 'false'}; then session_ended=yes; fi;;
     capture-pane)
       if [ {state['capture_rc']} -ne 0 ]; then return {state['capture_rc']}; fi
       case " $* " in
@@ -125,4 +130,30 @@ def test_real_terminal_failures_are_preserved(bridge, absent, capture_rc, error)
     state.update(absent=absent, capture_rc=capture_rc)
     with pytest.raises(getattr(tmux, error)):
         asyncio.run(tmux.TmuxSession('test', env).send_keys_and_capture([]))
+    assert state['calls'] == 1
+
+
+@pytest.mark.parametrize('trailing_command', [False, True])
+def test_shell_ending_during_batch_stops_without_replaying(bridge, trailing_command):
+    tmux, worker, _, env, state, _, _, sent = bridge
+    patch.install()
+    patch.install_worker(worker)
+    state['end_after_send'] = True
+    batches = [tmux.TmuxKeystrokeBatch('exit\n', 0)]
+    if trailing_command:
+        batches.append(tmux.TmuxKeystrokeBatch('echo must-not-run\n', 0))
+    _, alive = asyncio.run(tmux.TmuxSession('test', env).send_keys_and_capture(batches))
+    assert not alive
+    assert state['calls'] == 1
+    assert 'must-not-run' not in sent.read_text()
+
+
+def test_failed_send_with_live_session_remains_error(bridge):
+    tmux, worker, _, env, state, *_ = bridge
+    patch.install()
+    patch.install_worker(worker)
+    state['send_rc'] = 7
+    with pytest.raises(tmux.TmuxCommandError):
+        asyncio.run(tmux.TmuxSession('test', env).send_keys_and_capture(
+            [tmux.TmuxKeystrokeBatch('echo once\n', 0)]))
     assert state['calls'] == 1
