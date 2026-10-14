@@ -1,7 +1,7 @@
 import importlib.util
 from pathlib import Path
 
-PATH = Path(__file__).resolve().parents[1] / 'validation/rubrics/labeled-tasks/compare_reviews.py'
+PATH = Path(__file__).resolve().parents[1] / 'validation/rubrics/labeled_examples/tb_human_labeled/scripts/compare_reviews.py'
 spec = importlib.util.spec_from_file_location('compare_reviews', PATH)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)

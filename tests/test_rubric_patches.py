@@ -22,7 +22,7 @@ from validation.upstream import checkout
     ({'task_count': 0, 'solution_count': 0, 'complete': True}, False),
 ])
 def test_effective_rubric_changes_only_authorized_criteria(references, skip):
-    source = ROOT / 'upstream/task-implementation.toml'
+    source = ROOT / 'rubric_terminal_bench/upstream/task-implementation.toml'
     original = tomllib.loads(source.read_text())['criteria']
     text, skipped = implementation_rubric(source, references)
     effective = {c['name']: c for c in tomllib.loads(text)['criteria']}
@@ -81,13 +81,13 @@ def test_effective_rubric_changes_only_authorized_criteria(references, skip):
 
 def test_upstream_drift_fails_before_review(tmp_path):
     source = tmp_path / 'rubric.toml'
-    source.write_text((ROOT / 'upstream/task-implementation.toml').read_text() + '\n')
+    source.write_text((ROOT / 'rubric_terminal_bench/upstream/task-implementation.toml').read_text() + '\n')
     with pytest.raises(ValueError, match='pinned patch source'):
         implementation_rubric(source)
 
 
 def test_harbor_default_rubric_only_removes_static_dependency_check():
-    source = tomllib.loads((ROOT / 'harbor/upstream/default-rubric.toml').read_text())['criteria']
+    source = tomllib.loads((ROOT / 'rubric_harbor/upstream/default-rubric.toml').read_text())['criteria']
     effective_text, skipped = harbor_rubric()
     effective = tomllib.loads(effective_text)['criteria']
     removed = {'pinned_dependencies', 'test_deps_in_image'}
@@ -113,7 +113,7 @@ def test_review_rubric_option_selects_harbor():
 ])
 def test_concision_timeout_exemption_requires_all_instructions(tb, local, total, complete, keep):
     counts = {'Terminal-Bench tasks': tb, 'this task': local, 'task_count': total, 'complete': complete}
-    text, skipped = implementation_rubric(ROOT / 'upstream/task-implementation.toml', suffixes=counts)
+    text, skipped = implementation_rubric(ROOT / 'rubric_terminal_bench/upstream/task-implementation.toml', suffixes=counts)
     guidance = next(c['guidance'] for c in tomllib.loads(text)['criteria'] if c['name'] == 'instruction_concision')
     assert 'The canary string' not in guidance
     assert 'Use backticks when referring to file paths' not in guidance
@@ -217,21 +217,21 @@ def test_rubric_assets_are_bound_by_contract():
                  'patches/skip-difficult.patch', 'patches/skip-novel.patch',
                  'patches/concision-canary.patch', 'patches/concision-timeout.patch',
                  'patches/concision-formatting.patch', 'upstream/task-implementation.toml']:
-        assert 'validation/rubrics/' + name in files
-    assert 'validation/rubrics/patches/skip-separate_verifier_configured.patch' in files
-    assert 'validation/rubrics/patches/skip-environment_hygiene.patch' in files
-    assert 'validation/rubrics/patches/skip-difficulty_explanation_quality.patch' in files
-    assert 'validation/rubrics/patches/skip-solution_explanation_quality.patch' in files
-    assert 'validation/rubrics/patches/skip-verification_explanation_quality.patch' in files
-    assert 'validation/rubrics/patches/skip-category_and_tags.patch' in files
-    assert 'validation/rubrics/patches/skip-task_name.patch' in files
-    assert 'validation/rubrics/patches/skip-task_readme.patch' in files
-    assert 'validation/rubrics/patches/skip-expert_time_estimate.patch' in files
-    assert 'validation/rubrics/patches/skip-task_toml_schema.patch' in files
-    assert 'validation/rubrics/patches/skip-binary_reward.patch' in files
-    assert 'validation/rubrics/harbor/upstream/default-rubric.toml' in files
-    assert 'validation/rubrics/harbor/patches/remove-training-inapplicable-criteria.patch' in files
-    assert 'validation/rubrics/harbor/UPSTREAM.json' in files
+        assert 'validation/rubrics/rubric_terminal_bench/' + name in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-separate_verifier_configured.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-environment_hygiene.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-difficulty_explanation_quality.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-solution_explanation_quality.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-verification_explanation_quality.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-category_and_tags.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-task_name.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-task_readme.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-expert_time_estimate.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-task_toml_schema.patch' in files
+    assert 'validation/rubrics/rubric_terminal_bench/patches/skip-binary_reward.patch' in files
+    assert 'validation/rubrics/rubric_harbor/upstream/default-rubric.toml' in files
+    assert 'validation/rubrics/rubric_harbor/patches/remove-training-inapplicable-criteria.patch' in files
+    assert 'validation/rubrics/rubric_harbor/UPSTREAM.json' in files
 
 
 @pytest.mark.parametrize('solution_count', [0, 1])
@@ -241,7 +241,7 @@ def test_review_prompt_and_result_schema_use_effective_rubric(tmp_path, monkeypa
     upstream = checkout('terminal-bench')
     source = make_task(tmp_path / 'tasks', 'sample')
     refs = {'task_count': 2, 'solution_count': solution_count, 'complete': True}
-    options = SimpleNamespace(review_agent='test', review_model='test', review_local=False,
+    options = SimpleNamespace(review_evidence='files', review_agent='test', review_model='test', review_local=False,
                               backend='apptainer', dry_run=False, attempts=1)
     trial = tmp_path / 'job/trial'
     (trial / 'artifacts').mkdir(parents=True)

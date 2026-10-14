@@ -1,0 +1,737 @@
+{
+  "seed": 42,
+  "repetitions": 5,
+  "models": {
+    "opus-5.5": "claude-opus-5-5",
+    "sonnet-5": "claude-sonnet-5"
+  },
+  "concurrency": 10,
+  "sampling": "10 historical and 10 synthetic; greedy criterion then criterion/label coverage, seeded tie breaks; no model outcomes used",
+  "tasks": [
+    {
+      "task_id": "nginx-request-logging",
+      "upstream_task_id": "nginx-request-logging",
+      "split_group": "nginx-request-logging",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "pass",
+        "outcome_verified": "fail",
+        "anti_cheat_robustness": "pass",
+        "functional_verification": "fail",
+        "essential_difficulty": "fail",
+        "test_instruction_alignment": "pass",
+        "reviewable": "pass",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/nginx-request-logging",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/nginx-request-logging"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "partial_changes_reported_concerns_remain",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes.",
+      "directory": "task-0001",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0045",
+      "file_sha256": {
+        "Dockerfile": "6899e85013595ee76158b8f4a8b5aa294d1955ecc24ba5aac43c19d288a65be8",
+        "docker-compose.yaml": "14fdb86e9a0bb3ba90871ddc8369a751dac7dda6886bc1a5c54ebe3825e99839",
+        "run-tests.sh": "a4171c242d6e9f8e7219162045b3df9f1ce22c321d996d31f21d0964ab8e04c1",
+        "solution.sh": "2454bbbf7c201a9a778165f286373ba2cb991a0eb1d026a8005d57ae71250dd9",
+        "task.yaml": "3d0cbfce115013bcd38bf540ea4843d34c90495c3a2d5c8b3af817082ceea53f",
+        "tests/test_outputs.py": "045cc716c14efde3b0dcff5fc7c85ec5d18bfc6ce66f8b40a418fa2a3a4acda0"
+      }
+    },
+    {
+      "task_id": "mteb-retrieve",
+      "upstream_task_id": "mteb-retrieve",
+      "split_group": "mteb-retrieve",
+      "labels": {
+        "test_instruction_alignment": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/mteb-retrieve",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/mteb-retrieve"
+      },
+      "role": "reviewed",
+      "label_binding": "fix_pr_base",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1393"
+      ],
+      "reason": "This PR fixes an existing task; use its base version for the reported defect.",
+      "directory": "task-0002",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0039",
+      "file_sha256": {
+        "Dockerfile": "11e1d8b9256ee6841a0e00d432b12c85c51f2f8b41301a9603f493a86f9e865c",
+        "docker-compose.yaml": "14fdb86e9a0bb3ba90871ddc8369a751dac7dda6886bc1a5c54ebe3825e99839",
+        "run-tests.sh": "a1a501cfc8a9ed430b46890293cd401c8c6427d04984014c08b3ded46157a795",
+        "solution.sh": "97adb02c74de75d6d66829cf12d0a3d05b35b1b48b597ab67b90388517286553",
+        "task-deps/data.txt": "1dec6f9ca469216638e8158e992fb5eb093e180361136570003e81d4573d24bb",
+        "task.yaml": "71426bf56012257d7870e1d9aca538eed4b6157c248070cd400357a3fb981de4",
+        "tests/test_outputs.py": "e4e6b21fed6662adb4a42aba23d35609450392839a2282f3ba77c70c8d907c0b"
+      }
+    },
+    {
+      "task_id": "mailman",
+      "upstream_task_id": "mailman",
+      "split_group": "mailman",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/mailman",
+        "revision": "c006cd3ac1a0e69f452d0e8bec870122a55699f3",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/c006cd3ac1a0e69f452d0e8bec870122a55699f3/tasks/mailman"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/922"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream.",
+      "directory": "task-0003",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0033",
+      "file_sha256": {
+        "Dockerfile": "cb9ca5df5e18cbc83f2617f7318f085666b435fe05c4d11d3c8178f886bba8f0",
+        "docker-compose.yaml": "3b3b5627e22229debb2fdf84f343a5f8117b0a96576dae8e158d482f8aa27e2b",
+        "run-tests.sh": "71e174b0b162445ae0a7ebd2f5c16d0fcc3b3c0a0f484d88c490b94e6957dbd1",
+        "solution.sh": "89994d4b7a351a4f9cb48f66ab0d65dcb661d4f2d2e3c975fd584141227136e6",
+        "src/eval.py": "e0eb028480c98b65a0256f27bc22805d3b3fdbf4d6a58282b8dd2f648dac34a5",
+        "task.yaml": "02fb4330ef8f89f3c79b852205a4de2c35665f2bf07fe53ca5a4b065d262b6d5",
+        "tests/test_outputs.py": "4755e83525412fce281370a665b6e5f4a552bd2f81b73f07f9fd8bbd3cd2ea10"
+      }
+    },
+    {
+      "task_id": "fail-rubric-agentic",
+      "upstream_task_id": "fail-rubric-agentic",
+      "split_group": "fail-rubric-agentic",
+      "labels": {
+        "agentic": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-agentic",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-agentic"
+      },
+      "role": "synthetic",
+      "directory": "task-0004",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0001",
+      "file_sha256": {
+        "environment/Dockerfile": "cdb1149e43a83fa5f5d378d8cc7456595dabf27cd2c4c772e82060414e9aaafb",
+        "instruction.md": "33ffc0fc6b80884238c5ede2e2a727f3d503df7486b75e1b719552f03033e72d",
+        "solution/solve.sh": "8698fbac9f7d8279c8a61d6f67941695a48f9d3bb13c5cedc2e82d8defd60c2c",
+        "task.toml": "93462435f862b71bcf1d7f1dc3e478fed1c64bf58f2eea8bac9f8b2529dd6ebf",
+        "tests/test.sh": "91581df11e3862ee0b30be8f32b371515b4c85df4b9fb58c9a36b8de7c750a9b",
+        "tests/test_state.py": "9c684396c092879e8206df42994bc24c8bba3e45ea29d7465ed281ed5377f460"
+      }
+    },
+    {
+      "task_id": "fail-rubric-do-not-modify",
+      "upstream_task_id": "fail-rubric-do-not-modify",
+      "split_group": "fail-rubric-do-not-modify",
+      "labels": {
+        "do_not_modify_enforced": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-do-not-modify",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-do-not-modify"
+      },
+      "role": "synthetic",
+      "directory": "task-0005",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0047",
+      "file_sha256": {
+        "environment/Dockerfile": "54a7ce213e95f78249c06f4e0615958ddb660928e81befaeeb6ace0c01d21001",
+        "instruction.md": "817ec1c9c0d4ec4c0d0d9bf60e933ac4fb931b17311ede7ddd0b5062c254a6bb",
+        "solution/solve.sh": "7208164ffbd9e10107cbf41ab05bb25b6b1e970e2c3b7fdbad1e1bf0d713262b",
+        "task.toml": "f5dd20e7ebb54c9d80ad02d31240140a02ab905e6841c2c64bf060f10caa5da3",
+        "tests/Dockerfile": "f51e6e028cb35bce621404b21acf890c38d771168a7477a31581e62877df75d3",
+        "tests/test.sh": "7d53b3376a10ed93542a306a3e62aeb3e93a17d4546c5857d0415241df06cb23",
+        "tests/test_state.py": "858650dc47bb32130186c6d050a1cb61971ad2234d7c52dae4a330b2edcf6c7a"
+      }
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "upstream_task_id": "sqlite-with-gcov",
+      "split_group": "sqlite-with-gcov",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "pass",
+        "outcome_verified": "pass",
+        "anti_cheat_robustness": "pass",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "pass",
+        "essential_difficulty": "pass",
+        "test_instruction_alignment": "pass",
+        "agentic": "pass",
+        "reviewable": "pass",
+        "instruction_concision": "pass",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/sqlite-with-gcov",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/sqlite-with-gcov"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "reported_typo_still_present",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes.",
+      "directory": "task-0006",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0046",
+      "file_sha256": {
+        "Dockerfile": "cb85a2964504ee431195135e92a5115d223d84f01b618184a84fa011133bc5a9",
+        "docker-compose.yaml": "14fdb86e9a0bb3ba90871ddc8369a751dac7dda6886bc1a5c54ebe3825e99839",
+        "run-tests.sh": "fd7911468d6830532c48ca5049e0f67d1dd4aecd768d1470f21efce55c81be97",
+        "solution.sh": "e054f4092eb4b2895866a89c4d4e3591dda0fa28bd9d825ca60403f359a8f027",
+        "task.yaml": "83db0c43d3212d025db8b684f08ab2d1cb40bb1dfc7c326fd75f402e4847018e",
+        "tests/test_outputs.py": "b165f8504bb93a901451b80c4ea73344b71b6af377ebdabef745fbcdd1d2993b",
+        "vendor/sqlite-fossil-release.tar.gz": "7c02b6cc04dddc2f90e63d43ab8900cb694ba4665f4e4ac877ec724733125229",
+        "vendor/sqlite-fossil-release.tar.gz.sha256": "3574015c694bd2465942ff17731db62293fea6ec7d90f34be09de1445fcdb18a"
+      }
+    },
+    {
+      "task_id": "fail-rubric-no-ctrf",
+      "upstream_task_id": "fail-rubric-no-ctrf",
+      "split_group": "fail-rubric-no-ctrf",
+      "labels": {
+        "ctrf_reporting": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-no-ctrf",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-no-ctrf"
+      },
+      "role": "synthetic",
+      "directory": "task-0007",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0010",
+      "file_sha256": {
+        "environment/Dockerfile": "6359a7fed3aed129e30b4308ea9a434b2ee5de7839c73193b018b9a2c99670c3",
+        "instruction.md": "417f7106295d0713aec48ab3e2663dce3f93c6eec61e63a6ed43cc591a0c40bb",
+        "solution/solve.sh": "ede793abb1b406a1bc0a998eeb2bbe0aff2be852fb6aab6b6e96b92b5e32ece3",
+        "task.toml": "3ec9120d8e3de6fd878eb2f29923a6834066a3077407490d33dea137faa026dc",
+        "tests/Dockerfile": "efeb25d53961a7f5977719f17ee0b5795fd7d34241f0a8e35ed05ebf51e943bc",
+        "tests/test.sh": "9ff71e6749fe7b796466ca4c1aed1faa8e784d162200da5f0df8423d7f57b7d5",
+        "tests/test_state.py": "5b9b2db1509f0d2da37ee162b0cdbe77d9ce7b2da205192d4a296352a68c07a2"
+      }
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "upstream_task_id": "prove-plus-comm",
+      "split_group": "prove-plus-comm",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "fail",
+        "outcome_verified": "pass",
+        "anti_cheat_robustness": "pass",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "pass",
+        "essential_difficulty": "pass",
+        "test_instruction_alignment": "pass",
+        "reviewable": "pass",
+        "instruction_concision": "fail",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/prove-plus-comm",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/prove-plus-comm"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "reported_concerns_still_present",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes.",
+      "directory": "task-0008",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0041",
+      "file_sha256": {
+        "Dockerfile": "7bd89da201547b294657bfeac1874e0f34e007626a11660fff8876bd2c6f4bd5",
+        "docker-compose.yaml": "14fdb86e9a0bb3ba90871ddc8369a751dac7dda6886bc1a5c54ebe3825e99839",
+        "partial_proof.v": "e95366c795a3b4746acaf38b527996eecb03c7d0ceb0132a9f24c3686a6965c3",
+        "run-tests.sh": "fd7911468d6830532c48ca5049e0f67d1dd4aecd768d1470f21efce55c81be97",
+        "solution.sh": "665359a439d3c0b047635bb223e6ce05900fa8818e7313cc77bd23e7602b005c",
+        "task.yaml": "282011f277d622ad8aa755c6f2e4f0102c64340c6dc26895f389deccc3ecdf96",
+        "tests/test_outputs.py": "02df5d8f2ab15eb9ec39493c5ce57b8699853304cd8dd5b853e1dcb8c4a13327"
+      }
+    },
+    {
+      "task_id": "train-fasttext",
+      "upstream_task_id": "train-fasttext",
+      "split_group": "train-fasttext",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/train-fasttext",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/train-fasttext"
+      },
+      "role": "reviewed",
+      "label_binding": "fix_pr_base",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1399"
+      ],
+      "reason": "This PR fixes an existing task; use its base version for the reported defect.",
+      "directory": "task-0009",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0038",
+      "file_sha256": {
+        "Dockerfile": "e941b35dd407b0c79d80932a21249dae1db2e308e4b221138b8f9a5a078d3332",
+        "docker-compose.yaml": "14fdb86e9a0bb3ba90871ddc8369a751dac7dda6886bc1a5c54ebe3825e99839",
+        "reformat_data.py": "aeecff97fbee11c1fea50e3123bcf678a05326be0fa517545e6863a4c704b12f",
+        "run-tests.sh": "290bb6e7405fdca22f38b0e5c5b14e2d0bd1037fe2fe8ef53edeb19300312597",
+        "solution.sh": "1d1a481ac6d17381a97569845322b4ccae8a88b50cdf32b7da2122de90df300a",
+        "task.yaml": "e8fe383db3a9759eed2a589d6550faf620dc20b0e32fab7661e1bc8459eb729d",
+        "tests/private_test.txt": "276a37c80db006225a7ad062578ac66baa0ff4b0c7d06f95556bb96dc9afd403",
+        "tests/test_outputs.py": "ca645971f6b4ac2fc0b5ce83eac18df0bb936d7891ec73b1fcb6fc8d2fbe0884"
+      }
+    },
+    {
+      "task_id": "cron-broken-network",
+      "upstream_task_id": "cron-broken-network",
+      "split_group": "cron-broken-network",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "pass",
+        "outcome_verified": "pass",
+        "anti_cheat_robustness": "fail",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "fail",
+        "essential_difficulty": "pass",
+        "agentic": "pass",
+        "reviewable": "pass",
+        "instruction_concision": "pass",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/cron-broken-network",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/cron-broken-network"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "unmerged_fix_reported_dependency_remains",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes.",
+      "directory": "task-0010",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0043",
+      "file_sha256": {
+        "Dockerfile": "2a0c9e6ddfc1718bdbd78b4b6acde7516f030795f8bedae009b6ea4c91f442f9",
+        "config.yaml": "9a37881cc75175c5318281ef03659932521e4addd67f53a6d63fcb3e56f4cdad",
+        "docker-compose.yaml": "14fdb86e9a0bb3ba90871ddc8369a751dac7dda6886bc1a5c54ebe3825e99839",
+        "run-tests.sh": "fd7911468d6830532c48ca5049e0f67d1dd4aecd768d1470f21efce55c81be97",
+        "solution.sh": "d1d92f025a1dbfad356a4923ab405284d606ca89c3910931bb57af676ec84ab6",
+        "task.yaml": "d79ebf6cfed40afd47b8139b85f20fe121773d510a6df3e5ecb42273e8ada807",
+        "tests/test_outputs.py": "a7eb1197debe8a7083c750b160c42c5fd084686dde7df88aa86e70999c62b1c7"
+      }
+    },
+    {
+      "task_id": "fail-rubric-resource-config",
+      "upstream_task_id": "fail-rubric-resource-config",
+      "split_group": "fail-rubric-resource-config",
+      "labels": {
+        "resource_configuration": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-resource-config",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-resource-config"
+      },
+      "role": "synthetic",
+      "directory": "task-0011",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0020",
+      "file_sha256": {
+        "environment/Dockerfile": "461889d11ed8d44bc39092c0503d2080dd2e9030cce10b0c1dcf8e8d6c93d9c2",
+        "instruction.md": "e1ab43d60ae09d41ce9aa63e63ade96e081fa74ed0d0c65528720315d7ff15a1",
+        "solution/solve.sh": "8b6b59295fef759f33e20c857dc3691c754c2de8f7145e8df76b6046d972f13f",
+        "task.toml": "46b4718de949f5f1b79afb5b5a02a02f9baacfceece442eb310323f4f818ff53",
+        "tests/test.sh": "91581df11e3862ee0b30be8f32b371515b4c85df4b9fb58c9a36b8de7c750a9b",
+        "tests/test_state.py": "a721d5aa0f0d92fc81b29e2914e988040863ff9cac947a21bd6df7cceb19c483"
+      }
+    },
+    {
+      "task_id": "fail-rubric-artifact-efficiency",
+      "upstream_task_id": "fail-rubric-artifact-efficiency",
+      "split_group": "fail-rubric-artifact-efficiency",
+      "labels": {
+        "artifact_efficiency": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-artifact-efficiency",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-artifact-efficiency"
+      },
+      "role": "synthetic",
+      "directory": "task-0012",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0003",
+      "file_sha256": {
+        "environment/Dockerfile": "312deddc4b8ccca24af0f86ceaf23ee03e4e88a61e7d0a07f9b731607fb62060",
+        "instruction.md": "9dc7267af8e3e83432a8cc4b48efe7e657016cc33614615a1354d35873d0bb09",
+        "solution/solve.sh": "00a28e94b0ca94245b9828ab59a9bc24b210bb1d080ad25d7000620187bb88a4",
+        "task.toml": "524bb5792782a78cdf0af89a601b5102bfad828098648d3f51001486ade866a1",
+        "tests/Dockerfile": "7a94e62321f032756f7ad6531b97fb0e7772bd66b43b6b98708d93ad496ac4a9",
+        "tests/test.sh": "7d53b3376a10ed93542a306a3e62aeb3e93a17d4546c5857d0415241df06cb23",
+        "tests/test_state.py": "e3f220f193b9db1feef89cf465589e4c1da4dc1e19d02eb09301e30dbf8336bc"
+      }
+    },
+    {
+      "task_id": "protocol-analysis-rs",
+      "upstream_task_id": "protocol-analysis-rs",
+      "split_group": "protocol-analysis-rs",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/protocol-analysis-rs",
+        "revision": "aeb3d8acfd83a0b4cab1fdff50796f25b89c2ec7",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/aeb3d8acfd83a0b4cab1fdff50796f25b89c2ec7/tasks/protocol-analysis-rs"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/838"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream.",
+      "directory": "task-0013",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0034",
+      "file_sha256": {
+        "Dockerfile": "856cbd1a41f5bedd4a99c2eaa8c1684b7cd0524f69233080af538de69c46f421",
+        "docker-compose.yaml": "2f97d99534a68c1a9e51a09fb01f85f8481b4b551a97bdd5491492a31d3c32ee",
+        "run-tests.sh": "38cd63059daafc6a15b3d1ec58a7d551eb13b3a076a0d3fa7861a1568d489dca",
+        "solution.sh": "af99e3ee1fc2b08b1b6f24e6cf37c1ecc3eb1484f2076270e6740e27482f1719",
+        "start.ts": "21a2946fe6ecf8c1432a7e3471b920489bf920f032aadaaee95290f1bcd619ca",
+        "task.yaml": "e5d6ce924cfd627b1eca459215eaee92cb8438cccdce761d1ce154c6462c37a9",
+        "tests/run-uv-pytest.sh": "b03e2fed1a5fcec35cae61157b7f76e67d2d0b66e77dfed168077266c288561a",
+        "tests/setup-uv-pytest.sh": "b31743d9f7c7b711444a05770a0523ce0d33da4013cc00dfc09de993434c40a2",
+        "tests/start.ts": "21a2946fe6ecf8c1432a7e3471b920489bf920f032aadaaee95290f1bcd619ca",
+        "tests/test_outputs.py": "ba1ad3e129c8096c9c0a2677a73dfa463a9c2808a2055b8f3fcd741a8530dc0c"
+      }
+    },
+    {
+      "task_id": "fail-rubric-verifier-isolation",
+      "upstream_task_id": "fail-rubric-verifier-isolation",
+      "split_group": "fail-rubric-verifier-isolation",
+      "labels": {
+        "verifier_execution_isolation": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-verifier-isolation",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-verifier-isolation"
+      },
+      "role": "synthetic",
+      "directory": "task-0014",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0019",
+      "file_sha256": {
+        "environment/Dockerfile": "f86fac888c7d52df481dcece7e8f4f8c646a7abd24b71b06e26c5ed0f68844e7",
+        "instruction.md": "26bd9826aaf6ebe31b4107597b139708fb7acaee38f8772d37ceac83a506bc0b",
+        "solution/solve.sh": "0ca8e2b7d4857df89bc7ec1d45f38e55c6f909a8d4433c21abd54cda297e61fc",
+        "task.toml": "74e3e14fcab88766f691db16abeefa3fe62eaabc2da506a7b811b118f84951b8",
+        "tests/Dockerfile": "b9612866ad044dc7954916bfe2541634705eabb02a01896b554f86bb0d2d624c",
+        "tests/data/input.txt": "b941c6dc0e83836d50986212d74e9298f837f96a641afab5d4888f25bfdac630",
+        "tests/test.sh": "7d53b3376a10ed93542a306a3e62aeb3e93a17d4546c5857d0415241df06cb23",
+        "tests/test_state.py": "c0016867914c659f20bf21fefc629da106396faa2d0e1f1a0ebb4bb164aac4c3"
+      }
+    },
+    {
+      "task_id": "fail-rubric-verifiable",
+      "upstream_task_id": "fail-rubric-verifiable",
+      "split_group": "fail-rubric-verifiable",
+      "labels": {
+        "verifiable": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-verifiable",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-verifiable"
+      },
+      "role": "synthetic",
+      "directory": "task-0015",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0018",
+      "file_sha256": {
+        "environment/Dockerfile": "e1c73a4fa7488658f5ecf21e8baa7a2058a158960b9f49c04ed7b6b1b365aed7",
+        "instruction.md": "1ec491d6d4e3f494ee4cd5080ac38e978819755e4d699e50b558c8a1fe21785e",
+        "solution/solve.sh": "3a0fc1eb1222443f86d3d4983f1d07359af81310b56d5f6d9d9f25d5f13f07f5",
+        "task.toml": "93462435f862b71bcf1d7f1dc3e478fed1c64bf58f2eea8bac9f8b2529dd6ebf",
+        "tests/test.sh": "91581df11e3862ee0b30be8f32b371515b4c85df4b9fb58c9a36b8de7c750a9b",
+        "tests/test_state.py": "edec350130a882792b37026db73671d22cd1ec3a45eab3fd71c77b8a0d17bf38"
+      }
+    },
+    {
+      "task_id": "fail-rubric-task-security",
+      "upstream_task_id": "fail-rubric-task-security",
+      "split_group": "fail-rubric-task-security",
+      "labels": {
+        "task_security": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-task-security",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-task-security"
+      },
+      "role": "synthetic",
+      "directory": "task-0016",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0048",
+      "file_sha256": {
+        "environment/Dockerfile": "58daef356dc4d1dd6b39ceb601ef16e30ab1636b7d84ef65a9505a9b78b44ccd",
+        "instruction.md": "784b77dafbf8ec34ecc7a6319d03af752e7ae16d57f2f6e31ab8200ad449752f",
+        "solution/solve.sh": "77f55f69a458685fa0cd4494784b44e3dfde5d8d6bea54bf616249fd1a6e8f1e",
+        "task.toml": "a28ba19c99d73412e1af24a2cd6a1070022387d45345b66f4664b993124053df",
+        "tests/test.sh": "91581df11e3862ee0b30be8f32b371515b4c85df4b9fb58c9a36b8de7c750a9b",
+        "tests/test_state.py": "e7353b18cda27ae814cd73479321877c31a21ea13fd9679812136c54bb7683ee"
+      }
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "upstream_task_id": "extract-moves-from-video",
+      "split_group": "extract-moves-from-video",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "fail",
+        "interesting": "pass",
+        "outcome_verified": "pass",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "fail",
+        "essential_difficulty": "pass",
+        "test_instruction_alignment": "fail",
+        "agentic": "pass",
+        "reviewable": "fail",
+        "instruction_concision": "pass",
+        "solution_quality": "fail",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/extract-moves-from-video",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/extract-moves-from-video"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "reported_issues_still_present",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes.",
+      "directory": "task-0017",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0044",
+      "file_sha256": {
+        "Dockerfile": "c7a35515174cacbf6d19ff8bcec25e60e9239caa708eeee69e8c5cece6f6bb3b",
+        "docker-compose.yaml": "14fdb86e9a0bb3ba90871ddc8369a751dac7dda6886bc1a5c54ebe3825e99839",
+        "run-tests.sh": "fd7911468d6830532c48ca5049e0f67d1dd4aecd768d1470f21efce55c81be97",
+        "solution.sh": "102dbb49e51054e4f12cbf92252b9572506a1d735e393589a024c2cb45fa6b77",
+        "task.yaml": "01d1972509c86ce88a28b02aaba6c8ccf281a48a73e3c69b053ac2ed32dd41db",
+        "tests/test_outputs.py": "565a7617602f33c0f103d6c9b39c95e0cfe72ba8eadf4d3f859cabfd9235467e"
+      }
+    },
+    {
+      "task_id": "financial-document-processor",
+      "upstream_task_id": "financial-document-processor",
+      "split_group": "financial-document-processor",
+      "labels": {
+        "reviewable": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/financial-document-processor",
+        "revision": "04e43d4f210dc5dfcf3629e40fb884a73a116a1e",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/04e43d4f210dc5dfcf3629e40fb884a73a116a1e/tasks/financial-document-processor"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/954"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream.",
+      "directory": "task-0018",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0036",
+      "file_sha256": {
+        "Dockerfile": "9be15f0ef56aa2539cae95d041e92cd67a241913c4f03fae3c839485dc624294",
+        "docker-compose.yaml": "3b3b5627e22229debb2fdf84f343a5f8117b0a96576dae8e158d482f8aa27e2b",
+        "document_labels.json": "7ad569d41de6283964034afa42553a4b9bb55271ec643c60c5722c8374894596",
+        "documents/1t2tala7.jpg": "d5fc89cdc92240baa7fc6506237e3841af88880a6f57fa6e3f60b925e605fd22",
+        "documents/41ibljh7.pdf": "bc95a144939b7f21abd832019625a3f2c182a7abe8d57f9bd25e7c6f5d6b3ba5",
+        "documents/53lc58dr.jpg": "2c8607b9c75907077e23f45ce7bc75335a4a46e9f9aab5ee0d901b86b63e7a8e",
+        "documents/5lxo6qji.pdf": "0b3873d45510867d3063637d01f8e9255c4be96586b1f6b06682a208877d441c",
+        "documents/8mdd4v30.jpg": "56238d4d934c433c24e53d0674f0530e11024f284e8ffcb3bb0bcc0d58850740",
+        "documents/9t84azyt.pdf": "d46a7397df8e7903ddef31b76c1633c4989f09b8c301e0cf87dab00cd08a4663",
+        "documents/c11ertj5.pdf": "570adcb1be1800cca727420b543e9c68bb7607ebaddf80524c7380560e549434",
+        "documents/dbdw2pcn.pdf": "ad8f14ad77a98d0926a68d17e5ce822c2f9d3a355ccf4a6b1ded5327c31cbb87",
+        "documents/g0fn9xuy.jpg": "807a6b0b942eb2ce406db3c57a833bba539e165017c81e2b1a0a98104d213677",
+        "documents/hv3a3zmf.jpg": "c212aa5440b23e4b5e97af3c271685769b1050edd73a1ee461acce2c5998eb3c",
+        "documents/jxepq85j.jpg": "a51b4a78c278c1b755e674511729d8514681b94094a4130c457ed71c533a0083",
+        "documents/pbhsahxt.jpg": "badb1930a086c35b1484463098cbfb7823beb21abae71a9fe95bf90807fa9e41",
+        "documents/sg65kxvf.jpg": "53d8335a156bd0b18bd1808693cc805c39e013d9768fd7eb7497f22e18b1c5cb",
+        "documents/ujv6oh9s.jpg": "ad3359faf1126b33fc587098ed3f5b722734eeb4364794eea66e10112014f25a",
+        "documents/wnnhj7xv.pdf": "5ee01b997176b9124302899471651ce4d4b160f292caf79f2250e2e8324e3480",
+        "documents/xaji0y6d.jpg": "e0b8a2c7078efe82d7657f5023f01ff5498d59cca54a74ef2b6983bc979a1c54",
+        "documents/zbikcidk.jpg": "862f7d313f1233f3e44a89610a4015d861dc771ad2ba8028ad56e2d4fd37ac71",
+        "label_documents.py": "7c2ff69f87765344c0a51f557273de01e7a5740fd600c37f490106cc982b4bf6",
+        "run-tests.sh": "1bf65892d6c560a45456c8069d2c8ef1218b1b52989d643343533ec77df32900",
+        "solution.sh": "8190cb6a686a5a529d6760943426fe1bd6c83a77c4d995742f74c43242334ea0",
+        "task.yaml": "cb67b06015765b1686dc79d66dec33b4092541559c1174af4b407ed422e80f69",
+        "tests/test_outputs.py": "43fe21ae9e6a9ed1c57a90c6d33e6a4fab3b1e0d4acb40a55fb4a3cae8f52f21"
+      }
+    },
+    {
+      "task_id": "fail-rubric-structured-schema",
+      "upstream_task_id": "fail-rubric-structured-schema",
+      "split_group": "fail-rubric-structured-schema",
+      "labels": {
+        "structured_data_schema": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-structured-schema",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-structured-schema"
+      },
+      "role": "synthetic",
+      "directory": "task-0019",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0015",
+      "file_sha256": {
+        "environment/Dockerfile": "1e348222a20ffb8dd2d08100a450b6c80526379b1aaf07598e7d29d132ce0c28",
+        "instruction.md": "48d67e38fbf536001dc523c178df7c654be901e292237493ef6644a51619a8a0",
+        "solution/solve.sh": "8ee2560e1d06094b0cb0d88ecc44f9c23c69f47f6fe801aa682473cecbf16305",
+        "task.toml": "93462435f862b71bcf1d7f1dc3e478fed1c64bf58f2eea8bac9f8b2529dd6ebf",
+        "tests/test.sh": "91581df11e3862ee0b30be8f32b371515b4c85df4b9fb58c9a36b8de7c750a9b",
+        "tests/test_state.py": "2a469a878055d3f14e91f505e94e3292d97bfc08190cd85af72268251c53c12c"
+      }
+    },
+    {
+      "task_id": "fail-rubric-no-extraneous-files",
+      "upstream_task_id": "fail-rubric-no-extraneous-files",
+      "split_group": "fail-rubric-no-extraneous-files",
+      "labels": {
+        "no_extraneous_files": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-no-extraneous-files",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-no-extraneous-files"
+      },
+      "role": "synthetic",
+      "directory": "task-0020",
+      "source_files": "/home/hpc/y500bb/y500bb12/OT_next_data/validation/rubrics/labeled_examples/tb_human_labeled/tasks/task-0021",
+      "file_sha256": {
+        "environment/Dockerfile": "e1c73a4fa7488658f5ecf21e8baa7a2058a158960b9f49c04ed7b6b1b365aed7",
+        "instruction.md": "2d2d79a1bb470e5ff4c5737d7c480e38e308f208b31992ac7e7d971a453cea1f",
+        "scratch_notes.txt": "a26c920858aadd350046117f9485823cf53f73a886c4d33c79d559ffb8c99abd",
+        "solution/solve.sh": "84efeae286580cfc71ad5e14258911b11827dd7b6f9f42dc8a4ab2456bce1d04",
+        "task.toml": "26ea23a6d7437ec79217b7c38fd2b9c9ad4b9d21b016c2857867abd25476fe60",
+        "tests/test.sh": "91581df11e3862ee0b30be8f32b371515b4c85df4b9fb58c9a36b8de7c750a9b",
+        "tests/test_state.py": "8383d142d88c42937f9f88f51021a1e1b2fcc45bda808c0c55ed59fa682400fe"
+      }
+    }
+  ],
+  "prompt_sha256": "3ff1a184a34adb91c2d65d062f35d4e1ec4f024706234589092574f14d297a8e",
+  "rubric_sha256": "0b543b2ad8408f53c276345b0340967d5275c7f1e1795e027a92c2ead6d7c1a1",
+  "image_sha256": "66d43ddf7b8ea2ab9c0b8f3745ece6cb4fb3a3137617874d27134252004717a7",
+  "worker_sha256": "b4851e75f87bc92743fa9786ff6bf53c40cef651f254cba1f7a60cf17fd027fd",
+  "max_budget_usd_per_review": 5,
+  "settings": "Claude CLI defaults, no session persistence, no settings sources, only isolated MCP inspection; 40 tool calls, 1800-second review timeout",
+  "label_counts": {
+    "pass": 56,
+    "fail": 28
+  },
+  "labeled_criteria": [
+    "agentic",
+    "anti_cheat_robustness",
+    "artifact_efficiency",
+    "ctrf_reporting",
+    "deterministic_reproducible",
+    "do_not_modify_enforced",
+    "essential_difficulty",
+    "functional_verification",
+    "instruction_concision",
+    "interesting",
+    "no_extraneous_files",
+    "outcome_verified",
+    "resource_configuration",
+    "reviewable",
+    "solution_quality",
+    "solvable",
+    "structured_data_schema",
+    "task_security",
+    "test_instruction_alignment",
+    "typos",
+    "verifiable",
+    "verifier_execution_isolation"
+  ]
+}

@@ -1,0 +1,858 @@
+{
+  "status": "complete",
+  "started_at": "2026-10-12T14:32:29.487458+00:00",
+  "slurm_job_id": null,
+  "login_node": true,
+  "planned": 27,
+  "evidence": "files",
+  "tools_enabled": true,
+  "completed": 27,
+  "flagged": 2,
+  "errors": 0,
+  "results": [
+    {
+      "task_id": "format-code-task-000484",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests are applied from tests/test.patch only at verification time and are not in the agent image; the solution is not embedded in environment files, so there are no obvious shortcuts."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 535,
+          "cacheReadInputTokens": 9982,
+          "cacheCreationInputTokens": 7736,
+          "webSearchRequests": 0,
+          "costUSD": 0.0373042,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0373042
+    },
+    {
+      "task_id": "format-code-task-000322",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests and the test command script are supplied via tests/test.patch at verification time, so they are not in the agent image. The agent image contains only the repo at the pre-fix commit, with no answers embedded. Internet access could let an agent fetch the upstream aiohttp fix, which is a minor weakness, but the tests are behavioral and hidden."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 884,
+          "cacheReadInputTokens": 17846,
+          "cacheCreationInputTokens": 5919,
+          "webSearchRequests": 0,
+          "costUSD": 0.0343166,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 240,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0343166
+    },
+    {
+      "task_id": "format-code-task-002607",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests live in tests/test.patch and are applied only at verification time; the agent image is a plain pre-fix repo checkout with no answers embedded. Verification runs real test commands on behavior and signatures, so shortcuts are not evident."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 568,
+          "cacheReadInputTokens": 11038,
+          "cacheCreationInputTokens": 4956,
+          "webSearchRequests": 0,
+          "costUSD": 0.0266198,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 48,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0266198
+    },
+    {
+      "task_id": "format-code-task-002429",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The test patch and test command live in tests/ and are applied only at verification time, so the agent image holds no answers. The verification runs real mypy tests against the fix, and the instruction is just the issue text. I could not inspect the base image's git history for future commits."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 612,
+          "cacheReadInputTokens": 12270,
+          "cacheCreationInputTokens": 6218,
+          "webSearchRequests": 0,
+          "costUSD": 0.032231,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 73,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.032231
+    },
+    {
+      "task_id": "format-code-task-000812",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The tests live only in tests/test.patch, which is applied at verification time and is not in the agent image. The agent Dockerfile only pulls a prebuilt repo image and contains no answer files. The tests are behavioral (subclass override, userinfo endpoint response), so hardcoding them is not a practical shortcut."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 765,
+          "cacheReadInputTokens": 17191,
+          "cacheCreationInputTokens": 6250,
+          "webSearchRequests": 0,
+          "costUSD": 0.0343851,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 117,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0343851
+    },
+    {
+      "task_id": "format-code-task-002070",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests live in tests/test.patch, applied only at verification time and not in the agent image; the solution isn't in the environment Dockerfile. The feature is a code change in a repo, with no oracle data or mutable external resources to exploit."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 570,
+          "cacheReadInputTokens": 10927,
+          "cacheCreationInputTokens": 4831,
+          "webSearchRequests": 0,
+          "costUSD": 0.026128699999999998,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.026128699999999998
+    },
+    {
+      "task_id": "format-code-task-001397",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The test patch lives in tests/ and is applied only at verification time, so the agent image holds no answers. The tests exercise behavior (adapter outputs, schema validation) rather than greppable constants, so there is no trivial bypass."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 691,
+          "cacheReadInputTokens": 17369,
+          "cacheCreationInputTokens": 6319,
+          "webSearchRequests": 0,
+          "costUSD": 0.0339389,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0339389
+    },
+    {
+      "task_id": "format-code-task-002829",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Test patch lives in tests/ and is applied only at verification time, so the agent image holds no tests or solution. The task is a standard SWE-style bug fix, and the reward comes from running the real test command. The upstream git history in the image could not be checked for future commits."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 619,
+          "cacheReadInputTokens": 10563,
+          "cacheCreationInputTokens": 4561,
+          "webSearchRequests": 0,
+          "costUSD": 0.025502300000000002,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 122,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.025502300000000002
+    },
+    {
+      "task_id": "format-code-task-002755",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "fail",
+            "explanation": "The verifier runs /testbed/mimo_test_command.sh, a script that lives in the agent-writable image and is not supplied from /tests. The agent, running as root, could overwrite it with `exit 0`, or tamper with the test runner or environment, and receive reward 1.0 without fixing anything. Only the test patch itself is protected."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 972,
+          "cacheReadInputTokens": 17447,
+          "cacheCreationInputTokens": 6663,
+          "webSearchRequests": 0,
+          "costUSD": 0.0381327,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 294,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0381327
+    },
+    {
+      "task_id": "format-code-task-001269",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests are applied via /tests/test.patch only at verification time, so they are not in the agent image. The Dockerfile has no solution or answers, and the behavioral pytest tests exercise real library behavior, so there is no obvious shortcut."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 631,
+          "cacheReadInputTokens": 16721,
+          "cacheCreationInputTokens": 5671,
+          "webSearchRequests": 0,
+          "costUSD": 0.0306821,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 37,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0306821
+    },
+    {
+      "task_id": "format-code-task-002384",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests live in tests/test.patch, applied only at verification time, so the agent image holds neither tests nor solution. The environment Dockerfile just uses a prebuilt repo image and has no embedded answers; the check runs real test files in the repo."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 622,
+          "cacheReadInputTokens": 11208,
+          "cacheCreationInputTokens": 5191,
+          "webSearchRequests": 0,
+          "costUSD": 0.028116799999999997,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 107,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.028116799999999997
+    },
+    {
+      "task_id": "format-code-task-001839",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests live in tests/test.patch and are applied only at verification time, so they are not in the agent image. The agent image holds only the buggy repo, and no answers are embedded in the environment. The test is a behavioral test of the style migrator."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 581,
+          "cacheReadInputTokens": 11007,
+          "cacheCreationInputTokens": 4963,
+          "webSearchRequests": 0,
+          "costUSD": 0.0267747,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 85,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0267747
+    },
+    {
+      "task_id": "format-code-task-000466",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests live in tests/test.patch and are applied only at verification time, so the agent never sees them. The environment image is the repo at the pre-fix commit with no embedded answers. The tests check real rewrite behaviour (noop on invalid identifiers), so there is no obvious shortcut. Internet access is allowed, but this is a minor concern."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 858,
+          "cacheReadInputTokens": 17186,
+          "cacheCreationInputTokens": 6101,
+          "webSearchRequests": 0,
+          "costUSD": 0.0347186,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 112,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0347186
+    },
+    {
+      "task_id": "format-code-task-000880",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Test patch lives in tests/ and is applied only at verification time, so the agent image contains no answer. The fix is a genuine code change in a repo (SES RegExp taming) validated by behavioral unit tests that are hard to shortcut. Residual risk (upstream fix is public) is inherent to SWE-style tasks."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 733,
+          "cacheReadInputTokens": 17673,
+          "cacheCreationInputTokens": 6672,
+          "webSearchRequests": 0,
+          "costUSD": 0.0358013,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0358013
+    },
+    {
+      "task_id": "format-code-task-001427",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The tests are in tests/test.patch, applied only at verification time, so the agent never sees them. The real upstream behavioural tests (mocked missing uglify-js, error output, exceptions) are hard to bypass without implementing the fix. The environment image holds no answer files, though the repo's git history could not be inspected here."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 758,
+          "cacheReadInputTokens": 17279,
+          "cacheCreationInputTokens": 6182,
+          "webSearchRequests": 0,
+          "costUSD": 0.0340519,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 105,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0340519
+    },
+    {
+      "task_id": "format-code-task-002537",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The test patch and test script live in tests/ and are applied only at verification time, so the agent image does not contain them or the solution. The agent image is just the pre-fix repo checkout, and the test is a behavioral regression test that can't be trivially bypassed."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 726,
+          "cacheReadInputTokens": 17427,
+          "cacheCreationInputTokens": 6429,
+          "webSearchRequests": 0,
+          "costUSD": 0.0347347,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 86,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0347347
+    },
+    {
+      "task_id": "format-code-task-000405",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests live in tests/test.patch, applied only at verification time, so the agent cannot see them. The agent image has no solution or answers embedded in the task files. Standard SWE-style setup; the fix must be implemented in the repo and is checked by running the hidden tests."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 584,
+          "cacheReadInputTokens": 9825,
+          "cacheCreationInputTokens": 7493,
+          "webSearchRequests": 0,
+          "costUSD": 0.0368065,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 84,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0368065
+    },
+    {
+      "task_id": "format-code-task-002668",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests live in tests/test.patch, applied only at verification time, so the agent never sees them. The task is a feature implementation in sktime (prediction intervals), and the tests check behavior (tags, column structure, outputs) without any embedded answers in the agent image."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 683,
+          "cacheReadInputTokens": 17033,
+          "cacheCreationInputTokens": 5994,
+          "webSearchRequests": 0,
+          "costUSD": 0.0325253,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 41,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0325253
+    },
+    {
+      "task_id": "format-code-task-000092",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The tests live in tests/test.patch and are applied only at verification, so the agent cannot see them at runtime. The instruction contains no solution, and the Dockerfile only uses a prebuilt SWE-style image. I could not inspect the image, so leftover git history there is unchecked."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 612,
+          "cacheReadInputTokens": 11191,
+          "cacheCreationInputTokens": 5198,
+          "webSearchRequests": 0,
+          "costUSD": 0.0280431,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 121,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0280431
+    },
+    {
+      "task_id": "format-code-task-000406",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests live in tests/test.patch and are applied only at verification time, so the agent never sees them. The environment Dockerfile only adds the repo, and the fix has to be written in source code. The tests check real behavior (send_callback exists and dispatches to the callback sink), so there is no obvious shortcut. The image's git history was not inspected."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 739,
+          "cacheReadInputTokens": 19530,
+          "cacheCreationInputTokens": 8564,
+          "webSearchRequests": 0,
+          "costUSD": 0.043615,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 89,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.043615
+    },
+    {
+      "task_id": "format-code-task-002517",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests (test.patch) live in /tests and are applied only at verification; they are not in the agent image, which is just the repo at the pre-feature commit. Tests exercise behavior against a mock S3 endpoint, so there is no embedded answer or trivial bypass."
+          }
+        }
+      },
+      "tool_calls": 4,
+      "successful_tool_calls": 4,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 850,
+          "cacheReadInputTokens": 19749,
+          "cacheCreationInputTokens": 9708,
+          "webSearchRequests": 0,
+          "costUSD": 0.0493229,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 71,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0493229
+    },
+    {
+      "task_id": "format-code-task-003058",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The test patch lives only in tests/ and is applied at verification time, so the agent image holds no test content or expected answers. The Dockerfile just uses a pre-fix repo image. Internet access allows fetching the upstream fix, but that is a minor concern and not an environment leak."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 708,
+          "cacheReadInputTokens": 11281,
+          "cacheCreationInputTokens": 5303,
+          "webSearchRequests": 0,
+          "costUSD": 0.0294321,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 138,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0294321
+    },
+    {
+      "task_id": "format-code-task-002308",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests (test.patch) live in tests/ and are applied only at verification time; the agent image just contains the repo at the pre-fix commit with no answer files. Verification runs real pytest tests on behavior, so trivial shortcuts don't pass."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 711,
+          "cacheReadInputTokens": 17834,
+          "cacheCreationInputTokens": 6688,
+          "webSearchRequests": 0,
+          "costUSD": 0.0356614,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 78,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0356614
+    },
+    {
+      "task_id": "format-code-task-002913",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests (test.patch) live only in the verifier and are applied at verification time; the agent image has just the repo at /testbed with no solution or test files. The test checks real behavior (file.value and file.contents after processing), so it is hard to bypass without a genuine fix."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 660,
+          "cacheReadInputTokens": 17147,
+          "cacheCreationInputTokens": 6098,
+          "webSearchRequests": 0,
+          "costUSD": 0.0327227,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0327227
+    },
+    {
+      "task_id": "format-code-task-000497",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "fail",
+            "explanation": "Verification runs /testbed/mimo_test_command.sh from the agent's own container, which is writable by the root agent and could simply be edited to exit 0. The environment is also a full git checkout of the upstream repo with no stated safeguards against newer commits containing the answer. The test patch only adds tests on top, so the agent controls the harness."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 845,
+          "cacheReadInputTokens": 10804,
+          "cacheCreationInputTokens": 5006,
+          "webSearchRequests": 0,
+          "costUSD": 0.0295664,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 298,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0295664
+    },
+    {
+      "task_id": "format-code-task-000407",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The tests are in tests/test.patch, which is applied only at verification time, so the agent never sees them. The environment Dockerfile only pulls a base image of the repo at the pre-fix state, and the solution is not visible in the task files. The tests are behavioral unit tests, which are hard to bypass trivially."
+          }
+        }
+      },
+      "tool_calls": 2,
+      "successful_tool_calls": 2,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 6,
+          "outputTokens": 653,
+          "cacheReadInputTokens": 10620,
+          "cacheCreationInputTokens": 4618,
+          "webSearchRequests": 0,
+          "costUSD": 0.026075999999999995,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 101,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.026075999999999995
+    },
+    {
+      "task_id": "format-code-task-000195",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Tests and build/test scripts are applied from /tests/test.patch at verification time, not present in the agent image. The task is a code-change (error message/validation) task with no embedded answers; tests are hidden unit tests that can't be read or modified by the agent."
+          }
+        }
+      },
+      "tool_calls": 3,
+      "successful_tool_calls": 3,
+      "model_usage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 730,
+          "cacheReadInputTokens": 18457,
+          "cacheCreationInputTokens": 6210,
+          "webSearchRequests": 0,
+          "costUSD": 0.0340017,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 87,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "reported_cost_usd": 0.0340017
+    }
+  ],
+  "limitation": "Externally reported positives; task files only, without task-image contents.",
+  "cost": {
+    "reported_cost_usd": 0.8912125,
+    "tasks_with_cost": 27,
+    "average_per_task_usd": 0.03300787037037037,
+    "basis": "Claude CLI reported token cost; not a subscription charge; excludes container compute."
+  }
+}

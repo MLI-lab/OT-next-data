@@ -223,7 +223,7 @@ def check_args(a):
     if getattr(a, 'review_criteria', None) is not None:
         from validation.rubrics import ROOT as RUBRICS, harbor_rubric, implementation_rubric, select_criteria
         rubric, skipped = (harbor_rubric() if getattr(a, 'review_rubric', 'terminal-bench') == 'harbor'
-                           else implementation_rubric(RUBRICS / 'upstream/task-implementation.toml'))
+                           else implementation_rubric(RUBRICS / 'rubric_terminal_bench/upstream/task-implementation.toml'))
         select_criteria(rubric, skipped, a.review_criteria)
     if getattr(a, 'prebuild_only', False):
         if a.submit not in ('helma', 'zih'):

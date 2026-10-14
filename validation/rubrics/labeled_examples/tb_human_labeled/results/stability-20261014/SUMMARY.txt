@@ -1,0 +1,60 @@
+Rubric classification stability experiment
+20 fixed tasks, 10 synthetic and 10 historical; five independent reviews per requested model.
+Sample covers all 22 criteria, with 56 positive and 28 negative human labels.
+Stability metrics below include only task/criterion pairs with all five valid reviews.
+A changed pair has at least two distinct outcomes among pass, fail and not_applicable.
+Pairwise disagreement is the fraction of the 10 unordered review pairs with different outcomes.
+Human labels are available for selected criteria only; not_applicable counts as a mismatch.
+Historical reviewed revisions are not all verified. This limits accuracy interpretation.
+Model settings use the same CLI defaults and frozen prompt, rubric, task files and container.
+Task images were not inspected. Previous verdicts and human labels were hidden.
+Raw logs and frozen execution artifacts: /hnvme/workspace/y500bb12-optiagent/rubric-stability-20261014
+
+opus-5.5
+  Completed reviews: 99/100; current errors: 0; pending: 1
+  Complete task/criterion pairs: 418
+  Changed verdict at least once: 35 (8.37%)
+  Pairwise disagreement: 4.07%
+  Agreement with available human labels: 77.14%
+  Reported token cost including recorded retries: $26.4617
+  Reviews reporting additional models: 3
+  Pure-model subset: 418 complete pairs; 8.37% changed
+  Observed models: {"claude-opus-5-5": 99, "claude-opus-4-8": 3}
+
+sonnet-5
+  Completed reviews: 73/100; current errors: 27; pending: 0
+  Complete task/criterion pairs: 154
+  Changed verdict at least once: 22 (14.29%)
+  Pairwise disagreement: 6.62%
+  Agreement with available human labels: 80.00%
+  Reported token cost including recorded retries: $32.0243
+  Reviews reporting additional models: 0
+  Pure-model subset: 154 complete pairs; 14.29% changed
+  Observed models: {"claude-sonnet-5": 73}
+
+Matched pure-model comparison (same complete tasks, excluding any task with mixed model usage):
+{
+  "task_ids": [
+    "fail-rubric-agentic",
+    "fail-rubric-no-ctrf",
+    "fail-rubric-resource-config",
+    "fail-rubric-structured-schema",
+    "fail-rubric-task-security",
+    "fail-rubric-verifiable",
+    "prove-plus-comm"
+  ],
+  "models": {
+    "opus-5.5": {
+      "pairs": 154,
+      "changed_pairs": 10,
+      "changed_fraction": 0.06493506493506493,
+      "pairwise_disagreement_fraction": 0.033766233766233764
+    },
+    "sonnet-5": {
+      "pairs": 154,
+      "changed_pairs": 22,
+      "changed_fraction": 0.14285714285714285,
+      "pairwise_disagreement_fraction": 0.06623376623376623
+    }
+  }
+}

@@ -17,7 +17,7 @@ from validation.upstream import checkout
 @pytest.mark.parametrize('kind', ['terminal-bench', 'harbor'])
 def test_subset_preserves_guidance_and_drops_unselected_skips(kind):
     text, skipped = (harbor_rubric() if kind == 'harbor' else
-                     implementation_rubric(ROOT / 'upstream/task-implementation.toml'))
+                     implementation_rubric(ROOT / 'rubric_terminal_bench/upstream/task-implementation.toml'))
     original = tomllib.loads(text)['criteria']
     names = [c['name'] for c in original[:2]]
     selected, automatic = select_criteria(text, skipped, names)
@@ -53,7 +53,7 @@ def test_selected_prompt_and_verdict_only_contain_requested_criterion(tmp_path, 
     source.mkdir()
     (source / 'task.toml').write_text('schema_version = "1.0"\n')
     (source / 'instruction.md').write_text('Solve the task.\n')
-    options = SimpleNamespace(review_agent='test', review_model='test', review_local=False,
+    options = SimpleNamespace(review_evidence='files', review_agent='test', review_model='test', review_local=False,
                               review_rubric='terminal-bench', review_criteria=['anti_cheat_robustness'],
                               backend='apptainer', dry_run=False, attempts=1)
     trial = tmp_path / 'job/trial'

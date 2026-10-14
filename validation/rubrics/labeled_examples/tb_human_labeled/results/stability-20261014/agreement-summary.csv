@@ -1,0 +1,5 @@
+cohort,model,task_criterion_count,unanimous_count,unanimous_agreement,review_pair_count,agreeing_review_pairs,pairwise_agreement
+matched,opus-5.5,154,144,0.935064935064935,1540,1488,0.9662337662337662
+all_complete,opus-5.5,418,383,0.916267942583732,4180,4010,0.9593301435406698
+matched,sonnet-5,154,132,0.8571428571428571,1540,1438,0.9337662337662338
+all_complete,sonnet-5,154,132,0.8571428571428571,1540,1438,0.9337662337662338

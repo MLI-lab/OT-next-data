@@ -53,7 +53,7 @@ def reference_inventory(tasks, *, complete=True):
 
 def implementation_rubric(source, references=None, suffixes=None):
     """Return the effective rubric and deterministic not-applicable verdicts."""
-    metadata = json.loads((ROOT / 'UPSTREAM.json').read_text())
+    metadata = json.loads((ROOT / 'rubric_terminal_bench/UPSTREAM.json').read_text())
     payload = source.read_bytes()
     expected = metadata['upstream_files']['task-implementation.toml']['sha256']
     if hashlib.sha256(payload).hexdigest() != expected:
@@ -89,7 +89,7 @@ def implementation_rubric(source, references=None, suffixes=None):
         target.write_bytes(payload)
         for name in patches:
             subprocess.run(['patch', '--batch', '--fuzz=0', '--reject-file=-',
-                            str(target), str((ROOT / 'patches' / name).resolve())],
+                            str(target), str((ROOT / 'rubric_terminal_bench/patches' / name).resolve())],
                            check=True, capture_output=True, text=True)
         text = target.read_text()
     tomllib.loads(text)
@@ -98,7 +98,7 @@ def implementation_rubric(source, references=None, suffixes=None):
 
 def harbor_rubric():
     """Return Harbor's pinned rubric with locally inapplicable checks removed."""
-    directory = ROOT / 'harbor'
+    directory = ROOT / 'rubric_harbor'
     metadata = json.loads((directory / 'UPSTREAM.json').read_text())
     source = directory / 'upstream/default-rubric.toml'
     payload = source.read_bytes()
