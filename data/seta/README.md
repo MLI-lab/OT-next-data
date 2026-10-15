@@ -1,40 +1,44 @@
-The original SETA-Env release contains 4,567 tasks. The conversion in [TaskTrove PR #4](https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/4) excludes 1,414 tasks whose environments relied on overly specialized Dockerfiles or could not be converted reliably from Docker to Apptainer. All 3,153 retained tasks were audited on an Apptainer cluster: a no-op scored 0, the packaged gold solution scored 1, and every verifier emitted its score through reward.txt.
+# [SETA-Env](https://huggingface.co/datasets/camel-ai/SETA-Env)
 
-We then tried to reproduce the results with validation pipeline here: 
+## Dataset stats
 
-## Stage 3: Verifying build
+4,567 native tasks; 1,414 excluded during upstream conversion, leaving **3,153 audited tasks: 3,107 retained, all 3,107 patched; 46 archived**. Original unique image count: **Not recorded**. Current: **11 cached Apptainer environments** covering all retained tasks; per-task setup still installs task-specific dependencies.
 
-- **19 excluded:** Rocky Linux builds required file ownership our Apptainer builder couldn’t preserve. Fakeroot completed installation but produced incorrect ownership.
-- **5 additional exclusions:** 2 read-only NVIDIA-tool conflicts and 3 very slow R-package setups.
-- **Total: 24 excluded; 3,129 passed stage 3.**
+## Dataset characteristics
 
-## Stage 4: Reference solution reward 1
+<details><summary>Domains</summary>
 
-- **6 failures fixed:** 2 memory increases, 1 fix to how the verifier matched filenames, 1 fix to how the PHP monitor and verifier sent requests, 1 reference script fixed to start reliably and generate logs faster, and 1 setup-timeout increase. All six then scored 1.
-- **1 task excluded:** installing desktop packages during task setup took too long, so the reference solution could not run successfully.
-- **Total for stage 4: 7 tasks changed: 6 patched and 1 excluded.**
+**Data Science and Machine Learning:** data cleaning, analysis, scikit-learn models and reports. **Debugging:** Python/pandas repairs. **System Administration:** shell and system configuration. **Data Processing:** file inventories, policy checks and structured outputs.
 
-## Stage 5: No-op reward 0
+</details>
+<details><summary>Capabilities</summary>
 
-- **32 additional failures fixed:** 31 setup-timeout increases and 1 verifier fix so a missing backup script fails the tests normally instead of stopping them from running. All 32 then scored 0.
-- **2 additional tasks excluded:** R-package installation during task setup too slow.
-- **Total for stage 5: 34 tasks changed: 32 patched and 2 excluded.**
+**Specification Adherence:** exact paths, schemas, metrics and constraints. **Exploration:** inspect data, policies and broken scripts. **Error Recovery:** reproduce failures and verify repairs. Labels follow [CLI-Universe](https://arxiv.org/abs/2606.22883v1).
 
-**Stages 3/4/5 dataset:** [`camel-ai__SETA-Env_filtered_stages_3_4_5`](https://huggingface.co/datasets/FWeindel/validated-tasks/discussions/13). Strict baseline with static-check-only repairs removed; 3,126 candidate tasks, awaiting fresh validation.
+</details>
 
-## Stage 1: Static checks
+Intended benchmark transfer: **Terminal-Bench 2.0, OpenThoughts-TBLite 2.0, DS-1000 mini-200 and BixBench CLI corrections @ Pi**, through terminal workflows, Python data analysis and executable verification.
 
-- **217 tasks patched:** we pinned Python package versions in installation commands or made setup use the same pytest version as the verifier.
-- **27 tasks patched after `check-test-file-references.sh` flagged them:** in 23, we updated the instructions to name the files, output paths or command-line arguments that the tests expected. In 7, we changed tests or reference solutions to better match the instructions and check actual behavior. Three tasks received both kinds of repair.
-- **43 tasks excluded:** they also failed `check-test-file-references.sh`. We left these findings unrepaired for now because resolving them reliably required further review and repair work.
-- **Total: 284 distinct tasks affected, 244 patched and 43 excluded, with 3 tasks in both groups.** This left 3,083 tasks passing stages 1, 3, 4 and 5.
+## Per-stage breakdown
 
-Separately, all 3,134 tasks received the standard timeout and anti-cheating instruction sentence.
+- **Rule-based checks:** **25 retained instructions clarified**, plus timeout/anti-cheating suffixes on **3,107**; historical dependency-pin repairs retained. **43 historical `check-test-file-references.sh` flags reviewed: 19 archived** for undisclosed deliverable paths; **24 retained** because paths were discoverable or tokens were shell syntax. Reviewed `nproc` commands were retained after allocation probes; absolute-path checks were excluded from the original full run and used only in later subsets.
+- **Build and setup: 3,107 retained tasks passed.** Retained-task repairs: **215 environments, 72 setups, 3,021 verifiers and 35 configurations**, including Docker-to-Apptainer adaptation, dependency pins and resource/time limits. **24 archived:** 19 Rocky Linux ownership mismatches, 2 read-only NVIDIA-tool conflicts and 3 slow R setups.
+- **Reference solution (reward 1): 3,107 retained tasks passed.** **6 repairs** to memory, filename matching, PHP requests, reference startup/logging and setup timeout; **1 archived** for slow desktop setup.
+- **No-op baseline (reward 0): 3,107 retained tasks passed.** **32 repairs:** 31 setup-timeout increases and 1 missing-backup-script check; **2 archived** for slow R setup.
 
-## Stage 2: LLM as a judge on tasks
+Repair counts overlap. Results combine historical runs with a fresh rerun of the **3 restored tasks whose verifier files changed**; all three passed build, reference 1 and no-op 0.
 
-We sampled **1,000 of the 3,083 stage-1 survivors with seed 42** for review with **Claude Opus 5.5**, using our patched Terminal-Bench rubric and container inspection. The resulting version will be named `camel-ai__SETA-Env_filtered_stages_1_2`. Tasks that fail an active rubric criterion will be excluded; review errors will be retried.
+## Runtime and validation time
 
-The sample is reproducible with [`prepare_quality_subset.py`](prepare_quality_subset.py), which samples from sorted task IDs and saves the selected IDs and source hashes. Matching stage-3/4/5 baseline tasks are saved for comparison. Review results will be added when the run finishes.
+- **Versions:** Apptainer **1.5.4**, Python **3.12.14**, Harbor **0.8.1**.
+- **Implementation:** [Marin Harbor `7faf878c14b6`](https://github.com/marin-community/harbor/tree/7faf878c14b6d72737579ec936ebf5f74ba3194d) + [our runtime patches](https://github.com/MLI-lab/OT-next-data/tree/main/harbor_patches).
+- **Resources:** Helma; **32 CPU cores/job**, up to 16 concurrent runtime tasks.
 
-[Inspect the first 199 completed reviews](stage2-review-199/README.md): pass/fail counts per criterion, task instructions, judge explanations and recorded costs.
+| Check | Time per task | Tasks measured |
+| --- | ---: | ---: |
+| Rule-based checks | **0.70 s median** | 3,130 |
+| Build and setup | **28.40 s median** | 3,130 |
+| Reference solution | **35.60 s median** | 3,130 |
+| No-op baseline | **38.40 s median** | 3,130 |
+
+Original 3,130-task run, before later repairs and retries. Only medians were recorded; these are not means.

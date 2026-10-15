@@ -33,7 +33,7 @@ def validate_bundle(name, manifest, directory=None):
                 raise ValueError(f'Corrupt image bundle: {source}')
 
 
-def prepare_release(tables, cache, out, repo):
+def prepare_release(tables, cache, out, repo, *, environment_paths=None):
     """Export only build-time bundles matching validated task environment contents.
 
     Legacy caches lack pristine-build provenance and are deliberately omitted.
@@ -78,7 +78,21 @@ def prepare_release(tables, cache, out, repo):
                         raise ValueError(f"Task changed since validation: {row['path']}")
                     archive.extractall(task, members=members, filter='data')
                 environments = []
-                for dockerfile in sorted(task.rglob('Dockerfile')):
+                if environment_paths is None:
+                    dockerfiles = sorted(task.rglob('Dockerfile'))
+                else:
+                    # Explicit runtime selection excludes Dockerfiles supplied as
+                    # exercise data, while retaining their bytes in context hashes.
+                    dockerfiles = []
+                    for value in environment_paths:
+                        relative = PurePosixPath(value)
+                        if relative.is_absolute() or '..' in relative.parts:
+                            raise ValueError(f'Unsafe environment path: {value}')
+                        dockerfile = task / relative / 'Dockerfile'
+                        if not dockerfile.is_file():
+                            raise ValueError(f'Missing runtime Dockerfile: {value}')
+                        dockerfiles.append(dockerfile)
+                for dockerfile in dockerfiles:
                     env_hash = environment_dir_hash(dockerfile.parent)
                     candidate = candidates.get(env_hash)
                     if candidate is None:

@@ -2325,7 +2325,7 @@ def task_exclusion(project: str, bug_id: int) -> dict | None:
     if finding := INSTRUCTION_REVIEW_EXCLUSIONS.get((project, bug_id)):
         category, reason = finding
         task_id = f"bugsinpy-original-{project}-{bug_id}"
-        evidence = ("https://github.com/MLI-lab/OT-next-data/tree/main/data/tasktrove_bugsinpy/"
+        evidence = ("https://github.com/MLI-lab/OT-next-data/tree/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/tasktrove_bugsinpy/"
                     f"flagged_instruction_review_20261008/{task_id}")
         return {"category": "flagged_by_instruction_loop",
                 "reason": f"Flagged during instruction review and excluded after checking the tests. "
@@ -2374,6 +2374,194 @@ def write_project(output: Path, rows: list[dict], manifest: list[dict], errors: 
     (output / "issues.json").write_text(json.dumps(cache, indent=2, sort_keys=True) + "\n")
 
 
+def remove_publication_suffix(blob: bytes, expected_sha256: str | None, *, repack: bool = True) -> tuple[bytes, dict[str, bytes]]:
+    """Remove the suffix from files; repack=False keeps the original archive bytes."""
+    files = {}
+    with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
+        for member in archive:
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+                raise ValueError('Unsafe task archive member')
+            if member.isfile():
+                if str(path) in files:
+                    raise ValueError('Duplicate task archive member')
+                if member.mode != (0o755 if str(path).endswith('.sh') else 0o644):
+                    raise ValueError('Unexpected task file mode')
+                files[str(path)] = archive.extractfile(member).read()
+    instruction, count = re.subn(
+        rb'\n\nYou have [0-9]+ seconds to complete this task\. Do not cheat by using online solutions or hints specific to this task\.\n$',
+        b'\n', files['instruction.md'])
+    if count != 1:
+        raise ValueError('Expected exactly one automatic instruction suffix')
+    files['instruction.md'] = instruction
+    if expected_sha256 is not None and not repack:
+        raise ValueError("Assembly comparison requires repacking")
+    restored = task_tar(files) if repack else blob
+    if expected_sha256 is not None and sha256(restored) != expected_sha256:
+        raise ValueError('Restored task differs from the accepted instruction-review payload')
+    return restored, files
+
+
+def environment_exclusion_group(task: str) -> str:
+    # Preserve the reviewed cohort. Quality exclusions are disclosed separately,
+    # rather than reassigned to runtime failures or silently reinstated.
+    if task == 'bugsinpy-original-youtube-dl-40':
+        return 'environment-compatibility'
+    if task == 'bugsinpy-original-httpie-4':
+        return 'reference-network-dependency'
+    if task in {'bugsinpy-original-keras-15', 'bugsinpy-original-scrapy-7', 'bugsinpy-original-scrapy-11'}:
+        return 'no-op-passes'
+    project, bug = task.removeprefix('bugsinpy-original-').rsplit('-', 1)
+    if (project, int(bug)) in INSTRUCTION_REVIEW_EXCLUSIONS:
+        return 'task-quality-review'
+    raise ValueError('Unclassified excluded task: ' + task)
+
+
+def prepare_environment(tasks: Path, archive: Path, run_record: Path, assembly_record: Path,
+                        publication_revision: str, output: Path, payload_shards: Path | None = None,
+                        include_static_repairs: bool = False) -> dict:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from collections import Counter
+    from validation.contract import files_digest
+
+    if output.exists():
+        raise ValueError('Use a new output directory')
+    if not re.fullmatch('[0-9a-f]{40}', publication_revision):
+        raise ValueError('Use an immutable publication revision')
+    record = json.loads(run_record.read_text())
+    assembly = json.loads(assembly_record.read_text())
+    source = record['patch_provenance']['bugsinpy-original']
+    expected = {x['task_id']: x for x in assembly['tasks']}
+    manifest = {x['task_id']: x for x in source['tasks']}
+    reviewed = {task for task, item in expected.items() if item['changed_files']}
+    if any(set(x['changed_files']) - {'instruction.md'} for x in expected.values()):
+        raise ValueError('Instruction review contains runtime changes')
+    if len(reviewed) != assembly['instruction_changes']:
+        raise ValueError('Instruction change count mismatch')
+    excluded = pq.read_table(archive)
+    archive_rows = excluded.to_pylist()
+    excluded_ids = {x['path'] for x in archive_rows}
+    if len(excluded_ids) != len(archive_rows) or excluded_ids & expected.keys():
+        raise ValueError('Duplicate or overlapping task IDs')
+    if set(expected) | excluded_ids != set(manifest):
+        raise ValueError('Incomplete converted task accounting')
+    if any(sha256(row['task_binary']) != manifest[row['path']]['output_binary_sha256'] for row in archive_rows):
+        raise ValueError('Archived payload differs from the published manifest')
+    exclusions = [{'task_id': x['path'], 'group': environment_exclusion_group(x['path']),
+                   'historical_archive_stage': x['archive_stage'], 'reason': x['archive_reason']}
+                  for x in archive_rows]
+    run_url = ('https://huggingface.co/datasets/FWeindel/validated-tasks/blob/'
+               + publication_revision + '/runs/' + record['run'] + '.json')
+    summary = {
+        'source': source['source'], 'native_bugs': 501, 'converted_tasks': len(manifest),
+        'conversion_omissions': [{'task': 'keras/12', 'reason': 'Identical buggy and fixed commits; no task payload'}],
+        'kept': len(expected), 'converted_kept': len(expected), 'unchanged_native_tasks': 0,
+        'archived': len(archive_rows), 'exclusions_by_group': dict(Counter(x['group'] for x in exclusions)),
+        'reviewed_instruction_changes_preserved': len(reviewed),
+        'quality_exclusions_preserved': sum(x['group'] == 'task-quality-review' for x in exclusions),
+        'automatic_suffix_removed': 0 if include_static_repairs else len(expected),
+        'automatic_suffix_preserved': len(expected) if include_static_repairs else 0,
+        'source_docker_images': None,
+        'image_consolidation': False, 'published_cached_bundles': 0,
+        'historical_run': run_url, 'publication_revision': publication_revision,
+        'fresh_validation': False,
+        'evidence_transfer': 'Historical runtime evidence disclosed by the publication. Only the automatic instruction suffix is removed; all runtime files and file modes are preserved. Reviewed instructions and the existing quality exclusions are intentionally retained. No new runtime or teacher run.',
+    }
+    if include_static_repairs:
+        summary['evidence_transfer'] = (
+            'Historical final stage-1 checks and pre-instruction-review runtime stages 3, 4 and 5. '
+            'Exact historical published task payloads retain reviewed instructions and rule-based suffix repairs. '
+            'No fresh runtime or teacher run.')
+    published = pq.ParquetFile(tasks)
+    schema = published.schema_arrow
+    def input_rows():
+        if payload_shards is None:
+            for batch in published.iter_batches(batch_size=16):
+                yield from batch.to_pylist()
+            return
+        # Existing teacher-input shards are only an I/O optimization. Every blob
+        # must still match the immutable publication's per-task binary hash.
+        columns = [name for name in schema.names if name != 'task_binary']
+        annotations = {row['path']: row for row in published.read(columns=columns).to_pylist()}
+        shards = sorted(payload_shards.glob('*/tasks.parquet'))
+        if not shards:
+            raise ValueError('No payload shards')
+        for shard in shards:
+            parquet = pq.ParquetFile(shard)
+            # Existing shards use one bounded task per row group. Reading across
+            # groups through iter_batches is pathological for large binary cells.
+            for group in range(parquet.num_row_groups):
+                for payload in parquet.read_row_group(group).to_pylist():
+                    if payload['path'] not in annotations:
+                        raise ValueError('Unexpected task in payload shards')
+                    yield {**annotations[payload['path']], 'task_binary': payload['task_binary']}
+    output.mkdir(parents=True)
+    retained, images, seen, features = [], {}, set(), Counter()
+    # Write a bounded-memory intermediate; add the measured summary metadata below.
+    # Payloads are already compressed tar archives; avoid expensive recompression.
+    temporary = output/'tasks.data.parquet'
+    with pq.ParquetWriter(temporary, schema, compression='NONE') as writer:
+        for row in input_rows():
+            task = row['path']
+            if task in seen or task not in expected:
+                raise ValueError('Duplicate or unexpected retained task: ' + task)
+            seen.add(task)
+            if sha256(row['task_binary']) != manifest[task]['output_binary_sha256']:
+                raise ValueError('Published payload differs from manifest: ' + task)
+            before_binary = sha256(row['task_binary'])
+            # Historical tar packaging varies across the review/retry runs.
+            # Bind every input to its published binary hash, change only the
+            # canonical suffix, and separately report exact assembly matches.
+            blob, files = remove_publication_suffix(row['task_binary'], None, repack=not include_static_repairs)
+            assembly_match = None if include_static_repairs else sha256(blob) == expected[task]['output_sha256']
+            if assembly_match is not None:
+                features['accepted_assembly_archive_matches'] += assembly_match
+            if include_static_repairs:
+                # Restore the exact historical payload, including its tar metadata.
+                blob = row['task_binary']
+                with tarfile.open(fileobj=io.BytesIO(blob)) as original:
+                    files['instruction.md'] = original.extractfile('instruction.md').read()
+            image = sha256(files['environment/Dockerfile'])
+            images.setdefault(image, {'dockerfile': files['environment/Dockerfile'].decode(), 'tasks': []})['tasks'].append(task)
+            features['isolated_verifier'] += b'env -u PYTHONPATH /tests/.venv/bin/python -m pip install' in files['tests/test.sh']
+            features['reference_timestamp_refresh'] += b'tar -xzmf /solution/fixed-files.tar.gz' in files['solution/solve.sh']
+            features['reference_native_rebuild_refresh'] += b'os.utime(path, None)' in files['solution/solve.sh']
+            features['native_build_tools'] += b'apt-get install' in files['environment/Dockerfile']
+            features['setup_and_verifier_locks'] += bool(files['setup_files/requirements.lock'].strip() and files['tests/requirements.lock'].strip())
+            row.update(task_binary=blob, content_sha256=files_digest(files.items()), stages_passed='1,3,4,5' if include_static_repairs else '3,4,5', run=run_url,
+                       patch_labels=row['patch_labels'] if include_static_repairs else
+                           [label for label in row['patch_labels'] if label != 'anti-cheat-instruction'])
+            writer.write_table(pa.Table.from_pylist([row], schema=schema))
+            retained.append({'task_id': task, 'historical_binary_sha256': before_binary,
+                             'output_binary_sha256': sha256(blob), 'content_sha256': row['content_sha256'],
+                             'reviewed_instruction_change_preserved': task in reviewed,
+                             'accepted_assembly_archive_matches': assembly_match, 'image_definition': image})
+            if len(seen) % 100 == 0:
+                print(f'Prepared {len(seen)}/{len(expected)} tasks', flush=True)
+    if seen != set(expected):
+        raise ValueError('Missing retained tasks')
+    summary.update(shared_image_definitions=len(images), retained_runtime_features=dict(features))
+    metadata = dict(schema.metadata or {})
+    metadata[b'ot.environment_reliable.v1'] = json.dumps(summary).encode()
+    with pq.ParquetWriter(output/'tasks.parquet', schema.with_metadata(metadata), compression='NONE') as writer:
+        parquet = pq.ParquetFile(temporary)
+        for group in range(parquet.num_row_groups):
+            writer.write_table(parquet.read_row_group(group).replace_schema_metadata(metadata))
+    temporary.unlink()
+    for row in archive_rows:
+        row['run'] = run_url
+        row['archive_reason'] = row['archive_reason'].replace(
+            'https://github.com/MLI-lab/OT-next-data/tree/main/data/tasktrove_bugsinpy/',
+            'https://github.com/MLI-lab/OT-next-data/tree/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/tasktrove_bugsinpy/')
+    pq.write_table(pa.Table.from_pylist(archive_rows, schema=excluded.schema).replace_schema_metadata(metadata),
+                   output/'archive.parquet', compression='NONE')
+    (output/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
+    (output/'audit.json').write_text(json.dumps({'summary': summary, 'retained': retained, 'exclusions': exclusions}, indent=2)+'\n')
+    (output/'image-definitions.json').write_text(json.dumps(images, indent=2)+'\n')
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True,
@@ -2388,7 +2576,26 @@ def main() -> None:
                         help="Shared image by Python version; fields: major, minor, version")
     parser.add_argument("--render-dir", type=Path, help="Optional folder for inspectable Harbor tasks")
     parser.add_argument("--issue-cache", type=Path, help="Optional saved issue responses to reuse")
+    parser.add_argument('--validated-tasks', type=Path, help='Prepare the reviewed historical publication')
+    parser.add_argument('--include-static-repairs', action='store_true',
+                        help='Preserve exact historical payloads with reviewed instructions and rule-based suffix repairs')
+    parser.add_argument('--validated-archive', type=Path)
+    parser.add_argument('--run-record', type=Path)
+    parser.add_argument('--assembly-record', type=Path)
+    parser.add_argument('--publication-revision')
+    parser.add_argument('--payload-shards', type=Path, help='Optional byte-verified copies in */tasks.parquet for bounded-memory input')
     args = parser.parse_args()
+    if args.validated_tasks:
+        if not all((args.validated_archive, args.run_record, args.assembly_record, args.publication_revision)):
+            parser.error('Publication preparation requires archive, run record, assembly record and publication revision')
+        if any((args.start_at_project, args.stop_after_project, args.render_dir, args.issue_cache, args.metadata_revision)):
+            parser.error('Publication preparation cannot be combined with native conversion options')
+        print(json.dumps(prepare_environment(args.validated_tasks, args.validated_archive, args.run_record,
+            args.assembly_record, args.publication_revision, args.output, args.payload_shards,
+            include_static_repairs=args.include_static_repairs), indent=2))
+        return
+    if any((args.validated_archive, args.run_record, args.assembly_record, args.publication_revision, args.payload_shards, args.include_static_repairs)):
+        parser.error('Publication inputs require --validated-tasks')
     try:
         import pyarrow  # noqa: F401 - fail before writing any rendered tasks
     except ImportError as exc:

@@ -203,3 +203,31 @@ def test_packed_cache_exports_and_stages_without_rebuild(tmp_path):
     assert not manifest['missing']
     stage_images([task], packed_cache, tmp_path / 'local')
     assert (tmp_path / 'local' / bundle.name).read_bytes() == b'pristine sif'
+
+
+def test_explicit_runtime_context_keeps_nested_exercise_inputs(tmp_path):
+    task, cache, bundle, tables = fixture(tmp_path)
+    nested = task / 'environment/exercise/Dockerfile'
+    nested.parent.mkdir()
+    nested.write_text('FROM deliberately-invalid-exercise\n')
+    new_hash = environment_dir_hash(task / 'environment')
+    assert new_hash != json.loads((bundle / 'manifest.json').read_text())['provenance']['environment_sha256']
+    image = bundle / bundle.name
+    cache = tmp_path / 'updated-cache'
+    cache_publish(image, cache, provenance=dict(pristine=True, builder='hpc.image_cache',
+        environment_sha256=new_hash, architecture=platform.machine(), format='apptainer-sif'))
+    row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='3')
+    manifest, _ = release.prepare_release({'example': ([row], [])}, cache, tmp_path / 'selected',
+                                          'org/tasks', environment_paths=('environment',))
+    assert not manifest['missing']
+    assert [e['path'] for e in manifest['tasks'][task.name]['environments']] == ['environment']
+    assert manifest['tasks'][task.name]['environments'][0]['environment_sha256'] == new_hash
+    default, _ = release.prepare_release({'example': ([row], [])}, cache, tmp_path / 'default', 'org/tasks')
+    assert len(default['missing']) == 1  # Existing recursive discovery remains available.
+
+
+@pytest.mark.parametrize('path', ['../outside', '/outside', 'missing'])
+def test_explicit_runtime_context_rejects_invalid_path(tmp_path, path):
+    task, cache, bundle, tables = fixture(tmp_path)
+    with pytest.raises(ValueError):
+        release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks', environment_paths=(path,))

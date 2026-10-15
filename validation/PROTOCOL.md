@@ -21,6 +21,13 @@ the dataset:
 Each version builds on the previous one. The validation stages below provide
 the checks used to produce these three versions.
 
+**Current release scope:** the first published release combines environment
+reliability (Stage 1 below) with rule-based task-quality checks and their recorded
+repairs/exclusions (Section 2.1). Published folders use consistent `<dataset>_v1` and `<dataset>_v2` names. Full LLM-judge review is not a release-wide gate. Dataset READMEs
+use descriptive check names rather than runner IDs. Release v2 adds
+pass@k-based selection; planned v3 adds stronger-teacher recovery and trajectory review.
+These release numbers are separate from the protocol stages and runner IDs.
+
 > **Note:** We are extending the existing [Terminal-Bench static checks](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/TASK_REVIEW_AUTOMATION.md#static-checks)
 > and heuristic rules by analyzing LLM rubric classifications and explanations
 > from pilots across several datasets. We read and cluster these findings to
@@ -281,7 +288,8 @@ Runner stage: `1` (currently also includes environment static checks).
 
 Checks instruction clarity, discoverable requirements and evaluation integrity.
 Automatic instruction repairs are task-quality interventions, including the
-required timeout/anti-cheating suffix. They must not be inherited by A.
+required timeout/anti-cheating suffix. A strictly environment-only variant excludes
+these changes; the combined first release described above includes them.
 Path resolution may start containers and run the reference solution even though
 the resulting finding is classified as task quality.
 

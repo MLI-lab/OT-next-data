@@ -1,33 +1,37 @@
-# CalibForge
+# [CalibForge](https://huggingface.co/datasets/AweAI-Team/CalibForge)
 
-The original CalibForge release contains 5,431 tasks, pinned to revision
-`fb1e75441a94b8bb0ced08acd6b59e711704d70a`. Repairs are implemented in
-[patch.py](patch.py), with details in [PATCHES.md](PATCHES.md).
+## Dataset stats
 
-## Stage 3: Verifying build
+5,431 original tasks; **5,317 retained, all 5,317 patched; 114 archived**. Original: 5,431 task image definitions. Current: 5,210 cached Apptainer environments covering 5,317 tasks; 107 fewer environments than retained tasks.
 
-- **5,079 tasks patched for build failures:** corrected Docker-to-Apptainer handling of working directories, variables, temporary inputs, COPY operations, heredocs and multi-stage builds; restored missing directories and task files, including compiled Python files recovered from upstream images. 
-- **2,969 tasks patched for verifier preparation:** installed dependencies in the agent image to reduce repeated downloads. For 2,841 of these tasks, moved installation commands into `tests/setup.sh` to measure preparation separately from grading. Mean verifier preparation after patching was **4.81 seconds**, measured five times per task. Before-patch setup took up to 43 seconds before failing.
-- **57 tasks excluded:** 45 database/server ownership failures, 7 temporary-directory state failures, 2 privileged-port failures and 3 tasks whose login scripts repeatedly started background connections and caused commands to time out.
+## Dataset characteristics
 
-## Stage 4: Reference solution reward 1
+<details><summary>Domains</summary>
 
-Skipped because none of the 5,431 tasks provides a reference solution.
+Terminal tasks spanning debugging, software engineering, data processing, data science, security, mathematics and optimization.
 
-## Stage 5: No-op reward 0
+</details>
+<details><summary>Capabilities</summary>
 
-- **13 verifier failures fixed:** in 10 tasks, missing files the agent must create now fail a test instead of crashing test loading. In 1 task, missing pandas is reported the same way. In 2 tasks, an unrepaired PostgreSQL service or Go build now fails tests instead of aborting test setup. All 13 then scored 0 on the no-op run.
-- **57 tasks excluded:** 4 scored 1 without any agent work, 10 lacked Python for verification, 8 exceeded memory limits, 11 had missing or incompatible libraries, 8 crashed in native code, 7 exceeded the verifier timeout, 4 lacked pytest, 2 had broken shell test scripts, 1 lacked a required starting file and 2 encountered permission errors.
-- **Total for stage 5: 70 tasks affected, 13 patched and 57 excluded.**
+Exploration, specification adherence and error recovery through inspecting files, modifying programs and checking executable outputs.
 
-**Total: 5,320 tasks from 5,431 kept after stages 3 + 5.**
+</details>
 
+Intended benchmark transfer: Terminal-Bench 2.0 and OpenThoughts-TBLite 2.0; data-science tasks also overlap DS-1000.
 
-## Stage 1: Static checks
+## Per-stage breakdown
 
-- **1 Dockerfile repair added to the patcher:** removes unnecessary version constraints on `build-essential`, `gdb` and `valgrind`. Tested on a copy; not yet applied to the saved dataset.
-- **2 configuration failures fixed:** removed unsupported resource fields from `[agent]` after confirming the same values under `[environment]`. Both tasks passed targeted stage 1 checks.
-- **871 pip warnings:** automatic resolution made no repairs because commands were unsupported or reference solutions were absent. Warnings only, not excluded.
-- **310 tasks had path warnings:** the resolver made 50 replacements across 37 tasks, clearing all path warnings in 35. 275 warnings only, not excluded.
-- **No additional tasks excluded based on this stage 1 review.**
+- **Rule-based checks:** timeout/anti-cheating instructions restored on **5,317 tasks**; container-backed `task-absolute-path` review resolved **50 paths in 37 tasks**, clearing 35 warnings. `task-toml-schema` repaired **2** redundant resource declarations. `dockerfile-sanity`: **1 apt-tool pin repair**, freshly passed build and no-op validation. **0 additional archives**; unresolved pip pins and remaining path warnings are advisory.
+- **Build and setup: 5,317 retained tasks passed.** **5,027 retained tasks repaired** for Docker-to-Apptainer working directories, variables, COPY, temporary files, heredocs, multi-stage builds and missing inputs. Verifier preparation repaired in **2,941 retained tasks**, including **2,813** with setup separated from grading. **57 archived:** 45 server/ownership, 7 temporary-state, 2 privileged-port and 3 repeated login-connection failures.
+- **Reference solution (reward 1):** skipped; no reference solutions.
+- **No-op baseline (reward 0): 5,317 retained tasks passed.** **13 verifier repairs**, including missing-output assertions and dependency/service errors. **57 archived:** 4 false successes, 10 missing Python, 8 memory failures, 11 library failures, 8 native crashes, 7 timeouts, 4 missing pytest, 2 shell-script errors, 1 missing starting file and 2 permission failures.
 
+Repair counts overlap. Results combine historical full runs with targeted checks of restored repairs.
+
+## Runtime and validation time
+
+- **Versions:** Apptainer **1.5.4**, Python **3.12.14**, Harbor **0.8.1**.
+- **Implementation:** [Marin Harbor `7faf878c14b6`](https://github.com/marin-community/harbor/tree/7faf878c14b6d72737579ec936ebf5f74ba3194d) + [our runtime patches](https://github.com/MLI-lab/OT-next-data/tree/main/harbor_patches).
+- **Resources:** Helma; image building uses **4 CPU cores and 8 GiB RAM per image**.
+
+- **Verifier setup:** **4.81 s mean**, measured five times per task across **2,969 tasks**.

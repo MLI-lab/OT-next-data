@@ -80,7 +80,7 @@ def test_pymor_runtime_repair_is_scoped_and_requires_original_pin():
 def test_sympy_helper_keeps_exception_assertions_strict(monkeypatch):
     import sys
     import types
-    from data.swelego.swelego_sympy_pytest import pytest_configure
+    from data.swelego.assets.swelego_sympy_pytest import pytest_configure
     helper = types.SimpleNamespace()
     monkeypatch.setitem(sys.modules, 'sympy', types.ModuleType('sympy'))
     utilities = types.ModuleType('sympy.utilities')
@@ -104,7 +104,7 @@ def test_sympy_helper_keeps_exception_assertions_strict(monkeypatch):
 def test_f5_missing_feature_fails_during_execution_not_collection(tmp_path, monkeypatch):
     import sys
     import types
-    from data.swelego.f5_test_imports import repair
+    from data.swelego.assets.f5_test_imports import repair
     module = types.ModuleType('f5.bigip.tm.asm.tasks')
     monkeypatch.setitem(sys.modules, module.__name__, module)
     original = ('from f5.bigip.tm.asm.tasks import Import_Policy\n'
@@ -166,7 +166,7 @@ def test_sdss_clock_is_local_to_grading_module(monkeypatch):
     import datetime
     import sys
     import types
-    from data.swelego.sdss_verifier_clock import pytest_collection_modifyitems
+    from data.swelego.assets.sdss_verifier_clock import pytest_collection_modifyitems
     module = types.ModuleType('sdss_access.path.path')
     module.datetime = datetime
     real_datetime = datetime.datetime
@@ -543,7 +543,7 @@ def test_pytrakt_fixes_only_the_verifier_local_calendar_clock():
     assert 'tests/swelego_pytrakt_clock.py' in result
     assert result['solution/gold.patch'] == original_patch
     import datetime, sys, types
-    from data.swelego.swelego_pytrakt_clock import pytest_collection_modifyitems
+    from data.swelego.assets.swelego_pytrakt_clock import pytest_collection_modifyitems
     module = types.ModuleType('trakt.utils')
     module.datetime = datetime.datetime
     sys.modules[module.__name__] = module
@@ -567,7 +567,7 @@ def test_rpyc_verifier_uses_an_allowed_cpu_without_changing_task_source():
     assert b'min(self._os.sched_getaffinity(0))' in result['tests/swelego_rpyc_affinity.py']
     assert b'python /tests/swelego_rpyc_affinity.py /testbed/tests/test_affinity.py' in result['tests/test.sh']
     assert result['solution/gold.patch'] == original_solution
-    from data.swelego.swelego_rpyc_affinity import rewrite
+    from data.swelego.assets.swelego_rpyc_affinity import rewrite
     changed = rewrite('self._os.sched_setaffinity(0, {0, })')
     assert rewrite(changed) == changed
 
@@ -707,7 +707,7 @@ def test_zarr_restores_the_preceding_release_tag_and_gets_a_measured_memory_limi
     row['base_commit'] = build_backends()[row['instance_id']]['base_commit']
     assert environment_repairs()[row['instance_id']]['base_commit'] == row['base_commit']
     files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
-    history = json.loads((Path(__file__).resolve().parents[1] / 'data/swelego/base-environments.json').read_text())['checkout_tags'][row['instance_id']]
+    history = json.loads((Path(__file__).resolve().parents[1] / 'data/swelego/assets/base-environments.json').read_text())['checkout_tags'][row['instance_id']]
     assert history['base_commit'] == row['base_commit'] and history['tag'] == 'v3.0.2'
     result = patch_files(files, row, {**lock, 'checkout_tags': {row['instance_id']: history}})
     setup = result['setup_files/setup.sh'].decode()
@@ -752,7 +752,7 @@ def test_tox_restores_the_preceding_release_tag_for_its_provisioning_check():
     if row['instance_id'] in build_backends():
         assert build_backends()[row['instance_id']]['base_commit'] == row['base_commit']
     files['tests/test.sh'] = files['tests/test.sh'].replace(b'a' * 40, row['base_commit'].encode())
-    history = json.loads((Path(__file__).resolve().parents[1] / 'data/swelego/base-environments.json').read_text())['checkout_tags'][row['instance_id']]
+    history = json.loads((Path(__file__).resolve().parents[1] / 'data/swelego/assets/base-environments.json').read_text())['checkout_tags'][row['instance_id']]
     assert history['tag'] == '4.0.2' and history['base_commit'] == row['base_commit']
     setup = patch_files(files, row, {**lock, 'checkout_tags': {row['instance_id']: history}})['setup_files/setup.sh'].decode()
     assert 'git fetch --depth 2147483647 origin ' + row['base_commit'] in setup

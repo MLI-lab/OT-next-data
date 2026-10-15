@@ -359,7 +359,107 @@ def prepare_pilot_cli():
     prepare_pilot_main()
 
 
+
+def release_nop_failure(item):
+    """Require an executed, passing no-op check with reward zero."""
+    if item.get('status') == 'passed' and item.get('rewards') and all(r == 0 for r in item['rewards']):
+        return None
+    findings = '; '.join(str(f) for f in item.get('findings', []))
+    if 'executed no tests' in findings:
+        return 'no-op-no-tests', 'The no-op verifier executed no tests; reward zero does not establish a valid check.'
+    if 'timeout' in findings.lower() or 'timed out' in findings.lower():
+        return 'no-op-timeout', 'The no-op verifier timed out before a valid result was recorded.'
+    raise ValueError(f'Unreviewed no-op outcome: {item}')
+
+
+def prepare_release(root):
+    """Select only confirmed build/no-op passes from the pinned published PR."""
+    from collections import Counter
+    root = Path(root)
+    source = json.loads((root / 'input/source.json').read_text())
+    revision = source['revision']
+    if not re.fullmatch(r'[a-f0-9]{40}', revision):
+        raise ValueError('An immutable HF revision is required')
+    published = root / 'input/published'
+    evidence = published / 'evidence/termigen-phases-1-3-5-6-7-preview-20261014'
+    manifest = json.loads((evidence / 'patch-manifest.json').read_text())
+    tasks = {r['task_id']: r for r in manifest['tasks']}
+    assert len(tasks) == 3566
+    reports = {n: {r['task']: r for r in json.loads((evidence / f'stage-{n}.json').read_text())['items']} for n in (3, 5)}
+    output = root / 'prepared'
+    output.mkdir(exist_ok=False)
+    old_folder = published / 'TermiGen_phase-1-3-5-6-7'
+    source_table = pq.ParquetFile(old_folder / 'tasks.parquet')
+    schema = source_table.schema_arrow
+    archive_rows = pq.read_table(old_folder / 'archive.parquet').to_pylist()
+    original_archive = {r['path']: sha256(r['task_binary']) for r in archive_rows}
+    assert len(archive_rows) == 197
+    archive_ids = set(original_archive)
+    retained_ids, new_archive = set(), []
+    changes, labels, new_reasons = Counter(), Counter(), Counter()
+    images = set()
+    run_url = f'https://huggingface.co/datasets/FWeindel/validated-tasks/resolve/{revision}/runs/termigen-phases-1-3-5-6-7-preview-20261014.json'
+    with pq.ParquetWriter(output / 'tasks.parquet', schema, compression='zstd') as writer:
+        for batch in source_table.read().to_batches(max_chunksize=64):
+            rows = []
+            for row in batch.to_pylist():
+                task = row['path']
+                assert task not in retained_ids and task not in archive_ids
+                assert sha256(row['task_binary']) == tasks[task]['output_binary_sha256']
+                assert reports[3][task]['status'] == 'passed'
+                failure = release_nop_failure(reports[5][task])
+                row['run'] = run_url
+                if failure:
+                    label, reason = failure
+                    row['archive_stage'] = 5
+                    row['archive_reason'] = reason + ' Recorded findings: ' + '; '.join(reports[5][task].get('findings', []))
+                    row['archive_labels'] = [label]
+                    row['stages_passed'] = ','.join(s for s in row['stages_passed'].split(',') if s != '5')
+                    archive_rows.append(row)
+                    archive_ids.add(task)
+                    new_reasons[label] += 1
+                    new_archive.append(dict(task=task, label=label, reason=reason))
+                    continue
+                assert '3' in row['stages_passed'].split(',') and '5' in row['stages_passed'].split(',')
+                retained_ids.add(task)
+                labels.update(tasks[task]['labels'])
+                changes['environment_patched'] += tasks[task]['action'] == 'changed'
+                changes['instruction_patched'] += 'instruction.md' in tasks[task].get('publication_preparation_changed_files', [])
+                members = read_task(row['task_binary'])
+                dockerfiles = [data for info, data in members if info.name == 'environment/Dockerfile']
+                assert len(dockerfiles) == 1
+                images.add(sha256(dockerfiles[0]))
+                rows.append(row)
+            if rows:
+                writer.write_table(pa.Table.from_pylist(rows, schema=schema))
+    assert len(retained_ids) == 3336 and len(archive_rows) == 230
+    assert new_reasons == {'no-op-no-tests': 28, 'no-op-timeout': 5}
+    assert retained_ids.isdisjoint(archive_ids) and retained_ids | archive_ids == set(tasks)
+    for row in archive_rows:
+        if row['path'] in original_archive:
+            assert sha256(row['task_binary']) == original_archive[row['path']]
+        row['run'] = run_url
+    pq.write_table(pa.Table.from_pylist(archive_rows, schema=schema), output / 'archive.parquet', compression='zstd')
+    summary = dict(original=3566, kept=3336, archived=230, newly_archived=33,
+                   changes=dict(changes), retained_repair_labels=dict(labels),
+                   total_environment_patched=sum(r['action'] == 'changed' for r in tasks.values()),
+                   retained_distinct_dockerfiles=len(images), original_task_image_definitions=3566,
+                   cached_images_published=0, archive_labels=dict(Counter(label for row in archive_rows for label in row['archive_labels'])),
+                   new_archive=new_archive, source_revision=revision, native_revision=REVISION,
+                   reference_checks='not available: no reference solutions',
+                   task_payloads_preserved=True, existing_instruction_changes_preserved=True,
+                   validation='Historical stages 3 and 5; no new runtime run', run_url=run_url)
+    (output / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+    print(json.dumps({k:v for k,v in summary.items() if k != 'new_archive'}, indent=2))
+
+
+def prepare_release_cli():
+    parser = argparse.ArgumentParser(description='Prepare the existing TermiGen build/no-op passing subset')
+    parser.add_argument('root', type=Path)
+    prepare_release(parser.parse_args().root)
+
+
 if __name__ == "__main__":
     from data.utils.cli import dispatch
-    dispatch({'prepare-pilot': prepare_pilot_cli})
+    dispatch({'prepare-release': prepare_release_cli, 'prepare-pilot': prepare_pilot_cli})
     main()

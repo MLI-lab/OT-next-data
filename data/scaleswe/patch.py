@@ -1163,14 +1163,250 @@ def patch_blob(blob, diagnostic=None, decisions=(), oracle_passed=False, task_id
         return output.getvalue(), edits
 
 
+QUALITY_LABELS = {'instruction-path-clarified', 'anti-cheat-instruction'}
+
+
+def environment_repair_stage(task):
+    labels = set(task['labels']) - QUALITY_LABELS
+    if not labels:
+        return None
+    if labels == {'verifier-call-time-imports'} or task['task_id'] == 'rom1504_embedding-reader_pr9':
+        return 5
+    if labels == {'verifier-import-path'} and 'no-op' in task.get('reason', ''):
+        return 5
+    reference = {'verifier-import-path', 'verifier-test-fixture-restoration',
+                 'verifier-exact-test-ids', 'verifier-debug-stream-isolation',
+                 'verifier-request-cleanup', 'verifier-cpu-affinity',
+                 'verifier-worker-cleanup', 'verifier-required-test-skipped'}
+    if labels <= reference:
+        return 4
+    raise ValueError('Unclassified repair: ' + task['task_id'])
+
+
+def archive_files(blob):
+    """Read regular task files without extracting to disk."""
+    files = {}
+    with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
+        for member in archive:
+            name = str(PurePosixPath(member.name))
+            if PurePosixPath(name).is_absolute() or '..' in PurePosixPath(name).parts:
+                raise ValueError('Unsafe task archive member')
+            if member.isdir():
+                continue
+            if not member.isfile() or name in files:
+                raise ValueError('Unsupported or duplicate task archive member')
+            files[name] = (archive.extractfile(member).read(), member.mode)
+    return files
+
+
+def restore_source_instruction(blob, instruction):
+    """Restore only the upstream instruction, preserving all runtime files and modes."""
+    from data.utils.full_source.harbor_parquet import pack_task
+    files = archive_files(blob)
+    files['instruction.md'] = (instruction, files['instruction.md'][1])
+    return pack_task(files)
+
+
+def environment_archive_stage(row):
+    """Cause-based attribution; the historical archive itself retains stage 0."""
+    labels = {label.removeprefix('patch-drop:') for label in row['archive_labels']}
+    noop = {'verifier-no-op-passes', 'task-changes-only-test-files',
+            'verifier-timeout-without-fix', 'verifier-timing-dependent'}
+    reference = {'reference-solution-reward-zero', 'verifier-collection-error',
+                 'verifier-network-dependency', 'verifier-external-dependency',
+                 'verifier-stale-cassette', 'verifier-execution-checker-pythonpath',
+                 'verifier-privileged-port', 'image-dependency-mismatch',
+                 'image-missing-test-dependency', 'verifier-execution-error'}
+    if labels and labels <= noop:
+        return 5
+    if labels and labels <= reference:
+        return 4
+    raise ValueError('Unclassified archive reason: ' + row['path'])
+
+
+def prepare_environment(upstream, tasks, archive, run_record, output, publication_revision):
+    """Prepare the instruction-original variant from pinned source and historical tasks."""
+    from collections import Counter
+    from data.utils.full_source.convert_prime import scale_files
+    from data.utils.full_source.harbor_parquet import pack_task
+
+    if not re.fullmatch('[0-9a-f]{40}', publication_revision):
+        raise ValueError('Use an immutable publication revision')
+    if output.exists():
+        raise ValueError('Use a new output directory')
+    record = json.loads(run_record.read_text())
+    provenance = record['patch_provenance']['scaleswe']
+    if provenance['source']['revision'] != REVISION:
+        raise ValueError('Unexpected upstream revision')
+    manifest = {x['task_id']: x for x in provenance['tasks']}
+    automation = record['automation_changes']['scaleswe']['tasks']
+    if any(set(x['labels']) != {'anti-cheat-instruction'} for x in automation):
+        raise ValueError('Unreviewed automatic runtime changes')
+    automated_ids = {x['task_id'] for x in automation}
+    published = pq.ParquetFile(tasks)
+    # Recover the frozen common converter support from a task with no patcher edits.
+    support = None
+    for batch in published.iter_batches(batch_size=32):
+        for row in batch.to_pylist():
+            if manifest[row['path']]['action'] == 'unchanged':
+                files = archive_files(row['task_binary'])
+                test = files['tests/test.sh'][0].decode()
+                start = test.index('\n', test.index('\nbase=') + 1) + 1
+                end = test.index('if [ -s /tests/f2p.patch ]; then', start)
+                support = {'score': files['tests/score.py'][0], 'restore': test[start:end]}
+                break
+        if support:
+            break
+    if support is None:
+        raise ValueError('No unchanged converter baseline')
+    source = {}
+    for shard in sorted(upstream.glob('*.parquet')):
+        for batch in pq.ParquetFile(shard).iter_batches(batch_size=32):
+            for raw in batch.to_pylist():
+                task = raw['instance_id']
+                if task in source or task not in manifest:
+                    raise ValueError('Duplicate or unexpected source task: ' + task)
+                original = pack_task(scale_files(raw, support))
+                if hashlib.sha256(original).hexdigest() != manifest[task]['source_binary_sha256']:
+                    raise ValueError('Pinned source does not reproduce conversion: ' + task)
+                files = archive_files(original)
+                source[task] = {'instruction': files['instruction.md'][0],
+                                'image': raw['image_url'],
+                                'files': {k: (hashlib.sha256(v).hexdigest(), mode)
+                                          for k, (v, mode) in files.items()}}
+    if set(source) != set(manifest):
+        raise ValueError('Incomplete source task accounting')
+    print(f'Verified all {len(source)} original converted payload hashes', flush=True)
+    archived = pq.read_table(archive)
+    archive_rows = archived.to_pylist()
+    excluded_ids = set()
+    exclusions = []
+    for row in archive_rows:
+        task = row['path']
+        if task in excluded_ids or manifest[task]['action'] != 'dropped':
+            raise ValueError('Invalid archive task: ' + task)
+        excluded_ids.add(task)
+        if hashlib.sha256(row['task_binary']).hexdigest() != manifest[task]['source_binary_sha256']:
+            raise ValueError('Archive no longer preserves original payload: ' + task)
+        exclusions.append({'task_id': task, 'attributed_stage': environment_archive_stage(row),
+                           'historical_archive_stage': row['archive_stage'],
+                           'labels': row['archive_labels'], 'reason': row['archive_reason']})
+    kept_ids = set(source) - excluded_ids
+    changed_ids = {task for task in kept_ids if set(manifest[task]['labels']) - QUALITY_LABELS}
+    run_url = ('https://huggingface.co/datasets/FWeindel/validated-tasks/blob/'
+               + publication_revision + '/runs/' + record['run'] + '.json')
+    summary = {
+        'source': provenance['source'], 'source_tasks': len(source), 'kept': len(kept_ids),
+        'changed_kept': len(changed_ids), 'unchanged_kept': len(kept_ids - changed_ids),
+        'archived': len(excluded_ids),
+        'changed_by_attributed_stage': dict(Counter(environment_repair_stage(manifest[x]) for x in changed_ids)),
+        'archived_by_attributed_stage': dict(Counter(x['attributed_stage'] for x in exclusions)),
+        'original_images': len({x['image'] for x in source.values()}),
+        'retained_images': len({source[x]['image'] for x in kept_ids}),
+        'image_consolidation': False, 'image_registry': 'https://hub.docker.com/r/aweaiteam/scaleswe/tags',
+        'quality_path_edits_excluded': provenance['instructions_changed'],
+        'quality_suffix_edits_excluded': len(automated_ids),
+        'historical_run': run_url, 'publication_revision': publication_revision,
+        'fresh_validation': False,
+        'evidence_transfer': 'Historical stages 3/4/5 only. Original instructions restored; every other file and its mode preserved from the audited publication. No new runtime or teacher run.',
+    }
+    schema = published.schema_arrow.with_metadata({b'ot.environment_reliable.v1': json.dumps(summary).encode()})
+    output.mkdir(parents=True)
+    retained_audit, seen = [], set()
+    with pq.ParquetWriter(output/'tasks.parquet', schema, compression='zstd') as writer:
+        for batch in published.iter_batches(batch_size=32):
+            rows = batch.to_pylist()
+            for row in rows:
+                task = row['path']
+                if task in seen or task not in kept_ids or task not in automated_ids:
+                    raise ValueError('Invalid retained task: ' + task)
+                seen.add(task)
+                if row['stages_passed'] != '1,3,4,5':
+                    raise ValueError('Incomplete historical evidence: ' + task)
+                before = archive_files(row['task_binary'])
+                if files_digest((k, v) for k, (v, _) in before.items()) != row['content_sha256']:
+                    raise ValueError('Published content hash mismatch: ' + task)
+                pre_static, count = re.subn(
+                    rb'\n\nYou have [0-9]+ seconds to complete this task\. Do not cheat by using online solutions or hints specific to this task\.\n$',
+                    b'\n', before['instruction.md'][0])
+                if count != 1 or hashlib.sha256(restore_source_instruction(row['task_binary'], pre_static)).hexdigest() != manifest[task]['output_binary_sha256']:
+                    raise ValueError('Historical payload differs from recorded patcher output: ' + task)
+                payload = restore_source_instruction(row['task_binary'], source[task]['instruction'])
+                after = archive_files(payload)
+                if {k: v for k, v in before.items() if k != 'instruction.md'} != {
+                        k: v for k, v in after.items() if k != 'instruction.md'}:
+                    raise ValueError('Runtime content changed: ' + task)
+                actual = {k: (hashlib.sha256(v).hexdigest(), mode) for k, (v, mode) in after.items()}
+                changed_files = sorted(k for k in actual.keys() | source[task]['files'].keys()
+                                       if actual.get(k) != source[task]['files'].get(k))
+                expected = sorted(k for k in manifest[task]['changed_files'] if k != 'instruction.md')
+                if changed_files != expected or bool(changed_files) != (task in changed_ids):
+                    raise ValueError('Unaccounted runtime repair: ' + task)
+                if not changed_files and hashlib.sha256(payload).hexdigest() != manifest[task]['source_binary_sha256']:
+                    raise ValueError('Unchanged task differs from original archive: ' + task)
+                row.update(task_binary=payload, content_sha256=files_digest((k, v) for k, (v, _) in after.items()),
+                           stages_passed='3,4,5', run=run_url, patch_changed=bool(changed_files),
+                           patch_labels=sorted(set(manifest[task]['labels']) - QUALITY_LABELS))
+                retained_audit.append({'task_id': task, 'changed_files': changed_files,
+                    'labels': row['patch_labels'], 'reason': manifest[task].get('reason', ''),
+                    'attributed_stage': environment_repair_stage(manifest[task]),
+                    'source_binary_sha256': manifest[task]['source_binary_sha256'],
+                    'output_binary_sha256': hashlib.sha256(payload).hexdigest(),
+                    'content_sha256': row['content_sha256'], 'image': source[task]['image']})
+            writer.write_table(pa.Table.from_pylist(rows, schema=schema))
+    if seen != kept_ids:
+        raise ValueError('Missing retained tasks')
+    for row in archive_rows:
+        row['run'] = run_url
+    pq.write_table(pa.Table.from_pylist(archive_rows, schema=archived.schema).replace_schema_metadata(schema.metadata),
+                   output/'archive.parquet', compression='zstd')
+    (output/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
+    (output/'audit.json').write_text(json.dumps({'summary': summary, 'retained': retained_audit,
+        'exclusions': exclusions}, indent=2)+'\n')
+    (output/'images.json').write_text(json.dumps({task: source[task]['image'] for task in sorted(kept_ids)}, indent=2)+'\n')
+    return summary
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--source', type=Path, required=True)
+    parser.add_argument('--source', type=Path)
+    parser.add_argument('--validated-tasks', type=Path)
+    parser.add_argument('--validated-archive', type=Path)
+    parser.add_argument('--upstream-shards', type=Path)
+    parser.add_argument('--run-record', type=Path)
+    parser.add_argument('--publication-revision')
     parser.add_argument('--output', type=Path, required=True, help='new output directory')
     parser.add_argument('--resolution-report', type=Path, action='append', default=[])
     parser.add_argument('--automatic-paths', action='store_true', help='use shared automatic normalization, without a review file')
     parser.add_argument('--review', type=Path, help='review JSON: tasks maps IDs to decisions and unresolved reasons')
+    parser.add_argument('--restore-historical-instructions', type=Path, help='Current release tasks; restore recorded historical instructions and preserve runtime/image bindings')
     args = parser.parse_args()
+    if args.restore_historical_instructions:
+        if not all((args.validated_tasks, args.validated_archive, args.run_record, args.publication_revision)):
+            parser.error('Historical restoration requires validated tasks, archive, run record and immutable publication revision')
+        helper = Path(__file__).resolve().parent / 'assets' / 'historical_release.py'
+        if helper.is_file():
+            import importlib.util
+            spec = importlib.util.spec_from_file_location('historical_release', helper)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            restore = module.restore
+        else:
+            from data.utils.historical_release import restore
+        print(json.dumps(restore(args.restore_historical_instructions, args.validated_tasks,
+            args.validated_archive, args.run_record, 'scaleswe',
+            args.publication_revision, args.output), indent=2))
+        return
+    if args.validated_tasks:
+        if args.source or args.review or args.automatic_paths or args.resolution_report:
+            parser.error('Environment preparation cannot be combined with instruction patching')
+        if not all((args.validated_archive, args.upstream_shards, args.run_record, args.publication_revision)):
+            parser.error('Environment preparation requires archive, upstream shards, run record and publication revision')
+        print(json.dumps(prepare_environment(args.upstream_shards, args.validated_tasks,
+            args.validated_archive, args.run_record, args.output, args.publication_revision), indent=2))
+        return
+    if not args.source or any((args.validated_archive, args.upstream_shards, args.run_record, args.publication_revision)):
+        parser.error('Supply --source, or the complete environment preparation inputs')
     if args.output.exists():
         raise ValueError('Use a new output directory')
     review = json.loads(args.review.read_text())['tasks'] if args.review else {}
