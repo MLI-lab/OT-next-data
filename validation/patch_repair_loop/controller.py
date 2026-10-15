@@ -142,7 +142,7 @@ def load_config(path):
 
 def loop_settings(config):
     validation_args(config)
-    for key in ('shard_size', 'shard_concurrency'):
+    for key in ('shard_size', 'shard_concurrency', 'prebuild_shard_size'):
         if key in config and (type(config[key]) is not int or config[key] < 1):
             raise ValueError(f'{key} must be a positive integer')
     if type(config.setdefault('prebuild_all_images', False)) is not bool:
@@ -439,14 +439,26 @@ def wait_for_job(job, poll_seconds, max_wait_hours=24):
         return collect(job, poll_seconds, max_wait_hours)
     submission = Path(job["submission"])
     deadline = time.monotonic() + max_wait_hours * 3600
+    terminal_since = None
+    contract = json.loads(Path(job['contract']).read_text())
+    def ready():
+        try:
+            summary = json.loads((submission / 'report/summary.json').read_text())
+            if not summary.get('complete'):
+                return False
+            outcome = summarize(submission / 'report', job['selected_ids'], contract['stages'])
+            if outcome['contract_sha256'] != contract['sha256']:
+                raise RuntimeError('Completed reports belong to another execution contract')
+            return True
+        except (FileNotFoundError, ValueError):
+            # Old workers publish summary.json first, and shared storage may
+            # expose files at different times. Require the actual stage reports.
+            return False
     while True:
         if time.monotonic() > deadline:
             raise TimeoutError(f"job {job['job_id']} did not produce a complete report in {max_wait_hours}h")
-        report = submission / "report/summary.json"
-        if report.is_file():
-            summary = json.loads(report.read_text())
-            if summary.get("complete"):
-                return submission / "report"
+        if ready():
+            return submission / 'report'
         result = subprocess.run(["sacct", "-X", "-n", "-P", "-j", job["job_id"],
                                  "--format", "JobID,State", "--noheader"], capture_output=True,
                                 text=True, check=True)
@@ -454,9 +466,12 @@ def wait_for_job(job, poll_seconds, max_wait_hours=24):
                   if line.split("|")[0] == job["job_id"]]
         if states and states[0] in ("FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "COMPLETED",
                                     "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "REVOKED"):
-            if report.is_file() and json.loads(report.read_text()).get("complete"):
+            if ready():
                 return submission / "report"
-            raise RuntimeError(f"job {job['job_id']} ended {states[0]} without a complete report: {submission}")
+            if terminal_since is None:
+                terminal_since = time.monotonic()
+            if time.monotonic() - terminal_since >= 60:
+                raise RuntimeError(f"job {job['job_id']} ended {states[0]} without a complete report: {submission}")
         time.sleep(poll_seconds)
 
 
@@ -488,6 +503,10 @@ def wait_for_prebuild(job, poll_seconds, max_wait_hours=24):
 
 def prebuild_gate(config, source, available, generation):
     """Cache the whole generation before any pilot or validation submission."""
+    # Image-only workers release each image's scratch after publication. Their
+    # shard size need not increase the image set retained by validation workers.
+    config = {**config, **({'shard_size': config['prebuild_shard_size']}
+                           if 'prebuild_shard_size' in config else {})}
     directory = generation / 'image-prebuild'
     directory.mkdir(exist_ok=True)
     job_path = directory / 'job.json'
@@ -550,7 +569,9 @@ def selection(ids, size, seed, prefix=()):
 
 def dataset_hashes(config):
     root = Path(config['patcher']).parent
-    return {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+    # Keep checkpoint identities stable when code moves to a private checkout.
+    identity = Path(config.get('dataset_identity_root', root))
+    return {str(identity / p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(root.rglob('*')) if p.is_file()
             and not any(part.startswith('.') or part in ('__pycache__', 'pilot-results')
                         for part in p.relative_to(root).parts)}
@@ -898,6 +919,9 @@ def main():
     parser.add_argument("command", choices=("run", "status", "resume", "supervise"))
     parser.add_argument("--config", type=Path, required=True)
     args = parser.parse_args()
+    if args.command != 'status':
+        from validation.patch_repair_loop.isolation import enter
+        enter(args.config.resolve(), args.command)
     config = load_config(args.config)
     state_path = Path(config["work_root"]) / "loop-state.json"
     if args.command == "supervise":

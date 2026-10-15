@@ -144,21 +144,55 @@ def stage_published(tasks, cache, target, download=None, *, selected_keys=None):
             validate_bundle(bundle['name'], bundle)
             if not bundle['name'].endswith('-' + env_hash[:12] + '.sif'):
                 raise ValueError('Published image cache key mismatch')
-            prefix = f"images/bundles-v1/{environment['bundle']}/{bundle['name']}"
-            if bundle['prefix'] != prefix or not re.fullmatch('[0-9a-f]{64}', environment['bundle']):
+            prefix = bundle['prefix']
+            suffix = f"bundles-v1/{environment['bundle']}/{bundle['name']}"
+            parts = PurePosixPath(prefix).parts
+            dataset_prefix = (len(parts) == 5 and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', parts[0])
+                              and prefix == f'{parts[0]}/cached_images/{suffix}')
+            if (prefix != f'images/{suffix}' and not dataset_prefix) or not re.fullmatch('[0-9a-f]{64}', environment['bundle']):
                 raise ValueError('Unsafe artifact path')
             identity = (manifest['repo_id'], manifest['revision'], prefix)
             if identity in done:
                 continue
             target = Path(target)
             target.mkdir(parents=True, exist_ok=True)
+            # Staging may already have restored this exact published bundle.
+            # Verify against the pinned manifest, not just its filename/key.
+            try:
+                validate_bundle(bundle['name'], bundle, target)
+            except (OSError, ValueError):
+                pass
+            else:
+                done.add(identity)
+                records.append({'source': prefix, 'revision': manifest['revision'],
+                                'local': str(target / bundle['name']),
+                                'verified_bundle': True, 'reused': True})
+                continue
+            # Also support callers that have not run local bundle staging.
+            cached = Path(cache) / 'bundles-v1' / bundle['name']
+            if not cached.exists():
+                cached = cached.with_name(cached.name + '.tar')
+            if cached.exists():
+                if cached.is_symlink():
+                    raise ValueError(f'Invalid cached image bundle: {cached}')
+                with bundle_directory(cached, target) as unpacked:
+                    local_manifest = bundle_manifest(unpacked)
+                    if (local_manifest['files'] != bundle['files']
+                            or local_manifest.get('provenance') != provenance):
+                        raise ValueError(f'Published image cache manifest mismatch: {cached}')
+                    validate_bundle(bundle['name'], bundle, unpacked)
+                    local = restore(unpacked, target)
+                done.add(identity)
+                records.append({'source': str(cached), 'revision': manifest['revision'],
+                                'local': str(local), 'verified_bundle': True, 'reused': True})
+                continue
             with tempfile.TemporaryDirectory(prefix='.hf-image-', dir=target) as temporary:
                 directory = Path(temporary) / bundle['name']
                 directory.mkdir()
                 for name in bundle['files']:
                     downloaded = download(repo_id=manifest['repo_id'], repo_type='dataset',
                         revision=manifest['revision'], filename=f'{prefix}/{name}',
-                        cache_dir=str(Path(cache) / 'hf-hub'))
+                        cache_dir=str(Path(temporary) / 'hf-hub'))
                     copy_image(downloaded, directory / name)
                 (directory / 'manifest.json').write_text(json.dumps(bundle))
                 local = restore(directory, target)

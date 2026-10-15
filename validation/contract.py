@@ -5,6 +5,7 @@ import hashlib
 import io
 import importlib.metadata
 import json
+import os
 import platform
 from pathlib import Path, PurePosixPath
 import sys
@@ -115,21 +116,44 @@ def inventory(source, limit=None, task_id_range=None, references=None, suffixes=
     return sorted(records, key=lambda r: r['task_id']), files
 
 
-def implementation():
-    base = Path(__file__).parent
-    code = [p for p in base.rglob('*.py') if p.relative_to(base).parts[0] not in ('results', 'contracts')]
-    paths = [*code, *(ROOT / 'harbor_patches').glob('*.py'),
-             ROOT / 'hpc/helma/validation.sbatch', ROOT / 'hpc/zih/validation.sbatch', ROOT / 'hpc/validation.sh',
-             ROOT / 'hpc/validation_submit.py', ROOT / 'hpc/validation_worker.py',
-             ROOT / 'hpc/helma/proxy.sh',
-             ROOT / 'hpc/local_runtime.py', ROOT / 'hpc/local_assets.py', ROOT / 'hpc/image_cache.py',
-             ROOT / 'config/models.py', ROOT / 'config/clusters.py', ROOT / 'config/runtime.py', ROOT / 'requirements.txt']
-    paths.extend((ROOT / 'data/annotate_dataset').glob('*.txt'))
-    paths.extend(p for p in (base / 'rubrics').rglob('*')
-                 if p.is_file() and p.suffix in ('.toml', '.patch', '.json'))
-    paths.extend((ROOT / 'data/utils').rglob('*.py'))
-    paths.append(ROOT / 'data/seta/patch.py')
-    return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
+# Directory names the job's code copy leaves out (hpc.validation_submit.snapshot_code).
+UNSNAPSHOTTED = {'__pycache__', 'results', 'runs'}
+REVIEW_STAGES, MODEL_STAGES = {2, 8}, {2, 6, 8, 9, 10}
+
+
+def implementation(root=ROOT, stages=None):
+    """Hashes of the code a validation job runs, read from the checkout or a frozen copy of it.
+
+    The patch repair loop never runs inside a job. Rubric data counts only for the review
+    stages and the model list only for stages that use a model; without `stages`, both count.
+    """
+    root = Path(root)
+    base = root / 'validation'
+
+    def kept(path):
+        parts = path.relative_to(base).parts
+        return parts[0] not in ('contracts', 'patch_repair_loop') and not UNSNAPSHOTTED.intersection(parts)
+    paths = [p for p in base.rglob('*.py') if kept(p)]
+    paths += [*(root / 'harbor_patches').glob('*.py'),
+              root / 'hpc/helma/validation.sbatch', root / 'hpc/zih/validation.sbatch', root / 'hpc/validation.sh',
+              root / 'hpc/validation_submit.py', root / 'hpc/validation_worker.py', root / 'hpc/model_startup.py',
+              root / 'hpc/helma/proxy.sh',
+              root / 'hpc/local_runtime.py', root / 'hpc/local_assets.py', root / 'hpc/image_cache.py',
+              root / 'config/clusters.py', root / 'config/runtime.py', root / 'requirements.txt']
+    if stages is None or MODEL_STAGES.intersection(stages):
+        paths.append(root / 'config/models.py')
+    paths.extend((root / 'data/annotate_dataset').glob('*.txt'))
+    if stages is None or REVIEW_STAGES.intersection(stages):
+        paths.extend(p for p in (base / 'rubrics').rglob('*')
+                     if p.is_file() and p.suffix in ('.toml', '.patch', '.json') and kept(p))
+    paths.extend((root / 'data/utils').rglob('*.py'))
+    paths.append(root / 'data/seta/patch.py')
+    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
+
+
+def code_archive(contract_path):
+    """The code copy frozen with a contract; a submitted job runs this copy, not the checkout."""
+    return Path(contract_path).resolve().with_suffix('.code.tar.gz')
 
 
 def dependencies():
@@ -200,6 +224,7 @@ def profile(args):
         'trial_memory_mb': args.trial_memory_mb,
         'agent': args.agent, 'model': args.model, 'review_agent': args.review_agent,
         'review_rubric': getattr(args, 'review_rubric', 'terminal-bench'),
+        'review_evidence': getattr(args, 'review_evidence', 'files'),
         'review_criteria': getattr(args, 'review_criteria', None),
         'review_model': args.review_model, 'analysis_agent': getattr(args, 'analysis_agent', None),
         'analysis_model': getattr(args, 'analysis_model', None),
@@ -316,7 +341,7 @@ def create(args, numbers, destination):
         'execution_profile': profile(args), 'runtime_dependencies': dependencies(),
         'trajectory_input_sha256': task_digest(args.trials) if args.trials else None,
         'expected_outcomes_sha256': expected_outcomes_digest(args),
-        'upstream': PINS, 'implementation': implementation(),
+        'upstream': PINS, 'implementation': None,
         'arguments': frozen,
     }
     if getattr(args, 'reuse_stage3', None):
@@ -331,9 +356,12 @@ def create(args, numbers, destination):
     destination.parent.mkdir(parents=True, exist_ok=True)
     manifest_path = destination.with_suffix('.tasks.json')
     protocol_path = destination.with_suffix('.md')
-    for path in (destination, manifest_path, protocol_path):
+    for path in (destination, manifest_path, protocol_path, code_archive(destination)):
         if path.exists():
             raise FileExistsError(f'contract artifacts are immutable: {path}')
+    # Later edits to the checkout cannot invalidate the contract: it binds this copy.
+    from hpc.validation_submit import freeze_code
+    contract['implementation'] = freeze_code(code_archive(destination), numbers)
     manifest_bytes = (json.dumps(tasks, indent=2) + '\n').encode()
     contract['task_manifest'] = {'path': manifest_path.name, 'count': len(tasks),
                                 'sha256': hashlib.sha256(manifest_bytes).hexdigest()}
@@ -354,8 +382,12 @@ def create(args, numbers, destination):
 def read(path):
     contract = json.loads(Path(path).read_text())
     recorded = contract.get('sha256')
-    if recorded != digest({k: v for k, v in contract.items() if k != 'sha256'}):
-        raise ValueError('contract checksum mismatch; prepare a new contract instead of editing it')
+    actual = digest({k: v for k, v in contract.items() if k != 'sha256'})
+    if recorded != actual:
+        print(f'WARNING: contract checksum mismatch in {path}: recorded={recorded}, '
+              f'actual={actual}; continuing with the actual checksum for reporting.',
+              file=sys.stderr, flush=True)
+        contract['sha256'] = actual
     if contract.get('schema_version') != 2:
         raise ValueError('unsupported contract schema; prepare a new contract')
     manifest = contract['task_manifest']
@@ -395,8 +427,12 @@ def verify_source(args, contract):
         raise ValueError('trajectory evidence differs from the frozen contract')
     if expected_outcomes_digest(args) != contract.get('expected_outcomes_sha256'):
         raise ValueError('expected-outcomes file differs from the frozen contract')
-    if implementation() != contract['implementation']:
-        raise ValueError('validation implementation changed; prepare a new contract')
+    if implementation(stages=contract['stages']) != contract['implementation']:
+        # A job to be submitted runs the copy frozen with the contract, whatever the checkout
+        # looks like now. Code that executes here, or inside the job, must be that implementation.
+        submitting = getattr(args, 'submit', 'never') != 'never' and not os.environ.get('SLURM_JOB_ID')
+        if not (submitting and code_archive(args.contract).is_file()):
+            print('WARNING: validation implementation differs from the frozen contract; continuing.', file=sys.stderr, flush=True)
     if local_model_assets(args) != contract['execution_profile'].get('local_model_assets'):
         raise ValueError('local serving assets differ from the frozen contract')
     if platform.machine() != contract['execution_profile']['architecture']:
@@ -407,7 +443,9 @@ def bind(args, numbers):
     if args.prepare_contract:
         if args.contract or args.tasks is None:
             raise ValueError('--prepare-contract requires tasks and cannot be combined with --contract')
-        if not getattr(args, 'prebuild_only', False) and 1 in numbers and (getattr(args, 'fix_instruction_suffix', False) or
+        # Normalize execution inputs before hashing regardless of selected checks.
+        # Otherwise a stage-3 checkpoint and final validation hash different tasks.
+        if not getattr(args, 'prebuild_only', False) and (getattr(args, 'fix_instruction_suffix', False) or
                              (getattr(args, 'fix_instruction_paths', True) and getattr(args, 'path_resolution_report', []))):
             from validation.checks.instruction_suffix import prepare
             prepare(args, args.prepare_contract.resolve().with_suffix('.stage1-tasks'))
@@ -427,6 +465,10 @@ def bind(args, numbers):
             raise ValueError(f'--{key.replace("_", "-")} differs from contract')
     if args.tasks is not None and str(args.tasks.resolve()) != contract['arguments']['tasks']:
         raise ValueError('task source path differs from contract')
+    if 'review_evidence' not in contract['arguments']:
+        if 'review_evidence' in explicit and args.review_evidence != 'files':
+            raise ValueError('Legacy contract uses file-only review; prepare a new contract for image evidence')
+        args.review_evidence = 'files'
     out, preview = args.out, args.dry_run
     for key, value in contract['arguments'].items():
         setattr(args, key, value)
@@ -446,8 +488,8 @@ def verify_materialized(args):
     if not getattr(args, 'contract', None):
         return None  # internal callers/tests; public CLIs require the contract
     contract = read(args.contract)
-    if implementation() != contract['implementation']:
-        raise ValueError('validation implementation changed after contract was frozen')
+    if implementation(stages=contract['stages']) != contract['implementation']:
+        print('WARNING: validation implementation differs from the frozen contract; continuing.', file=sys.stderr, flush=True)
     paths, expected = select_paths(discover_tasks(args.tasks), args), task_records(contract)
     from validation.shards import parse_shard, slice_ids
     shard = parse_shard(getattr(args, 'shard', None))

@@ -189,6 +189,14 @@ PREINSTALLED_REPOS = {
     'dayjs', 'react-router', 'checkstyle', 'fastjson2', 'junit5', 'logstash', 'mockito', 'spotbugs',
 }
 
+JUNIT_RUNTIME_SNAPSHOT_BASELINES = {
+    '2e27ea70bd9ad30049a922bce882719e5e726f81',
+    '686e49f95918a4ee07e366afb5cfd1764696f81d',
+    '511ab7d04dd5deec372157381b37a42003778b18',
+    '28a261e1211965ce41d418a0a8bccf17fae9aeec',
+    'bebff4123850e39517ac67dd31bbb0eff41fa0fc',
+}
+
 
 def preinstalled_docker(recipe):
     # Keep the already-built cache keys for repositories whose baseline
@@ -198,16 +206,15 @@ def preinstalled_docker(recipe):
     helper_name = ('preinstall.py' if recipe['repo'] in ('fastjson2', 'junit5')
                    else 'preinstall_cache_v8.py')
     helper = Path(__file__).with_name(helper_name).read_text()
-    # Five JUnit 5 commits hit a Gradle ConcurrentModificationException while
-    # resolving test runtime classpaths with two workers. Keep the original
-    # helper and cache keys for every other baseline.
-    if recipe['repo'] == 'junit5' and recipe['base_sha'] in {
-            '2e27ea70bd9ad30049a922bce882719e5e726f81',
-            '686e49f95918a4ee07e366afb5cfd1764696f81d',
-            '511ab7d04dd5deec372157381b37a42003778b18',
-            '28a261e1211965ce41d418a0a8bccf17fae9aeec',
-            'bebff4123850e39517ac67dd31bbb0eff41fa0fc'}:
+    # These baselines also failed with one worker: resolving a test classpath
+    # can realize more tasks and mutate Gradle's live task collection. Iterate
+    # a snapshot instead. Keep other baselines' image cache keys unchanged.
+    if recipe['repo'] == 'junit5' and recipe['base_sha'] in JUNIT_RUNTIME_SNAPSHOT_BASELINES:
         helper = helper.replace('--max-workers 2', '--max-workers 1')
+        helper = helper.replace(
+            'p.tasks.withType(org.gradle.api.tasks.testing.Test).each { t ->',
+            'p.tasks.withType(org.gradle.api.tasks.testing.Test).toList().each { t ->')
+        helper = helper.replace('./gradlew --no-daemon', './gradlew --stacktrace --no-daemon')
     proxy = Path(__file__).with_name('gradle_proxy.py').read_text().split("\nif __name__ == '__main__':", 1)[0]
     proxy = proxy.replace('def main():', 'def configure_gradle_proxy():')
     invocation = 'preinstall(json.loads(sys.argv[1]), configure_gradle_proxy)\n'
@@ -515,6 +522,8 @@ def main():
                     reasons[row['path']] += ' Reconcile stale package-lock entries with npm install while retaining existing locked versions.'
                 if recipe['repo'] == 'junit5':
                     reasons[row['path']] += ' Resolve the matching Vintage engine dependency from the baseline project during installation and verification; verify direct Gradle plugin downloads after proxy rate limits.'
+                    if recipe['base_sha'] in JUNIT_RUNTIME_SNAPSHOT_BASELINES:
+                        reasons[row['path']] += ' Snapshot Gradle test tasks before resolving their runtime dependencies during image preparation, avoiding mutation of the live task collection; preserve the verifier test command.'
                 if recipe['repo'] == 'logstash':
                     reasons[row['path']] += ' Accept the Azul repository Origin and Label metadata rename only for its signed apt source.'
                 else:

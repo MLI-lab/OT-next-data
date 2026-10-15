@@ -174,3 +174,46 @@ python validation/rubrics/scripts/report_stability.py \
   --readme validation/rubrics/labeled_examples/tb_human_labeled/README.md
 ```
 <!-- END STABILITY_RESULTS -->
+
+<!-- BEGIN LOCAL_JUDGES -->
+## Local GLM judges
+
+### GLM-5.3-Flash
+
+1/57 completed; 16 errors.
+
+
+[GLM-5.3-Flash: individual verdicts and explanations](results/glm-5.3-flash.json). [Criterion counts](results/glm-5.3-flash-criterion-counts.csv).
+
+| Category | Expected | Match | Mismatch | Pending |
+| --- | --- | ---: | ---: | ---: |
+| candidate | fail | 0 | 0 | 18 |
+| candidate | pass | 0 | 0 | 81 |
+| excluded | fail | 0 | 0 | 3 |
+| excluded | pass | 0 | 0 | 1 |
+| later_PR_assumed_positive | pass | 0 | 0 | 9 |
+| reviewed | fail | 0 | 0 | 15 |
+| synthetic | fail | 1 | 0 | 22 |
+### GLM-5.3
+
+0/57 completed; 0 errors.
+
+
+[GLM-5.3: individual verdicts and explanations](results/glm-5.3.json). [Criterion counts](results/glm-5.3-criterion-counts.csv).
+
+| Category | Expected | Match | Mismatch | Pending |
+| --- | --- | ---: | ---: | ---: |
+| candidate | fail | 0 | 0 | 18 |
+| candidate | pass | 0 | 0 | 81 |
+| excluded | fail | 0 | 0 | 3 |
+| excluded | pass | 0 | 0 | 1 |
+| later_PR_assumed_positive | pass | 0 | 0 | 9 |
+| reviewed | fail | 0 | 0 | 15 |
+| synthetic | fail | 0 | 0 | 23 |
+
+Missing or invalid reviews are reported separately. Local inference has no API charge; GPU time is recorded with each model.
+<!-- END LOCAL_JUDGES -->
+
+## Missing-criterion retries
+
+For seven Flash reviews, we retain 137 valid judgments and request only the 17 missing criteria again. [Merged results and per-criterion provenance](results/glm-5.3-flash-repaired.json) preserve the original answers and mark retry judgments separately. Missing judgments remain unjudged until a valid answer arrives. Retries are not independent stability repetitions.

@@ -51,7 +51,8 @@ def slice_ids(contract, shard):
 def snapshot_matches(contract_path, code_root):
     """Whether the code snapshot the shards will run is the implementation the contract froze."""
     check = ('import json,sys; from validation.contract import implementation, read; '
-             'sys.exit(0 if implementation() == read(sys.argv[1])["implementation"] else 3)')
+             'contract = read(sys.argv[1]); '
+             'sys.exit(0 if implementation(stages=contract["stages"]) == contract["implementation"] else 3)')
     return subprocess.run([sys.executable, '-c', check, str(contract_path)], cwd=code_root,
                           env={**__import__('os').environ, 'PYTHONPATH': str(code_root)}).returncode == 0
 
@@ -95,7 +96,10 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
     if (out / 'shards').exists():
         raise ValueError(f'{out / "shards"} exists; use a new directory')
     out.mkdir(parents=True, exist_ok=True)
-    code_root = snapshot_code(out)  # frozen code for every shard, like a single submission
+    from validation.contract import code_archive
+    frozen = code_archive(contract_path)
+    # frozen code for every shard, like a single submission
+    code_root = snapshot_code(out, frozen) if frozen.is_file() else snapshot_code(out)
     if not snapshot_matches(Path(contract_path).resolve(), code_root):
         raise ValueError('the checkout changed since the contract was prepared; prepare a new contract, then plan again')
     for index in range(count):

@@ -109,7 +109,8 @@ def test_scheduler_tracks_array_elements_instead_of_parent(tmp_path, monkeypatch
     for index in range(2):
         c.save(root / f'array/shards/{index}/job.json', {'job_id': f'123_{index}'})
     def sacct(command, **kwargs):
-        assert command[command.index('-j') + 1] == '123_0,123_1'
+        assert command[command.index('-j') + 1] == '123'
+        assert '--array' in command  # Includes never-started cancelled children.
         assert 'JobID,State' in command
         return type('Result', (), {'stdout': '123_0|COMPLETED|\n123_1|RUNNING|\n'})()
     monkeypatch.setattr(recovery.subprocess, 'run', sacct)

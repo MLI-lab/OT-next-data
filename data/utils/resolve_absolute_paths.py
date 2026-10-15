@@ -69,6 +69,37 @@ def relative_file(value):
     return value if value not in ('', '.') else None
 
 
+def preceding_absolute_paths(instruction, candidates):
+    """Literal paths before flagged references are search hints, never priorities."""
+    positions = []
+    for candidate in candidates:
+        if relative_file(candidate):
+            positions.extend(m.start() for m in re.finditer(
+                r'(?<![A-Za-z0-9_./+~\-])' + re.escape(candidate) + r'(?![A-Za-z0-9_./+~\-])', instruction))
+    if not positions:
+        return []
+    # Ignore URLs, shell expansions, and partial matches inside other paths.
+    # Quoted paths can contain spaces; unquoted paths use literal path characters.
+    pattern = r'`(/[^`\n]+)`|(?<![A-Za-z0-9_/:.])(/[A-Za-z0-9_+.-]+(?:/[A-Za-z0-9_+.-]+)*/?)'
+    paths = set()
+    for match in re.finditer(pattern, instruction[:max(positions)]):
+        path = match[1] or match[2]
+        if any(c in path for c in '$*?[]{}\\\x00') or '..' in PurePosixPath(path).parts:
+            continue
+        path = posixpath.normpath(path)
+        if path == '/' or path.startswith('//') or any(path == p or path.startswith(p + '/') for p in ('/proc', '/sys', '/dev')):
+            continue
+        paths.add(path)
+    return sorted(paths)
+
+
+def hint_roots_command(paths):
+    """Inspect hints as data; only existing directories (or file parents) qualify."""
+    return ('for p in ' + ' '.join(shlex.quote(p) for p in paths) + '; do '
+            'if [ -d "$p" ]; then printf "%s\\n" "$p"; '
+            'elif [ -f "$p" ]; then dirname -- "$p"; fi; done')
+
+
 def search_command(candidates, roots):
     roots = validate_roots(roots)
     paths = sorted({p for candidate in candidates if (p := relative_file(candidate))})
@@ -148,8 +179,21 @@ async def resolve_in_environment(environment, task_path, search_roots, timeout_s
                 raise RuntimeError('Cannot discover project search roots')
             roots = sorted(set(p for p in (discovered.stdout or '').splitlines() if p.startswith('/') and p != '/'))
             roots = [p for p in roots if not any(p.startswith(q.rstrip('/') + '/') for q in roots if q != p)]
-            roots = validate_roots(roots)
+            roots = validate_roots(roots) if roots else []
             report['search_roots'] = roots
+        hints = preceding_absolute_paths((task_path / 'instruction.md').read_text(), candidates)
+        report['instruction_path_hints'] = hints
+        if hints:
+            hint_command = hint_roots_command(hints)
+            discovered = await environment.exec(hint_command, timeout_sec=30)
+            report['hint_roots_command'] = hint_command
+            if discovered.return_code != 0:
+                raise RuntimeError('Cannot inspect instruction path hints')
+            extra = [p for p in (discovered.stdout or '').splitlines() if p and p != '/']
+            roots = validate_roots([*roots, *extra])
+            roots = sorted(p for p in roots if not any(p.startswith(q.rstrip('/') + '/') for q in roots if q != p))
+            report['search_roots'] = roots
+        roots = validate_roots(roots)
         command = search_command(candidates, roots)
         if command is None:
             report.update(status='completed', findings=classify(candidates, '', '/', roots))

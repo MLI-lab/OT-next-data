@@ -1,0 +1,14 @@
+model,cohort,category,labels_per_repeat,repeat_1,repeat_2,repeat_3,repeat_4,repeat_5,mean_accuracy,sample_stddev
+glm-5.3-flash,all_complete,all,0,,,,,,,
+glm-5.3-flash,matched_all_four_models,all,0,,,,,,,
+glm-5.3,all_complete,all,0,,,,,,,
+glm-5.3,matched_all_four_models,all,0,,,,,,,
+opus-5.5,all_complete,all,70,0.7285714285714285,0.7571428571428571,0.7857142857142857,0.8,0.7857142857142857,0.7714285714285715,0.028571428571428595
+opus-5.5,all_complete,candidate,55,0.6909090909090909,0.6909090909090909,0.7454545454545455,0.7454545454545455,0.7636363636363637,0.7272727272727273,0.034015067152490384
+opus-5.5,all_complete,reviewed,5,0.6,1.0,0.8,1.0,0.6,0.8,0.2
+opus-5.5,all_complete,synthetic,10,1.0,1.0,1.0,1.0,1.0,1.0,0.0
+opus-5.5,matched_all_four_models,all,0,,,,,,,
+sonnet-5,all_complete,all,20,0.8,0.8,0.85,0.8,0.75,0.8,0.03535533905932737
+sonnet-5,all_complete,candidate,14,0.7142857142857143,0.7142857142857143,0.7857142857142857,0.7142857142857143,0.6428571428571429,0.7142857142857143,0.05050762722761051
+sonnet-5,all_complete,synthetic,6,1.0,1.0,1.0,1.0,1.0,1.0,0.0
+sonnet-5,matched_all_four_models,all,0,,,,,,,

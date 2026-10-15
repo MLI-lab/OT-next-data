@@ -42,3 +42,24 @@ Claude costs are CLI-reported token costs; Astra costs are [API-equivalent estim
 Fable's remaining reviews were resumed after reauthentication and completed: **20/20 reviews**, with no errors. The $44.2612 total includes reported costs from earlier attempts; the mean is across all 20 task records.
 Each linked JSON includes task-level labels, explanations, and reported costs.
 <!-- END MODEL_RESULTS -->
+
+<!-- BEGIN LOCAL_JUDGES -->
+## Local GLM judges
+
+### GLM-5.3-Flash
+
+0/20 completed; 0 errors.
+
+
+[GLM-5.3-Flash: pending results](results/glm-5.3-flash.json)
+
+### GLM-5.3
+
+0/20 completed; 0 errors.
+
+
+[GLM-5.3: pending results](results/glm-5.3.json)
+
+
+Missing or invalid reviews are reported separately. Local inference has no API charge; GPU time is recorded with each model.
+<!-- END LOCAL_JUDGES -->

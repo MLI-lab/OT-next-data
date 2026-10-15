@@ -70,7 +70,14 @@ The lists below use the default `training` profile. Check names omit the
   searches inside the container for flagged relative paths, also checking after
   the reference solution if needed. Unique matches replace relative paths in the
   validation copy's `instruction.md`. Unchanged tasks reuse previous search
-  results. Disable with `--no-fix-instruction-paths`.
+  results. Disable with `--no-fix-instruction-paths`. Remaining path findings are
+  advisory warnings, not automatic exclusion reasons. Contextual review should
+  assess whether the agent can determine the intended location from its
+  instructions and supplied environment without hidden verifier knowledge. A
+  relative path alone is not a defect; ordinary project exploration, archive
+  member names, and expected build products or outputs can be valid. Stage 2
+  `instruction_concision` accepts clear or discoverable file paths and flags
+  paths that are misleading or cannot reasonably be resolved.
 - `test-file-references`: ignores URLs and standard system paths such as
   `/usr/bin/python`. Extended to follow file references in the instructions
   to resolve paths flagged as missing from them: the agent may find these by
@@ -83,14 +90,31 @@ The lists below use the default `training` profile. Check names omit the
   For flagged tasks, `data/utils/resolve_pip_pins.py` builds the environment and
   runs the reference solution and verifier. If the reward is 1, it freezes the
   environment and replaces unpinned requirements with the observed versions.
-  Patched tasks continue through normal validation. Unresolved pins still fail
-  stage 1 and are archived during publication.
+  Patched tasks continue through normal validation. In the training profile,
+  unresolved pins are advisory warnings and do not cause task archival. This
+  includes tasks without a ground-truth reference solution and installation
+  commands the resolver cannot safely handle. Preserve the findings and resolver
+  evidence; absence of an automatic repair does not establish a broken task.
+  Strict non-training profiles retain pinning failures. The current default Stage 2
+  `deterministic_reproducible` criterion also rejects unpinned dependencies; that
+  rubric still needs alignment before applying this warning-only policy across
+  both quality stages.
+- `dockerfile-references`: ignores full-line Dockerfile comments, while retaining
+  executable references and heredoc data. The task payload is unchanged.
+- `dockerfile-sanity`: checks apt install arguments within continued RUN commands
+  instead of scanning the next 20 lines. Unrelated ENV versions and embedded
+  program assignments do not count as pinned apt packages. Unsupported shell
+  forms retain conservative upstream checking.
 - `nproc`: allows `make -j$(nproc)`, `cpu_cores=$(nproc)`, and
   `logical_cores=$(nproc 2>/dev/null)` in the four reviewed SETA solutions, plus
   `command -v nproc` to check availability. These reported 1 and 2 CPUs for
   matching Helma allocations. Exceptions match the tested scripts and Dockerfiles;
   other uses still require testing. The previously reviewed InferredBugs Python
-  build also allows `make -j"$(nproc)"`. The strict Terminal-Bench profile is unchanged.
+  build also allows `make -j"$(nproc)"`. Five content-pinned CalibForge image/script
+  pairs are also allowed after Helma job 1017578 measured `nproc` as 2 and 4
+  inside Apptainer steps requesting those CPU counts (`nproc --all` saw 384).
+  This is evidence for the tested Slurm affinity configuration, not unrestricted
+  execution on other backends. The strict Terminal-Bench nproc profile is unchanged.
 
 **Checks we introduced:**
 
@@ -120,16 +144,41 @@ files. It assesses whether tests match the requested outcome, the solution is
 valid, dependencies and verification are reliable, and the task is useful
 and resistant to cheating. It uses Terminal-Bench's
 [rubric][implementation-rubric] and [prompt template][implementation-prompt].
+Our default evidence path differs from upstream's task-files-only review:
+`--review-evidence image` adapts the Charlie calibration workflow. A host-side
+Claude Code or Codex CLI judge receives only the container inspection MCP tool;
+built-in host shell tools are disabled. The tool uses fresh task environments
+through the same runtime and image cache as validation, including separately
+configured verifier environments. Declared agent setup runs before inspection.
+The judge can inspect the complete task files, including `setup_files` and
+`tests/setup.sh`; verifier setup is not automatically executed. Inspection
+commands may change the disposable review instance, never the cached image or
+source task. The review-only copies of tests and solutions are explicitly marked
+as review evidence, not as proof of solver access to those files.
+
+The upstream prompt and patched rubric are retained with an evidence-access
+addendum. Each attempt records environment configuration, setup scope, tool
+commands and results, judge output, usage, and schema-validated verdicts. At
+least one successful inspection is required. Startup failures, unavailable
+inspection, and invalid or missing verdicts are review errors; they do not
+silently fall back to task-files-only evidence.
+`--review-evidence files` explicitly selects the previous neutral review
+container, including for local Terminus reviewers not supported by the
+image-inspection CLI adapter. The selected judge CLI and credentials must be
+available on the worker host. Stage 8 is unchanged. Existing frozen contracts
+retain their recorded evidence setting; legacy contracts without one use the
+previous file-only behavior.
+
 Select the Stage 2 rubric with `--review-rubric terminal-bench` (the default) or
 `--review-rubric harbor`. The Harbor option uses the pinned upstream default
-rubric from `validation/rubrics/harbor/`, with `pinned_dependencies` removed
+rubric from `validation/rubrics/rubric_harbor/`, with `pinned_dependencies` removed
 because the Stage 1 `check-pip-pinning.sh` static check validates dependency
 pinning more cheaply and reliably. Its `test_deps_in_image` criterion is also
 removed because training tasks sometimes put reusable tooling such as pytest in
 shared task images to reduce image storage and task setup time. Both removed
 criteria are recorded as automatically `not_applicable`. The selected rubric
 is saved with each staged review and recorded in the run report.
-Before staging each review, we apply the diffs in `validation/rubrics/patches/`.
+Before staging each review, we apply the diffs in `validation/rubrics/rubric_terminal_bench/patches/`.
 The `verifiable` change includes `tests/setup.sh` alongside `tests/test.sh`, and
 some tasks use these scripts separately so Stage 3's `review-setup` can measure
 verifier preparation apart from execution.

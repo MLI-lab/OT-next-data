@@ -136,3 +136,69 @@ def test_automatic_roots_use_existing_projects_not_filesystem_root(tmp_path, mon
     assert result['status'] == 'completed'
     assert result['search_roots'] == ['/app', '/workspace']
     assert result['findings'][0]['status'] == 'unique'
+
+
+@pytest.mark.parametrize('duplicate', [False, True])
+def test_instruction_directory_is_searched_and_duplicates_prevent_edits(tmp_path, monkeypatch, duplicate):
+    from validation.checks.instruction_paths import automatic
+    task = tmp_path / 'task'
+    task.mkdir()
+    data = tmp_path / 'data'
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    original = data / 'raw/orders.csv'
+    original.parent.mkdir(parents=True)
+    original.write_text('input')
+    if duplicate:
+        copied = workspace / 'files/data/raw/orders.csv'
+        copied.parent.mkdir(parents=True)
+        copied.write_text('input')
+    text = f'Input files (all in `{data}/`):\n- `raw/orders.csv`\n'
+    (task / 'instruction.md').write_text(text)
+    monkeypatch.setattr(resolver, 'flagged_paths', lambda _: (['raw/orders.csv'], {}))
+    class Environment:
+        async def run_healthcheck(self):
+            pass
+        async def exec(self, command, **kwargs):
+            result = subprocess.run(['sh', '-c', command], cwd=workspace, capture_output=True, text=True)
+            return SimpleNamespace(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    report = asyncio.run(resolver.resolve_in_environment(Environment(), task, [str(workspace)]))
+    assert report['status'] == 'completed'
+    assert str(data) in report['search_roots']
+    finding = report['findings'][0]
+    assert finding['status'] == ('ambiguous' if duplicate else 'unique')
+    changed, edits = automatic(text, {'agent_baseline': report}, False)
+    assert len(edits) == (0 if duplicate else 1)
+    assert changed == (text if duplicate else text.replace('`raw/orders.csv`', f'`{original}`'))
+
+
+def test_hint_extraction_does_not_treat_any_directory_as_authoritative():
+    text = 'Earlier `/other/`, https://host/ignored, `/proc/self`, `/`.\nInputs in `/data/`: `raw/a.csv`. Later `/output/`.'
+    assert resolver.preceding_absolute_paths(text, ['raw/a.csv']) == ['/data', '/other']
+    assert resolver.preceding_absolute_paths('`/data/` then `../escape`', ['../escape']) == []
+
+
+def test_hint_probe_uses_parent_of_existing_file_and_ignores_missing(tmp_path):
+    existing = tmp_path / 'directory with spaces' / 'file.txt'
+    existing.parent.mkdir()
+    existing.touch()
+    command = resolver.hint_roots_command([str(existing), str(tmp_path / 'missing')])
+    result = subprocess.run(['sh', '-c', command], capture_output=True, text=True, check=True)
+    assert result.stdout.splitlines() == [str(existing.parent)]
+
+
+def test_instruction_hint_works_without_default_project_directories(tmp_path, monkeypatch):
+    (tmp_path / 'file.csv').touch()
+    (tmp_path / 'instruction.md').write_text(f'Inputs in `{tmp_path}/`: `file.csv`.')
+    monkeypatch.setattr(resolver, 'flagged_paths', lambda _: (['file.csv'], {}))
+    class Environment:
+        async def run_healthcheck(self):
+            pass
+        async def exec(self, command, **kwargs):
+            if command.startswith('pwd -P'):
+                return SimpleNamespace(return_code=0, stdout='/\n', stderr='')
+            result = subprocess.run(['sh', '-c', command], capture_output=True, text=True)
+            return SimpleNamespace(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    report = asyncio.run(resolver.resolve_in_environment(Environment(), tmp_path, ['auto']))
+    assert report['status'] == 'completed'
+    assert report['findings'][0]['absolute_path'] == str(tmp_path / 'file.csv')

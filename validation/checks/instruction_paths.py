@@ -1,7 +1,7 @@
 """Automatic, evidence-backed instruction edits before contract hashing."""
 import re
 
-from data.utils.resolve_absolute_paths import collect_reports, apply_reviewed_replacements
+from data.utils.resolve_absolute_paths import collect_reports, apply_reviewed_replacements, preceding_absolute_paths
 
 
 def automatic(instruction, diagnostic, oracle_passed):
@@ -10,17 +10,30 @@ def automatic(instruction, diagnostic, oracle_passed):
     phases += [('after-reference', r) for r in diagnostic.get('observations', [])
                if r.get('observation_phase') == 'after-reference-solution-before-verifier']
     candidates = {}
+    observed_matches = {}
     for phase, observation in phases:
         if observation.get('status') != 'completed':
             continue
         for finding in observation.get('findings', []):
+            relative = finding['relative_path']
+            hints = preceding_absolute_paths(instruction, [relative])
+            if not set(hints).issubset(observation.get('instruction_path_hints', [])):
+                continue  # Older evidence did not search the instruction's hints.
+            observed_matches.setdefault(relative, set()).update(finding.get('matches', []))
             if finding.get('status') == 'unique' and len(finding.get('matches', [])) == 1:
+                # ./ explicitly refers to the working directory. A unique copy
+                # elsewhere may be an old build artifact, not the program the
+                # agent is asked to build. Do not redirect execution to it.
+                if relative.startswith('./') and not finding.get('resolves_from_start', False):
+                    continue
                 candidates.setdefault(finding['relative_path'], (phase, finding['matches'][0]))
     # Keep fenced code unchanged; prose examples use the same unique-match
     # rule as other prose.
     excluded = [(m.start(), m.end()) for m in re.finditer(r'(?ms)^\s*(```|~~~).*?^\s*\1[^\n]*', instruction)]
     decisions = []
     for relative, (phase, absolute) in candidates.items():
+        if observed_matches[relative] != {absolute}:
+            continue
         occurrences = []
         for match in re.finditer(r'(?<![A-Za-z0-9_./+~\-])' + re.escape(relative) + r'(?![A-Za-z0-9_./+~\-])', instruction):
             start, end = match.span()

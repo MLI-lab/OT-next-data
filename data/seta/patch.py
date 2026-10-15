@@ -2367,6 +2367,105 @@ def audit_rewards(pilot, image, output):
     return 0 if all(r['passed'] for r in results) else 1
 
 
+def functional_task(blob, task_id):
+    """Execution repairs only; no static-only pins, wording or quality rewrites."""
+    files = unpack(blob)
+    original = dict(files)
+    reasons = []
+    for fn, reason in [
+        (lambda: repair_oracle_zero(files, task_id), 'repair observed reference/setup execution failure'),
+        (lambda: repair_ssh_verifier(files, task_id), 'isolate SSH verification under Apptainer'),
+        (lambda: harden_verifier_curl(files), 'retry dependency downloads and report installer failures'),
+    ]:
+        before = dict(files)
+        fn()
+        if files != before:
+            reasons.append(reason)
+    if task_id in SETUP_TIMEOUT_TARGETS:
+        data, mode = files['task.toml']
+        old = tomllib.loads(data.decode())['environment']['build_timeout_sec']
+        if old not in (600, 900):
+            raise ValueError(f'{task_id}: unexpected setup timeout {old}')
+        text, count = re.subn(r'(?m)^build_timeout_sec = [0-9.]+$',
+                             f'build_timeout_sec = {old * 2:.1f}', data.decode())
+        if count != 1:
+            raise ValueError(f'{task_id}: expected one setup timeout')
+        files['task.toml'] = (text.encode(), mode)
+        reasons.append('increase setup timeout after observed setup failures')
+    dockerfile = files.get('environment/Dockerfile')
+    if dockerfile and dockerfile[0] == SHARED_DOCKERFILE:
+        files['environment/Dockerfile'] = (SHARED_DOCKERFILE + SHARED_DOCKERFILE_ADDENDUM, dockerfile[1])
+        reasons.append('provide pytest in the shared task image before optional agent setup')
+        if task_id == TARGET:
+            files['tests/test.sh'] = (TEST_SH.encode(), 0o755)
+            reasons.append('distinguish verifier startup failures from measured zero rewards')
+        else:
+            script, mode = files['tests/test.sh']
+            if b'uvx' not in script and SYSTEM_PYTEST_COMMAND.search(script.decode()):
+                files['tests/test.sh'] = (migrate_verifier_to_uvx(script.decode()).encode(), mode)
+                reasons.append('distinguish verifier startup failures from measured zero rewards')
+    # Pins intrinsic to the repaired pytest launcher remain; blanket pins do not.
+    return (pack(files) if files != original else blob), reasons
+
+
+def functional_main():
+    """Export a strict candidate from upstream; rebuilt tasks need fresh validation."""
+    import json
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from data.utils.patch_reporting import write_patch_report
+    ap = argparse.ArgumentParser(description=functional_main.__doc__)
+    ap.add_argument('--input', type=Path, required=True)
+    ap.add_argument('--output', type=Path, required=True)
+    ap.add_argument('--stage-reports', type=Path, required=True)
+    args = ap.parse_args()
+    for suffix in ['.parquet', '.archive.parquet', '.manifest.json', '.report.json']:
+        if args.output.with_suffix(suffix).exists():
+            raise ValueError('use a new output destination')
+    outcomes = {}
+    for stage in (3, 4, 5):
+        report = json.loads((args.stage_reports / f'stage-{stage}-reviewed.json').read_text())
+        outcomes[stage] = {Path(r['task']).name: r for r in report['items']}
+    source = pq.read_table(args.input)
+    if source.num_rows != 3153:
+        raise ValueError('expected 3153 upstream tasks')
+    kept, dropped, reasons, changes = [], {}, {}, []
+    for row in source.to_pylist():
+        task_id = row['path']
+        if rocky_build_exclusion(unpack(row['task_binary'])):
+            dropped[task_id] = {'category': 'apptainer-build-ownership', 'reason': ROCKY_DROP_REASON}
+            continue
+        if any(task_id not in outcomes[n] for n in outcomes):
+            raise ValueError(f'{task_id}: missing historical outcome')
+        failed = next((n for n in outcomes if outcomes[n][task_id]['status'] != 'passed'), None)
+        if failed:
+            item = outcomes[failed][task_id]
+            dropped[task_id] = {'category': f'stage-{failed}',
+                               'reason': item.get('failure_explanation') or str(item.get('findings'))}
+            continue
+        row['task_binary'], operations = functional_task(row['task_binary'], task_id)
+        if operations:
+            reasons[task_id] = '; '.join(operations)
+            changes.append({'task_id': task_id, 'operations': operations})
+        kept.append(row)
+    assert len(kept) == 3126 and len(dropped) == 27
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.Table.from_pylist(kept, schema=source.schema), args.output)
+    write_patch_report(args.input, args.output,
+        source={'dataset': REPOSITORY, 'revision': REVISION,
+                'url': f'https://huggingface.co/datasets/{REPOSITORY}/blob/{REVISION}/{UPSTREAM_PATH}'},
+        dropped=dropped, change_reasons=reasons, patcher=__file__,
+        patches=[{'version': 'seta-functional-candidate-v1', 'profile': 'stages_3_4_5'}])
+    report = {'profile': 'stages_3_4_5', 'status': 'candidate_pending_fresh_validation',
+              'input_sha256': digest(args.input), 'source_tasks': 3153,
+              'candidate_tasks': len(kept), 'historically_excluded': len(dropped),
+              'patched_tasks': len(changes), 'changes': changes,
+              'historical_stage_reports': str(args.stage_reports),
+              'note': 'Historical outcomes select candidates only; they do not validate rebuilt payloads.'}
+    args.output.with_suffix('.report.json').write_text(json.dumps(report, indent=2) + '\n')
+    print(json.dumps({k:v for k,v in report.items() if k != 'changes'}, indent=2))
+
+
 def main():
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -2660,7 +2759,7 @@ def download_cli():
 
 if __name__ == '__main__':
     from data.utils.cli import dispatch
-    dispatch({'download': download_cli})
+    dispatch({'download': download_cli, 'functional': functional_main})
     import sys
     if sys.argv[1:2] == ['audit']:
         raise SystemExit(audit_main(sys.argv[2:]))

@@ -150,7 +150,7 @@ def test_shard_job_verifies_only_its_slice_of_the_materialized_tasks(tmp_path, m
     from types import SimpleNamespace
     contract = fake_contract(monkeypatch)
     contract['implementation'] = {}
-    monkeypatch.setattr(contract_module, 'implementation', lambda: {})
+    monkeypatch.setattr(contract_module, 'implementation', lambda *args, **kwargs: {})
     monkeypatch.setattr(contract_module, 'task_digest', lambda path: SHA)
     mine = shards.slice_ids(contract, (1, 3))
     for name in mine:

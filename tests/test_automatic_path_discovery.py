@@ -32,6 +32,18 @@ def test_cache_skips_unchanged_tasks_even_with_suffix(tmp_path, monkeypatch):
     assert normalize_paths.candidates(args, [task]) == []
 
 
+def test_old_cache_does_not_skip_expanded_directory_discovery(tmp_path, monkeypatch):
+    from validation.contract import files_digest
+    task = make_task(tmp_path)
+    old_fingerprint = files_digest((p.relative_to(task).as_posix(), p.read_bytes().rstrip()
+                                   if p.name == 'instruction.md' else p.read_bytes())
+                                  for p in task.rglob('*') if p.is_file())
+    (task.parent / NAME).write_text(json.dumps({task.name: old_fingerprint}))
+    monkeypatch.setattr('data.utils.resolve_absolute_paths.flagged_paths', lambda _: (['src/new.py'], {}))
+    args = parser().parse_args([str(task.parent)])
+    assert normalize_paths.candidates(args, [task]) == [task]
+
+
 def test_discovery_freezes_patched_copy_and_preserves_input(tmp_path, monkeypatch):
     from validation.contract import create, read, task_digest, verify_materialized
     task = make_task(tmp_path)

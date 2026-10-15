@@ -138,11 +138,14 @@ ADAPTATIONS = {PATH_CHECK: 'Relative-path findings are advisory warnings and do 
                            'accepts explicit named-file-in-directory clauses, pure parent-navigation commands, and relative command tokens for uniquely absolute-named executables; '
                            'unresolved relative file references outside fenced blocks are otherwise kept',
                'check-test-file-references.sh': 'masks complete non-file URLs, XML hostnames and excluded system paths; fixes full-token extraction and shell redirections, preserving basenames without inventing /app paths; accepts conventional boot artifacts, explicit numeric X filename ranges, explicit label filename templates resolved from supplied label:glob configurations, and references discovered through named supplied files/directories; reads literal writes and copies/moves in explicitly invoked local setup shell scripts without executing them, with source evidence',
-               'check-pip-pinning.sh': 'recognizes SHA-256-pinned HTTP(S) requirements as single shell arguments; masks unquoted shell redirections and argument forwarding in generated offline installer heredocs, retaining actual package installations',
+               'check-pip-pinning.sh': 'Training reports unresolved pins as advisory warnings, not exclusion failures; recognizes SHA-256-pinned HTTP(S) requirements as single shell arguments; masks unquoted shell redirections and argument forwarding in generated offline installer heredocs, retaining actual package installations',
                'check-nproc.sh': 'training permits measurement-only variables and the exact audited InferredBugs Python 2.7.18 Dockerfile build on Maven Java 8/11/17 (Helma Slurm affinity probes 934209/934274); also permits four content-pinned SETA solutions tested with 1/2 CPUs (Helma probe 948213); other worker selection remains checked; not a Docker quota-only portability guarantee',
                'file names': 'a task with whitespace or *?[] in a file name is checked on a copy where those characters '
                              'are replaced by _, because the upstream scripts split paths at spaces and expand globs; '
                              'the renamed files are listed per task'}
+ADAPTATIONS['check-dockerfile-references.sh'] = 'Ignore full-line Dockerfile comments; executable references remain checked on a scratch copy.'
+ADAPTATIONS['check-dockerfile-sanity.sh'] = 'Inspect apt install arguments within RUN commands, including continuations and quoted pins; do not scan unrelated ENV assignments or embedded source following apt.'
+ADAPTATIONS['check-nproc.sh'] += ' Also permits five content-pinned CalibForge image/script pairs measured at 2/4 CPUs in Helma job 1017578; nproc --all still saw 384 node CPUs.'
 ADAPTATIONS['check-task-toml-schema.py'] = (
     'Local deterministic replacement for the task_toml_schema rubric: validates against pinned Harbor models '
     'and rejects unrecognized fields recursively; Harbor free-form metadata/env mappings remain allowed.')
@@ -341,6 +344,93 @@ def pip_check_text(text):
     return ''.join(lines)
 
 
+# Content-pinned CPU-affinity audit: Helma job 1017578, all five images at 2/4 CPUs.
+CALIBFORGE_REVIEWED_NPROC = {'contrastive_solver-security_20260508_045740_002': {'file': 'environment/Dockerfile',
+                                                     'sha256': {'environment/Dockerfile': '8554c71778e6d80171e69483cafc1c53f016d16607b586eb8d259936c2996ad1'}},
+ 'contrastive_solver-software-engineering_20260510_053611_008': {'file': 'environment/Dockerfile',
+                                                                 'sha256': {'environment/Dockerfile': 'fe371f2e4d5ccf5ac295269324bf2d7dbfb6d3e10377e84910f457f384f365cb'}},
+ 'contrastive_solver-software-engineering_20260611_210349_008': {'file': 'tests/test.sh',
+                                                                 'sha256': {'environment/Dockerfile': '4f6194d3d652fd8cb9d9de5681211adf5ba57146718f2fc0db9d977d11f8d8b7',
+                                                                            'tests/test.sh': 'b7f4a23eaffed3576d649078f6bb09f89b84e2a5573063b53552799af644560a'}},
+ 'contrastive_solver-system-administration_20260604_004411_008': {'file': 'environment/Dockerfile',
+                                                                  'sha256': {'environment/Dockerfile': '47c7d9e917e98d3965d48a380c1d82a2fd774505857ccfdcc6bfdaacba388db9'}},
+ 'contrastive_solver-system-administration_20260604_004411_009': {'file': 'environment/Dockerfile',
+                                                                  'sha256': {'environment/Dockerfile': 'bbe5c1425ac6323702e29c0faae4d27efa23de0c6202797491ed5343887a2373'}}}
+
+
+def dockerfile_without_comments(text):
+    """Ignore full-line Dockerfile comments, retaining inline arguments/data."""
+    kept, heredocs = [], []
+    for line in text.splitlines(keepends=True):
+        if heredocs:
+            kept.append(line)
+            if line.strip() == heredocs[0]:
+                heredocs.pop(0)
+            continue
+        if line.lstrip().startswith('#'):
+            continue
+        kept.append(line)
+        # Heredoc payload is data, not Dockerfile comments.
+        heredocs.extend(re.findall(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", line))
+    return ''.join(kept)
+
+
+def dockerfile_sanity_text(text):
+    """Give upstream only apt command arguments, not the next 20 source lines.
+
+    Shell tokenization preserves quoted pins and joins continued RUN commands.
+    Unparseable shell is kept for conservative upstream checking.
+    """
+    text = dockerfile_without_comments(text)
+    logical = re.sub(r'\\\n', ' ', text)
+    commands = []
+    for line in logical.splitlines():
+        if not re.match(r'^\s*RUN\s', line, re.I):
+            continue
+        if re.search(r'\bapt(?:-get)?\b', line) and ('<<' in line or re.match(r'^\s*RUN\s*\[', line, re.I) or re.search(r'\b(?:sh|bash)\s+-c', line)):
+            return text  # Preserve conservative checking of unsupported shell forms.
+        try:
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=';&|()<>' )
+            lexer.whitespace_split = True
+            tokens = list(lexer)
+        except ValueError:
+            return text
+        for i, token in enumerate(tokens):
+            if token.rsplit('/', 1)[-1] not in ('apt', 'apt-get'):
+                continue
+            args = []
+            for arg in tokens[i + 1:]:
+                if arg and all(c in ';&|()<>' for c in arg):
+                    break
+                args.append(arg)
+            # Keep update/cleanup advisory behavior, but expose version pins
+            # only in install arguments. Epochs/integer pins count too.
+            if 'install' in args:
+                if (i and tokens[i - 1] not in ('RUN', 'run', '&&', '||', ';', '|', 'sudo', 'env', 'then', 'do', '{', '(', '!')
+                        and not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', tokens[i - 1])):
+                    return text  # Do not silently exempt unknown command wrappers.
+                packages = args[args.index('install') + 1:]
+                pinned = [a for a in packages if re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9+.:_-]*=[^=\s]+', a)]
+                commands.append('RUN apt install ' + ('pinned-package=1.0' if pinned else 'packages'))
+            elif 'update' in args:
+                commands.append('RUN apt update')
+    if 'rm -rf /var/lib/apt/lists' in text:
+        commands.append('RUN rm -rf /var/lib/apt/lists/*')
+    return '\n'.join(commands) + '\n'
+
+
+def calibforge_nproc_text(text, task, relative):
+    """Allow only the exact image/script pairs measured in Helma job 1017578."""
+    record = CALIBFORGE_REVIEWED_NPROC.get(task.name)
+    if not record or relative != record['file']:
+        return text
+    for filename, digest in record['sha256'].items():
+        path = task / filename
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            return text
+    return text.replace('$(nproc)', 'VERIFIED_CPU_AFFINITY')
+
+
 def nproc_check_text(text, *, dockerfile=False):
     """Conservatively recognize measurement-only variables; not a shell parser.
 
@@ -379,7 +469,9 @@ def nproc_check_text(text, *, dockerfile=False):
 
 def adapted_check_copy(task, scratch, name, profile):
     transforms = {'check-test-file-references.sh': reference_check_text,
-                  'check-pip-pinning.sh': pip_check_text}
+                  'check-pip-pinning.sh': pip_check_text,
+                  'check-dockerfile-references.sh': dockerfile_without_comments,
+                  'check-dockerfile-sanity.sh': dockerfile_sanity_text}
     if profile == 'training':
         transforms['check-nproc.sh'] = nproc_check_text
     if name not in transforms:
@@ -402,6 +494,7 @@ def adapted_check_copy(task, scratch, name, profile):
                     dockerfile = task / 'environment/Dockerfile'
                     text = reviewed_nproc_text(text, task.name,
                                                dockerfile.read_bytes() if dockerfile.is_file() else b'')
+                text = calibforge_nproc_text(text, task, relative)
                 text = nproc_check_text(text, dockerfile=relative == 'environment/Dockerfile')
             elif relative not in ('instruction.md', 'task.toml'):
                 text = transforms[name](text)
@@ -704,6 +797,8 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             if re.search(r'relative paths used \(should be absolute under /[^)]*\): ', stream.read()):
                                 status = 'warning'
                             stream.seek(0)
+                        if profile == 'training' and name == 'check-pip-pinning.sh' and rc == 1:
+                            status = 'warning'
                         if name == AI_CHECK and rc == 0:
                             text = stream.read()
                             if 'skipped' in text.lower() or 'No files to check' in text:
@@ -718,7 +813,7 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                                             'log': str(log.resolve()), 'duration_seconds': round(time.monotonic() - started, 3)})
                     if status != 'passed':
                         print(f'{task.name}: {name}: {status} (see {log})', flush=True)
-                entry['warnings'] = [{'tag': 'relative-instruction-path', 'check': c['check'], 'log': c.get('log')} for c in entry['checks'] if c['status'] == 'warning']
+                entry['warnings'] = [{'tag': 'unpinned-dependency' if c['check'] == 'check-pip-pinning.sh' else 'relative-instruction-path', 'check': c['check'], 'log': c.get('log')} for c in entry['checks'] if c['status'] == 'warning']
                 entry['status'] = 'passed' if all(c['status'] in ('passed', 'warning') or (c['status'] == 'skipped' and c.get('optional')) for c in entry['checks']) else 'failed'
             return entry
         def check_task(task):

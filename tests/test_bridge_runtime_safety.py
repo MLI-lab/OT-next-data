@@ -351,8 +351,8 @@ def test_dependency_archive_is_mounted_only_for_the_trial_that_has_one(patch, mo
     run(start)
     run(['apptainer', 'exec', 'instance://hb_env_1', 'true'])
     patch._trial.archive = None
-    start = start[:3] + ['--contain'] + start[3:]
-    assert seen == [start, start[:4] + ['--bind', f'{tmp_path}/task-1.tar:/opt/deps.tar:ro'] + start[4:],
+    start = start[:3] + ['--contain', '--ipc'] + start[3:]
+    assert seen == [start, start[:5] + ['--bind', f'{tmp_path}/task-1.tar:/opt/deps.tar:ro'] + start[5:],
                     ['apptainer', 'exec', '--cleanenv', 'instance://hb_env_1', 'true']]
 
 
@@ -408,10 +408,11 @@ def test_instances_get_private_filesystems_without_losing_task_mounts(patch, mon
     run = patch.run_container_commands(lambda cmd, **kwargs: seen.append(cmd))
     command = ['apptainer', 'instance', 'start', '--bind', '/stage/tmp:/tmp:rw', '--fakeroot', 'task.sif', 'env']
     run(command)
-    assert seen[0] == command[:3] + ['--contain'] + command[3:]
+    assert seen[0] == command[:3] + ['--contain', '--ipc'] + command[3:]
     assert '--contain' not in command  # do not mutate upstream retry arguments
     run(seen[0])
     assert seen[1].count('--contain') == 1
+    assert seen[1].count('--ipc') == 1
     exec_command = ['apptainer', 'exec', '--env', 'UV_CACHE_DIR=/task/cache', 'instance://env', 'true']
     run(exec_command)
     assert seen[2] == exec_command[:2] + ['--cleanenv'] + exec_command[2:]
@@ -429,6 +430,16 @@ def test_startup_preserves_tests_upload_and_other_mounts(patch, monkeypatch):
     assert '--contain' in result and '--net' in result
     assert result[-2:] == ['verifier.sif', 'env']
     assert '/stage/tests:/tests:rw' in command
+
+
+@pytest.mark.parametrize('flag', ['--ipc', '-i', '--containall', '-C'])
+def test_instance_ipc_isolation_respects_existing_flags(patch, flag):
+    command = ['apptainer', 'instance', 'start', flag, 'task.sif', 'env']
+    result = patch.instance_start_command(command, [])
+    assert result.count(flag) == 1
+    if flag != '--ipc':
+        assert '--ipc' not in result
+    assert result[-2:] == ['task.sif', 'env']
 
 
 def test_directory_copy_expands_contents_and_keeps_file_copy(patch, monkeypatch, tmp_path):
@@ -859,3 +870,28 @@ def test_startup_workspace_and_fakeroot_probes_use_task_step(patch, monkeypatch)
     with protected_step.active(controller):
         run(['apptainer', 'instance', 'start', 'image.sif', 'test'])
     assert [cmd[-1] for cmd in calls] == ['workspace-probe', 'fakeroot-probe', 'test']
+
+
+@pytest.mark.parametrize('failure', ['timeout', 'nonzero'])
+def test_failed_workdir_copy_cannot_start_with_a_partial_repository(patch, monkeypatch, failure):
+    from types import SimpleNamespace
+    import subprocess
+    from harbor_patches import protected_step
+    seen = []
+    def execute(cmd, *args, **kwargs):
+        seen.append(cmd)
+        if failure == 'timeout':
+            raise subprocess.TimeoutExpired(cmd, 120)
+        return SimpleNamespace(returncode=1, stderr='copy failed')
+    monkeypatch.setattr(protected_step, 'run_in_step', lambda original, cmd, *a, **k: original(cmd, *a, **k))
+    patch._trial.workdir_seed_error = None
+    run = patch.run_container_commands(execute)
+    seed = ['apptainer', 'exec', '--bind', '/tmp/workdir:/_workdir_init:rw',
+            '/tmp/base.sif', 'sh', '-c', 'copy']
+    with pytest.raises((RuntimeError, subprocess.TimeoutExpired)):
+        run(seed, timeout=120)
+    # Model upstream swallowing the pre-copy exception and trying to start.
+    with pytest.raises(RuntimeError, match='Workdir initialization failed'):
+        run(['apptainer', 'instance', 'start', '/tmp/base.sif', 'task'])
+    assert len(seen) == 1
+    patch._trial.workdir_seed_error = None

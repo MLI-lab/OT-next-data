@@ -921,6 +921,11 @@ def test_job_code_snapshot_is_independent(tmp_path, monkeypatch):
     original = root/'validation/run.py'; original.write_text('original')
     (root/'validation/results').mkdir()
     (root/'validation/results/ignored.py').write_text('not code')
+    external_inputs = tmp_path / 'calibration-inputs'
+    external_inputs.mkdir()
+    (external_inputs / 'task.json').write_text('{}')
+    (root / 'validation/rubrics').mkdir()
+    (root / 'validation/rubrics/tasks').symlink_to(external_inputs, target_is_directory=True)
     for name in ('validation_submit.py', 'validation_worker.py', 'validation.sh', 'local_runtime.py', 'local_assets.py'):
         (root/'hpc'/name).write_text('launcher')
     for name in ('helma/validation.sbatch', 'helma/proxy.sh', 'helma/publish.sbatch', 'helma/publish_worker.py', 'zih/validation.sbatch'):
@@ -937,6 +942,8 @@ def test_job_code_snapshot_is_independent(tmp_path, monkeypatch):
     assert (snapshot/'data/__init__.py').read_text() == '# frozen data package\n'
     assert (snapshot/'data/annotate_dataset/prompt_template.txt').read_text() == 'frozen prompt'
     assert not (snapshot/'validation/results').exists()
+    assert not (snapshot/'validation/rubrics/tasks').exists()
+    assert (root/'validation/rubrics/tasks/task.json').read_text() == '{}'
     assert (snapshot/'hpc/helma/publish_worker.py').read_text() == 'launcher'
     assert (snapshot/'hpc/helma/publish.sbatch').read_text() == 'launcher'
 

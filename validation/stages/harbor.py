@@ -221,12 +221,21 @@ def expected_missing_output_setup(output, task_path):
 
 
 def verifier_output(path, verifier):
-    outputs = [verifier.get('stdout') or '', verifier.get('stderr') or '']
-    for name in ('test-stdout.txt', 'test-stderr.txt'):
+    # Result streams and saved logs can contain the same invocation. Merge
+    # copies across sources, never repeated invocation markers within a source.
+    outputs = []
+    clean = lambda text: re.sub(r'\x1b\[[0-9;]*m', '', text).strip()
+    for stream, name in (('stdout', 'test-stdout.txt'), ('stderr', 'test-stderr.txt')):
+        inline = clean(verifier.get(stream) or '')
         log = path / 'verifier' / name
-        if log.is_file():
-            outputs.append(log.read_text(errors='replace'))
-    return re.sub(r'\x1b\[[0-9;]*m', '', '\n'.join(outputs))
+        saved = clean(log.read_text(errors='replace')) if log.is_file() else ''
+        if inline in saved:
+            outputs.append(saved)
+        elif saved in inline:
+            outputs.append(inline)
+        else:
+            outputs.extend((inline, saved))
+    return '\n'.join(outputs)
 
 
 def nop_missing_instruction_files(path, result, task_path, reward_key):
@@ -373,6 +382,9 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
     output = verifier_output(path, verifier)
     _, invocations, problem = scope_output(output, token)
     if problem:
+        if (problem == 'verifier invocation did not finish'
+                and 'Fatal Python error: Segmentation fault' in output):
+            return 'verifier process crashed with a segmentation fault; execution evidence is incomplete'
         return problem
     if not invocations:
         if expected_reward == 0 and reference_removes_rejected_option(output, task_path):

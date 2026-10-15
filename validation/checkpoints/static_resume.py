@@ -72,7 +72,9 @@ def load(directory, tasks, manifest, checks, profile, expected=None, accept_prev
         checker.PATH_CHECK: ('without_source_code', 'without_urls', 'path_check_copy', 'path_check_text'),
         'check-test-file-references.sh': ('without_urls', 'reference_check_text', 'adapted_check_copy'),
         'check-pip-pinning.sh': ('pip_check_text', 'adapted_check_copy'),
-        'check-nproc.sh': ('nproc_check_text', 'adapted_check_copy'),
+        'check-nproc.sh': ('nproc_check_text', 'calibforge_nproc_text', 'adapted_check_copy'),
+        'check-dockerfile-references.sh': ('dockerfile_without_comments', 'adapted_check_copy'),
+        'check-dockerfile-sanity.sh': ('dockerfile_without_comments', 'dockerfile_sanity_text', 'adapted_check_copy'),
     }
     for check, helpers in dependencies.items():
         if any(previous.get(name) != current.get(name) for name in helpers):

@@ -242,3 +242,53 @@ def test_build_artifacts_are_read_only_and_only_mounted_for_build_commands(tmp_p
     assert definition.read_text() == 'Bootstrap: localimage\nFrom: image.sif\n'
     execute(['echo', 'unrelated'])
     assert commands[-1] == ['echo', 'unrelated']
+
+
+@pytest.mark.parametrize('fail', [False, True])
+@pytest.mark.parametrize('prefix', [[], ['unshare', '-r']])
+def test_registry_auth_is_private_temporary_and_absent_from_arguments(monkeypatch, fail, prefix):
+    import base64
+    import json
+    import stat
+    from harbor_patches.image_build import authenticated_registry_commands
+    monkeypatch.setenv('APPTAINER_DOCKER_USERNAME', 'test-user')
+    monkeypatch.setenv('APPTAINER_DOCKER_PASSWORD', 'test-secret')
+    paths = []
+    def run(command, **kwargs):
+        p = Path(command[command.index('--authfile') + 1]); paths.append(p)
+        assert stat.S_IMODE(p.stat().st_mode) == 0o600
+        assert stat.S_IMODE(p.parent.stat().st_mode) == 0o700
+        auth = json.loads(p.read_text())['auths']['https://index.docker.io/v1/']['auth']
+        assert base64.b64decode(auth).decode() == 'test-user:test-secret'
+        assert '--docker-login' not in command
+        assert 'test-secret' not in ' '.join(command)
+        if fail: raise RuntimeError('build failed')
+        return 42
+    wrapped = authenticated_registry_commands(run)
+    command = prefix + ['apptainer', 'build', 'image.sif', 'build.def']
+    if fail:
+        with pytest.raises(RuntimeError, match='build failed'): wrapped(command)
+    else:
+        assert wrapped(command) == 42
+    assert paths and all(not p.parent.exists() for p in paths)
+
+
+def test_registry_pull_pacing_uses_shared_clock(tmp_path, monkeypatch):
+    from harbor_patches import image_build
+    monkeypatch.setenv('APPTAINER_DOCKER_USERNAME', 'user')
+    monkeypatch.setenv('APPTAINER_DOCKER_PASSWORD', 'secret')
+    monkeypatch.setenv('OT_DOCKER_PULL_INTERVAL_SECONDS', '40')
+    clock_file = tmp_path/'pull-clock'
+    monkeypatch.setenv('OT_DOCKER_PULL_STATE', str(clock_file))
+    clock = [100.0]
+    sleeps = []
+    def sleep(seconds):
+        sleeps.append(seconds); clock[0] += seconds
+    monkeypatch.setattr(image_build.time, 'time', lambda: clock[0])
+    monkeypatch.setattr(image_build.time, 'sleep', sleep)
+    calls = []
+    run = image_build.authenticated_registry_commands(lambda *a, **kw: calls.append(clock[0]))
+    run(['apptainer', 'build', 'image.sif', 'build.def'])
+    run(['apptainer', 'build', 'image2.sif', 'build.def'])
+    assert calls == [100.0, 140.0]
+    assert sleeps == [0.0, 40.0]

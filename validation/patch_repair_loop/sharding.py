@@ -65,10 +65,10 @@ def submit(config, contract, selected, directory):
             'selected_ids': selected, 'shards': children}
 
 
-def collect(job, poll_seconds, max_wait_hours):
+def collect(job, poll_seconds, max_wait_hours, *, destination=None):
     """Keep partial observations explicit and merge only contract-checked slices."""
     from validation.patch_repair_loop.retries import collect as collect_child
-    root = Path(job['submission'])
+    root = Path(destination) if destination is not None else Path(job['submission'])
     contract = read(job['contract'])
     effective = root / 'effective'
     for child in job['shards']:

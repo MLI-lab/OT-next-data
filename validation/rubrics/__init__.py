@@ -84,6 +84,7 @@ def implementation_rubric(source, references=None, suffixes=None):
     if not all_standard:
         patches.append('concision-timeout.patch')
     patches.append('concision-formatting.patch')
+    patches.append('concision-paths.patch')
     with tempfile.TemporaryDirectory(prefix='ot-rubric-') as directory:
         target = Path(directory) / 'rubric.toml'
         target.write_bytes(payload)

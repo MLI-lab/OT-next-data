@@ -76,7 +76,7 @@ async def prepare(environment, *, command, timeout_sec, force_build, upload, log
         diagnostics = await setup_diagnostics(environment)
         # A Python whose own standard library no longer imports was not broken by the
         # task's requirements: the container's view of its image is damaged (2026-10-11).
-        damaged = '== python' in diagnostics and 'stdlib ok' not in diagnostics.split('== python', 1)[1].split('== processes')[0]
+        damaged = 'OT_PYTHON_STDLIB_IMPORT_FAILED:' in diagnostics
         prefix = DAMAGED + ': ' if damaged else ''
         error = RuntimeError(f'{prefix}Task setup exited {result.return_code}: {result.stderr}')
         error.diagnostics = diagnostics
@@ -113,9 +113,12 @@ for name in ("pip/__init__.py", "pip/_vendor/requests/sessions.py", "pip/_vendor
 SETUP_DIAGNOSTICS = (
     'echo "== mounts"; grep -E " / | /opt| /testbed|overlay|fuse" /proc/mounts | cut -c1-300; '
     'echo "== space"; df -h / /tmp 2>&1 | tail -n +2; df -i / 2>&1 | tail -1; '
-    'echo "== python"; for p in /opt/conda/envs/testbed/bin/python /opt/conda/bin/python; do '
-    '[ -x "$p" ] && { "$p" -c "import sys, keyword, collections, encodings.utf_8; print(sys.version.split()[0], \'stdlib ok\')" 2>&1 | tail -2; '
-    'd=$(dirname "$(dirname "$p")")/lib; ls "$d" | head -3; ls "$d"/python3*/ 2>/dev/null | wc -l; }; done; '
+    'echo "== python"; for p in "$(command -v python3 2>/dev/null)" "$(command -v python 2>/dev/null)" '
+    '/opt/conda/envs/testbed/bin/python /opt/conda/bin/python; do '
+    '[ -n "$p" ] && [ -x "$p" ] || continue; '
+    'printf "OT_PYTHON_PROBE:%s\\n" "$p"; '
+    'if "$p" -c "import sys, keyword, collections, encodings.utf_8; print(sys.version.split()[0], \'stdlib ok\')"; '
+    'then :; else printf "OT_PYTHON_STDLIB_IMPORT_FAILED:%s\\n" "$p"; fi; done; '
     'echo "== processes"; ps -e -o comm= 2>/dev/null | sort | uniq -c | sort -rn | head -8; '
     'echo "== pip"; p=/opt/conda/envs/testbed/bin/python; '
     f'[ ! -x "$p" ] || "$p" -c {shlex.quote(PIP_DIAGNOSTICS)} 2>&1')

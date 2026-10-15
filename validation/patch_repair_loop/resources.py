@@ -3,7 +3,7 @@
 import re
 
 
-FIELDS = {'time', 'cpus', 'memory', 'concurrency', 'shard_size', 'shard_concurrency',
+FIELDS = {'time', 'cpus', 'memory', 'concurrency', 'shard_size', 'shard_concurrency', 'prebuild_shard_size',
           'prebuild_all_images', 'max_wait_hours', 'validation_args'}
 IMAGE_FLAGS = {'--image-build-concurrency', '--image-build-cpus',
                '--image-build-memory-mb', '--image-build-timeout-sec', '--pack-image-cache'}
@@ -14,7 +14,7 @@ def validate(changes):
     if not isinstance(changes, dict) or set(changes) - FIELDS:
         raise ValueError('Resource changes may only adjust execution resource settings')
     for key, value in changes.items():
-        if key in ('cpus', 'concurrency', 'shard_size', 'shard_concurrency', 'max_wait_hours'):
+        if key in ('cpus', 'concurrency', 'shard_size', 'shard_concurrency', 'prebuild_shard_size', 'max_wait_hours'):
             if type(value) is not int or value < 1:
                 raise ValueError(f'{key} must be a positive integer')
         elif key == 'time':

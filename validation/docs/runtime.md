@@ -10,6 +10,31 @@ Bootstrap and input verification still read shared storage. Reports, batch logs
 and final evidence are durable outputs on shared storage. Site executables, CUDA
 modules, network services and user-specified external mounts are not copied.
 
+ZIH permits the site's Apptainer 1.5.0 and 1.5.2 compute installations. The
+launcher warns when using the 1.5.0 alternative and records the actual version
+in `execution.json`; other versions still fail the version check. Allowing a
+site version is not evidence that every benchmark environment has passed on it.
+
+Model-server readiness has a 600-second cutoff by default. Set
+`OT_MODEL_STARTUP_TIMEOUT` to a positive number of seconds to override it, or
+zero to disable it explicitly. Service process exits still fail startup, Slurm's walltime
+still applies, and the launcher prints a waiting message every minute. A living
+but stuck service can wait until the allocation ends when the cutoff is disabled. Task execution
+begins only after readiness. The configured startup limit and successful
+readiness wait duration are recorded under `execution.json`'s `serving` field.
+Existing frozen submissions retain their captured launcher and configuration.
+
+Model startup permits three retries after the initial attempt by default
+(`OT_MODEL_STARTUP_RETRIES=3`). Each attempt has its own readiness budget and
+log files. Before retrying, the launcher terminates the attempt's serving
+processes and confirms that its uniquely named Slurm steps have disappeared.
+Remaining matching steps are killed; unconfirmed cleanup aborts the job instead
+of launching another server. Other steps and other allocations are untouched.
+Four failed attempts exhaust the default retry budget, then the worker records
+the failure, preserves evidence and exits. Slurm releases the allocation on
+exit. Attempt errors, log names, elapsed times and cleanup outcomes are recorded
+under `execution.json`'s `serving.startup_attempts` field.
+
 After changing Python packages, rebuild the transport archive:
 
 ```bash
@@ -96,6 +121,21 @@ for dispatch/result delivery. Thus a 15 s inspection command has a 75 s RPC
 budget and a 105 s result-wait budget. The result deadline is fixed when the
 submission is accepted, and an expired wait never resubmits the command.
 Timeout diagnostics include the last observed job state.
+
+Apptainer instances use a private IPC namespace (`--ipc`, or the equivalent
+isolation already supplied by `--containall`). This applies in the shared bridge
+on every cluster. Persistent fakeroot clients can leave SysV message queues and
+semaphores behind when stopped; in the host IPC namespace these objects retain
+user namespace references even after all container processes exit. Private IPC
+makes those objects disappear when the last process in the IPC namespace exits.
+Container commands must join the existing instance IPC namespace, rather than
+creating a separate IPC namespace for every exec.
+
+The instance isolation does not remove historical objects left in the host IPC
+namespace. Keep affected nodes excluded until an ownership-verified cleanup or
+administrator cleanup has completed. Never sweep all IPC resources for a shared
+UID while other jobs may use them. Frozen submissions keep their original
+runtime; submit fresh snapshots to apply this change to pending work.
 
 Fakeroot IPC cleanup is scoped to a dedicated lifecycle step. The worker records
 message-queue and semaphore identities only when both queues identify the same
@@ -212,6 +252,15 @@ not establish fresh-container oracle parity. This option requires Apptainer,
 one attempt, and no `--force-build`. Existing submitted code snapshots are
 unaffected. The orchestration has mock-based tests; live-cluster performance and
 parity still need a pilot.
+
+### Instruction normalization and checkpoint identity
+
+When instruction normalization is enabled, contract preparation applies it before
+hashing for every validation stage selection, including stage 3 alone. Image-only
+prebuilds do not normalize instructions. Original inputs remain unchanged. Use the
+same normalization settings and evidence for the pilot and final validation.
+Changed task content still invalidates stage-3 reuse and requires fresh evidence;
+a hash mismatch is not downgraded to a warning or used to silently skip edits.
 
 ### Resuming static checks
 
@@ -371,3 +420,137 @@ test runs is accepted as a genuine zero, and the stage report notes the strict
 finding it would otherwise have raised. A pytest usage error for an option the
 reference patch removes from the project configuration is accepted on the same
 basis.
+
+### Container PATH and interpreter selection
+
+For Apptainer definition builds, `definition_build_home` changes `HOME=/.root`
+to `/root` only when that synthetic home directory is absent. It runs before
+Dockerfile ENV exports, so an explicit image HOME keeps precedence. This repairs
+builder-generated state without changing task commands. TerminalLego task_10513
+passed CLAIX canary 4998502 with this adapter: the normal image build completed
+in 25.046 seconds and all five preparations passed. The previous missing-home
+failure had triggered a deferred root-mapped build whose package installation
+failed on `chgrp`; this canary avoided that fallback rather than claiming to fix
+all fallback UID/GID limitations.
+
+`harbor_patches/exec_environment.py` preserves the image's `PATH` for Harbor
+container exec calls. The precedence is:
+
+1. An explicit per-command `env_vars["PATH"]` overrides the image and is not
+   augmented with runtime tool directories.
+2. Otherwise, use the image PATH, including deferred Dockerfile ENV supplied
+   on each exec. Append `/root/.local/bin`, `/testbed/.venv/bin`, and available
+   bound agent-tool directories after it, without shadowing image commands.
+3. If PATH is unset at the helper-shell boundary, use the adapter's default
+   search path. An explicitly empty PATH is not treated as unset.
+
+A task script can subsequently export PATH or activate an environment. An
+absolute interpreter path bypasses PATH lookup. The runtime does not choose a
+universal Python version or discover arbitrary virtual environments. A venv
+that exists but is absent from PATH is not automatically activated. In
+particular, appending `/testbed/.venv/bin` does not make its Python win over
+`/usr/bin/python` already present earlier. Tasks requiring that environment must
+declare it in image ENV, activate it in the script, or invoke it explicitly.
+`PYTHONPATH` controls Python module imports and is distinct from this executable
+selection rule.
+
+The prior pinned Harbor worker injected a fixed PATH on instance start and
+exec, then modified PATH again in its proxy/tool prefix. This could hide image
+venvs from command lookup without deleting their files. Its base-SIF helper
+documents the need to expose tools under `/root/.local/bin` when HOME is
+redirected, and bound agent tools. That explains retaining tool availability,
+but does not justify overriding every task's interpreter. The local adapter
+retains these directories as fallbacks. Upload bookkeeping separately uses
+`upload_runtime.py` and a clean system PATH for mkdir/tar/checks; that isolation
+does not select the interpreter for task setup or grading.
+
+The backend's helper shell uses `bash -c`, which avoids sourcing task login
+profiles on every command. Tasks that explicitly request a login shell still
+receive one. Environment activation needed for both setup and grading must be
+explicit in both processes; shell exports do not persist between exec calls.
+
+Compatibility audit on 2026-10-14 inspected datasource patchers and shared
+converters, rather than assuming every dataset uses CalibForge's layout:
+
+| Datasource | Interpreter selection in current patch/conversion code |
+| --- | --- |
+| SWE-Lego and Scale-SWE | Converter test scripts prepend Conda environment directories; SWE-Lego also uses image ENV and absolute Conda Python for some dependency operations. |
+| Multi-SWE | Grader invokes `/opt/multiswe-python/bin/python3 -I` explicitly. |
+| BugsInPy | Verifier uses `/tests/.venv/bin/python` for installation and prepends that venv in grading. |
+| SETA | Some tasks use explicit verifier environments; uv-related scripts explicitly prepend `$HOME/.local/bin`. |
+| FACET | Patcher preserves environment activation in both setup and grading scripts. |
+| InferredBugs | Explicit Python 2/analyzer paths and a JDK PATH recovery workaround remain in task scripts. |
+| MIMO | No task Python/PATH override found in its patcher. |
+
+These explicit choices remain effective under image-preserving exec. The audit
+found no patcher evidence that a global forced Python was required for these
+datasets. This is a static compatibility finding, not fresh validation of every
+datasource or unmodified upstream task. Existing frozen jobs retain their old
+runtime. New runtime rollouts still require dataset setup and verifier checks;
+do not remove task-specific activation or absolute interpreter choices merely
+because the shared PATH defect is fixed.
+
+CalibForge evidence: all seven former PATH failures passed five fresh setup
+runs each in job `1012674` on 2026-10-14. Together with three login-profile tasks
+and one historical setup timeout, the canary passed 11 tasks and 55 setups.
+This validates setup behavior, not complete grading across all datasets.
+Evidence is retained at
+`/hnvme/workspace/y500bb12-optiagent/calibforge-infra-20261014/investigation.json`.
+
+### Cancelling timed-out agent and validation work
+
+Validation executes container commands too: task setup, verifier setup, collect
+hooks, runtime checks, reference solutions and grading. Cancelling a local
+async wait does not by itself stop the remote command. An agent may also leave
+work running in tmux while its local coroutine is waiting on a model response.
+
+`command_cancellation.py` connects cancelled/timed-out bridge operations and
+agent/shared-verifier phase deadlines to `/env/cancel`. A dedicated worker
+control thread handles cancellation independently of busy execution threads.
+It interrupts and reaps only that environment's protected Slurm step, including
+detached descendants. The bridge acknowledges completion only after worker
+cleanup succeeds. Errors or missing acknowledgements fail visibly. Command
+generations reject both queued operations and delayed HTTP submissions from
+before cancellation; unrelated environments are unaffected.
+
+If interruption does not release the command lock within 15 seconds, the
+control thread sends KILL to the numeric Slurm job/step identity previously
+returned by that executor. This does not require its RPC or operation lock.
+It confirms that the step has disappeared before reaping the launcher and
+retrying the lock. Missing identity, failed scheduler queries, a surviving step
+or a lock that still cannot be acquired are reported as cleanup failures.
+Final teardown uses the same forced-stop fallback after its own interruption
+grace period. Control files and task files are not deleted by the forced stop.
+
+An isolated Helma Slurm smoke test (job `1013764`, 2026-10-14) exercised the
+fallback with a blocked command and detached TERM-ignoring descendant. Both
+were stopped, partial command output and the solution file were preserved,
+and a sibling executor remained responsive. This verifies the Slurm teardown
+boundary; it is not a complete benchmark run or a ZIH deployment.
+
+Cancellation retains the disk-backed writable overlay and bind mounts. If
+grading or artifact transfer subsequently needs that environment, it reopens
+the same files without replaying setup or the interrupted command. Process
+state, shell state and memory-backed files are lost. Reopening fails if the
+original writable overlay or bind sources are unavailable; it never substitutes
+a fresh task. Normal final teardown still deletes the environment as configured.
+This mechanism requires the protected Slurm executor. It does not claim support
+for an unpatched bridge or a backend that cannot reap its task process tree.
+
+Captured command output is spooled in the step's control directory. A command's
+own timeout kills its process group and returns captured output. When the whole
+step is cancelled, teardown records the last 8192 bytes of each interrupted
+stdout/stderr stream in the worker log before removing control files. Output
+still buffered inside the task process cannot be recovered. Timeout thresholds
+are unchanged; cleanup acknowledgement can add wall time after the execution
+deadline, and setup-review timings may include that cleanup time.
+
+Deploy the client, server and worker changes together in a new frozen job
+snapshot. Existing frozen jobs do not acquire cancellation support by editing
+the controller checkout.
+
+Report export publishes an incomplete summary first, writes stage files by
+atomic rename, and publishes the final summary last. Repair-loop collection
+also verifies the actual stage files and permits a bounded visibility grace
+after scheduler completion for older workers. A missing report remains an
+infrastructure failure; it is never converted into a pass.

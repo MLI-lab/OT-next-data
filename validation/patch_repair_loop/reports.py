@@ -48,7 +48,7 @@ def summarize(report_dir, expected_ids, required_stages=STAGES):
             status = item.get("status") or "missing"
             if stage == 1 and status == "passed":
                 checks = item.get("checks") or []
-                if not checks or any(check.get("status") != "passed" and not conditional_skip(check)
+                if not checks or any(check.get("status") not in ("passed", "warning") and not conditional_skip(check)
                                      for check in checks):
                     status = "missing_or_skipped_check"
             stage_counts[status] += 1
@@ -64,6 +64,8 @@ def summarize(report_dir, expected_ids, required_stages=STAGES):
                         key = f"1:{check.get('check', 'unknown')}:{check.get('status', 'missing')}"
                         check_counts[key] += 1
                         per_task_checks[task].append(key)
+                        if check.get("status") == "warning":
+                            continue  # Retain diagnostic counts; the stage runner accepts warnings.
                         failures.append({"task_id": task, "stage": stage, "check": check.get("check"),
                                          "status": check.get("status"), "evidence": str(path),
                                          "detail": str(check.get("error") or check.get("reason") or "")[:1500]})

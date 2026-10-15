@@ -416,6 +416,7 @@ def test_stage1_adaptations_keep_real_failures(tmp_path, check, source, expected
     out = tmp_path / 'report'
     run_checks([task], out, exclude=[n for n in checks if n != check])
     row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    expected = 'warning' if check == 'check-pip-pinning.sh' and expected == 'failed' else expected
     assert row['checks'][0]['status'] == expected
     assert (task / 'solution/solve.sh').read_text() == source
 
@@ -566,5 +567,90 @@ def test_pip_hash_pins_and_shell_redirections(tmp_path, command, expected):
     out = tmp_path / 'report'
     run_checks([task], out, exclude=[name for name in checks if name != 'check-pip-pinning.sh'])
     report = json.loads((out / 'summary.json').read_text())
+    expected = 'warning' if expected == 'failed' else expected
     assert report['tasks'][0]['checks'][0]['status'] == expected
     assert script.read_text() == command
+
+
+@pytest.mark.parametrize('check,dockerfile,expected', [
+    ('check-dockerfile-references.sh', '# Verifier preparation from tests/test.sh, installed at build time.\nRUN echo ready\n', 'passed'),
+    ('check-dockerfile-references.sh', 'COPY tests/test.sh /tests/test.sh\n', 'failed'),
+    ('check-dockerfile-references.sh', 'RUN echo "tests/test.sh"\n', 'failed'),
+    ('check-dockerfile-sanity.sh', 'RUN apt-get update && apt-get install -y gcc\nENV NODE_EXPORTER_VERSION=1.8.2\nRUN python - <<\'PY\'\nk10=0.25\nPY\n', 'passed'),
+    ('check-dockerfile-sanity.sh', 'RUN apt-get install -y \\\n  "build-essential=12.10ubuntu1"\n', 'failed'),
+    ('check-dockerfile-sanity.sh', 'RUN apt-get install -y gcc=4\n', 'failed'),
+    ('check-dockerfile-sanity.sh', '# RUN apt-get install gcc=1.2\nRUN apt-get install gcc\n', 'passed'),
+])
+def test_dockerfile_check_adaptations(tmp_path, check, dockerfile, expected):
+    task = make_task(tmp_path)
+    target = task / 'environment/Dockerfile'
+    target.write_text('FROM ubuntu:24.04\n' + dockerfile)
+    before = target.read_bytes()
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[name for name in checks if name != check])
+    row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert row['checks'][0]['status'] == expected
+    assert target.read_bytes() == before
+
+
+@pytest.mark.parametrize('changed', [None, 'image', 'script', 'task_id'])
+def test_calibforge_nproc_allowance_is_content_pinned(tmp_path, monkeypatch, changed):
+    import hashlib
+    from validation.checks import check_terminal_bench as checker
+    task = make_task(tmp_path)
+    script = task / 'tests/test.sh'
+    script.write_text('make -j$(nproc)\n')
+    record = {'file': 'tests/test.sh', 'sha256': {
+        name: hashlib.sha256((task / name).read_bytes()).hexdigest()
+        for name in ('environment/Dockerfile', 'tests/test.sh')}}
+    monkeypatch.setattr(checker, 'CALIBFORGE_REVIEWED_NPROC', {task.name: record})
+    if changed == 'image':
+        (task / 'environment/Dockerfile').write_text('FROM other\n')
+    elif changed == 'script':
+        script.write_text('make -j$(nproc)\nmake -j$(nproc)\n')
+    elif changed == 'task_id':
+        task = task.rename(tmp_path / 'other')
+        script = task / 'tests/test.sh'
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[n for n in checks if n != 'check-nproc.sh'])
+    row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert row['checks'][0]['status'] == ('passed' if changed is None else 'failed')
+
+
+def test_dockerfile_comment_filter_preserves_heredoc_data():
+    from validation.checks.check_terminal_bench import dockerfile_without_comments
+    text = '# tests/test.sh provenance\nCOPY <<EOF /app/example\n# tests/test.sh is data here\nEOF\n'
+    assert dockerfile_without_comments(text) == text.split('\n', 1)[1]
+
+
+@pytest.mark.parametrize('text,has_pin', [
+    ('RUN echo "apt-get install gcc=1.2"\n', False),
+    ('RUN apt-get update && apt-get install "gcc=1:4.2"\nENV OTHER=1.2\n', True),
+    ('RUN ["apt-get", "install", "gcc=1.2"]\n', True),
+    ('RUN bash -c "apt-get install gcc=1.2"\n', True),
+    ('RUN DEBIAN_FRONTEND=noninteractive apt-get install gcc=1.2\n', True),
+    ('RUN sudo -n apt-get install gcc=1.2\n', True),
+])
+def test_apt_sanity_shell_forms(text, has_pin):
+    from validation.checks.check_terminal_bench import dockerfile_sanity_text
+    result = dockerfile_sanity_text(text)
+    assert bool(re.search(r'\b[a-zA-Z0-9_-]+=[0-9]+\.[0-9]', result)) == has_pin
+
+
+@pytest.mark.parametrize('profile,expected,exit_code', [('training', 'warning', 0), ('portable', 'failed', 1), ('terminal-bench', 'failed', 1)])
+def test_pip_warning_keeps_training_task_and_preserves_strict_profiles(tmp_path, profile, expected, exit_code):
+    from validation.publishing.outcome_labels import labels
+    task = make_task(tmp_path)
+    (task / 'environment/Dockerfile').write_text('FROM python:3.12-slim\nRUN pip install requests\n')
+    _, checks, _ = load_checks(profile)
+    out = tmp_path / 'report'
+    assert run_checks([task], out, profile, exclude=[n for n in checks if n != 'check-pip-pinning.sh']) == exit_code
+    item = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert item['checks'][0]['status'] == expected
+    assert item['checks'][0]['exit_code'] == 1
+    assert item['status'] == ('passed' if profile == 'training' else 'failed')
+    if profile == 'training':
+        assert item['warnings'][0]['tag'] == 'unpinned-dependency'
+        assert labels(1, item) == ['warning:unpinned-dependency']

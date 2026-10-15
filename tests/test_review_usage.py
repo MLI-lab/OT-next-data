@@ -118,7 +118,7 @@ def test_shard_merge_recomputes_usage_from_all_tasks(tmp_path, monkeypatch):
 
 def test_stage_review_keeps_spend_when_verdict_is_missing(tmp_path, monkeypatch):
     from validation.stages import runner
-    options = runner.parser().parse_args(['--review-agent', 'terminus-2', '--review-model', 'test/judge',
+    options = runner.parser().parse_args(['--review-evidence', 'files', '--review-agent', 'terminus-2', '--review-model', 'test/judge',
                                           '--review-pricing', '{"input": 1, "output": 4}'])
     monkeypatch.setattr(runner, 'resolve_review_defaults', lambda *args: None)
     staged = tmp_path / 'staged'

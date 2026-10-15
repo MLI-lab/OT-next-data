@@ -145,6 +145,50 @@ def test_setup_oom_is_not_replayed_or_converted_to_agent_feedback(tmp_path, monk
     assert len(calls) == 1 and not recovered
 
 
+def test_cancel_interrupts_busy_command_preserves_files_and_fences_queue(tmp_path, monkeypatch):
+    import threading
+    entered, interrupted = threading.Event(), threading.Event()
+    written = tmp_path / 'answer'
+    written.write_text('agent answer')
+    class Inner:
+        def exec(self, payload):
+            entered.set()
+            assert interrupted.wait(3)
+            return {'return_code': 1}
+    obj = p.ProtectedInstance('test', '', '', 1000,
+        instance_factory=lambda *a: Inner(), step_prefix=lambda *a: [])
+    obj.slot = SimpleNamespace(interrupt=lambda tag: interrupted.set(),
+                               process=SimpleNamespace(poll=lambda: 0))
+    monkeypatch.setattr(obj, '_confirmed_exec_oom', lambda *a: False)
+    monkeypatch.setattr(obj, '_close_step', lambda: None)
+    reopened = []
+    monkeypatch.setattr(obj, '_recover', lambda deadline: reopened.append(written.read_text()))
+    thread = threading.Thread(target=lambda: obj.exec({'command': 'busy'}))
+    thread.start()
+    assert entered.wait(2)
+    obj.cancel_commands(1)
+    thread.join(2)
+    assert not thread.is_alive() and written.read_text() == 'agent answer'
+    with pytest.raises(RuntimeError, match='before session cancellation'):
+        obj.exec({'command': 'queued earlier', 'command_generation': 0})
+    assert not reopened
+    obj.exec({'command': 'grade', 'command_generation': 1})
+    assert reopened == ['agent answer']
+
+
+def test_command_timeout_kills_child_group_and_keeps_partial_output(tmp_path):
+    marker = tmp_path / 'leaked-child'
+    command = [sys.executable, '-c',
+               'import subprocess,sys,time; '
+               'subprocess.Popen([sys.executable,"-c",'
+               + repr('import time,pathlib; time.sleep(.5); pathlib.Path(' + repr(str(marker)) + ').touch()')
+               + ']); print("before timeout",flush=True); time.sleep(30)']
+    result = p.retained_run(command, {'capture_output': True, 'text': True, 'timeout': .2}, tmp_path)
+    assert result['timeout'] and result['stdout'] == 'before timeout\n'
+    time.sleep(.6)
+    assert not marker.exists()
+
+
 @pytest.fixture
 def executor(tmp_path, monkeypatch):
     with tempfile.TemporaryDirectory(prefix='ot-exec-') as control:
@@ -200,12 +244,12 @@ def test_cgroup_counter_is_not_inferred_from_exit_code(tmp_path):
 @pytest.mark.parametrize('kind', ['missing-overlay', 'volatile-overlay', 'missing-bind'])
 def test_recovery_refuses_a_fresh_or_incomplete_filesystem(tmp_path, monkeypatch, kind):
     pytest.importorskip('harbor')
-    from harbor_patches import bridge_worker
     obj, calls, recovered = controller(tmp_path, monkeypatch, oom=True)
     # Use the real recovery method, with only the old step's teardown substituted.
     monkeypatch.delattr(obj, '_recover')
     monkeypatch.setattr(obj, '_close_step', lambda: None)
-    monkeypatch.setattr(bridge_worker, 'stop_anchor', lambda inner: None)
+    monkeypatch.setattr(obj, 'start_anchor', lambda inner: None)
+    monkeypatch.setattr(obj, 'stop_anchor', lambda inner: None)
     obj.slot = SimpleNamespace(process=SimpleNamespace(poll=lambda: 0))
     overlay = tmp_path / 'overlay'
     if kind != 'missing-overlay':

@@ -68,6 +68,9 @@ def codex_envelope(output, model):
 
 
 def judge_command(provider, model, reasoning_effort, mcp, max_budget_usd):
+    if provider == 'local':
+        return [sys.executable, str(ROOT / 'validation/rubrics/scripts/local_judge.py'),
+                '--model', model, '--mcp-config', json.dumps(mcp)]
     if provider == 'claude':
         return ['claude', '--print', '--no-session-persistence', '--model', model,
                 '--output-format', 'json', '--tools', '',
@@ -233,6 +236,9 @@ def worker(run, *, login_node=False, image_cache=None, summary_copy=None,
         summary['cost'] = {'reported_cost_usd': sum(costs), 'tasks_with_cost': len(costs),
                            'average_per_task_usd': sum(costs) / len(costs) if costs else None,
                            'basis': ('Claude CLI reported token cost' if provider == 'claude' else 'API-equivalent estimate from CLI tokens at standard-context rates') + '; not a subscription charge; excludes container compute.'}
+        if provider == 'local':
+            summary['cost'].update(reported_cost_usd=None,
+                                   basis='Local inference; no API charge. GPU compute cost not priced.')
         if not (compact and summary_copy):
             save(run / 'summary.json', summary)
         if summary_copy:
@@ -382,7 +388,7 @@ if __name__ == '__main__':
     parser.add_argument('--review-image', type=Path)
     parser.add_argument('--compact', action='store_true', help='Keep per-task working files in node-local scratch; retain only consolidated results')
     parser.add_argument('--continue-on-error', action='store_true')
-    parser.add_argument('--provider', choices=['claude', 'codex'], default='claude')
+    parser.add_argument('--provider', choices=['claude', 'codex', 'local'], default='claude')
     parser.add_argument('--model', default='sonnet')
     parser.add_argument('--reasoning-effort', default='medium')
     parser.add_argument('--max-budget-usd', type=float, default=5)

@@ -109,7 +109,7 @@ def enabled(args, numbers):
 
 
 def check(tasks, args, out):
-    """Run the existing checker; hand its failed tasks and commands to resolve()."""
+    """Run the existing checker; hand its flagged tasks and commands to resolve()."""
     from validation.checks.check_terminal_bench import load_checks, run_checks
     _, selected, _ = load_checks(args.static_profile, exclude=args.exclude)
     if CHECK not in selected:
@@ -120,7 +120,7 @@ def check(tasks, args, out):
     results = json.loads((out / 'summary.json').read_text())
     by_name = {task.name: task for task in tasks}
     return {item['task']: commands(by_name[item['task']]) for item in results['tasks']
-            if any(c['check'] == CHECK and c['status'] == 'failed' for c in item['checks'])}
+            if any(c['check'] == CHECK and c['status'] in ('failed', 'warning') for c in item['checks'])}
 
 
 async def snapshot(environment, findings):

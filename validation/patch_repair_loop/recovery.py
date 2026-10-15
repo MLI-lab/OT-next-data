@@ -187,7 +187,10 @@ def jobs(work):
                 'NODE_FAIL', 'PREEMPTED', 'BOOT_FAIL', 'DEADLINE', 'REVOKED'}
     states = {}
     try:
-        result = subprocess.run(['sacct', '-X', '-n', '-P', '-j', ','.join(sorted(identifiers)),
+        # Pending arrays cancelled before dispatch may only have a parent record;
+        # query that record and ask sacct to expand every child explicitly.
+        parents = {job.split('_', 1)[0] for job in identifiers}
+        result = subprocess.run(['sacct', '--array', '-X', '-n', '-P', '-j', ','.join(sorted(parents)),
                                  '--format', 'JobID,State'], capture_output=True,
                                 text=True, check=True, timeout=30)
         for line in result.stdout.splitlines():

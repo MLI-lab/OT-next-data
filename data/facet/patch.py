@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import argparse
 import ast
 import collections
+import hashlib
 import copy
 import io
 import json
@@ -26,6 +27,18 @@ import pyarrow.parquet as pq
 
 
 SCHEMA = pa.schema([("path", pa.string()), ("task_binary", pa.binary())])
+
+# Explicit incompatibilities; preserve original payloads in the archive.
+OWNERSHIP_EXCLUSIONS = json.loads(Path(__file__).with_name("ownership-exclusions.json").read_text())
+
+
+def ownership_exclusion(task_id, blob):
+    decision = OWNERSHIP_EXCLUSIONS.get(task_id)
+    if decision is None:
+        return None
+    if hashlib.sha256(blob).hexdigest() != decision["source_binary_sha256"]:
+        raise ValueError(f"{task_id}: ownership exclusion source changed; review it again")
+    return {key: decision[key] for key in ("category", "reason")}
 
 
 def patched_toml(raw, task_id):
@@ -1109,9 +1122,13 @@ def patch_parquet(source, output, revision=SOURCE["revision"]):
     target = output / "tasks.parquet"
     if target.exists():
         raise FileExistsError(target)
-    plans = {}
+    plans, dropped = {}, {}
     for batch in pq.ParquetFile(source).iter_batches(batch_size=16):
         for row in batch.to_pylist():
+            exclusion = ownership_exclusion(row["path"], row["task_binary"])
+            if exclusion:
+                dropped[row["path"]] = exclusion
+                continue
             _, files, modes = read_task(row["task_binary"], row["path"])
             plans[row["path"]] = classify(files, modes)
     shared = group_tasks(plans)
@@ -1120,7 +1137,9 @@ def patch_parquet(source, output, revision=SOURCE["revision"]):
     try:
         with pq.ParquetWriter(temporary, SCHEMA, compression="zstd") as writer:
             for batch in pq.ParquetFile(source).iter_batches(batch_size=16):
-                rows = batch.to_pylist()
+                rows = [row for row in batch.to_pylist() if row["path"] not in dropped]
+                if not rows:
+                    continue
                 binaries = []
                 for row in rows:
                     task_id = row["path"]
@@ -1134,10 +1153,11 @@ def patch_parquet(source, output, revision=SOURCE["revision"]):
         temporary.unlink(missing_ok=True)
         raise
     summary = summarize(plans, shared, facts)
+    summary["archived_tasks"] = len(dropped)
     (output / "tasks.image-plan.json").write_text(json.dumps(summary, indent=2) + "\n")
     counts = {name: value for name, value in summary.items() if isinstance(value, int) or name == "labels"}
     write_patch_report(
-        source, target, patcher=__file__, dropped={},
+        source, target, patcher=__file__, dropped=dropped,
         source={**SOURCE, "revision": revision,
                 "url": f"https://huggingface.co/datasets/{SOURCE['dataset']}/tree/{revision}"},
         change_labels=labels, change_reasons=reasons,

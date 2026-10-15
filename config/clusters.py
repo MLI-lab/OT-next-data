@@ -45,6 +45,7 @@ class Cluster:
     apptainer_version: str = '1.5.4'  # exact version checked inside Slurm jobs
     apptainer_login_version: str = '1.5.3'  # setup preflight: Helma login nodes differ from compute nodes
     apptainer_module: str = ''  # optional site module to load for Apptainer
+    apptainer_compute_alternatives: tuple[str, ...] = ()  # explicit additional site versions
     cuda_module: str = ''  # site CUDA toolkit module, e.g. cuda/13.0.2
     cuda_version: str = ''  # nvcc release (major.minor), checked for GPU serving
     gpus_per_node: int = 4  # GPUs per node; determines how models span nodes
@@ -52,6 +53,7 @@ class Cluster:
     gpu_partition: str = 'h200'  # default GPU queue; empty means unconfigured
     gpu_gres: str = 'gpu:{partition}:{n}'  # Slurm GPU request format; n is the GPU count
     account: str = ''  # Slurm accounting project; empty uses the site default
+    network_mode: str = 'isolated'  # default --network-mode; 'host' where isolated task containers get no network
     cpu_allocation_step: int = 48  # round CPU-only requests up to this multiple
     max_cpus_per_gpu: int = 32  # GPU allocation CPU limit; 0 disables this check
     storage: tuple[Storage, ...] = ()  # available roots; setup's workspace remains a user choice
@@ -92,6 +94,7 @@ CLUSTERS = [
     Cluster(name='zih', hostname_pattern=r'(?:login\d*\.)?(?:taurus|barnard|capella|alpha|romeo|julia)(?:\.|$)|c\d+\.capella(?:\.|$)',
             # Capella preflight 4406590, 2026-10-11: compute and login differ.
             apptainer_version='1.5.2', apptainer_login_version='1.5.0',
+            apptainer_compute_alternatives=('1.5.0',),
             cuda_module='CUDA/13.0.0', cuda_version='13.0',
             cpu_partition='barnard', gpu_partition='capella', gpu_gres='gpu:{n}',
             account='p_agents_finetuning', cpu_allocation_step=1, max_cpus_per_gpu=0,
@@ -105,6 +108,26 @@ CLUSTERS = [
                 Storage('SCRATCH', '$TMPDIR', 'Temporary job-local files; set by the launcher.'),
             ),
             note='TU Dresden; Capella H100 serving defaults; verify other clusters before using their GPUs'),
+    Cluster(name='rwth', hostname_pattern=r'login\d+-\S*\.hpc\.itc\.rwth-aachen\.de',
+            # CLAIX: /usr/bin/apptainer is 1.5.4 on login and compute nodes; no module.
+            # No Python 3.12.14 module: install it with uv and pass --python to setup.sh.
+            apptainer_login_version='1.5.4',
+            cpu_partition='c23ms', gpu_partition='', cpu_allocation_step=1, max_cpus_per_gpu=0,
+            # An isolated task container has no network at all here (pilot 4950180, 2026-10-12).
+            network_mode='host',
+            storage=(
+                Storage('HOME', '$HOME', 'Code and small configuration. Accessible from all nodes.',
+                        space_gib=(0, 150), files=(0, 1048576),
+                        quota_source='user=lva77460; checked=2026-10-12; command=r_quota'),
+                Storage('WORK', '$WORK', 'Other shared work files. Accessible from all nodes.',
+                        space_gib=(0, 250), files=(0, 1048576),
+                        quota_source='user=lva77460; checked=2026-10-12; command=r_quota'),
+                Storage('WORKSPACES', '$HPCWORK', 'Lustre; workspace for environments, images, datasets and runs.',
+                        space_gib=(1024, 1152), files=(1048576, 1179648),
+                        quota_source='user=lva77460; checked=2026-10-12; command=r_quota'),
+                Storage('SCRATCH', '$TMPDIR', 'Temporary job-local files; set by the launcher.'),
+            ),
+            note='RWTH Aachen CLAIX; CPU validation only, GPU serving not configured'),
 ]
 
 def detect_cluster(hostname: str | None = None) -> Cluster | None:

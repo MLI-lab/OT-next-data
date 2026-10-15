@@ -43,3 +43,30 @@ Claude costs are CLI-reported token costs; Astra costs are [API-equivalent estim
 
 Each linked JSON includes task-level labels, explanations, and reported costs.
 <!-- END MODEL_RESULTS -->
+
+<!-- BEGIN LOCAL_JUDGES -->
+## Local GLM judges
+
+### GLM-5.3-Flash
+
+0/27 completed; 0 errors.
+
+
+[GLM-5.3-Flash: individual verdicts and explanations](results/glm-5.3-flash.json). [Criterion counts](results/glm-5.3-flash-criterion-counts.csv).
+
+| Category | Expected | Match | Mismatch | Pending |
+| --- | --- | ---: | ---: | ---: |
+| reported_hackable | fail | 0 | 0 | 27 |
+### GLM-5.3
+
+0/27 completed; 0 errors.
+
+
+[GLM-5.3: individual verdicts and explanations](results/glm-5.3.json). [Criterion counts](results/glm-5.3-criterion-counts.csv).
+
+| Category | Expected | Match | Mismatch | Pending |
+| --- | --- | ---: | ---: | ---: |
+| reported_hackable | fail | 0 | 0 | 27 |
+
+Missing or invalid reviews are reported separately. Local inference has no API charge; GPU time is recorded with each model.
+<!-- END LOCAL_JUDGES -->

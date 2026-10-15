@@ -16,6 +16,7 @@ import socketserver
 import subprocess
 import threading
 import time
+import tempfile
 
 try:
     from harbor_patches.trial_step import StepSlot
@@ -170,10 +171,12 @@ class RemoteProcess:
 
 class ProtectedInstance:
     def __init__(self, env_id, sif_cache_dir, staging_base, max_exec_output_chars,
-                 *, instance_factory, step_prefix, is_abandoned=lambda env_id: False):
+                 *, instance_factory, step_prefix, is_abandoned=lambda env_id: False,
+                 start_anchor=None, stop_anchor=None):
         self.env_id = env_id
         self.inner = instance_factory(env_id, sif_cache_dir, staging_base, max_exec_output_chars)
         self.step_prefix, self.is_abandoned = step_prefix, is_abandoned
+        self.start_anchor, self.stop_anchor = start_anchor, stop_anchor
         self.recovery_deadline = None
         self.slot = None
         self.start_command = None
@@ -183,6 +186,44 @@ class ProtectedInstance:
         self.lock = threading.RLock()
         self.generation = 0
         self.stopping = threading.Event()
+        self.command_generation = 0
+        self.commands_cancelled = False
+
+    def cancel_commands(self, generation):
+        """Reap this environment's entire step, retaining its writable files.
+
+        Runs on the control thread, never behind the busy command's lock.
+        A later grading/transfer operation reopens the saved filesystem.
+        """
+        if generation <= self.command_generation:
+            return
+        self.command_generation = generation
+        self.commands_cancelled = True
+        slot = self.slot
+        if slot is not None:
+            slot.interrupt(self.env_id)
+        acquired = self.lock.acquire(timeout=15)
+        if not acquired and slot is not None:
+            slot.force_stop(self.env_id)
+            acquired = self.lock.acquire(timeout=5)
+        if not acquired:
+            raise RuntimeError('Cancelled executor was force-stopped but its operation lock did not release')
+        try:
+            if slot is not None:
+                self._close_step()
+                if slot.process.poll() is None:
+                    raise RuntimeError('Cancelled task executor is still alive')
+        finally:
+            self.lock.release()
+
+    def _prepare_operation(self, payload):
+        if payload.get('command_generation', 0) != self.command_generation:
+            raise RuntimeError('Rejected command submitted before session cancellation')
+        if self.stopping.is_set():
+            raise RuntimeError('Environment is stopping')
+        if self.commands_cancelled:
+            self._recover(time.monotonic() + 180)
+            self.commands_cancelled = False
 
     def _new_step(self, wait_limit=None):
         command = self.step_prefix(self.payload, self.env_id)
@@ -287,12 +328,16 @@ class ProtectedInstance:
                 raise
 
     def _recover(self, deadline):
-        from harbor_patches.bridge_worker import start_anchor, stop_anchor
+        # The worker can run as __main__. Importing it here under its package
+        # name executes its initialization again after ApptainerInstance has
+        # become a factory wrapper. Use the already initialized worker hooks.
+        if not callable(self.start_anchor) or not callable(self.stop_anchor):
+            raise RuntimeError('OOM recovery requires configured terminal anchor hooks')
         # Reap all old processes before opening the same writable overlay again.
         self._close_step()
         if self.slot.process.poll() is None:
             raise RuntimeError('Cannot recover before the old task executor has exited')
-        stop_anchor(self.inner)
+        self.stop_anchor(self.inner)
         overlays = [self.start_command[i + 1] for i, v in enumerate(self.start_command[:-1]) if v == '--overlay']
         writable = [p for p in overlays if not p.endswith(':ro')]
         if len(writable) != 1 or not Path(writable[0]).exists() or '--writable-tmpfs' in self.start_command:
@@ -309,10 +354,11 @@ class ProtectedInstance:
             self.remote_run([self.start_command[0], 'instance', 'stop', self.inner.instance_name],
                             {'capture_output': True, 'text': True, 'timeout': 30})
             self.remote_run(self.start_command, {'capture_output': True, 'text': True, 'timeout': 120, 'check': True})
-            start_anchor(self.inner)
+            self.start_anchor(self.inner)
 
     def exec(self, payload):
         with self.lock, active(self):
+            self._prepare_operation(payload)
             deadline = time.monotonic() + (payload.get('timeout_sec') or 600)
             result, error = None, None
             try:
@@ -340,10 +386,12 @@ class ProtectedInstance:
 
     def upload(self, payload):
         with self.lock, active(self):
+            self._prepare_operation(payload)
             return self.inner.upload(payload)
 
     def download(self, payload):
         with self.lock, active(self):
+            self._prepare_operation(payload)
             return self.inner.download(payload)
 
     def stop(self, payload):
@@ -359,7 +407,11 @@ class ProtectedInstance:
                 slot.interrupt(self.env_id)
             acquired = self.lock.acquire(timeout=10)
         if not acquired:
-            raise RuntimeError('Task executor was interrupted but its controller did not release the lock within 10s')
+            if slot is not None:
+                slot.force_stop(self.env_id)
+            acquired = self.lock.acquire(timeout=5)
+        if not acquired:
+            raise RuntimeError('Task executor was force-stopped but its operation lock did not release')
         try:
             try:
                 if self.slot and self.slot.alive():
@@ -378,6 +430,51 @@ class ProtectedInstance:
                     shutil.rmtree(staging)
         finally:
             self.lock.release()
+
+
+def retained_run(cmd, kwargs, control_dir):
+    """Spool captured output so executor cancellation cannot discard it."""
+    kwargs = dict(kwargs)
+    timeout = kwargs.pop('timeout', None)
+    input_data = kwargs.pop('input', None)
+    if input_data is not None:
+        kwargs['stdin'] = subprocess.PIPE
+    if kwargs.pop('capture_output', False):
+        kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    captures = {}
+    for name in ('stdout', 'stderr'):
+        if kwargs.get(name) == subprocess.PIPE:
+            captures[name] = tempfile.NamedTemporaryFile(prefix='command-', suffix='.' + name,
+                                                         dir=control_dir, delete=False)
+            kwargs[name] = captures[name]
+    kwargs['start_new_session'] = True
+    try:
+        with subprocess.Popen(cmd, **kwargs) as proc:
+            expired = False
+            try:
+                proc.communicate(input_data, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                expired = True
+                # Kill descendants in the command's group as well as its shell.
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.communicate()
+            result = {'returncode': proc.returncode}
+            if expired:
+                result['timeout'] = True
+            for name, output in captures.items():
+                output.flush()
+                value = Path(output.name).read_bytes()
+                if kwargs.get('text') or kwargs.get('universal_newlines') or kwargs.get('encoding'):
+                    value = value.decode(kwargs.get('encoding') or 'utf-8', kwargs.get('errors') or 'strict')
+                result[name] = value
+            return result
+    finally:
+        for output in captures.values():
+            output.close()
+            Path(output.name).unlink(missing_ok=True)
 
 
 def serve_executor(control_dir):
@@ -409,11 +506,7 @@ def serve_executor(control_dir):
                             opened.append(f)
                             kwargs[name] = f
                     if op == 'run':
-                        try:
-                            done = subprocess.run(p['cmd'], **kwargs)
-                            result = {'returncode': done.returncode, 'stdout': done.stdout, 'stderr': done.stderr}
-                        except subprocess.TimeoutExpired as exc:
-                            result = {'timeout': True, 'stdout': exc.stdout, 'stderr': exc.stderr}
+                        result = retained_run(p['cmd'], kwargs, control_dir)
                     else:
                         proc = subprocess.Popen(p['cmd'], **kwargs)
                         processes[proc.pid] = proc

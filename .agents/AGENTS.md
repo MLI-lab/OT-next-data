@@ -76,6 +76,42 @@ run JSON, not in the datasource README. Preserve detailed per-task evidence ther
 Generate the datasource README with `data/annotate_dataset/prompt_template.txt`
 and the existing renderer. Do not manually rewrite it or append validation notes.
 
+## Pass@k execution concurrency
+
+For teacher generation, explicitly choose multiple concurrent trials per GPU
+when the allocation and a throughput pilot support it. Do not default full
+runs to one trial at a time without a measured reason. Preserve every task's
+requested CPU and memory resources, sampling settings, attempts and timeouts.
+
+Distinguish the Slurm array throttle (simultaneous shard jobs), pipeline
+`--concurrency` (simultaneous trials within each job), and vLLM
+`--max-num-seqs` (serving sequence slots). Increasing the array throttle alone
+does not improve batching within a GPU job. Trials can be attempts of the same
+task, so concurrency is not necessarily the number of distinct tasks.
+
+Budget serving CPUs first, including all serving replicas. The worker's
+`trial_capacity` reserves each task's agent CPUs plus the largest separate
+verifier CPU request that can overlap it, then uses the largest per-trial
+reservation in the shard. The CPU ceiling is
+`floor((job_cpus - serving_cpus) / reserved_cpus_per_trial)`.
+Also check aggregate memory, GPU KV-cache capacity and node-local scratch.
+Never lower task CPU requests just to increase concurrency. Increase the job
+allocation if needed. Inspect the frozen worker because budget behavior can
+vary by snapshot.
+
+Check `submission/resources.json` for effective concurrency, not only the
+requested value or the current checkout. The worker can cap concurrency at
+startup. Validate higher concurrency with real task attempts, saved trajectories,
+verifier results, infrastructure errors, throughput and GPU utilization before
+expanding. Keep GPU-free agent/verifier steps on `srun --exact --gres=none`.
+
+For existing submissions, inspect frozen requests/contracts and live Slurm
+throttles. Do not silently edit frozen contracts or cancel running jobs.
+Replacements must preserve completed work and have disjoint task/attempt
+ownership; reconcile any existing acceleration controller before submitting.
+See [the 2026-10-14 audit](passk-concurrency-audit-20261014.md) for a dated
+snapshot, not a substitute for querying current queues.
+
 # Cluster storage
 
 On ZIH, keep large datasets, downloads, parquets, images, caches, environments,
@@ -192,6 +228,14 @@ overhead both warrant investigation; this comparison does not isolate their
 individual contributions or establish timings for every dataset. Preserve full
 build logs and distinguish installation time, packaging time and complete build
 time. Larger images and other dependency managers still require validation.
+
+## Hugging Face commit authors
+
+Do not use `Codex` or another assistant identity as the author or committer of
+Hugging Face commits, including uploads and merge-conflict resolutions. Use the
+authenticated user's Hugging Face identity for API uploads and preserve the
+repository's existing user identity for Git commits. Do not invent author names
+or email addresses.
 
 # Git branches
 

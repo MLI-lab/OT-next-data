@@ -32,12 +32,6 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     if text.count(original_rubric) != 1:
         raise ValueError('expected exactly one embedded upstream rubric')
     text = text.replace(original_rubric, rubric)
-    if (source / 'task.yaml').is_file() and not (source / 'task.toml').is_file():
-        text += ('\n\nSource format: this is a legacy Terminal-Bench task. Its instructions '
-                 'are in task.yaml, its reference solution is solution.sh, and its '
-                 'environment files are at the task root. Tests are in tests/ and '
-                 'the test entry point is run-tests.sh. Locate equivalent files in '
-                 'this layout when applying the rubric. Review the original files as supplied.\n')
     instruction.write_text(text)
     (destination / 'rubric.toml').write_text(rubric)
     (destination / 'rubric-skips.json').write_text(json.dumps(skipped, indent=2) + '\n')

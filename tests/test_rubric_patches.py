@@ -74,6 +74,9 @@ def test_effective_rubric_changes_only_authorized_criteria(references, skip):
                 if paragraph.startswith(('The canary string (harbor-canary GUID)', 'Every instruction ends',
                                          'Use backticks when referring to file paths')):
                     guidance = guidance.replace(paragraph + '\n\n', '')
+            guidance = guidance.replace('They must use absolute paths (e.g., /app/data.csv, not data.csv).', 'Relative paths are acceptable if their intended location can be determined from the instructions and agent-visible environment, without hidden verifier knowledge.')
+            guidance = guidance.replace('use absolute paths, and describe only', 'use clear or discoverable file paths, and describe only')
+            guidance = guidance.replace('FAIL if instructions use relative paths, hint at solution approaches', 'FAIL if file paths are misleading or cannot reasonably be resolved, or instructions hint at solution approaches')
             assert effective[name] == {**criterion, 'guidance': guidance}
         elif name not in skipped:
             assert effective[name] == criterion
@@ -216,7 +219,7 @@ def test_rubric_assets_are_bound_by_contract():
     for name in ['UPSTREAM.json', 'patches/verifiable-setup.patch', 'patches/skip-solvable.patch',
                  'patches/skip-difficult.patch', 'patches/skip-novel.patch',
                  'patches/concision-canary.patch', 'patches/concision-timeout.patch',
-                 'patches/concision-formatting.patch', 'upstream/task-implementation.toml']:
+                 'patches/concision-formatting.patch', 'patches/concision-paths.patch', 'upstream/task-implementation.toml']:
         assert 'validation/rubrics/rubric_terminal_bench/' + name in files
     assert 'validation/rubrics/rubric_terminal_bench/patches/skip-separate_verifier_configured.patch' in files
     assert 'validation/rubrics/rubric_terminal_bench/patches/skip-environment_hygiene.patch' in files

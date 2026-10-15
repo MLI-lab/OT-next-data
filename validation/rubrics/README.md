@@ -51,6 +51,33 @@ image access. That result covers only `anti_cheat_robustness`; it does not imply
 perfect agreement on the broader rubric or prove the effect of image access in
 a matched model comparison.
 
+<!-- BEGIN LOCAL_JUDGES -->
+## Local GLM judges
+
+The two local judges use the same example groups and evidence settings as the earlier runs. They use an OpenAI-compatible tool loop instead of the provider CLIs, so harness differences remain. Stability uses the same 20 tasks, five fresh reviews each, with previous verdicts and labels hidden.
+
+| Model | Calibration reviews | Stability reviews | Status |
+| --- | ---: | ---: | --- |
+| GLM-5.3-Flash | 1/104 | 0/100 | stopped_after_repeated_invalid_reviews |
+| GLM-5.3 | 0/104 | 0/100 | failed |
+
+[Per-category calibration results](labeled_examples/) and [stability results by category and criterion](labeled_examples/tb_human_labeled/results/local-stability-20261015/agreement.csv). [Accuracy variation across repeats](labeled_examples/tb_human_labeled/results/local-stability-20261015/accuracy-variance.csv) includes the mean and sample standard deviation. Only complete sets of five reviews enter these statistics. The matched comparison uses tasks completed by both GLM models, Opus and Sonnet, excluding mixed-model reviews.
+
+| Local model | Human labels correct | TB3 all criteria pass | TB4 all criteria pass | Hackable tasks detected |
+| --- | ---: | ---: | ---: | ---: |
+| GLM-5.3-Flash | 1/1 | 0/0 | 0/0 | 0/0 |
+| GLM-5.3 | 0/0 | 0/0 | 0/0 | 0/0 |
+
+Denominators above count completed valid reviews or returned labels. Full targets are 137 human labels, 10 TB3 tasks, 10 TB4 tasks and 27 hackable tasks. TB3/TB4 acceptance is an assumed positive, not criterion-level ground truth.
+
+| Matched stability model | Classifications | Unanimous | Pairwise agreement |
+| --- | ---: | ---: | ---: |
+| glm-5.3-flash | 0 | 0 | pending |
+| glm-5.3 | 0 | 0 | pending |
+| opus-5.5 | 0 | 0 | pending |
+| sonnet-5 | 0 | 0 | pending |
+<!-- END LOCAL_JUDGES -->
+
 ## Harbor and Terminal-Bench rubric comparison
 
 This comparison uses Harbor's pinned default rubric at commit

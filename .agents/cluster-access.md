@@ -8,7 +8,7 @@ start of a new session. SSH access does not establish launcher compatibility.
 
 | Alias | Destination and user | Route | Status established in this session |
 | --- | --- | --- | --- |
-| `rwth` | `login23-1.hpc.itc.rwth-aachen.de`, `lva77460` | Direct from Helma | Key login and Slurm access verified for CLAIX |
+| `rwth` | `login23-1.hpc.itc.rwth-aachen.de`, `lva77460` | TUM jump host (`login01.msv.ei.tum.de:3022`) | Direct route timed out on 2026-10-14; TUM jump route verified |
 | `tum` | `login01.msv.ei.tum.de:3022`, `ge74met` | Direct from Helma | Key login verified; jump host for LRZ |
 | `lrz` | `login.ai.lrz.de`, `di38yur` | `ProxyJump tum` | Key login and Slurm access verified; includes the user's LRZ/MCML access, subject to scheduler entitlements |
 | `barnard` | `login1.barnard.hpc.tu-dresden.de`, `frwe188h` | Helma loopback port `22231` through the user's Mac VPN tunnel | Key login and Slurm access verified |
@@ -243,13 +243,13 @@ The full plan uses 360 shards, cap 32, five simultaneous attempts per GPU,
 24 CPUs, 120 GiB memory and a 24-hour limit per shard. It has not been submitted
 merely because the pilot started. Read the current records before acting.
 
-Direct SSH to `rwth` intermittently timed out during this work. The existing
-route through TUM worked:
-`ssh -F /home/hpc/y500bb/y500bb12/cluster-repair-20261012/ssh_config rwth`.
-That configuration uses `ProxyJump tum` and connection multiplexing. No cause
-for the direct-route failures was established. Do not stop the shared SSH
-master used by other repair sessions. CLAIX jobs and its download/controller
-processes continue independently of the Helma connection.
+Direct SSH from Helma to `rwth` timed out on 2026-10-14, while SSH through the
+configured TUM jump host worked. The `rwth` aliases now use `ProxyJump tum` in
+both the normal SSH config and the repair-specific config. Direct route cause
+is not established; this points to a route/path issue rather than rejected
+credentials or a cluster-wide login outage. To test direct routing explicitly,
+use `ssh -o ProxyJump=none rwth hostname`. Do not stop the shared SSH master
+used by other repair sessions. CLAIX jobs continue independently of Helma SSH.
 
 The first CLAIX generation pilot `4948096` failed before task execution:
 FlashInfer's CUDA JIT inherited `CC=icx`, which nvcc rejected as an unsupported
@@ -346,3 +346,141 @@ per allocated GPU-hour, implying about 46 hours for the 33,112 CLAIX attempts
 if 32 GPUs stay active, or about 134 hours if only 11 stay active. These are
 provisional extrapolations; no full shard had finished and queue growth,
 task variation and retries can materially change them.
+
+### Live reconciliation and SWE-Lego recovery, 2026-10-15
+
+The session ran on Helma4. The Dresden reverse tunnel on Helma1 still worked:
+use `ssh helma1 'ssh capella ...'` (or Alpha) from another Helma login node.
+A refusal on Helma4's loopback port does not establish that the tunnel is down.
+CLAIX authentication was restored by the user. Direct and TUM routes later
+timed out intermittently; `ssh -o ProxyJump=lrz rwth ...` worked. These are
+dated observations, not permanent changes to the shared SSH configuration.
+
+Scale SWE has newer records than the original acceleration controller:
+`runs/scaleswe-pass8-zih-20261011/runtime-concurrency2-20261014/`.
+Live replacement arrays `4416097` (1,293 Instruct shards) and `4416098`
+(1,342 Thinking shards) were all PENDING with `JobHeldUser`; none were running.
+Their caps are 64 and 220, respectively, with concurrency two, 12 CPUs,
+four serving CPUs, and four reserved CPUs per trial. All four pilot resource
+records confirmed effective concurrency two. The gate finished blocked:
+pilots `4416094` and `4416095` contain terminal errors from the protected
+worker recovery path (`'functools.partial' object has no attribute 'start'`).
+Do not release these arrays without a repaired, accepted pilot. Their holds
+were not changed in this session.
+
+The user authorized resubmitting remaining SWE-Lego attempts. Live CLAIX
+jobs were unrelated to SWE-Lego. Reconciliation retained 5,916 CLAIX verifier
+outcomes and 1,089 Alpha verifier outcomes. It selected 27,196 missing CLAIX
+attempts across 3,733 tasks and 15 missing Alpha attempts across nine tasks.
+Whole accepted replacement tasks supersede their originals. Other retained
+verifier outcomes and their IDs are listed explicitly; retries are grouped
+by the number of missing attempts (one through eight). Do not concatenate
+discarded outcomes or diagnostic pilots into the final eight attempts.
+
+Current recovery directories are `runs/swelego-recovery-20261015-v2` under
+the CLAIX SWE-Lego workspace and the shared ZIH OT workspace. CLAIX uses
+five concurrent trials per H100, 24 CPUs and an aggregate array cap of 32.
+The small Alpha remainder is resubmitted on Capella with two trials per H100,
+12 CPUs, and three one-shard arrays. Original payloads, model sampling and
+task resource limits are preserved. New contracts freeze the compatible
+private-IPC and worker recovery fixes; worker imports and hook installation
+were checked before submission.
+
+Pilots: CLAIX `5019426`; Capella `4420236`. Capella replacement arrays are
+`4420237`, `4420238`, `4420239`. Read each site's `submission-summary.json`
+for all array IDs and `gate-status.json` for current acceptance. Full arrays
+are submitted held. Detached gates release them only after successful pilot
+accounting, exact stage-6/7 coverage, real verifier rewards, saved tool
+trajectories, effective concurrency, and no infrastructure errors. Gates
+expire after seven days and leave failed or unverified arrays held.
+
+The earlier `swelego-recovery-20261015` directories are superseded. Their
+CLAIX pilot `5018935` failed before task execution because a newer worker
+file referenced an absent helper module. Compatible existing fixes were
+used in v2. Pending v1 jobs were cancelled; evidence and frozen contracts
+were preserved. Do not restart v1 controllers. Local scripts and captured
+status records are under `/home/hpc/y500bb/y500bb12/swelego-recovery-20261015`.
+
+### Follow-up repair, 2026-10-15 after 08:20 UTC
+
+The user asked to fix the Scale SWE blockage. A focused regression reproduced
+the unsafe worker re-import during `_recover`, and passed after injecting the
+existing start/stop anchor callbacks. Only `bridge_worker.py` and
+`protected_step.py` were patched against the exact frozen Scale SWE snapshot;
+unrelated current-checkout modules were not copied. Worker import and hook
+installation checks passed. Fresh contracts were created through the normal
+contract API, with exact equality of original and new task IDs/content hashes.
+
+New Scale SWE root: `runs/scaleswe-pass8-zih-20261011/runtime-recovery-20261015`.
+Instruct pilot array `4420456`, replacement `4420459` (1,293 shards, cap 64).
+Thinking pilot array `4420457`, replacement `4420460` (1,342 shards, cap 220).
+All keep concurrency two and the original task/model settings. Previous held
+arrays `4416097` and `4416098` were cancelled only after verifying their exact
+pending indices and submitting matching held replacements. The 107/58 retained
+original shards remain owned by the original coverage manifest. Ownership
+receipts, `prepared.json`, `submissions.json`, and a detached `gate.py` live in
+the new root. The gate was watching queued pilots at 08:25 UTC and releases
+each model only after its own pilot passes. Do not release stale arrays or
+restart older controllers. Local patch, regression and status artifacts:
+`/home/hpc/y500bb/y500bb12/scaleswe-recovery-20261015`.
+
+SWE-Lego CLAIX pilot `5019426` subsequently failed all five attempts during
+container preparation on `n23g0019`: user namespace limit exhausted. The
+private-IPC flag does not guarantee that a node has free namespace capacity;
+the occupied resources on this particular node were not inspected here.
+No unrelated IPC or processes were removed. Recovery was moved
+to the available CLAIX-2025 `c25g` partition, preserving concurrency five,
+the original task payloads and limits. New root:
+`runs/swelego-recovery-20261015-c25g`. Pilot `5020738` was RUNNING on `w25g0007`
+at 08:25 UTC, with effective concurrency five and vLLM starting. End-to-end
+pilot acceptance was not yet established. Its newly frozen full arrays are
+held behind the local gate; read `submission-summary.json` for IDs. The v2
+CLAIX held arrays were cancelled and recorded as superseded. Capella SWE-Lego
+pilot `4420236` and its three held recovery arrays remain current. At 08:23 UTC
+the Capella pilot was pending for Priority, with a provisional Slurm start
+estimate of 15:24 Europe/Berlin; this is not a guarantee.
+
+### Namespace follow-up, 2026-10-15
+
+CLAIX c25g SWE-Lego pilot `5020738` passed the gate: five recorded and graded attempts, effective concurrency five, no reported environment, verifier or model-server trajectory errors. Gate released arrays `5020740` through `5020747` at 08:46:57 UTC (aggregate cap 32); they were pending at the subsequent check. This is pilot success, not full-run completion.
+
+The failed c23g pilot `5019426` on `n23g0019` failed in workspace seeding, whose command already uses `--containall`; instance starts also use private IPC. Historical fakeroot SysV IPC residue is a plausible cause but has not been confirmed on that node. Read-only diagnostic job `5021528` is queued on that exact node; output will be in `/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-swelego/runs/namespace-investigation-20261015/probe-5021528.out`. No host IPC was removed. Local investigation: `namespace-investigation-20261015/findings.json`.
+
+User authorized old-resource cleanup. Exclusive CLAIX cleanup job `5022596` targets `n23g0019` after read-only diagnostic `5021528`. It only removes old account-owned fakeroot-shaped IPC triples with no live recorded queue PIDs and aborts if any account process is outside its allocation. No process killing. Four local guard tests passed. Submission is not evidence that cleanup has run; inspect `runs/namespace-investigation-20261015/cleanup-5022596.out` under the CLAIX SWE-Lego root.
+
+### Scale SWE Helma acceleration, 2026-10-15
+
+User authorized adding Helma work alongside ZIH. Local controller/source:
+`/home/hpc/y500bb/y500bb12/scaleswe-helma-20261015`.
+Run workspace: `/hnvme/workspace/y500bb12-optiagent/runs/scaleswe-helma-20261015`.
+Thinking pilot `1023481` (three tasks, two diagnostic attempts each) and full
+array `1023482` (12 shards, 48 tasks, 384 production attempts) are submitted
+held. The pilot is released automatically after its three exact cached images
+arrive from ZIH. The full array requires accepted stages 6/7, six effective
+concurrent trials, complete trajectories and verifier rewards, full image
+staging, then confirmed cancellation of the corresponding four pending ZIH
+shards (`4420460_1`, `_2`, `_3`, `_6`). No ZIH production ownership has moved
+until `ownership-transfer.json` confirms it. Running source shards block the
+handoff; no running jobs are cancelled. Pilot results are excluded from pass@8.
+
+Helma uses one H200, 32 CPUs and six concurrent trials per job; full array cap
+four. Task manifests match original task SHA256s; task limits, model settings
+and eight production attempts are retained. CPU preflight supports seven
+trials (28 trial CPUs, four reserved CPUs per trial). Full shards have four
+tasks each to fit the Helma 24-hour allocation; source ZIH shards had twelve.
+Model weights already exist at `/hnvme/workspace/y500bb12-models/Qwen3-30B-A3B`.
+Source code is the exact minimally fixed ZIH snapshot. Data/images are staged
+in workspace storage, not home. Guard tests cover pending handoff, running
+source rejection, missing source rejection, and manifest/resource checks.
+
+Controller status: workspace `controller-status.json`. Controller PID is
+recorded locally in `controller-process.json`; image transfer log is local
+`transfer-images.log`. ZIH handoff audit will be
+`runtime-recovery-20261015/helma-transfer-20261015.json`. The original ZIH gate
+can still release the remaining array elements; cancelled indices cannot run.
+
+### Live status and Helma staging repair, 2026-10-15 around 13:00 CEST
+
+Both Scale SWE ZIH pilot arrays (`4420456`, `4420457`) passed all four elements and the controller released full arrays `4420459` and `4420460`; full arrays were pending priority at 12:59 CEST. SWE-Lego Capella pilot `4420236` was running. CLAIX c25g had nine completed and nine running shards, with 290 recorded attempts and 282 verifier-graded attempts in nine final reports; 13 RuntimeError records and one TaskMemoryLimitError record require review (not necessarily distinct ungraded attempts). Dataset-wide pass@8 remains incomplete.
+
+Helma pilot `1023481` failed before trials: the copied source external symlink referenced a ZIH-only path. Restored isolated local upstream checkouts with exact pinned commits and clean tracked state, repaired only the dependency link, and submitted replacement pilot `1024251`. Its controller restarted; full `1023482` remains gated. Old pilot logs are retained. No source ZIH shards have been transferred. Full image transfer continues.

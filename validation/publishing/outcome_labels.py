@@ -21,7 +21,10 @@ def execution_label(item):
 
 def labels(stage, item, not_required=()):
     if stage == 1:
-        warnings = {'warning:relative-instruction-path' for c in item.get('checks', []) if c['status'] == 'warning' and c['check'] == 'check-task-absolute-path.sh'}
+        warning_labels = {'check-task-absolute-path.sh': 'warning:relative-instruction-path',
+                          'check-pip-pinning.sh': 'warning:unpinned-dependency'}
+        warnings = {warning_labels[c['check']] for c in item.get('checks', [])
+                    if c['status'] == 'warning' and c['check'] in warning_labels}
         return sorted(warnings | {'static:' + c['check'].removeprefix('check-').removesuffix('.sh')
                        for c in item.get('checks', [])
                        if c['status'] == 'failed' and c['check'] not in not_required})

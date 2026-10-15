@@ -7,10 +7,26 @@ progressively larger pilots, and publishes the reviewed results as a Hugging Fac
 
 The controller and agent sessions run **directly on the host**, usually inside a
 persistent tmux session. Agents use the configured **Claude or Codex CLI** with
-full permissions and no approval prompts. They work in `OT_next_data/` and can
+full permissions and no approval prompts. They work in a private controller checkout and can
 access the datasource and saved execution evidence. Role prompts define their edit scope. They do not run inside Harbor or need agent-container mounts.
 The controller launches Slurm jobs to run task validation through Harbor,
 including image preparation and caching.
+
+The CLI creates a persistent code copy for each `work_root` before `run`,
+`resume`, or `supervise`. By default it lives under
+`~/.local/share/ot-next-data/repair-code/`; `controller_code_root` records its
+location. The dataset patcher and infrastructure locks belong to that copy.
+Supervisors can repair their own runtime hooks without waiting for another
+dataset's jobs. Shared installed Python packages and upstream checkouts remain
+read-only inputs; implement runtime adaptations in `harbor_patches/`.
+
+Migration refuses a live controller or supervisor. It preserves job records,
+generations and partial dataset repairs, and records the configuration change
+under `operator-decisions/code-isolation-*`. Stop the old controller before
+migrating an existing loop; already submitted jobs keep running their frozen
+code. Every new contract archives the code it hashes, and submission unpacks
+that archive. A later checkout edit cannot change a queued job's implementation.
+Fixes in one controller copy are not automatically propagated to other copies.
 
 
 ## The loop

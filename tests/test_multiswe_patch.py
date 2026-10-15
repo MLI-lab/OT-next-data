@@ -510,3 +510,23 @@ def test_maven_wrapper_proxy_reaches_bootstrap_and_is_restored(monkeypatch, fail
         assert fail
     import os
     assert os.environ['MAVEN_OPTS'] == '-Xmx512m'
+
+
+def test_junit_collection_repair_preserves_verifier_and_other_baselines():
+    from data.multiswe.patch import share_image
+    recipe = shared_recipe()
+    recipe.update(repo='junit5', base_sha='511ab7d04dd5deec372157381b37a42003778b18')
+    recipe['files']['prepare.sh'] = 'set -e\n./gradlew test\n'
+    recipe['files']['fix-run.sh'] = 'set -e\ngit apply /home/test.patch /home/fix.patch\n./gradlew test\n'
+    locks = {recipe['base']: 'mswebench/example@sha256:' + 'b'*64}
+    repaired = share_image(patch_files(original_files()), recipe, locks)
+    other = share_image(patch_files(original_files()), {**recipe, 'base_sha': 'a'*40}, locks)
+    assert b'Test).toList().each' in repaired['environment/Dockerfile']
+    assert b'--stacktrace --no-daemon --max-workers 1' in repaired['environment/Dockerfile']
+    assert b'Test).toList().each' not in other['environment/Dockerfile']
+    assert repaired['setup_files/upstream/fix-run.sh'] == other['setup_files/upstream/fix-run.sh']
+    assert repaired['solution/solve.sh'] == other['solution/solve.sh']
+    assert repaired['tests/test.sh'] == other['tests/test.sh']
+    for line in repaired['environment/Dockerfile'].splitlines():
+        if line.startswith(b'RUN '):
+            subprocess.run(['sh', '-n'], input=line[4:], check=True)

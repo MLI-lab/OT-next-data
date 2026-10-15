@@ -52,13 +52,32 @@ def choose_allocation(args):
     return {'partition': partition, 'gpus': gpus, 'reason': reason}
 
 
-def snapshot_code(folder):
-    """Run frozen validation code even if the working checkout changes mid-job."""
+def snapshot_code(folder, archive=None):
+    """Run frozen validation code even if the working checkout changes mid-job.
+
+    With `archive` (the copy frozen with a contract) that copy is unpacked instead of the checkout.
+    """
     target = folder / 'code'
+    if archive is not None:
+        with tarfile.open(archive, 'r:gz') as tar:
+            tar.extractall(folder, filter='data')
+        (target / 'external').symlink_to(ROOT / 'external', target_is_directory=True)
+        return target
+
+    def ignore(directory, names):
+        excluded = set(shutil.ignore_patterns('__pycache__', 'results', 'runs', '*.pyc')(directory, names))
+        # Match contract.implementation's pathlib traversal: directory symlinks
+        # are external trees, not part of the frozen implementation. A link whose
+        # target is missing (a checkout not fetched on this machine) is none either.
+        excluded.update(name for name in names
+                        if (Path(directory) / name).is_symlink()
+                        and not (Path(directory) / name).is_file())
+        return excluded
+
     target.mkdir()
     for name in ('validation', 'config', 'harbor_patches', 'hpc'):
         shutil.copytree(ROOT / name, target / name,
-                        ignore=shutil.ignore_patterns('__pycache__', 'results', 'runs', '*.pyc'))
+                        ignore=ignore)
     shutil.copytree(ROOT / 'data/annotate_dataset', target / 'data/annotate_dataset')
     shutil.copytree(ROOT / 'data/utils', target / 'data/utils',
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
@@ -69,6 +88,21 @@ def snapshot_code(folder):
     shutil.copyfile(ROOT / 'requirements.txt', target / 'requirements.txt')
     (target / 'external').symlink_to(ROOT / 'external', target_is_directory=True)
     return target
+
+
+def freeze_code(archive, stages):
+    """Pack a copy of the checkout beside a new contract; return the hashes of that copy."""
+    import tempfile
+    from validation.contract import implementation
+    with tempfile.TemporaryDirectory() as scratch:
+        code = snapshot_code(Path(scratch))
+        hashes = implementation(code, stages)
+        (code / 'external').unlink()  # machine-specific link; snapshot_code restores it
+        partial = archive.with_name(archive.name + '.tmp')
+        with tarfile.open(partial, 'w:gz') as tar:
+            tar.add(code, arcname='code')
+        partial.replace(archive)
+    return hashes
 
 
 def archive_code_snapshot(folder):
@@ -174,7 +208,14 @@ def maybe_submit(args, numbers):
     allocation.update(cpus=payload['cpus'], cluster=cluster.name)
     request = folder / 'request.json'
     save(request, {'args': payload, 'stages': numbers})
-    code_root = snapshot_code(folder)
+    from validation.contract import code_archive, implementation, read
+    frozen = code_archive(args.contract) if getattr(args, 'contract', None) else None
+    if frozen is not None and frozen.is_file():
+        code_root = snapshot_code(folder, frozen)
+        if implementation(code_root, numbers) != read(args.contract)['implementation']:
+            raise ValueError(f'{frozen} is not the code the contract froze; prepare a new contract')
+    else:
+        code_root = snapshot_code(folder)
     command = ['sbatch', '--parsable', '--export=ALL', f'--partition={partition}', f'--nodes={nodes}',
                *(['--ntasks=1'] if nodes == 1 else [f'--ntasks={nodes}', '--ntasks-per-node=1']),
                f"--cpus-per-task={payload['cpus']}",

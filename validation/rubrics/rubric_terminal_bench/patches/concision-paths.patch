@@ -1,0 +1,12 @@
+--- rubric.toml
++++ rubric.toml
+@@ -147,3 +147,3 @@
+ guidance = """
+-Instructions should be human-written, concise, and clear. They must use absolute paths (e.g., /app/data.csv, not data.csv). Instructions should not hint at the solution approach or provide step-by-step procedures — describe what to achieve, not how.
++Instructions should be human-written, concise, and clear. Relative paths are acceptable if their intended location can be determined from the instructions and agent-visible environment, without hidden verifier knowledge. Instructions should not hint at the solution approach or provide step-by-step procedures — describe what to achieve, not how.
+ 
+@@ -159,3 +159,3 @@
+ 
+-PASS if instructions are concise, human-written, use absolute paths, and describe only what is needed to complete the task. FAIL if instructions use relative paths, hint at solution approaches, provide step-by-step procedures, appear LLM-generated, include unnecessary headings, preamble, roleplay, fluff, or list available tools/libraries that the agent should discover on its own."""
++PASS if instructions are concise, human-written, use clear or discoverable file paths, and describe only what is needed to complete the task. FAIL if file paths are misleading or cannot reasonably be resolved, or instructions hint at solution approaches, provide step-by-step procedures, appear LLM-generated, include unnecessary headings, preamble, roleplay, fluff, or list available tools/libraries that the agent should discover on its own."""
+ 

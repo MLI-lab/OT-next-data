@@ -116,6 +116,12 @@
       "criterion": "binary_reward",
       "when": "always",
       "reason": "Removed because binary rewards are not necessarily required for every RL training task. No replacement static check is added."
+    },
+    {
+      "path": "patches/concision-paths.patch",
+      "criterion": "instruction_concision",
+      "when": "always",
+      "reason": "Relative paths are acceptable when the intended location is discoverable from instructions and the agent-visible environment without hidden verifier knowledge."
     }
   ],
   "usage": "Stage 2 applies these diffs to the pinned implementation rubric when staging each review. The effective rubric and automatic skips are saved with the staged task."

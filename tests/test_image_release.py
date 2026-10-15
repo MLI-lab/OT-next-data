@@ -79,6 +79,30 @@ def test_legacy_unvalidated_and_changed_tasks_not_exported(tmp_path):
         release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
 
 
+@pytest.mark.parametrize('folder', ['camel-ai__SETA-Env_filtered_stages_3_4_5', '../escape', '/absolute'])
+def test_dataset_scoped_cached_images(tmp_path, monkeypatch, folder):
+    task, cache, bundle, tables = fixture(tmp_path)
+    manifest, artifacts = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
+    manifest['revision'] = 'a' * 40
+    remapped = {}
+    for record in manifest['bundles'].values():
+        old = record['prefix']
+        record['prefix'] = folder + '/cached_images/' + old.removeprefix('images/')
+        for name in record['files']:
+            remapped[record['prefix'] + '/' + name] = artifacts[old + '/' + name]
+    parquet = write_parquet(tmp_path, tables, manifest, monkeypatch)
+    tasks = materialize(parquet, tmp_path / 'downloaded/tasks', limit=1)
+    def download(**kwargs):
+        return remapped[kwargs['filename']]
+    if folder.startswith(('.', '/')):
+        with pytest.raises(ValueError, match='Unsafe artifact path'):
+            release.stage_published(tasks, tmp_path / 'fresh-cache', tmp_path / 'runtime', download)
+    else:
+        records = release.stage_published(tasks, tmp_path / 'fresh-cache', tmp_path / 'runtime', download)
+        assert len(records) == 1
+        assert (tmp_path / 'runtime' / bundle.name).read_bytes() == b'pristine sif'
+
+
 def test_corrupt_download_not_visible_and_edited_task_skipped(tmp_path, monkeypatch):
     task, cache, bundle, tables = fixture(tmp_path)
     manifest, artifacts = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
@@ -88,7 +112,7 @@ def test_corrupt_download_not_visible_and_edited_task_skipped(tmp_path, monkeypa
     bad = tmp_path / 'bad'
     bad.write_bytes(b'corrupt')
     with pytest.raises(ValueError, match='Corrupt'):
-        release.stage_published(tasks, cache, tmp_path / 'runtime', lambda **kw: bad)
+        release.stage_published(tasks, tmp_path / 'fresh-cache', tmp_path / 'runtime', lambda **kw: bad)
     assert not list((tmp_path / 'runtime').glob('*.sif'))
     (tasks[0] / 'environment/payload').write_text('changed')
     assert not release.stage_published(tasks, cache, tmp_path / 'runtime', lambda **kw: pytest.fail('stale image'))

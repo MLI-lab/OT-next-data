@@ -16,7 +16,8 @@ def freeze(record_path, current, tasks):
     if 3 not in previous['stages'] or 3 not in current['stages']:
         raise ValueError('stage-3 reuse requires stage 3 in both contracts')
     for key in ('execution_profile', 'runtime_dependencies', 'implementation', 'upstream'):
-        if previous[key] != current[key]:
+        # A saved contract holds JSON lists where a fresh one holds tuples.
+        if json.loads(json.dumps(previous[key])) != json.loads(json.dumps(current[key])):
             raise ValueError(f'stage-3 reuse: changed {key}; rerun stage 3')
     for key in ('source', 'revision'):
         if previous['dataset'][key] != current['dataset'][key]:

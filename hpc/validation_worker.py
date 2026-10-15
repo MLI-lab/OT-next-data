@@ -2,6 +2,7 @@
 import argparse
 import errno
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -34,8 +35,10 @@ def evidence_fallback(folder):
 def wait_ready(url, processes, timeout=120, workers=False, diagnostics=False):
     # These health endpoints are node-local, never cluster-proxy requests.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    started = time.monotonic()
+    deadline = None if timeout is None else started + timeout
+    next_message = started + 60
+    while deadline is None or time.monotonic() < deadline:
         if any(p.poll() is not None for p in processes):
             raise RuntimeError('service exited during startup; see the batch log and any dedicated service logs')
         try:
@@ -44,6 +47,12 @@ def wait_ready(url, processes, timeout=120, workers=False, diagnostics=False):
                     return
         except (OSError, ValueError):
             pass
+        now = time.monotonic()
+        if now >= next_message:
+            limit = 'no startup time limit' if timeout is None else f'limit {timeout:g}s'
+            print(f'Waiting for service readiness: {url}; elapsed {now - started:.0f}s; '
+                  f'{limit}; launcher processes still running', flush=True)
+            next_message = now + 60
         time.sleep(2)
     if diagnostics:
         for process in processes:
@@ -147,9 +156,9 @@ def free_port(start, attempts=200):
     raise RuntimeError(f'no free port pair found from {start}')
 
 
-def review_runtime_tasks(tasks, stages, scratch):
-    """Stage-2 sources are review payloads, not environments to build or run."""
-    if set(stages) != {2}:
+def review_runtime_tasks(tasks, stages, scratch, evidence="files"):
+    """File-only review uses a neutral image; image review uses actual task images."""
+    if set(stages) != {2} or evidence == "image":
         return tasks
     from validation.stages.prepare_review_tasks import stage_review
     from validation.upstream import checkout
@@ -158,7 +167,7 @@ def review_runtime_tasks(tasks, stages, scratch):
     return [stage_review(tasks[0], scratch / 'review-environment', checkout('terminal-bench'))]
 
 
-def trial_capacity(tasks, args):
+def trial_capacity(tasks, args, image_review=False):
     # Reserve both agent and verifier steps: an agent may stay alive while its
     # separate verifier starts, so filling every CPU with agents can deadlock.
     from harbor.models.task.task import Task
@@ -171,7 +180,9 @@ def trial_capacity(tasks, args):
         for step in task.config.steps or []:
             envs.append(resolve_effective_verifier_env_config(task.config, step))
         agent_cpus = args.trial_cpus or envs[0].cpus or 1
-        verifier_cpus = max((args.trial_cpus or env.cpus or 1 for env in envs[1:] if env), default=0)
+        verifier_envs = envs[2:] if image_review and task.config.steps else envs[1:]
+        reservations = [args.trial_cpus or env.cpus or 1 for env in verifier_envs if env]
+        verifier_cpus = sum(reservations) if image_review else max(reservations, default=0)
         per_trial = max(per_trial, agent_cpus + verifier_cpus)
     available = args.cpus - (args.serve_cpus * getattr(args, 'serve_replicas', 1) if args.serve_model else 0)
     capacity = available // per_trial
@@ -295,10 +306,10 @@ def main(request):
         preparation_tasks = [task for task in tasks if task in getattr(args, '_path_candidates', [])
                              or getattr(args, '_pip_findings', {}).get(task.name)]
         static_only = not prebuild_only and set(data['stages']) == {1} and not preparation_tasks
-        runtime_tasks = tasks if prebuild_only else review_runtime_tasks(tasks, data['stages'], scratch)
+        runtime_tasks = tasks if prebuild_only else review_runtime_tasks(tasks, data['stages'], scratch, getattr(args, 'review_evidence', 'files'))
         budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
                    'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
-                  if static_only or prebuild_only else trial_capacity(runtime_tasks, args))
+                  if static_only or prebuild_only else trial_capacity(runtime_tasks, args, image_review=2 in data['stages'] and getattr(args, 'review_evidence', 'files') == 'image'))
         args.concurrency = min(args.concurrency, budget['max_concurrency'])
         save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency,
                                                'static_concurrency': args.static_concurrency})
@@ -428,7 +439,8 @@ def main(request):
                 command += ['--reasoning-parser', spec.reasoning_parser]
             if plan['nodes'] == 1:
                 # Copies of the model behind the one address; vLLM balances requests between them.
-                start(single + command + (['--data-parallel-size', str(replicas)] if replicas > 1 else []), 'vllm')
+                model_commands = [('vllm', single + command +
+                                   (['--data-parallel-size', str(replicas)] if replicas > 1 else []))]
             else:
                 # Agents and their containers stay on this node; the other nodes only hold model layers.
                 head = os.environ.get('SLURMD_NODENAME') or os.uname().nodename.split('.')[0]
@@ -437,10 +449,25 @@ def main(request):
                 head_step, worker_step = serving_commands(plan, command, head=head, head_ip=head_ip,
                     ray_port=serving_port - 10000, partition=args.partition, cpus=args.serve_cpus,
                     memory_mb=args.serve_memory_mb, python=sys.executable, tmp=os.environ['TMPDIR'])
-                start(head_step, 'vllm')
-                start(worker_step, 'ray-workers')
+                model_commands = [('vllm', head_step), ('ray-workers', worker_step)]
             save(request.parent / 'execution.json', status)
-            wait_ready(f'http://127.0.0.1:{serving_port}/health', processes, timeout=1800)
+            # Startup precedes all task budgets. Zero disables only this
+            # readiness deadline; process exits and Slurm walltime still apply.
+            startup_timeout = float(os.environ.get('OT_MODEL_STARTUP_TIMEOUT', '600'))
+            if startup_timeout < 0 or not math.isfinite(startup_timeout):
+                raise ValueError('OT_MODEL_STARTUP_TIMEOUT must be finite and nonnegative')
+            status['serving']['startup_timeout_seconds'] = startup_timeout or None
+            save(request.parent / 'execution.json', status)
+            startup_retries = int(os.environ.get('OT_MODEL_STARTUP_RETRIES', '3'))
+            if startup_retries < 0:
+                raise ValueError('OT_MODEL_STARTUP_RETRIES must be nonnegative')
+            from hpc.model_startup import start_with_retries
+            start_with_retries(model_commands, start=start, processes=processes,
+                               wait_ready=wait_ready,
+                               url=f'http://127.0.0.1:{serving_port}/health',
+                               timeout=startup_timeout or None, retries=startup_retries,
+                               record=status['serving'],
+                               persist=lambda: save(request.parent / 'execution.json', status))
             try:
                 # Sampled for stage 7's inference resource use; optional.
                 start(['nvidia-smi', '--query-gpu=index,memory.used,memory.total,utilization.gpu',
@@ -566,7 +593,10 @@ def main(request):
                 log.close()
         try:
             from hpc.validation_submit import archive_code_snapshot
-            archive_code_snapshot(request.parent)
+            # Array children share a frozen snapshot owned by the array, not
+            # one per shard. They must neither archive it nor warn it is absent.
+            if (request.parent / 'code').exists() or (request.parent / 'code.tar.gz').exists():
+                archive_code_snapshot(request.parent)
         except Exception as exc:
             # Keep the unpacked snapshot if packing or verification fails.
             print(f'Code snapshot could not be packed: {exc}', flush=True)

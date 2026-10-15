@@ -256,6 +256,7 @@ def start_with_anchor(self, payload):
     reuse_for_oracle = bool((dependency_archives() or {}).get('reuse_for_oracle', False))
     _trial.archive = archive if archive and archive.is_file() and (not self._helma_save_dependencies or reuse_for_oracle) else None
     _trial.workspace_seeded = set()
+    _trial.workdir_seed_error = None
     try:
         result = _original_start(self, payload)
         if archive and isinstance(result, dict):
@@ -265,6 +266,7 @@ def start_with_anchor(self, payload):
     finally:
         _trial.archive = None
         _trial.workspace_seeded = None
+        _trial.workdir_seed_error = None
     try:
         start_anchor(self)
     except BaseException:
@@ -337,6 +339,12 @@ def instance_start_command(cmd, net_flags):
     flags = list(net_flags)
     if '--contain' not in cmd and '--containall' not in cmd:
         flags.append('--contain')
+    # Persistent fakeroot clients can leave SysV IPC behind when the instance
+    # stops. Host IPC objects retain their creating user namespace even after
+    # every container process exits. A private IPC namespace lets the kernel
+    # reclaim these objects when the instance's last process exits.
+    if not any(flag in cmd for flag in ('--ipc', '-i', '--containall', '-C')):
+        flags.append('--ipc')
     archive = getattr(_trial, 'archive', None)
     if archive:
         flags += ['--bind', f'{archive}:{dependency_archives()["target"]}:ro']
@@ -487,6 +495,10 @@ def run_container_commands(original_run, net_flags=(), clock=time.monotonic):
     """Adapt instance startup and retry safe mkdir stalls."""
     fakeroot_cache = {}
     def run(cmd, *args, **kwargs):
+        workdir_seed = (isinstance(cmd, list) and cmd[1:2] == ['exec']
+                        and any(str(arg).endswith(':/_workdir_init:rw') for arg in cmd))
+        from harbor_patches.exec_environment import command_arguments
+        cmd = command_arguments(cmd)
         from harbor_patches.upload_runtime import upload_command
         cmd = upload_command(cmd)
         from harbor_patches.workdir_seed import workdir_seed_command
@@ -509,17 +521,30 @@ def run_container_commands(original_run, net_flags=(), clock=time.monotonic):
             return run_image_build(original_run, cmd, args, kwargs)
         instance_start = isinstance(cmd, list) and cmd[1:3] == ['instance', 'start']
         if instance_start:
+            # Upstream logs pre-copy failures and then binds the incomplete
+            # directory over the repository. Never start a task in that state.
+            if getattr(_trial, 'workdir_seed_error', None):
+                raise RuntimeError('Workdir initialization failed before container start: '
+                                   + _trial.workdir_seed_error)
             from harbor_patches.protected_step import run_in_step
             scoped_run = partial(run_in_step, original_run)
             seed_image_workspace(cmd, scoped_run)
             cmd = instance_start_command(cmd, net_flags)
             cmd = compatible_fakeroot_command(cmd, scoped_run, fakeroot_cache)
         start = clock()
+        from harbor_patches.container_env import environment_arguments
+        cmd, kwargs = environment_arguments(cmd, kwargs)
         while True:
             try:
                 from harbor_patches.protected_step import run_in_step
-                return run_in_step(original_run, cmd, *args, **kwargs)
-            except subprocess.TimeoutExpired:
+                result = run_in_step(original_run, cmd, *args, **kwargs)
+                if workdir_seed and getattr(result, 'returncode', 0):
+                    _trial.workdir_seed_error = f'copy exited {result.returncode}: {result.stderr}'
+                    raise RuntimeError(_trial.workdir_seed_error)
+                return result
+            except subprocess.TimeoutExpired as exc:
+                if workdir_seed:
+                    _trial.workdir_seed_error = str(exc)
                 if not only_creates_directories(cmd) or clock() - start > STALL_BUDGET:
                     raise
                 print(f'[worker] {cmd[-1]!r} timed out; trying again', flush=True)
@@ -687,7 +712,8 @@ def configure_worker(staging_base, sif_cache, child=False):
         install_container_hooks(net_flags)
         worker.ApptainerInstance = partial(
             ProtectedInstance, instance_factory=worker.ApptainerInstance,
-            step_prefix=trial_step_prefix, is_abandoned=lambda env_id: env_id in REGISTRY.abandoned)
+            step_prefix=trial_step_prefix, is_abandoned=lambda env_id: env_id in REGISTRY.abandoned,
+            start_anchor=start_anchor, stop_anchor=stop_anchor)
         return
     install_container_hooks(net_flags)
 
@@ -697,6 +723,8 @@ def install_container_hooks(net_flags):
     install_tmux_capture_worker(worker)
     from harbor_patches.tmux_socket import install_worker as install_tmux_socket_worker
     install_tmux_socket_worker(worker)
+    from harbor_patches.exec_environment import install_worker as install_exec_environment
+    install_exec_environment(worker)
     from harbor_patches.upload_runtime import install_worker as install_upload_worker
     install_upload_worker(worker)
     worker._pool_key_from_payload = lambda payload: _original_pool_key(content_keyed_payload(payload))
@@ -716,4 +744,6 @@ if __name__ == '__main__':
     args, _ = parser.parse_known_args()
     start_wait.configure(args.bridge_url)
     configure_worker(args.staging_base, args.sif_cache)
+    from harbor_patches.command_cancellation import start_worker_control
+    start_worker_control(worker, args.bridge_url)
     worker.main()

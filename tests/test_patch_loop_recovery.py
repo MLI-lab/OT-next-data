@@ -513,3 +513,19 @@ def test_reviewed_findings_return_later_failures_to_local_recovery(setup, monkey
     third = r.record_failure(Path(config['work_root']), state, RuntimeError('worker lost'))
     assert r.recover(config, state_path, third) == 'restart'
     assert roles == ['supervisor', 'recovery', 'supervisor']
+def test_jobs_expands_cancelled_parent_array(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from validation.patch_repair_loop import recovery
+    for index in range(3):
+        recovery.core.save(tmp_path / f'generation-0000/shards/{index}/job.json',
+                           {'job_id': f'42_{index}'})
+    def sacct(command, **kwargs):
+        assert '--array' in command
+        assert command[command.index('-j') + 1] == '42'
+        return SimpleNamespace(stdout='42_0|CANCELLED by 215708\n42_1|RUNNING\n')
+    monkeypatch.setattr(recovery.subprocess, 'run', sacct)
+    result = {row['job_id']: row for row in recovery.jobs(tmp_path)}
+    assert result['42_0']['finished']
+    assert not result['42_1']['finished']
+    assert result['42_2']['state'] == 'UNKNOWN'
+    assert not result['42_2']['finished']

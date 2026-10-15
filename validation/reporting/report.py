@@ -164,7 +164,15 @@ def write_report(archive, out):
     """Save a compact run summary and task reviews beside the evidence archive."""
     result = summarize(archive)
     out.mkdir(parents=True, exist_ok=True)
-    (out / 'summary.json').write_text(json.dumps(result, indent=2) + '\n')
+    # Readers use summary.complete as the publication boundary. Never expose
+    # that flag before all stage files exist (including when replacing a report).
+    def publish(path, content):
+        temporary = path.with_name(path.name + '.tmp')
+        temporary.write_bytes(content)
+        temporary.replace(path)
+
+    publish(out / 'summary.json', json.dumps({**result, 'complete': False,
+            'report_status': 'writing'}).encode())
     reviews = []
     result["plots"] = []
     with tarfile.open(archive, mode='r|gz') as tar:
@@ -177,10 +185,10 @@ def write_report(archive, out):
                 stage = json.loads(content)
                 reviews.extend(review_task(item) for item in stage.get('items', []))
                 # Preserve a portable stage report for repricing and shard merging.
-                (out / ('stage-2-' + path.parts[2] + '.json')).write_bytes(content)
+                publish(out / ('stage-2-' + path.parts[2] + '.json'), content)
             else:
                 exported = out / ('stage-' + path.parts[1].split('_')[1] + '-' + path.parts[2] + '.json')
-                exported.write_bytes(content)
+                publish(exported, content)
                 stage = json.loads(content)
                 if stage.get('stage') in (6, 7) and stage.get('complete') and not stage.get('dry_run'):
                     from validation.reporting.plot_results import write_stage_plots
@@ -192,8 +200,8 @@ def write_report(archive, out):
                         result['plots'].append({'report': exported.name, 'status': 'error',
                                                 'reason': f'{type(exc).__name__}: {exc}'})
     if result['review_groups'] is not None:
-        (out / 'reviews.json').write_text(json.dumps({'stage': 2, 'tasks': reviews}, indent=2) + '\n')
-    (out / 'summary.json').write_text(json.dumps(result, indent=2) + '\n')
+        publish(out / 'reviews.json', (json.dumps({'stage': 2, 'tasks': reviews}, indent=2) + '\n').encode())
+    publish(out / 'summary.json', (json.dumps(result, indent=2) + '\n').encode())
     return result
 
 

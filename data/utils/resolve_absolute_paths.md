@@ -33,6 +33,19 @@ roots must exist; `/` is rejected to avoid scanning system mounts and caches.
 Choose roots available in that dataset's containers. No container Python,
 model endpoint, oracle solution, or verifier execution is needed for the probe.
 
+The resolver also collects literal absolute paths appearing before flagged
+relative references in the instruction. Existing directories become additional
+search roots; existing files contribute their parent directories. These are
+search hints, not statements of authority. Their roots are combined with the
+configured or automatically discovered project roots, and every match counts.
+For example, matches under both `/data/raw/orders.csv` and
+`/workspace/files/data/raw/orders.csv` are ambiguous and are not automatically
+replaced. Missing hints are ignored. The filesystem root, virtual system trees
+(`/proc`, `/sys`, `/dev`), traversal and dynamic expressions are not added.
+Reports record the hints, probe command and resulting roots. Roots are combined
+across the task, so an earlier reference may conservatively gain another match
+from a directory mentioned before a later reference.
+
 The helper reruns the pinned absolute-path checker with the same instruction
 adaptations used by stage 1. It searches regular files with `find -P`, matching
 the entire relative suffix, and records the observed starting directory.
@@ -61,12 +74,20 @@ a failed healthcheck produces an error with no accepted mappings. If no
 healthcheck is configured, the report explicitly records that. This initialization
 can modify the container; only the subsequent filesystem search is read-only.
 
-No instructions are automatically rewritten. A unique match establishes a
-filesystem location, not whether an occurrence is an example, shell argument,
-or real file reference. Dataset patchers can consume these hash-bound findings
-under their own explicit replacement rules and emit the usual patch manifest.
-Do not rewrite code/examples or choose arbitrary basenames to make the static
-checker pass. An explicit repository-location sentence is often sufficient.
+The observation helper itself does not rewrite instructions. The pipeline's
+`--fix-instruction-paths` normalizer consumes hash-bound observations, rewrites
+unique matches outside fenced code, and saves a derived task copy with an edit
+manifest. Multiple observed locations, including across setup and reference
+observations, prevent automatic replacement. Old observations that omitted the
+instruction's path hints cannot authorize those edits, and the completed-scan
+cache is invalidated when this search policy changes. A unique match establishes
+a filesystem location, not whether a prose occurrence semantically refers to it.
+Dataset patchers can also consume observations with explicit reviewed spans.
+For explicit `./` references, automatic replacement additionally requires that
+the observed file resolves from the container's starting working directory.
+A sole matching build-context copy elsewhere does not justify redirecting a
+command to it. References intended for a later `cd` remain unchanged unless
+separate reviewed evidence establishes their meaning.
 
 For reference-solution diagnostics, include stage 4 with the same
 `--resolve-path-root` options. Each oracle trial records two observations in

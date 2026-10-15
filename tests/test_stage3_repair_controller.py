@@ -593,7 +593,8 @@ def test_prebuild_gate_precedes_any_validation(tmp_path, monkeypatch, passed):
     patcher.write_text('# patch')
     config = {'dataset': 'example', 'patcher': str(patcher), 'source': '/original',
               'source_revision': 'pinned', 'work_root': str(tmp_path),
-              'prebuild_all_images': True, 'publish': False, 'seed': 42, 'poll_seconds': 5}
+              'prebuild_all_images': True, 'prebuild_shard_size': 200, 'shard_size': 24,
+              'publish': False, 'seed': 42, 'poll_seconds': 5}
     path = tmp_path / 'config.json'
     path.write_text(json.dumps(config))
     ids = ['a', 'b', 'c']
@@ -607,9 +608,11 @@ def test_prebuild_gate_precedes_any_validation(tmp_path, monkeypatch, passed):
     def submit(cfg, source, selected, directory, **options):
         if options.get('prebuild_only'):
             assert selected == ids and options['full']
+            assert cfg['shard_size'] == 200
             events.append('prebuild')
             return {'job_id': '1', 'submission': str(tmp_path / 'submission')}
         assert passed and events == ['prebuild']
+        assert cfg['shard_size'] == 24
         events.append('validation')
         raise c.LoopBlocked('human_review', 'test stopped before validation submission')
     monkeypatch.setattr(c, 'call', call)

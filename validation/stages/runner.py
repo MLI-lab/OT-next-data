@@ -49,6 +49,12 @@ def parser():
     ap.add_argument('--backend', choices=['apptainer', 'docker', 'modal'], default='apptainer')
     ap.add_argument('--environment-kwargs', type=json.loads, default={}, help='Harbor backend kwargs as a JSON object')
     ap.add_argument('--agent', default='terminus-2', help='solver/cheat agent')
+    ap.add_argument('--review-evidence', choices=['image', 'files'], default='image',
+                    help='stage 2: inspect actual task environments (default), or explicitly review task files only')
+    ap.add_argument('--review-max-budget-usd', type=float, default=5,
+                    help='per-attempt Claude CLI budget for image-backed stage-2 review')
+    ap.add_argument('--review-reasoning-effort', choices=['low', 'medium', 'high', 'xhigh'], default='medium',
+                    help='Codex CLI reasoning effort for image-backed stage-2 review')
     ap.add_argument('--review-agent', help='override the pinned upstream reviewer agent (also applies to analysis unless separately overridden)')
     ap.add_argument('--model', help='model for solver/cheat/hacker/fixer')
     ap.add_argument('--review-model', help='override pinned upstream rubric/trajectory judge model')
@@ -131,8 +137,9 @@ def parser():
     ap.add_argument('--serve-memory-mb', type=int, default=32768, help='memory reserved for the vLLM Slurm step')
     ap.add_argument('--max-num-seqs', type=int, help='vLLM sequence slots; default twice concurrency')
     ap.add_argument('--api-base', help='existing OpenAI-compatible model endpoint, including /v1')
-    ap.add_argument('--network-mode', choices=['isolated', 'host'], default='isolated',
-                    help='bridge network mode; installed cloud agents need host access on Helma')
+    ap.add_argument('--network-mode', choices=['isolated', 'host'],
+                    help='bridge network mode (default: the cluster\'s, isolated elsewhere); '
+                         'installed cloud agents need host access on Helma')
     ap.add_argument('--reward-key', default='reward')
     ap.add_argument('--trials', type=Path, help='Harbor job directory for stages 7 and 8; one level of trial dirs')
     ap.add_argument('--max-iterations', type=int, default=10)
@@ -220,6 +227,17 @@ def dependency_archive_spec(a):
 
 
 def check_args(a):
+    import math
+    budget = getattr(a, "review_max_budget_usd", 5)
+    if not math.isfinite(budget) or budget <= 0:
+        raise ValueError("--review-max-budget-usd must be finite and positive")
+    if getattr(a, 'network_mode', None) is None:
+        # the site's default; the contract then freezes the resolved value
+        from config.clusters import detect_cluster
+        from config.runtime import cluster_config
+        name = a.submit if getattr(a, 'submit', None) not in (None, 'auto', 'never') else os.environ.get('OT_CLUSTER')
+        cluster = cluster_config(name) if name else detect_cluster()
+        a.network_mode = cluster.network_mode if cluster else 'isolated'
     if getattr(a, 'review_criteria', None) is not None:
         from validation.rubrics import ROOT as RUBRICS, harbor_rubric, implementation_rubric, select_criteria
         rubric, skipped = (harbor_rubric() if getattr(a, 'review_rubric', 'terminal-bench') == 'harbor'
@@ -333,6 +351,9 @@ async def run_review_async(number, source, item_dir, args, upstream, references=
         verdict_name, rubric_name = 'analysis.json', 'trial-analysis.toml'
     if not model:
         raise ValueError('provide --review-model for review stages, --model for solver/cheat stages')
+    if number == 2 and getattr(args, 'review_evidence', 'image') == 'image':
+        from validation.stages.image_review import review
+        return await review(source, task, item_dir, args, agent, model)
     runtime.check_runtime_task(task, args.backend)
     config = runtime.job_config(task, item_dir / 'jobs', args, agent, model)
     save(item_dir / 'job.json', config)

@@ -19,6 +19,35 @@ def test_automatic_unique_without_review():
     assert len(edits) == 1
 
 
+def test_multiple_matches_across_observations_prevent_replacement():
+    text = 'Create `src/new.py`.'
+    diagnostic = evidence(text)
+    diagnostic['observations'] = [{
+        'status': 'completed', 'observation_phase': 'after-reference-solution-before-verifier',
+        'findings': [{'relative_path': 'src/new.py', 'status': 'unique', 'matches': ['/other/src/new.py']}],
+    }]
+    assert automatic(text, diagnostic, True) == (text, [])
+
+
+def test_old_scan_that_omitted_instruction_directory_is_not_reused():
+    text = 'Files in `/data/`: `src/new.py`.'
+    assert automatic(text, evidence(text), False) == (text, [])
+
+
+@pytest.mark.parametrize('in_working_directory', [False, True])
+def test_dot_slash_never_redirects_to_a_different_build_copy(in_working_directory):
+    text = 'Build with make, then run `./tracker`.'
+    path = '/app/tracker' if in_working_directory else '/workspace/files/tracker'
+    diagnostic = {'agent_baseline': {
+        'status': 'completed', 'instruction_sha256': hashlib.sha256(text.encode()).hexdigest(),
+        'findings': [{'relative_path': './tracker', 'status': 'unique', 'matches': [path],
+                      'resolves_from_start': in_working_directory}],
+    }}
+    fixed, edits = automatic(text, diagnostic, False)
+    assert fixed == (text.replace('./tracker', path) if in_working_directory else text)
+    assert len(edits) == int(in_working_directory)
+
+
 def test_reference_is_accepted_independently_of_oracle_reward():
     text = 'Create `src/new.py`.'
     assert '/workspace/' in automatic(text, evidence(text, 'reference'), False)[0]

@@ -2,12 +2,14 @@
   "agent_model": "claude-opus-5-5",
   "agent_provider": "claude",
   "concurrency": 8,
+  "controller_code_root": "/home/hpc/y500bb/y500bb12/OT_facet_repair_20261014",
   "cpus": 48,
   "dataset": "FACET-Terminal/FACET-Terminal-Tasks-6k",
+  "dataset_identity_root": "/home/hpc/y500bb/y500bb12/OT_next_data/data/facet",
   "max_infra_retries": 2,
-  "max_recoveries": 3,
+  "max_recoveries": 4,
   "max_repairs": 3,
-  "max_supervisor_reviews": 3,
+  "max_supervisor_reviews": 4,
   "max_wait_hours": 168,
   "memory": "128G",
   "partition": "cpu",
@@ -19,13 +21,14 @@
     "--output",
     "{output}"
   ],
-  "patcher": "/home/hpc/y500bb/y500bb12/OT_next_data/data/facet/patch.py",
+  "patcher": "/home/hpc/y500bb/y500bb12/OT_facet_repair_20261014/data/facet/patch.py",
   "pilot_sizes": [
     10,
     50,
     200
   ],
   "prebuild_all_images": true,
+  "prebuild_shard_size": 200,
   "publish": true,
   "publish_dataset_folder": "facet",
   "publish_readme_model": "claude-opus-5-5",
@@ -44,15 +47,16 @@
   "source_revision": "b2d02645932e3989c8332a41e57d0f0855de7002",
   "supervisor_model": "gpt-6-astra",
   "supervisor_provider": "codex",
+  "supervisor_reasoning_effort": "high",
   "supervisor_shared_infra": true,
   "time": "24:00:00",
   "usage_retry_seconds": 600,
+  "user_instructions": "Run FACET through the standard patch repair loop. Preserve the pinned source and grading semantics. Keep the configured finite retry limits; report a blocker instead of increasing them. Do not start any other datasource loops.",
   "validation_args": [
     "--image-build-concurrency",
-    "4"
+    "4",
+    "--pack-image-cache"
   ],
   "work_root": "/hnvme/workspace/y500bb12-optiagent/facet-patch-loop-20261011/loop",
-  "workspace": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke",
-  "supervisor_reasoning_effort": "high",
-  "user_instructions": "Run FACET through the standard patch repair loop. Preserve the pinned source and grading semantics. Keep the configured finite retry limits; report a blocker instead of increasing them. Do not start any other datasource loops."
+  "workspace": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke"
 }

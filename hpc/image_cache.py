@@ -339,13 +339,21 @@ def main():
     # explicitly forward the configured proxy just as task containers do.
     patch.configure_explicit_host_network(force=True)
     patch.worker._parse_copies = patch.parse_copies_docker_semantics
-    from harbor_patches.image_build import build_budget_commands
-    patch.worker.subprocess.run = build_budget_commands(patch.worker.subprocess.run, args.timeout_sec or None)
+    from harbor_patches.docker_path import definition_commands, deferred_baker
+    patch.worker.subprocess.run = definition_commands(patch.worker.subprocess.run)
+    patch.worker._bake_deferred_overlay = deferred_baker(patch.worker._bake_deferred_overlay, patch.worker)
+    from harbor_patches.image_build import authenticated_registry_commands, build_budget_commands
+    patch.worker.subprocess.run = authenticated_registry_commands(
+        build_budget_commands(patch.worker.subprocess.run, args.timeout_sec or None))
+    from harbor_patches.image_build import image_tmp_build_mounts
+    patch.worker.subprocess.run = image_tmp_build_mounts(patch.worker.subprocess.run)
     if args.timeout_sec == 0:
         os.environ['OT_IMAGE_BUILD_NO_TIMEOUT'] = '1'
     patch.worker.subprocess.run = patch.run_container_commands(patch.worker.subprocess.run)
     from harbor_patches.image_build import certificate_build_mountpoints, file_backed_build_scripts, logged_build_commands
     patch.worker.subprocess.run = certificate_build_mountpoints(patch.worker.subprocess.run)
+    from harbor_patches.image_build import definition_build_home
+    patch.worker.subprocess.run = definition_build_home(patch.worker.subprocess.run)
     if os.environ.get('OT_IMAGE_BUILD_ARTIFACTS'):
         from harbor_patches.image_build import artifact_build_mount
         patch.worker.subprocess.run = artifact_build_mount(

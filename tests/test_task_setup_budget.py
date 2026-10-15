@@ -169,7 +169,9 @@ def test_failed_setup_records_container_diagnostics():
 
 @pytest.mark.parametrize('python_section,damaged', [
     ('3.9.18 stdlib ok\npython3.9\n212\n', False),
-    ("ModuleNotFoundError: No module named 'keyword'\npython3.9\n212\n", True),
+    ("ModuleNotFoundError: No module named 'keyword'\nOT_PYTHON_STDLIB_IMPORT_FAILED:/opt/conda/bin/python\n", True),
+    ("", False),
+    ("OT_PYTHON_PROBE:/usr/bin/python3\n3.12 stdlib ok\n", False),
 ])
 def test_setup_failure_on_a_broken_interpreter_is_marked_as_environment_damage(python_section, damaged):
     from validation.publishing.publish import judge

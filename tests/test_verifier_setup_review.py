@@ -11,7 +11,7 @@ from validation.stages.runner import parser
 
 
 @pytest.mark.parametrize('separate', [False, True])
-@pytest.mark.parametrize('failure', [None, 'setup', 'absent', 'timeout', 'inspection', 'agent_start', 'verifier_start', 'collect'])
+@pytest.mark.parametrize('failure', [None, 'setup', 'absent', 'timeout', 'inspection', 'agent_start', 'verifier_start', 'collect', 'queued_start'])
 def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, separate, failure):
     from harbor.environments.factory import EnvironmentFactory
     from harbor.models.task.config import TaskConfig
@@ -22,7 +22,7 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
         (task/name).mkdir(parents=True)
     (task/'instruction.md').write_text('task')
     (task/'environment/Dockerfile').write_text('FROM example\n')
-    (task/'task.toml').write_text('[environment]\nbuild_timeout_sec=20\n[verifier]\ntimeout_sec=' +
+    (task/'task.toml').write_text('[environment]\nbuild_timeout_sec=' + ('0.03' if failure == 'queued_start' else '20') + '\n[verifier]\ntimeout_sec=' +
         ('0.01' if failure == 'timeout' else '100') + '\nenvironment_mode="' + ('separate' if separate else 'shared') + '"\n')
     with (task/'task.toml').open('a') as stream:
         stream.write('[[verifier.collect]]\ncommand="capture-submission"\ntimeout_sec=10\n')
@@ -32,6 +32,19 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
     if failure != 'absent':
         (task/'tests/setup.sh').write_text('echo prepare')
     events, created = [], []
+    if failure == 'queued_start':
+        from harbor_patches import start_wait
+        import time as real_time
+        original_budget = start_wait.run_with_budget
+        async def budget(*a, **kw):
+            return await original_budget(*a, **kw, poll=.002)
+        def reader(env):
+            started = real_time.monotonic()
+            async def waited():
+                return real_time.monotonic() - started
+            return waited
+        monkeypatch.setattr(start_wait, 'run_with_budget', budget)
+        monkeypatch.setattr(start_wait, 'status_reader', reader)
     clock = [0.0]
     if failure != 'timeout':
         monkeypatch.setattr(verifier_setup, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
@@ -43,6 +56,7 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
             created.append(self)
         async def start(self, **kw):
             events.append((self.label, 'start')); clock[0] += 120
+            if failure == 'queued_start': await asyncio.sleep(.08)
             if failure == self.label + '_start': raise TimeoutError('startup deadline')
         async def stop(self, **kw): events.append((self.label, 'stop'))
         async def empty_dirs(self, paths, **kw): events.append((self.label, 'clear'))
@@ -83,12 +97,16 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
     assert result['environments'][0]['status'] == 'passed'
     if failure != 'timeout':
         timing = result['environments'][0]['timings_seconds']
-        assert timing['container_start'] == 120
+        if failure == 'queued_start':
+            assert timing['start_wait'] > .03
+            assert 119 < timing['container_start'] < 120
+        else:
+            assert timing['container_start'] == 120
         assert timing['preparation'] == 5
         assert timing['start'] == 125
     assert ('verifier', 'bash /setup_files/setup.sh') not in events
     verifier = result['verifier_preparation'][0]
-    success = failure in (None, 'absent', 'verifier_start') or (failure == 'inspection' and not separate)
+    success = failure in (None, 'absent', 'verifier_start', 'queued_start') or (failure == 'inspection' and not separate)
     assert verifier['status'] == ('passed' if success else 'error')
     if failure == 'collect':
         assert not any(e[1] in ('artifact-download', SETUP_COMMAND) for e in events)
