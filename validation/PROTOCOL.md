@@ -11,6 +11,53 @@ containers and run the reference solution. Disable these independently with
 [Terminal-Bench check overview](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/TASK_REVIEW_AUTOMATION.md#static-checks)
 for each upstream check and its purpose.
 
+The lists below use the default `training` profile. Check names omit the
+`check-` prefix and script extension.
+
+<details>
+<summary>Checks on by default (15)</summary>
+
+- `compose-host-binds`
+- `dockerfile-platform`
+- `dockerfile-references`
+- `dockerfile-sanity`
+- `instruction-suffix`
+- `no-cheat-dir`
+- `nproc`
+- `pip-pinning`
+- `resource-sizes`
+- `task-absolute-path`
+- `task-timeout`
+- `task-toml-schema`
+- `test-file-references`
+- `trial-network-fetch`
+- `verifier-tooling-baked`
+
+</details>
+
+<details>
+<summary>Checks off by default (12)</summary>
+
+| Check | What it checks | Why we turn it off |
+| --- | --- | --- |
+| `test-sh-sanity` | Requires tests to create a separate Python environment with `uv`, or explicitly document using the existing Python installation. | Tests can use Python and packages already installed in the container. Stages 4 and 5 check that the tests actually run. |
+| `separate-verifier` | Requires tests to run in a separate container from the agent. | Some tasks ask the agent to install software or change system settings. Their tests need to inspect the same container to check those changes. |
+| `allow-internet` | Rejects tasks that explicitly disable internet access. | Some tasks are intended to run offline. |
+| `no-allow-internet-true` | Rejects tasks that explicitly enable internet access, because Terminal-Bench expects them to use its default. | We allow tasks to state that they need internet access. Stage 3 checks the declared network setting. |
+| `pytest-version` | Requires pinned versions of `pytest` and its JSON report plugin to match Terminal-Bench's chosen versions. | Datasets may need different versions. We still check that package versions are pinned. |
+| `gpu-types` | Requires GPU names from the Modal cloud platform's list. | We run on Slurm clusters, which use their own GPU names and settings. |
+| `canary` | Requires a special identifying string in task files so benchmark content can be detected in training data. | These datasets do not need Terminal-Bench's identifying string. |
+| `instruction-headings` | Rejects Markdown headings in instructions. | We allow Markdown in instructions. |
+| `task-fields` | Requires benchmark author details, categories, difficulty estimates, and explanatory README sections. | We accept datasets without that benchmark-specific metadata. |
+| `task-package-name` | Requires every task's package name to be `terminal-bench/<folder>`. | Tasks can keep their own dataset's package names. |
+| `task-slug` | Limits task folder names to three words separated by hyphens. | Longer task names are allowed. |
+| `task-changelog` | Requires a changelog entry when a pull request changes an existing benchmark task. | We validate datasets without requiring a Terminal-Bench pull request or its change history. |
+
+</details>
+
+<details>
+<summary>Local adaptations and automatic preparation</summary>
+
 **Checks we adapted** (`check-*.sh` names shortened):
 
 - `instruction-suffix`: automatically append or update the required sentence in
@@ -57,22 +104,7 @@ for each upstream check and its purpose.
   compliance more cheaply and reliably than an LLM judge. It runs by default in
   every static profile and reports field paths for failures.
 
-**Off by default:**
-
-| Check | What it checks | Why we turn it off |
-| --- | --- | --- |
-| `test-sh-sanity` | Requires tests to create a separate Python environment with `uv`, or explicitly document using the existing Python installation. | Tests can use Python and packages already installed in the container. Stages 4 and 5 check that the tests actually run. |
-| `separate-verifier` | Requires tests to run in a separate container from the agent. | Some tasks ask the agent to install software or change system settings. Their tests need to inspect the same container to check those changes. |
-| `allow-internet` | Rejects tasks that explicitly disable internet access. | Some tasks are intended to run offline. |
-| `no-allow-internet-true` | Rejects tasks that explicitly enable internet access, because Terminal-Bench expects them to use its default. | We allow tasks to state that they need internet access. Stage 3 checks the declared network setting. |
-| `pytest-version` | Requires pinned versions of `pytest` and its JSON report plugin to match Terminal-Bench's chosen versions. | Datasets may need different versions. We still check that package versions are pinned. |
-| `gpu-types` | Requires GPU names from the Modal cloud platform's list. | We run on Slurm clusters, which use their own GPU names and settings. |
-| `canary` | Requires a special identifying string in task files so benchmark content can be detected in training data. | These datasets do not need Terminal-Bench's identifying string. |
-| `instruction-headings` | Rejects Markdown headings in instructions. | We allow Markdown in instructions. |
-| `task-fields` | Requires benchmark author details, categories, difficulty estimates, and explanatory README sections. | We accept datasets without that benchmark-specific metadata. |
-| `task-package-name` | Requires every task's package name to be `terminal-bench/<folder>`. | Tasks can keep their own dataset's package names. |
-| `task-slug` | Limits task folder names to three words separated by hyphens. | Longer task names are allowed. |
-| `task-changelog` | Requires a changelog entry when a pull request changes an existing benchmark task. | We validate datasets without requiring a Terminal-Bench pull request or its change history. |
+</details>
 
 LLM rubric review belongs to stage 2. GPTZero's AI-detection check runs only when
 `GPTZERO_API_KEY` is set.
