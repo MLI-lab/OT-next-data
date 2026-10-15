@@ -8,7 +8,7 @@
 
 **V2**
 
-- 7,629 tasks across the same 8 data sources, filtered using pass@16/8/4: keep tasks solved at least once by any evaluated model. Most runs use Qwen3-30B Instruct/Thinking; TermiGen uses Coder/Instruct.
+- 7,629 tasks across the same 8 data sources, filtered using pass@16/8/4: keep tasks solved at least once by any evaluated model. Evaluated models: Qwen3-30B-A3B-Instruct-2507, Qwen3-30B-A3B (Thinking), and Qwen3-Coder-30B-A3B-Instruct, depending on the dataset.
 
 **Findings so far**
 
