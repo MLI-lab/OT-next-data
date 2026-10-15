@@ -1,7 +1,7 @@
 {
   "model": "glm-5.3-flash",
   "policy": "Original and retry judgments are reported separately; a retry is not an independent stability repetition.",
-  "complete_reviews": 0,
+  "complete_reviews": 7,
   "reviews": [
     {
       "group": "tb_human_labeled-task-0002-repeat-0",
@@ -61,7 +61,7 @@
         "instruction_concision",
         "solution_quality"
       ],
-      "status": "partial",
+      "status": "completed_after_repair",
       "verdict": {
         "checks": {
           "verifiable": {
@@ -143,37 +143,44 @@
           "do_not_modify_enforced": {
             "outcome": "not_applicable",
             "explanation": "The instruction contains no constraint forbidding modification of, or requiring preservation of, any concrete artifact \u2014 it is a single-line goal statement."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single concise sentence: 'Compute the SHA256 hash of the string \"benchmark\" and write it to /app/hash.txt.' It uses an absolute path (/app/hash.txt), contains no headings, preamble, roleplay, or fluff, lists no tools/libraries, and describes what to achieve without hinting at how to do it. It reads as human-written and is auditable by a non-specialist."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh computes the hash at runtime by piping the string through 'echo -n \"benchmark\" | sha256sum | awk {print $1}', which is exactly the genuine computation an agent would perform; it does not echo a hardcoded final answer. I verified the command's output matches an independent hashlib computation (0e898208...d5bcc), and the script is short with no heredoc bloat."
           }
         }
       },
       "criterion_origin": {
-        "solvable": "original",
-        "interesting": "original",
         "outcome_verified": "original",
-        "do_not_modify_enforced": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
         "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
         "reviewable": "original",
         "artifact_efficiency": "original",
         "test_instruction_alignment": "original",
-        "functional_verification": "original",
-        "verifier_execution_isolation": "original",
-        "essential_difficulty": "original",
+        "instruction_concision": "retry",
         "deterministic_reproducible": "original",
-        "resource_configuration": "original",
-        "no_extraneous_files": "original",
-        "task_security": "original",
-        "structured_data_schema": "original",
-        "ctrf_reporting": "original",
+        "functional_verification": "original",
         "anti_cheat_robustness": "original",
-        "typos": "original",
-        "verifiable": "original"
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
       },
-      "still_missing": [
-        "instruction_concision",
-        "solution_quality"
-      ],
-      "retry_file": null,
-      "retry_status": "pending"
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0002-repeat-0/repeat-0/task-0002/results/task-0002/verdicts.json",
+      "retry_status": "complete"
     },
     {
       "group": "tb_human_labeled-task-0003-repeat-0",
@@ -233,7 +240,7 @@
         "instruction_concision",
         "solution_quality"
       ],
-      "status": "partial",
+      "status": "completed_after_repair",
       "verdict": {
         "checks": {
           "verifiable": {
@@ -315,37 +322,44 @@
           "do_not_modify_enforced": {
             "outcome": "not_applicable",
             "explanation": "The instruction contains no constraint protecting a concrete artifact from modification (no 'do not modify'/'preserve' phrasing naming a file, directory, or signature), so there is nothing to enforce."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is one concise sentence that uses absolute paths (/app/data/records.csv, /app/output/total.txt), describes only what to achieve without hinting at the solution approach or tools, and contains no headings, preamble, roleplay, fluff, or LLM-generated patterns."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh performs genuine computation: a Python script reads the CSV, sums the amount column via csv.DictReader, and writes the derived total, which I verified produces a correct result against a simulated fixed-seed dataset. The inline snippet is only ~7 lines (solve.sh is 12 lines total), well under the threshold requiring separate solution files, and 'echo Done!' is a status message rather than a bare echo of the final answer."
           }
         }
       },
       "criterion_origin": {
-        "solvable": "original",
-        "interesting": "original",
         "outcome_verified": "original",
-        "do_not_modify_enforced": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
         "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
         "reviewable": "original",
         "artifact_efficiency": "original",
         "test_instruction_alignment": "original",
-        "functional_verification": "original",
-        "verifier_execution_isolation": "original",
-        "essential_difficulty": "original",
+        "instruction_concision": "retry",
         "deterministic_reproducible": "original",
-        "resource_configuration": "original",
-        "no_extraneous_files": "original",
-        "task_security": "original",
-        "structured_data_schema": "original",
-        "ctrf_reporting": "original",
+        "functional_verification": "original",
         "anti_cheat_robustness": "original",
-        "typos": "original",
-        "verifiable": "original"
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
       },
-      "still_missing": [
-        "instruction_concision",
-        "solution_quality"
-      ],
-      "retry_file": null,
-      "retry_status": "pending"
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0003-repeat-0/repeat-0/task-0003/results/task-0003/verdicts.json",
+      "retry_status": "complete"
     },
     {
       "group": "tb_human_labeled-task-0005-repeat-0",
@@ -405,7 +419,7 @@
         "reviewable",
         "solution_quality"
       ],
-      "status": "partial",
+      "status": "completed_after_repair",
       "verdict": {
         "checks": {
           "verifiable": {
@@ -479,37 +493,52 @@
           "do_not_modify_enforced": {
             "outcome": "not_applicable",
             "explanation": "The instruction contains no do-not-modify/preserve constraint protecting a concrete existing artifact; the whitespace rules constrain the agent's own newly created deliverable, not an artifact to be left intact."
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The task is a single-file write with fully specified content ('write /app/config.json containing {\"name\": \"test\"} with 4-space indent'), solvable zero-shot with one command (e.g., printf or a one-line python3 -c). The environment is an empty Ubuntu container with nothing to explore, and no multi-step interaction, debugging, or adaptation is required."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "A non-specialist can verify correctness end-to-end: the instruction requests a specific file with specific content, the pytest asserts exactly that content, and the solution's output was confirmed to match the expected bytes. No specialized domain knowledge or unexplained hardcoded ground truth is involved."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single concise sentence using the absolute path /app/config.json, with no headings, preamble, roleplay, tool listings, or step-by-step hints. The whitespace requirements are the task specification itself, not solution hand-holding."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh derives the file programmatically via json.dump(..., indent=4) plus an explicit trailing newline, matching the same process an agent would follow, rather than bare-echoing the final answer. It is well under 20 lines, so inlining in solve.sh is acceptable, and the output was verified byte-for-byte against the test's expected content."
           }
         }
       },
       "criterion_origin": {
-        "solvable": "original",
-        "interesting": "original",
         "outcome_verified": "original",
-        "do_not_modify_enforced": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
+        "agentic": "retry",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
+        "reviewable": "retry",
         "artifact_efficiency": "original",
         "test_instruction_alignment": "original",
-        "functional_verification": "original",
-        "verifier_execution_isolation": "original",
-        "essential_difficulty": "original",
+        "instruction_concision": "retry",
         "deterministic_reproducible": "original",
-        "resource_configuration": "original",
-        "no_extraneous_files": "original",
-        "task_security": "original",
-        "structured_data_schema": "original",
-        "ctrf_reporting": "original",
+        "functional_verification": "original",
         "anti_cheat_robustness": "original",
-        "typos": "original",
-        "verifiable": "original"
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
       },
-      "still_missing": [
-        "agentic",
-        "instruction_concision",
-        "reviewable",
-        "solution_quality"
-      ],
-      "retry_file": null,
-      "retry_status": "pending"
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0005-repeat-0/repeat-0/task-0005/results/task-0005/verdicts.json",
+      "retry_status": "complete"
     },
     {
       "group": "tb_human_labeled-task-0006-repeat-0",
@@ -569,7 +598,7 @@
         "solution_quality",
         "verifier_execution_isolation"
       ],
-      "status": "partial",
+      "status": "completed_after_repair",
       "verdict": {
         "checks": {
           "verifiable": {
@@ -647,37 +676,48 @@
           "typos": {
             "outcome": "pass",
             "explanation": "Identifiers (double, n * 2, /app/math_utils.py, /tests/test_state.py) are consistent and correct across all files, and a byte-level scan found no non-ASCII or control characters. No typos in filenames, paths, commands, or variable names."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single, human-readable sentence that specifies the deliverable with an absolute path (/app/math_utils.py), the required function name and behavior, and nothing else \u2014 no headings, preamble, tool listings, or solution hints."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "The task's deliverable is a source file; solve.sh authors it via a 3-line heredoc, which is exactly the process an agent would follow \u2014 there is no derived answer being echoed without computation. The inlined heredoc is far under the ~20-line threshold, so keeping it in solve.sh is appropriate."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "not_applicable",
+            "explanation": "The verifier's pytest tests only read /app/math_utils.py as text and assert on string contents (explicitly string-matching rather than importing or calling), so no agent-produced code is ever executed or imported by the verifier. Reading/parsing files is not execution per this criterion."
           }
         }
       },
       "criterion_origin": {
-        "solvable": "original",
-        "interesting": "original",
         "outcome_verified": "original",
-        "do_not_modify_enforced": "original",
+        "ctrf_reporting": "original",
+        "resource_configuration": "original",
+        "no_extraneous_files": "original",
+        "verifier_execution_isolation": "retry",
         "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
         "reviewable": "original",
         "artifact_efficiency": "original",
         "test_instruction_alignment": "original",
-        "functional_verification": "original",
-        "essential_difficulty": "original",
+        "instruction_concision": "retry",
         "deterministic_reproducible": "original",
-        "resource_configuration": "original",
-        "no_extraneous_files": "original",
-        "task_security": "original",
-        "structured_data_schema": "original",
-        "ctrf_reporting": "original",
+        "functional_verification": "original",
         "anti_cheat_robustness": "original",
-        "typos": "original",
-        "verifiable": "original"
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
       },
-      "still_missing": [
-        "instruction_concision",
-        "solution_quality",
-        "verifier_execution_isolation"
-      ],
-      "retry_file": null,
-      "retry_status": "pending"
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0006-repeat-0/repeat-0/task-0006/results/task-0006/verdicts.json",
+      "retry_status": "complete"
     },
     {
       "group": "tb_human_labeled-task-0008-repeat-0",
@@ -737,7 +777,7 @@
         "instruction_concision",
         "solution_quality"
       ],
-      "status": "partial",
+      "status": "completed_after_repair",
       "verdict": {
         "checks": {
           "verifiable": {
@@ -819,37 +859,44 @@
           "do_not_modify_enforced": {
             "outcome": "not_applicable",
             "explanation": "The instruction contains no constraint forbidding modification of, or requiring preservation of, a concrete artifact, so there is nothing to enforce."
+          },
+          "instruction_concision": {
+            "outcome": "fail",
+            "explanation": "The instruction includes an unnecessary heading ('# Number Summation Challenge'), a roleplay preamble ('You are a data processing specialist. Your mission is...'), and lists available tools ('Available tools: Python 3, numpy, pandas') that the agent should discover on its own. While it does use absolute paths and the core instruction is clear, these fluff elements and the tool listing violate the criterion."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh performs genuine computation via a short Python one-liner that reads /app/numbers.txt line-by-line, accumulates the sum with sum(int(line) for line in f), and writes the result to /app/sum.txt. No hardcoded final answer is echoed, and the inline code block (~8 lines) is short enough that a separate file is not required."
           }
         }
       },
       "criterion_origin": {
-        "solvable": "original",
-        "interesting": "original",
         "outcome_verified": "original",
-        "do_not_modify_enforced": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
         "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
         "reviewable": "original",
         "artifact_efficiency": "original",
         "test_instruction_alignment": "original",
-        "functional_verification": "original",
-        "verifier_execution_isolation": "original",
-        "essential_difficulty": "original",
+        "instruction_concision": "retry",
         "deterministic_reproducible": "original",
-        "resource_configuration": "original",
-        "no_extraneous_files": "original",
-        "task_security": "original",
-        "structured_data_schema": "original",
-        "ctrf_reporting": "original",
+        "functional_verification": "original",
         "anti_cheat_robustness": "original",
-        "typos": "original",
-        "verifiable": "original"
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
       },
-      "still_missing": [
-        "instruction_concision",
-        "solution_quality"
-      ],
-      "retry_file": null,
-      "retry_status": "pending"
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0008-repeat-0/repeat-0/task-0008/results/task-0008/verdicts.json",
+      "retry_status": "complete"
     },
     {
       "group": "tb_human_labeled-task-0009-repeat-0",
@@ -909,7 +956,7 @@
         "instruction_concision",
         "solution_quality"
       ],
-      "status": "partial",
+      "status": "completed_after_repair",
       "verdict": {
         "checks": {
           "verifiable": {
@@ -991,37 +1038,44 @@
           "do_not_modify_enforced": {
             "outcome": "not_applicable",
             "explanation": "The instruction contains no constraint forbidding modification of \u2014 or requiring preservation of \u2014 any concrete artifact."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single concise sentence that uses the absolute path /app/count.txt, contains no headings, preamble, roleplay, fluff, or tool listings, and describes only what to achieve without hinting at the solution approach."
+          },
+          "solution_quality": {
+            "outcome": "fail",
+            "explanation": "solve.sh directly writes the hardcoded final answer via `echo \"10\" > /app/count.txt` with no computation. The precomputed-artifact exception cannot apply because counting 'a's in a 15-character string is trivially cheap and no generation script or provenance documentation exists in solution/."
           }
         }
       },
       "criterion_origin": {
-        "solvable": "original",
-        "interesting": "original",
         "outcome_verified": "original",
-        "do_not_modify_enforced": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
         "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
         "reviewable": "original",
         "artifact_efficiency": "original",
         "test_instruction_alignment": "original",
-        "functional_verification": "original",
-        "verifier_execution_isolation": "original",
-        "essential_difficulty": "original",
+        "instruction_concision": "retry",
         "deterministic_reproducible": "original",
-        "resource_configuration": "original",
-        "no_extraneous_files": "original",
-        "task_security": "original",
-        "structured_data_schema": "original",
-        "ctrf_reporting": "original",
+        "functional_verification": "original",
         "anti_cheat_robustness": "original",
-        "typos": "original",
-        "verifiable": "original"
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
       },
-      "still_missing": [
-        "instruction_concision",
-        "solution_quality"
-      ],
-      "retry_file": null,
-      "retry_status": "pending"
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0009-repeat-0/repeat-0/task-0009/results/task-0009/verdicts.json",
+      "retry_status": "complete"
     },
     {
       "group": "tb_human_labeled-task-0016-repeat-0",
@@ -1081,7 +1135,7 @@
         "instruction_concision",
         "solution_quality"
       ],
-      "status": "partial",
+      "status": "completed_after_repair",
       "verdict": {
         "checks": {
           "verifiable": {
@@ -1163,37 +1217,44 @@
           "do_not_modify_enforced": {
             "outcome": "not_applicable",
             "explanation": "The instruction contains no constraint forbidding modification of, or requiring preservation of, a concrete artifact."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single concise sentence using the absolute path /app/text_utils.py, with no headings, preamble, roleplay, fluff, or tool listings, and it describes only what to build (five functions and their behavior) without hinting at how. Behavior definitions like 'number of words' are left for the agent to interpret rather than spelled out."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh writes an actual implementation module via heredoc, which is the legitimate process for a code-writing task (no bare echo of a final result), and the inlined file is ~11 lines, well under the ~20-line threshold that would require a separate file in solution/. No computation is skipped since the deliverable is the source code itself."
           }
         }
       },
       "criterion_origin": {
-        "solvable": "original",
-        "interesting": "original",
         "outcome_verified": "original",
-        "do_not_modify_enforced": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
         "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
         "reviewable": "original",
         "artifact_efficiency": "original",
         "test_instruction_alignment": "original",
-        "functional_verification": "original",
-        "verifier_execution_isolation": "original",
-        "essential_difficulty": "original",
+        "instruction_concision": "retry",
         "deterministic_reproducible": "original",
-        "resource_configuration": "original",
-        "no_extraneous_files": "original",
-        "task_security": "original",
-        "structured_data_schema": "original",
-        "ctrf_reporting": "original",
+        "functional_verification": "original",
         "anti_cheat_robustness": "original",
-        "typos": "original",
-        "verifiable": "original"
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
       },
-      "still_missing": [
-        "instruction_concision",
-        "solution_quality"
-      ],
-      "retry_file": null,
-      "retry_status": "pending"
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0016-repeat-0/repeat-0/task-0016/results/task-0016/verdicts.json",
+      "retry_status": "complete"
     }
   ]
 }

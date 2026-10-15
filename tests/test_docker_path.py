@@ -64,3 +64,17 @@ def test_existing_overlay_is_not_rewritten(tmp_path):
     worker = SimpleNamespace(_deferred_sidecar=lambda _: str(sidecar), _deferred_overlay=lambda _: str(overlay))
     assert deferred_baker(lambda _: 42, worker)('x.sif') == 42
     assert sidecar.read_text() == original
+
+
+def test_definition_rewrite_reaches_budget_runner_popen(tmp_path):
+    from harbor_patches.image_build import build_budget_commands
+    binary = tmp_path / 'apptainer'
+    binary.write_text('#!/bin/sh\nfor arg do last="$arg"; done\ncat "$last"\n')
+    binary.chmod(0o755)
+    definition = tmp_path / 'source.def'
+    definition.write_text("%post\n    export PATH='/opt/venv/bin:$PATH'\n")
+    run = definition_commands(build_budget_commands(subprocess.run, 30))
+    result = run([str(binary), 'build', 'out.sif', str(definition)],
+                 capture_output=True, text=True)
+    assert 'export PATH="/opt/venv/bin:${PATH}"' in result.stdout
+    assert definition.read_text() == "%post\n    export PATH='/opt/venv/bin:$PATH'\n"

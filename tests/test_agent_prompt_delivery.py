@@ -23,7 +23,7 @@ def test_large_evidence_is_referenced_without_losing_policy_or_scope(tmp_path, r
     assert '"json_key": "outcome"' in actual
     # Large-context compaction must retain the shared policy for every role.
     assert 'backend_build_ownership' in actual
-    assert 'A 404 alone does not justify archiving.' in actual
+    assert 'without first finding a fix' in actual
     assert 'exclusion permissions' in actual
 
 

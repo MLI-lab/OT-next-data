@@ -143,11 +143,49 @@ def test_supervisor_waits_then_relaunches_and_records_outcome(setup, monkeypatch
         return 0, '/logs/controller.log'
     monkeypatch.setattr(r, 'launch', launch)
     result = r.supervise('/config.json')
-    assert result['pull_request'] and result['recovery_count'] == 2
+    assert result['pull_request'] and result['recovery_count'] == 1
     assert len(waits) == len(launches) == 1
     outcomes = list(Path(config['work_root']).glob('occurred-failures/failure-*/controller-outcome-*.json'))
     assert len(outcomes) == 1
     assert r.read(outcomes[0])['pull_request'] == result['pull_request']
+
+
+def test_repeated_read_only_waits_preserve_budget_and_distinct_evidence(setup, monkeypatch):
+    config, state_path, failure = setup
+    config['max_recoveries'] = 1
+    monkeypatch.setattr(r, 'jobs', lambda work: [])
+    monkeypatch.setattr(c, 'agent_call', lambda *a, **k: json.dumps(decision('wait')))
+    for _ in range(5):
+        assert r.recover(config, state_path, failure) == 'wait'
+        assert r.read(state_path)['recovery_count'] == 0
+    assert len(list(failure.glob('recovery-*/decision.json'))) == 5
+    monkeypatch.setattr(c, 'agent_call', lambda *a, **k: json.dumps(decision()))
+    assert r.recover(config, state_path, failure) == 'restart'
+    assert r.read(state_path)['recovery_count'] == 1
+    assert (failure / 'recovery-0006/decision.json').exists()
+
+
+def test_wait_that_edits_files_still_consumes_recovery_budget(setup, monkeypatch):
+    config, state_path, failure = setup
+    monkeypatch.setattr(r, 'jobs', lambda work: [])
+    def agent(*a, **k):
+        Path(config['patcher']).write_text('# changed while waiting\n')
+        return json.dumps(decision('wait'))
+    monkeypatch.setattr(c, 'agent_call', agent)
+    assert r.recover(config, state_path, failure) == 'wait'
+    assert r.read(state_path)['recovery_count'] == 1
+
+
+def test_read_only_wait_has_a_finite_wall_clock_limit(setup, monkeypatch):
+    config, state_path, failure = setup
+    config['max_wait_hours'] = 1
+    state = r.read(state_path)
+    state['recovery_wait_started_at'] = 100
+    c.save(state_path, state)
+    monkeypatch.setattr(r.time, 'time', lambda: 3700)
+    monkeypatch.setattr(c, 'agent_call', lambda *a, **k: pytest.fail('Wait deadline must stop another review'))
+    with pytest.raises(c.LoopBlocked, match='max_wait_hours'):
+        r.recover(config, state_path, failure)
 
 
 def test_supervisor_recovers_crashed_child(setup, monkeypatch):

@@ -38,12 +38,29 @@ def test_freeze_subset_and_restore_paths(tmp_path, monkeypatch):
     assert frozen['items'][0]['task'] == '/old/a'
 
 
-@pytest.mark.parametrize('key', ['execution_profile', 'runtime_dependencies', 'implementation', 'upstream'])
+def test_json_package_pairs_and_python_tuples_are_equivalent(tmp_path, monkeypatch):
+    record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
+    old = contracts.read(record)
+    old['runtime_dependencies'] = {'python': '3.12.14', 'packages': [['harbor', '0.8.1']]}
+    current['runtime_dependencies'] = {'python': '3.12.14', 'packages': [('harbor', '0.8.1')]}
+    assert len(stage3.freeze(record, current, tasks)['items']) == 2
+
+
+@pytest.mark.parametrize('key', ['execution_profile', 'runtime_dependencies', 'upstream'])
 def test_reject_changed_runtime(tmp_path, monkeypatch, key):
     record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
     current[key] = {'changed': True}
     with pytest.raises(ValueError, match='rerun stage 3'):
         stage3.freeze(record, current, tasks)
+
+
+def test_code_only_change_warns_and_retains_original_evidence(tmp_path, monkeypatch, capsys):
+    record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
+    current['implementation'] = {'validation/runner.py': 'updated'}
+    result = stage3.freeze(record, current, tasks)
+    assert result['source_contract_sha256'] == 'old-contract'
+    assert result['compatibility_warnings']
+    assert 'WARNING:' in capsys.readouterr().err
 
 
 def test_reject_changed_tasks(tmp_path, monkeypatch):

@@ -270,6 +270,9 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
     state = read(state_path)
     from validation.patch_repair_loop.resources import effective, FIELDS
     config = effective(config, state)
+    wait_key = f'{role}_wait_started_at'
+    if state.get(wait_key) is not None and time.time() - state[wait_key] >= config.get('max_wait_hours', 168) * 3600:
+        raise core.LoopBlocked('infrastructure', f'{role} wait exceeded max_wait_hours; inspect the unresolved condition')
     for phase, setting, counter in [('fixer', 'max_repairs', 'repair_count'),
                                      ('final_retry', 'max_infra_retries', 'infra_retry_count')]:
         if state.get('phase') == phase:
@@ -279,8 +282,10 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
     core.check_limit(config, state, setting, counter)
     state['status'] = 'blocked'
     state[counter] = state.get(counter, 0) + 1
+    review_counter = f'{role}_review_count'
+    state[review_counter] = max(state.get(review_counter, 0), state[counter] - 1) + 1
     core.save(state_path, state)
-    directory = failure / f'{role}-{state[counter]:04d}'
+    directory = failure / f'{role}-{state[review_counter]:04d}'
     directory.mkdir(parents=True)
     editable = (list(shared) if role == 'supervisor' else
                 [str(Path(config['patcher']).parent), *config.get('recovery_edit_paths', [])])
@@ -329,9 +334,18 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
             state['recovery_requires_stage3'] = True
             state['review_setup'] = True
             core.save(state_path, state)
+    def waiting():
+        # A read-only wait is not an attempted recovery. Keep its numbered
+        # evidence, but do not consume the allowance for real interventions.
+        if not changed:
+            state[counter] -= 1
+            state.setdefault(wait_key, time.time())
+            core.save(state_path, state)
+            core.save(directory / 'budget.json', {'charged': False, 'reason': 'read-only wait'})
+        return 'wait'
     if decision['action'] == 'escalate':
         state['supervisor_pending'] = str(directory / 'decision.json')
-        core.save(Path(config['work_root']) / 'infrastructure-findings' / f'recovery-{state[counter]:04d}.json', {
+        core.save(Path(config['work_root']) / 'infrastructure-findings' / f'recovery-{state[review_counter]:04d}.json', {
             'source': 'recovery', 'decision': str(directory / 'decision.json'),
             'cause': decision['cause'], 'evidence': decision['evidence']})
     elif role == 'supervisor':
@@ -342,7 +356,7 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
             active = [job for job in jobs(config['work_root']) if not job['finished']]
             if active:
                 core.save(directory / 'restart.json', {'status': 'waiting', 'jobs': active})
-                return 'wait'
+                return waiting()
             if (Path(config['work_root']) / 'publication/job.json').exists():
                 raise RuntimeError('Publication was submitted; reconcile it before changing resources')
             from validation.patch_repair_loop.resources import approve
@@ -358,7 +372,7 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
             active = [job for job in jobs(config['work_root']) if not job['finished']]
             if active:
                 core.save(directory / 'restart.json', {'status': 'waiting', 'jobs': active})
-                return 'wait'
+                return waiting()
             if (Path(config['work_root']) / 'publication/job.json').exists():
                 raise RuntimeError('Publication was submitted; reconcile it before replacing validated results')
             core.restart_stage3(state)
@@ -372,6 +386,10 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
                             'evidence': str(directory / 'decision.json')}
         core.save(state_path, state)
     core.save(directory / 'restart.json', {'status': decision['action'], 'at': now()})
+    if decision['action'] == 'wait':
+        return waiting()
+    state.pop(wait_key, None)
+    core.save(state_path, state)
     return decision['action']
 
 

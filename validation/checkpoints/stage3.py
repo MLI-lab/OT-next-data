@@ -3,6 +3,7 @@
 from copy import deepcopy
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 
@@ -15,10 +16,14 @@ def freeze(record_path, current, tasks):
     old_tasks = {t['task_id']: t for t in task_records(previous)}
     if 3 not in previous['stages'] or 3 not in current['stages']:
         raise ValueError('stage-3 reuse requires stage 3 in both contracts')
-    for key in ('execution_profile', 'runtime_dependencies', 'implementation', 'upstream'):
+    for key in ('execution_profile', 'runtime_dependencies', 'upstream'):
         # A saved contract holds JSON lists where a fresh one holds tuples.
         if json.loads(json.dumps(previous[key])) != json.loads(json.dumps(current[key])):
             raise ValueError(f'stage-3 reuse: changed {key}; rerun stage 3')
+    warnings = []
+    if previous['implementation'] != current['implementation']:
+        warnings.append('Validation implementation changed; reusing stage-3 evidence for unchanged task content.')
+        print('WARNING: ' + warnings[-1], file=sys.stderr, flush=True)
     for key in ('source', 'revision'):
         if previous['dataset'][key] != current['dataset'][key]:
             raise ValueError(f'stage-3 reuse: changed dataset {key}')
@@ -40,6 +45,7 @@ def freeze(record_path, current, tasks):
         'source_report': str(path.resolve()),
         'source_report_sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
         'source_timing': report.get('timing'),
+        'compatibility_warnings': warnings,
         'items': [deepcopy(i) for i in report['items'] if Path(i['task']).name in selected],
     }
 
