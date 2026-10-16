@@ -24,3 +24,7 @@ external/
 
 # Coordination records for supervised shared infrastructure repairs
 /.patch-repair-infra/
+
+# Local planning and progress notes
+/[Uu][Pp][Dd][Aa][Tt][Ee].[Mm][Dd]
+/[Gg][Oo][Aa][Ll].[Mm][Dd]
