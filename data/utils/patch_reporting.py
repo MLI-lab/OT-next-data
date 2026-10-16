@@ -40,11 +40,13 @@ def _rows(path):
 
 
 def write_patch_report(original, patched, *, source, dropped, archive=None, manifest=None,
-                       change_labels=None, patches=(), file_labels=None, change_reasons=None, unresolved=None, patcher=None):
+                       change_labels=None, patches=(), file_labels=None, change_reasons=None, unresolved=None, patcher=None,
+                       label_reasons=None):
     """Write archive + manifest, requiring an explicit reason for every missing ID.
 
     source: {dataset, url, revision}; dropped: {ID: {category, reason}}.
     change_labels: optional {ID: [label, ...]}; labels describe final net changes.
+    label_reasons: optional {ID: {label: explanation}}, shown per label in the PR table.
     Task IDs must be preserved. Splits, merges and renames need explicit mapping
     and are deliberately not inferred by this helper.
     """
@@ -97,6 +99,10 @@ def write_patch_report(original, patched, *, source, dropped, archive=None, mani
                         labels=labels, output_binary_sha256=digest)
             if changes and (change_reasons or {}).get(name):
                 task['reason'] = change_reasons[name]
+            if changes and (label_reasons or {}).get(name):
+                if set(label_reasons[name]) - set(labels):
+                    raise ValueError('label reasons for labels the task does not carry: ' + name)
+                task['label_reasons'] = dict(label_reasons[name])
         elif name in unresolved:
             task.update(action='not_run', labels=[], reason=unresolved[name])
         else:
