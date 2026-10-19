@@ -6,7 +6,7 @@ filesystem/Dockerfile inspection, existing Terminal-Bench shell checks, and
 execution of task tests when explicitly requested.
 """
 from __future__ import annotations
-import argparse, ast, json, os, re, subprocess, sys, tomllib
+import argparse, ast, base64, json, math, os, re, subprocess, sys, tomllib
 from pathlib import Path
 
 # This checker is intentionally cwd-oriented. The documented working directory
@@ -164,13 +164,69 @@ def unreferenced_check(task, files):
             obvious.append(f)
     return result("fail" if obvious else "pass", "unreferenced-file scan: "+("; ".join(obvious) if obvious else "no obvious unreferenced files"), obvious)
 
+def _looks_placeholder(value, context):
+    """Conservatively recognize fixture/example credentials, not real secrets."""
+    v=value.strip().strip("'\"`$(){}[];,.")
+    upper=v.upper()
+    words={"AK", "SK", "TOKEN", "SECRET", "PASSWORD", "KEY", "DUMMY", "FAKE",
+           "TEST", "EXAMPLE", "SAMPLE", "PLACEHOLDER", "CHANGEME", "NONE", "NULL"}
+    if upper in words or any(w in upper for w in ("DUMMY", "FAKE", "PLACEHOLDER", "CHANGEME", "SHOULD_BE_CLEARED")):
+        return True
+    if any(x in context.lower() for x in ("test", "mock", "fixture", "stub", "example", "sample", "assert", "expected")):
+        if len(v) <= 32 and (upper.isupper() or re.fullmatch(r"[A-Z0-9_-]+", v)):
+            return True
+    if len(v) < 8 or len(set(v)) <= 3:
+        return True
+    return False
+
+def _secret_value_hits(text):
+    hits=[]
+    fixture_url_values=set()
+    for u in re.finditer(r"https?://[^\s\"'<>]*[?&](?:api[_-]?key|access[_-]?key|token|secret|client[_-]?secret)=([A-Za-z0-9_./+=-]{2,})", text, re.I):
+        if re.search(r"\b(example|sample|reproduc|steps?\s+to\s+reproduce|testing|test(?:ing)?\s+url|documentation|issue|such\s+as|api\s+url|above\s+api)\b", text[max(0,u.start()-220):u.end()+220], re.I):
+            fixture_url_values.add(u.group(1))
+    # Only inspect assignments/CLI arguments with an actual value. A keyword
+    # such as `secret_key` by itself is not a credential.
+    pat=r"(?i)(?:api[_-]?key|access[_-]?key|secret[_-]?key|client[_-]?secret|token|password)\s*(?:=|:|\s+)([A-Za-z0-9_./+=-]{2,})"
+    for m in re.finditer(pat, text):
+        value=m.group(1); context=text[max(0,m.start()-180):m.end()+180]
+        if _looks_placeholder(value, context):
+            continue
+        if value in fixture_url_values:
+            continue
+        # A credential-looking query parameter in a documented reproduction
+        # URL is often an issue/example fixture rather than a task secret.
+        # Require both URL context and explanatory/example context so a real
+        # credential assigned in code is not silently ignored.
+        url_context=bool(re.search(r"https?://[^\s\"'<>]*[?&](?:api[_-]?key|access[_-]?key|token|secret|client[_-]?secret)=", context, re.I))
+        example_context=bool(re.search(r"\b(example|sample|reproduc|steps?\s+to\s+reproduce|testing|test(?:ing)?\s+url|documentation|issue|such\s+as|api\s+url|above\s+api)\b", context, re.I))
+        if url_context and example_context:
+            continue
+        # Known real-looking formats: JWT, PEM, cloud/provider prefixes, or a
+        # long high-entropy value. These require no LLM and are intentionally
+        # conservative to avoid flagging ordinary mock values.
+        jwt=value.count('.') == 2 and all(re.fullmatch(r"[A-Za-z0-9_-]+", x or "") for x in value.split('.'))
+        known=re.match(r"(?:gh[pousr]_|github_pat_|xox[baprs]-|AKIA|ASIA|AIza|sk-[A-Za-z0-9])", value)
+        entropy=len(set(value))/max(len(value),1) >= .45
+        if len(value) >= 20 and (jwt or known or entropy):
+            hits.append(value[:80])
+    return hits
+
 def security_check(task):
-    bad=[]
+    bad=[]; reviewed=0
     for p in task.rglob("*"):
         if not p.is_file() or p.stat().st_size > 5_000_000: continue
-        text=p.read_text(errors="replace")
-        if re.search(r"(curl|wget).{0,200}(api[_-]?key|token|secret|ssh|aws)|docker\.sock|rm\s+-rf\s+/(?:$|\s)", text, re.I): bad.append(str(p.relative_to(task)))
-    return result("fail" if bad else "pass", "model-free suspicious-pattern scan", bad)
+        text=p.read_text(errors="replace"); reviewed += 1
+        rel=str(p.relative_to(task))
+        # These patterns are independently dangerous, regardless of token
+        # placeholder context.
+        if re.search(r"docker\.sock|rm\s+-rf\s+/(?:$|\s)", text, re.I):
+            bad.append(f"{rel}: dangerous system operation")
+        for value in _secret_value_hits(text):
+            bad.append(f"{rel}: likely real credential value `{value}`")
+    reason=("high-confidence secret/dangerous-operation scan: " + "; ".join(bad)
+            if bad else "high-confidence scan found no real-looking credentials; short/mock/example values are ignored")
+    return result("fail" if bad else "pass", reason, bad)
 
 def outcome_check(task):
     tests=list((task/"tests").glob("**/*")) if (task/"tests").exists() else []

@@ -16,12 +16,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from run_static_rubric import analyze
 
 OPTIONAL_CHECKS={
-    # Packaging/profile checks are retained as metadata warnings rather than
-    # task-quality failures for cross-dataset bundles.
-    'task_name', 'separate_verifier_configured', 'task_readme',
-    'ctrf_reporting', 'typos',
-    # Relative paths and dependency pinning are useful portability/reproducibility
-    # warnings, but do not by themselves establish that a task cannot run.
+    # Cross-dataset warning policy used in RUBRIC_STATIC_CHECK.md. Benchmark
+    # profile compatibility checks are intentionally excluded from this set.
+    'ctrf_reporting',
     'instruction_concision', 'deterministic_reproducible',
 }
 
