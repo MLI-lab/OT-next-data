@@ -6,21 +6,18 @@ one row at a time into a temporary directory and calls `run_static_rubric.analyz
 the source parquet files are never modified.
 """
 from __future__ import annotations
-import argparse, json, random, shutil, sys, tarfile, tempfile
+import argparse, json, os, random, shutil, sys, tarfile, tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-ROOT=Path(__file__).resolve().parents[3]
+WORKDIR=Path.cwd()
+DEFAULT_VALIDATED=WORKDIR.parent/'data'/'ot-next-data'/'validated_task'
 sys.path.insert(0, str(Path(__file__).parent))
 from run_static_rubric import analyze
 
-# These are Terminal-Bench-specific compatibility checks for this cross-benchmark
-# experiment. Keep them visible, but do not treat them as hard task-quality
-# failures when comparing CalibForge/ScaleSWE bundles.
 OPTIONAL_CHECKS={
-    # Terminal-Bench packaging/profile conventions, rather than portable
-    # task-quality checks.  They remain present in `static_failures` but are
-    # reported separately as warnings for CalibForge/ScaleSWE/Seta.
+    # Packaging/profile checks are retained as metadata warnings rather than
+    # task-quality failures for cross-dataset bundles.
     'task_name', 'separate_verifier_configured', 'task_readme',
     'ctrf_reporting', 'typos',
     # Relative paths and dependency pinning are useful portability/reproducibility
@@ -30,16 +27,11 @@ OPTIONAL_CHECKS={
 
 def relativeize(value):
     """Remove machine-specific workspace prefixes from persisted evidence."""
-    if isinstance(value, str):
-        workspace=str(ROOT/'data/ot-next-data').rstrip('/')+'/'
-        root_prefix=str(ROOT).rstrip('/')+'/'
-        if value.startswith(workspace):
-            return value[len(workspace):]
-        if value.startswith(root_prefix):
-            # Evidence outside OT-next-data is expressed relative to that
-            # directory, so outputs are portable when OT-next-data is cwd.
-            import os
-            return os.path.relpath(value, ROOT/'data/ot-next-data')
+    if isinstance(value, str) and value.startswith('/'):
+        try:
+            return os.path.relpath(value, WORKDIR)
+        except ValueError:
+            return value
     if isinstance(value, list): return [relativeize(x) for x in value]
     if isinstance(value, dict): return {k: relativeize(v) for k,v in value.items()}
     return value
@@ -100,7 +92,7 @@ def inspect_row(path, idx, task_path, blob, metadata):
         warnings={k:v for k,v in failures.items() if k in OPTIONAL_CHECKS}
         hard_failures={k:v for k,v in failures.items() if k not in OPTIONAL_CHECKS}
         return relativeize({
-            'source':str(path.relative_to(ROOT/'data/ot-next-data')), 'row':idx,
+            'source':os.path.relpath(path, WORKDIR), 'row':idx,
             'task_path':task_path, 'known_reason':metadata.get('reason'),
             'stages_passed':metadata.get('stages_passed'),
             # `static_failures` is intentionally hard failures only. The raw
@@ -138,14 +130,15 @@ def run_file(path: Path, limit: int|None, seed: int, workers: int):
 
 def main():
     ap=argparse.ArgumentParser()
-    # This copy is intended to be run with code/ot-next-data as cwd.
-    ap.add_argument('--root', default='../data/ot-next-data/validated_task')
+    # This checker is intended to be run with OT-next-data/ as cwd.
+    ap.add_argument('--root', default=os.path.relpath(DEFAULT_VALIDATED, WORKDIR),
+                    help='validated-task directory; defaults to the sibling data store')
     ap.add_argument('--limit', type=int, default=100, help='per parquet; omit or use 0 for all')
     ap.add_argument('--archive-all', action='store_true')
     ap.add_argument('--seed', type=int, default=20261017)
     ap.add_argument('--workers', type=int, default=8)
     ap.add_argument('--out', default='validation/checks/validated_parquet_results.json')
-    ap.add_argument('--dataset-out-dir', default='../data/ot-next-data/validated_task',
+    ap.add_argument('--dataset-out-dir', default=os.path.relpath(DEFAULT_VALIDATED, WORKDIR),
                     help='Write one JSONL file per dataset named <dataset>_static_check.json')
     args=ap.parse_args(); root=Path(args.root).resolve(); all_results=[]
     dataset_results={}
