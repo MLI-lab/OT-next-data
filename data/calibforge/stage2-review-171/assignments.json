@@ -196,12 +196,6 @@
         "."
       ]
     ],
-    "solution_quality": [
-      [
-        "Missing reference solution",
-        "."
-      ]
-    ],
     "structured_data_schema": [
       [
         "Example-only schema lacks normative definition",
@@ -395,16 +389,6 @@
     },
     {
       "task": "contrastive_solver-model-training_20260509_111805_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-model-training_20260509_111805_002",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -568,16 +552,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and gives absolute paths for the script and report, with no headings or tool lists. The hint pointing at discount calculations is mild."
-    },
-    {
-      "task": "multi_solver-debugging_20260414_211453_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
     },
     {
       "task": "multi_solver-debugging_20260414_211453_004",
@@ -757,16 +731,6 @@
         "Approach hints"
       ],
       "explanation": "The instruction prescribes the exact solution procedure and hand-holds about what the predict method returns. That gives away the approach instead of stating a goal."
-    },
-    {
-      "task": "contrastive_solver-data-science_20260617_210354_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/ directory or solve.sh is provided, so no reference solution demonstrates solvability."
     },
     {
       "task": "contrastive_solver-data-science_20260617_210354_004",
@@ -958,16 +922,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260413_174325_025",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all, so no reference solution shows the task is solvable or what a correct fix looks like."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260413_174325_025",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -1131,16 +1085,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and states the goal without headings, fluff or solution hints."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260613_152233_009",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
     },
     {
       "task": "contrastive_solver-software-engineering_20260613_152233_009",
@@ -1332,16 +1276,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260601_053159_007",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260601_053159_007",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -1502,16 +1436,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses /app/, states goals without step-by-step procedures, and has no fluff or tool listings."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260430_081156_009",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows that it can be solved."
     },
     {
       "task": "contrastive_solver-system-administration_20260430_081156_009",
@@ -1678,16 +1602,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and states the goals as bullets. It gives a mild hint about the dependency chain but has no step-by-step procedure, roleplay, or tool list."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260601_053159_011",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task can be solved and passes the verifier."
     },
     {
       "task": "contrastive_solver-software-engineering_20260601_053159_011",
@@ -1860,16 +1774,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260616_094815_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all, so no reference solution shows the task is solvable through legitimate computation."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260616_094815_002",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -2036,16 +1940,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction opens with roleplay preamble ('The data team has been running batch imports...'). It enumerates the source-file defects and gives 'date format detection notes' that hint at the solution approach. The style reads as LLM-generated."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260420_020307_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing the task is solvable through real computation."
     },
     {
       "task": "contrastive_solver-data-processing_20260420_020307_004",
@@ -2228,16 +2122,6 @@
     },
     {
       "task": "contrastive_solver-debugging_20260617_210354_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh, so it never shows the task being solved through real computation."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260617_210354_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -2410,16 +2294,6 @@
     },
     {
       "task": "contrastive_solver-data-processing_20260617_210354_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution demonstrates that it is solvable."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260617_210354_004",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Undocumented fields, types, or record layout",
@@ -2588,16 +2462,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and has no headings or roleplay. The note about np.roots only gives context on the problem."
-    },
-    {
-      "task": "multi_solver-mathematics_20260414_211453_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task can be solved legitimately."
     },
     {
       "task": "multi_solver-mathematics_20260414_211453_003",
@@ -2774,16 +2638,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and does not hint at the method."
-    },
-    {
-      "task": "multi_solver-scientific-computing_20260416_031414_007",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all."
     },
     {
       "task": "multi_solver-scientific-computing_20260416_031414_007",
@@ -2965,16 +2819,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260606_153537_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task is solvable within the stated limits."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260606_153537_004",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -3140,16 +2984,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses several markdown headings and bold emphasis, reads as LLM-generated, and explains in detail how to run the threading algorithm (step-by-step gap-collapse and subject-grouping rules) instead of just describing the goal."
-    },
-    {
-      "task": "contrastive_solver-personal-assistant_20260604_194036_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows that the task can be solved or that the expected answers are derived by computation."
     },
     {
       "task": "contrastive_solver-personal-assistant_20260604_194036_001",
@@ -3339,16 +3173,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260418_190236_012",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory and no solve.sh, so there is no reference solution showing the task is solvable."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260418_190236_012",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -3528,16 +3352,6 @@
     },
     {
       "task": "contrastive_solver-file-operations_20260604_003814_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so the task has no reference solution showing it can be solved."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260604_003814_004",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -3701,16 +3515,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is brief and states the goal with absolute paths. It has no headings, no roleplay and no solution hints."
-    },
-    {
-      "task": "contrastive_solver-machine-learning_20260604_193356_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution demonstrates that the task is solvable."
     },
     {
       "task": "contrastive_solver-machine-learning_20260604_193356_002",
@@ -3883,16 +3687,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths and states the goal and constraints without step-by-step hints."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260508_045800_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task can be solved legitimately."
     },
     {
       "task": "contrastive_solver-software-engineering_20260508_045800_002",
@@ -4070,16 +3864,6 @@
     },
     {
       "task": "contrastive_solver-data-science_20260604_193356_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no oracle shows that the task can be solved or that the tests pass."
-    },
-    {
-      "task": "contrastive_solver-data-science_20260604_193356_006",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -4247,16 +4031,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses /app paths and states the intended behavior without step-by-step procedure. The 'at least 4 bugs' hint is minor."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260615_143956_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows that the task can be solved."
     },
     {
       "task": "contrastive_solver-scientific-computing_20260615_143956_004",
@@ -4433,16 +4207,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, gives absolute data-directory paths and ports, lists the requirements, and doesn't prescribe steps. The notes on no systemd and being root are minimal, necessary context."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260603_181444_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so nothing shows the task can be solved through legitimate computation."
     },
     {
       "task": "contrastive_solver-system-administration_20260603_181444_005",
@@ -4632,16 +4396,6 @@
     },
     {
       "task": "contrastive_solver-security_20260614_141608_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh exists, so nothing shows the task can be solved through legitimate computation."
-    },
-    {
-      "task": "contrastive_solver-security_20260614_141608_004",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Undocumented fields, types, or record layout",
@@ -4812,16 +4566,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "Instruction is concise, human-readable, uses absolute paths, and states the goal without step-by-step procedures; naming the existing symlink is scenario context rather than fluff."
-    },
-    {
-      "task": "contrastive_solver-security_20260509_154924_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so the task ships no reference solution demonstrating the exploit is achievable through legitimate computation."
     },
     {
       "task": "contrastive_solver-security_20260509_154924_001",
@@ -4996,16 +4740,6 @@
         "Approach hints"
       ],
       "explanation": "The instruction references a nonexistent path (/app/tests/). It also spells out the fix as a step-by-step list of the exact rejection rules, which hints heavily at the solution."
-    },
-    {
-      "task": "multi_solver-mathematics_20260414_211532_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided, so there is no reference solution showing the task can be solved."
     },
     {
       "task": "multi_solver-mathematics_20260414_211532_001",
@@ -5196,16 +4930,6 @@
     },
     {
       "task": "contrastive_solver-model-training_20260509_111805_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided, so nothing shows the task can be solved legitimately."
-    },
-    {
-      "task": "contrastive_solver-model-training_20260509_111805_004",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -5393,16 +5117,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction reads as LLM-generated: it narrates the architecture, gives a reproduction loop and an enumerated completion checklist, and uses the non-existent `python` command. It also wrongly describes the symptom as a hang."
-    },
-    {
-      "task": "multi_solver-debugging_20260414_211532_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all, so solvability is not demonstrated."
     },
     {
       "task": "multi_solver-debugging_20260414_211532_003",
@@ -5597,16 +5311,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260414_080620_014",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No reference solution (solution/solve.sh) is provided."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260414_080620_014",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -5784,16 +5488,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction looks LLM-generated. It explains Cooklang syntax at length, gives a step-by-step procedure (compute scale factor, scale, aggregate, simplify), and includes roleplay framing."
-    },
-    {
-      "task": "contrastive_solver-personal-assistant_20260611_210349_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
     },
     {
       "task": "contrastive_solver-personal-assistant_20260611_210349_001",
@@ -5978,16 +5672,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260616_094815_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260616_094815_006",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -6155,16 +5839,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is reasonably concise, uses absolute paths, and states the required outputs without step-by-step hints. Apart from a one-line company framing, it has little fluff."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260618_093107_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no oracle showing the task is solvable or how the expected values are derived."
     },
     {
       "task": "contrastive_solver-data-processing_20260618_093107_001",
@@ -6337,16 +6011,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction has an unnecessary '## What needs to happen' heading and a numbered step-by-step structure in an LLM-generated style. It is otherwise reasonably concise, with absolute paths."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260602_105139_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows that it is solvable."
     },
     {
       "task": "contrastive_solver-scientific-computing_20260602_105139_002",
@@ -6524,16 +6188,6 @@
         "Approach hints"
       ],
       "explanation": "The instruction includes misleading framing ('doesn't match experimental observations', 'typical for industrial catalytic processes'). It hints at the stiffness approach by stressing that the rate constants span orders of magnitude, and it never states the target values."
-    },
-    {
-      "task": "multi_solver-scientific-computing_20260416_172928_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows that it can be solved."
     },
     {
       "task": "multi_solver-scientific-computing_20260416_172928_005",
@@ -6718,16 +6372,6 @@
     },
     {
       "task": "contrastive_solver-data-science_20260604_194036_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task is solvable by legitimate computation."
-    },
-    {
-      "task": "contrastive_solver-data-science_20260604_194036_001",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Example-only schema lacks normative definition",
@@ -6908,16 +6552,6 @@
     },
     {
       "task": "contrastive_solver-data-processing_20260422_235124_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task ships no solution/solve.sh, so there is no reference computation at all."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260422_235124_001",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -7083,16 +6717,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses roleplay framing, bold headings and nested enumerated sub-requirements, and reads as LLM-generated. It also hints at the method ('recovered from git's internal structures')."
-    },
-    {
-      "task": "contrastive_solver-security_20260509_154924_007",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
     },
     {
       "task": "contrastive_solver-security_20260509_154924_007",
@@ -7265,16 +6889,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses section headings and claims the spec 'contains ambiguities', but the spec is accurate, so the claim misleads. The wording reads as LLM-generated scaffolding rather than a concise human-written statement."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260601_053159_021",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all, so nothing shows the task can be solved through real computation."
     },
     {
       "task": "contrastive_solver-software-engineering_20260601_053159_021",
@@ -7455,16 +7069,6 @@
     },
     {
       "task": "contrastive_solver-debugging_20260422_235124_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task can be solved and the tests passed by legitimate means."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260422_235124_002",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -7627,16 +7231,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and goal-focused, uses absolute paths, and has no headings or roleplay. The ZIP64 note is a minor hint about the input but not a procedure."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260604_003814_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so nothing shows the task is solvable through real computation."
     },
     {
       "task": "contrastive_solver-file-operations_20260604_003814_005",
@@ -7809,16 +7403,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260606_172554_010",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh at all, so no reference solution shows the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260606_172554_010",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -7987,16 +7571,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, human-sounding, gives absolute paths and states the goal without prescribing a fix. The light user-story framing is acceptable."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260418_190236_018",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so nothing shows the task is solvable through legitimate means (I confirmed manually that it is solvable with patchelf)."
     },
     {
       "task": "multi_solver-software-engineering_20260418_190236_018",
@@ -8172,16 +7746,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses bold headings and a 'Hints' section that walks through approach steps (reconfigure slapd, start with ldapsearch). It also names the specific modules to use (pam_mkhomedir, su), which hints at the solution beyond stating the goal."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260604_002443_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task can be solved."
     },
     {
       "task": "contrastive_solver-system-administration_20260604_002443_005",
@@ -8373,16 +7937,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260613_152233_011",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh at all, so there is no demonstration that the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260613_152233_011",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -8556,16 +8110,6 @@
     },
     {
       "task": "contrastive_solver-debugging_20260617_210354_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task is solvable or how the expected outputs were derived."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260617_210354_003",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -8735,16 +8279,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260616_094815_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh, so there is no reference solution showing the answer can be computed legitimately."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260616_094815_003",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -8908,16 +8442,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, states the goal, and has no headings, roleplay or tool lists."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260508_045800_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing the task can be solved."
     },
     {
       "task": "contrastive_solver-software-engineering_20260508_045800_003",
@@ -9101,16 +8625,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses multiple headings, has an LLM-generated feel, and spells out standard metric formulas that a domain expert already knows, which amounts to hand-holding and solution hints."
-    },
-    {
-      "task": "contrastive_solver-machine-learning_20260604_194036_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh at all, so no reference solution demonstrates solvability."
     },
     {
       "task": "contrastive_solver-machine-learning_20260604_194036_003",
@@ -9303,16 +8817,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260501_000112_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260501_000112_002",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -9478,16 +8982,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is concise, human-readable, uses absolute paths, states the goal upfront, and only describes the token structure and output location needed to solve the task."
-    },
-    {
-      "task": "contrastive_solver-security_20260615_105532_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh in the task at all, so there is no reference computation demonstrating the task is solvable through legitimate means."
     },
     {
       "task": "contrastive_solver-security_20260615_105532_001",
@@ -9675,16 +9169,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260604_002443_008",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260604_002443_008",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -9866,16 +9350,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction gives a 'Pay attention to' list that hints at the solution: startup ordering, missing runtime directories, DB initialization. It also has scenario preamble and reads as LLM-generated."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260501_051538_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task is solvable."
     },
     {
       "task": "contrastive_solver-system-administration_20260501_051538_005",
@@ -10069,16 +9543,6 @@
     },
     {
       "task": "contrastive_solver-model-training_20260509_154924_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided, so the task has no reference solution showing it can be solved."
-    },
-    {
-      "task": "contrastive_solver-model-training_20260509_154924_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -10269,16 +9733,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260617_051646_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260617_051646_002",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -10454,16 +9908,6 @@
         "Environment inventory"
       ],
       "explanation": "The instruction lists available tools ('strace, gdb, and ps are available'), which the agent should discover itself; the rest is reasonably concise."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260501_172213_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
     },
     {
       "task": "contrastive_solver-debugging_20260501_172213_003",
@@ -10649,16 +10093,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260414_080620_021",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task is solvable."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260414_080620_021",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -10829,16 +10263,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses bold section headings, spells out the textbook Scherrer equation, which is expert prerequisite knowledge, and reads as LLM-structured. It also leaves out the instrumental-broadening input that is actually needed."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260602_105139_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so nothing shows the task is solvable within the tolerances."
     },
     {
       "task": "contrastive_solver-scientific-computing_20260602_105139_003",
@@ -11025,16 +10449,6 @@
     },
     {
       "task": "multi_solver-mathematics_20260415_123352_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so the task is never shown to be solvable."
-    },
-    {
-      "task": "multi_solver-mathematics_20260415_123352_002",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -11211,16 +10625,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, gives the goal and output format without step-by-step hints, and has no extra headings."
-    },
-    {
-      "task": "contrastive_solver-security_20260509_202829_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all, so nothing demonstrates a working solve."
     },
     {
       "task": "contrastive_solver-security_20260509_202829_006",
@@ -11409,16 +10813,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260616_102700_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows it can be solved legitimately."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260616_102700_003",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -11587,16 +10981,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute /app paths, and states the symptom and goal without prescribing a fix. The light first-person framing is acceptable."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260602_105139_012",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing it can be solved."
     },
     {
       "task": "contrastive_solver-software-engineering_20260602_105139_012",
@@ -11780,16 +11164,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260418_190236_023",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution at all."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260418_190236_023",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -11970,16 +11344,6 @@
     },
     {
       "task": "multi_solver-scientific-computing_20260416_184513_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "multi_solver-scientific-computing_20260416_184513_002",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -12151,16 +11515,6 @@
     },
     {
       "task": "contrastive_solver-data-processing_20260425_072438_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows that the task can be solved legitimately."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260425_072438_002",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -12322,16 +11676,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is a single concise, human-sounding sentence with an absolute path and no fluff or hints."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260606_172554_025",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so nothing shows the task can be solved."
     },
     {
       "task": "contrastive_solver-software-engineering_20260606_172554_025",
@@ -12513,16 +11857,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260508_045800_015",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task ships no solution/solve.sh, so nothing shows the task can be solved by legitimate means."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260508_045800_015",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -12693,16 +12027,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and uses absolute paths. It states the goal and lists the required output files. Its file table and brief definition of temperature scaling are mildly verbose but acceptable."
-    },
-    {
-      "task": "contrastive_solver-machine-learning_20260605_015435_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing it can be solved."
     },
     {
       "task": "contrastive_solver-machine-learning_20260605_015435_003",
@@ -12884,16 +12208,6 @@
     },
     {
       "task": "contrastive_solver-personal-assistant_20260613_152233_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task is solvable or that the oracle passes."
-    },
-    {
-      "task": "contrastive_solver-personal-assistant_20260613_152233_001",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Undocumented fields, types, or record layout",
@@ -13066,16 +12380,6 @@
     },
     {
       "task": "contrastive_solver-file-operations_20260604_144210_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no oracle showing the task can be solved through genuine computation."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260604_144210_002",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Example-only schema lacks normative definition",
@@ -13245,16 +12549,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and states the goal and output shape without step-by-step hints."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260613_152233_013",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so nothing shows the task is solvable through legitimate computation."
     },
     {
       "task": "contrastive_solver-software-engineering_20260613_152233_013",
@@ -13433,16 +12727,6 @@
     },
     {
       "task": "contrastive_solver-data-processing_20260618_093107_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so there is no reference solution showing the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260618_093107_002",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -13615,16 +12899,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and to the point, names the needed files and commands, and has no headings or roleplay. It does not hint at the solution."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260617_210354_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so nothing shows the task can be solved by legitimate means."
     },
     {
       "task": "contrastive_solver-debugging_20260617_210354_004",
@@ -13803,16 +13077,6 @@
     },
     {
       "task": "multi_solver-debugging_20260415_094424_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task can be solved."
-    },
-    {
-      "task": "multi_solver-debugging_20260415_094424_005",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -13984,16 +13248,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, states the deliverables and constraints, and has no fluff or approach hints."
-    },
-    {
-      "task": "contrastive_solver-data-science_20260604_194036_007",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided, so nothing shows the task can be solved by legitimate computation."
     },
     {
       "task": "contrastive_solver-data-science_20260604_194036_007",
@@ -14172,16 +13426,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, direct, and free of fluff. Its paths are relative but clearly resolve to /app."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260602_105139_019",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
     },
     {
       "task": "contrastive_solver-software-engineering_20260602_105139_019",
@@ -14378,16 +13622,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260617_051646_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260617_051646_006",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Undocumented fields, types, or record layout",
@@ -14561,16 +13795,6 @@
     },
     {
       "task": "contrastive_solver-debugging_20260503_182123_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task can be solved legitimately."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260503_182123_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -14735,16 +13959,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is brief, sounds human-written, gives the /app path, and has no headings or step-by-step hints."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260613_152233_020",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task can be solved by legitimate means."
     },
     {
       "task": "contrastive_solver-software-engineering_20260613_152233_020",
@@ -14934,16 +14148,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260508_045920_016",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so solvability under the 1200-byte limit is never demonstrated."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260508_045920_016",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -15116,16 +14320,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction has roleplay framing, a numbered step-by-step procedure, and solution hints ('special primes', 'off-by-one errors and edge cases'). This reads as LLM-generated rather than a concise goal statement."
-    },
-    {
-      "task": "multi_solver-mathematics_20260416_184513_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing demonstrates that the task can be solved legitimately."
     },
     {
       "task": "multi_solver-mathematics_20260416_184513_002",
@@ -15305,16 +14499,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and states the goal without step-by-step procedures."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260414_091921_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
     },
     {
       "task": "multi_solver-software-engineering_20260414_091921_001",
@@ -15500,16 +14684,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260418_190236_024",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260418_190236_024",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -15680,16 +14854,6 @@
         "Approach hints"
       ],
       "explanation": "The instruction is short, but it is factually misleading: it says the functions are placeholders raising NotImplementedError when they actually contain buggy naive implementations. Misleading starting-state descriptions should not appear in a concise, accurate instruction."
-    },
-    {
-      "task": "contrastive_solver-machine-learning_20260606_153537_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
     },
     {
       "task": "contrastive_solver-machine-learning_20260606_153537_002",
@@ -15873,16 +15037,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction has a 'production server' preamble, bold section headings, step-by-step bullet lists and a 'Verification' section. It tells the agent which command to use for verification and reads as LLM-generated."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260501_051538_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so the task is never shown to be solvable by legitimate means."
     },
     {
       "task": "contrastive_solver-system-administration_20260501_051538_006",
@@ -16071,16 +15225,6 @@
     },
     {
       "task": "multi_solver-scientific-computing_20260416_184513_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so there is no reference solution showing it can be solved."
-    },
-    {
-      "task": "multi_solver-scientific-computing_20260416_184513_006",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Undocumented fields, types, or record layout",
@@ -16266,16 +15410,6 @@
     },
     {
       "task": "contrastive_solver-data-processing_20260428_101637_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory and no solve.sh, so there is no reference solution demonstrating solvability."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260428_101637_004",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Undocumented fields, types, or record layout",
@@ -16455,16 +15589,6 @@
         "Environment inventory"
       ],
       "explanation": "The instruction is mostly concise but hints at the approach ('the current logrotate script uses a broken signal method', 'Examine the existing configuration files...') and points out tool availability ('rsyslog-gnutls package is already installed') that the agent should discover itself."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260604_003113_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all, so nothing shows the task can be solved by legitimate means."
     },
     {
       "task": "contrastive_solver-system-administration_20260604_003113_006",
@@ -16651,16 +15775,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260602_105139_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is included, so there is no reference solution showing the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260602_105139_004",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -16831,16 +15945,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses roleplay framing, bold headers and a numbered step-by-step procedure, and it hints at the approach (e.g. 'using fuzzy matching on merchant names, date proximity, and amounts'). It reads as LLM-generated."
-    },
-    {
-      "task": "contrastive_solver-personal-assistant_20260617_210354_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
     },
     {
       "task": "contrastive_solver-personal-assistant_20260617_210354_001",
@@ -17017,16 +16121,6 @@
     },
     {
       "task": "contrastive_solver-file-operations_20260605_015435_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so there is no reference showing it can be solved legitimately."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260605_015435_003",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -17190,16 +16284,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and states the goal and acceptance criteria without step-by-step procedures or listing tools."
-    },
-    {
-      "task": "contrastive_solver-data-science_20260605_015435_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all, so no oracle shows that the task is solvable by real computation."
     },
     {
       "task": "contrastive_solver-data-science_20260605_015435_004",
@@ -17384,16 +16468,6 @@
     },
     {
       "task": "contrastive_solver-data-querying_20260502_090008_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-data-querying_20260502_090008_001",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -17553,16 +16627,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is brief, uses the absolute path /app/backup.py, states the goal without step-by-step hints, and does not list tools."
-    },
-    {
-      "task": "contrastive_solver-security_20260616_094815_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh at all, so there is no reference solution showing it can be solved. Solvability was only confirmed by the reviewer's own patch."
     },
     {
       "task": "contrastive_solver-security_20260616_094815_003",
@@ -17737,16 +16801,6 @@
     },
     {
       "task": "contrastive_solver-debugging_20260618_093107_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task is solvable through legitimate computation."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260618_093107_002",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -17914,16 +16968,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, states the goal without step-by-step procedures and has no roleplay or unnecessary headings."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260606_172606_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh at all, so there is no reference solution showing the task can be solved legitimately."
     },
     {
       "task": "contrastive_solver-software-engineering_20260606_172606_001",
@@ -18103,16 +17147,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260617_051646_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260617_051646_002",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -18289,16 +17323,6 @@
     },
     {
       "task": "multi_solver-debugging_20260415_123352_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so nothing demonstrates that it can be solved."
-    },
-    {
-      "task": "multi_solver-debugging_20260415_123352_002",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -18465,16 +17489,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction hints at the solution approach ('Jenkins uses a two-layer encryption scheme... You'll need to understand AES encryption modes'), which describes how rather than what, and wraps the task in a roleplay breach scenario with bolded headings."
-    },
-    {
-      "task": "contrastive_solver-security_20260510_062946_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution is provided at all \u2014 there is no solution/ directory or solve.sh, so the task does not demonstrate that the answer is derivable through legitimate computation."
     },
     {
       "task": "contrastive_solver-security_20260510_062946_003",
@@ -18646,16 +17660,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses colleague roleplay and a numbered step list ('Investigate the model architecture and export script'). It also hints at the approach by pointing to the verify script and stressing 'ALL input types', which reads as templated/LLM-style rather than a concise goal statement."
-    },
-    {
-      "task": "contrastive_solver-model-training_20260509_205636_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so there is no reference solution showing the task is solvable."
     },
     {
       "task": "contrastive_solver-model-training_20260509_205636_002",
@@ -18848,16 +17852,6 @@
     },
     {
       "task": "multi_solver-mathematics_20260419_023954_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided, so solvability is not demonstrated."
-    },
-    {
-      "task": "multi_solver-mathematics_20260419_023954_004",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -19039,16 +18033,6 @@
     },
     {
       "task": "contrastive_solver-model-training_20260510_053611_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all."
-    },
-    {
-      "task": "contrastive_solver-model-training_20260510_053611_004",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -19220,16 +18204,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction looks LLM-generated, with bold pseudo-headings, an example-usage block, and filler like 'matches Python, Haskell, and Ruby behavior'. It also contains a self-contradictory TypeError requirement."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260508_045920_021",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable or passes the tests."
     },
     {
       "task": "contrastive_solver-software-engineering_20260508_045920_021",
@@ -19411,16 +18385,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260419_023954_020",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh at all, so there is no reference solution showing the task can be solved."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260419_023954_020",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -19589,16 +18553,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "Instruction is short, uses absolute paths, and states physical parameters needed to define the answer; minor hints (momentum space after FFT) are part of specifying the observable."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260602_105139_007",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so no reference solution demonstrates the task is solvable."
     },
     {
       "task": "contrastive_solver-scientific-computing_20260602_105139_007",
@@ -19774,16 +18728,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction is a numbered step-by-step procedure ('Write a Python script that: 1. Parses... 2. Normalizes...'). It also hints at the solution approach by naming the file quirks and the reference variants, and it reads like LLM-generated text."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260501_000112_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory and no solve.sh, so nothing shows the task can be solved by legitimate computation."
     },
     {
       "task": "contrastive_solver-data-processing_20260501_000112_002",
@@ -19970,16 +18914,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260617_104707_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260617_104707_006",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -20147,16 +19081,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is reasonably short, uses absolute paths, and states the goals. The brief scenario framing is mild and there are no unnecessary headings."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260501_172213_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided, so nothing shows the task can be solved by legitimate means."
     },
     {
       "task": "contrastive_solver-system-administration_20260501_172213_002",
@@ -20331,16 +19255,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, states the goal and uses an absolute path to the script. Mentioning debug symbols is reasonable context."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260503_182123_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all, so nothing shows the task is solvable through legitimate means."
     },
     {
       "task": "contrastive_solver-debugging_20260503_182123_004",
@@ -20529,16 +19443,6 @@
     },
     {
       "task": "contrastive_solver-security_20260510_125534_007",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
-    },
-    {
-      "task": "contrastive_solver-security_20260510_125534_007",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Undocumented fields, types, or record layout",
@@ -20714,16 +19618,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction opens with a scenario preamble ('A pharmaceutical company...'), uses bolded numbered headings typical of LLM-generated text, names the tool to use ('Use RDKit'), and gives procedural hints (use InChI keys, generate 2D coordinates, take the largest organic component)."
-    },
-    {
-      "task": "multi_solver-scientific-computing_20260417_145736_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so there is no reference solution showing the task can be solved."
     },
     {
       "task": "multi_solver-scientific-computing_20260417_145736_006",
@@ -20907,16 +19801,6 @@
     },
     {
       "task": "contrastive_solver-data-querying_20260510_125534_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-data-querying_20260510_125534_001",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -21082,16 +19966,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is a brief, human-sounding bullet list with absolute paths and the desired end state. It does not give step-by-step fixes or list tools."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260604_003814_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing the task is solvable by legitimate computation."
     },
     {
       "task": "contrastive_solver-system-administration_20260604_003814_002",
@@ -21269,16 +20143,6 @@
     },
     {
       "task": "contrastive_solver-machine-learning_20260606_172622_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-machine-learning_20260606_172622_002",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -21450,16 +20314,6 @@
     },
     {
       "task": "multi_solver-debugging_20260416_172928_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
-    },
-    {
-      "task": "multi_solver-debugging_20260416_172928_002",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -21625,16 +20479,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260602_105139_020",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable or how."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260602_105139_020",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -21797,16 +20641,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is fairly concise and uses absolute paths. Its rules are needed to define the expected output rather than to hint at an approach, though it uses bold headings and has a slightly templated feel."
-    },
-    {
-      "task": "contrastive_solver-personal-assistant_20260618_093107_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows that the task can be solved legitimately."
     },
     {
       "task": "contrastive_solver-personal-assistant_20260618_093107_001",
@@ -21977,16 +20811,6 @@
     },
     {
       "task": "contrastive_solver-data-science_20260605_015435_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no oracle shows the task is solvable through legitimate means."
-    },
-    {
-      "task": "contrastive_solver-data-science_20260605_015435_005",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -22144,16 +20968,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and goal-focused, uses absolute paths where needed (/etc/ssh/revoke_test_key.pub), and does not prescribe commands. The brief framing sentence is acceptable."
-    },
-    {
-      "task": "contrastive_solver-security_20260617_104707_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory and no solve.sh, so there is no reference solution showing the task can be solved legitimately."
     },
     {
       "task": "contrastive_solver-security_20260617_104707_005",
@@ -22329,16 +21143,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "A short, natural bug report with an absolute path. The hint about the coalescing logic is a mild pointer, not a step-by-step procedure."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260414_091921_008",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
     },
     {
       "task": "multi_solver-software-engineering_20260414_091921_008",
@@ -22530,16 +21334,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260617_104707_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260617_104707_001",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Undocumented fields, types, or record layout",
@@ -22717,16 +21511,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction looks LLM-generated. It has a bolded numbered step list that prescribes the implementation (Thompson's construction, NFA simulation), then repeats the same features in a second redundant bullet list. It also spells out details an expert already knows."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260613_152233_023",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory and no solve.sh, so no reference solution shows that the task is solvable or that the tests are consistent."
     },
     {
       "task": "contrastive_solver-software-engineering_20260613_152233_023",
@@ -22908,16 +21692,6 @@
     },
     {
       "task": "contrastive_solver-file-operations_20260420_020307_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task can be solved by legitimate means."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260420_020307_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -23092,16 +21866,6 @@
     },
     {
       "task": "contrastive_solver-file-operations_20260605_015435_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task can be solved. (A reviewer was able to solve it by hand.)"
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260605_015435_004",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -23263,16 +22027,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, human-sounding, goal-focused, and names /app plus the expected artifacts without listing steps or tools."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260606_172606_009",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all, so nothing shows the task is solvable by legitimate means."
     },
     {
       "task": "contrastive_solver-software-engineering_20260606_172606_009",
@@ -23449,16 +22203,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction is a numbered LLM-style list that repeats the pipeline steps twice and hints at the fixes ('return frequency in Hz', 'suspect filtering and segmentation'). It is not concise or human-written."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260420_020307_007",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task can be solved legitimately."
     },
     {
       "task": "contrastive_solver-scientific-computing_20260420_020307_007",
@@ -23651,16 +22395,6 @@
     },
     {
       "task": "contrastive_solver-model-training_20260510_142854_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all."
-    },
-    {
-      "task": "contrastive_solver-model-training_20260510_142854_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -23829,16 +22563,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is reasonably short and uses absolute paths. It has some fluff (the VASP version, 'comprehensive parser') but no step-by-step procedure or tool lists."
-    },
-    {
-      "task": "multi_solver-scientific-computing_20260418_190236_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing it can be solved."
     },
     {
       "task": "multi_solver-scientific-computing_20260418_190236_003",
@@ -24011,16 +22735,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses many headings (Dependencies, Input, Required Output, Definitions, Development, Constraints), reads as LLM-generated, and gives hints such as noise levels and calibration advice."
-    },
-    {
-      "task": "contrastive_solver-video-processing_20260425_072438_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
     },
     {
       "task": "contrastive_solver-video-processing_20260425_072438_001",
@@ -24207,16 +22921,6 @@
     },
     {
       "task": "contrastive_solver-debugging_20260504_125558_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided, so solvability is not demonstrated."
-    },
-    {
-      "task": "contrastive_solver-debugging_20260504_125558_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -24393,16 +23097,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is reasonably concise with absolute paths and a clear goal. It contains no step-by-step procedure, though it uses a short scenario preamble."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260502_090008_003",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
     },
     {
       "task": "contrastive_solver-data-processing_20260502_090008_003",
@@ -24584,16 +23278,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260604_003814_008",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so there is no reference solution showing it can be solved."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260604_003814_008",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -24765,16 +23449,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction includes a bold 'Key insight' section that tells the agent the solution approach (use high precision plus PSLQ/LLL). It also has markdown headings/bolding typical of LLM-generated text."
-    },
-    {
-      "task": "multi_solver-mathematics_20260419_065313_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/ directory or solve.sh exists, so the task never demonstrates a reference solution."
     },
     {
       "task": "multi_solver-mathematics_20260419_065313_004",
@@ -24962,16 +23636,6 @@
     },
     {
       "task": "contrastive_solver-security_20260617_210354_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory and no solve.sh, so no reference solution shows that the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-security_20260617_210354_004",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Example-only schema lacks normative definition",
@@ -25154,16 +23818,6 @@
     },
     {
       "task": "contrastive_solver-system-administration_20260505_093950_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so nothing shows the task can be solved legitimately."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260505_093950_006",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -25327,16 +23981,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and gives a brief language feature list without solution hints or roleplay."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260419_023954_022",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
     },
     {
       "task": "multi_solver-software-engineering_20260419_023954_022",
@@ -25530,16 +24174,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260414_091921_014",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260414_091921_014",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -25719,16 +24353,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260617_104707_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh, so nothing shows the task can be solved by legitimate means."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260617_104707_005",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -25902,16 +24526,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and states the goal, the interface, the opponents and the thresholds with absolute paths, without hinting at a solution approach."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260508_045920_025",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task ships no solution/solve.sh at all, so nothing shows the task can be solved by legitimate means."
     },
     {
       "task": "contrastive_solver-software-engineering_20260508_045920_025",
@@ -26103,16 +24717,6 @@
     },
     {
       "task": "contrastive_solver-machine-learning_20260607_104421_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
-    },
-    {
-      "task": "contrastive_solver-machine-learning_20260607_104421_001",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -26282,16 +24886,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is a fairly concise spec with absolute paths. Its headings organise grammar and edge cases without roleplay or tool lists, though it is somewhat spec-heavy."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260602_105139_022",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task is solvable or that the tests pass against a reference implementation."
     },
     {
       "task": "contrastive_solver-software-engineering_20260602_105139_022",
@@ -26478,16 +25072,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260606_172606_018",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task can be solved and passes the tests."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260606_172606_018",
       "criterion": "structured_data_schema",
       "outcome": "fail",
       "cluster": "Example-only schema lacks normative definition",
@@ -26659,16 +25243,6 @@
     },
     {
       "task": "multi_solver-debugging_20260417_145736_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
-    },
-    {
-      "task": "multi_solver-debugging_20260417_145736_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -26833,16 +25407,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and goal-focused, with a clear location (/app) and no step-by-step hints or tool lists."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260614_141608_009",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
     },
     {
       "task": "contrastive_solver-software-engineering_20260614_141608_009",
@@ -27021,16 +25585,6 @@
     },
     {
       "task": "contrastive_solver-data-querying_20260601_053159_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh exists, so there is no demonstration that the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-data-querying_20260601_053159_001",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -27200,16 +25754,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses the absolute path /app/repo, states the goals without prescribing steps, and gives only the relevant constraints (no remote, reflog cleared)."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260605_015435_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so there is no reference solution showing the repair can be done by legitimate computation."
     },
     {
       "task": "contrastive_solver-file-operations_20260605_015435_005",
@@ -27389,16 +25933,6 @@
     },
     {
       "task": "contrastive_solver-file-operations_20260424_090344_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/solve.sh at all, so nothing shows the task can be solved by legitimate means."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260424_090344_004",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -27563,16 +26097,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is reasonably short, uses absolute paths, and states the goal and deliverables without step-by-step procedures. The bullet list describing the script's purpose is acceptable context."
-    },
-    {
-      "task": "contrastive_solver-data-science_20260605_015435_007",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task can be solved legitimately or that the test ranges are reachable."
     },
     {
       "task": "contrastive_solver-data-science_20260605_015435_007",
@@ -27750,16 +26274,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, states the goal and the filtering rules with absolute paths, and has no headings or roleplay."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260603_181444_004",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory and no solve.sh, so nothing shows the task is solvable through real computation."
     },
     {
       "task": "contrastive_solver-scientific-computing_20260603_181444_004",
@@ -27952,16 +26466,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260604_002443_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260604_002443_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -28144,16 +26648,6 @@
     },
     {
       "task": "multi_solver-mathematics_20260419_182351_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task can be solved."
-    },
-    {
-      "task": "multi_solver-mathematics_20260419_182351_001",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -28326,16 +26820,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is brief, uses absolute paths, and contains no fluff or hints about the approach."
-    },
-    {
-      "task": "contrastive_solver-data-science_20260606_153537_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so there is no reference solution showing the task is solvable."
     },
     {
       "task": "contrastive_solver-data-science_20260606_153537_005",
@@ -28521,16 +27005,6 @@
     },
     {
       "task": "multi_solver-software-engineering_20260414_091921_017",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows that it can be solved."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260414_091921_017",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -28707,16 +27181,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260602_105139_024",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260602_105139_024",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -28886,16 +27350,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction uses a numbered 'Your task' procedure (diagnose, then fix, ...), tells the agent which script to run to see the issue, and reads as LLM-templated rather than a concise statement of the goal."
-    },
-    {
-      "task": "multi_solver-software-engineering_20260419_023954_023",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task contains no solution/solve.sh, so it does not demonstrate that the task can be solved through genuine computation."
     },
     {
       "task": "multi_solver-software-engineering_20260419_023954_023",
@@ -29081,16 +27535,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths and states the goal without step-by-step procedures."
-    },
-    {
-      "task": "contrastive_solver-model-training_20260511_015840_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all."
     },
     {
       "task": "contrastive_solver-model-training_20260511_015840_001",
@@ -29280,16 +27724,6 @@
     },
     {
       "task": "multi_solver-scientific-computing_20260419_112101_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task contains no solution/ directory or solve.sh, so there is no reference solution demonstrating solvability."
-    },
-    {
-      "task": "multi_solver-scientific-computing_20260419_112101_005",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -29455,16 +27889,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, has no headings or tool lists, and states the goal clearly."
-    },
-    {
-      "task": "multi_solver-debugging_20260419_023954_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows that the answer can be derived."
     },
     {
       "task": "multi_solver-debugging_20260419_023954_005",
@@ -29638,16 +28062,6 @@
         "Style and wordiness"
       ],
       "explanation": "It opens with a roleplay/scenario preamble and uses bold inline headings, a 'Requirements:' section and a long enumerated list. The style reads as LLM-generated, and it spells out procedures such as how to classify levels and what to put in the report."
-    },
-    {
-      "task": "contrastive_solver-data-processing_20260503_182123_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task is solvable through real computation."
     },
     {
       "task": "contrastive_solver-data-processing_20260503_182123_001",
@@ -29831,16 +28245,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260606_172606_026",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so it never shows that the task can be solved legitimately."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260606_172606_026",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -30013,16 +28417,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260420_020307_009",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260420_020307_009",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -30191,16 +28585,6 @@
         "Style and wordiness"
       ],
       "explanation": "It opens with a roleplay preamble (a failing backup disk with vacation photos), hints at the approach ('structural ... others involve the actual image data'), and lists available tools ('standard Linux tools and Python. Install anything additional')."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260606_172554_005",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so nothing shows the task can be solved, especially the IDAT bit-flip and byte-swap repairs."
     },
     {
       "task": "contrastive_solver-file-operations_20260606_172554_005",
@@ -30379,16 +28763,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction looks template/LLM-generated: an unnecessary heading, awkward auto-generated identifiers and filler such as 'This task evaluates reliable inspection and diagnostic engineering for the video-processing domain'."
-    },
-    {
-      "task": "contrastive_solver-video-processing_20260503_030115_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh, so no reference solution shows the task is solvable."
     },
     {
       "task": "contrastive_solver-video-processing_20260503_030115_001",
@@ -30581,16 +28955,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260508_153434_014",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so nothing shows the task can be solved."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260508_153434_014",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -30753,16 +29117,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and direct, uses absolute paths, has no fluff, and gives no hints about the solution approach."
-    },
-    {
-      "task": "contrastive_solver-machine-learning_20260610_111012_002",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so there is no reference solution showing that the task is solvable."
     },
     {
       "task": "contrastive_solver-machine-learning_20260610_111012_002",
@@ -30943,16 +29297,6 @@
     },
     {
       "task": "contrastive_solver-software-engineering_20260614_141608_014",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows that it can be solved."
-    },
-    {
-      "task": "contrastive_solver-software-engineering_20260614_141608_014",
       "criterion": "structured_data_schema",
       "outcome": "not_applicable",
       "cluster": "Not applicable",
@@ -31118,16 +29462,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short, uses absolute paths, and states the goal and output location without step-by-step guidance. It has only a little scenario framing."
-    },
-    {
-      "task": "contrastive_solver-file-operations_20260429_103257_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so nothing shows the task can be solved by legitimate computation."
     },
     {
       "task": "contrastive_solver-file-operations_20260429_103257_001",
@@ -31310,16 +29644,6 @@
         "Style and wordiness"
       ],
       "explanation": "The instruction looks LLM-generated: bold headings, a nine-section enumerated procedure, and solution hints such as the atomic write pattern and the cron-style supervisor approach. It also includes a 'Verification' step listing what to start."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260507_093408_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "There is no solution/ directory or solve.sh at all, so the task has no reference solution showing it can be solved."
     },
     {
       "task": "contrastive_solver-system-administration_20260507_093408_006",
@@ -31509,16 +29833,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260422_235114_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided, so nothing shows that the task can be solved by legitimate computation."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260422_235114_001",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -31686,16 +30000,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is short and goal-oriented with absolute paths and no step-by-step procedure. The claim that the system package lacks TLS is debatable but does not hint at an approach."
-    },
-    {
-      "task": "contrastive_solver-system-administration_20260604_003814_009",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "No solution/solve.sh is provided at all, so nothing shows the task can be solved by legitimate computation."
     },
     {
       "task": "contrastive_solver-system-administration_20260604_003814_009",
@@ -31877,16 +30181,6 @@
     },
     {
       "task": "contrastive_solver-scientific-computing_20260617_104707_006",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/solve.sh at all, so there is no demonstration that the task is solvable via genuine computation."
-    },
-    {
-      "task": "contrastive_solver-scientific-computing_20260617_104707_006",
       "criterion": "structured_data_schema",
       "outcome": "pass",
       "cluster": "Passed",
@@ -32050,16 +30344,6 @@
       "cluster": "Passed",
       "tags": [],
       "explanation": "The instruction is reasonably concise, uses absolute paths, and states the business rules and output columns without prescribing a method. Formatting is somewhat heavy but not padded with fluff."
-    },
-    {
-      "task": "contrastive_solver-data-querying_20260604_003113_001",
-      "criterion": "solution_quality",
-      "outcome": "fail",
-      "cluster": "Missing reference solution",
-      "tags": [
-        "Missing reference solution"
-      ],
-      "explanation": "The task has no solution/ directory or solve.sh, so no reference solution shows that the task is solvable."
     },
     {
       "task": "contrastive_solver-data-querying_20260604_003113_001",

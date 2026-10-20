@@ -60,7 +60,6 @@ RULES={
 ('Specification conflicts or substantial reverse engineering',r'contradict|reverse.engineer|unclear|undocument|mismatch'),
 ('Missing reference solution or review documentation',r'no solution|no reference|no README|missing|solution/|solution directory|without.*solution'),
 ('Other reviewability concern',r'.')],
-'solution_quality':[('Missing reference solution',r'.')],
 'structured_data_schema':[
 ('Example-only schema lacks normative definition',r'example|normative|illustrat|like:'),
 ('Undocumented fields, types, or record layout',r'keys|field|schema|column|width|name|format|structure'),
@@ -101,14 +100,14 @@ def main():
      instructions[task]=tar.extractfile(members[0]).read().decode(); location[task]=Path(file).name
  assert set(instructions)==set(reviews),(len(instructions),set(reviews)-set(instructions))
  (OUT/'instructions.json').write_text(json.dumps(instructions,indent=2))
- skipped_criteria={c for c in next(iter(reviews.values()))['verdicts'][0]['checks'] if all(c in v.get('automatic_skips',{}) for v in reviews.values())}
+ skipped_criteria={'solution_quality'} | {c for c in next(iter(reviews.values()))['verdicts'][0]['checks'] if all(c in v.get('automatic_skips',{}) for v in reviews.values())}
  for c in skipped_criteria:
   (OUT/f'{c}_clusters.md').unlink(missing_ok=True)
  rows=[]; counts=collections.defaultdict(collections.Counter)
  for task,review in reviews.items():
   assert len(review['verdicts'])==1
   for criterion,check in review['verdicts'][0]['checks'].items():
-   if criterion in review.get('automatic_skips',{}):continue
+   if criterion in skipped_criteria:continue
    outcome=check['outcome']; explanation=check['explanation'];counts[criterion][outcome]+=1
    matches=[name for name,pat in RULES.get(criterion,[]) if re.search(pat,explanation,re.I)] if outcome=='fail' else []
    primary=matches[0] if matches else ('Other explanation — inspect manually' if outcome=='fail' else ('Passed' if outcome=='pass' else 'Not applicable'))
@@ -116,7 +115,7 @@ def main():
  (OUT/'assignments.json').write_text(json.dumps({'source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),'method':'Ordered criterion-specific lexical themes; first matching theme primary, all matches retained. Provisional grouping, not a fresh task evaluation.','rules':RULES,'assignments':rows},indent=2))
  with (OUT/'assignments.csv').open('w') as f:
   w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows([{**r,'tags':'; '.join(r['tags'])} for r in rows])
- index=['# CalibForge review explanation clusters','',f'{len(reviews)} reviewed tasks, one judge trial per task. These reports describe this sample only, not all 5,317 kept tasks.','', '[Dataset](https://huggingface.co/datasets/FWeindel/validated-tasks/tree/main/calibforge_v1) · [CSV assignments](assignments.csv) · [JSON assignments and rules](assignments.json)','', '## How to interpret these reports','', 'Each failed explanation receives one primary theme and may have overlapping reason tags. Grouping uses explicit, ordered text patterns in `build_reports.py`; these are provisional lexical clusters, not independently verified task defects. Read the original explanation and expand the instructions when interpreting a cluster. Passes and not-applicable outcomes are preserved separately. Automatically skipped criteria are excluded from these reports and exports. Genuine N/A outcomes from evaluated criteria are retained.','', 'The judge marks all 171 tasks as failing solution quality for missing reference solutions, while automatically skipping solvability for that same datasource-wide absence. Treat this as a rubric-policy issue to review, rather than 171 demonstrated unsolvable tasks. Several other explanations invoke benchmark difficulty expectations or separate-verifier assumptions; their applicability to RL training deserves review. No verdicts have been changed.','', '## Criteria','', '| Criterion | Fail | Pass | N/A | Failure rate among applicable |','| --- | ---: | ---: | ---: | ---: |']
+ index=['# CalibForge review explanation clusters','',f'{len(reviews)} reviewed tasks, one judge trial per task. These reports describe this sample only, not all 5,317 kept tasks.','', '[Dataset](https://huggingface.co/datasets/FWeindel/validated-tasks/tree/main/calibforge_v1) · [CSV assignments](assignments.csv) · [JSON assignments and rules](assignments.json)','', '## How to interpret these reports','', 'Each failed explanation receives one primary theme and may have overlapping reason tags. Grouping uses explicit, ordered text patterns in `build_reports.py`; these are provisional lexical clusters, not independently verified task defects. Read the original explanation and expand the instructions when interpreting a cluster. Passes and not-applicable outcomes are preserved separately. Automatically skipped criteria are excluded from these reports and exports. Genuine N/A outcomes from evaluated criteria are retained.','', '`solution_quality` is excluded because CalibForge has no reference solutions. The original raw judge verdicts are preserved in the source JSON; displayed counts and exports omit this criterion. Several other explanations invoke benchmark difficulty expectations or separate-verifier assumptions; their applicability to RL training deserves review. No verdicts have been changed.','', '## Criteria','', '| Criterion | Fail | Pass | N/A | Failure rate among applicable |','| --- | ---: | ---: | ---: | ---: |']
  for criterion,c in counts.items():
   subset=[r for r in rows if r['criterion']==criterion];fail=[r for r in subset if r['outcome']=='fail']; n=len(subset); applicable=c['fail']+c['pass']
   index.append(f"| [{criterion}]({criterion}_clusters.md) | {c['fail']} | {c['pass']} | {c['not_applicable']} | {c['fail']/applicable:.1%} |" if applicable else f"| [{criterion}]({criterion}_clusters.md) | 0 | 0 | {c['not_applicable']} | — |")

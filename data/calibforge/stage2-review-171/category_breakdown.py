@@ -28,7 +28,7 @@ import statistics
 fails=collections.Counter(r['task'] for r in rows if r['outcome']=='fail')
 for cat,n in sorted(sizes.items()):
  tasks=[t for t in ids if categories[t]==cat];lines.append(f'| [{cat}](#{cat}) | {n} | {sum(fails[t]>0 for t in tasks)} | {statistics.median(fails[t] for t in tasks):g} |')
-lines+=['','Every task fails `solution_quality` because a reference solution is absent. This makes “at least one failure” 100% in every category; it does not establish that these tasks are unsolvable.','', '## Failure count matrix','', 'Cells are failed task counts. This matrix includes every criterion with at least one failure anywhere in the sample. See each category below for applicable denominators and percentages.','', '| Criterion | '+' | '.join(f'{cat} (n={n})' for cat,n in sorted(sizes.items()))+' |','| --- | '+' | '.join('---:' for _ in sizes)+' |']
+lines+=['','`solution_quality` is excluded because reference solutions are absent. Task failure totals and medians use only the retained criteria.','', '## Failure count matrix','', 'Cells are failed task counts. This matrix includes every criterion with at least one failure anywhere in the sample. See each category below for applicable denominators and percentages.','', '| Criterion | '+' | '.join(f'{cat} (n={n})' for cat,n in sorted(sizes.items()))+' |','| --- | '+' | '.join('---:' for _ in sizes)+' |']
 for c in active:lines.append(f'| [{c}]({c}_clusters.md) | '+' | '.join(str(counts[cat,c]['fail']) for cat in sorted(sizes))+' |')
 for cat,n in sorted(sizes.items()):
  lines+=['',f'<a id="{cat}"></a>',f'## {cat}','',f'**{n} tasks reviewed.**','', '| Criterion | Failed | Passed | N/A | Fail / applicable | Failure rate |','| --- | ---: | ---: | ---: | ---: | ---: |']
@@ -45,5 +45,5 @@ readme=p/'README.md';s=readme.read_text();link='[Breakdown by task category](cat
 if link not in s:s=s.replace('## Criteria',link+'\n\n## Criteria')
 readme.write_text(s)
 assert sum(sizes.values())==171
-assert sum(r['fail'] for r in long)==1088
-print(json.dumps(sizes,indent=2));print('Verified category totals and all 1,088 failures reconcile with criterion reports.')
+assert sum(r['fail'] for r in long)==sum(r['outcome']=='fail' for r in rows)
+print(json.dumps(sizes,indent=2));print('Verified category totals and all retained failures reconcile with criterion reports.')

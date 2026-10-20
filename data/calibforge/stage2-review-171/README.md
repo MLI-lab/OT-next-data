@@ -8,7 +8,7 @@
 
 Each failed explanation receives one primary theme and may have overlapping reason tags. Grouping uses explicit, ordered text patterns in `build_reports.py`; these are provisional lexical clusters, not independently verified task defects. Read the original explanation and expand the instructions when interpreting a cluster. Passes and not-applicable outcomes are preserved separately. Automatically skipped criteria are excluded from these reports and exports. Genuine N/A outcomes from evaluated criteria are retained.
 
-The judge marks all 171 tasks as failing solution quality for missing reference solutions, while automatically skipping solvability for that same datasource-wide absence. Treat this as a rubric-policy issue to review, rather than 171 demonstrated unsolvable tasks. Several other explanations invoke benchmark difficulty expectations or separate-verifier assumptions; their applicability to RL training deserves review. No verdicts have been changed.
+`solution_quality` is excluded because CalibForge has no reference solutions. The original raw judge verdicts are preserved in the source JSON; displayed counts and exports omit this criterion. Several other explanations invoke benchmark difficulty expectations or separate-verifier assumptions; their applicability to RL training deserves review. No verdicts have been changed.
 
 [Breakdown by task category](category_breakdown.md)
 
@@ -28,7 +28,6 @@ The judge marks all 171 tasks as failing solution quality for missing reference 
 | [agentic](criteria.md#agentic) | Requires multi-step terminal interaction, not solvable by a single LLM call | 38 | 133 | 0 | 22.2% | [Clusters](agentic_clusters.md) |
 | [reviewable](criteria.md#reviewable) | Non-specialist reviewers can verify task correctness, or sufficient explanation is provided | 107 | 64 | 0 | 62.6% | [Clusters](reviewable_clusters.md) |
 | [instruction_concision](criteria.md#instruction_concision) | Human-written, concise, uses absolute paths, no unnecessary headings, no fluff | 90 | 81 | 0 | 52.6% | [Clusters](instruction_concision_clusters.md) |
-| [solution_quality](criteria.md#solution_quality) | Solution demonstrates actual computation, not hardcoded answers | 171 | 0 | 0 | 100.0% | [Clusters](solution_quality_clusters.md) |
 | [structured_data_schema](criteria.md#structured_data_schema) | If structured output is expected, exact schema documented in instruction or spec file | 26 | 59 | 86 | 30.6% | [Clusters](structured_data_schema_clusters.md) |
 | [typos](criteria.md#typos) | No typos in filenames, paths, commands, or variable names | 6 | 165 | 0 | 3.5% | [Clusters](typos_clusters.md) |
 | [resource_configuration](criteria.md#resource_configuration) | Timeouts and resource limits are appropriate for the task | 27 | 144 | 0 | 15.8% | [Clusters](resource_configuration_clusters.md) |
