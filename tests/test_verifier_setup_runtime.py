@@ -1,5 +1,6 @@
 """Exercise the real Harbor Verifier with an instrumented environment."""
 import asyncio
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,7 +35,13 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
     class Environment:
         os = task.config.environment.os
         capabilities = SimpleNamespace(mounted=True)
-        async def upload_dir(self, source_dir, target_dir): events.append(('upload', source_dir))
+        async def upload_dir(self, source_dir, target_dir):
+            if Path(source_dir).name == 'ot_execution':
+                # go/node execution-evidence shims, next to the recorders
+                assert target_dir.startswith('/tmp/ot-pytest-execution-') and target_dir.endswith('/ot_execution')
+                events.append(('shims', target_dir))
+            else:
+                events.append(('upload', source_dir))
         async def upload_file(self, source_path, target_path):
             assert Path(source_path).name in ('ot_pytest_execution.py', 'sitecustomize.py')
             assert target_path.startswith('/tmp/ot-pytest-execution-')
@@ -48,6 +55,29 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
                 return SimpleNamespace(return_code=0 if outcome == 'scored-failure' else 1, stdout='', stderr='')
             if command.startswith(('chmod', 'rm -f', 'rm -rf')):
                 events.append(('clear' if command.startswith('rm') else 'chmod', command))
+                return SimpleNamespace(return_code=0, stdout='', stderr='')
+            if command.startswith('T=/tmp/ot-pytest-execution-'):
+                # python recorders copied into the interpreter's site-packages, as root
+                assert kwargs['user'] == 'root'
+                events.append(('python-hooks', command))
+                return SimpleNamespace(return_code=0, stdout='ok /usr/bin/python3 /usr/lib/python3/dist-packages\n', stderr='')
+            if command.startswith('out=/tmp/ot-pytest-execution-') and 'go-wrappers.txt; : >' in command:
+                # go binaries replaced by wrappers to the evidence shim, as root
+                assert kwargs['user'] == 'root'
+                events.append(('go-wrappers', command))
+                return SimpleNamespace(return_code=0, stdout='', stderr='')
+            if command.startswith('touch /tmp/ot-pytest-execution-') and command.endswith('/junit-start'):
+                assert kwargs['user'] == 'root'
+                events.append(('junit-start', command))
+                return SimpleNamespace(return_code=0, stdout='', stderr='')
+            if command.startswith('sh /tmp/ot-pytest-execution-') and '/junit_reports.sh ' in command:
+                # JUnit reports of this call recorded after the grading command, as root
+                assert kwargs['user'] == 'root' and verifier_setup.EXECUTION_LOG in command
+                events.append(('junit-reports', command))
+                return SimpleNamespace(return_code=0, stdout='', stderr='')
+            if command.startswith('out=/tmp/ot-pytest-execution-'):
+                assert 'go-wrappers.txt' in command  # the cleanup puts go binaries back too
+                events.append(('cleanup', command))
                 return SimpleNamespace(return_code=0, stdout='', stderr='')
             assert kwargs['env']['TEST_VAR'] == 'from-config'
             if command == verifier_setup.SETUP_COMMAND:
@@ -78,9 +108,21 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
     assert sum(e[0] == 'clear' and e[1].startswith('rm -f ') for e in events) == 1
     if outcome not in ('failure', 'timeout', 'scored-failure'):
         assert sum(e[0] == 'recorder' for e in events) == 2  # pytest plugin and trial sitecustomize
+        assert sum(e[0] == 'shims' for e in events) == 1
+        grade = next(e[1] for e in events if e[0] == 'grade')
+        assert 'OT_VERIFIER_EXECUTION_BIN=' in grade and 'NODE_OPTIONS="--require ' in grade
+        # Installed into site-packages: the task keeps its own PYTHONPATH.
+        assert 'export PYTHONPATH=' not in grade and 'PYTEST_PLUGINS' not in grade
+        assert sum(e[0] == 'python-hooks' for e in events) == 1 and sum(e[0] == 'cleanup' for e in events) == 1
+        names = [e[0] for e in events]
+        assert names.index('junit-start') < names.index('grade') < names.index('junit-reports') < names.index('cleanup')
+        record = json.loads((paths.verifier_dir / 'execution-instrumentation.json').read_text())
+        assert record == {'python_hooks': [{'status': 'ok', 'python': '/usr/bin/python3',
+                                            'site': '/usr/lib/python3/dist-packages'}],
+                          'pythonpath_fallback': False, 'go_wrappers': []}
         assert (paths.verifier_dir / 'execution-context.json').is_file()
         grade = next(e[1] for e in events if e[0] == 'grade')
-        assert 'PYTEST_PLUGINS=ot_pytest_execution' in grade
+        assert 'PYTEST_PLUGINS' not in grade  # named inside pytest processes by the hook
     if uploads: assert events.index(uploads[-1]) < next(i for i,e in enumerate(events) if e[0] == 'setup')
 
 

@@ -13,4 +13,4 @@ You may approve execution resource changes through resource_changes in your deci
 Return JSON only:
 {"action": "wait|restart|stop", "kind": "infrastructure|agent|controller|publication", "cause": "your diagnosis", "evidence": ["paths"], "changes": "what you changed, or why no shared fix is justified", "restart_from": "checkpoint|stage3", "restart_prompt": "instructions for the next agent", "wait_reason": "what must recover, if waiting", "resource_changes": {}, "shared_fix_justification": "general cause and why this is a simple reusable fix, if applicable", "tests": ["tests/test_relevant_behavior.py"]}
 
-The runner tests shared changes and restores their original contents if validation fails. Active or uncertain jobs prevent a fresh stage-3 run.
+The runner tests shared changes and restores their original contents if validation fails. Active or uncertain jobs prevent a fresh stage-1 run.

@@ -6,7 +6,38 @@ import tarfile
 
 import pytest
 
-from data.multiswe.patch import patch_blob, patch_files
+from data.multiswe.patch import patch_blob, patch_files, EMBEDDED_FILES
+
+
+def embedded_helper(name):
+    from types import ModuleType
+    module = ModuleType(name)
+    exec(compile(EMBEDDED_FILES[name + ".py"], name + ".py", "exec"), vars(module))
+    return module
+
+
+@pytest.mark.parametrize('repo', ['mockito', 'spotbugs'])
+def test_baked_gradle_caches_are_readable_without_changing_contents(tmp_path, repo):
+    from data.multiswe.patch import preinstalled_docker
+    recipe = {'repo': repo, 'base_sha': 'a' * 40,
+              'files': {'prepare.sh': '#!/bin/bash\ntrue\n'}}
+    docker = preinstalled_docker(recipe)
+    command = docker.splitlines()[-1].removeprefix('RUN ')
+    command = command.replace('/home/' + repo, str(tmp_path))
+    for directory in ['.gradle', 'buildSrc/build/nested']:
+        cache = tmp_path / directory
+        cache.mkdir(parents=True)
+        cache.chmod(0o700)
+        artifact = cache / 'artifact'
+        artifact.write_bytes(b'baseline cache')
+        artifact.chmod(0o600)
+    subprocess.run(['bash', '-ec', command], check=True)
+    for directory in ['.gradle', 'buildSrc/build/nested']:
+        cache = tmp_path / directory
+        assert cache.stat().st_mode & 0o777 == 0o755
+        artifact = cache / 'artifact'
+        assert artifact.stat().st_mode & 0o777 == 0o644
+        assert artifact.read_bytes() == b'baseline cache'
 
 
 def original_files():
@@ -222,7 +253,8 @@ def test_insomnia_proxy_is_available_during_image_preinstallation():
 
 
 def test_extraction_batches_literal_paths_and_preserves_setup_files(tmp_path):
-    from data.multiswe import extract_fix_patch
+    extract_script = tmp_path / "extract_fix_patch.py"
+    extract_script.write_text(EMBEDDED_FILES["extract_fix_patch.py"])
     def git(*args):
         return subprocess.run(['git', *args], cwd=tmp_path, check=True, capture_output=True)
     git('init', '-q')
@@ -241,7 +273,7 @@ def test_extraction_batches_literal_paths_and_preserves_setup_files(tmp_path):
         (tmp_path/path).write_text('new\n')
     (tmp_path/'new-test.js').write_text('test only\n')
     output = tmp_path/'.git/fix.patch'
-    subprocess.run([sys.executable, extract_fix_patch.__file__, str(tmp_path), base, str(output)], check=True)
+    subprocess.run([sys.executable, str(extract_script), str(tmp_path), base, str(output)], check=True)
     assert (tmp_path/'dependency').read_text() == 'installed\n'
     assert not (tmp_path/'new-test.js').exists()
     assert (tmp_path/'tracked').read_text() == 'before\n'
@@ -267,8 +299,8 @@ def test_empty_fix_still_runs_tests(tmp_path):
 
 
 def test_gradle_proxy_supports_credentials_and_bypass_without_logging(tmp_path, monkeypatch):
-    from data.multiswe import gradle_proxy
-    from data.multiswe.gradle_proxy import properties, main
+    gradle_proxy = embedded_helper("gradle_proxy")
+    properties, main = gradle_proxy.properties, gradle_proxy.main
     def unavailable(*args):
         raise OSError('offline test')
     monkeypatch.setattr(gradle_proxy, 'build_opener', unavailable)
@@ -289,7 +321,7 @@ def test_gradle_proxy_supports_credentials_and_bypass_without_logging(tmp_path, 
 
 @pytest.mark.parametrize('proxy_status,direct_status,bypass', [(429, 200, True), (200, 200, False), (429, 403, False)])
 def test_gradle_direct_fallback_requires_rate_limit_and_success(tmp_path, monkeypatch, proxy_status, direct_status, bypass):
-    from data.multiswe import gradle_proxy
+    gradle_proxy = embedded_helper("gradle_proxy")
     from urllib.error import HTTPError
     monkeypatch.setenv('GRADLE_USER_HOME', str(tmp_path))
     monkeypatch.setenv('https_proxy', 'http://proxy.example:3128')
@@ -411,7 +443,7 @@ def test_expected_missing_source_requires_baseline_and_reference_evidence():
 @pytest.mark.parametrize('fail', [False, True])
 @pytest.mark.parametrize('repo_kind', ['example', 'mockito'])
 def test_preinstallation_failure_is_fatal_and_dependencies_remain(tmp_path, monkeypatch, fail, repo_kind):
-    from data.multiswe import preinstall as installer
+    installer = embedded_helper("preinstall")
     repo = tmp_path/'home'/repo_kind
     repo.mkdir(parents=True)
     def git(*args):
@@ -491,8 +523,8 @@ def test_fastjson_preinstalls_dependencies_but_keeps_verifier_tests():
 
 @pytest.mark.parametrize('fail', [False, True])
 def test_maven_wrapper_proxy_reaches_bootstrap_and_is_restored(monkeypatch, fail):
-    from data.multiswe.gradle_proxy import properties
-    from data.multiswe.maven_proxy import maven_wrapper_proxy
+    properties = embedded_helper("gradle_proxy").properties
+    maven_wrapper_proxy = embedded_helper("maven_proxy").maven_wrapper_proxy
     monkeypatch.setenv('MAVEN_OPTS', '-Xmx512m')
     monkeypatch.setenv('https_proxy', 'http://build-proxy.invalid:3128')
     monkeypatch.setenv('no_proxy', 'localhost,.example.invalid')

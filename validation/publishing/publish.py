@@ -13,19 +13,23 @@ import sys
 from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from validation.contract import read, task_records
+from validation.contract import read, task_digest, task_records
+from validation.stages.layout import LAYOUT, NOP, REFERENCE
 from validation.data.materialize import parquet_files
 from validation.data.selection import discover_tasks
 from validation.publishing.outcome_labels import execution_label, labels as outcome_labels
 from validation.publishing import patch_provenance
 from validation.publishing.pr_tables import cell, primary_label, label_table
 
-GATES = (1, 3, 4, 5)
+GATES = (1, 2, 3, 4)
 # Start failures that come from the node or the bridge, not from the task's image.
 NODE_FAILURE = re.compile(r'timed out after|waited \d+ s for a worker or Slurm step|TimeoutError during start|'
                           r'Container environment damaged|'
                           r'No space left on device|no LD_PRELOAD in fakeroot|BridgeOutage|workers? (?:are )?dead', re.I)
-COLUMNS = ('path', 'task_binary', 'content_sha256', 'stages_passed', 'archive_stage', 'archive_reason', 'run',
+# The repository holds one folder per dataset (README, tasks, archive, patch.py, cached_images).
+# The run record, the image manifest and patcher snapshots stay in the local publish folder.
+LOCAL_ONLY = ('runs/', 'evidence/', 'images/manifests/')
+COLUMNS = ('stage_layout', 'path', 'task_binary', 'content_sha256', 'stages_passed', 'archive_stage', 'archive_reason', 'run',
            'validation_labels', 'archive_labels', 'patch_labels', 'patch_changed', 'source_task_id')
 
 
@@ -35,10 +39,50 @@ def stage_reports(source):
     paths = [*source.glob('stage-*.json'), *source.glob('stage_*/*/summary.json')]
     for path in sorted(paths, key=lambda p: p.stat().st_mtime):
         report = json.loads(path.read_text())
+        from validation.stages.layout import require_layout
+        require_layout(report)
         found[int(report['stage'])] = report
     if not found:
         raise ValueError(f'no stage reports in {source}')
     return found
+
+
+def validated_contract(reports_dir, contract, reports, work):
+    """The contract the reports were judged under.
+
+    With automatic path normalization the job validates a derived contract whose
+    instructions carry the path edits; the submission's evidence keeps it as
+    contract.json with its tasks. Publishing the prepared contract instead would
+    drop those edits, so it is used only when the reports name it."""
+    recorded = {r.get('contract_sha256') for r in reports.values()} - {None}
+    if not recorded or recorded == {contract['sha256']}:
+        return contract
+    archive = Path(reports_dir).parent / 'evidence.tar.gz'
+    if len(recorded) != 1 or not archive.is_file():
+        raise ValueError('stage reports belong to another contract')
+    import tarfile
+    target = Path(work) / 'validated-contract'
+    with tarfile.open(archive) as tar:
+        names = set(tar.getnames())
+        if 'contract.json' not in names:
+            raise ValueError('stage reports belong to another contract, and the evidence has no derived contract')
+        derived = json.loads(tar.extractfile('contract.json').read())
+        manifest = derived['task_manifest']['path']
+        members = [m for m in tar.getmembers() if m.name in ('contract.json', manifest) or m.name.startswith('tasks/')]
+        tar.extractall(target, members=members, filter='data')
+    derived = read(target / 'contract.json')
+    parent = ((derived.get('dataset') or {}).get('normalization') or {}).get('parent_contract_sha256')
+    if derived['sha256'] not in recorded or parent != contract['sha256']:
+        raise ValueError('the derived contract in the evidence does not belong to these reports and this contract')
+    for task in task_records(derived):
+        if task_digest(target / 'tasks' / task['task_id']) != task['sha256']:
+            raise ValueError(f"derived task {task['task_id']} differs from its contract")
+    derived['arguments']['tasks'] = str(target / 'tasks')
+    # The derived contract's source is the job's temporary copy; the patcher output
+    # the prepared contract started from is what the patch manifests describe.
+    original = (contract['dataset'].get('normalization') or {}).get('original_path')
+    derived['dataset']['normalization'] = dict(derived['dataset']['normalization'], original_path=original)
+    return derived
 
 
 def failed_checks(item, not_required=(), status='failed'):
@@ -50,9 +94,9 @@ def require_complete(reports_dir, contract_path, skipped_stages=None):
     """Prevent an interrupted automatic run from opening a partial-data PR."""
     frozen = read(contract_path)
     skipped_stages = skipped_stages or {}
-    if skipped_stages and (set(skipped_stages) != {'4'} or frozen['stages'] != [1, 3, 5] or
-            not isinstance(skipped_stages['4'], str) or not skipped_stages['4'].strip()):
-        raise ValueError('Only an explicit no-reference-solution stage-4 exception is supported')
+    if skipped_stages and (set(skipped_stages) != {str(REFERENCE)} or frozen['stages'] != [1, NOP, 4] or
+            not isinstance(skipped_stages[str(REFERENCE)], str) or not skipped_stages[str(REFERENCE)].strip()):
+        raise ValueError(f'Only an explicit no-reference-solution stage-{REFERENCE} exception is supported')
     expected = {t['task_id'] for t in task_records(frozen)}
     reports = stage_reports(reports_dir)
     for stage in GATES:
@@ -71,11 +115,11 @@ def require_complete(reports_dir, contract_path, skipped_stages=None):
 
 def build_blocked(stage, item, reports):
     """A deliberate downstream skip is complete only with matching build evidence."""
-    if stage not in (4, 5) or item.get('status') != 'skipped' or item.get('blocked_by_stage') != 3:
+    if stage not in (REFERENCE, NOP) or item.get('status') != 'skipped' or item.get('blocked_by_stage') != 1:
         return False
-    build = reports.get(3, {})
+    build = reports.get(1, {})
     return bool(build.get('complete') and not build.get('dry_run') and any(
-        Path(previous['task']).name == Path(item['task']).name and judge(3, previous)[0] == 'archive'
+        Path(previous['task']).name == Path(item['task']).name and judge(1, previous)[0] == 'archive'
         for previous in build.get('items', [])))
 
 
@@ -92,7 +136,9 @@ def judge(stage, item, not_required=()):
         # Say what was observed, not only that it never matched.
         cause = next((str(f) for f in item.get('findings', []) if not str(f).startswith('not robust')), '')
         return 'archive', reason + ('; ' + cause[:300] if cause else '')
-    if stage == 1:
+    if stage == 1 and item.get('environment_static', {}).get('status') != 'passed' and 'environment_static' in item:
+        return judge(4, item['environment_static'], not_required)
+    if stage == 4:
         if status == 'error':          # the checks could not be run on this task at all
             return 'not_run', 'static checks could not run: ' + str(item.get('error', 'unknown'))[:300]
         failed = failed_checks(item, not_required)
@@ -101,11 +147,14 @@ def judge(stage, item, not_required=()):
         # A check that timed out or crashed has not judged the task.
         errors = failed_checks(item, not_required, 'error')
         return ('not_run', 'static checks did not finish: ' + ', '.join(errors)) if errors else ('passed', '')
-    if stage in (4, 5) and execution_label(item):
+    if stage in (REFERENCE, NOP) and execution_label(item):
         return 'not_run', '; '.join(map(str, item.get('findings', [])))[:300] or str(item.get('reason') or status)
     if status == 'passed':
         return 'passed', ''
-    if stage == 3:
+    if stage == 1 and item.get('environment_leak'):
+        # The container built and started; what the agent could read decides the task.
+        return ('archive' if item['environment_leak'] == 'failed' else 'not_run'), item['reason'][:500]
+    if stage == 1:
         if item.get('build_stability') == 'unstable_build' and len(item.get('build_attempts', [])) == 4:
             return 'archive', item['reason']
         reason = item.get('reason') or '; '.join(
@@ -125,8 +174,8 @@ def judge(stage, item, not_required=()):
     if status in ('skipped', 'previewed', 'error') or any('exception' in f or 'missing numeric reward' in f
                                                           or 'trials, found' in f for f in findings):
         return 'not_run', '; '.join(findings)[:300] or str(item.get('reason') or status)
-    wanted = 1 if stage == 4 else 0
-    return 'archive', f"{'oracle' if stage == 4 else 'no-answer'} reward {item.get('rewards')} instead of {wanted}"
+    wanted = 1 if stage == REFERENCE else 0
+    return 'archive', f"{'oracle' if stage == REFERENCE else 'no-answer'} reward {item.get('rewards')} instead of {wanted}"
 
 
 def decide(reports, task_ids, not_required=()):
@@ -159,9 +208,9 @@ def decide(reports, task_ids, not_required=()):
 def task_seconds(stage, item):
     """Measured time of one task in a stage: its checks, its container start, inspection and stop,
     or its trials. None when the report recorded no times."""
-    if stage == 1:
+    if stage == 4:
         values = [c.get('duration_seconds') for c in item.get('checks', [])]
-    elif stage == 3:
+    elif stage == 1:
         values = [v for e in item.get('environments', []) for v in (e.get('timings_seconds') or {}).values()]
     else:
         values = item.get('trial_seconds') or []
@@ -283,6 +332,8 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
         passed, archive = list(decision['passed']), decision['archive']
         # Results carry over only for unchanged content; an earlier archive decision stands.
         if before and before.get('content_sha256') == hashes[task]:
+            from validation.stages.layout import require_layout
+            require_layout(before)
             passed = sorted({*passed, *(int(s) for s in (before.get('stages_passed') or '').split(',') if s)})
             if before.get('archive_stage') is not None and archive is None:
                 archive = (before['archive_stage'], before['archive_reason'])
@@ -293,7 +344,7 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
             run_of_row = run_file
         if archive:
             passed = [s for s in passed if s < archive[0]]
-        record = {'path': task, 'task_binary': task_binary, 'content_sha256': hashes[task],
+        record = {'stage_layout': LAYOUT, 'path': task, 'task_binary': task_binary, 'content_sha256': hashes[task],
                   'stages_passed': ','.join(str(s) for s in passed),
                   'archive_stage': archive[0] if archive else None,
                   'archive_reason': archive[1] if archive else None, 'run': run_of_row,
@@ -326,18 +377,19 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
                 count['not_run_examples'][key].append(task)
     profile = contract['execution_profile']
     record = {
-        'run': run_id, 'name': name, 'created_at': datetime.now(timezone.utc).isoformat(),
+        'stage_layout': LAYOUT, 'run': run_id, 'name': name, 'created_at': datetime.now(timezone.utc).isoformat(),
         'contract_sha256': contract['sha256'], 'dataset': contract['dataset']['source'],
         'dataset_revision': contract['dataset']['revision'], 'stages_in_contract': contract['stages'],
         'stages_reported': sorted(s for s, r in reports.items() if r.get('complete') and not r.get('dry_run')),
         'execution_profile': {k: profile.get(k) for k in ('backend', 'architecture', 'network', 'network_guarantee', 'privileges', 'validation_container_reuse')},
         'static_checkpoint': contract.get('static_checkpoint'),
-        'static_resume': reports.get(1, {}).get('resumed_from'),
+        'static_resume': reports.get(4, {}).get('resumed_from'),
         'static_checks': contract['success_criteria']['static_checks'],
         'static_exclusions': contract['success_criteria']['static_exclusions'],
         'not_required_checks': sorted(not_required),
-        'rules': {'1': 'archive if any static check fails', '3': 'archive if the container does not build or start',
-                  '4': 'archive if the oracle reward is not 1', '5': 'archive if the no-answer reward is not 0',
+        'rules': {'1': 'archive if environment static checks fail, the container does not build or start, or the started agent container leaks the fix (unreachable or newer git objects, mtime-singled-out files)',
+                  '3': 'archive if the reference reward is not 1', '2': 'archive if the no-op reward is not 0',
+                  '4': 'archive if task-quality static checks fail',
                   'other': 'never archive'},
         'validation_code': 'https://github.com/MLI-lab/OT-next-data/tree/main/validation',
         'stage_timings': stage_timings(reports),
@@ -370,8 +422,9 @@ def build(contract, reports, mapping, not_required=(), previous=None, run_id=Non
 ANALYSIS_PROMPT = """You review the outcome of a validation run over a dataset of agent tasks.
 The run summary at the end lists, for each data source, how many tasks were kept or archived,
 the archive reasons with counts and example task IDs, and the reasons why some stages did not run.
-Stage 1 = static checks, 3 = container build, 4 = oracle solution must get reward 1,
-5 = doing nothing must get reward 0.
+Stage 1 = environment static preflight and container build/runtime validation;
+stage 2 = reference solution must get reward 1; stage 3 = no-op must get reward 0;
+stage 4 = task-quality static checks; stage 5 = LLM task-quality review.
 
 Group the archived and not-run tasks by cause and say, for each group, whether it looks like
 (a) a defect of the tasks, (b) an infrastructure or tooling failure, or (c) a check that does
@@ -454,7 +507,7 @@ def analysis_text(analysis):
 
 
 def reproducibility_text(retries):
-    """Stage 4 and 5 reruns: how often a single run reproduced the earlier audit, or recovered a crash."""
+    """Stage 1 through 3 reruns: how often a single run reproduced the earlier audit, or recovered a crash."""
     if not retries:
         return []
     lines = ['### Reproducibility and retries', '',
@@ -470,7 +523,7 @@ def reproducibility_text(retries):
         not_robust += [f'stage {stage}: {cell(task)}' for task in summary['not_robust']]
     lines += ['', 'Expected outcomes come from an earlier audit of the same tasks (matched by task ID). '
               'A task whose result differs from that audit is rerun up to the retry limit; a task that never matches is archived as not robust. '
-              'Without an expectation only tasks with no result (crash, node failure, missing reward or missing runner evidence) are rerun, and a task still without a result after the last attempt is archived as not robust. Stages 3, 4 and 5 are covered; the retries run after the whole pipeline.', '']
+              'Without an expectation only tasks with no result (crash, node failure, missing reward or missing runner evidence) are rerun, and a task still without a result after the last attempt is archived as not robust. Stages 1, 2 and 3 are covered; the retries run after the whole pipeline.', '']
     notes = {s.get('expected_outcomes_note') for s in retries.values() if s.get('expected_outcomes_note')}
     for note in sorted(notes):
         lines += ['Expected outcomes: ' + cell(note), '']
@@ -527,7 +580,8 @@ def description(record, repo=None, revision=None):
         if source.get('url'):
             source_text = f"[{source_text}]({source['url']})"
         revision_text = f" at commit `{cell(source['revision'])}`" if source.get('revision') else ''
-        patches = evidence.get('patches', [])
+        # Manifests may list bare patch version names instead of patch records.
+        patches = [p if isinstance(p, dict) else {'version': p} for p in evidence.get('patches', [])]
         versioned = [p for p in patches if p.get('patcher_sha256') or p.get('patcher')] or patches
         versions = list(dict.fromkeys(p['version'] for p in versioned if p.get('version')))
         patch_text = ' Patch version: ' + ', '.join(f'`{cell(v)}`' for v in versions) + '.' if versions else ''
@@ -558,7 +612,7 @@ def description(record, repo=None, revision=None):
                       'Reasons are in the run file.']
     if record.get('environment_images'):
         images = record['environment_images']
-        lines += ['', f"Image manifest: `{images['manifest']}`. Cached images use Apptainer; Dockerfiles remain in the tasks."]
+        lines += ['', 'Cached images use Apptainer and are listed in the Parquet metadata; Dockerfiles remain in the tasks.']
     if record.get('dataset_cards'):
         lines += ['', 'Automatically generated data card:', '']
         for folder, card in record['dataset_cards'].items():
@@ -573,13 +627,12 @@ def description(record, repo=None, revision=None):
         lines += ['', f'<details><summary>Validation details ({cell(folder)})</summary>', '']
         lines += [f'- {note}' for note in notes]
         lines += ['', '</details>']
-    links = {record.get('run_file', f"runs/{record['run']}.json"): 'Validation results and upstream comparison'}
+    links = {}
     for folder in record['data_sources']:
         links[f'{folder}/tasks.parquet'] = f'{folder}: dataset'
         links[f'{folder}/archive.parquet'] = f'{folder}: archived tasks'
-    for folder, scripts in record.get('patcher_scripts', {}).items():
-        for script in scripts:
-            links[script['path']] = f'{folder}: patch script'
+    for folder in record.get('patcher_scripts', {}):
+        links[f'{folder}/patch.py'] = f'{folder}: patch script'
     links.update(record.get('evidence_links', {}))
     for path, info in (record.get('trajectories') or {}).get('files', {}).items():
         links[path] = f"{path.split('/')[-2]}: {info['rows']} attempts of {path.rsplit('/', 1)[-1][:-len('.parquet')]} (trajectory, verifier record, reward)"
@@ -599,7 +652,7 @@ def write(tables, record, run_file, out, cards=None, image_manifest=None):
     import pyarrow as pa
     import pyarrow.parquet as pq
     out = Path(out)
-    schema = pa.schema([('path', pa.string()), ('task_binary', pa.binary()), ('content_sha256', pa.string()),
+    schema = pa.schema([('stage_layout', pa.string()), ('path', pa.string()), ('task_binary', pa.binary()), ('content_sha256', pa.string()),
                         ('stages_passed', pa.string()), ('archive_stage', pa.int64()),
                         ('archive_reason', pa.string()), ('run', pa.string()),
                         ('validation_labels', pa.list_(pa.string())), ('patch_labels', pa.list_(pa.string())),
@@ -632,6 +685,18 @@ def write(tables, record, run_file, out, cards=None, image_manifest=None):
     return [*files, run_file]
 
 
+def repository_patchers(record, out):
+    """Copy each folder's patcher snapshot to <folder>/patch.py, the name kept in the repository."""
+    files = []
+    for folder, scripts in record.get('patcher_scripts', {}).items():
+        if len({s['sha256'] for s in scripts}) != 1:
+            raise ValueError(f'{folder}: expected one patcher snapshot, found {len(scripts)}')
+        target = Path(out) / folder / 'patch.py'
+        target.write_bytes((Path(out) / scripts[0]['path']).read_bytes())
+        files.append(f'{folder}/patch.py')
+    return files
+
+
 def add_conversion_archives(tables, record, run_file, paths, mapping):
     """Carry reviewed converter exclusions into archives, cards and PR counts.
 
@@ -661,7 +726,7 @@ def add_conversion_archives(tables, record, run_file, paths, mapping):
             tables[folder][1].append({
                 'path': name, 'task_binary': row['task_binary'],
                 'content_sha256': hashes[name],
-                'stages_passed': '', 'archive_stage': 0, 'archive_reason': reason, 'run': run_file,
+                'stage_layout': LAYOUT, 'stages_passed': '', 'archive_stage': 0, 'archive_reason': reason, 'run': run_file,
                 'validation_labels': [], 'patch_labels': row.get('patch_labels') or [],
                 'archive_labels': ['patch-drop:' + category],
                 'source_task_id': row.get('source_task_id') or name})
@@ -685,6 +750,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('reports', type=Path, help="a submission's report/ directory, or a results directory")
     ap.add_argument('--contract', type=Path, required=True)
+    ap.add_argument('--run', action='append', default=[], metavar='REPORTS=CONTRACT',
+                    help='a later run to combine with the first; repeat in order, needs --tasks')
+    ap.add_argument('--tasks', type=Path, help='final task Parquet when combining runs')
     ap.add_argument('--repo', default='FWeindel/validated-tasks')
     ap.add_argument('--folder', action='append', default=[], metavar='PREFIX=FOLDER',
                     help='data source folder for task IDs starting with PREFIX; default is the ID without its number')
@@ -716,7 +784,8 @@ def main():
                      readme=a.readme, readme_model=a.readme_model, readme_evidence=a.readme_evidence,
                      readme_seed=a.readme_seed, readme_work_dir=a.readme_work_dir, readme_force=a.readme_force,
                      conversion_archives=a.conversion_archive, patch_manifests=a.patch_manifest, image_cache=a.image_cache,
-                     trajectories=not a.no_trajectories, note=a.note)
+                     trajectories=not a.no_trajectories, note=a.note,
+                     runs=[tuple(Path(p) for p in r.split('=', 1)) for r in a.run], tasks=a.tasks)
     print(result['description'])
     print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
           if a.dry_run else f"Pull request: {result['pull_request']}")
@@ -735,15 +804,25 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             readme=False, readme_model='claude-fable-5-1', readme_evidence=(),
             readme_seed=0, readme_work_dir=None, annotation_runner=None, readme_force=False,
             conversion_archives=(), patch_manifests=(), image_cache=None, agent_patch_repair_loop=False,
-            patch_repair_summary=None, skipped_stages=None, trajectories=True, note=None):
-    """Build the files for one run and open the pull request; returns what was done."""
-    contract = read(contract_path)
-    if skipped_stages:
-        require_complete(reports_dir, contract_path, skipped_stages=skipped_stages)
-    reports = stage_reports(reports_dir)
-    for stage, report in reports.items():
-        if report.get('contract_sha256') not in (None, contract['sha256']):
-            raise ValueError(f'stage {stage} report belongs to another contract')
+            patch_repair_summary=None, skipped_stages=None, trajectories=True, note=None,
+            runs=(), tasks=None):
+    """Build the files for one run and open the pull request; returns what was done.
+
+    `runs` adds later (reports_dir, contract_path) runs; `tasks` is then the final task
+    Parquet and each task takes its latest result over the same content (see combine).
+    """
+    if runs:
+        if not tasks or skipped_stages:
+            raise ValueError('combining runs needs the final task Parquet and no skipped stages')
+        from validation.publishing.combine import combine
+        work = Path(out) if out else Path(reports_dir) / 'publish'
+        contract, reports = combine([(reports_dir, contract_path), *runs], tasks, work / 'combined')
+    else:
+        if skipped_stages:
+            require_complete(reports_dir, contract_path, skipped_stages=skipped_stages)
+        reports = stage_reports(reports_dir)
+        contract = validated_contract(reports_dir, read(contract_path), reports,
+                                      Path(out) if out else Path(reports_dir) / 'publish')
     mapping = dict(item.split('=', 1) for item in folders)
     checks = [c if c.endswith('.sh') else f"check-{c.removeprefix('check-')}.sh" for c in not_required]
     cache = {}
@@ -765,11 +844,14 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
                             patch_provenance.source_binaries(contract) if patch_manifests else None)
     patch_provenance.attach_automations(record, tables, contract)
     from validation.publishing.pr_runtime import collect
-    record['runtime_summary'] = collect(contract, reports_dir)
+    # A combined publish reports the runtime of its first (main) run.
+    record['runtime_summary'] = collect(read(contract_path) if runs else contract, reports_dir)
+    if runs:
+        record['combined_runs'] = contract['combined_runs']
     if analysis:
         record['analysis'] = analyse(record, tables, analysis_model, call)
     out = Path(out) if out else Path(reports_dir) / 'publish'
-    patcher_files = patch_provenance.stage_patchers(record, patch_manifests, out)
+    patch_provenance.stage_patchers(record, patch_manifests, out)
     cards = None
     if readme_evidence and not readme:
         raise ValueError('--readme-evidence requires --readme')
@@ -820,7 +902,7 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
     (out / manifest_path).parent.mkdir(parents=True, exist_ok=True)
     (out / manifest_path).write_text(json.dumps(manifest, indent=2) + '\n')
     files = write(tables, record, run_file, out, cards, manifest if manifest['tasks'] else None)
-    files.extend([manifest_path, *patcher_files])
+    files.extend(repository_patchers(record, out))
     submission = Path(reports_dir).parent
     if trajectories and 6 in reports and (submission / 'request.json').is_file():
         # A run with agent trials publishes the attempts behind its numbers: every trial's
@@ -832,6 +914,7 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             lambda task: folder_of(task, mapping))
         files.extend(extra)
         (out / run_file).write_text(json.dumps(record, indent=2) + '\n')
+    files = [name for name in files if not name.startswith(LOCAL_ONLY) or '/trajectories/' in name]
     result = {'run': record['run'], 'files': [*artifacts, *files], 'out': str(out), 'description': description(record),
               'analysis': (record.get('analysis') or {}).get('status')}
     if dry_run:

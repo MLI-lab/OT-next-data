@@ -120,7 +120,7 @@ def test_srun_messages_are_no_longer_suppressed(monkeypatch):
 def test_start_time_limits_are_not_a_verdict_on_the_task(error, expected):
     item = {'status': 'error', 'environments': [{'environment': 'agent', 'status': 'error', 'error': error,
                                                  'timings_seconds': {'start': 600.0}}]}
-    assert judge(3, item)[0] == expected
+    assert judge(1, item)[0] == expected
 
 
 def test_bridge_server_reports_waiting(monkeypatch):

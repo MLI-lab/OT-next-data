@@ -2,8 +2,8 @@
 
 ## Dataset stats
 
-- **Tasks:** 3,566 original → 3,336 retained, all 3,336 patched; 230 archived.
-- **Image definitions:** 3,566 original → 3,336 retained task Dockerfiles (3,326 distinct); 3,336 runtime build contexts. No consolidation. Cached artifacts: none published yet.
+- **Tasks:** 3,566 original → 3,336 kept, all 3,336 patched; 230 archived.
+- **Image definitions:** 3,566 original → 3,336 kept task Dockerfiles (3,326 distinct); 3,336 runtime build contexts. No consolidation. Cached artifacts: none published yet.
 
 ## Dataset characteristics
 
@@ -24,12 +24,12 @@ Exploration, Error Recovery and Specification Adherence; specialized tasks also 
 
 ## Per-stage breakdown
 
-Counts cover retained tasks; repair categories overlap. Archives are counted at their first failing stage.
+Counts cover kept tasks; repair categories overlap. Archives are counted at their first failing stage.
 
-- **Rule-based checks:** 3,336 timeout/anti-cheating instruction repairs (`check-instruction-suffix.sh`); 141 archived: 135 relative instruction paths (`check-task-absolute-path.sh`), 3 host-directory binds (`check-compose-host-binds.sh`), 3 host CPU-count calls (`check-nproc.sh`). These preserve recorded exclusions; file-reference and pip-pin findings were advisory.
-- **Build and setup:** 2,060 repaired for Apptainer and the Marin Harbor bridge with repository patches: 1,911 COPY destinations/renames, 149 files hidden by temporary mounts, 28 environment-variable expansions, 2 initial-file repairs, 1 missing build helper, 1 wildcard COPY. All 3,336 retained tasks passed. Another 54 archived: 12 missing/changed runtime files, 12 dependency failures, 9 incomplete checks, 7 startup failures, 6 absent COPY inputs, 3 image-preparation failures, 2 COPY collisions, 2 unsupported sidecars, 1 unavailable build command.
-- **Reference solution (reward 1):** skipped; no reference solutions.
+- **Build and setup:** 2,060 repaired for Apptainer and the Marin Harbor bridge with repository patches: 1,911 COPY destinations/renames, 149 files hidden by temporary mounts, 28 environment-variable expansions, 2 initial-file repairs, 1 missing build helper, 1 wildcard COPY. All 3,336 kept tasks passed. Another 54 archived: 12 missing/changed runtime files, 12 dependency failures, 9 incomplete checks, 7 startup failures, 6 absent COPY inputs, 3 image-preparation failures, 2 COPY collisions, 2 unsupported sidecars, 1 unavailable build command.
 - **No-op baseline (reward 0):** 3,336 passed; 35 archived: 2 rewarded no work, 28 ran no tests, 5 timed out. No verifier repairs.
+- **Reference solution (reward 1):** skipped; no reference solutions.
+- **Rule-based checks:** 3,336 timeout/anti-cheating instruction repairs (`check-instruction-suffix.sh`); 141 archived: 135 relative instruction paths (`check-task-absolute-path.sh`), 3 host-directory binds (`check-compose-host-binds.sh`), 3 host CPU-count calls (`check-nproc.sh`). These preserve recorded exclusions; file-reference and pip-pin findings were advisory.
 
 Uses [historical checks and reruns](https://huggingface.co/datasets/FWeindel/validated-tasks/blob/44b082b9ad564790321d6a569c8531ed14a3393f/runs/termigen-phases-1-3-5-6-7-preview-20261014.json). Teacher results did not determine retention.
 
@@ -44,4 +44,4 @@ Uses [historical checks and reruns](https://huggingface.co/datasets/FWeindel/val
 | Rule-based checks | **0.40 s** | **0.35 s** | 3,336 |
 | Build and setup | **60.62 s** | **71.32 s** | 3,336 |
 
-Retained tasks only. Rule-based time sums the recorded checks; build/setup measures environment start, inspection and stop, excluding image builds and verification.
+Kept tasks only. Rule-based time sums the recorded checks; build/setup measures environment start, inspection and stop, excluding image builds and verification.

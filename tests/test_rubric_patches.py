@@ -288,7 +288,7 @@ def test_review_prompt_and_result_schema_use_effective_rubric(tmp_path, monkeypa
     monkeypatch.setattr(runner.runtime, 'execute_job', execute)
     monkeypatch.setattr(runner.runtime, 'trial_results', lambda *a: [(trial, {})])
     monkeypatch.setattr(runner.runtime, 'assess_trials', lambda *a, **kw: {'status': 'completed', 'findings': []})
-    result = runner.run_review(2, source, tmp_path / 'item', options, upstream, refs)
+    result = runner.run_review(5, source, tmp_path / 'item', options, upstream, refs)
     assert result['status'] == 'passed'
     assert result['verdicts'][0]['checks']['solvable']['outcome'] == ('pass' if solution_count else 'not_applicable')
     assert ('solvable' in result['automatic_skips']) == (solution_count == 0)

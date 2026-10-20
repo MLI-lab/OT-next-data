@@ -11,20 +11,23 @@ from validation import contract as contracts
 
 def checkpoint(tmp_path, monkeypatch):
     tasks = [{'task_id': 'a', 'sha256': 'aaa'}, {'task_id': 'b', 'sha256': 'bbb'}]
-    old = {'tasks': tasks, 'sha256': 'old-contract', 'stages': [3],
+    old = {'tasks': tasks, 'sha256': 'old-contract', 'stages': [1],
            'dataset': {'source': 'dataset', 'revision': 'pinned'},
            **{k: {k: 'same'} for k in
               ('execution_profile', 'runtime_dependencies', 'implementation', 'upstream')}}
     monkeypatch.setattr(contracts, 'read', lambda _: old)
-    report = {'stage': 3, 'complete': True, 'contract_sha256': old['sha256'],
+    report = {'stage_layout': 'environment-first-v2', 'stage': 1, 'complete': True, 'contract_sha256': old['sha256'],
               'items': [{'task': '/old/' + t['task_id'], 'status': 'passed',
+                         # Reusable results carry the agent's leak inspection (missing: rerun stage 1).
+                         'environments': [{'environment': 'agent', 'status': 'passed',
+                                           'leaks': {'status': 'passed', 'checks': []}}],
                          'output': '/old/logs/' + t['task_id']} for t in tasks]}
-    path = tmp_path / 'stage-3-build.json'
+    path = tmp_path / 'stage-1-build.json'
     path.write_text(json.dumps(report))
     record = tmp_path / 'checkpoint.json'
     record.write_text(json.dumps({'contract': str(tmp_path / 'old.json'), 'report': str(tmp_path)}))
     current = deepcopy(old)
-    current['stages'] = [1, 3, 4, 5]
+    current['stages'] = [1, 2, 3, 4]
     return record, current, tasks, path
 
 
@@ -34,7 +37,8 @@ def test_freeze_subset_and_restore_paths(tmp_path, monkeypatch):
     assert frozen['source_contract_sha256'] == 'old-contract'
     assert len(frozen['source_report_sha256']) == 64
     restored = stage3.restore(frozen, [Path('/new/a')])
-    assert restored == [{'task': '/new/a', 'status': 'passed', 'output': '/old/logs/a'}]
+    assert [{k: v for k, v in i.items() if k != 'environments'} for i in restored] == [
+        {'task': '/new/a', 'status': 'passed', 'output': '/old/logs/a'}]
     assert frozen['items'][0]['task'] == '/old/a'
 
 
@@ -50,17 +54,24 @@ def test_json_package_pairs_and_python_tuples_are_equivalent(tmp_path, monkeypat
 def test_reject_changed_runtime(tmp_path, monkeypatch, key):
     record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
     current[key] = {'changed': True}
-    with pytest.raises(ValueError, match='rerun stage 3'):
+    with pytest.raises(ValueError, match='rerun stage 1'):
         stage3.freeze(record, current, tasks)
 
 
-def test_code_only_change_warns_and_retains_original_evidence(tmp_path, monkeypatch, capsys):
+def test_code_change_rejects_stale_evidence(tmp_path, monkeypatch):
     record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
     current['implementation'] = {'validation/runner.py': 'updated'}
-    result = stage3.freeze(record, current, tasks)
-    assert result['source_contract_sha256'] == 'old-contract'
-    assert result['compatibility_warnings']
-    assert 'WARNING:' in capsys.readouterr().err
+    with pytest.raises(ValueError, match='changed validation implementation'):
+        stage3.freeze(record, current, tasks)
+
+
+def test_unfrozen_contract_compares_current_code(tmp_path, monkeypatch):
+    record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
+    expected = current['implementation']
+    current['implementation'] = None
+    monkeypatch.setattr(contracts, 'implementation', lambda **kwargs: expected)
+    assert stage3.freeze(record, current, tasks)['items']
+
 
 
 def test_reject_changed_tasks(tmp_path, monkeypatch):
@@ -98,11 +109,13 @@ def test_runner_imports_without_executing_builds(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, 'discover_tasks', lambda _: [tmp_path / 'tasks/a', tmp_path / 'tasks/b'])
     monkeypatch.setattr(runner, 'select_paths', lambda sources, _: sources)
     def forbidden(*args, **kwargs):
-        pytest.fail('reused stage 3 must not launch builds')
+        pytest.fail('reused stage 1 must not launch builds')
     monkeypatch.setattr(build_retries, 'run_builds', forbidden)
+    monkeypatch.setattr('validation.stages.environment_preflight.preflight',
+                        lambda sources, out, args: [{'task': str(p), 'status': 'passed', 'checks': []} for p in sources])
     args = SimpleNamespace(tasks=tmp_path / 'tasks', out=tmp_path / 'out', backend='apptainer',
                            dry_run=False, concurrency=2)
-    _, report = runner.run_stage(3, args)
+    _, report = runner.run_stage(1, args)
     assert report['complete'] and not report['has_findings']
     assert report['contract_sha256'] == 'final-contract'
     assert report['reused_from']['source_contract_sha256'] == 'old-contract'

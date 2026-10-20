@@ -78,3 +78,42 @@ def test_definition_rewrite_reaches_budget_runner_popen(tmp_path):
                  capture_output=True, text=True)
     assert 'export PATH="/opt/venv/bin:${PATH}"' in result.stdout
     assert definition.read_text() == "%post\n    export PATH='/opt/venv/bin:$PATH'\n"
+
+
+def test_env_references_to_earlier_env_and_arg_are_resolved_like_docker():
+    from harbor_patches.docker_path import resolve_env_lines
+    lines = ['FROM ubuntu:22.04', 'ARG VERSION=17', 'ENV DEBIAN_FRONTEND=noninteractive',
+             'ENV JAVA_HOME=/usr/lib/jvm/java-${VERSION}-openjdk-amd64',
+             'ENV PATH="${JAVA_HOME}/bin:${PATH}"', 'ENV PATH=/opt/tool/bin:$PATH HOME_COPY=$HOME',
+             'ENV A=1 B=$A', "ENV LITERAL='$JAVA_HOME' ESCAPED=\\$JAVA_HOME", 'RUN echo $JAVA_HOME']
+    out = resolve_env_lines(lines)
+    assert out[:4] == lines[:3] + ["ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64"]
+    assert out[4] == "ENV PATH='/usr/lib/jvm/java-17-openjdk-amd64/bin:${PATH}'"
+    # A second PATH ENV builds on the first; unknown base-image variables stay literal.
+    assert shlex.split(out[5][4:]) == ['PATH=/opt/tool/bin:/usr/lib/jvm/java-17-openjdk-amd64/bin:${PATH}',
+                                       'HOME_COPY=$HOME']
+    # Pairs of one instruction see only earlier definitions, as in Docker.
+    assert out[6] == 'ENV A=1 B=$A'
+    assert out[7] == lines[7] and out[8] == lines[8]
+
+
+def test_env_resolution_defaults_stage_reset_and_unparseable_lines():
+    from harbor_patches.docker_path import resolve_env_lines
+    out = resolve_env_lines(['FROM a AS build', 'ENV X=1', 'FROM b', 'ENV Y=${X:-fallback} Z=${X}',
+                             'ENV X=', 'ENV W=${X:-d} V=${X:+alt}', 'ENV LEGACY value $X', 'ENV BAD="open'])
+    assert out[3] == 'ENV Y=${X:-fallback} Z=${X}'
+    assert out[5] == 'ENV W=d V=' + "''"
+    assert out[6:] == ['ENV LEGACY value $X', 'ENV BAD="open']
+
+
+def test_resolved_env_reaches_generated_definition(tmp_path):
+    from harbor_patches.docker_path import logical_lines
+    from harbor.environments.apptainer import worker
+    dockerfile = tmp_path / 'Dockerfile'
+    dockerfile.write_text('FROM ubuntu:22.04\nENV JAVA_HOME=/usr/lib/jvm/java-17\n'
+                          'ENV PATH="${JAVA_HOME}/bin:${PATH}"\nRUN java -version\n')
+    lines = logical_lines(worker._dockerfile_logical_lines)(str(dockerfile))
+    rendered = path_exports('export PATH=' + shlex.quote(shlex.split(lines[2][4:])[0].partition('=')[2]))
+    result = subprocess.run(['/bin/sh', '-c', rendered + '\nprintf "%s" "$PATH"'],
+                            env={'PATH': '/usr/bin'}, capture_output=True, text=True, check=True)
+    assert result.stdout == '/usr/lib/jvm/java-17/bin:/usr/bin'

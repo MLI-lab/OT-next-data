@@ -29,7 +29,7 @@ def fixture(tmp_path, legacy=False):
                       architecture=platform.machine(), format='apptainer-sif')
     cache = tmp_path / 'cache'
     bundle = cache_publish(image, cache, provenance=None if legacy else provenance)
-    row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='1,3,4,5')
+    row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='1,2,3,4')
     tables = {'example': ([row, dict(row, path='task-2')], [])}
     return task, cache, bundle, tables
 
@@ -71,7 +71,7 @@ def test_legacy_unvalidated_and_changed_tasks_not_exported(tmp_path):
     task, cache, bundle, tables = fixture(tmp_path, legacy=True)
     manifest, artifacts = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
     assert not artifacts and len(manifest['missing']) == 2
-    tables['example'][0][0]['stages_passed'] = '1'
+    tables['example'][0][0]['stages_passed'] = '4'
     manifest, _ = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
     assert len(manifest['missing']) == 1
     tables['example'][0][1]['content_sha256'] = '0' * 64
@@ -87,7 +87,7 @@ def test_dataset_scoped_cached_images(tmp_path, monkeypatch, folder):
     remapped = {}
     for record in manifest['bundles'].values():
         old = record['prefix']
-        record['prefix'] = folder + '/cached_images/' + old.removeprefix('images/')
+        record['prefix'] = folder + '/cached_images/' + old.split('/cached_images/', 1)[1]
         for name in record['files']:
             remapped[record['prefix'] + '/' + name] = artifacts[old + '/' + name]
     parquet = write_parquet(tmp_path, tables, manifest, monkeypatch)
@@ -150,7 +150,7 @@ def test_publisher_pins_artifact_commit_in_same_pr(tmp_path, monkeypatch):
             commits.append(kwargs)
             if len(commits) == 1:
                 assert kwargs['create_pr'] is True
-                assert all(op.path_in_repo.startswith('images/bundles-v1/') for op in kwargs['operations'])
+                assert all(op.path_in_repo.startswith('example/cached_images/bundles-v1/') for op in kwargs['operations'])
                 return SimpleNamespace(oid='a' * 40, pr_revision='refs/pr/7', pr_url='https://example/pr/7')
             assert kwargs['create_pr'] is False
             assert kwargs['revision'] == 'refs/pr/7'
@@ -216,7 +216,7 @@ def test_explicit_runtime_context_keeps_nested_exercise_inputs(tmp_path):
     cache = tmp_path / 'updated-cache'
     cache_publish(image, cache, provenance=dict(pristine=True, builder='hpc.image_cache',
         environment_sha256=new_hash, architecture=platform.machine(), format='apptainer-sif'))
-    row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='3')
+    row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='1')
     manifest, _ = release.prepare_release({'example': ([row], [])}, cache, tmp_path / 'selected',
                                           'org/tasks', environment_paths=('environment',))
     assert not manifest['missing']

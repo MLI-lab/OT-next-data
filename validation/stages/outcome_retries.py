@@ -3,7 +3,7 @@
 The pipeline runs its configured stages once. Then every task is classified the
 way the publisher classifies it, passed, archive or not run, and the tasks
 without a result are rerun in the stages that produced none, up to
-``--outcome-retries`` more attempts (stage 3 first, then 4, then 5, so a build
+``--outcome-retries`` more attempts (stage 1 first, then 2, then 3, so a build
 that recovers lets its trials run in the same round). A wrong reward or a failed
 build is a result and is not retried. A task still without a result after the
 last attempt is archived as not robust under this infrastructure, so one run
@@ -16,15 +16,15 @@ same ID, any difference is rerun the same way, and a task that never reproduces
 the audit is archived as not robust with every observed outcome. Tasks absent
 from the file follow the classifier rule.
 
-Stage 1 is left out: its checks are deterministic and the pipeline rewrites some
+Stage 4 is left out: its checks are deterministic and the pipeline rewrites some
 task files itself before running them.
 """
 from collections import Counter
 import json
 from pathlib import Path
 
-FORMAT = 'ot-expected-outcomes-v1'
-STAGES = (3, 4, 5)
+FORMAT = 'ot-expected-outcomes-v2'
+STAGES = (1, 2, 3)
 
 
 def load_expectations_file(path):
@@ -99,9 +99,9 @@ def retry_round(stage_runs, args, contract, batch_for, save):
             break
         for n in stages:
             tasks = pending(n)
-            if n in (4, 5) and 3 in stages:
+            if n in (2, 3) and 1 in stages:
                 # A trial needs its container; wait for the build to come back first.
-                tasks = [t for t in tasks if history[3].get(t, {}).get('outcomes', ['passed'])[-1] == 'passed']
+                tasks = [t for t in tasks if history[1].get(t, {}).get('outcomes', ['passed'])[-1] == 'passed']
             if not tasks:
                 continue
             report_path, report = stage_runs[n]

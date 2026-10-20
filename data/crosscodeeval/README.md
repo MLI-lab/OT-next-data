@@ -2,7 +2,7 @@
 
 ## Dataset stats
 
-- **Tasks:** 7,763 original → 6,710 retained, all 6,710 patched; 1,053 archived.
+- **Tasks:** 7,763 original → 6,710 kept, all 6,710 patched; 1,053 archived.
 - **Images:** 3 original → 3 current definitions; 3 [cached Apptainer bundles](https://huggingface.co/datasets/FWeindel/validated-tasks/tree/main/crosscodeeval_v1/cached_images). No consolidation.
 
 ## Dataset characteristics
@@ -24,14 +24,14 @@ Complete the next statement in a real C#, Java, Python or TypeScript repository 
 
 ## Per-stage breakdown
 
-Counts cover retained tasks; repair categories overlap.
+Counts cover kept tasks; repair categories overlap.
 
-- **Rule-based checks:** 6,710 retain the timeout/anti-cheating instruction (`instruction-suffix`) and context guidance; 0 archived by this validation stage. Patcher rules separately archived 1,043 tasks with required identifiers absent from available context and 10 whose scored answer contained no identifiers. All 6,710 retain restored cross-file excerpts with answer leakage removed.
 - **Build and setup:** 6,710 received pinned verifier dependencies; 6,710 passed, 0 archived. Docker definitions were converted to Apptainer for the Marin Harbor bridge and repository runtime patches.
-- **Reference solution (reward 1):** reference solutions added to all 6,710; all passed, 0 archived.
 - **No-op baseline (reward 0):** scoring repaired in all 6,710 to reject incomplete prefix matches and normalize comments/whitespace; all passed, 0 archived.
+- **Reference solution (reward 1):** reference solutions added to all 6,710; all passed, 0 archived.
+- **Rule-based checks:** 6,710 retain the timeout/anti-cheating instruction (`instruction-suffix`) and context guidance; 0 archived by this validation stage. Patcher rules separately archived 1,043 tasks with required identifiers absent from available context and 10 whose scored answer contained no identifiers. All 6,710 retain restored cross-file excerpts with answer leakage removed.
 
-Results are from the [historical validation](https://huggingface.co/datasets/FWeindel/validated-tasks/blob/b8a56dc21aa9f78340048a367e70852c59d01ff8/runs/2026-10-03-c536bae24db8.json); retained task payloads are unchanged.
+Results are from the [historical validation](https://huggingface.co/datasets/FWeindel/validated-tasks/blob/b8a56dc21aa9f78340048a367e70852c59d01ff8/runs/2026-10-03-c536bae24db8.json); kept task payloads are unchanged.
 
 ## Runtime and validation time
 

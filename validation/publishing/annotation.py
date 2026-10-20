@@ -129,7 +129,7 @@ def render(answer, folder):
         lines.extend(f'- **{clean(item["label"])}:** {clean(item["reason"])}' for item in answer[key])
         if not answer[key]:
             lines.append('No supported labels selected.')
-    lines += ['', '## Expected benchmark transfer', '', 'These are hypotheses, not measured training gains.', '']
+    lines += ['', '## Expected benchmark transfer', '']
     for item in answer['expected_benchmark_transfer']:
         lines += [f'- **{clean(item["benchmark"])}**: {clean(item["reason"])}']
     if answer['no_transfer_reason']:

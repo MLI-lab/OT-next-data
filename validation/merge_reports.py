@@ -17,7 +17,7 @@ from validation.publishing.publish import judge, stage_reports
 from validation.stages.outcome_retries import summarize
 
 
-def merge(contract_path, sources, out, stages=(1, 3, 4, 5)):
+def merge(contract_path, sources, out, stages=(1, 2, 3, 4)):
     contract = read(contract_path)
     wanted = [t['task_id'] for t in task_records(contract)]
     runs = [(str(Path(s)), stage_reports(s)) for s in sources]
@@ -52,7 +52,7 @@ def merge(contract_path, sources, out, stages=(1, 3, 4, 5)):
         merged['merged_from'] = {'runs': [name for name, _ in runs],
                                  'tasks_per_run': {name: sum(1 for v in used.values() if v == name) for name, _ in runs},
                                  'rule': 'per task, the latest listed run that covered it'}
-        if stage in (3, 4, 5):
+        if stage in (1, 2, 3):
             summary = summarize(history, 'merged', max(len(h['outcomes']) for h in history.values()) - 1, stage)
             summary['history'] = {t: h for t, h in history.items() if len(h['outcomes']) > 1}
             merged['outcome_retries'] = summary

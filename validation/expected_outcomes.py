@@ -1,4 +1,4 @@
-"""Write an expected-outcomes file (ot-expected-outcomes-v1) for --expected-outcomes.
+"""Write an expected-outcomes file (ot-expected-outcomes-v2) for --expected-outcomes.
 
 Expectations are found by task ID when a later run uses the file.
 
@@ -50,7 +50,7 @@ def main(argv=None):
     run.add_argument('--out', type=Path, required=True)
     aud = sub.add_parser('audited')
     aud.add_argument('source', type=Path, help='task source (Parquet files or task directories) whose tasks all passed')
-    aud.add_argument('--stages', default='1,3,4,5')
+    aud.add_argument('--stages', default='1,2,3,4')
     aud.add_argument('--note', required=True, help='where the audit evidence lives')
     aud.add_argument('--out', type=Path, required=True)
     a = ap.parse_args(argv)

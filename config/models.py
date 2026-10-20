@@ -79,6 +79,18 @@ MODELS = {
         # some throughput; drop the flag when a vLLM release fixes capture under PP.
         extra_args=['--enforce-eager'],
         sampling={'temperature': 1.0, 'top_p': 0.95}),
+    # Local rubric judge. FP8, 306 GB, one Helma node, so no pipeline stage spans
+    # nodes and CUDA graphs stay on (the 2026-10-15 judge runs kept GLM-5.3's
+    # --enforce-eager and reached ~11 tokens/s per review). Sampling is its
+    # generation_config; reasoning effort is the chat template's default (max).
+    # 32,768 per reply: the 16,384 of those runs ended 57 reviews inside one
+    # thinking block.
+    'glm-5.3-flash': Model(
+        name='GLM-5.3-Flash', hf_repo='zai-org/GLM-5.3-Flash',
+        gpus=4, thinking=True, weights_gb=306, dtype='auto', reasoning_parser='glm47',
+        context=131072, max_output_tokens=32768,
+        extra_args=['--language-model-only'],
+        sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
 
 # The two models the RL runs start from, measured on every dataset. Sampling is

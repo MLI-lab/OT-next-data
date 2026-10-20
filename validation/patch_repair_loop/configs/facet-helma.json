@@ -2,7 +2,7 @@
   "agent_model": "claude-opus-5-5",
   "agent_provider": "claude",
   "concurrency": 8,
-  "controller_code_root": "/home/hpc/y500bb/y500bb12/OT_facet_repair_20261014",
+  "controller_code_root": "/home/hpc/y500bb/y500bb12/OT_next_data",
   "cpus": 48,
   "dataset": "FACET-Terminal/FACET-Terminal-Tasks-6k",
   "dataset_identity_root": "/home/hpc/y500bb/y500bb12/OT_next_data/data/facet",
@@ -27,7 +27,7 @@
     50,
     200
   ],
-  "prebuild_all_images": true,
+  "prebuild_all_images": false,
   "prebuild_shard_size": 200,
   "publish": true,
   "publish_dataset_folder": "facet",
@@ -36,9 +36,9 @@
   "python": "/home/vault/y500bb/y500bb12/ot-next-data/envs/prep/bin/python",
   "required_stages": [
     1,
+    2,
     3,
-    4,
-    5
+    4
   ],
   "review_setup_runs": 5,
   "shard_concurrency": 2,

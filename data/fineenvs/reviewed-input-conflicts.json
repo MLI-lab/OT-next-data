@@ -1,0 +1,24 @@
+{
+  "kmader__mias-mammography": {
+    "inventory_sha256": "f6e7bcb0de5724a1f14599ff8b16374e73048711da5226f1f1223b9efa162447",
+    "tasks": [
+      "0001_690_1690859_qa_5"
+    ],
+    "reason": "Preserve distinct content variants under source-relative paths instead of concurrent basename overwrites. Keep task-declared root files at their root locations; identical content aliases are deduplicated."
+  },
+  "mmoreaux__environmental-sound-classification-50": {
+    "inventory_sha256": "861ad48a5e5532e72a283b0c13fb3fec292ad19b976742a838ed0c38902e58c6",
+    "tasks": [
+      "0001_623_1623388_qa_1",
+      "0001_623_1623388_qa_5"
+    ],
+    "reason": "Preserve distinct content variants under source-relative paths instead of concurrent basename overwrites. Keep task-declared root files at their root locations; identical content aliases are deduplicated."
+  },
+  "oswinrh__bible": {
+    "inventory_sha256": "b78ad9c6079ca9c8422afd1fa177dd0402d320826445fcc13c55410c65edd4c7",
+    "tasks": [
+      "0121_966_121966267_qa_1"
+    ],
+    "reason": "Preserve distinct content variants under source-relative paths instead of concurrent basename overwrites. Keep task-declared root files at their root locations; identical content aliases are deduplicated."
+  }
+}

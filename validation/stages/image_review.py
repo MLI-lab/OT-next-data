@@ -11,7 +11,7 @@ import sys
 from uuid import uuid4
 
 from validation.rubrics.labeled_examples.charlie_hackable.run_reviews import judge_command, codex_envelope, clean_environment
-from validation.stages.prepare_review_tasks import read_verdicts
+from validation.stages.prepare_review_tasks import collect_verdict
 
 
 def save(path, data):
@@ -23,7 +23,8 @@ def provider_for(agent, local=False):
         return 'claude'
     if not local and agent in ('codex', 'codex-cli'):
         return 'codex'
-    raise ValueError('Image-backed stage 2 supports Claude Code and Codex CLI judges. Select --review-evidence files explicitly for other/local reviewers; no silent file-only fallback.')
+    raise ValueError('The inspect-tool review supports Claude Code and Codex CLI judges; Terminus-2 reviews '
+                     'run inside the task environment (validation/stages/env_review.py); no silent file-only fallback.')
 
 
 async def run_judge(command, prompt, cwd, env, timeout):
@@ -165,7 +166,7 @@ async def review(source, staged, out, args, agent, model):
     skipped = json.loads((staged / 'rubric-skips.json').read_text())
     if args.dry_run:
         return {'status': 'previewed', 'evidence_mode': 'image', 'automatic_skips': skipped}
-    verdicts, usage, errors, records = [], [], [], []
+    verdicts, usage, errors, records, partial = [], [], [], [], []
     for attempt in range(args.attempts):
         folder = out / 'image-reviews' / f'{attempt:03d}'
         folder.mkdir(parents=True)
@@ -199,9 +200,11 @@ async def review(source, staged, out, args, agent, model):
             if not inspector.successful:
                 raise ValueError('No successful image inspection; refusing a file-only verdict')
             await environments['agent'].download_file('/app/verdicts.json', folder / 'verdicts.json')
-            data = read_verdicts(folder / 'verdicts.json', staged / 'rubric.toml')
-            data['checks'].update(skipped)
-            verdicts.append({'trial': str(folder), **data})
+            outcome = {'status': 'completed', 'findings': [], 'verdicts': verdicts}
+            collect_verdict(outcome, folder, folder / 'verdicts.json', staged / 'rubric.toml', skipped)
+            if outcome['findings']:
+                raise ValueError(outcome['findings'][0])
+            partial.extend(outcome.get('partial', []))
             records.append({'attempt': attempt, 'successful_tool_calls': inspector.successful, 'tool_calls': inspector.calls})
         except Exception as exc:
             errors.append(f'{attempt}: {type(exc).__name__}: {exc}')
@@ -216,7 +219,7 @@ async def review(source, staged, out, args, agent, model):
                 except Exception as exc:
                     errors.append(f'{attempt}: environment cleanup failed: {exc}')
             row = usage_row(envelope, provider, folder, agent, model)
-            pricing = for_stage(args, 2); price(row, pricing['rates'], pricing['source']); usage.append(row)
+            pricing = for_stage(args, 5); price(row, pricing['rates'], pricing['source']); usage.append(row)
     return {'status': 'error' if errors else ('findings' if any(v['outcome'] == 'fail' for d in verdicts for v in d['checks'].values()) else 'passed'),
-            'findings': errors, 'verdicts': verdicts, 'automatic_skips': skipped, 'evidence_mode': 'image', 'inspection_attempts': records,
+            'findings': errors, 'verdicts': verdicts, 'partial': partial, 'automatic_skips': skipped, 'evidence_mode': 'image', 'inspection_attempts': records,
             'usage': {'trials': usage, 'expected_trials': args.attempts, 'summary': summarize_rows(usage, args.attempts, 1)}}

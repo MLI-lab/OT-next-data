@@ -1,5 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
+import io
 import json
+import tarfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -272,3 +275,73 @@ def test_prebuild_streams_each_image_and_releases_all_scratch(tmp_path, monkeypa
         assert [r['status'] for r in second] == ['cached'] * 2
         assert len(built) == len(restored) == 2
         assert all(not p.is_dir() for p in images.iterdir())
+
+
+@pytest.mark.parametrize('size_header', ['absent', 'first', 'last'])
+@pytest.mark.parametrize('corrupt', [False, True])
+def test_packed_sparse_pax_stored_size_does_not_truncate_image(tmp_path, size_header, corrupt):
+    # GNU sparse 1.0 stores an extent map followed by data. Large archives
+    # additionally carry a PAX size (stored bytes), distinct from realsize.
+    # Encode the same headers at small scale to avoid a multi-GiB fixture.
+    name = 'build_sparse.sif'
+    contents = b'\0' * 8192 + b'end' + b'\0' * (16384 - 8195)
+    body = b'2\n8192\n3\n16384\n0\n'.ljust(512, b'\0') + b'end'
+    headers = {
+        'GNU.sparse.major': '1', 'GNU.sparse.minor': '0',
+        'GNU.sparse.name': name, 'GNU.sparse.realsize': str(len(contents)),
+    }
+    if size_header == 'first':
+        headers = {'size': str(len(body)), **headers}
+    elif size_header == 'last':
+        headers['size'] = str(len(body))
+    metadata = b'ordinary member after sparse data'
+    manifest = json.dumps({'files': {name: {
+        'bytes': len(contents),
+        'sha256': hashlib.sha256(b'wrong' if corrupt else contents).hexdigest(),
+    }, 'metadata.json': {
+        'bytes': len(metadata), 'sha256': hashlib.sha256(metadata).hexdigest(),
+    }}}).encode()
+    bundle = tmp_path / (name + '.tar')
+    with tarfile.open(bundle, 'w', format=tarfile.PAX_FORMAT) as archive:
+        for filename, data, pax in [('manifest.json', manifest, {}), (name, body, headers),
+                                    ('metadata.json', metadata, {})]:
+            member = tarfile.TarInfo(filename)
+            member.size = len(data)
+            member.pax_headers = pax
+            archive.addfile(member, io.BytesIO(data))
+    target = tmp_path / 'local'
+    if corrupt:
+        with pytest.raises(ValueError, match='Corrupt cached image member'):
+            restore(bundle, target)
+        assert not (target / name).exists()
+        assert not (target / 'metadata.json').exists()
+    else:
+        restored = restore(bundle, target)
+        assert restored.read_bytes() == contents
+        assert restored.stat().st_blocks * 512 < len(contents)
+        assert (target / 'metadata.json').read_bytes() == metadata
+    assert not list(target.glob('.unpack-image-*'))
+    assert not list(target.glob('.restore-*'))
+
+
+
+@pytest.mark.parametrize('name,kind', [('../escape', tarfile.REGTYPE),
+                                     ('link', tarfile.SYMTYPE),
+                                     ('manifest.json', tarfile.REGTYPE),
+                                     ('extra', tarfile.REGTYPE)])
+def test_packed_bundle_rejects_unsafe_or_unexpected_members(tmp_path, name, kind):
+    bundle = tmp_path / 'build_image.sif.tar'
+    with tarfile.open(bundle, 'w') as archive:
+        manifest = b'{"files": {}}'
+        member = tarfile.TarInfo('manifest.json')
+        member.size = len(manifest)
+        archive.addfile(member, io.BytesIO(manifest))
+        member = tarfile.TarInfo(name)
+        member.type = kind
+        member.linkname = '../escape' if kind == tarfile.SYMTYPE else ''
+        archive.addfile(member)
+    target = tmp_path / 'local'
+    with pytest.raises(ValueError, match='Unsafe packed|Unexpected packed'):
+        restore(bundle, target)
+    assert not list(target.iterdir())
+    assert not (tmp_path / 'escape').exists()

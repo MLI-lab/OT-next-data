@@ -328,3 +328,52 @@ def test_stop_interrupts_command_before_waiting_for_controller_lock(tmp_path, mo
     assert calls == ['test', 'close']
     assert not Inner.staging_dir.exists()
     assert obj.slot is None
+
+
+def _read_only_go_cache(root):
+    module = root / 'overlay/upper/go/pkg/mod/github.com/dustin/go-humanize@v1.0.0'
+    (module / 'nested').mkdir(parents=True)
+    (module / 'humanize.go').write_text('package humanize\n')
+    (module / 'nested/x.go').write_text('package nested\n')
+    for path in (module / 'nested/x.go', module / 'humanize.go'):
+        path.chmod(0o444)
+    for path in (module / 'nested', module, module.parent):
+        path.chmod(0o555)
+    return module
+
+
+def test_remove_tree_deletes_read_only_go_module_cache(tmp_path):
+    import os
+    if os.geteuid() == 0:
+        pytest.skip('root ignores directory permissions')
+    staging = tmp_path / 'staging'
+    _read_only_go_cache(staging)
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'keep').write_text('keep')
+    (staging / 'link').symlink_to(outside, target_is_directory=True)
+    outside.chmod(0o555)
+    try:
+        with pytest.raises(PermissionError):
+            import shutil
+            shutil.rmtree(staging)   # the failure seen in job 1039663
+        p.remove_tree(staging)
+        assert not staging.exists()
+        # Symlinked directories are removed as links, never made writable.
+        assert (outside / 'keep').read_text() == 'keep'
+        assert outside.stat().st_mode & 0o777 == 0o555
+    finally:
+        outside.chmod(0o755)
+
+
+def test_stop_removes_staging_with_read_only_directories(tmp_path):
+    import os
+    if os.geteuid() == 0:
+        pytest.skip('root ignores directory permissions')
+    class Inner:
+        staging_dir = tmp_path / 'staging'
+    _read_only_go_cache(Inner.staging_dir)
+    obj = p.ProtectedInstance('test', '', '', 1000,
+        instance_factory=lambda *a: Inner(), step_prefix=lambda *a: [])
+    assert obj.stop({}) == {'stopped': True}
+    assert not Inner.staging_dir.exists()

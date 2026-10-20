@@ -117,7 +117,7 @@ def test_preparation_preserves_original_and_freezes_only_successful_edits(tmp_pa
     from validation.contract import create, verify_materialized
     root = task(tmp_path, 'python3 -m pip install pytest\n')
     args = parser().parse_args([str(root.parent), '--out', str(tmp_path / 'results')])
-    stages = [1, 3, 4, 5]
+    stages = [1, 2, 3, 4]
     create(args, stages, tmp_path / 'original.json')
     args.contract = tmp_path / 'original.json'
     original_contract = args.contract.read_bytes()
@@ -142,7 +142,7 @@ def test_preparation_preserves_original_and_freezes_only_successful_edits(tmp_pa
 
 
 def test_default_optout_and_stage_selection():
-    assert pins.enabled(parser().parse_args([]), [1, 3, 4, 5])
+    assert pins.enabled(parser().parse_args([]), [1, 2, 3, 4])
     assert not pins.enabled(parser().parse_args(['--no-fix-pip-pins']), [1])
     assert not pins.enabled(parser().parse_args([]), [3, 4])
 
@@ -154,7 +154,7 @@ def test_failed_discovery_continues_without_changing_tasks(tmp_path, monkeypatch
     def fail(*args):
         raise RuntimeError('container start failed')
     monkeypatch.setattr(pins, 'resolve', fail)
-    pins.prepare(args, [1, 3, 4, 5])
+    pins.prepare(args, [1, 2, 3, 4])
     assert args.tasks == root.parent
     evidence, = (args.out / 'pip-normalization').glob('*/resolver-evidence.json')
     assert json.loads(evidence.read_text())['items'][0]['reason'] == 'container start failed'
@@ -170,8 +170,8 @@ def test_pipeline_runs_all_normal_stages_after_preparation(tmp_path, monkeypatch
         events.append(number)
         return tmp_path / f'stage-{number}.json', {'has_findings': False, 'items': []}
     monkeypatch.setattr('validation.run.run_stage', run_stage)
-    assert run_selected(args, [1, 3, 4, 5]) == 0
-    assert events == ['paths', 'pip', 1, 3, 4, 5]
+    assert run_selected(args, [1, 2, 3, 4]) == 0
+    assert events == ['pip', 'paths', 1, 2, 3, 4]
 
 
 def test_separate_verifier_and_unsupported_commands_do_not_run_oracle(tmp_path, monkeypatch):

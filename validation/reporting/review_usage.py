@@ -1,7 +1,7 @@
 """Preserve review usage and summarize complete totals separately from known subtotals.
 
 Reprice an exported stage report without running a judge again:
-python -m validation.reporting.review_usage stage-2-ID.json --pricing '{"input": 1, "output": 4}' --out repriced.json
+python -m validation.reporting.review_usage stage-5-ID.json --pricing '{"input": 1, "output": 4}' --out repriced.json
 Rates are USD per million tokens. Input counts include cache reads and writes.
 """
 import argparse
@@ -107,8 +107,10 @@ def summarize_items(items, expected_trials=1):
 
 def reprice(report, pricing):
     validate_pricing(pricing)
-    if report.get('stage') not in (2, 8) or 'items' not in report:
-        raise ValueError('provide an exported stage 2 or stage 8 report with items')
+    from validation.stages.layout import require_layout
+    require_layout(report)
+    if report.get('stage') not in (5, 8) or 'items' not in report:
+        raise ValueError('provide an exported stage 5 or stage 8 report with items')
     for item in report['items']:
         usage = item.get('usage')
         if usage is None:

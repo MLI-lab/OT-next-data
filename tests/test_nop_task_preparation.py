@@ -24,8 +24,12 @@ def test_nop_setup_is_detected_from_oracle_and_is_not_the_solution(tmp_path):
     assert command == 'bash /setup_files/setup.sh'
     config = job_config(task, tmp_path / 'jobs', args, 'nop')
     assert config['agents'] == [{'name': 'nop', 'kwargs': {}}]
+    # The harness runs setup.sh before the agent even when the oracle does not call it.
     (task / 'solution/solve.sh').write_text('echo answer > /app/answer\n')
-    assert detect(task) is None
+    assert detect(task) == 'bash /setup_files/setup.sh'
+    (task / 'solution/solve.sh').unlink()
+    assert detect(task) == 'bash /setup_files/setup.sh'
+    (task / 'solution/solve.sh').write_text('echo answer > /app/answer\n')
     (task / 'solution/solve.sh').write_text('bash /setup_files/setup.sh\n/app/broken_setup.sh\n')
     assert detect(task) == 'bash /setup_files/setup.sh'
     (task / 'solution/solve.sh').write_text('bash /setup_files/setup.sh && echo answer\n')
@@ -50,7 +54,7 @@ def test_stage_five_previews_only_post_setup_nop(tmp_path):
         reward_key='reward')
     out = tmp_path / 'out'
     out.mkdir()
-    [item] = run_trial_batch(5, [task], out, args, None)
+    [item] = run_trial_batch(3, [task], out, args, None)
     assert item['status'] == 'previewed'
     assert item['setup_detection'] == 'found'
     assert item['setup_command'] == 'bash /setup_files/setup.sh'
@@ -95,7 +99,7 @@ def test_stage_five_runs_only_post_setup_nop(tmp_path, monkeypatch, prepared_rew
     monkeypatch.setattr(runtime, 'trial_results', results)
     out = tmp_path / 'out'
     out.mkdir()
-    [item] = run_trial_batch(5, [task], out, args, None)
+    [item] = run_trial_batch(3, [task], out, args, None)
     assert item['status'] == expected
     assert len(calls) == 1
     assert 'raw_nop' not in item and 'prepared_nop' not in item
@@ -130,6 +134,20 @@ def test_nop_does_not_fall_back_to_unprepared_run(tmp_path, monkeypatch, setup_k
         'task_name': 'task', 'verifier_result': {'rewards': {'reward': 0}, 'stdout': output}})])
     out = tmp_path / 'out'
     out.mkdir()
-    [item] = run_trial_batch(5, [task], out, args, None)
+    [item] = run_trial_batch(3, [task], out, args, None)
     assert len(calls) == expected_calls
     assert item['status'] == ('passed' if setup_kind == 'none' else 'error')
+
+
+def test_setup_without_oracle_and_conflicting_oracle_setup(tmp_path):
+    task = tmp_path / 'task'
+    task.mkdir()
+    assert detect(task) is None
+    (task / 'setup_files/nested').mkdir(parents=True)
+    (task / 'setup_files/setup.sh').write_text('#!/bin/sh\n')
+    (task / 'setup_files/nested/setup.sh').write_text('#!/bin/sh\n')
+    assert detect(task) == 'bash /setup_files/setup.sh'
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text('bash /setup_files/nested/setup.sh\n')
+    with pytest.raises(ValueError, match='other than the harness default'):
+        detect(task)

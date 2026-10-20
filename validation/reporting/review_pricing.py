@@ -40,7 +40,7 @@ def freeze(args, numbers):
     if resolved is None:
         resolved = args.resolved_review_pricing = {}
     for number in numbers:
-        if number not in (2, 8) or str(number) in resolved:
+        if number not in (5, 8) or str(number) in resolved:
             continue
         if explicit is not None:
             resolved[str(number)] = {'rates': deepcopy(explicit), 'source': {'basis': 'user_supplied'}}
@@ -50,7 +50,7 @@ def freeze(args, numbers):
             _, spec = resolve(args.serve_model)
             model = spec.hf_repo
         else:
-            model = args.review_model if number == 2 else args.analysis_model
+            model = args.review_model if number == 5 else args.analysis_model
         resolved[str(number)] = together_reference(model)
 
 

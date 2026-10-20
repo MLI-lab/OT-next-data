@@ -2,7 +2,7 @@
 
 ## Dataset stats
 
-4,567 native tasks; 1,414 excluded during upstream conversion, leaving **3,153 audited tasks: 3,107 retained, all 3,107 patched; 46 archived**. Original unique image count: **Not recorded**. Current: **11 cached Apptainer environments** covering all retained tasks; per-task setup still installs task-specific dependencies.
+4,567 native tasks; 1,414 excluded during upstream conversion, leaving **3,153 audited tasks: 3,107 kept, all 3,107 patched; 46 archived**. Original unique image count: **Not recorded**. Current: **11 cached Apptainer environments** covering all kept tasks; per-task setup still installs task-specific dependencies.
 
 ## Dataset characteristics
 
@@ -21,10 +21,10 @@ Intended benchmark transfer: **Terminal-Bench 2.0, OpenThoughts-TBLite 2.0, DS-1
 
 ## Per-stage breakdown
 
-- **Rule-based checks:** **25 retained instructions clarified**, plus timeout/anti-cheating suffixes on **3,107**; historical dependency-pin repairs retained. **43 historical `check-test-file-references.sh` flags reviewed: 19 archived** for undisclosed deliverable paths; **24 retained** because paths were discoverable or tokens were shell syntax. Reviewed `nproc` commands were retained after allocation probes; absolute-path checks were excluded from the original full run and used only in later subsets.
-- **Build and setup: 3,107 retained tasks passed.** Retained-task repairs: **215 environments, 72 setups, 3,021 verifiers and 35 configurations**, including Docker-to-Apptainer adaptation, dependency pins and resource/time limits. **24 archived:** 19 Rocky Linux ownership mismatches, 2 read-only NVIDIA-tool conflicts and 3 slow R setups.
-- **Reference solution (reward 1): 3,107 retained tasks passed.** **6 repairs** to memory, filename matching, PHP requests, reference startup/logging and setup timeout; **1 archived** for slow desktop setup.
-- **No-op baseline (reward 0): 3,107 retained tasks passed.** **32 repairs:** 31 setup-timeout increases and 1 missing-backup-script check; **2 archived** for slow R setup.
+- **Build and setup: 3,107 kept tasks passed.** Repairs to kept tasks: **215 environments, 72 setups, 3,021 verifiers and 35 configurations**, including Docker-to-Apptainer adaptation, dependency pins and resource/time limits. **24 archived:** 19 Rocky Linux ownership mismatches, 2 read-only NVIDIA-tool conflicts and 3 slow R setups.
+- **No-op baseline (reward 0): 3,107 kept tasks passed.** **32 repairs:** 31 setup-timeout increases and 1 missing-backup-script check; **2 archived** for slow R setup.
+- **Reference solution (reward 1): 3,107 kept tasks passed.** **6 repairs** to memory, filename matching, PHP requests, reference startup/logging and setup timeout; **1 archived** for slow desktop setup.
+- **Rule-based checks:** **25 kept instructions clarified**, plus timeout/anti-cheating suffixes on **3,107**; historical dependency-pin repairs kept. **43 historical `check-test-file-references.sh` flags reviewed: 19 archived** for undisclosed deliverable paths; **24 kept** because paths were discoverable or tokens were shell syntax. Reviewed `nproc` commands were kept after allocation probes; absolute-path checks were excluded from the original full run and used only in later subsets.
 
 Repair counts overlap. Results combine historical runs with a fresh rerun of the **3 restored tasks whose verifier files changed**; all three passed build, reference 1 and no-op 0.
 

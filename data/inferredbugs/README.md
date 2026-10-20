@@ -62,7 +62,7 @@ named entities accepted by historical Maven POM readers. Maven tries the image's
 local dependencies first and goes online only for missing artifacts. Compilation errors do not trigger a network retry.
 
 Build recipes and warning identities contain dataset-specific repairs; changing
-them can affect which tasks are retained and how rewards are computed. The
+them can affect which tasks are kept and how rewards are computed. The
 patcher's tests cover these rules in `tests/test_inferredbugs_patch.py`.
 
 Historical derivation evidence is archived at

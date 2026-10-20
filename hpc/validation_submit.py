@@ -14,10 +14,10 @@ def selected_cluster(args):
     from config.clusters import detect_cluster
     from config.runtime import cluster_config
     selected = getattr(args, 'submit', 'auto')
-    name = selected if selected in ('helma', 'zih') else os.environ.get('OT_CLUSTER')
+    name = selected if selected in ('helma', 'zih', 'rwth') else os.environ.get('OT_CLUSTER')
     cluster = cluster_config(name) if name else detect_cluster()
     if cluster is None:
-        raise ValueError('Select a cluster with --submit helma or --submit zih, or source env.sh')
+        raise ValueError('Select a cluster with --submit helma, --submit zih, or --submit rwth, or source env.sh')
     return cluster
 
 
@@ -166,9 +166,9 @@ def maybe_submit(args, numbers):
     automatic = (not args.dry_run and args.backend == 'apptainer' and cluster
                  and not os.environ.get('SLURM_JOB_ID')
                  and not os.environ.get('APPTAINER_BRIDGE_URL'))
-    if numbers == [1] and args.submit not in ('helma', 'zih') and not getattr(args, 'fix_instruction_paths', False):
+    if numbers == [4] and args.submit not in ('helma', 'zih', 'rwth') and not getattr(args, 'fix_instruction_paths', False):
         return None
-    if args.submit not in ('helma', 'zih') and not automatic:
+    if args.submit not in ('helma', 'zih', 'rwth') and not automatic:
         return None
     if args.backend != 'apptainer':
         raise ValueError('Slurm submission requires --backend apptainer')

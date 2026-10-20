@@ -2,7 +2,7 @@
 
 ## Dataset stats
 
-- **[4,323 original tasks](https://huggingface.co/datasets/PrimeIntellect/SWE-Lego-Real-Data-Verified/tree/8b0d2bed6f04ef571ca04abebf737ea23cbceaf3); 4,277 retained, all changed; 46 archived.**
+- **[4,323 original tasks](https://huggingface.co/datasets/PrimeIntellect/SWE-Lego-Real-Data-Verified/tree/8b0d2bed6f04ef571ca04abebf737ea23cbceaf3); 4,277 kept, all changed; 46 archived.**
 - **4,323 original build contexts → 101 shared contexts and cached Apptainer image bundles.**
 
 ## Dataset characteristics
@@ -25,12 +25,12 @@ Exploration; Error Recovery; Specification Adherence; Constraint Satisfaction. L
 
 ## Per-stage breakdown
 
-Counts below describe retained repairs; repair groups overlap. Results are historical, with the validated instructions restored.
+Counts below describe kept repairs; repair groups overlap. Results are historical, with the validated instructions restored.
 
-- **Rule-based checks:** 4,277 changed, 0 archived. Restored the timeout/anti-cheating sentence required by `check-instruction-suffix.sh`; no additional recorded automatic path or pip-pin repairs. Existing `/testbed` and setup instructions remain.
-- **Build and setup:** 4,277 changed, 1 archived. Shared images, pinned dependencies and Apptainer/Marin Harbor bridge compatibility; 736 retained tasks also needed missing build dependencies. Archived 1 unavailable repository.
-- **Reference solution (reward 1):** 4,277 passed; 55 repaired, 42 archived. Repairs: 19 missing history/metadata/dependencies, 13 worker limits, 6 memory limits, 6 legacy SymPy helpers, 5 mocked/recorded HTTP settings, 3 astronomy time tables, and 1 each for a fixed test date, CPU affinity and Python import paths. Archives: 23 proxy-sensitive tests, 8 unreliable services, 6 dependency mismatches, 2 version-sensitive expectations, and 1 each for system headers, expired licence and excessive memory.
+- **Build and setup:** 4,277 changed, 1 archived. Shared images, pinned dependencies and Apptainer/Marin Harbor bridge compatibility; 736 kept tasks also needed missing build dependencies. Archived 1 unavailable repository.
 - **No-op baseline (reward 0):** 4,277 passed; 3 repaired, 3 archived. Repairs: defer a missing-feature import, test the buggy Python backend, freeze a date-sensitive test. Archived 2 tasks passing without a fix and 1 verifier usage error.
+- **Reference solution (reward 1):** 4,277 passed; 55 repaired, 42 archived. Repairs: 19 missing history/metadata/dependencies, 13 worker limits, 6 memory limits, 6 legacy SymPy helpers, 5 mocked/recorded HTTP settings, 3 astronomy time tables, and 1 each for a fixed test date, CPU affinity and Python import paths. Archives: 23 proxy-sensitive tests, 8 unreliable services, 6 dependency mismatches, 2 version-sensitive expectations, and 1 each for system headers, expired licence and excessive memory.
+- **Rule-based checks:** 4,277 changed, 0 archived. Restored the timeout/anti-cheating sentence required by `check-instruction-suffix.sh`; no additional recorded automatic path or pip-pin repairs. Existing `/testbed` and setup instructions remain.
 
 ## Runtime and validation time
 

@@ -91,7 +91,16 @@ def bundle_directory(bundle, scratch):
         directory = Path(temporary) / bundle_name(bundle)
         directory.mkdir()
         with tarfile.open(bundle) as archive:
-            members = archive.getmembers()
+            members = []
+            for member in archive:
+                # PAX size describes stored bytes, not the GNU sparse real size.
+                # Correct both the extracted size and the next header offset.
+                if member.sparse is not None and 'GNU.sparse.realsize' in member.pax_headers:
+                    member.size = int(member.pax_headers['GNU.sparse.realsize'])
+                    data_size = sum(length for _, length in member.sparse)
+                    archive.offset = member.offset_data + (
+                        (data_size + tarfile.BLOCKSIZE - 1) // tarfile.BLOCKSIZE * tarfile.BLOCKSIZE)
+                members.append(member)
             names = [m.name for m in members]
             if len(set(names)) != len(names) or any(Path(m.name).name != m.name or not m.isfile() for m in members):
                 raise ValueError('Unsafe packed image bundle')
@@ -339,7 +348,8 @@ def main():
     # explicitly forward the configured proxy just as task containers do.
     patch.configure_explicit_host_network(force=True)
     patch.worker._parse_copies = patch.parse_copies_docker_semantics
-    from harbor_patches.docker_path import definition_commands, deferred_baker
+    from harbor_patches.docker_path import definition_commands, deferred_baker, logical_lines
+    patch.worker._dockerfile_logical_lines = logical_lines(patch.worker._dockerfile_logical_lines)
     patch.worker._bake_deferred_overlay = deferred_baker(patch.worker._bake_deferred_overlay, patch.worker)
     from harbor_patches.image_build import authenticated_registry_commands, build_budget_commands
     patch.worker.subprocess.run = authenticated_registry_commands(
@@ -356,6 +366,8 @@ def main():
     patch.worker.subprocess.run = certificate_build_mountpoints(patch.worker.subprocess.run)
     from harbor_patches.image_build import definition_build_home
     patch.worker.subprocess.run = definition_build_home(patch.worker.subprocess.run)
+    from harbor_patches.image_build import definition_build_workdir
+    patch.worker.subprocess.run = definition_build_workdir(patch.worker.subprocess.run)
     if os.environ.get('OT_IMAGE_BUILD_ARTIFACTS'):
         from harbor_patches.image_build import artifact_build_mount
         patch.worker.subprocess.run = artifact_build_mount(

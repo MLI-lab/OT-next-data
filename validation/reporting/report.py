@@ -79,20 +79,22 @@ def summarize(archive):
             if path.name != 'summary.json' or len(path.parts) != 4 or path.parts[0] != 'results':
                 continue
             report = json.load(tar.extractfile(member))
+            from validation.stages.layout import require_layout
+            require_layout(report)
             number = report['stage']
             items = report['items']
             counts = Counter(item['status'] for item in items)
             stages.append({'stage': number, 'name': report['name'], 'complete': report['complete'],
                            'tasks': len(items), 'counts': dict(counts), 'report': str(path),
                            'contract_sha256': report.get('contract_sha256'), 'timing': report.get('timing')})
-            if number in (2, 8):
+            if number in (5, 8):
                 from validation.reporting.review_usage import summarize_items
                 stages[-1]['usage'] = summarize_items(items, report.get('review_attempts', 1))
                 stages[-1]['review_pricing'] = report.get('review_pricing')
                 stages[-1]['resolved_review_pricing'] = report.get('resolved_review_pricing')
                 review_items.extend({**item, 'usage': item.get('usage') or {
                     'trials': [], 'expected_trials': report.get('review_attempts', 1)}} for item in items)
-            if number == 2:
+            if number == 5:
                 from validation.checks.review_results import group_reviews
                 stages[-1]['implementation_review_groups'] = report.get('implementation_review_groups') or group_reviews(items)
                 stages[-1]['proposal_review_groups'] = report.get('proposal_review_groups', {})
@@ -106,7 +108,7 @@ def summarize(archive):
                     'benchmark_policy': False, 'reason': finding, 'evidence': str(path)})
             for item in items:
                 task = Path(item.get('task', '')).name
-                if number == 1:
+                if number == 4:
                     for check in item.get('checks', []):
                         if check['status'] not in ('passed', 'warning') and not (check['status'] == 'skipped' and check.get('optional')):
                             failures.append({'stage': number, 'task': task, 'status': check['status'],
@@ -118,7 +120,7 @@ def summarize(archive):
                 elif item['status'] not in ('passed', 'completed', 'previewed'):
                     failures.append({'stage': number, 'task': task, 'status': item['status'], 'check': '',
                         'benchmark_policy': False,
-                        'reason': review_finding_reason(item) if number == 2 else json.dumps(
+                        'reason': review_finding_reason(item) if number == 5 else json.dumps(
                             item.get('findings') or item.get('reason') or item.get('environments') or item.get('upstream_summary') or item),
                         'evidence': item.get('output') or item.get('job_dir') or str(path)})
     invalidations = archive.parent / 'invalidated-stages.json'
@@ -132,7 +134,7 @@ def summarize(archive):
     request = archive.parent / 'request.json'
     requested = json.loads(request.read_text()).get('stages', []) if request.exists() else []
     missing = sorted(set(requested) - {s['stage'] for s in stages})
-    stage_two = next((stage for stage in stages if stage['stage'] == 2), None)
+    stage_two = next((stage for stage in stages if stage['stage'] == 5), None)
     review_groups = ({'implementation': stage_two['implementation_review_groups'],
                       'proposal': stage_two['proposal_review_groups']} if stage_two else None)
     from validation.reporting.review_usage import summarize_items
@@ -181,11 +183,11 @@ def write_report(archive, out):
             if len(path.parts) != 4 or path.parts[0] != 'results' or path.name != 'summary.json' or not member.isfile():
                 continue
             content = tar.extractfile(member).read()
-            if path.parts[1].startswith('stage_2_'):
+            if path.parts[1].startswith('stage_5_'):
                 stage = json.loads(content)
                 reviews.extend(review_task(item) for item in stage.get('items', []))
                 # Preserve a portable stage report for repricing and shard merging.
-                publish(out / ('stage-2-' + path.parts[2] + '.json'), content)
+                publish(out / ('stage-5-' + path.parts[2] + '.json'), content)
             else:
                 exported = out / ('stage-' + path.parts[1].split('_')[1] + '-' + path.parts[2] + '.json')
                 publish(exported, content)
@@ -200,7 +202,7 @@ def write_report(archive, out):
                         result['plots'].append({'report': exported.name, 'status': 'error',
                                                 'reason': f'{type(exc).__name__}: {exc}'})
     if result['review_groups'] is not None:
-        publish(out / 'reviews.json', (json.dumps({'stage': 2, 'tasks': reviews}, indent=2) + '\n').encode())
+        publish(out / 'reviews.json', (json.dumps({'stage': 5, 'tasks': reviews}, indent=2) + '\n').encode())
     publish(out / 'summary.json', (json.dumps(result, indent=2) + '\n').encode())
     return result
 

@@ -1,4 +1,4 @@
-"""Explicit preparation-only boundary for stage-3 setup review.
+"""Explicit preparation-only boundary for stage-1 setup review.
 
 Never infer a preparation prefix from test.sh: that can execute grading, and a
 tests/setup.sh is the preparation boundary; test.sh is never run here.
@@ -198,6 +198,8 @@ async def review_task(task_path, out, args):
             try:
                 inspection = await inspect_environment(agent, task, task.paths.environment_dir, 'agent')
                 agent_entry.update(inspection)
+                from validation.stages.normalize_paths import capture_build_paths
+                await capture_build_paths(agent, task_path, args, agent_entry)
             except Exception as exc:
                 agent_entry.update(status='error', error=f'{type(exc).__name__}: {exc}')
     finally:

@@ -41,6 +41,24 @@ def test_pinned_scripts_match_upstream_workflow_and_profiles():
     assert 'check-task-package-name.sh' in skipped
 
 
+def test_all_profile_includes_every_dataset_static_check():
+    _, checks, excluded = load_checks('all')
+    _, benchmark, _ = load_checks('terminal-bench')
+    assert set(checks) == set(benchmark) | {'check-task-changelog.sh'}
+    assert set(excluded) == {'rubric_review.py'}
+
+
+def test_all_profile_does_not_accept_missing_ai_prerequisite(tmp_path):
+    task = make_task(tmp_path)
+    _, checks, _ = load_checks('all')
+    out = tmp_path / 'all-checks'
+    run_checks([task], out, 'all', exclude=[c for c in checks if c != 'check_ai_detection.py'])
+    item = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert item['status'] == 'failed'
+    assert item['checks'][0]['status'] == 'skipped'
+    assert item['checks'][0]['optional'] is False
+
+
 def test_real_upstream_scripts_pass_and_catch_unpinned_dependency(tmp_path):
     good = make_task(tmp_path, 'good')
     bad = make_task(tmp_path, 'bad')
@@ -251,6 +269,9 @@ def test_configured_ai_check_uses_python_without_real_api_calls(tmp_path, monkey
     ('Create a symlink: `relative/item.conf` -> `../available/item.conf`.', False),
     ('Create a symlink: `/etc/$APP/item.conf` -> `../available/item.conf`.', False),
     ('Run `ln -s ../available/item.conf "$LINK"`.', False),
+    ('Report the location, e.g. `"$.paths./items.get"`.', True),
+    ('Head each section with the file name (e.g., `## src/auth.py`).', True),
+    ('Head each section with `## Summary` and read `src/auth.py`.', False),
 ])
 def test_absolute_path_check_only_accepts_explicit_command_and_link_bases(tmp_path, instruction, passes):
     from validation.checks.check_terminal_bench import path_check_copy
@@ -504,8 +525,8 @@ def test_relative_path_is_advisory_and_does_not_archive(tmp_path):
     item = json.loads((out / 'summary.json').read_text())['tasks'][0]
     assert item['status'] == 'passed'
     assert item['warnings'][0]['tag'] == 'relative-instruction-path'
-    assert labels(1, item) == ['warning:relative-instruction-path']
-    assert judge(1, item) == ('passed', '')
+    assert labels(4, item) == ['warning:relative-instruction-path']
+    assert judge(4, item) == ('passed', '')
 
 
 @pytest.mark.parametrize('profile,changed,expected', [
@@ -653,4 +674,70 @@ def test_pip_warning_keeps_training_task_and_preserves_strict_profiles(tmp_path,
     assert item['status'] == ('passed' if profile == 'training' else 'failed')
     if profile == 'training':
         assert item['warnings'][0]['tag'] == 'unpinned-dependency'
-        assert labels(1, item) == ['warning:unpinned-dependency']
+        assert labels(4, item) == ['warning:unpinned-dependency']
+
+
+@pytest.mark.parametrize('source,instruction,expected', [
+    # URL routes, regular expressions and PDF name objects are not files.
+    ('r = client.get("/healthz")\n@app.route("/healthz")\n', None, 'passed'),
+    ('requests.post(base + "/openapi/export")\n', None, 'passed'),
+    ('m = re.search(r"/([^/]+)/?$", url)\n', None, 'passed'),
+    ('m = re.match(r"/task_file/input/[\\w\\-\\.]+", line)\n', None, 'passed'),
+    ('annots = page["/Annots"]\nkind = field["/Subtype"]\n', None, 'passed'),
+    # The task's own harness scripts.
+    ('subprocess.run(["bash", "/solution/solve.sh"])\n', None, 'passed'),
+    # Mentioned in the instruction; only trailing punctuation was glued on.
+    ('cat /app/report.txt.\n', 'Write the report to `/app/report.txt`.\n', 'passed'),
+    # Real hidden requirements still fail.
+    ('Path("/app/output").mkdir()\n', None, 'failed'),
+    ('out = open("/app/report.pdf", "wb")\n', None, 'failed'),
+    ('cat /app/report.txt.\n', 'Write the report.\n', 'failed'),
+])
+def test_reference_check_ignores_non_file_strings(tmp_path, source, instruction, expected):
+    task = make_task(tmp_path)
+    if instruction:
+        (task / 'instruction.md').write_text(instruction)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(source)
+    (task / 'tests/test_outputs.py').write_text(source)
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[n for n in checks if n != 'check-test-file-references.sh'])
+    row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert row['checks'][0]['status'] == expected
+
+
+@pytest.mark.parametrize('source,expected', [
+    ("with zipfile.ZipFile(p) as zf:\n    data = zf.open('content.xml').read()\n", 'passed'),
+    ('zf.writestr("content.xml", body)\nif "content.xml" not in names:\n    fail()\nx = \'<file-entry full-path="content.xml"/>\'\n', 'passed'),
+    ('home = Path(os.environ.get("HOME", "/root"))\nHOME_DIR="${HOME:-/root}"\n', 'passed'),
+    ('expected = "/app/out.mp3\\n"\n', 'failed'),
+    # A real file opened elsewhere is still a finding even if also read from an archive.
+    ("zf.open('content.xml')\nopen('content.xml').read()\n", 'failed'),
+])
+def test_reference_check_archive_members_and_env_defaults(tmp_path, source, expected):
+    task = make_task(tmp_path)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(source)
+    (task / 'tests/test_outputs.py').write_text(source)
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[n for n in checks if n != 'check-test-file-references.sh'])
+    assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected
+
+
+def test_path_check_reports_unquoted_relative_file_names(tmp_path):
+    """Upstream collects unquoted names in a piped while loop (a subshell) and loses them."""
+    import subprocess
+    from validation.checks import check_terminal_bench as ctb
+    task = tmp_path / 'task'
+    (task / 'environment').mkdir(parents=True)
+    (task / 'instruction.md').write_text('Read settings from config.yaml and write the summary.\n')
+    (task / 'environment' / 'Dockerfile').write_text('FROM ubuntu:22.04\nWORKDIR /app\n')
+    (task / 'task.toml').write_text('[metadata]\n')
+    upstream = ctb.TERMINAL_BENCH / 'scripts/checks' / ctb.PATH_CHECK
+    fixed = tmp_path / ctb.PATH_CHECK
+    fixed.write_text(ctb.path_check_script(upstream.read_text()))
+    assert subprocess.run(['bash', str(upstream), str(task)], capture_output=True).returncode == 0
+    result = subprocess.run(['bash', str(fixed), str(task)], capture_output=True, text=True)
+    assert result.returncode == 1 and 'config.yaml' in result.stdout

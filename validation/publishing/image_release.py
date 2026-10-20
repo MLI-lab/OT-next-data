@@ -61,9 +61,9 @@ def prepare_release(tables, cache, out, repo, *, environment_paths=None):
                 candidates.setdefault(provenance['environment_sha256'], (directory, entry))
     if candidates and out.resolve().is_relative_to('/home'):
         raise ValueError('Image release files must be outside /home; set --out to a cluster workspace')
-    for kept, _ in tables.values():
+    for folder, (kept, _) in sorted(tables.items()):
         for row in kept:
-            if '3' not in row['stages_passed'].split(','):
+            if '1' not in row['stages_passed'].split(','):
                 continue
             with tempfile.TemporaryDirectory(prefix='.image-task-', dir=out) as temporary:
                 task = Path(temporary)
@@ -103,7 +103,8 @@ def prepare_release(tables, cache, out, repo, *, environment_paths=None):
                     if bundle_id not in manifest['bundles']:
                         with bundle_directory(directory, out) as unpacked:
                             validate_bundle(bundle_name(directory), entry, unpacked)
-                            prefix = f'images/bundles-v1/{bundle_id}/{bundle_name(directory)}'
+                            # Each dataset folder keeps its own images (<folder>/cached_images).
+                            prefix = f'{folder}/cached_images/bundles-v1/{bundle_id}/{bundle_name(directory)}'
                             # Upload immutable copies, never mutable build/trial files.
                             staged = out / prefix
                             staged.mkdir(parents=True, exist_ok=True)

@@ -1,11 +1,12 @@
-"""Strict, comparable counts from frozen 1/3/4/5 validation reports."""
+"""Strict, comparable counts from frozen 1/2/3/4 validation reports."""
 
 from collections import Counter, defaultdict
 import json
 from pathlib import Path
 
 
-STAGES = (1, 3, 4, 5)
+STAGES = (1, 2, 3, 4)
+from validation.stages.layout import REFERENCE
 
 
 def conditional_skip(check):
@@ -22,6 +23,8 @@ def load_reports(report_dir, expected_ids, required_stages=STAGES):
         if len(paths) != 1:
             raise ValueError(f"stage {stage}: expected one report, found {len(paths)} in {report_dir}")
         report = json.loads(paths[0].read_text())
+        from validation.stages.layout import require_stage
+        require_stage(report, stage, paths[0])
         items = report.get("items", [])
         ids = [Path(item.get("task", "")).name for item in items]
         if report.get("dry_run") or not report.get("complete") or set(ids) != set(expected_ids) or len(ids) != len(expected_ids):
@@ -46,14 +49,14 @@ def summarize(report_dir, expected_ids, required_stages=STAGES):
         for item in report["items"]:
             task = Path(item["task"]).name
             status = item.get("status") or "missing"
-            if stage == 1 and status == "passed":
+            if stage == 4 and status == "passed":
                 checks = item.get("checks") or []
                 if not checks or any(check.get("status") not in ("passed", "warning") and not conditional_skip(check)
                                      for check in checks):
                     status = "missing_or_skipped_check"
             stage_counts[status] += 1
             per_task[task][str(stage)] = status
-            if stage == 1:
+            if stage == 4:
                 for check in item.get("checks", []):
                     if conditional_skip(check):
                         skipped_optional_checks.append({"task_id": task, "stage": stage,
@@ -61,7 +64,7 @@ def summarize(report_dir, expected_ids, required_stages=STAGES):
                             "reason": check.get("reason"), "log": check.get("log")})
                         continue
                     if check.get("status") != "passed":
-                        key = f"1:{check.get('check', 'unknown')}:{check.get('status', 'missing')}"
+                        key = f"{stage}:{check.get('check', 'unknown')}:{check.get('status', 'missing')}"
                         check_counts[key] += 1
                         per_task_checks[task].append(key)
                         if check.get("status") == "warning":
@@ -86,6 +89,6 @@ def summarize(report_dir, expected_ids, required_stages=STAGES):
             "per_task": dict(per_task), "per_task_checks": dict(per_task_checks),
             "skipped_optional_checks": skipped_optional_checks,
             "required_stages": list(required_stages),
-            "oracle_validated": 4 in required_stages,
+            "oracle_validated": REFERENCE in required_stages,
             "failures": failures,
             "contract_sha256": next(iter({r.get('contract_sha256') for _, r in reports.values()}))}

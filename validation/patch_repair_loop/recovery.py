@@ -364,7 +364,7 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
                     evidence=decision['evidence'])
         fresh = decision['restart_from'] == 'stage3' or state.get('recovery_requires_stage3', False)
         # An interrupted mutating agent must finish its reporting contract first.
-        # An idle fixer holds no partial edit; its stale evidence is replaced by stage 3.
+        # An idle fixer holds no partial edit; its stale evidence is replaced by stage 1.
         if state.get('phase') in ('proposer', 'implementer') or (
                 state.get('phase') == 'fixer' and not core.fixer_idle(config, state)):
             fresh = False

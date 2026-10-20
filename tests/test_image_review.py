@@ -128,7 +128,7 @@ def test_codex_forwards_inspector_authentication():
 @pytest.mark.parametrize('explicit', [False, True])
 def test_legacy_contract_keeps_file_evidence(tmp_path, monkeypatch, explicit):
     from validation import contract
-    frozen = {'stages': [2], 'arguments': {'tasks': str(tmp_path), 'out': str(tmp_path / 'out'), 'dry_run': False}}
+    frozen = {'stages': [5], 'arguments': {'tasks': str(tmp_path), 'out': str(tmp_path / 'out'), 'dry_run': False}}
     monkeypatch.setattr(contract, 'read', lambda path: frozen)
     monkeypatch.setattr(contract, 'verify_source', lambda *args: None)
     monkeypatch.setattr(contract, 'protocol', lambda *args: '')
@@ -137,9 +137,9 @@ def test_legacy_contract_keeps_file_evidence(tmp_path, monkeypatch, explicit):
                            tasks=None, out=tmp_path, dry_run=False, review_evidence='image')
     if explicit:
         with pytest.raises(ValueError, match='Legacy contract'):
-            contract.bind(args, [2])
+            contract.bind(args, [5])
     else:
-        assert contract.bind(args, [2]) == [2]
+        assert contract.bind(args, [5]) == [5]
         assert args.review_evidence == 'files'
 
 

@@ -54,9 +54,15 @@ class Normalizer:
         reports = getattr(args, 'path_resolution_report', []) if enabled else []
         self.evidence = collect_reports(reports)
         self.hashes = {r['task_id']: r['sha256'] for r in records}
+        # A discovery run on its own prepared copy inspects the task after the other
+        # automatic fixes (timeout sentence, repository repair). Its evidence is just as
+        # current; the caller records that prepared hash here.
+        self.prepared = {}
         self.report = {'enabled': enabled, 'evidence_reports': list(map(str, reports)), 'tasks': []}
 
-    def apply(self, task_id, instruction):
+    def apply(self, task_id, instruction, prepared_instruction=None):
+        """Edit `instruction`, or `prepared_instruction` (the text with the other automatic
+        fixes) when the evidence was gathered on the prepared copy."""
         entry = self.evidence.get(task_id)
         if not entry:
             return instruction
@@ -64,9 +70,12 @@ class Normalizer:
         diagnostic = selected['diagnostic']
         record = {'task': task_id, 'oracle_status': selected['status'], 'edits': []}
         self.report['tasks'].append(record)
-        if diagnostic.get('agent_baseline', {}).get('task_sha256') != self.hashes[task_id]:
-            record['warning'] = 'stale-or-missing-task-evidence'
-            return instruction
+        seen = diagnostic.get('agent_baseline', {}).get('task_sha256')
+        if seen != self.hashes[task_id]:
+            if seen != self.prepared.get(task_id) or prepared_instruction is None:
+                record['warning'] = 'stale-or-missing-task-evidence'
+                return instruction
+            instruction = prepared_instruction
         try:
             normalized, edits = automatic(instruction.decode(), diagnostic, selected['status'] == 'passed')
         except ValueError as exc:

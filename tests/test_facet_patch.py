@@ -26,7 +26,7 @@ def test_ownership_archive_preserves_original_payload_and_reason(tmp_path, monke
     blob = data.getvalue()
     decision = {'source_binary_sha256': hashlib.sha256(blob).hexdigest(),
                 'category': 'backend_build_ownership', 'reason': 'Observed unmapped group in build log'}
-    monkeypatch.setattr(patch, 'OWNERSHIP_EXCLUSIONS', {'excluded': decision})
+    monkeypatch.setattr(patch, 'EXCLUSIONS', {'excluded': decision})
     source = tmp_path / 'source.parquet'
     pq.write_table(pa.table({'path': ['excluded', 'retained'], 'task_binary': [blob, blob]},
                            schema=patch.SCHEMA), source)

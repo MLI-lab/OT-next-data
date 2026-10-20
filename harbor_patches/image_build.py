@@ -85,7 +85,12 @@ def authenticated_registry_commands(run):
                     clock_file.truncate()
                     clock_file.write(str(time.time()))
                     clock_file.flush()
-            return run([*command[:offset + 2], *flags, *command[offset + 2:]], *args, **kwargs)
+            # Apptainer would send the environment login to every registry, and ghcr.io and
+            # others reject Docker Hub credentials (403). The authfile names Docker Hub only.
+            scoped = {k: v for k, v in environment.items()
+                      if k not in ('APPTAINER_DOCKER_USERNAME', 'APPTAINER_DOCKER_PASSWORD',
+                                   'SINGULARITY_DOCKER_USERNAME', 'SINGULARITY_DOCKER_PASSWORD')}
+            return run([*command[:offset + 2], *flags, *command[offset + 2:]], *args, **{**kwargs, 'env': scoped})
     return execute
 
 
@@ -116,26 +121,68 @@ def build_budget_commands(run, seconds, clock=time.monotonic):
             print('[build] no per-image timeout; the Slurm allocation sets the deadline', flush=True)
         else:
             print(f'[build] remaining image budget: {remaining:.1f}s', flush=True)
-        with subprocess.Popen(command, *args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              text=True, errors='replace', start_new_session=True, **options) as process:
-            def stream():
-                for line in process.stdout:
-                    tail.append(line[-2000:])
-                    print(line, end='', flush=True)
-            reader = threading.Thread(target=stream, daemon=True)
-            reader.start()
+        process = subprocess.Popen(command, *args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   text=True, errors='replace', start_new_session=True, **options)
+
+        def stream():
+            for line in process.stdout:
+                tail.append(line[-2000:])
+                print(line, end='', flush=True)
+        reader = threading.Thread(target=stream, daemon=True)
+        reader.start()
+
+        def reap():
+            # Daemons a RUN script left in the background (`python3 server.py &`) keep the
+            # output pipe open; Docker kills them when the step ends, so do the same.
             try:
-                code = process.wait(timeout=remaining)
-            except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-                reader.join(timeout=5)
-                raise subprocess.TimeoutExpired(command, seconds, output=''.join(tail))
-            reader.join(timeout=5)
+            except (ProcessLookupError, PermissionError):
+                pass
+            reader.join(timeout=10)
+            # Closing the pipe while the reader still blocks in readline deadlocks on the
+            # buffer lock; a reader held by an escaped daemon is left to the process exit.
+            if not reader.is_alive():
+                process.stdout.close()
+        try:
+            code = process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            reap()
+            raise subprocess.TimeoutExpired(command, seconds, output=''.join(tail))
+        reap()
         output = ''.join(tail)
         if check and code:
             raise subprocess.CalledProcessError(code, command, output=output, stderr=output)
         return subprocess.CompletedProcess(command, code, stdout=output, stderr=output if code else '')
+    return execute
+
+
+def definition_build_workdir(run):
+    """Enter Harbor's generated WORKDIR before executing its build steps.
+
+    Match the translator's mkdir and runscript together so arbitrary user
+    definitions and mkdir commands inside RUN steps are not rewritten.
+    """
+    def execute(command, *args, **kwargs):
+        offset = 2 if command[:2] == ['unshare', '-r'] else 0
+        inner = command[offset:]
+        if (len(inner) < 4 or Path(inner[0]).name not in ('apptainer', 'singularity')
+                or inner[1] != 'build' or not str(inner[-1]).endswith('.def')):
+            return run(command, *args, **kwargs)
+        content = Path(inner[-1]).read_text()
+        workdir = re.search(r'(?m)^%runscript\n    cd ([^\n]+)\n    exec "\$@"$', content)
+        if workdir is None:
+            return run(command, *args, **kwargs)
+        directory = workdir[1]
+        original = '%post\n    mkdir -p ' + directory + '\n'
+        fixed = content.replace(original, original + '    cd ' + directory + '\n', 1)
+        if fixed == content:
+            return run(command, *args, **kwargs)
+        with tempfile.TemporaryDirectory(prefix='image-build-workdir-') as temporary:
+            definition = Path(temporary) / 'build.def'
+            definition.write_text(fixed)
+            return run([*command[:-1], str(definition)], *args, **kwargs)
     return execute
 
 

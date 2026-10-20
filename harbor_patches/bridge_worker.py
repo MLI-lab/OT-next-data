@@ -443,6 +443,19 @@ def run_image_build(original_run, cmd, args, kwargs, clock=time.monotonic, sleep
         error = result.stderr or ''
         if isinstance(error, bytes):
             error = error.decode(errors='replace')
+        if (result.returncode and '--fakeroot' in cmd and '--ignore-fakeroot-command' not in cmd
+                and str(cmd[-1]).endswith('.def') and '/.singularity.d/libs/fakeroot' in error):
+            # As at container start (compatible_fakeroot_command): the host fakeroot helper
+            # cannot exec in some images (MiMo 000822); keep the root-mapped namespace without it.
+            print('[worker] host fakeroot helper incompatible with the image; '
+                  'retrying the build with --ignore-fakeroot-command', flush=True)
+            cmd.insert(cmd.index('--fakeroot') + 1, '--ignore-fakeroot-command')
+            if deadline is not None:
+                options['timeout'] = max(0.001, deadline - clock())
+            result = original_run(cmd, *args, **options)
+            error = result.stderr or ''
+            if isinstance(error, bytes):
+                error = error.decode(errors='replace')
         transient = ('conveyor failed to get' in error and any(message in error for message in
                      ('unexpected end of JSON input', 'connection reset by peer', 'TLS handshake timeout')))
         if not registry_import or result.returncode == 0 or not transient or attempt == 2:
@@ -527,13 +540,24 @@ def run_container_commands(original_run, net_flags=(), clock=time.monotonic):
                 raise RuntimeError('Workdir initialization failed before container start: '
                                    + _trial.workdir_seed_error)
             from harbor_patches.protected_step import run_in_step
-            scoped_run = partial(run_in_step, original_run)
+            timeout = kwargs.get('timeout')
+            deadline = clock() + timeout if timeout is not None else None
+            def scoped_run(command, *run_args, **options):
+                # Cold probes share the startup budget with the instance launch.
+                if deadline is not None:
+                    remaining = deadline - clock()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(command, timeout)
+                    options['timeout'] = remaining
+                return run_in_step(original_run, command, *run_args, **options)
             seed_image_workspace(cmd, scoped_run)
             cmd = instance_start_command(cmd, net_flags)
             cmd = compatible_fakeroot_command(cmd, scoped_run, fakeroot_cache)
         start = clock()
         from harbor_patches.container_env import environment_arguments
         cmd, kwargs = environment_arguments(cmd, kwargs)
+        if instance_start:
+            return scoped_run(cmd, *args, **kwargs)
         while True:
             try:
                 from harbor_patches.protected_step import run_in_step
@@ -618,6 +642,11 @@ def configure_explicit_host_network(force=False):
         if os.environ.get(name):
             os.environ['APPTAINERENV_' + name] = os.environ[name]
     if any(os.environ.get(name) for name in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY')):
+        # Helma compute nodes reach the internet directly only over IPv6. The JVM prefers
+        # IPv4 and hangs, and Maven through the NHR proxy stalls too (MiMo Maven tasks,
+        # 2026-10-18: IPv4 and proxy hang 120 s, IPv6 preference done in 18 s). The login
+        # profile hook appends the preference to the image's own JAVA_TOOL_OPTIONS.
+        os.environ['APPTAINERENV_OT_JAVA_PREFER_IPV6'] = '1'
         # Loopback traffic must never go through the cluster proxy: verifiers
         # that start local HTTP servers or expect a refused connection to an
         # unused local port (google-auth-424, sentry-python-79) otherwise get the

@@ -90,6 +90,47 @@ def stage_analysis(source_task, trial, destination, upstream):
     return destination
 
 
+def read_partial_verdicts(path, rubric_path):
+    """Valid judgments under exact rubric names, plus the names still unjudged.
+
+    Unrecognized names are reported, never mapped onto rubric criteria. Output
+    that is not a JSON object with a `checks` object, or has no valid judgment
+    at all, is not a partial review and raises.
+    """
+    data = json.loads(path.read_text())
+    criteria = {c['name'] for c in tomllib.loads(rubric_path.read_text())['criteria']}
+    checks = data.get('checks') if isinstance(data, dict) else None
+    if not isinstance(checks, dict):
+        raise ValueError(f'{path}: verdicts have no checks object')
+    valid = {name: verdict for name, verdict in checks.items() if name in criteria
+             and isinstance(verdict, dict) and verdict.get('outcome') in ('pass', 'fail', 'not_applicable')
+             and isinstance(verdict.get('explanation'), str) and verdict['explanation'].strip()}
+    if not valid:
+        raise ValueError(f'{path}: no valid rubric judgment')
+    return valid, sorted(criteria - valid.keys()), sorted(set(checks) - criteria)
+
+
+def collect_verdict(result, trial, path, rubric_path, skipped, analysis=False):
+    """Add one judge output to result: complete verdicts, a partial review for
+    criteria repair (stage 5 only), or a finding that fails the review."""
+    try:
+        data = read_verdicts(path, rubric_path, analysis=analysis)
+    except (OSError, ValueError) as exc:
+        try:
+            if analysis:
+                raise exc
+            valid, missing, unexpected = read_partial_verdicts(path, rubric_path)
+        except (OSError, ValueError):
+            result['status'] = 'failed'
+            result['findings'].append(f'{Path(trial).name}: invalid or missing reviewer output: {exc}')
+            return
+        result.setdefault('partial', []).append({'trial': str(trial), 'checks': valid,
+                                                 'missing': missing, 'unexpected': unexpected})
+        return
+    data['checks'].update(skipped)
+    result['verdicts'].append({'trial': str(trial), **data})
+
+
 def read_verdicts(path, rubric_path, analysis=False):
     data = json.loads(path.read_text())
     criteria = {c['name'] for c in tomllib.loads(rubric_path.read_text())['criteria']}

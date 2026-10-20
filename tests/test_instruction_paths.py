@@ -82,7 +82,7 @@ def test_shared_preparation_preserves_original_and_rejects_stale(tmp_path):
     diagnostic = evidence(text, 'reference')
     diagnostic['agent_baseline']['task_sha256'] = task_digest(task)
     report = tmp_path / 'evidence.json'
-    report.write_text(json.dumps({'stage': 4, 'items': [{'task': 'sample', 'status': 'failed',
+    report.write_text(json.dumps({'stage_layout': 'environment-first-v2', 'stage': 2, 'items': [{'task': 'sample', 'status': 'failed',
                      'instruction_path_diagnostics': [diagnostic]}]}))
     def args():
         return SimpleNamespace(tasks=task.parent, limit=None, task_id_range=None,
@@ -116,3 +116,33 @@ def test_incomplete_reference_observation_is_not_used():
     diagnostic = evidence(text, 'reference')
     diagnostic['observations'][0]['status'] = 'error'
     assert automatic(text, diagnostic, False)[0] == text
+
+
+def test_evidence_from_a_separately_prepared_copy_is_applied(tmp_path):
+    """A discovery run on its own prepared copy saw the instruction with the timeout
+    sentence. Its findings apply to the raw input; other changes still make it stale."""
+    import json
+    from types import SimpleNamespace
+    from validation.contract import task_digest
+    from validation.checks.instruction_suffix import prepare
+    task = tmp_path / 'input' / 'sample'
+    task.mkdir(parents=True)
+    (task / 'instruction.md').write_text('Create `src/new.py`.')
+    (task / 'task.toml').write_text('[agent]\ntimeout_sec = 120\n')
+    args = lambda source, report: SimpleNamespace(tasks=source, limit=None, task_id_range=None, fix_instruction_paths=True,
+                                                  fix_instruction_suffix=True, path_resolution_report=[report] if report else [])
+    prepare(args(task.parent, None), tmp_path / 'discovery-copy')
+    seen = tmp_path / 'discovery-copy' / 'sample'
+    diagnostic = evidence((seen / 'instruction.md').read_text(), 'reference')
+    diagnostic['agent_baseline']['task_sha256'] = task_digest(seen)
+    report = tmp_path / 'evidence.json'
+    report.write_text(json.dumps({'stage_layout': 'environment-first-v2', 'stage': 2, 'items': [
+        {'task': 'sample', 'status': 'passed', 'instruction_path_diagnostics': [diagnostic]}]}))
+    prepare(args(task.parent, report), tmp_path / 'final')
+    final = (tmp_path / 'final/sample/instruction.md').read_text()
+    assert '`/workspace/project/src/new.py`' in final and final.count('120 seconds') == 1
+    assert json.loads((tmp_path / 'final/source.json').read_text())['automation_changes'] == {
+        'sample': ['anti-cheat-instruction', 'relative-path-fix']}
+    (task / 'task.toml').write_text('[agent]\ntimeout_sec = 120\n[verifier]\ntimeout_sec = 60\n')
+    prepare(args(task.parent, report), tmp_path / 'stale')
+    assert '/workspace/' not in (tmp_path / 'stale/sample/instruction.md').read_text()

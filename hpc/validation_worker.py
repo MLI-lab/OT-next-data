@@ -85,16 +85,24 @@ iface=$(ip -o -4 addr show | awk -v ip="$ip" '$4 ~ "^"ip"/" {print $2; exit}')
 export VLLM_HOST_IP="$ip" GLOO_SOCKET_IFNAME="$iface" NCCL_SOCKET_IFNAME="$iface"
 mkdir -p "$tmp/ray-$role"
 ray="$(dirname "$python")/ray"
+# Keep worker ports separate from the job-derived GCS and model-server ports.
+# Ray's default 10002-19999 range overlaps the judge launcher's GCS port.
+worker_ports=(--min-worker-port=30000 --max-worker-port=31999)
 if [[ $role == worker ]]; then
+    ready=0
     for i in $(seq 120); do
-        "$python" -c 'import socket,sys; h,p=sys.argv[1].rsplit(":",1); socket.create_connection((h,int(p)),2)' "$address" 2>/dev/null && break
+        if "$python" -c 'import socket,sys; h,p=sys.argv[1].rsplit(":",1); socket.create_connection((h,int(p)),2)' "$address" 2>/dev/null; then
+            ready=1
+            break
+        fi
         sleep 2
     done
+    [[ $ready == 1 ]] || { echo "Ray head unavailable at $address after 120 probes" >&2; exit 1; }
     exec "$ray" start --address "$address" --node-ip-address "$ip" --num-gpus "$gpus" \
-        --num-cpus "$cpus" --temp-dir "$tmp/ray-worker" --disable-usage-stats --block
+        --num-cpus "$cpus" "${worker_ports[@]}" --temp-dir "$tmp/ray-worker" --disable-usage-stats --block
 fi
 "$ray" start --head --node-ip-address "$ip" --port "${address##*:}" --num-gpus "$gpus" \
-    --num-cpus "$cpus" --temp-dir "$tmp/ray-head" --disable-usage-stats --block &
+    --num-cpus "$cpus" "${worker_ports[@]}" --temp-dir "$tmp/ray-head" --disable-usage-stats --block &
 ray_pid=$!
 trap 'kill "$ray_pid" 2>/dev/null || true; wait "$ray_pid" 2>/dev/null || true' EXIT
 export RAY_ADDRESS="$address"
@@ -158,7 +166,7 @@ def free_port(start, attempts=200):
 
 def review_runtime_tasks(tasks, stages, scratch, evidence="files"):
     """File-only review uses a neutral image; image review uses actual task images."""
-    if set(stages) != {2} or evidence == "image":
+    if set(stages) != {5} or evidence == "image":
         return tasks
     from validation.stages.prepare_review_tasks import stage_review
     from validation.upstream import checkout
@@ -304,12 +312,13 @@ def main(request):
         if not prebuild_only and pip_enabled(args, data['stages']):
             args._pip_findings = pip_check(tasks, args, scratch / 'pip-precheck')
         preparation_tasks = [task for task in tasks if task in getattr(args, '_path_candidates', [])
-                             or getattr(args, '_pip_findings', {}).get(task.name)]
-        static_only = not prebuild_only and set(data['stages']) == {1} and not preparation_tasks
+                             or getattr(args, '_pip_findings', {}).get(task.name)
+                             or (4 in data['stages'] and (task / 'solution/solve.sh').is_file())]
+        static_only = not prebuild_only and set(data['stages']) == {4} and not preparation_tasks
         runtime_tasks = tasks if prebuild_only else review_runtime_tasks(tasks, data['stages'], scratch, getattr(args, 'review_evidence', 'files'))
         budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
                    'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
-                  if static_only or prebuild_only else trial_capacity(runtime_tasks, args, image_review=2 in data['stages'] and getattr(args, 'review_evidence', 'files') == 'image'))
+                  if static_only or prebuild_only else trial_capacity(runtime_tasks, args, image_review=5 in data['stages'] and getattr(args, 'review_evidence', 'files') == 'image'))
         args.concurrency = min(args.concurrency, budget['max_concurrency'])
         save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency,
                                                'static_concurrency': args.static_concurrency})
@@ -363,7 +372,11 @@ def main(request):
             for name, default in [('memory_mb', 8192), ('cpus', 4), ('concurrency', 2), ('timeout_sec', 3600)]:
                 if not hasattr(args, 'image_build_' + name):
                     setattr(args, 'image_build_' + name, default)
-            image_tasks = preparation_tasks if set(data['stages']) == {1} and not prebuild_only else runtime_tasks
+            image_tasks = preparation_tasks if set(data['stages']) == {4} and not prebuild_only else runtime_tasks
+            if 1 in data['stages'] and not prebuild_only:
+                from validation.stages.environment_preflight import preflight, passing_sources
+                environment_checks = preflight(image_tasks, scratch / 'environment-preflight', args)
+                image_tasks = passing_sources(image_tasks, environment_checks, allow_pin_repair=args.fix_pip_pins)
             try:
                 preparation = prepare_images(image_tasks, images, base / 'images', args)
             finally:
@@ -481,8 +494,12 @@ def main(request):
             os.environ['OPENAI_API_KEY'] = 'EMPTY'
             from config.models import serving_agent_kwargs
             args.agent_kwargs = serving_agent_kwargs(spec, args.serve_context, args.agent_kwargs)
-        from validation.run import run_selected
-        code = run_selected(args, data['stages'])
+        if data.get('shard_plan'):
+            from validation.shard_normalization import prepare_and_submit
+            code = prepare_and_submit(args, data['stages'], data['shard_plan'])
+        else:
+            from validation.run import run_selected
+            code = run_selected(args, data['stages'])
         if getattr(args, 'contract', None):
             status['validation_contract'] = str(args.contract)
             status['contract_sha256'] = read(args.contract)['sha256']
@@ -550,13 +567,13 @@ def main(request):
                     print(f'Relocation pointer not written: {pointer_error}', flush=True)
             status['evidence'] = str(archive)
             save(output / 'execution.json', status)
-            if not prebuild_only:
+            if not prebuild_only and not data.get('shard_plan'):
                 try:
                     from validation.reporting.report import write_report
                     write_report(archive, output / 'report')
                 except Exception as exc:
                     save(output / 'report-error.json', {'error': str(exc), 'archive': str(archive)})
-            if not prebuild_only and getattr(args, 'publish_repo', None) and getattr(args, 'contract', None) and (output / 'report').is_dir():
+            if not prebuild_only and not data.get('shard_plan') and getattr(args, 'publish_repo', None) and getattr(args, 'contract', None) and (output / 'report').is_dir():
                 # The pull request is a proposal; the reports stay the record if this fails.
                 try:
                     from validation.publishing.publish import publish

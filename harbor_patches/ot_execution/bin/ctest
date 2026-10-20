@@ -1,0 +1,29 @@
+#!/bin/sh
+# Execution evidence for CTest verifiers, first on PATH for the verifier call only.
+# The outer ctest of this call also writes CTest's own JUnit report into the call's
+# results directory, which junit_reports.sh records. CTest before 3.21 has no
+# --output-junit; that call stays unrecorded and validation rejects it.
+here=$(cd "$(dirname "$0")" && pwd -P)
+real=
+saved_ifs=$IFS
+IFS=:
+for dir in $PATH; do
+    [ -n "$dir" ] || continue
+    [ "$(cd "$dir" 2>/dev/null && pwd -P)" = "$here" ] && continue
+    if [ -f "$dir/ctest" ] && [ -x "$dir/ctest" ]; then real=$dir/ctest; break; fi
+done
+IFS=$saved_ifs
+if [ -z "$real" ]; then
+    echo "ctest: command not found" >&2
+    exit 127
+fi
+token=$OT_VERIFIER_EXECUTION_TOKEN
+results=$OT_VERIFIER_EXECUTION_DIR
+case " $* " in *" --output-junit "*) exec "$real" "$@" ;; esac
+if [ -n "$token" ] && [ -d "$results" ] && [ "$OT_CTEST_EXECUTION_ACTIVE" != "$token" ] \
+        && "$real" --help 2>/dev/null | grep -q -- '--output-junit'; then
+    OT_CTEST_EXECUTION_ACTIVE=$token
+    export OT_CTEST_EXECUTION_ACTIVE
+    exec "$real" "$@" --output-junit "$results/TEST-ctest-$(date +%s%N 2>/dev/null || date +%s)-$$.xml"
+fi
+exec "$real" "$@"

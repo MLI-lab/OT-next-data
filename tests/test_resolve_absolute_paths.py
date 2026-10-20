@@ -50,6 +50,15 @@ def test_uses_actual_pinned_check_and_preserves_instruction(tmp_path):
     assert (task / 'instruction.md').read_text() == instruction
 
 
+def test_detects_unquoted_names_like_stage_4(tmp_path):
+    task = tmp_path / 'task'
+    (task / 'environment').mkdir(parents=True)
+    (task / 'environment/Dockerfile').write_text('FROM example\nWORKDIR /workdir\n')
+    (task / 'instruction.md').write_text('Files (in /home/user/input, no subfolders):\n- menu.csv\n')
+    paths, evidence = resolver.flagged_paths(task)
+    assert paths == ['menu.csv'] and evidence['exit_code'] == 1
+
+
 @pytest.mark.parametrize('failure', ['exit', 'timeout'])
 def test_partial_search_never_accepts_a_unique_match(tmp_path, monkeypatch, failure):
     (tmp_path / 'instruction.md').write_text('file.py')

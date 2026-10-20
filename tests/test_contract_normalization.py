@@ -1,4 +1,4 @@
-"""Stage selection must not change the task content bound into a contract."""
+"""Task-quality preparation is opt-in through stage 4; environment-only tasks stay unchanged."""
 from types import SimpleNamespace
 
 import pytest
@@ -19,12 +19,12 @@ def test_stage3_and_final_bind_identical_tasks(tmp_path, monkeypatch, enabled):
         captured.append(contract.inventory(args.tasks)[0])
 
     monkeypatch.setattr(contract, 'create', create)
-    for label, stages in [('pilot', [3]), ('final', [1, 3, 4, 5])]:
+    for label, stages in [('pilot', [1]), ('final', [1, 2, 3, 4])]:
         args = SimpleNamespace(tasks=source.parent, prepare_contract=tmp_path / (label + '.json'),
                                contract=None, prebuild_only=False, limit=None, task_id_range=None,
                                fix_instruction_suffix=enabled, fix_instruction_paths=False,
                                path_resolution_report=[])
         contract.bind(args, stages)
-    assert captured[0] == captured[1]
-    assert (captured[0][0]['sha256'] != original) == enabled
+    assert captured[0][0]['sha256'] == original
+    assert (captured[1][0]['sha256'] != original) == enabled
     assert contract.task_digest(source) == original

@@ -81,7 +81,8 @@ def collect(job, poll_seconds, max_wait_hours, *, destination=None):
             paths = list(report.glob(f'stage-{stage}-*.json'))
             if len(paths) != 1:
                 raise ValueError(f'Ambiguous shard report: {report}')
-            payload = json.loads(paths[0].read_text())
+            from validation.stages.layout import require_stage
+            payload = require_stage(json.loads(paths[0].read_text()), stage, paths[0])
             payload['shard'] = {'index': child['shard'][0], 'count': child['shard'][1],
                                 'tasks': child['selected_ids']}
             payload['source_submission'] = child['submission']

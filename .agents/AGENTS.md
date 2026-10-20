@@ -31,6 +31,16 @@ Skills in `.agents/skills/`: `patch-dataset` (repair a dataset), `verify-dataset
 
 ## Patch explanations in automatic PRs
 
+For per-stage dataset README breakdowns, attribute a repair to the validation
+rule it satisfies, not to the stage that happens to execute the repair.
+Relative-path normalization belongs under stage 4 (rule-based checks), even
+when it executes during stage 1. Do not count it again as a build/setup repair.
+Use verified affected-task counts; if consolidation is incomplete, mark the
+count pending rather than reporting zero or inventing a count. Integrate new
+results into existing totals and reason summaries instead of appending rerun
+history. Describe manual approvals plainly, while distinguishing an inspected
+result from an automatic pass and avoiding claims unsupported by its evidence.
+
 Follow [`validation/README.md`, Automatic PR text](../validation/README.md#automatic-pr-text).
 Put explanations in the patcher's reporting inputs, not in a custom PR template
 or renderer field. `write_patch_report` accepts `change_labels` and
@@ -228,6 +238,19 @@ overhead both warrant investigation; this comparison does not isolate their
 individual contributions or establish timings for every dataset. Preserve full
 build logs and distinguish installation time, packaging time and complete build
 time. Larger images and other dependency managers still require validation.
+
+**Co-located shards and Apptainer contention (2026-10-17).** Slurm pins CPUs and
+memory per job, but node-local `/tmp`, image mounts (squashfuse, fuse-overlayfs)
+and Apptainer container starts are shared by all jobs on a node. Each shard's
+start limit (`BRIDGE_START_CONCURRENCY`) applies only within that shard.
+Multi-SWE pilot 1039663: three shards and three other jobs started on h31-61
+within 3 minutes. Workdir copies and `instance start` took 90-300 s there,
+against under 20 s on an uncontended node; 14 copies hit the 120 s limit, and
+Slurm drained the node ("Kill task failed"). We accept co-location for now:
+whole-node exclusive shards would lengthen queue waits. Watch for this pattern:
+start or copy timeouts clustered on one node, while the same tasks pass
+elsewhere. Rerun those tasks as infrastructure failures, never archive them, and
+record the node in the report.
 
 ## Hugging Face commit authors
 

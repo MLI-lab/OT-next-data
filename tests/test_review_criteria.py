@@ -83,7 +83,7 @@ def test_selected_prompt_and_verdict_only_contain_requested_criterion(tmp_path, 
     monkeypatch.setattr(runner.runtime, 'execute_job', execute)
     monkeypatch.setattr(runner.runtime, 'trial_results', lambda *a: [(trial, {})])
     monkeypatch.setattr(runner.runtime, 'assess_trials', lambda *a, **kw: {'status': 'completed', 'findings': []})
-    result = runner.run_review(2, source, tmp_path / 'item', options, checkout('terminal-bench'),
+    result = runner.run_review(5, source, tmp_path / 'item', options, checkout('terminal-bench'),
                                {'task_count': 1, 'solution_count': 0, 'complete': True})
     assert result['status'] == 'findings'
     assert set(result['verdicts'][0]['checks']) == {'anti_cheat_robustness'}

@@ -9,7 +9,7 @@ from validation.checks.reward_metrics import pass_at_k
 
 def test_current_metrics_include_unsolved_attempts_and_omit_unavailable_k(tmp_path):
     path = tmp_path / 'stage6.json'
-    path.write_text(json.dumps({'stage': 6, 'complete': True, 'items': [
+    path.write_text(json.dumps({'stage_layout': 'environment-first-v2', 'stage': 6, 'complete': True, 'items': [
         {'task': 'source-code-1', 'metrics': {'attempts': 4, 'solved': 2}},
         {'task': 'source-code-2', 'metrics': {'attempts': 1, 'solved': 0}}]}))
     assert rates(path, [1, 4]) == {'code': {1: .25}, 'All tasks': {1: .25}}
@@ -21,7 +21,7 @@ def test_current_metrics_include_unsolved_attempts_and_omit_unavailable_k(tmp_pa
 
 def test_missing_task_metrics_are_not_silently_dropped(tmp_path):
     path = tmp_path / 'stage6.json'
-    path.write_text(json.dumps({'stage': 6, 'complete': True, 'items': [{'task': 'missing'}]}))
+    path.write_text(json.dumps({'stage_layout': 'environment-first-v2', 'stage': 6, 'complete': True, 'items': [{'task': 'missing'}]}))
     with pytest.raises(ValueError, match='missing attempt metrics'):
         rates(path, [1])
 
@@ -29,7 +29,7 @@ def test_missing_task_metrics_are_not_silently_dropped(tmp_path):
 def test_solved_count_distribution_keeps_attempt_budgets_separate(tmp_path):
     from validation.reporting.plot_results import solved_counts
     path = tmp_path / 'stage6.json'
-    path.write_text(json.dumps({'stage': 6, 'complete': True, 'items': [
+    path.write_text(json.dumps({'stage_layout': 'environment-first-v2', 'stage': 6, 'complete': True, 'items': [
         {'task': 'a', 'metrics': {'attempts': 4, 'solved': 0}},
         {'task': 'b', 'metrics': {'attempts': 4, 'solved': 2}},
         {'task': 'c', 'metrics': {'attempts': 4, 'solved': 2}},
@@ -40,7 +40,7 @@ def test_solved_count_distribution_keeps_attempt_budgets_separate(tmp_path):
 def archived_teacher_report(tmp_path, items):
     import io
     import tarfile
-    stage = {'stage': 6, 'name': 'agent_trials', 'complete': True, 'items': items}
+    stage = {'stage_layout': 'environment-first-v2', 'stage': 6, 'name': 'agent_trials', 'complete': True, 'items': items}
     archive = tmp_path / 'evidence.tar.gz'
     payload = json.dumps(stage).encode()
     with tarfile.open(archive, 'w:gz') as tar:
@@ -95,7 +95,7 @@ def test_report_automatically_plots_trace_metrics_without_filling_missing_values
         {'turns': 8, 'input_tokens': None, 'termination': 'task_timeout', 'errors': {'verifier': ['failure']}},
         {'turns': None, 'termination': 'error', 'errors': {'verifier': ['failure']}}],
         'all_tasks': {}, 'families': {}, 'model_server_requests': None, 'inference_resources': {}}
-    stage = {'stage': 7, 'name': 'trace_metrics', 'complete': True,
+    stage = {'stage_layout': 'environment-first-v2', 'stage': 7, 'name': 'trace_metrics', 'complete': True,
              'items': [{'task': 'sample', 'status': 'completed'}], 'trace_metrics': metrics}
     archive = tmp_path / 'evidence.tar.gz'
     with tarfile.open(archive, 'w:gz') as tar:
@@ -111,3 +111,20 @@ def test_report_automatically_plots_trace_metrics_without_filling_missing_values
     for name in ('trace_distributions', 'trace_outcomes'):
         assert (out / entry[name]).read_bytes().startswith(b'\x89PNG')
     assert json.loads((out / entry['report']).read_text())['trace_metrics'] == metrics
+
+
+def test_histogram_zoom_reports_outliers_without_changing_small_samples():
+    from validation.reporting.plot_results import histogram_upper
+    assert histogram_upper([10] * 99 + [10000]) == (10, 1)
+    assert histogram_upper([1, 10000]) == (10000, 0)
+    assert histogram_upper([0] * 100) == (1, 0)
+
+
+def test_command_plot_uses_recorded_profiles(tmp_path):
+    from validation.reporting.plot_results import write_trace_plots
+    p = tmp_path / 'traces.json'
+    p.write_text(json.dumps({'trace_metrics': {'trajectories': [
+        {'termination': 'task_complete', 'command_profile': {'counts': {'cat': 3, 'python': 1, '[unknown]': 7}}},
+        {'termination': 'session_ended', 'command_profile': None}]}}))
+    figures = write_trace_plots(p)
+    assert (tmp_path / figures['trace_commands']).read_bytes().startswith(b'\x89PNG')

@@ -11,6 +11,7 @@ installs an ``object.when`` property with a no-op setter, so pytest's own
 """
 import json
 import os
+import sys
 import uuid
 
 import pytest
@@ -22,16 +23,42 @@ def _emit(config, event, data):
     # record must still name the invocation it belongs to.
     token = config._ot_execution_token
     line = 'OT_VERIFIER_EXECUTION:' + token + ':' + event + ':' + json.dumps(data, separators=(',', ':'))
+    # The call's own log keeps records out of the output the task's grader parses.
+    log = getattr(config, '_ot_execution_log', None)
+    if log:
+        try:
+            with open(log, 'a') as stream:
+                stream.write('\n' + line + '\n')
+            return
+        except (IOError, OSError):
+            pass
     # Use pytest's terminal writer while available; capture has stopped at
     # unconfigure, so the ordinary stream also reaches the verifier log.
-    print('\n' + line, flush=True)
+    # Not print(..., flush=True): Python 2 pytest must still import this plugin.
+    sys.stdout.write('\n' + line + '\n')
+    sys.stdout.flush()
+
+
+def _restore_pytest_plugins():
+    """Undo the hook's in-process PYTEST_PLUGINS (ot_execution_hook announce_pytest_plugin):
+    pytest has read it already, and processes the tests start must not inherit it."""
+    restore = os.environ.pop('OT_PYTEST_PLUGINS_RESTORE', None)
+    if restore is None:
+        return
+    previous = json.loads(restore)
+    if previous is None:
+        os.environ.pop('PYTEST_PLUGINS', None)
+    else:
+        os.environ['PYTEST_PLUGINS'] = previous
 
 
 def pytest_configure(config):
+    _restore_pytest_plugins()
     token = os.environ.get('OT_VERIFIER_EXECUTION_TOKEN')
     if not token or os.environ.get('OT_PYTEST_EXECUTION_ACTIVE') == token:
         return
     config._ot_execution_token = token
+    config._ot_execution_log = os.environ.get('OT_VERIFIER_EXECUTION_LOG')
     config._ot_execution_previous = os.environ.get('OT_PYTEST_EXECUTION_ACTIVE')
     os.environ['OT_PYTEST_EXECUTION_ACTIVE'] = token
     state = {'version': 1, 'id': uuid.uuid4().hex, 'finished': False,
@@ -54,6 +81,17 @@ class ExecutionRecorder:
     def pytest_collectreport(self, report):
         if report.failed:
             self.state['collection_errors'] += 1
+            # Where and why, as the go and node recorders keep them: the no-op check of a
+            # task without a reference reads them (MiMo 002615 imports API not written yet).
+            path = (getattr(report, 'nodeid', '') or '').split('::')[0]
+            errors = [line[1:].strip() for line in str(getattr(report, 'longrepr', '') or '').splitlines()
+                      if line.startswith('E ')]
+            files = self.state.setdefault('collection_error_files', [])
+            messages = self.state.setdefault('collection_error_messages', [])
+            if path and path not in files:
+                files.append(path)
+            if errors and len(messages) < 20:
+                messages.append(errors[-1][:500])
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_setup(self, item):
@@ -90,6 +128,12 @@ class ExecutionRecorder:
     def pytest_sessionfinish(self, session, exitstatus):
         self.state['finished'] = True
         self.state['exitstatus'] = int(exitstatus)
+        stop = getattr(session, 'shouldstop', False)
+        if int(exitstatus) == 2 and isinstance(stop, str) and stop.startswith('stopping after'):
+            # pytest before 5 exits 2 (interrupted) when -x/--maxfail stops the run after
+            # a test failure (MiMo 001277, py2.7): tests failed, nothing broke.
+            self.state['exitstatus'] = 1
+            self.state['maxfail_stop'] = True
 
 
 def pytest_unconfigure(config):

@@ -1,0 +1,20 @@
+{
+  "image": "docker.io/savatar101/env-data-agent-train@sha256:7b3f7e22780b431ce0d43717dcef6875cde84baeee824cc87e968374d62d3470",
+  "architecture": "amd64",
+  "config_digest": "sha256:363348fbd6b340dd09d8b9747b4eda41329f5d6c634c3f8f3504bcd9e4b1e23a",
+  "copied_manifest_sha256": "64e1afdfb0c1bb82823c90815333c5e61998cae9ae9924b5ca4fddedeee22d0f",
+  "pull_bucket_sha256": "221fa688d6c87aadb7f4764d4ff5255a4c085fa495e0849be9e93a8721dd932f",
+  "verifier_distributions": {
+    "math-verify": "0.9.0",
+    "antlr4-python3-runtime": "4.13.2",
+    "latex2sympy2_extended": "1.11.0",
+    "mpmath": "1.3.0",
+    "sympy": "1.14.0"
+  },
+  "provenance": {
+    "inventory": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/runs/fineenvs/loop/implementation/local-check/base-inventory.json",
+    "manifest": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/runs/fineenvs/loop/implementation/local-check/base-oci/manifest.json",
+    "config": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/runs/fineenvs/loop/implementation/local-check/base-config.json",
+    "method": "Reuse recorded upstream layer inspection; registry inspection confirmed identical amd64 layers and resolved source digest. Existing dependencies require no installation."
+  }
+}

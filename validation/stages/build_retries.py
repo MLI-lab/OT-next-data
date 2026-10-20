@@ -63,7 +63,7 @@ def partition_builds(sources, args):
     for source in sources:
         failure = failures.get(str(source))
         if failure:
-            skipped.append({'task': str(source), 'status': 'skipped', 'blocked_by_stage': 3,
+            skipped.append({'task': str(source), 'status': 'skipped', 'blocked_by_stage': 1,
                             'build_report': failure['report'], 'reason': failure['reason']})
         else:
             selected.append(source)
@@ -97,7 +97,7 @@ async def run_builds(sources, out, args, outcomes):
         histories[index].append(result)
         outcomes.write(json.dumps(result) + '\n')
         outcomes.flush()
-        print(f"stage 3 {source.name} attempt {attempt + 1}: {result['status']}", flush=True)
+        print(f"stage 1 {source.name} attempt {attempt + 1}: {result['status']}", flush=True)
 
     await asyncio.gather(*(one(index, 0) for index in range(len(sources))))
     if benchmark:
@@ -159,7 +159,7 @@ async def run_builds(sources, out, args, outcomes):
         return items
     if int(getattr(args, 'outcome_retries', 0) or 0):
         # The run-level retry rule (outcome_retries) reruns tasks without a result
-        # after all stages; stage 3 is not treated differently from stages 4 and 5.
+        # after all stages; stage 1 is not treated differently from stages 3 and 5.
         return [dict(history[0]) for history in histories]
     failed = [index for index, history in enumerate(histories) if history[0]['status'] != 'passed']
     # Keep the original failed cohort for every round, including recovered tasks.

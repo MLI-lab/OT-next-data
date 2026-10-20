@@ -1,0 +1,61 @@
+{
+  "bucket": "AdithyaSK/jupyter-agent-kaggle-all",
+  "prefix": "rounakbanik__the-movies-dataset",
+  "files": [
+    {
+      "path": "rounakbanik__the-movies-dataset/credits.csv",
+      "size": 189917659,
+      "xet_hash": "0ad6ab568f75f0cb36ae947e18ef5db14f57adea73c7a796f28829dd2b35128e",
+      "sha256": "b968359c8e77aebcb7329608378b3b11cc1834726e157aae934bc89f291458ec"
+    },
+    {
+      "path": "rounakbanik__the-movies-dataset/keywords.csv",
+      "size": 6231943,
+      "xet_hash": "0acb3361786af084c52c5736d30e451204b418cb7dde3e4ec973ea3894a1071f",
+      "sha256": "428ef94a80255986ad71fd347855702e772ee776841f1e8923a618aa2d87a668"
+    },
+    {
+      "path": "rounakbanik__the-movies-dataset/links.csv",
+      "size": 989107,
+      "xet_hash": "cb17a1e24203ba67382d1d95d526b8e50463cf33c5a5bd3f57badb53800d5e1b",
+      "sha256": "bd8562d4b10d04d080e16caaf8027cd07e47b5da6920128d39e31cd1dd8ffc5e"
+    },
+    {
+      "path": "rounakbanik__the-movies-dataset/links_small.csv",
+      "size": 183372,
+      "xet_hash": "c1555ca139b190d19a64926e5afdd4e4288863a6787c523287ce4a354aa69895",
+      "sha256": "772cb400f68f03cc61b112a544601d25571b168788dab7dc96f462d93059c49f"
+    },
+    {
+      "path": "rounakbanik__the-movies-dataset/movies_metadata.csv",
+      "size": 34445126,
+      "xet_hash": "cc0436afeb5df9265db75f425626b5de05e1488019e1d6863d6bcafe7429e69e",
+      "sha256": "37ec322786b136a24604564e55160be75f8937546f11cb1a990076971fa895fd"
+    },
+    {
+      "path": "rounakbanik__the-movies-dataset/ratings.csv",
+      "size": 709550327,
+      "xet_hash": "2124f2926f8806810f168edd4b58812eeb0fa4236b801f253443b66795a58373",
+      "sha256": "5c6e8af7e8f71247208cf3fce4a7d52e61e6926b296c88e03e1cb60edb41b2f5"
+    },
+    {
+      "path": "rounakbanik__the-movies-dataset/ratings_small.csv",
+      "size": 2438266,
+      "xet_hash": "0bb1a18924bc3dd2c00af31732dcb2705b6b151bb91aff922a31a1bdca4e1e41",
+      "sha256": "821795331fd974bbe7a8416f2a7eec2b548a485dedb47a073580b0a9a8a0a8d2"
+    }
+  ],
+  "evidence": {
+    "report": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/runs/fineenvs/loop/generation-0000/stage3-10/results/submissions/68519191c9a1/report/stage-3-9c1e1f7bdd7d.json",
+    "archive_member": "results/stage_3_build_validation/9c1e1f7bdd7d/00004-0060_333_60333012_qa_4/preparation-review.json (and retry-1 through retry-4)",
+    "inspection": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/runs/fineenvs/loop/generation-0000/stage3-10/input-download-inspection.json",
+    "task_preparation_seconds": [
+      60.000609250040725,
+      60.00087606301531,
+      60.00155069195898,
+      60.000819796987344,
+      60.00147953402484
+    ],
+    "inspection_download_seconds": 6.405869840993546
+  }
+}

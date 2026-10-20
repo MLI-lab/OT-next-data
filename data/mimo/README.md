@@ -1,37 +1,62 @@
-# mimo
+# [MiMo-V2.6-RL Code](https://huggingface.co/datasets/XiaomiMiMo/MiMo-V2.6-RL-oss/tree/639865fd3374018d6cb29b9fb82dd531406fcf5f)
 
-## Original datasource
+## Dataset stats
 
-- MiMo-V2.6-RL-oss (Xiaomi MiMo agentic RL environments), Code subset — https://huggingface.co/datasets/XiaomiMiMo/MiMo-V2.6-RL-oss
+- **Original tasks:** 3,698 (2,698 Code, 1,000 Cyber)
+- **Kept:** 2,509
+- **Changed:** 2,509 (converted to Harbor)
+- **Archived:** 1,189
+- **Images:** 2,509 retained task environments, each using its own pinned upstream image. No shared-image condensation; cached Apptainer images are not included in this release.
 
-## Domains
+## Dataset characteristics
 
-Software Engineering, Debugging
+Implement a feature or fix a bug in a real open-source repository, graded by the upstream hidden tests.
 
-- **Software Engineering:** Each task gives an issue report or feature request for an open-source repository (for example pandas, MNE, graphene-django, pydantic-settings, Fleet, Boulder, pingcap/parser, arrow2, Opentrons) checked out in the working directory, and asks for a source change in Python, Go, Rust, JavaScript or another language of that project.
-- **Debugging:** Many instructions are bug reports with a reproducer and the observed wrong behavior; the agent has to locate the cause in an existing code base and repair it so that hidden regression tests pass.
+<details><summary>Domains</summary>
 
-## Agent capabilities
+**Software Engineering:** repository APIs, command-line options, request handling and application behavior in Python, Go, JavaScript and TypeScript. **Debugging:** locate faulty code from an issue description and repair the behavior checked by regression tests.
 
-Exploration, Specification Adherence, Error Recovery
+</details>
+<details><summary>Capabilities</summary>
 
-- **Exploration:** Intended practice: the instruction describes behavior, not file locations, so the agent must search an unfamiliar repository to find the code to change. No trajectories were inspected.
-- **Specification Adherence:** Intended practice: grading runs hidden tests that are applied only after the agent finishes, so the change must match the behavior, names and interfaces stated in the issue text. No trajectories were inspected.
-- **Error Recovery:** Intended practice: the agent can build the project and run its existing tests in the prepared environment, then diagnose failures and revise the change. No trajectories were inspected.
+**Exploration:** navigate unfamiliar repositories and find the relevant implementation. **Specification Adherence:** satisfy precise API, output and error-handling requirements. **Constraint Satisfaction:** implement new behavior while preserving existing behavior. **Error Recovery:** use test feedback to guide repairs. These are intended capabilities inferred from task content, not measured agent behavior. Labels follow [CLI-Universe](https://arxiv.org/abs/2606.22883v1).
 
-## Expected benchmark transfer
+</details>
 
-These are hypotheses, not measured training gains.
+Intended benchmark transfer: **SWE-bench Verified, Terminal-Bench 2.0 and OpenThoughts-TBLite 2.0**, through issue-driven repository work, terminal tools and executable verification.
 
-- **SWE-bench Verified random-100**: Same task form: an issue text plus a repository at a base commit, graded by hidden tests run in the project's own environment.
-- **DeepSWE 1.1 (deep-swe-litecontainer@1.1)**: Repository-level issue resolution in prepared containers across several languages, graded by executing tests.
-- **Terminal-Bench 2.0**: Tasks are solved through a shell in a container (navigating a repository, building, running test suites), which is the working mode of the software engineering and debugging tasks in this benchmark.
-- **OpenThoughts-TBLite 2.0**: Shell-driven software engineering and debugging in a container, as in the corresponding tasks of this benchmark.
+## Per-stage breakdown
 
-## Files
+- **Build and setup: 2,509 accepted, 1,103 archived.** Converted the retained Code rows to Harbor tasks with pinned images, terminal support and verifier setup. Archived: 1,000 Cyber tasks requiring separate operating-system users, 96 removed upstream images, 4 images with incomplete package installations and 3 images containing solution or hidden-test residue.
+- **No-op baseline (reward 0): 2,509 accepted, 86 archived.** Raised memory limits for 94 tasks to 8 or 16 GiB after profiling. Archived: 52 tasks incompatible with the runtime, 22 with broken environments or impractical build requirements, 10 with repository defects and 2 without reliable test-execution evidence. Reviewed expected failures and execution-recording gaps count as accepted zeros; the original reports are preserved in the linked evidence below.
+- **Reference solution (reward 1): not applicable.** The upstream rows contain no reference solutions.
+- **Rule-based checks: 2,509 accepted, 0 archived.** Automatic instruction-path resolution and the timeout/anti-cheat suffix were enabled. Advisory warnings and excluded checks are recorded in the validation evidence.
 
-- `tasks.parquet`: kept tasks.
-- `archive.parquet`: excluded tasks with validation reasons.
+Includes the full validation run and reruns of repaired tasks. Task `002797` also showed a Jest worker serialization crash, and `000133` showed connection-refused errors in other tests; each has independent assertions reproducing the requested bug. Their acceptance establishes a valid no-op zero, not complete verifier health.
 
-Generated with claude-opus-5-5; domain and capability labels follow CLI-Universe.
-Taxonomy source: https://arxiv.org/abs/2606.22883v1
+## Reported reward hacks
+
+[Vals AI](https://www.vals.ai/blogs/mimo-reward-hacking) found solution commits in 1,795 of the 2,698 original Code environments. MiMo's re-upload appears to have addressed this: in the 2,509 tasks we considered, our Git cleanup check (`repository-history-leak`) found no remaining refs or unreachable objects to remove.
+
+**Timestamp hints remained in the re-upload:** our check flagged unusual file timestamps in **975 of the 2,509 tasks**, which could reveal where to make the fix. We added timestamp normalization to all released task Dockerfiles, alongside Git cleanup.
+
+We also rechecked [Charlie Ruan's findings](https://github.com/CharlieFRuan/rl-env-cleaner/tree/836c6061a2d8605155c47041a1ee02e5e5554e6e/mimo_swe):
+
+- **27 reported cases:** 21 were recorded as fixed by the re-upload. We excluded 3: one missing image, one with feature-specific tests left in an installed package (`000092`), and one with the fixed implementation already installed (`001397`). We kept 3 after inspecting the remaining files.
+- **56 additional tasks with leftover files:** 27 were clean. For 22, copying the installed code into the repository did not pass the verifier. Of the remaining 7, we excluded `000253` because an installed package already contained the requested feature, and kept 6 after inspection.
+
+## Runtime and validation time
+
+- **Versions:** Apptainer **1.5.4** on the main Helma run, Python **3.12.14**, Harbor **0.8.1**.
+- **Implementation:** [Marin Harbor `7faf878c14b6`](https://github.com/marin-community/harbor/tree/7faf878c14b6d72737579ec936ebf5f74ba3194d) with [our runtime patches](https://github.com/MLI-lab/OT-next-data/tree/main/harbor_patches).
+- **Resources:** main Helma run: **48 CPU cores, 128 GiB RAM**, up to 8 concurrent tasks per job. Final CLAIX retry: **32 CPU cores, 128 GiB RAM**, up to 6 concurrent tasks.
+
+| Check | Median per task | Tasks measured |
+| --- | ---: | ---: |
+| Build and setup | **22.5 s** | 2,509 |
+| No-op baseline | **28.1 s** | 2,509 |
+| Rule-based checks | **0.1 s** | 2,509 |
+
+Medians use the selected compatible results for the retained tasks, not total runtime including retries or queue time.
+
+Detailed [validation records](https://huggingface.co/datasets/FWeindel/validated-tasks/blob/49b508461095e98fa721b0f1b0b7939a594e8653/mimo_v1/validation.json), [no-op reviews](https://huggingface.co/datasets/FWeindel/validated-tasks/blob/49b508461095e98fa721b0f1b0b7939a594e8653/mimo_v1/noop-review.json) and [original logs](https://huggingface.co/datasets/FWeindel/validated-tasks/blob/49b508461095e98fa721b0f1b0b7939a594e8653/mimo_v1/noop-review-evidence.tar.gz) remain available at the original publication revision.

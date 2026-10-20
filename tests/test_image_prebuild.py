@@ -67,7 +67,7 @@ def test_worker_prebuild_archives_without_bridge_or_validation(tmp_path, monkeyp
     args = runner.parser().parse_args([str(source), '--prebuild-only', '--submit', 'helma', '--cpus', '4'])
     request = tmp_path / 'submission/request.json'
     request.parent.mkdir()
-    request.write_text(json.dumps({'args': vars(args), 'stages': [1, 3, 4, 5]}, default=str))
+    request.write_text(json.dumps({'args': vars(args), 'stages': [1, 2, 3, 4]}, default=str))
     assert worker.main(request) == int(failed)
     result = json.loads((request.parent / 'image-prebuild.json').read_text())
     assert result['passed'] is not failed
@@ -91,14 +91,19 @@ def test_prebuild_requires_cluster_and_cannot_publish():
         runner.check_args(args)
 
 
-def test_prebuild_operation_is_frozen(tmp_path):
+@pytest.mark.parametrize('site', ['helma', 'zih', 'rwth'])
+def test_prebuild_operation_is_frozen(tmp_path, site):
     from validation.contract import create, read
     task = tmp_path / 'source/task'
     task.mkdir(parents=True)
     (task / 'task.toml').write_text('version = "1.0"\n')
-    args = runner.parser().parse_args([str(task.parent), '--submit', 'helma', '--prebuild-only'])
+    args = runner.parser().parse_args([str(task.parent), '--submit', site, '--prebuild-only'])
+    runner.check_args(args)
+    from hpc.validation_submit import selected_cluster
+    assert selected_cluster(args).name == site
     path = tmp_path / 'contract.json'
     create(args, [3], path)
     contract = read(path)
     assert contract['arguments']['prebuild_only'] is True
     assert contract['execution_profile']['operation'] == 'image-prebuild-only'
+    assert contract['execution_profile']['scheduler_target'] == site + '/Slurm'

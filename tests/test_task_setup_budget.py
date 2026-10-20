@@ -159,12 +159,13 @@ def test_failed_setup_records_container_diagnostics():
         async def exec(self, command, **kwargs):
             calls.append(command)
             if command == 'setup':
-                return SimpleNamespace(return_code=1, stdout='', stderr="No module named 'keyword'")
+                return SimpleNamespace(return_code=1, stdout='checkout cleanliness failed', stderr="No module named 'keyword'")
             return SimpleNamespace(return_code=0, stdout='== mounts\noverlay / overlay rw\n', stderr='')
     async def upload(): pass
     with pytest.raises(RuntimeError, match='Task setup exited 1') as caught:
         asyncio.run(task_setup.prepare(Environment(), command='setup', timeout_sec=60, force_build=False, upload=upload))
     assert caught.value.diagnostics.startswith('== mounts') and calls[1] == task_setup.SETUP_DIAGNOSTICS
+    assert 'checkout cleanliness failed' in str(caught.value)
 
 
 @pytest.mark.parametrize('python_section,damaged', [
@@ -186,4 +187,4 @@ def test_setup_failure_on_a_broken_interpreter_is_marked_as_environment_damage(p
         asyncio.run(task_setup.prepare(Environment(), command='setup', timeout_sec=60, force_build=False, upload=upload))
     assert str(caught.value).startswith(task_setup.DAMAGED) is damaged
     item = {'status': 'error', 'environments': [{'status': 'error', 'error': str(caught.value)}]}
-    assert judge(3, item)[0] == ('not_run' if damaged else 'archive')
+    assert judge(1, item)[0] == ('not_run' if damaged else 'archive')

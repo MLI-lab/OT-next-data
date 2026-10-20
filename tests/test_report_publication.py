@@ -11,7 +11,7 @@ from validation.reporting import report
 
 
 def stage():
-    return {'stage': 3, 'complete': True, 'contract_sha256': 'frozen',
+    return {'stage_layout': 'environment-first-v2', 'stage': 1, 'complete': True, 'contract_sha256': 'frozen',
             'items': [{'task': 'a', 'status': 'passed'}]}
 
 
@@ -19,7 +19,7 @@ def test_report_is_not_complete_until_stage_files_are_published(tmp_path, monkey
     archive = tmp_path / 'evidence.tar.gz'
     data = json.dumps(stage()).encode()
     with tarfile.open(archive, 'w:gz') as tar:
-        member = tarfile.TarInfo('results/stage_3_build/abc/summary.json')
+        member = tarfile.TarInfo('results/stage_1_build/abc/summary.json')
         member.size = len(data)
         tar.addfile(member, io.BytesIO(data))
     monkeypatch.setattr(report, 'summarize', lambda p: {'complete': True, 'review_groups': None})
@@ -29,7 +29,7 @@ def test_report_is_not_complete_until_stage_files_are_published(tmp_path, monkey
         if target.name.startswith('stage-'):
             observed.append(json.loads((target.parent / 'summary.json').read_text())['complete'])
         if target.name == 'summary.json' and json.loads(path.read_text()).get('complete'):
-            assert json.loads((target.parent / 'stage-3-abc.json').read_text()) == stage()
+            assert json.loads((target.parent / 'stage-1-abc.json').read_text()) == stage()
         return original(path, target)
     monkeypatch.setattr(Path, 'replace', replace)
     report.write_report(archive, tmp_path / 'report')
@@ -39,7 +39,7 @@ def test_report_is_not_complete_until_stage_files_are_published(tmp_path, monkey
 
 @pytest.mark.parametrize('terminal', [False, True])
 def test_old_worker_summary_cannot_hide_late_passing_shard(tmp_path, monkeypatch, terminal):
-    core.save(tmp_path / 'contract.json', {'sha256': 'frozen', 'stages': [3]})
+    core.save(tmp_path / 'contract.json', {'sha256': 'frozen', 'stages': [1]})
     core.save(tmp_path / 'report/summary.json', {'complete': True})
     job = {'job_id': '123_8', 'submission': str(tmp_path), 'contract': str(tmp_path / 'contract.json'),
            'selected_ids': ['a']}
@@ -47,17 +47,17 @@ def test_old_worker_summary_cannot_hide_late_passing_shard(tmp_path, monkeypatch
     monkeypatch.setattr(core.time, 'monotonic', lambda: clock[0])
     def sleep(seconds):
         clock[0] += seconds
-        core.save(tmp_path / 'report/stage-3-real.json', stage())
+        core.save(tmp_path / 'report/stage-1-real.json', stage())
     monkeypatch.setattr(core.time, 'sleep', sleep)
     monkeypatch.setattr(core.subprocess, 'run', lambda *a, **k: SimpleNamespace(
         stdout='123_8|' + ('COMPLETED' if terminal else 'RUNNING') + '|\n'))
     result = core.wait_for_job(job, 5)
     assert clock[0] == 5
-    assert core.summarize(result, ['a'], [3])['passed_all'] == 1
+    assert core.summarize(result, ['a'], [1])['passed_all'] == 1
 
 
 def test_terminal_missing_report_has_bounded_grace_and_remains_missing(tmp_path, monkeypatch):
-    core.save(tmp_path / 'contract.json', {'sha256': 'frozen', 'stages': [3]})
+    core.save(tmp_path / 'contract.json', {'sha256': 'frozen', 'stages': [1]})
     job = {'job_id': '123', 'submission': str(tmp_path), 'contract': str(tmp_path / 'contract.json'),
            'selected_ids': ['a']}
     clock = [0]

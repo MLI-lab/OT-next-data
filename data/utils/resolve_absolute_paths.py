@@ -1,9 +1,9 @@
 """Resolve static-check findings against a running task container, without a model.
 
-Runs the task healthcheck after stage-3 setup, then searches explicit project roots.
+Runs the task healthcheck after stage-1 setup, then searches explicit project roots.
 The search is read-only. A unique filesystem
 match is evidence of location, not proof that a prose occurrence should change.
-Use validation/run.py --stages 3 --resolve-path-root /workspace to collect reports.
+Use validation/run.py --stages 4 --resolve-path-root /workspace to collect reports.
 Container startup and bounded image-build memory are managed by the bridge before
 this helper runs; resolving paths does not override task resource limits.
 """
@@ -38,14 +38,18 @@ def validate_roots(roots):
 def flagged_paths(task):
     """Reuse the pinned checker and its adaptations, rather than a second regex."""
     from validation.checks.check_terminal_bench import (
-        PATH_CHECK, TERMINAL_BENCH, load_checks, path_check_copy, safe_copy,
+        PATH_CHECK, TERMINAL_BENCH, load_checks, path_check_copy, path_check_script, safe_copy,
     )
     load_checks('terminal-bench')  # Verifies checksums of the copied checks.
     with tempfile.TemporaryDirectory(prefix='resolve-paths-') as scratch:
         copied, _ = safe_copy(Path(task), scratch)
         target = path_check_copy(copied, scratch)
+        # Same adapted script as stage 4: upstream loses unquoted file names in a subshell.
+        script = Path(scratch) / 'adapted-scripts' / PATH_CHECK
+        script.parent.mkdir()
+        script.write_text(path_check_script((TERMINAL_BENCH / 'scripts/checks' / PATH_CHECK).read_text()))
         env = {k: v for k, v in os.environ.items() if k not in {'FIX_DIRS', 'BASE_DIR', 'BASH_ENV', 'ENV'}}
-        result = subprocess.run(['bash', str(TERMINAL_BENCH / 'scripts/checks' / PATH_CHECK), str(target)],
+        result = subprocess.run(['bash', str(script), str(target)],
                                 cwd=scratch, env=env, capture_output=True, text=True, timeout=60)
     paths = []
     for line in result.stdout.splitlines():
@@ -215,17 +219,30 @@ async def resolve_in_environment(environment, task_path, search_roots, timeout_s
 
 
 def collect_reports(report_paths):
-    """Collect stage-4 evidence; prefer complete scans, then successful grading, retaining history."""
+    """Collect build/path and reference evidence, preferring complete scans."""
     import json
     tasks = {}
     for path in report_paths:
         report = json.loads(Path(path).read_text())
-        if report.get('stage') != 4:
-            raise ValueError(f'Expected a stage-4 report: {path}')
+        from validation.stages.layout import LAYOUT, REFERENCE, current_stage
+        # Discovery evidence from before 2026-10-17 has no layout field: stage 3 was the reference then.
+        layout = report.get('stage_layout', 'environment-first-v1')
+        stage = current_stage(report.get('stage'), layout)
+        if stage not in (1, REFERENCE):
+            raise ValueError(f'Expected a build (stage 1) or reference-solution (stage {REFERENCE}) report: {path}')
         for item in report['items']:
             name = Path(item['task']).name
             entry = tasks.setdefault(name, {'task': name, 'attempts': []})
-            for diagnostic in item.get('instruction_path_diagnostics', []) or [{}]:
+            diagnostics = item.get('instruction_path_diagnostics', [])
+            if stage == 1:
+                diagnostics = []
+                for run in item.get('preparation_runs', []) or [item]:
+                    for env in run.get('environments', []):
+                        if env.get('environment') == 'agent' and env.get('instruction_paths'):
+                            baseline = env['instruction_paths']
+                            diagnostics.append({'agent_baseline': baseline, 'observations': [],
+                                'reference_unavailable': baseline.get('reference_unavailable', False)})
+            for diagnostic in diagnostics or [{}]:
                 attempt = {'report': str(Path(path).resolve()), 'status': item['status'],
                            'rewards': item.get('rewards', []), 'diagnostic': diagnostic}
                 entry['attempts'].append(attempt)

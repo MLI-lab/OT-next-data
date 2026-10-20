@@ -2,10 +2,10 @@
 
 ## Dataset stats
 
-- **[17,202 original tasks](https://huggingface.co/datasets/PrimeIntellect/Scale-SWE-Verified/tree/8935f8e55244fd56080cdb8dcd0819a57e8a003c); 16,786 retained, all changed; 416 archived.**
-- **17,202 original Docker images → 16,786 retained images.** No consolidation; the decrease follows task exclusions. Exact tags remain in each Dockerfile, under [aweaiteam/scaleswe](https://hub.docker.com/r/aweaiteam/scaleswe/tags).
+- **[17,202 original tasks](https://huggingface.co/datasets/PrimeIntellect/Scale-SWE-Verified/tree/8935f8e55244fd56080cdb8dcd0819a57e8a003c); 16,786 kept, all changed; 416 archived.**
+- **17,202 original Docker images → 16,786 kept images.** No consolidation; the decrease follows task exclusions. Exact tags remain in each Dockerfile, under [aweaiteam/scaleswe](https://hub.docker.com/r/aweaiteam/scaleswe/tags).
 
-- All retained tasks use the original Docker Hub image tags; **48 optional cached Apptainer conversions** are also available on HF. Duplicating the remaining upstream images on HF is unnecessary.
+- All kept tasks use the original Docker Hub image tags; **48 optional cached Apptainer conversions** are also available on HF. Duplicating the remaining upstream images on HF is unnecessary.
 
 ## Dataset characteristics
 
@@ -27,12 +27,12 @@ Exploration; Error Recovery; Specification Adherence; Constraint Satisfaction. T
 
 ## Per-stage breakdown
 
-Counts below describe retained repairs; repair groups overlap. Results combine historical validation and repair reruns; the later full reproduction failed during startup.
+Counts below describe kept repairs; repair groups overlap. Results combine historical validation and repair reruns; the later full reproduction failed during startup.
 
-- **Rule-based checks:** 16,786 changed, 0 archived. Restored the timeout/anti-cheating sentence (`check-instruction-suffix.sh`) and 750 recorded instruction-path corrections supported by setup/reference observations. The historical `check-task-absolute-path.sh` treated unresolved relative paths as advisory; these corrections do not imply 750 checker failures.
 - **Build and setup:** 16,786 passed; 0 dataset repairs, 0 archived. Original per-task images ran through the shared Apptainer/Marin Harbor bridge.
-- **Reference solution (reward 1):** 16,786 passed; 419 repaired, 362 archived. Repairs: 367 missing test fixtures, 26 pytest file-handle conflicts, 6 worker limits, 5 import paths, 5 parameterized-test matching, 5 always-skipped required tests, 4 worker cleanup and 1 temporary-file cleanup. Archives: 149 failing reference tests, 122 unavailable services, 60 missing/incompatible dependencies, 18 stale HTTP recordings, 7 privileged ports, 4 import-path conflicts and 2 missing test definitions/helpers.
 - **No-op baseline (reward 0):** 16,786 passed; 37 repaired, 54 archived. Repairs: 31 checkout imports, 5 deferred missing-feature imports, 1 fixture/worker-timeout repair. Archives: 37 passing without a fix, 15 test-only pull requests, 1 timeout and 1 timing-sensitive result.
+- **Reference solution (reward 1):** 16,786 passed; 419 repaired, 362 archived. Repairs: 367 missing test fixtures, 26 pytest file-handle conflicts, 6 worker limits, 5 import paths, 5 parameterized-test matching, 5 always-skipped required tests, 4 worker cleanup and 1 temporary-file cleanup. Archives: 149 failing reference tests, 122 unavailable services, 60 missing/incompatible dependencies, 18 stale HTTP recordings, 7 privileged ports, 4 import-path conflicts and 2 missing test definitions/helpers.
+- **Rule-based checks:** 16,786 changed, 0 archived. Restored the timeout/anti-cheating sentence (`check-instruction-suffix.sh`) and 750 recorded instruction-path corrections supported by setup/reference observations. The historical `check-task-absolute-path.sh` treated unresolved relative paths as advisory; these corrections do not imply 750 checker failures.
 
 ## Runtime and validation time
 
@@ -46,4 +46,4 @@ Counts below describe retained repairs; repair groups overlap. Results combine h
 | Reference solution | **16.53 s** | **10.70 s** | 16,786 |
 | No-op baseline | **15.71 s** | **9.90 s** | 16,786 |
 
-Latest recorded checks for the **16,786 retained tasks**. Build/setup measures environment start, inspection and stop; image builds are excluded. Reference/no-op timings cover the recorded trials.
+Latest recorded checks for the **16,786 kept tasks**. Build/setup measures environment start, inspection and stop; image builds are excluded. Reference/no-op timings cover the recorded trials.

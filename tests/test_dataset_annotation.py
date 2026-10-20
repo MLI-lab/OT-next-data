@@ -59,7 +59,7 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
     assert 'set-python/README.md' in result['files']
     assert 'set-java/annotation.json' not in result['files']
     text = (tmp_path / 'out/set-python/README.md').read_text()
-    assert 'hypotheses, not measured' in text
+    assert '## Expected benchmark transfer' in text and 'hypotheses, not measured' not in text
     assert 'annotation.json' not in text
     assert 'Insufficient overlap evidence.' in text
     card = json.loads((tmp_path / 'out/set-python/annotation.json').read_text())

@@ -4,6 +4,7 @@ from functools import wraps
 import asyncio
 import base64
 import io
+import shlex
 import tarfile
 
 
@@ -41,6 +42,24 @@ _upload = ContextVar('bridge_upload', default=False)
 SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 
+def extraction_command(archive, target, checkpoint=3276):
+    """Flush extraction writes about every 32 MiB under task memory limits.
+
+    GNU tar's default record is 20 * 512 bytes. Without periodic writeback,
+    unpacking large inputs can stall on dirty-page reclaim in a 1 GiB cgroup.
+    Keep tar's link/mode handling and the existing upload timeout unchanged.
+    """
+    flush = shlex.join(['sync', '-f', target])
+    extract = shlex.join(['tar', '--no-same-owner', f'--checkpoint={checkpoint}',
+                         '--checkpoint-action=exec=' + flush, '-xf', archive, '-C', target])
+    ordinary = shlex.join(['tar', '--no-same-owner', '-xf', archive, '-C', target])
+    # Keep the established transfer behavior on images with non-GNU tar/sync.
+    supported = "tar --version 2>/dev/null | grep -q 'GNU tar'"
+    supported += " && sync --version 2>/dev/null | grep -q 'GNU coreutils'"
+    return (f'if {supported}; then {extract} && {flush}; else {ordinary}; fi'
+            + ' && ' + shlex.join(['rm', archive]))
+
+
 def upload_command(cmd):
     if not _upload.get() or not isinstance(cmd, list) or cmd[1:2] != ['exec']:
         return cmd
@@ -53,7 +72,10 @@ def upload_command(cmd):
     # This applies only to upload mkdir/extraction/verification, never task exec.
     script = cmd[index + 3:]
     if script and script[0].startswith('tar xf /workspace/.upload_tmp -C '):
-        script = [script[0].replace('tar xf ', 'tar --no-same-owner -xf ', 1), *script[1:]]
+        parts = shlex.split(script[0])
+        if len(parts) != 8 or parts[:4] != ['tar', 'xf', '/workspace/.upload_tmp', '-C'] or parts[5:] != ['&&', 'rm', '/workspace/.upload_tmp']:
+            raise ValueError('unrecognized bridge upload extraction command')
+        script = [extraction_command(parts[2], parts[4]), *script[1:]]
     return [*cmd[:index], '--pwd', '/', cmd[index], '/usr/bin/env',
             '-u', 'BASH_ENV', '-u', 'ENV', f'PATH={SYSTEM_PATH}',
             '/bin/bash', '--noprofile', '--norc', '-c', *script]

@@ -16,8 +16,557 @@ import tarfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
+# Embedded build inputs retain their exact bytes so image cache keys remain stable.
+EMBEDDED_FILES = {
+    'grader-requirements.txt': (
+        'annotated-doc==0.0.5\n'
+        'annotated-types==0.8.0\n'
+        'anyio==4.15.1\n'
+        'bashlex==0.18\n'
+        'certifi==2026.7.22\n'
+        'cffi==2.1.1\n'
+        'charset-normalizer==3.5.2\n'
+        'click==8.5.0\n'
+        'cryptography==50.0.2\n'
+        'dataclasses-json==0.6.7\n'
+        'docker==7.2.0\n'
+        'fastapi==0.142.2\n'
+        'gitdb==4.0.12\n'
+        'GitPython==3.2.0\n'
+        'h11==0.16.0\n'
+        'idna==3.20\n'
+        'markdown-it-py==4.2.0\n'
+        'marshmallow==3.26.2\n'
+        'mdurl==0.1.2\n'
+        'multi-swe-bench @ https://files.pythonhosted.org/packages/48/ad/6b7cda600a50392c790b14ee420b9a3bb318a982a298c05f2d1c066a434f/multi_swe_bench-1.1.2.tar.gz#sha256=44944bc6608d7d9b8d4390f3ce0a3b2c69122ea6be6e35766c6fde2328f50392\n'
+        'mypy_extensions==1.1.0\n'
+        'opentelemetry-api==1.45.1\n'
+        'packaging==26.3\n'
+        'pexpect==4.9.0\n'
+        'pip==24.3.1\n'
+        'ptyprocess==0.7.0\n'
+        'pycparser==3.0\n'
+        'pydantic==2.13.5\n'
+        'pydantic_core==2.46.5\n'
+        'PyGithub==2.10.0\n'
+        'Pygments==2.21.0\n'
+        'PyJWT==2.15.1\n'
+        'PyNaCl==1.6.2\n'
+        'python-multipart==0.0.32\n'
+        'PyYAML==6.0.3\n'
+        'requests==2.34.2\n'
+        'rich==15.0.0\n'
+        'setuptools==80.9.0\n'
+        'smmap==5.0.3\n'
+        'starlette==1.7.0\n'
+        'swe-rex==1.4.0\n'
+        'toml==0.10.2\n'
+        'tqdm==4.70.1\n'
+        'typing-inspect==0.9.0\n'
+        'typing-inspection==0.4.4\n'
+        'typing_extensions==4.16.0\n'
+        'unidiff==1.0.1\n'
+        'urllib3==2.8.0\n'
+        'uvicorn==0.54.0\n'
+    ),
+    'preinstall_cache_v8.py': (
+        '"""Install one exact baseline\'s dependencies during image construction."""\n'
+        'import json\n'
+        'import os\n'
+        'from pathlib import Path\n'
+        'import re\n'
+        'import shlex\n'
+        'import subprocess\n'
+        'import sys\n'
+        'import tempfile\n'
+        'import time\n'
+        'from urllib.parse import urlsplit\n'
+        'from xml.sax.saxutils import escape\n'
+        '\n'
+        '\n'
+        "JUNIT_LOCAL_SNAPSHOT = '''gradle.projectsEvaluated {\n"
+        "    def vintage = rootProject.findProject(':junit-vintage-engine')\n"
+        '    if (vintage != null) {\n'
+        '        rootProject.allprojects { p ->\n'
+        '            p.configurations.configureEach { c ->\n'
+        '                c.resolutionStrategy.dependencySubstitution.all { dep ->\n'
+        '                    def requested = dep.requested\n'
+        '                    if (requested instanceof org.gradle.api.artifacts.component.ModuleComponentSelector &&\n'
+        "                        requested.group == 'org.junit.vintage' &&\n"
+        "                        requested.module == 'junit-vintage-engine' &&\n"
+        '                        requested.version == vintage.version.toString()) {\n'
+        "                        dep.useTarget(c.resolutionStrategy.dependencySubstitution.project(':junit-vintage-engine'))\n"
+        '                    }\n'
+        '                }\n'
+        '            }\n'
+        '        }\n'
+        '    }\n'
+        '}\n'
+        "'''\n"
+        '\n'
+        '\n'
+        'def javascript_install_script(spec):\n'
+        "    script = spec['electron_proxy'] + '\\n' + spec['prepare']\n"
+        '    script = script.replace(\'bash /home/check_git_changes.sh\', \'test -z "$(git status --porcelain)"\')\n'
+        "    script = re.sub(r'\\s*\\|\\|\\s*true\\b', '', script)\n"
+        "    if spec['repo'] == 'material-ui' and spec['base_sha'] == '293b579ab1dc22770921e57d1e5a51f9b90bbec0':\n"
+        "        script = 'export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1\\n' + script\n"
+        "    if spec['repo'] == 'redux' and spec['base_sha'] == 'cefb03adfd672891e65166403cfc70709f73d6a8':\n"
+        '        # Skip only the root release/test hook, retaining dependency lifecycle scripts.\n'
+        '        disable = \'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));delete p.scripts.prepublish;fs.writeFileSync("package.json",JSON.stringify(p));\'\n'
+        '        install = (\'( backup=$(mktemp); cp package.json "$backup"; \'\n'
+        '                   \'trap \\\'cp "$backup" package.json; rm -f "$backup"\\\' EXIT; \'\n'
+        "                   'node -e ' + shlex.quote(disable) + '; yarn install )')\n"
+        "        script = re.sub(r'(?m)^yarn install\\s*$', lambda _: install, script)\n"
+        '    return script\n'
+        '\n'
+        '\n'
+        'def preinstall(spec, configure_gradle_proxy):\n'
+        "    repo = Path('/home') / spec['repo']\n"
+        "    properties = Path(os.environ.get('GRADLE_USER_HOME', '/opt/multiswe-gradle')) / 'gradle.properties'\n"
+        '    original = properties.read_bytes() if properties.exists() else None\n'
+        '    original_mode = properties.stat().st_mode & 0o777 if properties.exists() else None\n'
+        "    java = spec['repo'] in ('checkstyle', 'fastjson2', 'junit5', 'logstash', 'mockito', 'spotbugs')\n"
+        "    with tempfile.TemporaryDirectory(prefix='multiswe-preinstall-') as temporary:\n"
+        '        try:\n'
+        '            if java:\n'
+        '                configure_gradle_proxy()\n'
+        "                script = 'set -e\\ngit reset --hard\\ngit checkout ' + shlex.quote(spec['base_sha']) + '\\n'\n"
+        "                if spec['repo'] in ('checkstyle', 'fastjson2'):\n"
+        "                    Path('/opt/multiswe-maven-settings.xml').write_text('<settings/>\\n')\n"
+        "                    settings = Path(temporary) / 'settings.xml'\n"
+        '                    values = {}\n'
+        "                    for protocol in ('http', 'https'):\n"
+        "                        value = os.environ.get(protocol + '_proxy') or os.environ.get(protocol.upper() + '_PROXY')\n"
+        '                        if value:\n'
+        '                            url = urlsplit(value)\n'
+        '                            # Maven proxy settings are temporary and never baked into the image.\n'
+        "                            values[protocol] = ('<proxy><id>' + protocol + '</id><active>true</active><protocol>' + protocol +\n"
+        "                                '</protocol><host>' + escape(url.hostname or '') + '</host><port>' + str(url.port or 80) +\n"
+        "                                '</port><nonProxyHosts>localhost|127.*|repo.maven.apache.org|repo1.maven.org</nonProxyHosts></proxy>')\n"
+        "                    settings.write_text('<settings><proxies>' + ''.join(values.values()) + '</proxies></settings>')\n"
+        "                    maven_args = ' -B -s ' + shlex.quote(str(settings)) + ' -Dmaven.repo.local=/opt/multiswe-maven '\n"
+        "                    if spec['repo'] == 'fastjson2':\n"
+        '                        # Keep upstream profiles and packaging; execute graded tests only in the verifier.\n'
+        '                        script = spec[\'prepare\'].replace(\'bash /home/check_git_changes.sh\', \'test -z "$(git status --porcelain)"\')\n'
+        "                        script = re.sub(r'\\s*\\|\\|\\s*true\\b', '', script)\n"
+        "                        script = script.replace('./mvnw ', './mvnw' + maven_args + '-DskipTests ')\n"
+        '                    else:\n'
+        "                        script += 'mvn' + maven_args + '-DskipTests test\\n'\n"
+        '                else:\n'
+        "                    junit_flag = ''\n"
+        "                    if spec['repo'] == 'junit5':\n"
+        "                        local = Path('/opt/multiswe-junit-local.gradle')\n"
+        '                        local.write_text(JUNIT_LOCAL_SNAPSHOT)\n'
+        "                        junit_flag = '--init-script ' + str(local) + ' '\n"
+        "                    init = Path(temporary) / 'test-runtime.gradle'\n"
+        "                    init.write_text('''gradle.projectsEvaluated {\n"
+        "                        rootProject.tasks.register('multisweInstallTestRuntime') {\n"
+        '                            doLast {\n'
+        '                                rootProject.allprojects.each { p ->\n'
+        '                                    p.tasks.withType(org.gradle.api.tasks.testing.Test).each { t ->\n'
+        '                                        t.classpath.files\n'
+        "                                        if (t.hasProperty('javaLauncher')) t.javaLauncher.orNull\n"
+        '                                    }\n'
+        '                                }\n'
+        '                            }\n'
+        '                        }\n'
+        "                    }''')\n"
+        "                    script += ('./gradlew --no-daemon --max-workers 2 ' + junit_flag + '--init-script ' +\n"
+        "                               shlex.quote(str(init)) + ' testClasses multisweInstallTestRuntime\\n')\n"
+        '            else:\n'
+        '                script = javascript_install_script(spec)\n'
+        "            log = Path(temporary) / 'installation.log'\n"
+        '            started = time.monotonic()\n'
+        "            print('Installing baseline dependencies for ' + spec['repo'] + '@' + spec['base_sha'], flush=True)\n"
+        "            with log.open('w') as output:\n"
+        "                with subprocess.Popen(['bash', '-euc', script], cwd=repo, stdout=subprocess.PIPE,\n"
+        "                                      stderr=subprocess.STDOUT, text=True, errors='replace') as process:\n"
+        '                    for line in process.stdout:\n'
+        '                        output.write(line)\n'
+        "                        print(line, end='', flush=True)\n"
+        '                    returncode = process.wait()\n'
+        "            print(f'Baseline dependency installation exit={returncode}, seconds={time.monotonic()-started:.1f}', flush=True)\n"
+        '            if returncode:\n'
+        "                lines = log.read_text(errors='replace')\n"
+        "                marker = lines.find('* What went wrong:')\n"
+        "                errors = [line for line in lines.splitlines() if line.startswith(('error ', '[ERROR]'))]\n"
+        "                detail = lines[marker:marker + 1000] if marker >= 0 else '\\n'.join(errors[:4])[:1000] or lines[-1000:]\n"
+        "                raise RuntimeError('Baseline dependency installation failed: ' + detail)\n"
+        "            head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()\n"
+        "            if head != spec['base_sha']:\n"
+        "                raise RuntimeError('Image checkout does not match the task baseline')\n"
+        "            Path('/home/fix.patch').unlink(missing_ok=True)\n"
+        "            Path('/opt/multiswe-preinstalled.json').write_text(json.dumps({\n"
+        "                'repo': spec['repo'], 'base_sha': head, 'baseline_test_command_removed': java,\n"
+        "            }) + '\\n')\n"
+        '        finally:\n'
+        '            if java:\n'
+        '                if original is None:\n'
+        '                    properties.unlink(missing_ok=True)\n'
+        '                else:\n'
+        '                    properties.write_bytes(original)\n'
+        '                    properties.chmod(original_mode)\n'
+    ),
+    'preinstall.py': (
+        '"""Install one exact baseline\'s dependencies during image construction."""\n'
+        'import json\n'
+        'import os\n'
+        'from pathlib import Path\n'
+        'import re\n'
+        'import shlex\n'
+        'import subprocess\n'
+        'import sys\n'
+        'import tempfile\n'
+        'import time\n'
+        'from urllib.parse import urlsplit\n'
+        'from xml.sax.saxutils import escape\n'
+        '\n'
+        '\n'
+        "JUNIT_LOCAL_SNAPSHOT = '''gradle.projectsEvaluated {\n"
+        "    def vintage = rootProject.findProject(':junit-vintage-engine')\n"
+        '    if (vintage != null) {\n'
+        '        rootProject.allprojects { p ->\n'
+        '            p.configurations.configureEach { c ->\n'
+        '                c.resolutionStrategy.dependencySubstitution.all { dep ->\n'
+        '                    def requested = dep.requested\n'
+        '                    if (requested instanceof org.gradle.api.artifacts.component.ModuleComponentSelector &&\n'
+        "                        requested.group == 'org.junit.vintage' &&\n"
+        "                        requested.module == 'junit-vintage-engine' &&\n"
+        '                        requested.version == vintage.version.toString()) {\n'
+        "                        dep.useTarget(c.resolutionStrategy.dependencySubstitution.project(':junit-vintage-engine'))\n"
+        '                    }\n'
+        '                }\n'
+        '            }\n'
+        '        }\n'
+        '    }\n'
+        '}\n'
+        "'''\n"
+        '\n'
+        '\n'
+        'def preinstall(spec, configure_gradle_proxy):\n'
+        "    repo = Path('/home') / spec['repo']\n"
+        "    properties = Path(os.environ.get('GRADLE_USER_HOME', '/opt/multiswe-gradle')) / 'gradle.properties'\n"
+        '    original = properties.read_bytes() if properties.exists() else None\n'
+        '    original_mode = properties.stat().st_mode & 0o777 if properties.exists() else None\n'
+        "    java = spec['repo'] in ('checkstyle', 'fastjson2', 'junit5', 'logstash', 'mockito', 'spotbugs')\n"
+        "    with tempfile.TemporaryDirectory(prefix='multiswe-preinstall-') as temporary:\n"
+        '        try:\n'
+        '            if java:\n'
+        '                configure_gradle_proxy()\n'
+        "                script = 'set -e\\ngit reset --hard\\ngit checkout ' + shlex.quote(spec['base_sha']) + '\\n'\n"
+        "                if spec['repo'] in ('checkstyle', 'fastjson2'):\n"
+        "                    Path('/opt/multiswe-maven-settings.xml').write_text('<settings/>\\n')\n"
+        "                    settings = Path(temporary) / 'settings.xml'\n"
+        '                    values = {}\n'
+        "                    for protocol in ('http', 'https'):\n"
+        "                        value = os.environ.get(protocol + '_proxy') or os.environ.get(protocol.upper() + '_PROXY')\n"
+        '                        if value:\n'
+        '                            url = urlsplit(value)\n'
+        '                            # Maven proxy settings are temporary and never baked into the image.\n'
+        "                            values[protocol] = ('<proxy><id>' + protocol + '</id><active>true</active><protocol>' + protocol +\n"
+        "                                '</protocol><host>' + escape(url.hostname or '') + '</host><port>' + str(url.port or 80) +\n"
+        "                                '</port><nonProxyHosts>localhost|127.*|repo.maven.apache.org|repo1.maven.org</nonProxyHosts></proxy>')\n"
+        "                    settings.write_text('<settings><proxies>' + ''.join(values.values()) + '</proxies></settings>')\n"
+        "                    maven_args = ' -B -s ' + shlex.quote(str(settings)) + ' -Dmaven.repo.local=/opt/multiswe-maven '\n"
+        "                    if spec['repo'] == 'fastjson2':\n"
+        '                        # Keep upstream profiles and packaging; execute graded tests only in the verifier.\n'
+        '                        script = spec[\'prepare\'].replace(\'bash /home/check_git_changes.sh\', \'test -z "$(git status --porcelain)"\')\n'
+        "                        script = re.sub(r'\\s*\\|\\|\\s*true\\b', '', script)\n"
+        "                        script = script.replace('./mvnw ', './mvnw' + maven_args + '-DskipTests ')\n"
+        '                    else:\n'
+        "                        script += 'mvn' + maven_args + '-DskipTests test\\n'\n"
+        '                else:\n'
+        "                    junit_flag = ''\n"
+        "                    if spec['repo'] == 'junit5':\n"
+        "                        local = Path('/opt/multiswe-junit-local.gradle')\n"
+        '                        local.write_text(JUNIT_LOCAL_SNAPSHOT)\n'
+        "                        junit_flag = '--init-script ' + str(local) + ' '\n"
+        "                    init = Path(temporary) / 'test-runtime.gradle'\n"
+        "                    init.write_text('''gradle.projectsEvaluated {\n"
+        "                        rootProject.tasks.register('multisweInstallTestRuntime') {\n"
+        '                            doLast {\n'
+        '                                rootProject.allprojects.each { p ->\n'
+        '                                    p.tasks.withType(org.gradle.api.tasks.testing.Test).each { t ->\n'
+        '                                        t.classpath.files\n'
+        "                                        if (t.hasProperty('javaLauncher')) t.javaLauncher.orNull\n"
+        '                                    }\n'
+        '                                }\n'
+        '                            }\n'
+        '                        }\n'
+        "                    }''')\n"
+        "                    script += ('./gradlew --no-daemon --max-workers 2 ' + junit_flag + '--init-script ' +\n"
+        "                               shlex.quote(str(init)) + ' testClasses multisweInstallTestRuntime\\n')\n"
+        '            else:\n'
+        "                script = spec['electron_proxy'] + '\\n' + spec['prepare']\n"
+        '                script = script.replace(\'bash /home/check_git_changes.sh\', \'test -z "$(git status --porcelain)"\')\n'
+        '                # Image creation must not silently succeed with a broken install.\n'
+        "                script = re.sub(r'\\s*\\|\\|\\s*true\\b', '', script)\n"
+        "                if spec['repo'] == 'material-ui' and spec['base_sha'] == '293b579ab1dc22770921e57d1e5a51f9b90bbec0':\n"
+        "                    script = 'export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1\\n' + script\n"
+        "                if spec['repo'] == 'redux' and spec['base_sha'] == 'cefb03adfd672891e65166403cfc70709f73d6a8':\n"
+        '                    # Skip only the root release/test hook, retaining dependency lifecycle scripts.\n'
+        '                    disable = \'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));delete p.scripts.prepublish;fs.writeFileSync("package.json",JSON.stringify(p));\'\n'
+        '                    install = (\'( backup=$(mktemp); cp package.json "$backup"; \'\n'
+        '                               \'trap \\\'cp "$backup" package.json; rm -f "$backup"\\\' EXIT; \'\n'
+        "                               'node -e ' + shlex.quote(disable) + '; yarn install )')\n"
+        "                    script = re.sub(r'(?m)^yarn install\\s*$', lambda _: install, script)\n"
+        "            log = Path(temporary) / 'installation.log'\n"
+        '            started = time.monotonic()\n'
+        "            print('Installing baseline dependencies for ' + spec['repo'] + '@' + spec['base_sha'], flush=True)\n"
+        "            with log.open('w') as output:\n"
+        "                with subprocess.Popen(['bash', '-euc', script], cwd=repo, stdout=subprocess.PIPE,\n"
+        "                                      stderr=subprocess.STDOUT, text=True, errors='replace') as process:\n"
+        '                    for line in process.stdout:\n'
+        '                        output.write(line)\n'
+        "                        print(line, end='', flush=True)\n"
+        '                    returncode = process.wait()\n'
+        "            print(f'Baseline dependency installation exit={returncode}, seconds={time.monotonic()-started:.1f}', flush=True)\n"
+        '            if returncode:\n'
+        "                lines = log.read_text(errors='replace')\n"
+        "                marker = lines.find('* What went wrong:')\n"
+        "                errors = [line for line in lines.splitlines() if line.startswith(('error ', '[ERROR]'))]\n"
+        "                detail = lines[marker:marker + 1000] if marker >= 0 else '\\n'.join(errors[:4])[:1000] or lines[-1000:]\n"
+        "                raise RuntimeError('Baseline dependency installation failed: ' + detail)\n"
+        "            head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()\n"
+        "            if head != spec['base_sha']:\n"
+        "                raise RuntimeError('Image checkout does not match the task baseline')\n"
+        "            Path('/home/fix.patch').unlink(missing_ok=True)\n"
+        "            Path('/opt/multiswe-preinstalled.json').write_text(json.dumps({\n"
+        "                'repo': spec['repo'], 'base_sha': head, 'baseline_test_command_removed': java,\n"
+        "            }) + '\\n')\n"
+        '        finally:\n'
+        '            if java:\n'
+        '                if original is None:\n'
+        '                    properties.unlink(missing_ok=True)\n'
+        '                else:\n'
+        '                    properties.write_bytes(original)\n'
+        '                    properties.chmod(original_mode)\n'
+    ),
+    'extract_fix_patch.py': (
+        '"""Extract agent changes without staging dependency trees or overflowing argv."""\n'
+        'import os\n'
+        'from pathlib import Path\n'
+        'import subprocess\n'
+        'import sys\n'
+        '\n'
+        '\n'
+        'def git(*args, **kwargs):\n'
+        "    return subprocess.run(['git', '--literal-pathspecs', *args], check=True, **kwargs)\n"
+        '\n'
+        '\n'
+        'def names(*args):\n'
+        "    return [os.fsdecode(p) for p in git(*args, stdout=subprocess.PIPE).stdout.split(b'\\0') if p]\n"
+        '\n'
+        '\n'
+        'def batches(paths):\n'
+        '    batch, size = [], 0\n'
+        '    for path in paths:\n'
+        '        length = len(os.fsencode(path)) + 1\n'
+        '        if batch and size + length > 32768:\n'
+        '            yield batch\n'
+        '            batch, size = [], 0\n'
+        '        batch.append(path)\n'
+        '        size += length\n'
+        '    if batch:\n'
+        '        yield batch\n'
+        '\n'
+        '\n'
+        'def main():\n'
+        '    repo, base, output = sys.argv[1:4]\n'
+        '    os.chdir(repo)\n'
+        "    baseline = Path(git('rev-parse', '--git-path', 'multiswe-setup-untracked', stdout=subprocess.PIPE,\n"
+        '                        text=True).stdout.strip())\n'
+        "    existing = set(os.fsdecode(p) for p in baseline.read_bytes().split(b'\\0') if p) if baseline.exists() else set()\n"
+        "    untracked = [p for p in names('ls-files', '--others', '--exclude-standard', '-z') if p not in existing]\n"
+        '    for batch in batches(untracked):\n'
+        "        git('add', '--intent-to-add', '--', *batch)\n"
+        "    changed = names('diff', '--name-only', '--no-renames', '-z', base, '--')\n"
+        "    # Preserve the upstream dataset's fix/test path split.\n"
+        "    fixes = [p for p in changed if not any(s in p.lower() for s in ('test', 'e2e', 'testing'))]\n"
+        "    with open(output, 'wb') as stream:\n"
+        '        for batch in batches(fixes):\n'
+        "            git('diff', '--binary', '--no-renames', base, '--', *batch, stdout=stream)\n"
+        '    if len(changed) != len(fixes):\n'
+        "        print(f'Dropped {len(changed) - len(fixes)} test-like file(s) from Multi-SWE fix patch.', file=sys.stderr)\n"
+        "    git('reset', '--hard', base, stdout=subprocess.DEVNULL)\n"
+        '    for batch in batches(untracked):\n'
+        "        git('clean', '-fd', '--', *batch, stdout=subprocess.DEVNULL)\n"
+        '\n'
+        '\n'
+        "if __name__ == '__main__':\n"
+        '    main()\n'
+    ),
+    'gradle_proxy.py': (
+        '"""Configure Gradle\'s JVM proxy from the task runtime\'s proxy environment."""\n'
+        'import os\n'
+        'from pathlib import Path\n'
+        'from urllib.parse import unquote, urlsplit\n'
+        'from urllib.error import HTTPError\n'
+        'from urllib.request import ProxyHandler, build_opener\n'
+        '\n'
+        '\n'
+        'def properties(env):\n'
+        '    result = {}\n'
+        "    for protocol in ('http', 'https'):\n"
+        "        value = env.get(protocol + '_proxy') or env.get(protocol.upper() + '_PROXY')\n"
+        '        if not value:\n'
+        '            continue\n'
+        "        url = urlsplit(value if '://' in value else 'http://' + value)\n"
+        "        if url.scheme != 'http' or not url.hostname:\n"
+        "            raise ValueError('Gradle proxy requires an HTTP proxy URL')\n"
+        "        prefix = 'systemProp.' + protocol + '.'\n"
+        "        result[prefix + 'proxyHost'] = url.hostname\n"
+        "        result[prefix + 'proxyPort'] = str(url.port or 80)\n"
+        '        if url.username:\n'
+        "            result[prefix + 'proxyUser'] = unquote(url.username)\n"
+        '        if url.password:\n'
+        "            result[prefix + 'proxyPassword'] = unquote(url.password)\n"
+        '    if result:\n'
+        "        hosts = ['localhost', '127.*', '[::1]']\n"
+        "        for host in (env.get('no_proxy') or env.get('NO_PROXY') or '').split(','):\n"
+        '            host = host.strip()\n'
+        "            if host and '/' not in host and ':' not in host:\n"
+        "                hosts.append('*' + host if host.startswith('.') else host)\n"
+        "        result['systemProp.http.nonProxyHosts'] = '|'.join(hosts)\n"
+        '    return result\n'
+        '\n'
+        '\n'
+        'def main():\n'
+        '    values = properties(os.environ)\n'
+        '    if not values:\n'
+        '        return\n'
+        '    # Some cluster proxies share a rate-limited Maven Central exit IP. Bypass\n'
+        '    # only after observing 429 through that proxy and verifying direct access.\n'
+        "    proxy = os.environ.get('https_proxy') or os.environ.get('HTTPS_PROXY')\n"
+        '    if proxy:\n'
+        "        for host in ('repo.maven.apache.org', 'repo1.maven.org', 'plugins.gradle.org'):\n"
+        "            prefix = 'm2' if host == 'plugins.gradle.org' else 'maven2'\n"
+        "            url = f'https://{host}/{prefix}/org/jetbrains/kotlin/kotlin-stdlib/1.9.24/kotlin-stdlib-1.9.24.pom'\n"
+        '            try:\n'
+        "                with build_opener(ProxyHandler({'https': proxy})).open(url, timeout=5) as response:\n"
+        '                    response.read()\n'
+        '            except HTTPError as exc:\n'
+        '                if exc.code != 429:\n'
+        '                    continue\n'
+        '                try:\n'
+        '                    with build_opener(ProxyHandler({})).open(url, timeout=5) as response:\n'
+        "                        if response.status != 200 or b'<artifactId>kotlin-stdlib</artifactId>' not in response.read():\n"
+        '                            continue\n'
+        '                except OSError:\n'
+        '                    continue\n'
+        "                values['systemProp.http.nonProxyHosts'] += '|' + host\n"
+        "                print(f'Gradle: verified direct access to {host} after proxy HTTP 429')\n"
+        '            except OSError:\n'
+        '                pass\n'
+        "    path = Path(os.environ.get('GRADLE_USER_HOME', str(Path.home() / '.gradle'))) / 'gradle.properties'\n"
+        '    path.parent.mkdir(parents=True, exist_ok=True)\n'
+        "    old = path.read_text() if path.exists() else ''\n"
+        "    keys = {line.split('=', 1)[0].strip() for line in old.splitlines() if '=' in line}\n"
+        '    def escape(value):\n'
+        "        return value.replace('\\\\', '\\\\\\\\').replace('\\n', '\\\\n').replace('\\r', '\\\\r')\n"
+        "    with path.open('a') as stream:\n"
+        "        stream.write('\\n' + ''.join(k + '=' + escape(v) + '\\n' for k, v in values.items() if k not in keys))\n"
+        '    path.chmod(0o600)\n'
+        '\n'
+        '\n'
+        "if __name__ == '__main__':\n"
+        '    main()\n'
+    ),
+    'base-images.lock.json': (
+        '{\n'
+        '  "mswebench/alibaba_m_fastjson2:base": "mswebench/alibaba_m_fastjson2@sha256:af5482f01949b8b689d00f164d45c574dc619c9a348ae74adf8eb7eb5b8a20ca",\n'
+        '  "mswebench/anuraghazra_m_github-readme-stats:base": "mswebench/anuraghazra_m_github-readme-stats@sha256:8cc48464ec40ca6304d07b4c0a7bd65a392cabf23d3aabec622560fd6c58d65b",\n'
+        '  "mswebench/axios_m_axios:base": "mswebench/axios_m_axios@sha256:7707c562abfc8595a28f4370ff8835c304d620bc3618d8d1e20882720fa8ea8d",\n'
+        '  "mswebench/beego_m_beego:base": "mswebench/beego_m_beego@sha256:8b348e45db6f04e6e397933927a21e2cca687cba38fa12f4f68bba93b5dc13b8",\n'
+        '  "mswebench/caddyserver_m_caddy:base": "mswebench/caddyserver_m_caddy@sha256:cd674d3f8f492fa313c35cf40963c22145c2c815f530494be978df77d777864b",\n'
+        '  "mswebench/caolan_m_async:base": "mswebench/caolan_m_async@sha256:6c518c36364ae5834bbf01e6c7e5f268a7198cae30215ce8ddd37d82690b426c",\n'
+        '  "mswebench/checkstyle_m_checkstyle:base": "mswebench/checkstyle_m_checkstyle@sha256:d7f2ab8f1c54085642ddc01064946e7f8be0c176552bd278c3bd955216049074",\n'
+        '  "mswebench/cli_m_cli:base": "mswebench/cli_m_cli@sha256:801072bdc63db1cc524260ff1b31a307445e19ea7bbae6a12835698161e8e324",\n'
+        '  "mswebench/colinhacks_m_zod:base": "mswebench/colinhacks_m_zod@sha256:a8b6079dbfa81eabfbf72d7bcdade218f7960fe5c6b4ae898e0090fe0b4f5feb",\n'
+        '  "mswebench/darkreader_m_darkreader:base": "mswebench/darkreader_m_darkreader@sha256:124d8e241413d9308777967251616cb8a35ba3f4852c5663f657d7231d3894d9",\n'
+        '  "mswebench/elastic_m_logstash:base": "mswebench/elastic_m_logstash@sha256:ea6fc649df945c3df403613ddce13e5e16c9daf9182f7156ed057ec50307cbab",\n'
+        '  "mswebench/etcd-io_m_etcd:base": "mswebench/etcd-io_m_etcd@sha256:f10c75dd319d11cc3611f46b32edff873f6b6df0e7f7c632f0af9733fa3ce0e1",\n'
+        '  "mswebench/expressjs_m_express:base": "mswebench/expressjs_m_express@sha256:cb2bfa48685954c0a7f246b062ecdde9b7067d09065c13d711981ab632d9db63",\n'
+        '  "mswebench/facebook_m_zstd:base": "mswebench/facebook_m_zstd@sha256:e585fef372bb5f6f97a7540d3e9fb38cb8a3a039190258e4b858bb77e39ec926",\n'
+        '  "mswebench/fatedier_m_frp:base": "mswebench/fatedier_m_frp@sha256:1eec40809c47003bd550517d2dc73fbe553f7d10c2fdd06db49e823269976a07",\n'
+        '  "mswebench/go-gorm_m_gorm:base": "mswebench/go-gorm_m_gorm@sha256:4dd9ceb1b54e3791ff71db5a908cbd06e4751f548e3d55497a6fe5d1695352f6",\n'
+        '  "mswebench/gohugoio_m_hugo:base": "mswebench/gohugoio_m_hugo@sha256:a6eb6ead11717756b25c2a98d1911c16e3d9a2df5daf637599c947ba87cd3f8f",\n'
+        '  "mswebench/google_m_zx:base": "mswebench/google_m_zx@sha256:8b62b706996794bf76dc165919412ad5fff0324022f9be8b056bbc7d4db81bc7",\n'
+        '  "mswebench/iamkun_m_dayjs:base": "mswebench/iamkun_m_dayjs@sha256:7bccb78f8161a2c5d0ae57b8aa55b90bcd0ac92106c2ad3b7967a4e9e122dd3a",\n'
+        '  "mswebench/istio_m_istio:base": "mswebench/istio_m_istio@sha256:328d3d151933b6b725634740063210ae6e96970ec1cb64bc6737aac45f019d8f",\n'
+        '  "mswebench/jesseduffield_m_lazygit:base": "mswebench/jesseduffield_m_lazygit@sha256:e8e4c31f8b7930614817dbe33fa9f7b31e00ba0804883ce3354cbb3b3e0279d8",\n'
+        '  "mswebench/jqlang_m_jq:base": "mswebench/jqlang_m_jq@sha256:8e3b31d703046a38bee2fe0ef27151d3bc44aaff2505fbba4e3da23ee667d2c3",\n'
+        '  "mswebench/junegunn_m_fzf:base": "mswebench/junegunn_m_fzf@sha256:137faf1d45214b55b05a21db2750fffe9d920216e8aed050bab3fe600069c160",\n'
+        '  "mswebench/junit-team_m_junit5:base": "mswebench/junit-team_m_junit5@sha256:2c1ca9b9c50cb132ac7e7798f68b89807cff7e67c1a9ac70ee83300475c96507",\n'
+        '  "mswebench/junit-team_m_junit5:base-JDK-17": "mswebench/junit-team_m_junit5@sha256:d3c8968c4988a2a2dcd0b4bd3f6c8d896d7c3e375269c35f87c190911d861d19",\n'
+        '  "mswebench/kong_m_insomnia:base": "mswebench/kong_m_insomnia@sha256:25593314d127cf0a82aaeb67d6aa2b2e6b957c7dcba94641ada7022b342d4c25",\n'
+        '  "mswebench/labstack_m_echo:base": "mswebench/labstack_m_echo@sha256:ede76736dd38fe3c39a90710eba3d902ed994f75928a77e8283fdd7e8a91f783",\n'
+        '  "mswebench/libsdl-org_m_sdl:base": "mswebench/libsdl-org_m_sdl@sha256:715635ef142b55d55d8e987cc1d9df2831749cbb4b6218c3c769c811527d398c",\n'
+        '  "mswebench/mockito_m_mockito:base": "mswebench/mockito_m_mockito@sha256:2e502e4a38aba9490958b640df9b80ef44f0ba6ff430ee544dc10fb2c56bfb60",\n'
+        '  "mswebench/mruby_m_mruby:base": "mswebench/mruby_m_mruby@sha256:94c5cee68f8565d2b8c39d7e0288dd2fef92ad6d9f7e1083ae35128a33923bbc",\n'
+        '  "mswebench/mruby_m_mruby:base-cpp-11": "mswebench/mruby_m_mruby@sha256:7532c8ef7f9fc425fcea2c9f8f5ded4b86dd160f6eef2428af4b2eaadb989ca0",\n'
+        '  "mswebench/mui_m_material-ui:base": "mswebench/mui_m_material-ui@sha256:8f0ca2539e9f4d116a2498980020b001da61d5cb712c760daa90bfaf76a6ec95",\n'
+        '  "mswebench/mui_m_material-ui:base40180": "mswebench/mui_m_material-ui@sha256:47cd636fff4d35ca1bb2ce5a65d5642d0aad8afd99642b997374abe8799f08e3",\n'
+        '  "mswebench/nektos_m_act:base": "mswebench/nektos_m_act@sha256:c86fe84ffbe9b85adca7c0637ae470cea5efa5c77298ce63e81a5703e2f21b9a",\n'
+        '  "mswebench/nuxt_m_nuxt:base": "mswebench/nuxt_m_nuxt@sha256:c282f561fea935a85e32325bafa16b53043c7b931f37d5d7dfd56f24e28606e4",\n'
+        '  "mswebench/openmathlib_m_openblas:base": "mswebench/openmathlib_m_openblas@sha256:43b80982eea796964c3b972e11ef62acf94620b07d3fe31719617f8dcb4c224a",\n'
+        '  "mswebench/prometheus_m_prometheus:base": "mswebench/prometheus_m_prometheus@sha256:9b956be0aad877cd8aca70f4242060ba5e89db3256a56ce304932ccc4a872103",\n'
+        '  "mswebench/reduxjs_m_redux:base": "mswebench/reduxjs_m_redux@sha256:195e698648484e437f6c39c617e5bc723974ee170ec557f99aa1ea53d9abd899",\n'
+        '  "mswebench/remix-run_m_react-router:base": "mswebench/remix-run_m_react-router@sha256:e58b377964c40a40b383bcfd5eb311905822dbf5d3712a9b333b3cd62ee5b47e",\n'
+        '  "mswebench/spotbugs_m_spotbugs:base": "mswebench/spotbugs_m_spotbugs@sha256:f829dc040cd0fd9b1854e991362260e4e5d55f3742f5ae75512738cd28a96f36",\n'
+        '  "mswebench/spotbugs_m_spotbugs:base-jdk-17": "mswebench/spotbugs_m_spotbugs@sha256:99484b1394da69570c1db3ddbafc0bd620dc16c759b83c58ce24bdd6fceb7ff7",\n'
+        '  "mswebench/sveltejs_m_svelte:base8": "mswebench/sveltejs_m_svelte@sha256:7c9770877662114728cbd77e46a19dacdb1b3b38279a850a0ae65c7f2d790774",\n'
+        '  "mswebench/sveltejs_m_svelte:base9": "mswebench/sveltejs_m_svelte@sha256:b13712f1032a4a007920f528ef90246e90111c29d0a845c16fbf89a3c6a1aca0",\n'
+        '  "mswebench/syncthing_m_syncthing:base": "mswebench/syncthing_m_syncthing@sha256:768b131dd248040e463634c08c1ffcb860134aca361c7051b12543241ebba607",\n'
+        '  "mswebench/tj_m_commander.js:base": "mswebench/tj_m_commander.js@sha256:6386ac92e545ca57547d1179da523a3b365464f1653738933f6c09177707de35",\n'
+        '  "mswebench/trpc_m_trpc:base": "mswebench/trpc_m_trpc@sha256:be994fee0f1c0e9f2f26ddbc85e7b1bfd2e50db96cd368c70e87de7ebc910d85",\n'
+        '  "mswebench/vuejs_m_core:base": "mswebench/vuejs_m_core@sha256:b8c7399b4bd684117e99f8569c64c2586187ebff74814e8a8ff77228256c5ad1",\n'
+        '  "mswebench/zeromicro_m_go-zero:base": "mswebench/zeromicro_m_go-zero@sha256:27987d56a61cd1017dda0708914479271102506d0b6997e6c8bb610e07ca875f"\n'
+        '}\n'
+    ),
+    'maven_proxy.py': (
+        '"""Give Maven\'s bootstrap JVM the build proxy before settings.xml is loaded."""\n'
+        'from contextlib import contextmanager\n'
+        'import os\n'
+        '\n'
+        '\n'
+        '@contextmanager\n'
+        'def maven_wrapper_proxy(proxy_properties):\n'
+        "    original = os.environ.get('MAVEN_OPTS')\n"
+        '    # The wrapper downloads Maven before Maven can read its proxy settings.\n'
+        '    # Reuse the JVM proxy and bypass rules used for Gradle on this cluster.\n'
+        '    values = proxy_properties(os.environ)\n'
+        "    options = ' '.join('-D' + key.removeprefix('systemProp.') + '=' + value\n"
+        '                       for key, value in values.items())\n'
+        '    try:\n'
+        '        if options:\n'
+        "            os.environ['MAVEN_OPTS'] = ' '.join(filter(None, (original, options)))\n"
+        '        yield\n'
+        '    finally:\n'
+        '        if original is None:\n'
+        "            os.environ.pop('MAVEN_OPTS', None)\n"
+        '        else:\n'
+        "            os.environ['MAVEN_OPTS'] = original\n"
+    ),
+}
+
 REVISION = '80de95c62ac792c99dcfa8e26569bcd7d036bdc3'
 MARKER = '# Multi-SWE pinned grader runtime v4'
+TASK_MEMORY_MB = {'gohugoio__hugo-12703': 8192}
+
+
+def apply_task_memory(files, task_id):
+    """Apply the operator-selected budget; expected no-op OOM is reviewed separately."""
+    if task_id not in TASK_MEMORY_MB:
+        return files
+    updated = dict(files)
+    updated['task.toml'], count = re.subn(
+        rb'(?m)^memory_mb[ \t]*=[ \t]*\d+[ \t]*$',
+        f'memory_mb = {TASK_MEMORY_MB[task_id]}'.encode(), files['task.toml'])
+    if count != 1:
+        raise ValueError('Expected one task memory setting')
+    return updated
 
 # Bullseye packages moved off the live mirrors after its LTS end in August 2026.
 # Keep signature checking; only relax archive Release-file expiration checks.
@@ -43,7 +592,7 @@ PYTHON_INSTALL = (
 def docker_setup():
     # Embed all setup and pins in the exported Dockerfile. No COPY dependency:
     # the Apptainer deferred-build path executes RUN before replaying COPY.
-    requirements = Path(__file__).with_name('grader-requirements.txt').read_text().splitlines()
+    requirements = EMBEDDED_FILES['grader-requirements.txt'].splitlines()
     pins = ' '.join(shlex.quote(line) for line in requirements if line.strip())
     commands = [
         BULLSEYE_ARCHIVE,
@@ -205,7 +754,7 @@ def preinstalled_docker(recipe):
     # invalidate unrelated image caches.
     helper_name = ('preinstall.py' if recipe['repo'] in ('fastjson2', 'junit5')
                    else 'preinstall_cache_v8.py')
-    helper = Path(__file__).with_name(helper_name).read_text()
+    helper = EMBEDDED_FILES[helper_name]
     # These baselines also failed with one worker: resolving a test classpath
     # can realize more tasks and mutate Gradle's live task collection. Iterate
     # a snapshot instead. Keep other baselines' image cache keys unchanged.
@@ -215,22 +764,31 @@ def preinstalled_docker(recipe):
             'p.tasks.withType(org.gradle.api.tasks.testing.Test).each { t ->',
             'p.tasks.withType(org.gradle.api.tasks.testing.Test).toList().each { t ->')
         helper = helper.replace('./gradlew --no-daemon', './gradlew --stacktrace --no-daemon')
-    proxy = Path(__file__).with_name('gradle_proxy.py').read_text().split("\nif __name__ == '__main__':", 1)[0]
+    proxy = EMBEDDED_FILES['gradle_proxy.py'].split("\nif __name__ == '__main__':", 1)[0]
     proxy = proxy.replace('def main():', 'def configure_gradle_proxy():')
     invocation = 'preinstall(json.loads(sys.argv[1]), configure_gradle_proxy)\n'
     if recipe['repo'] == 'fastjson2':
-        helper += '\n' + Path(__file__).with_name('maven_proxy.py').read_text()
+        helper += '\n' + EMBEDDED_FILES['maven_proxy.py']
         invocation = 'with maven_wrapper_proxy(properties):\n    ' + invocation
     program = proxy + '\n' + helper + '\n' + invocation
     # Only baseline preparation enters the image, never the solution or test patch.
     spec = {key: recipe[key] for key in ('repo', 'base_sha')}
     spec['prepare'] = patched_image_prepare(recipe)
     spec['electron_proxy'] = ELECTRON_PROXY if recipe['repo'] == 'insomnia' else ''
+    readable_cache = ''
+    if recipe['repo'] in ('mockito', 'spotbugs'):
+        # Gradle creates owner-only directories during the root image build.
+        # The runtime copies the baked workdir before starting the root-mapped
+        # task container, so its reader must be able to traverse these caches.
+        root = '/home/' + recipe['repo']
+        readable_cache = ('RUN set -eu; for cache in ' + root + '/.gradle '
+                          + root + '/buildSrc/build; do '
+                          'if [ -d "$cache" ]; then chmod -R a+rX "$cache"; fi; done\n')
     return ('\n# Install baseline dependencies once, for this exact source commit.\n'
             'ENV GRADLE_USER_HOME=/opt/multiswe-gradle\n'
             + ('ENV MAVEN_USER_HOME=/opt/multiswe-maven-user\n' if recipe['repo'] == 'fastjson2' else '')
             + 'RUN /opt/multiswe-python/bin/python3 -c ' + shlex.quote('exec(' + repr(program) + ')')
-            + ' ' + shlex.quote(json.dumps(spec, sort_keys=True)) + '\n')
+            + ' ' + shlex.quote(json.dumps(spec, sort_keys=True)) + '\n' + readable_cache)
 
 
 def share_image(files, recipe, locks):
@@ -277,7 +835,7 @@ def share_image(files, recipe, locks):
     lines = ['#!/bin/bash', 'set -euo pipefail',
              'if [ -f ' + marker + ' ]; then exit 0; fi']
     if not preinstalled and any('./gradlew ' in content for content in recipe['files'].values()):
-        updated['setup_files/gradle_proxy.py'] = Path(__file__).with_name('gradle_proxy.py').read_bytes()
+        updated['setup_files/gradle_proxy.py'] = EMBEDDED_FILES['gradle_proxy.py'].encode()
         lines.append('/opt/multiswe-python/bin/python3 /setup_files/gradle_proxy.py')
     if proxy_setup:
         lines.extend(proxy_setup.rstrip().splitlines())
@@ -298,7 +856,7 @@ def share_image(files, recipe, locks):
         raise ValueError('Unknown reference entrypoint')
     updated['instruction.md'] = updated['instruction.md'].rstrip() + b'\n\nBefore working on the task, run `bash /setup_files/setup.sh`. It initializes this task once and safely does nothing on subsequent calls.\n'
     if 'tests/extract_fix_patch.sh' in updated:
-        updated['tests/extract_fix_patch.py'] = Path(__file__).with_name('extract_fix_patch.py').read_bytes()
+        updated['tests/extract_fix_patch.py'] = EMBEDDED_FILES['extract_fix_patch.py'].encode()
         updated['tests/extract_fix_patch.sh'] = b'#!/bin/bash\nset -euo pipefail\nexec /opt/multiswe-python/bin/python3 /tests/extract_fix_patch.py "$@"\n'
     if recipe['repo'] in ('dayjs', 'darkreader', 'spotbugs', 'mockito') and 'task.toml' in updated:
         updated['task.toml'] = updated['task.toml'].replace(b'memory_mb = 4096', b'memory_mb = 8192')
@@ -430,7 +988,7 @@ def blob_files(blob):
         return {m.name: archive.extractfile(m).read() for m in archive if m.isfile()}
 
 
-def patch_blob(blob, recipe=None, locks=None):
+def patch_blob(blob, recipe=None, locks=None, task_id=None):
     with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
         members = archive.getmembers()
         files = {}
@@ -445,6 +1003,7 @@ def patch_blob(blob, recipe=None, locks=None):
     updated = patch_files(files)
     if recipe is not None:
         updated = share_image(updated, recipe, locks or {})
+    updated = apply_task_memory(updated, task_id)
     if updated == files:
         return blob
     output = io.BytesIO()
@@ -473,12 +1032,11 @@ def main():
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--share-images', action='store_true', help='experimental: move audited upstream PR preparation into setup_files')
-    parser.add_argument('--base-image-lock', type=Path, help='JSON mapping upstream base tags to digest-pinned references')
+    parser.add_argument('--base-image-lock', type=Path, help='Override the embedded digest-pinned base-image mapping with a JSON file')
     parser.add_argument('--recipe-python', default=sys.executable, help='Python with multi-swe-bench==1.1.2 installed')
     args = parser.parse_args()
-    if args.share_images and not args.base_image_lock:
-        parser.error('--share-images requires --base-image-lock')
-    locks = json.loads(args.base_image_lock.read_text()) if args.base_image_lock else {}
+    locks = json.loads(args.base_image_lock.read_text() if args.base_image_lock
+                       else EMBEDDED_FILES['base-images.lock.json']) if args.share_images else {}
     sources = [args.source] if args.source.is_file() else sorted(args.source.glob('*.parquet'))
     if not sources:
         raise ValueError('No source Parquets found')
@@ -497,7 +1055,7 @@ def main():
             recipes = json.loads(generated.stdout)
         for row in rows:
             try:
-                patched = patch_blob(row['task_binary'], recipes.get(row['path']), locks)
+                patched = patch_blob(row['task_binary'], recipes.get(row['path']), locks, task_id=row['path'])
             except ValueError as exc:
                 if not args.share_images:
                     raise
@@ -514,6 +1072,8 @@ def main():
                 recipe = recipes[row['path']]
                 if recipe['repo'] in PREINSTALLED_REPOS:
                     reasons[row['path']] += ' Preinstall baseline dependencies in the image for the exact source commit; remove dependency installation and baseline test execution from task setup.'
+                if recipe['repo'] in ('mockito', 'spotbugs'):
+                    reasons[row['path']] += ' Make baked Gradle workspace caches readable and traversable for runtime workdir copying, preserving contents and write permissions.'
                 if recipe['repo'] == 'redux':
                     reasons[row['path']] += ' Suppress only the root prepublish release/test hook during dependency installation and restore package.json afterward.'
                 if recipe['repo'] == 'material-ui':
@@ -534,6 +1094,10 @@ def main():
                     reasons[row['path']] += ' Make actual test results parseable despite reporter verbosity or ANSI-color differences.'
                 if recipe['repo'] == 'axios':
                     reasons[row['path']] += ' Let local proxy tests control their own proxy environment.'
+            if row['path'] in TASK_MEMORY_MB and patched != row['task_binary']:
+                labels[row['path']].append('task-memory-budget')
+                reasons[row['path']] += (' Set this task to the operator-selected 8 GiB budget for the reference solution; '
+                                         'its expected no-op assertion-output OOM is accepted only through individual review.')
             row['task_binary'] = patched
         output = args.output / source.name
         pq.write_table(pa.Table.from_pylist(rows, schema=table.schema), output)
@@ -542,7 +1106,7 @@ def main():
             'url': f'https://huggingface.co/datasets/PrimeIntellect/Multi-SWE-RL-Verified/tree/{REVISION}'},
             dropped={}, change_labels=labels, change_reasons=reasons, unresolved=unresolved,
             patches=[{'version': 'multiswe-preinstalled-dependencies-v10', 'python': '3.11.13', 'grader': '1.1.2', 'share_images': args.share_images,
-                      'helper_sha256': {name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
+                      'helper_sha256': {name: hashlib.sha256(EMBEDDED_FILES[name].encode()).hexdigest()
                                         for name in ('extract_fix_patch.py', 'gradle_proxy.py', 'preinstall.py', 'preinstall_cache_v8.py')},
                       'base_image_lock': locks if args.share_images else {}}])
         if args.share_images:

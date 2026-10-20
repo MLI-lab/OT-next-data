@@ -3,16 +3,17 @@ from pathlib import Path
 
 import pytest
 
-from validation.patch_repair_loop import controller as c, recovery, resources, sharding
+from validation.patch_repair_loop import controller as c, recovery, resources, sharding, retries
 from validation import contract as contracts, shards
 
 
 @pytest.fixture
 def frozen(monkeypatch):
-    value = {'sha256': 'frozen', 'stages': [3], 'arguments': {},
+    value = {'sha256': 'frozen', 'stages': [1], 'arguments': {},
              'tasks': [{'task_id': name, 'sha256': name} for name in ('a', 'b', 'c', 'd', 'e')]}
     monkeypatch.setattr(contracts, 'read', lambda path: value)
     monkeypatch.setattr(sharding, 'read', lambda path: value)
+    monkeypatch.setattr(retries, 'read', lambda path: value)
     monkeypatch.setattr(contracts, 'task_records', lambda contract: contract['tasks'])
     return value
 
@@ -34,7 +35,7 @@ def test_array_submission_is_bounded_resumable_and_preserves_publication_inputs(
     assert len(calls) == 1 and '--signal=B:USR1@120' in calls[0]
     assert [s['selected_ids'] for s in first['shards']] == [['a', 'd'], ['b', 'e'], ['c']]
     assert [s['job_id'] for s in first['shards']] == ['123_0', '123_1', '123_2']
-    assert json.loads((tmp_path / 'array/request.json').read_text())['stages'] == [3]
+    assert json.loads((tmp_path / 'array/request.json').read_text())['stages'] == [1]
     assert json.loads((tmp_path / 'array/submission.json').read_text())['code_snapshot'] == str(tmp_path / 'array/code')
     c.save(tmp_path / 'array/submission.json', {'status': 'submitting'})
     with pytest.raises(RuntimeError, match='Uncertain array'):
@@ -50,8 +51,8 @@ def test_merge_retains_finished_shards_and_marks_only_unfinished_tasks(tmp_path,
         children.append({'job_id': f'123_{index}', 'submission': str(folder),
                          'selected_ids': ids, 'shard': [index, 2], 'contract': '/contract'})
         items = [{'task': t, 'status': 'passed'} for t in (ids if index == 0 else ids[:1])]
-        c.save(folder / 'report/stage-3-observed.json', {
-            'stage': 3, 'complete': index == 0, 'contract_sha256': 'frozen',
+        c.save(folder / 'report/stage-1-observed.json', {'stage_layout': 'environment-first-v2',
+            'stage': 1, 'complete': index == 0, 'contract_sha256': 'frozen',
             'dry_run': False, 'items': items})
     def wait(job, *args):
         if job['job_id'] == '123_1':
@@ -60,10 +61,10 @@ def test_merge_retains_finished_shards_and_marks_only_unfinished_tasks(tmp_path,
     monkeypatch.setattr(c, 'wait_for_job', wait)
     root_job = {'contract': '/contract', 'submission': str(tmp_path), 'shards': children}
     result = sharding.collect(root_job, 5, 72)
-    summary = c.summarize(result, ['a', 'b', 'c', 'd', 'e'], [3])
+    summary = c.summarize(result, ['a', 'b', 'c', 'd', 'e'], [1])
     assert summary['passed_all'] == 4
     assert {f['task_id'] for f in summary['failures']} == {'d'}
-    merged = json.loads((result / 'stage-3-merged.json').read_text())
+    merged = json.loads((result / 'stage-1-merged.json').read_text())
     assert len(merged['shards']['reports']) == 2
     unfinished = next(item for item in merged['items'] if item['task'] == 'd')
     assert unfinished['execution_missing']
@@ -93,10 +94,10 @@ def test_supervisor_resources_are_audited_and_cannot_change_validation():
         recovery.validate_decision(decision, 'recovery')
     state = {}
     resources.approve(state, decision['resource_changes'], decision='/decision.json', evidence=decision['evidence'])
-    assert resources.effective({'time': '06:00:00', 'required_stages': [1, 3, 5]}, state) == {
-        'time': '24:00:00', 'shard_size': 200, 'required_stages': [1, 3, 5]}
+    assert resources.effective({'time': '06:00:00', 'required_stages': [1, 2, 4]}, state) == {
+        'time': '24:00:00', 'shard_size': 200, 'required_stages': [1, 2, 4]}
     assert state['resource_history'][0]['evidence'] == ['/slurm.log']
-    for changes in ({'required_stages': [3]}, {'max_recoveries': 20}, {'shard_size': 0},
+    for changes in ({'required_stages': [1]}, {'max_recoveries': 20}, {'shard_size': 0},
                     {'validation_args': ['--preparation-max-seconds', '1000']}, {'time': '0:00:00'}):
         with pytest.raises(ValueError):
             resources.validate(changes)

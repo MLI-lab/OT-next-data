@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Select reproducible stage-2 tasks or stage-8 trajectories from stage-7 metrics."""
+"""Select reproducible stage-5 tasks or stage-8 trajectories from stage-7 metrics."""
 from __future__ import annotations
 
+from validation.stages.layout import LAYOUT
 import argparse
 from collections import Counter, defaultdict
 import hashlib
@@ -105,7 +106,7 @@ def build_candidates(tasks, metrics, stage, mapping, from_id):
                   'family_source': family_source,
                   'recorded_attempts': len(rows),
                   'ungraded_attempts': sum(r.get('reward') is None for r in rows)}
-        if stage == 2:
+        if stage == 5:
             turns = [r['turns'] for r in rows if r.get('turns') is not None]
             # Same mean as stage 7; recomputing also supports older reports.
             candidates.append({**common, 'id': task.name,
@@ -198,8 +199,8 @@ def parser():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('tasks', type=Path, help='materialized task directory, or dataset/tasks')
     ap.add_argument('--trace-metrics', type=Path, required=True, help='stage-7 trace-metrics.json (or full stage-7 report)')
-    ap.add_argument('--stage', type=int, choices=(2, 8), required=True)
-    ap.add_argument('--size', type=int, required=True, help='maximum tasks (stage 2) or trajectories (stage 8)')
+    ap.add_argument('--stage', type=int, choices=(5, 8), required=True)
+    ap.add_argument('--size', type=int, required=True, help='maximum tasks (stage 5) or trajectories (stage 8)')
     ap.add_argument('--trials', type=Path, help='original Harbor job directory; required for stage 8')
     ap.add_argument('--families', type=Path, help='JSON object mapping task IDs to language/family names')
     ap.add_argument('--family-from-id', action='store_true', help='explicitly enable <dataset>-<family>-<number> ID convention')
@@ -253,21 +254,21 @@ def create(args):
         warnings.append('some tasks have fewer than two recorded attempts; reward groups provide limited evidence of variability')
     if any(r['ungraded_attempts'] for r in candidates):
         warnings.append('reward groups exclude missing rewards; ungraded_attempts is retained on each selection')
-    manifest = {'schema_version': 2, 'stage': args.stage, 'seed': args.seed,
+    manifest = {'schema_version': 2, 'stage_layout': LAYOUT, 'stage': args.stage, 'seed': args.seed,
         'implementation_sha256': {name: hashlib.sha256((Path(__file__).resolve().parents[1] / name).read_bytes()).hexdigest()
                                   for name in ('data/create_pilot.py', 'checks/command_metrics.py')},
         'requested_size': args.size, 'selected_size': len(selected), 'population_size': len(candidates),
-        'size_unit': 'tasks' if args.stage == 2 else 'trajectories',
+        'size_unit': 'tasks' if args.stage == 5 else 'trajectories',
         'inputs': {'tasks': str(args.tasks.resolve()), 'trace_metrics': str(args.trace_metrics.resolve()),
                    'trace_metrics_sha256': hashlib.sha256(raw).hexdigest(),
                    'trials': str(args.trials.resolve()) if args.trials else None,
                    'family_mapping': mapping, 'family_from_id': args.family_from_id},
         'method': {'allocation': 'equal among nonempty children; redistribute exhausted quotas',
-                   'length': 'mean task turns' if args.stage == 2 else 'individual trajectory turns',
+                   'length': 'mean task turns' if args.stage == 5 else 'individual trajectory turns',
                    'length_thresholds_by_reward_group': thresholds,
                    'within_bucket': 'random first; then maximise distance to nearest selected distribution; random ties',
                    'distance': 'sqrt Jensen-Shannon, base 2',
-                   'distribution': 'equal-weight mean of observed trajectory command distributions' if args.stage == 2 else 'trajectory command distribution',
+                   'distribution': 'equal-weight mean of observed trajectory command distributions' if args.stage == 5 else 'trajectory command distribution',
                    'population_rate_warning': 'balanced and diversity-selected sample; raw finding rates are not population estimates'},
         'buckets': buckets,
         'selection_reasons': dict(Counter(r['selection_reason'] for r in selected)),

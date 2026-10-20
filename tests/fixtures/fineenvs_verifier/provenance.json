@@ -1,0 +1,15 @@
+{
+  "source": "FineEnvs/SmolDataEnvs-harbor-train",
+  "revision": "4719635555de1666f374d847baebb500d368e493",
+  "evidence": "CLAIX overnight-validation-20261018/fineenvs-retry/array/shards/0000/evidence.tar.gz",
+  "text_task": "0000_324_324276_qa_3",
+  "json_task": "0001_231_1231918_qa_2",
+  "preexisting_adaptation": "The patcher had already removed the best-effort pip installation from test.sh and placed dependency checks in tests/setup.sh. Grader bytes were unchanged.",
+  "purpose": "Regression fixtures and reviewed-byte boundaries for the custom grader execution recorder and missing-answer NOP check.",
+  "original_task_fixture": {
+    "file": "original-task.tar.gz",
+    "task": "0000_324_324276_qa_3",
+    "source": "pinned upstream task payload, unmodified",
+    "purpose": "Packaged-input transformation and offline setup regression tests"
+  }
+}

@@ -89,15 +89,18 @@ def main(submission, output):
                     readme_work_dir=scratch / 'annotation-runs',
                     agent_patch_repair_loop=options.get('publish_agent_patch_repair_loop', False),
                     patch_repair_summary=options.get('publish_patch_repair_summary'),
-                    skipped_stages=options.get('publish_skipped_stages'))
-                status.update(status='completed', pull_request=result['pull_request'],
+                    skipped_stages=options.get('publish_skipped_stages'),
+                    runs=[tuple(Path(p) for p in run) for run in options.get('publish_runs', [])],
+                    tasks=options.get('publish_tasks'), dry_run=options.get('publish_dry_run', False),
+                    image_cache=options.get('publish_image_cache'))
+                status.update(status='completed', pull_request=result.get('pull_request'),
                               files=result['files'], run=result['run'])
                 save(output / 'publish-status.json', status)
                 execution = json.loads((submission / 'execution.json').read_text())
                 execution.pop('pull_request_error', None)
-                execution.update(pull_request=result['pull_request'], publish_retry=str(output))
+                execution.update(pull_request=result.get('pull_request'), publish_retry=str(output))
                 save(submission / 'execution.json', execution)
-                print('Pull request: ' + result['pull_request'], flush=True)
+                print('Pull request: ' + str(result.get('pull_request', 'none (dry run)')), flush=True)
             finally:
                 annotation = scratch / 'annotation-runs'
                 if annotation.exists():

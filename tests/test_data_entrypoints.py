@@ -12,7 +12,6 @@ COMMANDS = {
     'crosscodeeval': ['prepare', 'warmup', 'rewards'],
     'tasktrove_bugsinpy': ['instruction-loop'],
     'mimo': ['build-full', 'prepare-pilot'],
-    'devopsgym': ['build-full', 'prepare-pilot'],
     'facet': ['build-source', 'prepare-pilot'],
     'seta': ['download'], 'calibforge': ['prepare-pilot'],
     'tmax': ['prepare-pilot'], 'termigen': ['prepare-pilot'],
@@ -41,6 +40,7 @@ def test_pymethods_repairs_preserve_solution_and_payload():
         'tests/test.sh': b'pip3 install --quiet pytest 2>/dev/null || true\n',
         'solution/solution.py': b'print("reference")\n',
         'instruction.md': b'Implement the function.\n',
+        'task.toml': b'[verifier]\nrestart_environment = false\ntimeout_sec = 720.0\n',
     }
     result = read_members(patch_task(pack_task(original)))
     assert result['solution/solve.sh'] == SOLVE_SH
@@ -48,6 +48,18 @@ def test_pymethods_repairs_preserve_solution_and_payload():
     assert result['instruction.md'] == original['instruction.md']
     assert b'pytest==9.1.1' in result['environment/Dockerfile']
     assert b'pytest==9.1.1' in result['tests/test.sh']
+    import tomllib
+    assert tomllib.loads(result['task.toml'].decode())['verifier'] == {
+        'environment_mode': 'shared', 'timeout_sec': 720.0}
+
+
+def test_pymethods_verifier_migration_rejects_different_execution_mode():
+    from data.tasktrove_pymethods2test.patch import migrate_verifier_mode
+    with pytest.raises(ValueError, match='restart_environment = false'):
+        migrate_verifier_mode(b'[verifier]\nrestart_environment = true\n')
+    with pytest.raises(ValueError, match='existing verifier environment'):
+        migrate_verifier_mode(
+            b'[verifier]\nrestart_environment = false\nenvironment_mode = "separate"\n')
 
 
 @pytest.mark.parametrize('name', ['../escape', '/absolute'])

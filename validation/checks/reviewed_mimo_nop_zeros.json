@@ -1,0 +1,288 @@
+{
+  "format-code-task-000604": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "77c051f80dfb310aaf39bda9df005a349bee00aaf82567d7a4112588e75501cc",
+    "output_line": "Argument of type",
+    "reason": "The requested mutating setter callbacks return void, which the unmodified TypeScript signature rejects. The README migration assertion also fails. These are missing requested behaviors, not missing dependencies.",
+    "job": "5121462",
+    "evidence_archive_sha256": "76228d81500e509e16295d543e6f87d78960901613ac867c77395035ddbea56c",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/nop-jobs-0/job/format-code-task-000604__6r5SkiN/attempts/000/verifier/test-stdout.txt",
+        "sha256": "31ac944581562c8f9abc70ce86a5d87c7c8d991577e9f1e03d4d2677a8e780c9"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-1/nop-jobs-0/job/format-code-task-000604__UYLw6vD/attempts/000/verifier/test-stdout.txt",
+        "sha256": "33c7782905e293dac87f63081d56a469007fdb01657b234452212cc32ab1c8f6"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-2/nop-jobs-0/job/format-code-task-000604__SawpKys/attempts/000/verifier/test-stdout.txt",
+        "sha256": "5fe4d95bec9a90d39c285fd1b6194d920d13e4d9a63d31a1095920b53a459552"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-3/nop-jobs-0/job/format-code-task-000604__AYTjhoo/attempts/000/verifier/test-stdout.txt",
+        "sha256": "ab0a9577c1c541fe5691e014b48985a4417595c8409e6987e9801d70ad8a6d89"
+      }
+    ]
+  },
+  "format-code-task-000632": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "7fb0cedac67db79a7ea193b69e3fd5a50e731b47f3d0d58b958ee526fbc6b398",
+    "output_line": "'graphWidgetWidth' does not exist in type 'CustomMetricGroup'",
+    "reason": "The tests compile against the requested metric-group width property. The original interface lacks that property, so TypeScript rejects the intended new API.",
+    "job": "5121462",
+    "evidence_archive_sha256": "76228d81500e509e16295d543e6f87d78960901613ac867c77395035ddbea56c",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/nop-jobs-0/job/format-code-task-000632__e8X7j6u/attempts/000/verifier/test-stdout.txt",
+        "sha256": "c43715448c80505d39a195ecf2f10112dac6e517f453fd3b6ef227df93f60f0e"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-1/nop-jobs-0/job/format-code-task-000632__2r47aqg/attempts/000/verifier/test-stdout.txt",
+        "sha256": "9e9b1457afb4fdb28f271e4e8007ead0dfdc6aa6e6b083da98ec89b99d4f7b40"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-2/nop-jobs-0/job/format-code-task-000632__6BS2hy6/attempts/000/verifier/test-stdout.txt",
+        "sha256": "1ddaaac7962b407440d03a31735d75fa135655a33a19a6a99bd324d22a5ec862"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-3/nop-jobs-0/job/format-code-task-000632__LdkxeE8/attempts/000/verifier/test-stdout.txt",
+        "sha256": "0e2a6f4dee25d633b7de87235cab09c9c3567969a61b2a57c111bfbefaa48d4c"
+      }
+    ]
+  },
+  "format-code-task-000772": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "e1b9ee62a726c28f31c98f759a7798c75c6742ce649a38d66369d0bc6754abd4",
+    "output_line": "5 tests failed, 3 tests passed",
+    "reason": "Jest 12 completed all eight tests and emitted its JSON result with zero runtime-error suites. Five assertions fail on missing lean BaseStore/listener behavior; three compatibility tests pass. The recorder BEGIN has no matching END, but the completed runner output establishes execution.",
+    "job": "5121462",
+    "evidence_archive_sha256": "76228d81500e509e16295d543e6f87d78960901613ac867c77395035ddbea56c",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/nop-jobs-0/job/format-code-task-000772__eS87ipy/attempts/000/verifier/test-stdout.txt",
+        "sha256": "7b583d93f4edc0985822bc3a58d67e5b860caccfb7c65a2a35f7543226030af6"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-1/nop-jobs-0/job/format-code-task-000772__LxCkENY/attempts/000/verifier/test-stdout.txt",
+        "sha256": "99842703aea5452a346f010653a8d79d52cac6abe7ea66c2c506e8361227c0aa"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-2/nop-jobs-0/job/format-code-task-000772__7QrmAWv/attempts/000/verifier/test-stdout.txt",
+        "sha256": "1294ae4487be02cd1f58cfd98644f253c085a58e336a1426b7c4b24f91b554bd"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-3/nop-jobs-0/job/format-code-task-000772__ZkcUucQ/attempts/000/verifier/test-stdout.txt",
+        "sha256": "c590741a427d2edaa87442e19932d26c772e8df9fffb6f8d7462465230232e87"
+      }
+    ]
+  },
+  "format-code-task-001698": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "c243f61a7b3dfb91b2c54ceb22d84c477d6bc636552b41c9b5de76ebc9852856",
+    "output_line": "Tests:       3 failed, 10 skipped, 13 total",
+    "reason": "The passage-bar tests run and fail because Test from here is absent and Set as start remains. This is exactly the requested UI change. The execution marker is missing despite completed Jest results.",
+    "job": "5121462",
+    "evidence_archive_sha256": "76228d81500e509e16295d543e6f87d78960901613ac867c77395035ddbea56c",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/nop-jobs-0/job/format-code-task-001698__tFTra6A/attempts/000/verifier/test-stdout.txt",
+        "sha256": "abcd82570b021810e7b392983f5c60118a223e79aa69686924cbc0c24382e321"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-1/nop-jobs-0/job/format-code-task-001698__2tgBTuV/attempts/000/verifier/test-stdout.txt",
+        "sha256": "bbb5bfa9f01edb8b33dc0e8a6b2543f79069dc907560dd247c4d67e394663d76"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-2/nop-jobs-0/job/format-code-task-001698__SX9TkNb/attempts/000/verifier/test-stdout.txt",
+        "sha256": "013c0a38f2b86aff5bc7598742521843bf172672db0531ff506e5b5d937dff01"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-3/nop-jobs-0/job/format-code-task-001698__qtBbbRH/attempts/000/verifier/test-stdout.txt",
+        "sha256": "17bc6c09af0f865cb77c2b613b40536f1bf2f82806f0d157caec1f4d63136e1d"
+      }
+    ]
+  },
+  "format-code-task-002711": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "4468a4e5929e412df452b09526fc09de1ee784a1b00ba75356150e67f0ff9d38",
+    "output_line": "Tests: succeeded 0, failed 1, canceled 0, ignored 0, pending 0",
+    "reason": "ScalaTest completes MetadataSchemaTest and its schema assertion fails on the unmodified scalar-shape behavior. One suite completed, none aborted. The runner has no recognized execution marker.",
+    "job": "5121462",
+    "evidence_archive_sha256": "76228d81500e509e16295d543e6f87d78960901613ac867c77395035ddbea56c",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/nop-jobs-0/job/format-code-task-002711__3HRGWBY/attempts/000/verifier/test-stdout.txt",
+        "sha256": "96e97c1f308b96ee7e03bd473747b66517935783d8d585f8455ee92f49708e76"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-1/nop-jobs-0/job/format-code-task-002711__3VTNAbJ/attempts/000/verifier/test-stdout.txt",
+        "sha256": "cd6ecba9b5bf3011db407694dcf830ff55eeb4bfd4db8fbe76366cdd39544116"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-2/nop-jobs-0/job/format-code-task-002711__qr5D2mo/attempts/000/verifier/test-stdout.txt",
+        "sha256": "ec7a37adeffbb655b955387c95c4463a25d56a5f7518509eaade73fb89e7e26a"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-3/nop-jobs-0/job/format-code-task-002711__Rv4xvFi/attempts/000/verifier/test-stdout.txt",
+        "sha256": "d5805a764ea13d46d2d1b7e121782cd4d3b51903b8f0bf66d14d2e7551ecbcc4"
+      }
+    ]
+  },
+  "format-code-task-002797": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "b33b779aa350035190ef442dbda312cc7b3d449691462fb6be8e66e3c3699a10",
+    "output_line": "should preserve dots inside bracket segments",
+    "reason": "Two executed to-path assertions fail on dotted bracket keys and sequential bracket segments, directly reproducing the requested bug; another test passes. A separate evaluateTailwindFunctions Jest worker also crashes serializing a circular object. Accept only the evidenced no-op zero, not a claim that every verifier suite is healthy.",
+    "job": "5121462",
+    "evidence_archive_sha256": "76228d81500e509e16295d543e6f87d78960901613ac867c77395035ddbea56c",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/nop-jobs-0/job/format-code-task-002797__nGyr3ew/attempts/000/verifier/test-stdout.txt",
+        "sha256": "a091bce45a37e79809a0a0af3b12b501efa2decf318519aaebbb34f78138ebb5"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-1/nop-jobs-0/job/format-code-task-002797__ExuSrtM/attempts/000/verifier/test-stdout.txt",
+        "sha256": "07c5678e3cd6535ad649648287610d9549d7a0f8f73bc7998544fb1a27f16dc0"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-2/nop-jobs-0/job/format-code-task-002797__qSqEqqC/attempts/000/verifier/test-stdout.txt",
+        "sha256": "8dab6492c3f968559e8653fa8700033c9635f35d89a1c6ee381bd88839d7389c"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-3/nop-jobs-0/job/format-code-task-002797__64Xy7Kx/attempts/000/verifier/test-stdout.txt",
+        "sha256": "dadd00c5729a80bd2e0169bccc1c6cd39fa13f853aa2f35fbc48ec9987f6bdd6"
+      }
+    ]
+  },
+  "format-code-task-002988": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "1dfc07584a0197f4e3a42b3d14cea78534b76bbcba1bc5534858def9838d1c58",
+    "output_line": "ValidationError: Banner Plugin Invalid Options",
+    "reason": "Three executed BannerPlugin tests reject function arguments because the original schema only accepts strings/objects. Supporting functions is the requested change. Jest completes with three failures; execution instrumentation is missing.",
+    "job": "5121462",
+    "evidence_archive_sha256": "76228d81500e509e16295d543e6f87d78960901613ac867c77395035ddbea56c",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/nop-jobs-0/job/format-code-task-002988__pC6G94x/attempts/000/verifier/test-stdout.txt",
+        "sha256": "9fc1ccc5559f265d158abd5f7e98bd597217c094de4ff9b020b66b097814971f"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-1/nop-jobs-0/job/format-code-task-002988__9k3ANvT/attempts/000/verifier/test-stdout.txt",
+        "sha256": "b9302235fbec5441c736ca9dd6a283936a4e19d094dcac3199521123bbf80279"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-2/nop-jobs-0/job/format-code-task-002988__8Zir7Ji/attempts/000/verifier/test-stdout.txt",
+        "sha256": "87d61a85e0c8c149c778913752c4ee8d40e9a239c7acd30f6f675c0283263bc3"
+      },
+      {
+        "path": "results/stage_3_nop_validation/3a887ca445d4/retry-3/nop-jobs-0/job/format-code-task-002988__iLPxzG6/attempts/000/verifier/test-stdout.txt",
+        "sha256": "9ef2db763e9a7c6537fa3388233476bb7b05da74a597a560432fa924f362af8b"
+      }
+    ]
+  },
+  "format-code-task-000133": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "416b0e7c17f0338178eb3c21091b8d321cbfb59d5dff539ac9345c0d122996c0",
+    "output_line": "keeps cookie jar state across redirects and writes response cookies back",
+    "reason": "Completed legacy Jest output shows a failed cookie-redirect assertion required by the task. Preserve the additional ECONNREFUSED failures in other network tests; they do not explain away the independently observed cookie-state bug. The legacy runner does not support the recorder outputFile option.",
+    "evidence_archive": "/hnvme/workspace/y500bb12-optiagent/mimo-validation-20261017/final-v4/run/shards/0107/evidence.tar.gz",
+    "evidence_archive_sha256": "da2f6d49c454c6c609a8ff713f8da34050dea01bbc90e6776decd1fb9f919e05",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/14b3588568d1/nop-jobs-0/job/format-code-task-000133__QkDZ2Dp/attempts/000/verifier/test-stdout.txt",
+        "sha256": "cdffb825f95699ef357db414d95121feec72764466d59bb387a2c486210025aa"
+      },
+      {
+        "path": "results/stage_3_nop_validation/14b3588568d1/retry-1/nop-jobs-0/job/format-code-task-000133__VVT7twa/attempts/000/verifier/test-stdout.txt",
+        "sha256": "6f626b35a9d7e6a835b1ddd8fe7007e49aad3850b4a621c2be774f3ad9fd1f33"
+      },
+      {
+        "path": "results/stage_3_nop_validation/14b3588568d1/retry-2/nop-jobs-0/job/format-code-task-000133__wr4KWPc/attempts/000/verifier/test-stdout.txt",
+        "sha256": "280e2ad59cc6c34f8e601eb9defe0f4eb783f2cbf4d5850ef14ff889b66ea2f1"
+      },
+      {
+        "path": "results/stage_3_nop_validation/14b3588568d1/retry-3/nop-jobs-0/job/format-code-task-000133__Rx9a6Ms/attempts/000/verifier/test-stdout.txt",
+        "sha256": "aa54752040ba790c32ef21bfe977e99290ed396d0026bf8c2dc33cb08bd21093"
+      }
+    ]
+  },
+  "format-code-task-000211": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "1d9f061de2031226985928c21b23ebc9c159429bd4482bde84415a0705c35247",
+    "output_line": "FileNotFoundError: [Errno 2] No such file or directory: '/testbed/posthog/temporal/data_imports/pipelines/source/config.py'",
+    "reason": "The instruction explicitly asks to create this new standalone config.py module. The verifier imports exactly that absent module, an expected unsolved-state failure, not a missing dependency.",
+    "evidence_archive": "/hnvme/workspace/y500bb12-optiagent/mimo-validation-20261017/final-v4/run/shards/0176/evidence.tar.gz",
+    "evidence_archive_sha256": "35d5e8ecc1e4f70793833fb6495e2a0dcba274ac39ef0f3101523e522d14015e",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/aef43c396fcb/nop-jobs-0/job/format-code-task-000211__Err6D6h/attempts/000/verifier/test-stdout.txt",
+        "sha256": "f4dd25bf19c31689dede5581a22004866389bad6e52b0d78d5011e3576a7a260"
+      },
+      {
+        "path": "results/stage_3_nop_validation/aef43c396fcb/retry-1/nop-jobs-0/job/format-code-task-000211__E42pme4/attempts/000/verifier/test-stdout.txt",
+        "sha256": "3cf3de586048037c88569bd5db3e7328ba039bfd9d6908c696790dc716bccb4b"
+      },
+      {
+        "path": "results/stage_3_nop_validation/aef43c396fcb/retry-2/nop-jobs-0/job/format-code-task-000211__FJ7eVjF/attempts/000/verifier/test-stdout.txt",
+        "sha256": "2ebf3b20f763027eaeeb68b837efeb03a9ec72a8fba495ab8abc7cd76a8b414f"
+      },
+      {
+        "path": "results/stage_3_nop_validation/aef43c396fcb/retry-3/nop-jobs-0/job/format-code-task-000211__f4fRcsb/attempts/000/verifier/test-stdout.txt",
+        "sha256": "c26427e7af67517d23def3f70ff5a12c561443a22e1050d4caf74b65e1cd266a"
+      }
+    ]
+  },
+  "format-code-task-000821": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "f577372954a9a7f5bf45991aa30a15472b31d838bf08abd3f2e33a2f657aee67",
+    "output_line": "test_create_line_sorts_multilabels",
+    "reason": "Django successfully starts the suite; five sorting assertions fail on unsorted multilabel CSV/FastText exports, exactly the reported bug. The unittest recorder incorrectly reports finished=false despite the printed test results.",
+    "evidence_archive": "/hnvme/workspace/y500bb12-optiagent/mimo-validation-20261017/final-v4/run/shards/0028/evidence.tar.gz",
+    "evidence_archive_sha256": "35eaeb52292a1612ebf79dd609759b67c124867776cad8ea55e05ef8ce0abed6",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/653d2dd9983f/nop-jobs-0/job/format-code-task-000821__LcYxc98/attempts/000/verifier/test-stdout.txt",
+        "sha256": "b0b7b109942df799a7a7e70613496674aaa54782f4ed3f1bae3f0da3a7c4e4f0"
+      },
+      {
+        "path": "results/stage_3_nop_validation/653d2dd9983f/retry-1/nop-jobs-0/job/format-code-task-000821__X7tDvQQ/attempts/000/verifier/test-stdout.txt",
+        "sha256": "afea6d6082c1aa48f3d495fb8ba93f165200760f50862e6264366c138525b6d9"
+      },
+      {
+        "path": "results/stage_3_nop_validation/653d2dd9983f/retry-2/nop-jobs-0/job/format-code-task-000821__mVxZGDi/attempts/000/verifier/test-stdout.txt",
+        "sha256": "41b778f1db89fd5f6b4b327222516aa72d537c9d512c3c34fc02c877421d1b81"
+      },
+      {
+        "path": "results/stage_3_nop_validation/653d2dd9983f/retry-3/nop-jobs-0/job/format-code-task-000821__ts4kSZF/attempts/000/verifier/test-stdout.txt",
+        "sha256": "46e9b187005267cb426425ee8de1a631b60571626757d55cf572deb2949db152"
+      }
+    ]
+  },
+  "format-code-task-001666": {
+    "reviewed": "2026-10-18",
+    "report_item_sha256": "62353c7d774010fc3912a87cf2a8dd6b2f9a4687156ff1e9c3acf5c0893f58fd",
+    "output_line": "Segmentation fault (core dumped)",
+    "reason": "The task is to prevent native-process crashes on malformed PDFs. After rebuilding the native module, the command runs only tests/SigSeg.js; that regression calls createReader on a PDF containing only header and EOF and expects an exception. The process segfaults on this dedicated regression. This is the target bug, so lack of a completed runner marker is expected for the no-op.",
+    "evidence_archive": "/hnvme/workspace/y500bb12-optiagent/mimo-validation-20261017/final-v4/run/shards/0118/evidence.tar.gz",
+    "evidence_archive_sha256": "4ef72ddf411610b67c6fe9c7060408ad4cf768bc4b8786c9789e39e99c4bf350",
+    "logs": [
+      {
+        "path": "results/stage_3_nop_validation/8e4f0af04e2c/nop-jobs-0/job/format-code-task-001666__iph9hkj/attempts/000/verifier/test-stdout.txt",
+        "sha256": "ac53c856a91f942c26ac90e87bf5a0300fbe2b47a3a1f4353252ec8703a1c19c"
+      },
+      {
+        "path": "results/stage_3_nop_validation/8e4f0af04e2c/retry-1/nop-jobs-0/job/format-code-task-001666__hJLtjKM/attempts/000/verifier/test-stdout.txt",
+        "sha256": "078dc8d85c36645bae91ddf76c104b2de9de153ce8dbc51197dcd222ad9ab155"
+      },
+      {
+        "path": "results/stage_3_nop_validation/8e4f0af04e2c/retry-2/nop-jobs-0/job/format-code-task-001666__odZ6Tyb/attempts/000/verifier/test-stdout.txt",
+        "sha256": "ad1725de674ac0f01df0a31f5ea438483a6fe532cd3bd0687855246ce8916933"
+      },
+      {
+        "path": "results/stage_3_nop_validation/8e4f0af04e2c/retry-3/nop-jobs-0/job/format-code-task-001666__xRuF4B5/attempts/000/verifier/test-stdout.txt",
+        "sha256": "7f825a1ebe95ff7b6ec2f05540fbc5261d88ea1219e80f59f954dddc4e166adf"
+      }
+    ]
+  }
+}

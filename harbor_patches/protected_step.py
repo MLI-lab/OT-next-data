@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import signal
 import shutil
+import stat
 import socketserver
 import subprocess
 import threading
@@ -88,6 +89,98 @@ def oom_count(path):
         return int(dict(line.split() for line in Path(path).read_text().splitlines())['oom_kill'])
     except (OSError, KeyError, ValueError, TypeError):
         return None
+
+
+def cpu_count(cpuset):
+    """Number of CPUs in a cpuset list such as '0-3,8'."""
+    count = 0
+    for part in cpuset.strip().split(','):
+        if part:
+            first, _, last = part.partition('-')
+            count += int(last or first) - int(first) + 1
+    return count
+
+
+def step_usage(memory_events):
+    """Exact lifetime counters of one task step's cgroup v2: peak memory, CPU time, peak processes.
+
+    Read from the directory that enforces the step's memory limit, so the
+    numbers cover every container process of this environment (and the small
+    executor). Missing files (cgroup v1, removed cgroup) leave fields out.
+    """
+    directory = Path(memory_events).parent
+
+    def number(name):
+        try:
+            value = (directory / name).read_text().strip()
+        except OSError:
+            return None
+        return int(value) if value.isdigit() else None
+    usage = {'memory_peak_bytes': number('memory.peak'), 'memory_limit_bytes': number('memory.max'),
+             'pids_peak': number('pids.peak')}
+    try:
+        stat = dict(line.split() for line in (directory / 'cpu.stat').read_text().splitlines())
+        usage['cpu_usec'] = int(stat['usage_usec'])
+    except (OSError, KeyError, ValueError):
+        pass
+    # Slurm pins cores with a cpuset; the effective set may sit on the step level.
+    path = directory
+    while 'step_' in ''.join(path.parts):
+        try:
+            usage['cpus'] = cpu_count((path / 'cpuset.cpus.effective').read_text())
+            break
+        except (OSError, ValueError):
+            path = path.parent
+    return {key: value for key, value in usage.items() if value is not None}
+
+
+def usage_report(steps):
+    """Combine the steps of one environment (one per OOM-recovery generation)."""
+    steps = [s for s in steps if s]
+    if not steps:
+        return None
+    report = {'steps': len(steps)}
+
+    def largest(key):
+        values = [s[key] for s in steps if key in s]
+        return max(values) if values else None
+    peak, limit = largest('memory_peak_bytes'), largest('memory_limit_bytes')
+    if peak is not None:
+        report['memory_peak_mb'] = round(peak / 2**20, 1)
+    if limit is not None:
+        report['memory_limit_mb'] = round(limit / 2**20, 1)
+    if any('cpu_usec' in s for s in steps):
+        report['cpu_seconds'] = round(sum(s.get('cpu_usec', 0) for s in steps) / 1e6, 2)
+    report['step_seconds'] = round(sum(s.get('seconds', 0) for s in steps), 2)
+    for key in ('cpus', 'pids_peak'):
+        value = largest(key)
+        if value is not None:
+            report[key] = value
+    return report
+
+
+def remove_tree(path):
+    """Delete a staging tree, including read-only directories left by the task.
+
+    Go marks its module cache read-only; in the overlay upper directory those
+    directories belong to the calling user but block unlinking their entries.
+    Only on a permission error, add owner rwx to every real directory (never
+    following symlinks) and delete again.
+    """
+    try:
+        shutil.rmtree(path)
+        return
+    except PermissionError:
+        pass
+    def writable(directory):
+        mode = os.lstat(directory).st_mode
+        if stat.S_ISDIR(mode) and mode & stat.S_IRWXU != stat.S_IRWXU:
+            os.chmod(directory, stat.S_IMODE(mode) | stat.S_IRWXU)
+    writable(path)
+    for root, directories, _ in os.walk(path):
+        for name in directories:
+            writable(os.path.join(root, name))
+    shutil.rmtree(path)
 
 
 @contextmanager
@@ -188,6 +281,21 @@ class ProtectedInstance:
         self.stopping = threading.Event()
         self.command_generation = 0
         self.commands_cancelled = False
+        self.usage = []
+
+    def _record_usage(self):
+        """Read this step's counters once, before Slurm removes its cgroup."""
+        info = getattr(self, 'info', None)
+        if not info or getattr(self, 'usage_generation', None) == self.generation:
+            return
+        self.usage_generation = self.generation
+        try:
+            usage = step_usage(info['memory_events'])
+        except Exception as exc:
+            print(f'[{self.env_id}] cannot read task step usage: {exc}', flush=True)
+            return
+        usage['seconds'] = time.monotonic() - self.step_ready
+        self.usage.append(usage)
 
     def cancel_commands(self, generation):
         """Reap this environment's entire step, retaining its writable files.
@@ -248,6 +356,7 @@ class ProtectedInstance:
         if self.stopping.is_set() or self.is_abandoned(self.env_id):
             raise RuntimeError('Task was stopped before its executor became ready')
         self.info = self.slot.request(self.env_id, 'info', {}, 10)
+        self.step_ready = time.monotonic()
         self.oom_baseline = oom_count(self.info['memory_events'])
         if self.oom_baseline is None:
             raise RuntimeError('Cannot read task OOM counters from the protected controller')
@@ -296,6 +405,7 @@ class ProtectedInstance:
         return False
 
     def _close_step(self):
+        self._record_usage()
         # Ownership was observed by the in-step helper while daemons were live.
         # The protected controller can still reclaim those exact resources if
         # the helper is killed, after Slurm has reaped the entire old step.
@@ -413,11 +523,11 @@ class ProtectedInstance:
         if not acquired:
             raise RuntimeError('Task executor was force-stopped but its operation lock did not release')
         try:
+            result = {'stopped': True}
             try:
                 if self.slot and self.slot.alive():
                     with active(self):
-                        return self.inner.stop(payload)
-                return {'stopped': True}
+                        result = self.inner.stop(payload)
             finally:
                 self.started = False
                 if self.slot:
@@ -427,7 +537,12 @@ class ProtectedInstance:
                 # belongs only to this instance and is removed after reaping.
                 staging = getattr(self.inner, 'staging_dir', None)
                 if staging and Path(staging).exists():
-                    shutil.rmtree(staging)
+                    remove_tree(staging)
+            # Measured once per environment; the trial writes it into result.json.
+            resources = usage_report(self.usage)
+            if resources and isinstance(result, dict):
+                result = dict(result, resources=resources)
+            return result
         finally:
             self.lock.release()
 

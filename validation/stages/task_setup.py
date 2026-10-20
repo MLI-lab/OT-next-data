@@ -13,14 +13,18 @@ _CALL = re.compile(
 
 
 def detect(task: Path) -> str | None:
-    """Return a verified setup command, or None when the oracle has no setup call.
+    """Return a verified setup command, or None when the task has no setup.
 
-    A mention that cannot be parsed safely is an error, never a silent omission.
-    Only task-owned scripts under /setup_files may be executed automatically.
+    The training harness runs setup_files/setup.sh before every agent start,
+    with or without a solution, so its presence alone means setup. An oracle
+    that calls a setup script must name that same script. A mention that cannot
+    be parsed safely is an error, never a silent omission. Only task-owned
+    scripts under /setup_files may be executed automatically.
     """
+    default = 'bash /setup_files/setup.sh' if (task / 'setup_files/setup.sh').is_file() else None
     oracle = task / 'solution/solve.sh'
     if not oracle.is_file():
-        return None
+        return default
     calls = set()
     for number, raw in enumerate(oracle.read_text().splitlines(), 1):
         line = raw.strip()
@@ -36,7 +40,9 @@ def detect(task: Path) -> str | None:
         calls.add(f'bash {path}')
     if len(calls) > 1:
         raise ValueError(f'{oracle}: multiple setup scripts need review')
-    return next(iter(calls), None)
+    if calls and default and calls != {default}:
+        raise ValueError(f'{oracle}: calls a setup script other than the harness default')
+    return next(iter(calls), default)
 
 
 async def prepare(environment, *, command, timeout_sec, force_build, upload, logger=None, timings=None,
@@ -78,7 +84,8 @@ async def prepare(environment, *, command, timeout_sec, force_build, upload, log
         # task's requirements: the container's view of its image is damaged (2026-10-11).
         damaged = 'OT_PYTHON_STDLIB_IMPORT_FAILED:' in diagnostics
         prefix = DAMAGED + ': ' if damaged else ''
-        error = RuntimeError(f'{prefix}Task setup exited {result.return_code}: {result.stderr}')
+        error = RuntimeError(f'{prefix}Task setup exited {result.return_code}: {result.stderr}'
+                             f'\nTask setup stdout:\n{result.stdout}')
         error.diagnostics = diagnostics
         if logger and error.diagnostics:
             logger.info('Task setup failure diagnostics:\n%s', error.diagnostics)
@@ -139,15 +146,28 @@ async def setup_diagnostics(environment):
 
 
 async def upload_setup(environment, task_path):
-    """Stage-3 equivalent of Harbor's setup-files upload, within the same budget."""
+    """Stage-1 equivalent of Harbor's setup-files upload, within the same budget."""
     await environment.empty_dirs(['/setup_files'], chmod=False)
     await environment.upload_dir(source_dir=task_path / 'setup_files', target_dir='/setup_files')
     await environment.exec('chmod -R a+rX /setup_files', user='root')
 
 
+async def upload_review_files(environment, task_path):
+    """Rubric-review evidence (validation/stages/env_review.py) goes under /app after
+    task setup, so the reviewed environment and its cached image stay unchanged."""
+    parts = sorted((task_path / 'review_files').glob('*'))
+    if not parts:
+        return
+    await environment.exec('rm -f /app/verdicts.json /app/analysis.json', user='root')
+    for part in parts:
+        await environment.upload_dir(source_dir=part, target_dir=f'/app/{part.name}')
+    targets = ' '.join(shlex.quote(f'/app/{part.name}') for part in parts)
+    await environment.exec(f'chmod -R a+rX {targets}', user='root')
+
+
 def save_timings(path, timings, logger=None):
     """Seconds of each preparation step of a trial (container start, upload, setup), next to its
-    result: stages 4 and 5 then give further samples beside stage 3's. Never fails the trial."""
+    result: stages 2 and 3 then give further samples beside stage 1's. Never fails the trial."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({name: round(seconds, 3) for name, seconds in timings.items()}) + '\n')
@@ -165,6 +185,11 @@ def install():
     original_upload = Trial._upload_setup_files
 
     async def start(self):
+        await start_task(self)
+        if (self.task.paths.task_dir / 'review_files').is_dir():
+            await upload_review_files(self.agent_environment, self.task.paths.task_dir)
+
+    async def start_task(self):
         # Reset for every attempt, including retries on the same Trial object.
         self._task_setup_uploaded = False
         from harbor_patches.start_wait import run_with_budget, status_reader

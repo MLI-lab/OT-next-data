@@ -6,6 +6,7 @@ validation/publishing/publish.py for report generation, uploads, and PR creation
 Publishing waits until failure review and infrastructure retries are finished.
 """
 
+from validation.stages.layout import REFERENCE
 import json
 from datetime import datetime
 import os
@@ -93,8 +94,8 @@ def inputs(config, state):
         re.sub(r'-\d+$', '', task) for task in task_ids})]
     return {'publish_repo': config['publish_repo'], 'publish_folder': folders,
             'publish_agent_patch_repair_loop': True,
-            'publish_skipped_stages': ({'4': core.validation_policy(config)['reason']}
-                                       if 4 not in core.validation_policy(config)['required_stages'] else {}),
+            'publish_skipped_stages': ({str(REFERENCE): core.validation_policy(config)['reason']}
+                                       if REFERENCE not in core.validation_policy(config)['required_stages'] else {}),
             'publish_patch_manifest': manifests, 'publish_conversion_archive': archives,
             'publish_readme': config.get('publish_readme', True),
             'publish_readme_model': config.get('publish_readme_model', 'claude-fable-5-1')}
@@ -144,8 +145,8 @@ def publish(config, state, directory):
     submission = Path(job['submission'])
     report = Path(state.get('final_report', submission / 'report'))
     policy = core.validation_policy(config)
-    if 4 not in policy['required_stages']:
-        require_complete(report, job['contract'], skipped_stages={'4': policy['reason']})
+    if REFERENCE not in policy['required_stages']:
+        require_complete(report, job['contract'], skipped_stages={str(REFERENCE): policy['reason']})
     else:
         require_complete(report, job['contract'])
     directory.mkdir(parents=True, exist_ok=True)

@@ -6,6 +6,7 @@ change from failed to passed in the final report used for the PR. Results for
 other tasks stay unchanged, and earlier attempts remain saved for reference.
 """
 
+from validation.stages.layout import LAYOUT
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -55,7 +56,7 @@ def merge(original_job, previous_report, retry_job, selected, destination, retry
     retry_hashes = {item['task_id']: item['sha256'] for item in task_records(retry)}
     if set(retry_hashes) != set(selected) or not set(selected) <= set(hashes) or any(
             hashes[task] != retry_hashes[task] for task in selected):
-        raise ValueError('Retry task content differs; restart the stage-3 repair workflow')
+        raise ValueError('Retry task content differs; restart the stage-1 repair workflow')
     prior = load_reports(previous_report, sorted(hashes), original['stages'])
     current = load_reports(retry_report or Path(retry_job['submission']) / 'report', selected, original['stages'])
     if any(report['contract_sha256'] != original['sha256'] for _, report in prior.values()):
@@ -124,6 +125,9 @@ def collect(config, job, selected, stages, directory):
         raw = json.loads(paths[0].read_text()) if paths else {}
         if raw and (raw.get('contract_sha256') != contract['sha256'] or raw.get('dry_run')):
             raise ValueError('Incomplete report has invalid execution provenance')
+        if raw:
+            from validation.stages.layout import require_stage
+            require_stage(raw, stage, paths[0])
         observed = {Path(item['task']).name: item for item in raw.get('items', [])}
         if len(observed) != len(raw.get('items', [])) or not set(observed) <= set(selected):
             raise ValueError('Incomplete report has unexpected or duplicate tasks')
@@ -133,11 +137,11 @@ def collect(config, job, selected, stages, directory):
             if not item or item.get('status') == 'previewed':
                 item = {'task': task, 'status': 'error', 'reason': 'No completed execution: ' + error,
                         'execution_missing': True, 'submission': job['submission']}
-                if stage == 1:
+                if stage == 4:
                     item['checks'] = [{'check': 'execution', 'status': 'error', 'error': item['reason']}]
             items.append(item)
         core.save(recovered / f'stage-{stage}-incomplete.json', {
-            'stage': stage, 'complete': True, 'dry_run': False, 'has_findings': True,
+            'stage_layout': LAYOUT, 'stage': stage, 'complete': True, 'dry_run': False, 'has_findings': True,
             'contract_sha256': contract['sha256'], 'report_kind': 'incomplete_execution_recovery',
             'original_report': str(paths[0]) if paths else None, 'execution_error': error,
             'original_complete': raw.get('complete', False), 'items': items})

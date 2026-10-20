@@ -15,16 +15,25 @@ def environment_arguments(cmd, kwargs):
         arg = cmd[index]
         if arg == '--env' and index + 1 < boundary:
             key, separator, value = cmd[index + 1].partition('=')
-            if separator and ',' in value:
-                # Harbor serializes exec payload values with shlex.quote. Undo
-                # exactly that encoding, then use argv-based env inside the
-                # container. No CLI CSV parsing or extra shell evaluation.
-                decoded = shlex.split(value)
-                if len(decoded) != 1 or shlex.quote(decoded[0]) != value:
+            # Harbor serializes exec payload values with shlex.quote. Apptainer
+            # would split them at commas and keep the quotes of quoted values
+            # (e.g. values with spaces). Undo exactly that encoding, then use
+            # argv-based env inside the container. No CLI CSV parsing or extra
+            # shell evaluation. Harbor's built-in PS1 and PROMPT_COMMAND
+            # arguments are raw, unlike task payload values. Leave those raw
+            # arguments unchanged; special characters alone do not imply quoting.
+            quoted = separator and value.startswith("'")
+            if separator and (',' in value or quoted):
+                try:
+                    decoded = shlex.split(value)
+                except ValueError:
+                    decoded = []
+                if len(decoded) == 1 and shlex.quote(decoded[0]) == value:
+                    assignments.append(key + '=' + decoded[0])
+                    index += 2
+                    continue
+                if ',' in value:
                     raise ValueError('Unexpected Harbor environment value encoding')
-                assignments.append(key + '=' + decoded[0])
-                index += 2
-                continue
         result.append(arg)
         index += 1
     if not assignments:

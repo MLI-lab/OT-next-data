@@ -2,8 +2,8 @@
 
 ## Dataset stats
 
-- **Tasks:** 501 native bugs = **489 retained (all 489 converted/patched)** + **11 archived** + **1 not converted** (Keras 12 has identical buggy/fixed commits). Includes 462 retained instruction rewrites.
-- **Images:** native source supplied none; conversion introduces **11 shared image definitions**. **11 verified cached Apptainer bundles** cover all 489 retained tasks, pinned by checksum and immutable image commit in `tasks.parquet`.
+- **Tasks:** 501 native bugs = **489 kept (all 489 converted/patched)** + **11 archived** + **1 not converted** (Keras 12 has identical buggy/fixed commits). Includes 462 kept instruction rewrites.
+- **Images:** native source supplied none; conversion introduces **11 shared image definitions**. **11 verified cached Apptainer bundles** cover all 489 kept tasks, pinned by checksum and immutable image commit in `tasks.parquet`.
 
 ## Dataset characteristics
 
@@ -27,10 +27,10 @@ Real Python repositories at buggy commits, upstream regression tests and referen
 
 Counts overlap. Build, reference and no-op checks passed before instruction review; rule-based checks reran afterwards.
 
-- **Rule-based checks:** 489 retain the timeout/anti-cheating suffix required by `check-instruction-suffix.sh` (427 carried the historical `anti-cheat-instruction` change label). **0 static archives**; 7 recorded `warning:relative-instruction-path` findings remained warnings. The contract excluded 13 checks. Separate instruction review preserved **462 rewrites** and archived **6** for tests requiring specific implementations (5) or testing a different issue (1), recorded as `flagged_by_instruction_loop`, not static-check failures.
 - **Build and setup:** **489 converted** to shared Apptainer-compatible environments with pinned dependencies; **247** include compiler/system libraries. Shared Marin/Harbor bridge fixes addressed container startup, uploads and certificate mounts. **1 archived** (`environment_task_mismatch`): YouTube-DL 40 requires older-Python behavior absent from its recorded environment.
-- **Reference solution (reward 1):** **489 passed**. Clean verifier dependency installs for **489**; source-timestamp fixes for **66**, plus **169 pandas** native rebuilds. **1 archived** (`flagged_by_instruction_loop`): HTTPie 4 depends on live httpbin.org availability.
 - **No-op baseline (reward 0):** **489 passed**. **6 verifier repairs:** Ansible CPU regression (1), missing-function assertions moved inside tests (4), offline YouTube-DL chapter checks (1). **3 archived** (`buggy-version-passes-verifier`): Keras 15 and Scrapy 7/11 passed without a fix.
+- **Reference solution (reward 1):** **489 passed**. Clean verifier dependency installs for **489**; source-timestamp fixes for **66**, plus **169 pandas** native rebuilds. **1 archived** (`flagged_by_instruction_loop`): HTTPie 4 depends on live httpbin.org availability.
+- **Rule-based checks:** 489 retain the timeout/anti-cheating suffix required by `check-instruction-suffix.sh` (427 carried the historical `anti-cheat-instruction` change label). **0 static archives**; 7 recorded `warning:relative-instruction-path` findings remained warnings. The contract excluded 13 checks. Separate instruction review preserved **462 rewrites** and archived **6** for tests requiring specific implementations (5) or testing a different issue (1), recorded as `flagged_by_instruction_loop`, not static-check failures.
 
 All 11 archives came from conversion or instruction review; the bullets group them by failure cause.
 

@@ -1,4 +1,4 @@
-"""Stage 3 uses the same setup script as normal verification, without grading."""
+"""Stage 1 uses the same setup script as normal verification, without grading."""
 import asyncio
 from pathlib import Path
 from types import SimpleNamespace

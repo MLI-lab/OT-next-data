@@ -1,8 +1,10 @@
-"""Preserve Docker ENV PATH self-references in Harbor's image translation.
+"""Preserve Docker ENV variable references in Harbor's image translation.
 
-The upstream translator shell-quotes ENV values, leaving $PATH literal. Resolve
-only PATH self-references against the image, never the host or shell evaluation
-of arbitrary Dockerfile values. Other ENV translation is unchanged.
+The upstream translator shell-quotes ENV values, leaving every $VAR literal.
+Resolve references to variables defined by earlier ENV or ARG instructions of
+the same Dockerfile the way Docker does, and PATH self-references against the
+image, never by host or shell evaluation of Dockerfile values. References to
+variables the Dockerfile does not define (base-image environment) stay literal.
 """
 import json
 import os
@@ -13,6 +15,111 @@ import tempfile
 
 
 REFERENCE = re.compile(r'\$(?:\{PATH\}|PATH\b)')
+
+
+NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+
+
+def _expand(text, known):
+    """Docker word processing for one ENV value: quotes, escapes, ${VAR} forms.
+
+    Known variables are substituted; any other reference is kept verbatim.
+    """
+    out, i, quote = [], 0, None
+    while i < len(text):
+        char = text[i]
+        if quote == "'":
+            if char == "'":
+                quote = None
+            else:
+                out.append(char)
+            i += 1
+        elif char == '\\' and i + 1 < len(text) and (quote is None or text[i + 1] in '"\\$'):
+            out.append(text[i + 1])
+            i += 2
+        elif char in '"\'' and quote is None:
+            quote = char
+            i += 1
+        elif char == '"' and quote == '"':
+            quote = None
+            i += 1
+        elif char == '$':
+            reference, value, i = _reference(text, i, known)
+            out.append(reference if value is None else value)
+        else:
+            out.append(char)
+            i += 1
+    if quote:
+        raise ValueError('unterminated quote')
+    return ''.join(out)
+
+
+def _reference(text, start, known):
+    """(original text, substituted value or None, next index) for a $ at start."""
+    if text.startswith('${', start):
+        end = text.find('}', start)
+        if end < 0:
+            raise ValueError('unterminated ${')
+        body = text[start + 2:end]
+        match = NAME.match(body)
+        original = text[start:end + 1]
+        if not match:
+            return original, None, end + 1
+        name, rest = match[0], body[match.end():]
+        if not rest:
+            return original, known.get(name), end + 1
+        if rest[:2] in (':-', ':+') and name in known:
+            word = _expand(rest[2:], known)
+            if rest[:2] == ':-':
+                return original, known[name] or word, end + 1
+            return original, word if known[name] else '', end + 1
+        return original, None, end + 1
+    match = NAME.match(text, start + 1)
+    if not match:
+        return '$', '$', start + 1
+    return '$' + match[0], known.get(match[0]), match.end()
+
+
+def resolve_env_lines(lines):
+    """Rewrite ENV KEY=VALUE instructions with earlier ENV/ARG values substituted.
+
+    Like Docker, all pairs of one instruction see only earlier definitions, and
+    a FROM starts a new stage. Lines that cannot be parsed exactly are unchanged.
+    """
+    known, result = {}, []
+    for line in lines:
+        words = line.split(None, 1)
+        keyword = words[0].upper() if words else ''
+        if keyword == 'FROM':
+            known = {}
+        elif keyword in ('ENV', 'ARG') and len(words) == 2:
+            try:
+                pairs = [part.partition('=') for part in shlex.split(words[1], posix=False)]
+                if not all(NAME.fullmatch(key) for key, _, _ in pairs):
+                    raise ValueError('not a name')
+                if keyword == 'ENV' and not all(eq for _, eq, _ in pairs):
+                    raise ValueError('legacy ENV form')
+                values = {key: _expand(value, known) for key, eq, value in pairs if eq}
+            except ValueError:
+                result.append(line)
+                continue
+            # Leave lines without a resolvable reference byte-identical.
+            if keyword == 'ENV' and any(values[key] != _expand(value, {}) for key, _, value in pairs):
+                line = 'ENV ' + ' '.join(f'{key}={shlex.quote(value)}' for key, value in values.items())
+            for key, eq, _ in pairs:
+                if eq:
+                    known[key] = values[key]
+                elif keyword == 'ARG':
+                    known.pop(key, None)
+        result.append(line)
+    return result
+
+
+def logical_lines(original):
+    """Wrap Harbor's Dockerfile reader so its ENV parsing sees resolved values."""
+    def read(dockerfile_path):
+        return resolve_env_lines(original(dockerfile_path))
+    return read
 
 
 def path_exports(text):
