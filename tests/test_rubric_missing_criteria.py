@@ -1,6 +1,6 @@
 from pathlib import Path
 import tomllib
-from validation.rubrics.scripts.repair_missing_criteria import merge, subset_rubric, valid_checks
+from validation.rubrics.run_review import merge, subset_rubric, valid_checks
 
 
 def check(outcome):

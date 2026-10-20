@@ -145,7 +145,8 @@ def implementation(root=ROOT, stages=None):
     paths.extend((root / 'data/annotate_dataset').glob('*.txt'))
     if stages is None or REVIEW_STAGES.intersection(stages):
         paths.extend(p for p in (base / 'rubrics').rglob('*')
-                     if p.is_file() and p.suffix in ('.toml', '.patch', '.json') and kept(p))
+                     if p.is_file() and (p.suffix in ('.toml', '.patch', '.json', '.txt')
+                                        or (p.suffix == '.md' and 'prompt_templates' in p.parts)) and kept(p))
     paths.extend((root / 'data/utils').rglob('*.py'))
     paths.append(root / 'data/seta/patch.py')
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
@@ -224,6 +225,11 @@ def profile(args):
         'trial_memory_mb': args.trial_memory_mb,
         'agent': args.agent, 'model': args.model, 'review_agent': args.review_agent,
         'review_rubric': getattr(args, 'review_rubric', 'terminal-bench'),
+        'review_format': getattr(args, 'review_format', None),
+        'review_runs': getattr(args, 'review_runs', None) or args.attempts,
+        'review_retries': getattr(args, 'review_retries', 2),
+        'review_resume': getattr(args, 'review_resume', True),
+        'review_seed': getattr(args, 'review_seed', 42),
         'review_evidence': getattr(args, 'review_evidence', 'files'),
         'review_criteria': getattr(args, 'review_criteria', None),
         'review_model': args.review_model, 'analysis_agent': getattr(args, 'analysis_agent', None),

@@ -69,8 +69,8 @@ def codex_envelope(output, model):
 
 def judge_command(provider, model, reasoning_effort, mcp, max_budget_usd):
     if provider == 'local':
-        return [sys.executable, str(ROOT / 'validation/rubrics/scripts/local_judge.py'),
-                '--model', model, '--mcp-config', json.dumps(mcp)]
+        return [sys.executable, str(ROOT / 'validation/rubrics/run_review.py'),
+                '--local', '--model', model, '--mcp-config', json.dumps(mcp)]
     if provider == 'claude':
         return ['claude', '--print', '--no-session-persistence', '--model', model,
                 '--output-format', 'json', '--tools', '',

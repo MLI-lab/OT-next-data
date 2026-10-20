@@ -1,0 +1,50 @@
+[review]
+format = "classification"
+
+[[categories]]
+name = "CLEAN"
+description = """
+Instruction is clear and self-sufficient, a correct-per-instruction solution passes, AND the verifier genuinely validates correctness: it recomputes/decodes the true answer from the input (or exact-compares against a correct hardcoded answer) rather than merely checking output shape. A hard-but-fair task is still CLEAN.
+"""
+
+[[categories]]
+name = "TEST-COVERAGE"
+description = """
+Every important requirement in the instruction should have corresponding test coverage. Focus on requirements that are essential to solving the task correctly. Not every implementation step or edge case needs to be tested.
+"""
+
+[[categories]]
+name = "INSTRUCTION-VERIFIER-ALIGNMENT"
+description = """
+Every test assertion should trace back to a requirement stated or implied by the instruction. Tests must not introduce hidden or contradictory requirements or reject valid alternative approaches.
+"""
+
+[[categories]]
+name = "TASK-QUALITY"
+description = """
+The task should be clear and unambiguous, with a correct solution that can be objectively verified without relying on subjective judgment.
+
+Solving the task should require meaningful agentic capabilities, such as environment exploration, tool use, debugging, or multi-step interaction. A strong LLM being able to generate the code in one attempt is not a reason to reject the task if completing it still requires meaningful environment interaction.
+"""
+
+[[categories]]
+name = "ANTI-CHEAT-ROBUSTNESS"
+description = """
+The task and verifier should be hard to game, so that an agent cannot obtain reward without actually solving the task. Answers or solutions should not be accessible through environment files, image layers, git history, or other unintended sources.
+
+The task and verifier should resist obvious shortcuts, such as modifying test data, replacing tools, monkey-patching libraries, tampering with verification, or fabricating outputs. When the verifier executes agent-produced code, that code must not be able to modify or control the final reward. Tests should verify actual correctness through execution or checking the resulting behavior and state, rather than relying only on keywords, string patterns, or self-reported results.
+
+Note:
+You have access to the full Harbor task folder, including tests and the reference solution, but the solving agent does not. The agent receives only the instruction and task environment. In shared verifier mode (default), tests are uploaded after the agent finishes and run in its modified container. In separate verifier mode, tests run in a fresh container with only the submitted artifacts transferred. The mode is specified in `task.toml`. Evaluate potential leaks and exploits based on what the solving agent can actually access, including anything unintentionally exposed through the task image or environment.
+"""
+
+[[categories]]
+name = "OTHER"
+description = """
+A genuine defect fitting none of the above: verifier code that is buggy/crashes; a task needing network/GPU/GUI/hardware the container lacks; non-determinism; a required background service that is never started; or an internally contradictory spec.
+"""
+
+[[criteria]]
+name = "task_clean"
+description = "The task receives CLEAN"
+guidance = "Choose exactly one category."

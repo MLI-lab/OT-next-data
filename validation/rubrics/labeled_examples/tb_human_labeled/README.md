@@ -166,13 +166,8 @@ should not be used as the primary comparison between models.
 CSV agreement values are fractions from 0 to 1; the tables display percentages.
 Raw logs, failed attempts, frozen inputs, and the execution snapshot are retained
 at `/hnvme/workspace/y500bb12-optiagent/rubric-stability-20261014`.
-Regenerate these presentation tables from the saved results without running judges:
+The historical table-generation utilities have been removed. Compare new stage-2 runs with `python -m validation.rubrics.analysis REPORT...`.
 
-```bash
-python validation/rubrics/scripts/report_stability.py \
-  --results validation/rubrics/labeled_examples/tb_human_labeled/results/stability-20261014 \
-  --readme validation/rubrics/labeled_examples/tb_human_labeled/README.md
-```
 <!-- END STABILITY_RESULTS -->
 
 <!-- BEGIN LOCAL_JUDGES -->

@@ -7,7 +7,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
-path = Path(__file__).resolve().parents[1] / 'validation/rubrics/scripts/local_judge.py'
+path = Path(__file__).resolve().parents[1] / 'validation/rubrics/run_review.py'
 spec = importlib.util.spec_from_file_location('local_judge', path)
 judge = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(judge)
@@ -40,9 +40,9 @@ for line in sys.stdin:
     config={'mcpServers':{'image':{'command':sys.executable,'args':[str(script),'--log',str(tmp_path/'calls.jsonl')]}}}
     try:
         if truncated:
-            with pytest.raises(ValueError,match='output budget'):judge.run('test',config,'blind prompt')
+            with pytest.raises(ValueError,match='output budget'):judge.run_local('test',config,'blind prompt')
         else:
-            result=judge.run('test',config,'blind prompt')
+            result=judge.run_local('test',config,'blind prompt')
             assert result['modelUsage']['test']=={'input_tokens':20,'output_tokens':10}
             assert seen[1]['messages'][1]['reasoning_content']=='inspect first'
             assert seen[1]['messages'][2]['tool_call_id']=='call1'
