@@ -60,15 +60,21 @@ def parser():
     ap.add_argument('--review-model', help='override pinned upstream rubric/trajectory judge model')
     ap.add_argument('--review-pricing', type=json.loads,
                     help='review token rates in USD per million: JSON with input/output and optional cache_read/cache_write; reported cost is retained separately')
-    ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor'], default='terminal-bench',
-                    help='Stage 5 implementation rubric: patched Terminal-Bench (default) or patched Harbor default rubric')
+    ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor', 'custom', 'river'], default='terminal-bench',
+                    help='Stage 5 rubric: terminal-bench (default), harbor, custom, or river')
+    ap.add_argument('--review-format', choices=['criteria', 'classification'],
+                    help='custom rubric output mode; River always uses classification')
     ap.add_argument('--review-criteria', nargs='+', metavar='CRITERION',
                     help='Stage 5: review only these criterion names from the chosen rubric; default all')
-    ap.add_argument('--review-local', action='store_true', help='use the local served model with Terminus-2 for implementation/proposal/trajectory reviews')
+    ap.add_argument('--review-local', action='store_true', help='use a local OpenAI-compatible judge; image reviews use the inspector, file/trajectory reviews use Terminus-2')
     ap.add_argument('--analysis-agent', help='override only the trajectory-analysis agent')
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
     ap.add_argument('--attempts', type=int, default=1)
+    ap.add_argument('--review-runs', type=int, help='independent stage-5 reviews per task; defaults to --attempts')
+    ap.add_argument('--review-retries', type=int, default=2, help='repair rounds for incomplete/invalid stage-5 judgments (default: 2)')
+    ap.add_argument('--review-resume', action=argparse.BooleanOptionalAction, default=True, help='reuse matching completed/partial stage-5 review checkpoints (default: enabled)')
+    ap.add_argument('--review-seed', type=int, default=42, help='local judge seed; independent review runs increment it')
     ap.add_argument('--outcome-retries', type=int, default=3,
                     help='after the run: rerun stages 1-3 tasks without a result (or differing from --expected-outcomes) up to N more times')
     ap.add_argument('--expected-outcomes', type=Path,
@@ -265,8 +271,12 @@ def check_args(a):
     if getattr(a, 'reuse_validation_containers', False):
         if a.backend != 'apptainer' or a.attempts != 1 or a.force_build:
             raise ValueError('--reuse-validation-containers requires Apptainer, --attempts 1, and no --force-build')
-    if getattr(a, 'review_local', False) and not a.serve_model:
-        raise ValueError('--review-local requires --serve-model')
+    if getattr(a, 'review_local', False) and not (a.serve_model or a.api_base):
+        raise ValueError('--review-local requires --serve-model or --api-base')
+    if getattr(a, 'review_runs', None) is not None and a.review_runs <= 0:
+        raise ValueError('--review-runs must be positive')
+    if getattr(a, 'review_retries', 2) < 0:
+        raise ValueError('--review-retries cannot be negative')
     from validation.reporting.review_usage import validate_pricing
     validate_pricing(getattr(a, 'review_pricing', None))
     if getattr(a, 'serve_context', None) is None:
@@ -360,7 +370,8 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
     if number == 5:
         task = prepare_review_tasks.stage_review(source, item_dir / 'input' / 'rubric-review', upstream,
                                                  references, suffixes, getattr(args, 'review_rubric', 'terminal-bench'),
-                                                 getattr(args, 'review_criteria', None))
+                                                 getattr(args, 'review_criteria', None), getattr(args, 'review_format', None),
+                                                 getattr(args, 'review_evidence', 'image'))
         verdict_name, rubric_name = 'verdicts.json', 'task-implementation.toml'
     else:
         task = prepare_review_tasks.stage_analysis(source, args.current_trial, item_dir / 'input' / 'trajectory-analysis', upstream)
@@ -368,10 +379,13 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
     if not model:
         raise ValueError('provide --review-model for review stages, --model for solver/cheat stages')
     image = getattr(args, 'review_evidence', 'image') == 'image'
-    if number == 5 and image and agent != 'terminus-2':
+    if number == 5 and image and (agent != 'terminus-2' or getattr(args, 'review_local', False)):
         # Host CLIs (Claude Code, Codex) reach the task environments through the inspect tool.
         from validation.stages.image_review import review
         return await review(source, task, item_dir, args, agent, model)
+    if number == 5 and not image:
+        from validation.rubrics.run_review import review_files
+        return await review_files(task, source, item_dir, args, agent, model)
     skipped = json.loads((task / 'rubric-skips.json').read_text()) if number == 5 else {}
     rubric = task / 'rubric.toml' if number == 5 else upstream / 'docs/prompts' / rubric_name
     if agent == 'terminus-2' and (image or number == 8):
@@ -687,13 +701,17 @@ def run_stage(number, args):
               'backend': args.backend, 'dry_run': args.dry_run, 'items': [], 'complete': False}
     if number in (5, 8):
         report['review_pricing'] = getattr(args, 'review_pricing', None)
-        report['review_attempts'] = args.attempts
+        report['review_attempts'] = (getattr(args, 'review_runs', None) or args.attempts) if number == 5 else args.attempts
     if shard:
         report['shard'] = {'index': shard[0], 'count': shard[1], 'tasks': [t.name for t in sources]}
     if number == 5:
         report['reference_solutions'] = references
         report['instruction_suffixes'] = suffixes
         report['review_rubric'] = getattr(args, 'review_rubric', 'terminal-bench')
+        report['review_format'] = getattr(args, 'review_format', None)
+        report['review_agent'] = ('local-inspector' if getattr(args, 'review_evidence', 'image') == 'image' else 'terminus-2') if getattr(args, 'review_local', False) else args.review_agent
+        report['review_model'] = args.model if getattr(args, 'review_local', False) else args.review_model
+        report['review_retries'] = getattr(args, 'review_retries', 2)
         report['review_criteria'] = getattr(args, 'review_criteria', None)
     report_path = out / 'summary.json'
     save(report_path, report)

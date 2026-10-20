@@ -53,7 +53,7 @@ def test_selected_prompt_and_verdict_only_contain_requested_criterion(tmp_path, 
     source.mkdir()
     (source / 'task.toml').write_text('schema_version = "1.0"\n')
     (source / 'instruction.md').write_text('Solve the task.\n')
-    options = SimpleNamespace(review_evidence='files', review_agent='test', review_model='test', review_local=False,
+    options = SimpleNamespace(out=tmp_path / 'out', review_evidence='files', review_agent='test', review_model='test', review_local=False,
                               review_rubric='terminal-bench', review_criteria=['anti_cheat_robustness'],
                               backend='apptainer', dry_run=False, attempts=1)
     trial = tmp_path / 'job/trial'

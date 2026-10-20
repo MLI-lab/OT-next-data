@@ -123,6 +123,11 @@ def test_stage_review_keeps_spend_when_verdict_is_missing(tmp_path, monkeypatch)
     monkeypatch.setattr(runner, 'resolve_review_defaults', lambda *args: None)
     staged = tmp_path / 'staged'
     staged.mkdir()
+    options.out = tmp_path / 'out'
+    (staged / 'instruction.md').write_text('Review /app/rubric.toml')
+    (staged / 'environment').mkdir()
+    (staged / 'setup_files').mkdir()
+    (staged / 'environment/Dockerfile').write_text('FROM ubuntu:24.04\n')
     (staged / 'rubric-skips.json').write_text('{}')
     (staged / 'rubric.toml').write_text('[[criteria]]\nname="verifiable"\n')
     monkeypatch.setattr(runner.prepare_review_tasks, 'stage_review', lambda *args: staged)
@@ -131,13 +136,15 @@ def test_stage_review_keeps_spend_when_verdict_is_missing(tmp_path, monkeypatch)
     async def execute(config):
         job = tmp_path / 'job'
         trial = job / 'trial'
-        trial.mkdir(parents=True)
+        trial.mkdir(parents=True, exist_ok=True)
         (trial / 'result.json').write_text(json.dumps({**result(), 'verifier_result': {'rewards': {'reward': 0}}}))
         return job
     monkeypatch.setattr(runner.runtime, 'execute_job', execute)
     reviewed = runner.run_review(5, tmp_path / 'task', tmp_path / 'review', options, tmp_path)
-    assert reviewed['status'] == 'failed'
-    assert reviewed['usage']['summary']['metrics']['cost_usd']['total'] == pytest.approx(0.0018)
+    assert reviewed['status'] == 'error'
+    assert 'Missing or invalid criteria' in reviewed['findings'][0]
+    assert len(reviewed['usage']['trials']) == 3
+    assert reviewed['usage']['summary']['metrics']['cost_usd']['total'] == pytest.approx(3 * 0.0018)
 
 
 def test_together_defaults_match_exact_models_and_freeze_rates():

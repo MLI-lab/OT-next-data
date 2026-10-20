@@ -10,8 +10,9 @@ import shutil
 import sys
 from uuid import uuid4
 
-from validation.rubrics.labeled_examples.charlie_hackable.run_reviews import judge_command, codex_envelope, clean_environment
-from validation.stages.prepare_review_tasks import collect_verdict
+from validation.rubrics.run_review import (judge_command, codex_envelope, clean_environment,
+    checkpoint_dir, complete_review)
+from validation.stages.prepare_review_tasks import read_verdicts
 
 
 def save(path, data):
@@ -19,12 +20,13 @@ def save(path, data):
 
 
 def provider_for(agent, local=False):
-    if not local and agent in ('claude-code', 'claude'):
+    if local:
+        return 'local'
+    if agent in ('claude-code', 'claude'):
         return 'claude'
-    if not local and agent in ('codex', 'codex-cli'):
+    if agent in ('codex', 'codex-cli'):
         return 'codex'
-    raise ValueError('The inspect-tool review supports Claude Code and Codex CLI judges; Terminus-2 reviews '
-                     'run inside the task environment (validation/stages/env_review.py); no silent file-only fallback.')
+    raise ValueError('Image-backed stage 5 supports Claude Code, Codex CLI, and --review-local judges.')
 
 
 async def run_judge(command, prompt, cwd, env, timeout):
@@ -166,60 +168,99 @@ async def review(source, staged, out, args, agent, model):
     skipped = json.loads((staged / 'rubric-skips.json').read_text())
     if args.dry_run:
         return {'status': 'previewed', 'evidence_mode': 'image', 'automatic_skips': skipped}
-    verdicts, usage, errors, records, partial = [], [], [], [], []
-    for attempt in range(args.attempts):
-        folder = out / 'image-reviews' / f'{attempt:03d}'
-        folder.mkdir(parents=True)
+    rubric_text = (staged / 'rubric.toml').read_text()
+    cache = checkpoint_dir(source, staged, args, agent, model)
+    resume = getattr(args, 'review_resume', True)
+    if not resume:
+        cache = cache / ('fresh-' + uuid4().hex)
+    verdicts, usage, errors, records = [], [], [], []
+    runs = getattr(args, 'review_runs', None) or args.attempts
+    for attempt in range(runs):
+        folder = cache / f'{attempt:03d}'
+        folder.mkdir(parents=True, exist_ok=True)
+        session = folder / ('session-' + uuid4().hex[:12])
         environments, server, inspector = {}, None, None
-        envelope = {}
+        new_usage = []
         try:
-            executable = 'claude' if provider == 'claude' else 'codex'
-            if not shutil.which(executable):
-                raise RuntimeError(f'{executable} CLI must be installed on the review worker PATH')
-            environments = await create_environments(source, folder, args)
-            cleared = await environments['agent'].exec('rm -f /app/verdicts.json', timeout_sec=30)
-            if cleared.return_code:
-                raise RuntimeError('Cannot clear the previous verdict artifact')
-            inspector = Inspector(environments, folder / 'tool-calls.jsonl')
-            server = await asyncio.start_server(inspector.handle, '127.0.0.1', 0, limit=100000)
-            port = server.sockets[0].getsockname()[1]
-            env = clean_environment()
-            env['OT_REVIEW_INSPECT_TOKEN'] = inspector.token
-            mcp = {'mcpServers': {'image': {'command': sys.executable, 'args': [str(Path(__file__).with_name('image_inspector.py')), str(port)],
-                                         'env': {'OT_REVIEW_INSPECT_TOKEN': inspector.token}}}}
-            command = judge_command(provider, model.removeprefix('anthropic/').removeprefix('openai/'),
-                getattr(args, 'review_reasoning_effort', 'medium'), mcp, getattr(args, 'review_max_budget_usd', 5))
-            prompt = (staged / 'instruction.md').read_text() + '\n\nImage inspection evidence: use the inspect tool to examine the actual task filesystem and the complete task files, including tests/setup.sh and setup_files when present. Available environments: ' + ', '.join(environments) + '. The agent environment has completed its declared setup; separate verifier images have not executed tests/setup.sh. The task-under-review files are review-only copies, not evidence that the solver can see tests or solutions. Inspection uses a disposable instance; modifications do not change cached images or training tasks. Distinguish the configured solver user/access from reviewer access when assessing cheating. Write the verdict JSON to /app/verdicts.json in the agent environment. At least one successful inspection is required.\n'
-            (folder / 'prompt.txt').write_text(prompt)
-            code, stdout, stderr = await run_judge(command, prompt, folder, env, args.timeout_minutes * 60)
-            (folder / 'stdout.txt').write_text(stdout); (folder / 'stderr.txt').write_text(stderr)
-            envelope = codex_envelope(stdout, model.removeprefix('openai/')) if provider == 'codex' else json.loads(stdout)
-            save(folder / 'stdout.json', envelope)
-            if code or envelope.get('is_error'):
-                raise RuntimeError(f'Judge failed: {envelope.get("result", stderr)[-2000:]}')
-            if not inspector.successful:
-                raise ValueError('No successful image inspection; refusing a file-only verdict')
-            await environments['agent'].download_file('/app/verdicts.json', folder / 'verdicts.json')
-            outcome = {'status': 'completed', 'findings': [], 'verdicts': verdicts}
-            collect_verdict(outcome, folder, folder / 'verdicts.json', staged / 'rubric.toml', skipped)
-            if outcome['findings']:
-                raise ValueError(outcome['findings'][0])
-            partial.extend(outcome.get('partial', []))
-            records.append({'attempt': attempt, 'successful_tool_calls': inspector.successful, 'tool_calls': inspector.calls})
+            async def invoke(reduced, prompt, round_dir):
+                nonlocal environments, server, inspector
+                if not environments:
+                    executable = {'claude': 'claude', 'codex': 'codex', 'local': None}[provider]
+                    if executable and not shutil.which(executable):
+                        raise RuntimeError(f'{executable} CLI must be installed on the review worker PATH')
+                    session.mkdir(parents=True)
+                    environments = await create_environments(source, session, args)
+                    inspector = Inspector(environments, session / 'tool-calls.jsonl')
+                    server = await asyncio.start_server(inspector.handle, '127.0.0.1', 0, limit=100000)
+                inspector.calls = 0  # A separate tool budget for each repair round.
+                before = inspector.successful
+                for review_env in environments.values():
+                    await review_env.upload_file(source_path=round_dir / 'rubric.toml', target_path='/app/rubric.toml')
+                cleared = await environments['agent'].exec('rm -f /app/verdicts.json', timeout_sec=30)
+                if cleared.return_code:
+                    raise RuntimeError('Cannot clear the previous verdict artifact')
+                port = server.sockets[0].getsockname()[1]
+                env = clean_environment()
+                env['OT_REVIEW_INSPECT_TOKEN'] = inspector.token
+                env['LOCAL_JUDGE_SEED'] = str(getattr(args, 'review_seed', 42) + attempt)
+                if provider == 'local':
+                    endpoint = getattr(args, 'api_base', None) or os.environ.get('LOCAL_JUDGE_URL')
+                    if not endpoint:
+                        raise ValueError('--review-local requires --api-base or a served model endpoint')
+                    env['LOCAL_JUDGE_URL'] = endpoint
+                mcp = {'mcpServers': {'image': {'command': sys.executable, 'args': [str(Path(__file__).with_name('image_inspector.py')), str(port)],
+                    'env': {'OT_REVIEW_INSPECT_TOKEN': inspector.token}}}}
+                command = judge_command(provider, model.removeprefix('anthropic/').removeprefix('openai/').removeprefix('hosted_vllm/'),
+                    getattr(args, 'review_reasoning_effort', 'medium'), mcp, getattr(args, 'review_max_budget_usd', 5))
+                prompt += '\n\nUse the inspect tool to examine the task filesystem and complete review files, including tests/setup.sh and setup_files when present. Available environments: ' + ', '.join(environments) + '. The agent environment has completed task setup; separate verifier environments have not executed tests/setup.sh. The rubric for this round is at /app/rubric.toml. Review-only files are not evidence of solver access. Changes affect only this disposable instance. Distinguish solver permissions from reviewer access. Write /app/verdicts.json in the agent environment. At least one successful inspection is required for this round.\n'
+                (round_dir / 'prompt.txt').write_text(prompt)
+                envelope = {}
+                try:
+                    code, stdout, stderr = await run_judge(command, prompt, round_dir, env, args.timeout_minutes * 60)
+                    (round_dir / 'stdout.txt').write_text(stdout)
+                    (round_dir / 'stderr.txt').write_text(stderr)
+                    envelope = codex_envelope(stdout, model.removeprefix('openai/')) if provider == 'codex' else json.loads(stdout)
+                    save(round_dir / 'stdout.json', envelope)
+                    if code or envelope.get('is_error'):
+                        raise RuntimeError(f"Judge failed: {envelope.get('result', stderr)[-2000:]}")
+                    if inspector.successful <= before:
+                        raise ValueError('No successful image inspection; refusing a file-only verdict')
+                    try:
+                        await environments['agent'].download_file('/app/verdicts.json', round_dir / 'verdicts.json')
+                        raw = json.loads((round_dir / 'verdicts.json').read_text())
+                    except (OSError, ValueError, RuntimeError):
+                        raw = {}  # Malformed/missing output gets a bounded repair round.
+                finally:
+                    row = usage_row(envelope, provider, round_dir, agent, model)
+                    pricing = for_stage(args, 5)
+                    price(row, pricing['rates'], pricing['source'])
+                    new_usage.append(row)
+                    save(round_dir / 'metadata.json', {'usage': row})
+                return raw, {'usage': row, 'successful_tool_calls': inspector.successful - before,
+                             'tool_calls': inspector.calls, 'evidence': str(session)}
+
+            state = await complete_review(rubric_text, (staged / 'instruction.md').read_text(), folder,
+                invoke, retries=getattr(args, 'review_retries', 2), resume=resume)
+            data = state['verdict']
+            data['checks'].update(skipped)
+            verdicts.append({'trial': str(folder), 'sample_id': str(folder), 'resumed': state.get('resumed', False),
+                             'criterion_origin': state.get('criterion_origin', {}), **data})
+            records.append({'attempt': attempt, 'rounds': state['rounds'], 'resumed': state.get('resumed', False)})
+            usage.extend(round['usage'] for round in state['rounds'] if 'usage' in round)
         except Exception as exc:
             errors.append(f'{attempt}: {type(exc).__name__}: {exc}')
+            usage.extend(new_usage)
         finally:
             if server:
-                server.close(); await server.wait_closed()
+                server.close()
+                await server.wait_closed()
             if inspector:
                 await inspector.close()
-            for env in environments.values():
+            for environment in environments.values():
                 try:
-                    await env.stop(delete=True)
+                    await environment.stop(delete=True)
                 except Exception as exc:
                     errors.append(f'{attempt}: environment cleanup failed: {exc}')
-            row = usage_row(envelope, provider, folder, agent, model)
-            pricing = for_stage(args, 5); price(row, pricing['rates'], pricing['source']); usage.append(row)
     return {'status': 'error' if errors else ('findings' if any(v['outcome'] == 'fail' for d in verdicts for v in d['checks'].values()) else 'passed'),
-            'findings': errors, 'verdicts': verdicts, 'partial': partial, 'automatic_skips': skipped, 'evidence_mode': 'image', 'inspection_attempts': records,
-            'usage': {'trials': usage, 'expected_trials': args.attempts, 'summary': summarize_rows(usage, args.attempts, 1)}}
+            'findings': errors, 'verdicts': verdicts, 'automatic_skips': skipped, 'evidence_mode': 'image', 'inspection_attempts': records, 'review_checkpoint': str(cache),
+            'usage': {'trials': usage, 'expected_trials': runs, 'summary': summarize_rows(usage, runs, 1)}}

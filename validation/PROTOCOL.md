@@ -557,11 +557,15 @@ least one successful inspection is required. Startup failures, unavailable
 inspection, and invalid or missing verdicts are review errors; they do not
 silently fall back to task-files-only evidence.
 `--review-evidence files` explicitly selects the previous neutral review
-container, including for local Terminus reviewers not supported by the
-image-inspection CLI adapter. The selected judge CLI and credentials must be
+container, using Harbor’s normal agent/job runtime. Image inspection supports CLI judges
+and local OpenAI-compatible judges through the same container tool. The selected judge CLI and credentials must be
 available on the worker host. Runner stage 8 is unchanged. Existing frozen contracts
 retain their recorded evidence setting; legacy contracts without one use the
 previous file-only behavior.
+
+Additional experimental choices are `--review-rubric custom` (four pass/fail
+criteria, optionally `--review-format classification`) and `--review-rubric river`
+(single-category classification). See [rubric documentation](rubrics/README.md).
 
 Select the Runner stage 5 rubric with `--review-rubric terminal-bench` (the default) or
 `--review-rubric harbor`. The Harbor option uses the pinned upstream default
@@ -891,3 +895,8 @@ table, with a separate count of unique tasks changed by automation. Category
 counts can overlap. These record automation activity, while the source comparison
 continues to describe net changes against upstream. Older frozen contracts
 without this metadata do not gain inferred automation labels.
+
+Stage-2 reviews automatically repair missing/invalid criterion output (two repair
+rounds by default; `--review-retries`), retain valid judgments, and resume matching
+checkpoints. `--review-runs N` requests independent runs per task. See
+[review execution and analysis](rubrics/README.md#running-and-comparing-reviews).

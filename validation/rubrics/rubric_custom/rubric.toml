@@ -1,0 +1,62 @@
+[[criteria]]
+name = "test_coverage"
+description = "All important requirements in the instruction are checked by the verifier"
+guidance = """
+Every important requirement in the instruction should have corresponding test coverage. Focus on requirements that are essential to solving the task correctly. Not every implementation step or edge case needs to be tested.
+
+Examples:
+- PASS: A task requires handling CSV files with various encodings and quoting formats. The verifier tests representative cases but not every possible edge case, which is acceptable as long as the essential functionality is covered.
+- FAIL: A task requires deleting unnecessary files while keeping recently modified ones, but the verifier does not check whether recently modified files are preserved, allowing an incorrect cleanup to pass/ or a tasks ask to exclude files larger than 10 MB, but the verifier does not check that files exactly 10MB are not excluded.
+
+PASS if all essential requirements are tested. FAIL if missing coverage allows an incorrect or incomplete solution to pass.
+"""
+
+[[criteria]]
+name = "instruction_verifier_alignment"
+description = "All requirements checked by the verifier are specified or implied by the task instruction"
+guidance = """
+Every test assertion should trace back to a requirement stated or implied by the instruction. Tests must not introduce hidden or contradictory requirements or reject valid alternative approaches.
+
+Examples:
+- PASS: A task asks to convert a CSV file to JSON without specifying the JSON schema. The verifier expects the JSON keys to match the CSV column names, which is a reasonable interpretation of the conversion task.
+- FAIL: The verifier enforces a specific output schema that is not documented in the instruction or a referenced specification.
+
+PASS if all tested requirements are specified or reasonably implied by the instruction. FAIL if the verifier imposes additional or contradictory requirements that could cause a correct solution to fail.
+"""
+
+[[criteria]]
+name = "task_quality"
+description = "The task is clear, objectively assessable, and requires meaningful agentic problem-solving"
+guidance = """
+The task should be clear and unambiguous, with a correct solution that can be objectively verified without relying on subjective judgment.
+
+Solving the task should require meaningful agentic capabilities, such as environment exploration, tool use, debugging, or multi-step interaction. A strong LLM being able to generate the code in one attempt is not a reason to reject the task if completing it still requires meaningful environment interaction.
+
+Examples:
+- PASS: A task requires synchronizing two databases by inspecting their schemas, matching records, and handling missing data. Even if the code can be generated in one attempt, the agent still needs to interact with the databases, execute the solution, and verify that it works correctly.
+- PASS: A task asks an agent to "intelligently determine" which diagnostic commands to run, but also provides clear success criteria specifying the required behavior and outputs. The vague wording alone does not make the task subjective.
+- FAIL: A task asks to extract specific bytes from a file and compute their hash using commands given in the instruction. It can be solved with a single command and requires no meaningful problem-solving.
+- FAIL: A task asks to estimate peaks from experimental data without specifying the fitting method or acceptable variation in results. Different reasonable methods produce different answers, making it unclear what counts as correct.
+
+PASS if the task is clear, objectively assessable, and requires meaningful agentic problem-solving. FAIL if it is ambiguous, subjective, or trivial without meaningful environment interaction.
+"""
+
+
+[[criteria]]
+name = "anti_cheat_robustness"
+description = "The task and verifier are robust against reward hacking, preventing agents from obtaining reward without genuinely solving the task"
+guidance = """
+The task and verifier should be hard to game, so that an agent cannot obtain reward without actually solving the task. Answers or solutions should not be accessible through environment files, image layers, git history, or other unintended sources.
+
+The task and verifier should resist obvious shortcuts, such as modifying test data, replacing tools, monkey-patching libraries, tampering with verification, or fabricating outputs. When the verifier executes agent-produced code, that code must not be able to modify or control the final reward. Tests should verify actual correctness through execution or checking the resulting behavior and state, rather than relying only on keywords, string patterns, or self-reported results.
+
+Examples:
+- PASS: A task requires fixing an application's database health check. The verifier tests the endpoint both with the database running and after stopping it, so a hardcoded success response cannot pass.
+- FAIL: A task requires training a model, but the verifier only checks a self-reported accuracy and whether a model file exists, without evaluating the model. An agent can report a high accuracy and create an empty model file without training anything.
+- FAIL: A task requires solving discrete logarithm challenges, but the Python module `dlp.py` providing the challenges also contains their solutions, allowing the agent to read the answers directly instead of solving them.
+
+PASS if no obvious or plausible shortcut allows the agent to obtain reward without solving the task. FAIL if answers are leaked or the task or verifier can be bypassed to obtain reward without completing the required work.
+
+Note:
+You have access to the full Harbor task folder, including tests and the reference solution, but the solving agent does not. The agent receives only the instruction and task environment. In shared verifier mode (default), tests are uploaded after the agent finishes and run in its modified container. In separate verifier mode, tests run in a fresh container with only the submitted artifacts transferred. The mode is specified in `task.toml`. Evaluate potential leaks and exploits based on what the solving agent can actually access, including anything unintentionally exposed through the task image or environment.
+"""

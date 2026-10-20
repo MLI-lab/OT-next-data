@@ -16,8 +16,7 @@ def test_default_and_explicit_file_mode():
     assert parser().parse_args(['--review-evidence', 'files']).review_evidence == 'files'
     with pytest.raises(ValueError, match='finite and positive'):
         check_args(parser().parse_args(['--review-max-budget-usd', 'nan']))
-    with pytest.raises(ValueError, match='no silent'):
-        review.provider_for('terminus-2', True)
+    assert review.provider_for('terminus-2', True) == 'local'
 
 
 class Environment:
@@ -31,6 +30,9 @@ class Environment:
 
     async def stop(self, **kwargs):
         self.stopped = True
+
+    async def upload_file(self, **kwargs):
+        pass
 
     async def download_file(self, source, destination):
         destination.write_text(json.dumps({'checks': {'anti_cheat_robustness': {'outcome': 'pass', 'explanation': 'Inspected image.'}}}))
@@ -89,7 +91,7 @@ def test_review_evidence_and_cleanup(tmp_path, monkeypatch, mode):
         return 0, json.dumps({'is_error': False, 'total_cost_usd': 0.125}), ''
     monkeypatch.setattr(review, 'run_judge', judge)
     args = SimpleNamespace(review_local=False, dry_run=False, attempts=1, timeout_minutes=1,
-                           review_model='anthropic/test', review_pricing=None)
+                           review_model='anthropic/test', review_pricing=None, out=tmp_path / 'out')
     result = asyncio.run(review.review(tmp_path / 'source', staged, tmp_path / 'out', args, 'claude-code', 'anthropic/test'))
     assert result['status'] == ('passed' if mode == 'pass' else 'error')
     assert env.stopped

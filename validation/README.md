@@ -71,6 +71,9 @@ For teacher generation and LLM reviews:
 | `--serve-model MODEL` | Start a local model configured in `config/models.py`. |
 | `--api-base URL` | Connect to an existing model endpoint. |
 | `--attempts K` | Attempts per task, default 1. In stage 6 this is `k` for solved counts and pass@k. Also sets repetitions for reference, no-op, and review trials. |
+| `--review-runs N` | Independent stage-2 judge runs per task; defaults to `--attempts`. |
+| `--review-retries N` | Repair rounds for missing/invalid judgments, default 2. |
+| `--review-resume` / `--no-review-resume` | Resume matching stage-2 checkpoints (enabled by default), or request fresh reviews. |
 | `--review-agent`, `--review-model` | Override stage 2 defaults; also apply to stage 8 unless separately overridden. |
 | `--analysis-agent`, `--analysis-model` | Override only the stage 8 judge. |
 | `--review-local` | Use the locally served model for reviews; requires `--serve-model`. |

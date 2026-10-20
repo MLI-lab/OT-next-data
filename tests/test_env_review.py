@@ -138,7 +138,7 @@ def test_terminus_review_runs_in_task_environment(tmp_path, monkeypatch):
     if not (runner.ROOT / 'external/terminal-bench/.git').exists():
         pytest.skip('pinned upstream checkout required')
     source = make_task(tmp_path / 'sample')
-    options = SimpleNamespace(review_evidence='image', review_agent='claude-code', review_model='m', review_local=True,
+    options = SimpleNamespace(review_evidence='image', review_agent='terminus-2', review_model='openai/glm-5.3-flash', review_local=False,
                               model='openai/glm-5.3-flash', review_rubric='terminal-bench',
                               review_criteria=['anti_cheat_robustness'], backend='apptainer', dry_run=False,
                               attempts=1, review_pricing=None, serve_model='glm-5.3-flash')
@@ -160,3 +160,19 @@ def test_terminus_review_runs_in_task_environment(tmp_path, monkeypatch):
     assert seen['model'] == 'openai/glm-5.3-flash'
     assert (seen['task'] / 'review_files/task-under-review/sample/task.toml').is_file()
     assert environment_dir_hash(seen['task'] / 'environment') == environment_dir_hash(source / 'environment')
+
+
+def test_local_inspector_review_uses_stage_five(tmp_path, monkeypatch):
+    from validation.stages import image_review
+    options = SimpleNamespace(review_agent='claude-code', review_model='remote',
+                              review_local=True, model='hosted_vllm/judge',
+                              review_evidence='image')
+    monkeypatch.setattr(runner, 'resolve_review_defaults', lambda *a: None)
+    monkeypatch.setattr(prepare_review_tasks, 'stage_review', lambda *a: tmp_path / 'staged')
+    async def review(source, staged, out, args, agent, model):
+        assert staged == tmp_path / 'staged'
+        assert args.review_local and model == 'hosted_vllm/judge'
+        return {'status': 'passed', 'evidence_mode': 'image'}
+    monkeypatch.setattr(image_review, 'review', review)
+    result = asyncio.run(runner.review_once(5, tmp_path / 'source', tmp_path / 'out', options, tmp_path))
+    assert result['evidence_mode'] == 'image'

@@ -39,7 +39,9 @@ def review_task(item):
         'task_id': Path(item.get('task', '')).name,
         'status': item.get('status'),
         'implementation': {
-            'attempts': [{'criteria': trial.get('checks', {})} for trial in item.get('verdicts', [])],
+            'attempts': [{'criteria': trial.get('checks', {}),
+                          **{key: trial[key] for key in ('category', 'explanation', 'sample_id', 'resumed', 'criterion_origin') if key in trial}}
+                         for trial in item.get('verdicts', [])],
         },
         'proposal': {
             'status': proposal.get('status'),

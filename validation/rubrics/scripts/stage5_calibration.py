@@ -12,9 +12,19 @@ from itertools import combinations
 import json
 from pathlib import Path
 
-from validation.rubrics.scripts.report_stability import agreement
 
 VALID = ('passed', 'findings')
+
+
+def agreement(rows):
+    complete = [row for row in rows if row['complete']]
+    unanimous = sum(not row['changed'] for row in complete)
+    pairs = sum(row['pairs'] for row in complete)
+    agreeing = pairs - sum(row['pairwise_disagreements'] for row in complete)
+    return {'task_criterion_count': len(complete), 'unanimous_count': unanimous,
+            'unanimous_agreement': unanimous / len(complete) if complete else None,
+            'review_pair_count': pairs, 'agreeing_review_pairs': agreeing,
+            'pairwise_agreement': agreeing / pairs if pairs else None}
 
 
 def hackable(report, criterion='anti_cheat_robustness'):

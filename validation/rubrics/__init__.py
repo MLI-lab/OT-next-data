@@ -142,7 +142,8 @@ def select_criteria(rubric, skipped, criteria=None):
     if unknown:
         raise ValueError('Unknown review criteria: ' + ', '.join(sorted(unknown))
                          + '; available: ' + ', '.join(sorted(named.keys() | skipped.keys())))
-    selected = ''.join(block for name, block in named.items() if name in criteria)
-    if not selected:
+    prefix = rubric[:rubric.index('[[criteria]]')] if '[review]' in rubric else ''
+    selected = prefix + ''.join(block for name, block in named.items() if name in criteria)
+    if not any(name in criteria for name in named):
         raise ValueError('Selected review criteria are all automatically skipped; no LLM review is needed')
     return selected, {name: value for name, value in skipped.items() if name in criteria}

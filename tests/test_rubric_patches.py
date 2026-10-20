@@ -244,7 +244,7 @@ def test_review_prompt_and_result_schema_use_effective_rubric(tmp_path, monkeypa
     upstream = checkout('terminal-bench')
     source = make_task(tmp_path / 'tasks', 'sample')
     refs = {'task_count': 2, 'solution_count': solution_count, 'complete': True}
-    options = SimpleNamespace(review_evidence='files', review_agent='test', review_model='test', review_local=False,
+    options = SimpleNamespace(out=tmp_path / 'out', review_evidence='files', review_agent='test', review_model='test', review_local=False,
                               backend='apptainer', dry_run=False, attempts=1)
     trial = tmp_path / 'job/trial'
     (trial / 'artifacts').mkdir(parents=True)
