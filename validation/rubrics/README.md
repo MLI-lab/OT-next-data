@@ -27,7 +27,7 @@ baseline used a separate review container. See the
 | Opus 5.5 | 105/137 | $0.3137 | Complete |
 | Fable 5.1 | 103/137 | $1.0944 | Complete |
 | Sonnet 5 | 101/137 | $0.4158 | Complete |
-| GPT-6.1 Sol Light (`low`) | 100/137 | $0.0805 | Complete: 57/57 reviews |
+| GPT-6.1 Sol low | 100/137 | $0.0805 | Complete: 57/57 reviews |
 | Astra medium | 97/137 | $0.5711 | Complete |
 | GLM-5.3-Flash | 1/1 returned | — | Incomplete: 1/57 reviews |
 | GLM-5.3 | — | — | No completed reviews |
