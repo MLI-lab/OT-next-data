@@ -2,6 +2,8 @@
 import hashlib
 import io
 import json
+import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
 import platform
 import re
@@ -33,13 +35,64 @@ def validate_bundle(name, manifest, directory=None):
                 raise ValueError(f'Corrupt image bundle: {source}')
 
 
+def stage_build_contexts(binary, target, expected_hash, environment_paths=None):
+    """Verify every task byte, but only write image build contexts to disk."""
+    with tarfile.open(fileobj=io.BytesIO(binary), mode='r:*') as archive:
+        members = archive.getmembers()
+        names = set()
+        files = []
+        for member in members:
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+                raise ValueError(f'Unsafe task archive member: {member.name}')
+            if member.isfile():
+                if path in names:
+                    raise ValueError(f'Duplicate task archive member: {member.name}')
+                names.add(path)
+                files.append((path.as_posix(), member))
+        if environment_paths is None:
+            dockerfiles = sorted(path for path in names if path.name == 'Dockerfile')
+        else:
+            dockerfiles = []
+            for value in environment_paths:
+                relative = PurePosixPath(value)
+                if relative.is_absolute() or '..' in relative.parts:
+                    raise ValueError(f'Unsafe environment path: {value}')
+                if relative / 'Dockerfile' not in names:
+                    raise ValueError(f'Missing runtime Dockerfile: {value}')
+                dockerfiles.append(relative / 'Dockerfile')
+        roots = [path.parent for path in dockerfiles]
+        digest = hashlib.sha256()
+        for name, member in sorted(files):
+            encoded = name.encode()
+            digest.update(len(encoded).to_bytes(8, 'big'))
+            digest.update(encoded)
+            digest.update(member.size.to_bytes(8, 'big'))
+            destination = None
+            if any(PurePosixPath(name).is_relative_to(root) for root in roots):
+                path = target / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                destination = path.open('wb')
+            try:
+                with archive.extractfile(member) as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                        digest.update(chunk)
+                        if destination is not None:
+                            destination.write(chunk)
+            finally:
+                if destination is not None:
+                    destination.close()
+        if digest.hexdigest() != expected_hash:
+            raise ValueError('Task changed since validation')
+    return [target / path.as_posix() for path in dockerfiles]
+
+
 def prepare_release(tables, cache, out, repo, *, environment_paths=None):
     """Export only build-time bundles matching validated task environment contents.
 
     Legacy caches lack pristine-build provenance and are deliberately omitted.
     Returns small manifest plus explicit upload paths; never scans live instances.
     """
-    from validation.contract import files_digest
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     manifest = {'version': 1, 'repo_id': repo, 'revision': None,
@@ -61,39 +114,20 @@ def prepare_release(tables, cache, out, repo, *, environment_paths=None):
                 candidates.setdefault(provenance['environment_sha256'], (directory, entry))
     if candidates and out.resolve().is_relative_to('/home'):
         raise ValueError('Image release files must be outside /home; set --out to a cluster workspace')
+    def contexts(row):
+        with tempfile.TemporaryDirectory(prefix='.image-task-', dir=out) as temporary:
+            task = Path(temporary)
+            dockerfiles = stage_build_contexts(row['task_binary'], task, row['content_sha256'], environment_paths)
+            return row, [(dockerfile.parent.relative_to(task).as_posix(),
+                          environment_dir_hash(dockerfile.parent)) for dockerfile in dockerfiles]
+    workers = int(os.environ.get('OT_PUBLISH_IMAGE_WORKERS', os.environ.get('OT_PUBLISH_CONTRACT_WORKERS', '1')))
+    if not 1 <= workers <= 8:
+        raise ValueError('OT_PUBLISH_IMAGE_WORKERS must be between 1 and 8')
     for folder, (kept, _) in sorted(tables.items()):
-        for row in kept:
-            if '1' not in row['stages_passed'].split(','):
-                continue
-            with tempfile.TemporaryDirectory(prefix='.image-task-', dir=out) as temporary:
-                task = Path(temporary)
-                with tarfile.open(fileobj=io.BytesIO(row['task_binary']), mode='r:*') as archive:
-                    members = archive.getmembers()
-                    for member in members:
-                        path = PurePosixPath(member.name)
-                        if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
-                            raise ValueError(f'Unsafe task archive member: {member.name}')
-                    contents = [(str(PurePosixPath(m.name)), archive.extractfile(m).read()) for m in members if m.isfile()]
-                    if files_digest(contents) != row['content_sha256']:
-                        raise ValueError(f"Task changed since validation: {row['path']}")
-                    archive.extractall(task, members=members, filter='data')
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for row, observed in pool.map(contexts, (r for r in kept if '1' in r['stages_passed'].split(','))):
                 environments = []
-                if environment_paths is None:
-                    dockerfiles = sorted(task.rglob('Dockerfile'))
-                else:
-                    # Explicit runtime selection excludes Dockerfiles supplied as
-                    # exercise data, while retaining their bytes in context hashes.
-                    dockerfiles = []
-                    for value in environment_paths:
-                        relative = PurePosixPath(value)
-                        if relative.is_absolute() or '..' in relative.parts:
-                            raise ValueError(f'Unsafe environment path: {value}')
-                        dockerfile = task / relative / 'Dockerfile'
-                        if not dockerfile.is_file():
-                            raise ValueError(f'Missing runtime Dockerfile: {value}')
-                        dockerfiles.append(dockerfile)
-                for dockerfile in dockerfiles:
-                    env_hash = environment_dir_hash(dockerfile.parent)
+                for relative, env_hash in observed:
                     candidate = candidates.get(env_hash)
                     if candidate is None:
                         manifest['missing'].append({'task': row['path'], 'environment_sha256': env_hash})
@@ -114,7 +148,7 @@ def prepare_release(tables, cache, out, repo, *, environment_paths=None):
                                     raise ValueError('Image changed during release preparation')
                                 artifacts[f'{prefix}/{name}'] = staged / name
                             manifest['bundles'][bundle_id] = dict(entry, name=bundle_name(directory), prefix=prefix)
-                    environments.append({'path': dockerfile.parent.relative_to(task).as_posix(),
+                    environments.append({'path': relative,
                                          'environment_sha256': env_hash, 'bundle': bundle_id})
                 if environments:
                     manifest['tasks'][row['path']] = {'content_sha256': row['content_sha256'], 'environments': environments}

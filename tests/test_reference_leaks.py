@@ -234,15 +234,22 @@ def test_stage4_fresh_cached_container_healthcheck_user_and_cleanup(tmp_path, mo
 
 def test_probe_executes_standalone_scanner_without_uploads(tmp_path):
     import subprocess
+    import shutil
     reference(tmp_path / 'file with spaces', b'fixed')
+    for index in range(4000):
+        reference(tmp_path / f'fixture-{index:04d}', b'fixture')
     class Environment:
         async def exec(self, command, timeout_sec):
             result = subprocess.run(command, shell=True, cwd=tmp_path, text=True, capture_output=True,
                                     timeout=timeout_sec)
-            return SimpleNamespace(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+            return SimpleNamespace(return_code=result.returncode, stdout=result.stdout[-500_000:], stderr=result.stderr)
+        async def download_file(self, source_path, target_path):
+            assert Path(source_path).stat().st_size > 500_000
+            shutil.copyfile(source_path, target_path)
     result = asyncio.run(leaks.probe(Environment(), {'mode': 'snapshot'}))
     assert result['status'] == 'completed'
-    assert list(result['files']) == [str(tmp_path / 'file with spaces')]
+    assert len(result['files']) == 4001
+    assert str(tmp_path / 'file with spaces') in result['files']
 
 
 def test_nop_stage_is_not_reference_evidence(tmp_path):

@@ -143,12 +143,12 @@ def restore(bundle, target):
 
 def prepare_images(tasks, images, shared, args):
     """Run outside task timers; independent srun steps enforce build-only resources."""
-    from harbor_patches.image_context import environment_dir_hash_truncated, environment_dir_hash
+    from harbor_patches.image_context import task_dockerfiles, environment_dir_hash_truncated, environment_dir_hash
     images, shared = Path(images), Path(shared)
     selected = {}
     task_paths = {}
     for task in tasks:
-        for dockerfile in task.rglob('Dockerfile'):
+        for dockerfile in task_dockerfiles(task):
             key = environment_dir_hash_truncated(dockerfile.parent)
             selected.setdefault(key, (task.name, dockerfile))
             task_paths.setdefault(key, task)
@@ -348,15 +348,18 @@ def main():
     # explicitly forward the configured proxy just as task containers do.
     patch.configure_explicit_host_network(force=True)
     patch.worker._parse_copies = patch.parse_copies_docker_semantics
-    from harbor_patches.docker_path import definition_commands, deferred_baker, logical_lines
+    from harbor_patches.docker_path import (definition_commands, deferred_baker, logical_lines,
+        scoped_run_lines, ordered_definition_environment, scoped_deferred_environment)
     patch.worker._dockerfile_logical_lines = logical_lines(patch.worker._dockerfile_logical_lines)
-    patch.worker._bake_deferred_overlay = deferred_baker(patch.worker._bake_deferred_overlay, patch.worker)
+    patch.worker._bake_deferred_overlay = deferred_baker(
+        scoped_deferred_environment(patch.worker._bake_deferred_overlay, patch.worker), patch.worker)
     from harbor_patches.image_build import authenticated_registry_commands, build_budget_commands
     patch.worker.subprocess.run = authenticated_registry_commands(
         build_budget_commands(patch.worker.subprocess.run, args.timeout_sec or None))
     # The budget runner launches Popen directly. Definition rewrites must wrap
     # it, or build commands never reach them.
     patch.worker.subprocess.run = definition_commands(patch.worker.subprocess.run)
+    patch.worker.subprocess.run = ordered_definition_environment(patch.worker.subprocess.run)
     from harbor_patches.image_build import image_tmp_build_mounts
     patch.worker.subprocess.run = image_tmp_build_mounts(patch.worker.subprocess.run)
     if args.timeout_sec == 0:
@@ -393,9 +396,7 @@ def main():
         # so its exit status is checked by the enclosing build script.
         dockerfile = context / 'Dockerfile'
         lines = patch.worker._dockerfile_logical_lines(str(dockerfile))
-        dockerfile.write_text('\n'.join(
-            'RUN /bin/sh -ec ' + shlex.quote(line[4:].strip())
-            if line.upper().startswith('RUN ') else line for line in lines) + '\n')
+        dockerfile.write_text('\n'.join(scoped_run_lines(lines)) + '\n')
         patch.worker.ApptainerInstance._build_sif(None, str(context / 'Dockerfile'), str(args.output))
         verify_image_runtime(args.output, patch.worker.APPTAINER)
 

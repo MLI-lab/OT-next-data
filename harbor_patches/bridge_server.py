@@ -32,6 +32,13 @@ def install_transport(server):
     routes['/env/cancel'] = '_handle_env_cancel'
 
     class ReliableHandler(original):
+        def _handle_env_upload(self, data):
+            super()._handle_env_upload(data)
+            if 'upload_chunk' in data and self._captured[1] == 200:
+                # Dispatch runs under the queue lock, so metadata is attached
+                # before any worker can claim the job.
+                server._jobs[self._captured[0]['job_id']]['payload']['upload_chunk'] = data['upload_chunk']
+
         def _handle_env_cancel(self, data):
             env_id = data.get('env_id')
             env = server._envs.get(env_id)

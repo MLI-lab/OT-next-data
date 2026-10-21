@@ -8,7 +8,8 @@ from config import runtime
 
 
 def test_cluster_versions_are_checked_before_installing(monkeypatch):
-    cluster = SimpleNamespace(name='test', python_version='3.12.14', apptainer_version='1.5.4', apptainer_login_version='1.5.3')
+    cluster = SimpleNamespace(name='test', python_version='3.12.14', apptainer_version='1.5.4',
+                              apptainer_login_version='1.5.3', apptainer_compute_alternatives=())
     monkeypatch.delenv('SLURM_JOB_ID', raising=False)
     monkeypatch.setattr(runtime.platform, 'python_version', lambda: '3.9.25')
     with pytest.raises(RuntimeError, match='requires Python 3.12.14'):
@@ -66,7 +67,58 @@ def test_reply_override_preserves_room_for_initial_prompt():
     spec = resolve('qwen3-30b-instruct-2507')[1]
     kwargs = serving_agent_kwargs(spec, 8192, {'max_tokens': 1024, 'max_turns': 5})
     assert kwargs['max_tokens'] == kwargs['model_info']['max_output_tokens'] == 1024
+    assert kwargs['llm_call_kwargs']['max_tokens'] == 1024
     assert kwargs['model_info']['max_input_tokens'] == 8192
     assert kwargs['max_turns'] == 5
     with pytest.raises(ValueError, match='leave room for the agent prompt'):
         serving_agent_kwargs(spec, 8192, {'max_tokens': 8192})
+
+
+def test_nested_reply_override_preserves_request_options():
+    from config.models import resolve, serving_agent_kwargs
+    spec = resolve('qwen38-27b')[1]
+    overrides = {'llm_call_kwargs': {'max_tokens': 2048, 'seed': 42}}
+    kwargs = serving_agent_kwargs(spec, 32768, overrides)
+    assert kwargs['llm_call_kwargs'] == {'max_tokens': 2048, 'seed': 42}
+    assert kwargs['model_info']['max_output_tokens'] == 2048
+    assert overrides == {'llm_call_kwargs': {'max_tokens': 2048, 'seed': 42}}
+    with pytest.raises(ValueError, match='Conflicting output limits'):
+        serving_agent_kwargs(spec, 32768, {'max_tokens': 8192, **overrides})
+    with pytest.raises(ValueError, match='Conflicting output limits'):
+        serving_agent_kwargs(spec, 32768, {
+            'llm_call_kwargs': {'max_tokens': 2048, 'max_completion_tokens': 4096}})
+
+
+def test_terminus_output_limit_reaches_http_request(tmp_path):
+    import asyncio
+    import json
+    import httpx
+    from openai import AsyncOpenAI
+    from harbor.agents.terminus_2.terminus_2 import Terminus2
+    from harbor.llms.chat import Chat
+    from config.models import resolve, serving_agent_kwargs
+
+    requests = []
+
+    def respond(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json={
+            'id': 'test', 'object': 'chat.completion', 'created': 1, 'model': 'test',
+            'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': 'ok'},
+                         'finish_reason': 'stop'}],
+            'usage': {'prompt_tokens': 1, 'completion_tokens': 1, 'total_tokens': 2}})
+
+    async def run():
+        kwargs = serving_agent_kwargs(resolve('qwen38-27b')[1], 32768, {})
+        agent = Terminus2(logs_dir=tmp_path, model_name='openai/test',
+                          api_base='http://test/v1', **kwargs)
+        async with AsyncOpenAI(api_key='test', base_url='http://test/v1',
+                               http_client=httpx.AsyncClient(
+                                   transport=httpx.MockTransport(respond))) as client:
+            agent._llm._openai_client = client
+            await agent._dispatch_llm_request(Chat(agent._llm), 'hello', None, None)
+        assert requests[0]['max_tokens'] == kwargs['model_info']['max_output_tokens'] == 8192
+        assert requests[0]['temperature'] == kwargs['temperature']
+        assert requests[0]['chat_template_kwargs'] == kwargs['extra_body']['chat_template_kwargs']
+
+    asyncio.run(run())

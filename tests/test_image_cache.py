@@ -66,8 +66,8 @@ def test_preparation_builds_once_and_next_run_stages_cache(tmp_path, monkeypatch
     pytest.importorskip('harbor')
     from hpc import image_cache, local_assets
     task = tmp_path / 'task'
-    task.mkdir()
-    (task / 'Dockerfile').write_text('FROM test\n')
+    (task / "environment").mkdir(parents=True)
+    (task / 'environment/Dockerfile').write_text('FROM test\n')
     images, shared = tmp_path / 'images', tmp_path / 'shared'
     images.mkdir()
     calls = []
@@ -88,11 +88,11 @@ def test_preparation_builds_once_and_next_run_stages_cache(tmp_path, monkeypatch
     second_images = local_assets.stage_images([task], shared, tmp_path / 'second')
     second = prepare_images([task], second_images, shared, args)
     assert second[0]['status'] == 'cached' and len(calls) == 1
-    (task / 'Dockerfile').write_text('FROM changed\n')
+    (task / 'environment/Dockerfile').write_text('FROM changed\n')
     third = prepare_images([task], second_images, shared, args)
     assert third[0]['status'] == 'built' and len(calls) == 2
     monkeypatch.setenv('OT_REQUIRE_PREBUILT_IMAGES', '1')
-    (task / 'Dockerfile').write_text('FROM another-change\n')
+    (task / 'environment/Dockerfile').write_text('FROM another-change\n')
     with pytest.raises(RuntimeError, match='Required prebuilt image is missing'):
         prepare_images([task], second_images, shared, args)
     assert len(calls) == 2
@@ -174,8 +174,8 @@ def test_failed_slurm_build_keeps_separate_limits_and_is_not_published(tmp_path,
     pytest.importorskip('harbor')
     from hpc import image_cache
     task = tmp_path / 'task'
-    task.mkdir()
-    (task / 'Dockerfile').write_text('FROM test\n')
+    (task / "environment").mkdir(parents=True)
+    (task / 'environment/Dockerfile').write_text('FROM test\n')
     images = tmp_path / 'images'
     images.mkdir()
     calls = []
@@ -224,7 +224,7 @@ def test_prebuild_streams_each_image_and_releases_all_scratch(tmp_path, monkeypa
     from hpc import image_cache, local_assets
     from harbor.utils.container_cache import environment_dir_hash_truncated
     task = tmp_path / 'task'
-    for name in ('agent', 'verifier'):
+    for name in ('environment', 'tests'):
         env = task / name
         env.mkdir(parents=True)
         (env / 'Dockerfile').write_text(f'FROM test:{name}\n')

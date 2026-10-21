@@ -166,3 +166,24 @@ def test_heredoc_run_moves_to_setup_with_its_body():
     assert plan["key"][0] == "ubuntu:22.04" and plan["apt"] == {"sqlite3"}
     step = plan["steps"][-1]
     assert step.startswith("/bin/sh -c ") and "SELECT * FROM dbo.Orders o\nRUN not an instruction\nEOSQL" in step
+
+
+def test_conflicting_package_sets_do_not_share_images():
+    from data.terminallego.patch import shared_plan
+    def plan(packages):
+        return shared_plan(_task(b'FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y ' + packages + b'\n'))
+    assert plan(b'systemctl')['key'] != plan(b'systemd')['key']
+    assert plan(b'msmtp-mta')['key'] != plan(b'postfix')['key']
+    assert plan(b'mariadb-server')['key'] != plan(b'mysql-server')['key']
+    assert plan(b'curl')['key'] == plan(b'git')['key']
+
+
+def test_build_repairs_preserve_broken_pip_and_protected_payloads():
+    from data.terminallego.patch import repair_build_dependencies, dockerfile
+    original = _task(b"FROM python:3.13-slim-bookworm\nRUN echo 'pip()' >> /usr/local/bin/pip && cp /usr/local/bin/pip /usr/local/bin/pip3\n")
+    fixed, reasons = repair_build_dependencies(original)
+    assert reasons
+    assert b"echo 'pip()'" in dockerfile(fixed)
+    assert b'rm -f /usr/local/bin/pip3 && cp' in dockerfile(fixed)
+    assert fixed[1:] == original[1:]
+    assert not repair_build_dependencies(fixed)[1]

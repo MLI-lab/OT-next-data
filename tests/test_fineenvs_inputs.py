@@ -9,7 +9,7 @@ import tomllib
 import pytest
 
 from data.fineenvs.patch import LOCK_PATH, SOURCE, packaged_inputs, transform
-from data.fineenvs.stage_inputs import stage
+from data.utils.fineenvs.stage_inputs import stage
 from data.utils.task_archive import read_members
 
 FIXTURE = Path(__file__).parent / 'fixtures/fineenvs_verifier/original-task.tar.gz'
@@ -99,12 +99,13 @@ def test_snapshot_provenance_and_file_checksums(tmp_path):
         packaged_inputs(tmp_path, source)
 
 
-def test_download_once_per_family_and_resume_without_network(tmp_path, monkeypatch):
+@pytest.mark.parametrize("archived", [False, True])
+def test_download_once_per_family_and_resume_without_network(tmp_path, monkeypatch, archived):
     import pyarrow as pa
     import pyarrow.parquet as pq
     import huggingface_hub
     from types import SimpleNamespace
-    from data.fineenvs import prepare_inputs
+    from data.utils.fineenvs import prepare_inputs
     source = tmp_path / 'tasks.parquet'
     pq.write_table(pa.Table.from_pylist([
         {'path': name, 'task_binary': FIXTURE.read_bytes()} for name in ('first', 'second')]), source)
@@ -119,18 +120,22 @@ def test_download_once_per_family_and_resume_without_network(tmp_path, monkeypat
         assert files[0][0] is remote  # preserve the listed Xet identity
         files[0][1].write_bytes(b'data')
     monkeypatch.setattr(huggingface_hub, 'download_bucket_files', download)
-    index = prepare_inputs.prepare(source, tmp_path / 'cache')
+    if archived:
+        monkeypatch.setattr(prepare_inputs, 'EXCLUDED', {'first': 'historical OOM', 'second': 'historical OOM'})
+        skipped = prepare_inputs.prepare(source, tmp_path / 'default-cache')
+        assert skipped['families'] == [] and calls == []
+    index = prepare_inputs.prepare(source, tmp_path / 'cache', include_archived=archived)
     assert len(calls) == 1
     assert index['unique_input_bytes'] == 4 and index['packaged_input_bytes'] == 8
     assert index['families'][0]['tasks'] == ['first', 'second']
     monkeypatch.setattr(huggingface_hub, 'list_bucket_tree', lambda *a, **kw: pytest.fail('unexpected network request'))
-    assert prepare_inputs.prepare(source, tmp_path / 'cache') == index
+    assert prepare_inputs.prepare(source, tmp_path / 'cache', include_archived=archived) == index
     assert len(calls) == 1
 
 
 def test_rate_limit_retry_honors_retry_after(monkeypatch):
     from types import SimpleNamespace
-    from data.fineenvs import prepare_inputs
+    from data.utils.fineenvs import prepare_inputs
     waits = []
     monkeypatch.setattr(prepare_inputs.time, 'sleep', waits.append)
     class Limited(Exception):
@@ -147,7 +152,7 @@ def test_rate_limit_retry_honors_retry_after(monkeypatch):
 
 def test_only_identical_remote_aliases_can_share_a_basename():
     from types import SimpleNamespace
-    from data.fineenvs.prepare_inputs import unique_inputs
+    from data.utils.fineenvs.prepare_inputs import unique_inputs
     first = SimpleNamespace(path='dataset/X.npy', size=123, xet_hash='same-content')
     second = SimpleNamespace(path='dataset/nested/X.npy', size=123, xet_hash='same-content')
     assert unique_inputs([first, second]) == [(first, [first.path, second.path])]
@@ -158,7 +163,7 @@ def test_only_identical_remote_aliases_can_share_a_basename():
 
 def test_reviewed_auxiliary_conflict_preserves_both_files(tmp_path):
     from types import SimpleNamespace
-    from data.fineenvs.prepare_inputs import REVIEWED_CONFLICT, unique_inputs
+    from data.utils.fineenvs.prepare_inputs import REVIEWED_CONFLICT, unique_inputs
     remote = [SimpleNamespace(path=p, size=size, xet_hash=h) for p, (size, h) in REVIEWED_CONFLICT.items()]
     assert len(unique_inputs(remote)) == 2
     manifest, directory = inputs(tmp_path)

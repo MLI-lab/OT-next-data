@@ -43,7 +43,9 @@ def setup(tmp_path, monkeypatch):
     return final, reports
 
 
-def test_each_task_takes_results_over_its_own_content(tmp_path, monkeypatch):
+@pytest.mark.parametrize('workers', [1, 2])
+def test_each_task_takes_results_over_its_own_content(tmp_path, monkeypatch, workers):
+    monkeypatch.setenv('OT_PUBLISH_CONTRACT_WORKERS', str(workers))
     final, _ = setup(tmp_path, monkeypatch)
     view, reports = combine_module.combine([('r0', 'c0'), ('r1', 'c1')], final, tmp_path / 'out')
     by_task = {item['task'].rsplit('/', 1)[1]: item['from'] for item in reports[1]['items']}

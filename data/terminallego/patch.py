@@ -165,6 +165,41 @@ def repair_bullseye_security(entries):
     return repaired, True
 
 
+def repair_build_dependencies(entries):
+    """Evidence-backed build repairs; retain all task, solution and verifier files."""
+    original = dockerfile(entries)
+    content = original
+    reasons = []
+    replacements = []
+    if b"FROM node:20-slim\n" in content:
+        replacements.append((b"npm install -g npm@latest", b"npm install -g npm@10.8.2",
+            "Keep Node 20 and select npm 10.8.2, the version already in the base, because latest npm requires Node 22 or newer."))
+    if b"echo 'pip()' >> /usr/local/bin/pip" in content and b"rm -f /usr/local/bin/pip3 && cp" not in content:
+        replacements.append((b"cp /usr/local/bin/pip /usr/local/bin/pip3",
+            b"rm -f /usr/local/bin/pip3 && cp /usr/local/bin/pip /usr/local/bin/pip3",
+            "Remove the existing pip3 alias before copying the intentionally broken pip entry point; both commands retain the task's broken state."))
+    if b"FROM continuumio/miniconda3:latest\n" in content:
+        replacements.append((b"conda install -y ", b"conda install --override-channels -c conda-forge -y ",
+            "Install the same requested conda dependencies from conda-forge; the default Anaconda channels now require interactive terms acceptance."))
+    replacements.append((b"https://repo1.maven.org/maven2/", b"https://repo.maven.apache.org/maven2/",
+        "Fetch the same Maven artifact coordinates from the canonical Maven Central host after repo1 returned HTTP 429."))
+    for old, new, reason in replacements:
+        if old in content:
+            content = content.replace(old, new)
+            reasons.append(reason)
+    if content == original:
+        return entries, []
+    repaired = []
+    for info, payload in entries:
+        if PurePosixPath(info.name).as_posix() == DOCKERFILE:
+            info = copy.deepcopy(info)
+            payload = content
+            info.size = len(payload)
+            info.pax_headers.pop("size", None)
+        repaired.append((info, payload))
+    return repaired, reasons
+
+
 def pack(entries):
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w", format=tarfile.PAX_FORMAT) as archive:
@@ -428,13 +463,19 @@ def shared_plan(entries):
             return None
     if base is None:
         return None
-    key = (base, tuple(before), tuple(image_steps), tuple(after), workdir)
+    # These packages conflicted in the first shared-image prebuild. Keep the
+    # original package set for affected tasks: even another task's implicit
+    # systemd/database/MTA dependency can make the union uninstallable.
+    sensitive = {"systemctl", "msmtp-mta", "postfix", "mariadb-client", "mariadb-server",
+                 "mysql-client", "mysql-server"}
+    compatibility = tuple(sorted(apt)) if apt & sensitive else ()
+    key = (base, tuple(before), tuple(image_steps), tuple(after), workdir, compatibility)
     return {"key": key, "apt": apt, "pip": pip, "pip_flags": flags, "steps": steps,
             "args": args, "workdir": workdir}
 
 
 def superset_dockerfile(key, apt, pip, flags):
-    base, before, image_steps, after, workdir = key
+    base, before, image_steps, after, workdir = key[:5]
     lines = [SUPERSET_HEADER, f"FROM {base}\n", *(f"{line}\n" for line in before),
              *(f"{line}\n" for line in image_steps)]
     if apt:
@@ -530,6 +571,7 @@ def patch(source, output):
         before_contexts.add(context_signature(entries))
         entries, _ = repair_empty_copy(entries)
         entries, _ = repair_bullseye_security(entries)
+        entries, _ = repair_build_dependencies(entries)
         plan = shared_plan(entries)
         if plan is not None:
             superset = supersets.setdefault(plan["key"], {"ids": [], "apt": set(), "pip": set(), "flags": set()})
@@ -555,7 +597,8 @@ def patch(source, output):
                 original_entries = members(row["task_binary"])
                 entries, empty_repaired = repair_empty_copy(original_entries)
                 entries, bullseye_repaired = repair_bullseye_security(entries)
-                if empty_repaired or bullseye_repaired:
+                entries, build_repairs = repair_build_dependencies(entries)
+                if empty_repaired or bullseye_repaired or build_repairs:
                     row["task_binary"] = pack(entries)
                     assert_preserved(entries, members(row["task_binary"]))
                 empty_repairs += empty_repaired
@@ -570,7 +613,8 @@ def patch(source, output):
                     labels.setdefault(row["path"], []).extend(["superset-image", "task-setup-at-runtime"])
                     reasons[row["path"]] = (
                         f"Package installation is replaced by a superset image shared by {len(superset['ids'])} "
-                        f"tasks with base {plan['key'][0]}, the same ENV/ARG lines and WORKDIR {plan['workdir']}. "
+                        f"tasks with base {plan['key'][0]}, the same ENV/ARG lines and WORKDIR {plan['workdir']}, with conflicting systemctl, "
+                        "database and mail-server package sets kept separate. "
                         "It installs the union of their apt and pip packages without version pins, so this "
                         "task's image also contains packages it did not ask for. The task-specific Dockerfile "
                         "steps (copying environment files, which move to setup_files/context, and all other "
@@ -619,6 +663,9 @@ def patch(source, output):
                         "main and updates suites and all task, solution and verifier bytes are unchanged. "
                         f"Same failure in task_09628 and task_12604; evidence: {BULLSEYE_EVIDENCE}. "
                         + reasons.get(row["path"], "")).strip()
+                if build_repairs:
+                    labels.setdefault(row["path"], []).append("build-dependency-repair")
+                    reasons[row["path"]] = " ".join(build_repairs) + " " + reasons.get(row["path"], "")
                 after_contexts.add(context_signature(entries))
                 batch.append(row)
                 if len(batch) == 32:
@@ -632,6 +679,9 @@ def patch(source, output):
     report = write_patch_report(
         source, destination, source=SOURCE, dropped={}, change_labels=labels,
         change_reasons=reasons, patcher=__file__, patches=[{
+            "label": "build-dependency-repair",
+            "reason": "Repair evidenced package-version, download-host, channel and duplicate entry-point build failures while preserving task payloads.",
+        }, {
             "label": "shared-image", "reason": "Canonicalize only leading canary comments "
             "among identical complete environments, retaining all executable inputs.",
         }, {

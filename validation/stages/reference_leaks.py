@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import tempfile
 from uuid import uuid4
 
 from validation.checks import reference_files
@@ -25,11 +26,21 @@ def evidence_digest(task):
 
 async def probe(environment, request):
     source = Path(reference_files.__file__).read_text()
-    command = 'python3 -c ' + shlex.quote(source) + ' ' + shlex.quote(json.dumps(request))
-    result = await environment.exec(command, timeout_sec=300)
-    if result.return_code:
-        raise RuntimeError('reference file probe failed: ' + (result.stderr or result.stdout)[-2000:])
-    return json.loads(result.stdout)
+    remote = '/tmp/ot-reference-probe-' + uuid4().hex + '.json'
+    command = ('umask 077; python3 -c ' + shlex.quote(source) + ' '
+               + shlex.quote(json.dumps(request)) + ' > ' + shlex.quote(remote))
+    try:
+        result = await environment.exec(command, timeout_sec=300)
+        if result.return_code:
+            raise RuntimeError('reference file probe failed: ' + (result.stderr or result.stdout or '')[-2000:])
+        # Exec output is tail-limited by the worker. Snapshots can be much larger;
+        # transfer the complete artifact instead of parsing truncated stdout.
+        with tempfile.TemporaryDirectory(prefix='reference-probe-') as directory:
+            local = Path(directory) / 'result.json'
+            await environment.download_file(remote, local)
+            return json.loads(local.read_text())
+    finally:
+        await environment.exec('rm -f -- ' + shlex.quote(remote), timeout_sec=30)
 
 
 def install():

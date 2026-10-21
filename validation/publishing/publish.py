@@ -58,18 +58,24 @@ def validated_contract(reports_dir, contract, reports, work):
     if not recorded or recorded == {contract['sha256']}:
         return contract
     archive = Path(reports_dir).parent / 'evidence.tar.gz'
-    if len(recorded) != 1 or not archive.is_file():
+    if len(recorded - {contract['sha256']}) != 1 or not archive.is_file():
         raise ValueError('stage reports belong to another contract')
     import tarfile
     target = Path(work) / 'validated-contract'
-    with tarfile.open(archive) as tar:
-        names = set(tar.getnames())
-        if 'contract.json' not in names:
-            raise ValueError('stage reports belong to another contract, and the evidence has no derived contract')
-        derived = json.loads(tar.extractfile('contract.json').read())
-        manifest = derived['task_manifest']['path']
-        members = [m for m in tar.getmembers() if m.name in ('contract.json', manifest) or m.name.startswith('tasks/')]
-        tar.extractall(target, members=members, filter='data')
+    target.mkdir(parents=True, exist_ok=True)
+    found_contract = False
+    # Evidence can include both original and normalized multi-gigabyte inputs.
+    # Stream once rather than scanning to the end and seeking back through gzip.
+    with tarfile.open(archive, mode='r|gz') as tar:
+        for member in tar:
+            name = Path(member.name)
+            selected = (member.name == 'contract.json' or member.name.startswith('tasks/')
+                        or (len(name.parts) == 1 and name.name.endswith('.tasks.json')))
+            if selected:
+                tar.extract(member, target, filter='data')
+                found_contract |= member.name == 'contract.json'
+    if not found_contract:
+        raise ValueError('stage reports belong to another contract, and the evidence has no derived contract')
     derived = read(target / 'contract.json')
     parent = ((derived.get('dataset') or {}).get('normalization') or {}).get('parent_contract_sha256')
     if derived['sha256'] not in recorded or parent != contract['sha256']:
@@ -77,6 +83,40 @@ def validated_contract(reports_dir, contract, reports, work):
     for task in task_records(derived):
         if task_digest(target / 'tasks' / task['task_id']) != task['sha256']:
             raise ValueError(f"derived task {task['task_id']} differs from its contract")
+    if contract['sha256'] in recorded:
+        # Path resolution follows the runtime trials. Their original bindings
+        # remain valid only when all non-instruction bytes are unchanged.
+        from validation.contract import files_digest
+        import io
+        parent_stages = [stage for stage, report in reports.items()
+                         if report.get('contract_sha256') == contract['sha256']]
+        if any(stage not in (1, REFERENCE, NOP) for stage in parent_stages):
+            raise ValueError('instruction-dependent reports belong to the parent contract')
+        expected = {t['task_id']: t['sha256'] for t in task_records(contract)}
+        if set(expected) != {t['task_id'] for t in task_records(derived)}:
+            raise ValueError('instruction-only normalization changed the task set')
+        seen = set()
+        for name, binary in task_rows(contract['arguments']['tasks']):
+            if name not in expected or name in seen:
+                raise ValueError('parent task source differs from its contract')
+            seen.add(name)
+            with tarfile.open(fileobj=io.BytesIO(binary), mode='r:*') as payload:
+                contents = [(m.name, payload.extractfile(m).read())
+                            for m in payload.getmembers() if m.isfile()]
+            if files_digest(contents) != expected[name]:
+                raise ValueError(f'parent task {name} differs from its contract')
+            before = files_digest((name, data) for name, data in contents if name != 'instruction.md')
+            directory = target / 'tasks' / name
+            after = files_digest((p.relative_to(directory).as_posix(), p.read_bytes())
+                                 for p in directory.rglob('*')
+                                 if p.is_file() and p.relative_to(directory).as_posix() != 'instruction.md')
+            if before != after:
+                raise ValueError(f'normalization changed non-instruction contents of {name}')
+        if seen != set(expected):
+            raise ValueError('parent task source is incomplete')
+        derived['dataset']['publication_instruction_only_reuse'] = {
+            'parent_contract_sha256': contract['sha256'], 'stages': parent_stages,
+            'verified_tasks': len(seen)}
     derived['arguments']['tasks'] = str(target / 'tasks')
     # The derived contract's source is the job's temporary copy; the patcher output
     # the prepared contract started from is what the patch manifests describe.
@@ -280,7 +320,7 @@ def pack_task(task_dir):
     """A task directory as the gzip tar TaskTrove stores in task_binary (relative paths, no owner info)."""
     import io, tarfile
     buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode='w:gz') as tar:
+    with tarfile.open(fileobj=buffer, mode='w:gz', compresslevel=1) as tar:
         for path in sorted(p for p in Path(task_dir).rglob('*') if p.is_file()):
             info = tar.gettarinfo(path, arcname=path.relative_to(task_dir).as_posix())
             info.uid = info.gid = 0
@@ -300,8 +340,25 @@ def task_rows(source):
                 for row in batch.to_pylist():
                     yield row['path'], row['task_binary']
     else:
-        for task in discover_tasks(Path(source)):
-            yield task.name, pack_task(task)
+        from collections import deque
+        from concurrent.futures import ThreadPoolExecutor
+        from itertools import islice
+        workers = int(os.environ.get('OT_PUBLISH_PACK_WORKERS', '1'))
+        if not 1 <= workers <= 8:
+            raise ValueError('OT_PUBLISH_PACK_WORKERS must be between 1 and 8')
+        tasks = iter(discover_tasks(Path(source)))
+        if workers == 1:
+            for task in tasks:
+                yield task.name, pack_task(task)
+            return
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            pending = deque((task, pool.submit(pack_task, task)) for task in islice(tasks, workers))
+            while pending:
+                task, future = pending.popleft()
+                yield task.name, future.result()
+                following = next(tasks, None)
+                if following is not None:
+                    pending.append((following, pool.submit(pack_task, following)))
 
 
 def build(contract, reports, mapping, not_required=(), previous=None, run_id=None):
@@ -650,7 +707,6 @@ def description(record, repo=None, revision=None):
 
 def write(tables, record, run_file, out, cards=None, image_manifest=None):
     import pyarrow as pa
-    import pyarrow.parquet as pq
     out = Path(out)
     schema = pa.schema([('stage_layout', pa.string()), ('path', pa.string()), ('task_binary', pa.binary()), ('content_sha256', pa.string()),
                         ('stages_passed', pa.string()), ('archive_stage', pa.int64()),
@@ -667,8 +723,9 @@ def write(tables, record, run_file, out, cards=None, image_manifest=None):
             table_schema = schema
             if image_manifest:
                 table_schema = schema.with_metadata({b'ot.images.v1': json.dumps(image_manifest).encode()})
-            pq.write_table(pa.table({c: [r.get(c, [] if c.endswith('_labels') else None) for r in rows]
-                                    for c in COLUMNS}, schema=table_schema), path)
+            from validation.publishing.parquet import write_rows
+            write_rows(({c: r.get(c, [] if c.endswith('_labels') else None) for c in COLUMNS}
+                        for r in rows), path, table_schema)
             files.append(f'{folder}/{name}')
     for folder, card in sorted((cards or {}).items()):
         directory = out / folder

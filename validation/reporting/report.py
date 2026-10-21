@@ -115,7 +115,8 @@ def summarize(archive):
                         if check['status'] not in ('passed', 'warning') and not (check['status'] == 'skipped' and check.get('optional')):
                             failures.append({'stage': number, 'task': task, 'status': check['status'],
                                 'check': check['check'], 'benchmark_policy': check['check'] in POLICY,
-                                'reason': f"exit_code={check['exit_code']}", 'evidence': check['log']})
+                                'reason': check.get('reason') or f"exit_code={check.get('exit_code')}",
+                                'evidence': check.get('log') or str(path)})
                     if item['status'] == 'error':
                         failures.append({'stage': number, 'task': task, 'status': 'error', 'check': '',
                             'benchmark_policy': False, 'reason': item.get('error',''), 'evidence': str(path)})

@@ -27,7 +27,10 @@ the displayed text.
 
 Skills in `.agents/skills/`: `patch-dataset` (repair a dataset), `verify-dataset`
 (stages 1, 3, 4, 5), `run-teachers` (stages 6 and 7, plotting),
-[`write-dataset-pr`](skills/write-dataset-pr/SKILL.md) (HF PR wording and automatic template).
+[`v1_readme`](skills/v1_readme/SKILL.md) (v1 dataset README and HF PR wording), and
+[`v2_readme`](skills/v2_readme/SKILL.md) (v2 evaluation results and trajectory statistics),
+and [`readme-v3`](skills/readme-v3/SKILL.md) (v3 READMEs focused on new results,
+without repeating v2 evaluation tables).
 
 ## Patch explanations in automatic PRs
 
@@ -184,6 +187,17 @@ node, concurrency 28, total 3 h 23 min:
   Jobs receive the environment as an archive in `$OT_WORKSPACE/runtime/`.
 
 ## Image build scratch and packaging
+
+Before rebuilding a task image, check both the target cluster's cache and the
+dataset's pinned Hugging Face image manifest. Prefer a compatible published
+bundle over a rebuild: verify its task/environment identity, architecture,
+provenance, file sizes and checksums, then stage it into the target cluster's
+cache. A published image does not need rebuilding merely because its local
+cache entry is missing. Prepare missing cache entries in a separate image-only
+job, verify them before submitting validation, and enforce
+`OT_REQUIRE_PREBUILT_IMAGES=1` for validation jobs. An image available only on
+Hugging Face or another cluster is not yet a verified target-cluster cache
+entry. Build only when no compatible cached or published image is available.
 
 Helma node-local storage is shared by jobs placed on the same node. On
 2026-10-10, three Scale SWE jobs on `h35-04` staged roughly 600 images

@@ -327,3 +327,21 @@ def test_environment_operations_require_deduplication_headers(live_bridge):
         request(base, '/env/create', {'environment_name': 'unsafe'})
     assert exc.value.code == 400
     assert not server._envs and not server._jobs
+
+
+def test_chunk_metadata_survives_queue_and_retry(live_bridge):
+    server, base, dropped, counts = live_bridge
+    transport = client.BridgeClient()
+    async def scenario():
+        created = await transport.post(base + '/env/create', {'task_name': 'example'})
+        finish_one(base, {})
+        metadata = {'id': 'a' * 32, 'offset': 0, 'final': False}
+        dropped.append('/env/upload')
+        response = await transport.post(base + '/env/upload', {
+            'env_id': created['env_id'], 'target_path': '/inputs', 'is_dir': True,
+            'file_b64': 'eA==', 'upload_chunk': metadata})
+        job = finish_one(base, {})
+        assert job['job_id'] == response['job_id']
+        assert job['payload']['upload_chunk'] == metadata
+        assert request(base, '/worker/get_job?worker_id=node-0')['job_id'] is None
+    asyncio.run(scenario())

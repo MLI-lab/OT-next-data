@@ -1,5 +1,7 @@
 """Stage-4 suffix fix-up, applied before contract hashing; originals stay unchanged."""
 import copy
+from contextlib import nullcontext
+import gzip
 import io
 import json
 from pathlib import PurePosixPath
@@ -37,7 +39,11 @@ def normalize_archive(blob, transform=None, repair=None):
         files['instruction.md'] = normalized
         if repair:
             files = repair(files)
-        with tarfile.open(fileobj=output, mode='w') as target:
+        # Preserve compression for packaged-input tasks: expanding a task into
+        # one raw Parquet value can exceed Parquet's signed 32-bit value size.
+        stream = (gzip.GzipFile(fileobj=output, mode='wb', filename='', mtime=0, compresslevel=1)
+                  if blob.startswith(b'\x1f\x8b') else nullcontext(output))
+        with stream as encoded, tarfile.open(fileobj=encoded, mode='w') as target:
             for member in members:
                 member = copy.copy(member)
                 data = files.get(str(PurePosixPath(member.name)))
@@ -135,6 +141,11 @@ def prepare(args, destination, instructions=True):
                 writer = None
                 try:
                     parquet = pq.ParquetFile(path)
+                    # Several large task archives can exceed binary's 2 GiB
+                    # cumulative offset limit within one Arrow batch.
+                    schema = parquet.schema_arrow
+                    binary_index = schema.get_field_index('task_binary')
+                    schema = schema.set(binary_index, schema.field(binary_index).with_type(pa.large_binary()))
                     for batch in parquet.iter_batches(batch_size=32):
                         rows = [r for r in batch.to_pylist() if r['path'] in ids]
                         for row in rows:
@@ -146,10 +157,10 @@ def prepare(args, destination, instructions=True):
                                 row['task_binary'], lambda instruction, config: transform(row['path'], instruction, config),
                                 lambda files: repair(row['path'], files))
                         if rows:
-                            table = pa.Table.from_pylist(rows, schema=parquet.schema_arrow)
+                            table = pa.Table.from_pylist(rows, schema=schema)
                             if writer is None:
                                 writer = pq.ParquetWriter(destination / f'{index:04d}.parquet', table.schema)
-                            writer.write_table(table)
+                            writer.write_table(table, row_group_size=1 if table.nbytes >= 1 << 30 else None)
                 finally:
                     if writer:
                         writer.close()

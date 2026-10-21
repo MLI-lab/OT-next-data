@@ -13,6 +13,23 @@ from validation.publishing.publish import pack_task, write
 from harbor.utils.container_cache import environment_dir_hash
 
 
+def test_only_build_contexts_are_staged_but_all_task_bytes_are_verified(tmp_path):
+    task = tmp_path / 'task'
+    (task / 'environment').mkdir(parents=True)
+    (task / 'environment/Dockerfile').write_text('FROM example\n')
+    (task / 'setup_files').mkdir()
+    (task / 'setup_files/input.csv').write_bytes(b'input data\n' * 100000)
+    expected = task_digest(task)
+    target = tmp_path / 'staged'
+    target.mkdir()
+    assert release.stage_build_contexts(pack_task(task), target, expected) == [target / 'environment/Dockerfile']
+    assert not (target / 'setup_files').exists()
+    assert environment_dir_hash(target / 'environment') == environment_dir_hash(task / 'environment')
+    (task / 'setup_files/input.csv').write_bytes(b'changed input')
+    with pytest.raises(ValueError, match='Task changed since validation'):
+        release.stage_build_contexts(pack_task(task), target, expected)
+
+
 def fixture(tmp_path, legacy=False):
     task = tmp_path / 'original/task-1'
     env = task / 'environment'
@@ -40,7 +57,9 @@ def write_parquet(tmp_path, tables, manifest, monkeypatch):
     return tmp_path / 'release/example/tasks.parquet'
 
 
-def test_publish_materialize_restore_and_reuse(tmp_path, monkeypatch):
+@pytest.mark.parametrize('workers', [1, 2])
+def test_publish_materialize_restore_and_reuse(tmp_path, monkeypatch, workers):
+    monkeypatch.setenv('OT_PUBLISH_IMAGE_WORKERS', str(workers))
     task, cache, bundle, tables = fixture(tmp_path)
     manifest, artifacts = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
     assert len(manifest['bundles']) == 1 and len(manifest['tasks']) == 2

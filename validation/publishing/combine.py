@@ -18,6 +18,8 @@ import copy
 import hashlib
 import io
 import json
+import os
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
 import tarfile
@@ -167,20 +169,24 @@ def manually_reviewed_nop(item):
 def combine(runs, tasks, out):
     """(contract view, reports by stage) for `runs` = [(reports_dir, contract_path), ...], oldest first."""
     import pyarrow as pa
-    import pyarrow.parquet as pq
     from validation.publishing.patch_provenance import source_binaries
     from validation.publishing.publish import stage_reports, task_rows, validated_contract
     final = {}
     for path, binary in task_rows(tasks):
         final[path] = hashlib.sha256(binary).hexdigest()
-    loaded = []
-    for reports_dir, contract_path in runs:
+    def load(index_run):
+        index, (reports_dir, contract_path) = index_run
         reports = stage_reports(reports_dir)
-        contract = validated_contract(reports_dir, read(contract_path), reports, Path(out) / f'run-{len(loaded)}')
+        contract = validated_contract(reports_dir, read(contract_path), reports, Path(out) / f'run-{index}')
         for stage, report in reports.items():
             if not report.get('complete') or report.get('dry_run'):
                 raise ValueError(f'{reports_dir}: stage {stage} report is incomplete')
-        loaded.append((contract, reports, source_binaries(contract)))
+        return contract, reports, source_binaries(contract)
+    workers = int(os.environ.get('OT_PUBLISH_CONTRACT_WORKERS', '1'))
+    if not 1 <= workers <= 8:
+        raise ValueError('OT_PUBLISH_CONTRACT_WORKERS must be between 1 and 8')
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        loaded = list(pool.map(load, enumerate(runs)))
     for path in SHARED:
         values = {repr(field(contract, path)) for contract, _, _ in loaded}
         if len(values) != 1:
@@ -243,7 +249,9 @@ def combine(runs, tasks, out):
     out.mkdir(parents=True, exist_ok=True)
     combined = out / 'combined-tasks.parquet'
     order = sorted(payloads)
-    pq.write_table(pa.table({'path': order, 'task_binary': [payloads[t] for t in order]}), combined)
+    from validation.publishing.parquet import write_rows
+    write_rows(({'path': task, 'task_binary': payloads[task]} for task in order), combined,
+               pa.schema([('path', pa.string()), ('task_binary', pa.large_binary())]))
     view['arguments'] = dict(view.get('arguments', {}), tasks=str(combined))
     dataset = view.setdefault('dataset', {})
     dataset['automation_changes'] = {task: changes for contract, _, _ in loaded

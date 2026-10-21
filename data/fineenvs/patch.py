@@ -1,6 +1,6 @@
 """Expose FineEnvs preparation while retaining one inspected upstream image.
 
-First run prepare_inputs.py on the pinned source. Then run this patcher with
+First run data/utils/fineenvs/prepare_inputs.py on the pinned source. Then run this patcher with
 --source PINNED.parquet --inputs-cache SNAPSHOT --output NEW_DIRECTORY.
 Every retained task includes its input bytes under setup_files/inputs. This
 patcher does not access the network, build images, or execute task verifiers.
@@ -37,19 +37,13 @@ set -euo pipefail
 python3 /setup_files/pull_bucket.py
 [ -n "$(ls /home/user/input)" ]
 '''
-# Stage 1 (CLAIX array 5119434, 2026-10-18): the input download was killed by the
-# task's 1 GiB memory limit (exit 137); analysing these inputs needs more memory too.
-MEMORY_REASON = ("Input data too large for the task's 1 GiB memory limit: setup's download "
-                 "(pull_bucket.py) was killed with exit 137 in stage 1 (CLAIX array 5119434), "
-                 "and analysing {inputs} with pandas would not fit in 1 GiB either.")
-EXCLUDED = {
-    "0001_155_1155264_qa_5": MEMORY_REASON.format(inputs="11 files, 1.8 GB (noqcks__aws-spot-pricing-market)"),
-    "0013_604_13604091_qa_2": MEMORY_REASON.format(inputs="4 files, 1.0 GB (retailrocket__ecommerce-dataset)"),
-    "0043_826_43826331_qa_2": MEMORY_REASON.format(inputs="4 files, 1.0 GB (retailrocket__ecommerce-dataset)"),
-    "0110_500_110500611_qa_3": MEMORY_REASON.format(inputs="42 files, 6.1 GB (crawford__emnist)"),
-}
-LOCK_PATH = Path(__file__).with_name("preparation.json")
-SNAPSHOT_PATH = Path(__file__).with_name("input-snapshot.json")
+# All source tasks passed validation with packaged inputs.
+EXCLUDED = {}
+SUPPORT_DIR = Path(__file__).resolve().parents[1] / "utils" / "fineenvs"
+if Path(__file__).with_name("preparation.json").is_file():
+    SUPPORT_DIR = Path(__file__).resolve().parent
+LOCK_PATH = SUPPORT_DIR / "preparation.json"
+SNAPSHOT_PATH = SUPPORT_DIR / "input-snapshot.json"
 SNAPSHOT_ROOT = "/opt/fineenvs-inputs"
 # Only the measured slow prefix receives an additional shared image. Build-time
 # downloads must match both the recorded remote identities and actual bytes.
@@ -243,7 +237,7 @@ def transform(blob, lock, snapshot=None, packaged=None):
         del additions['setup_files/pull_bucket.py']
         additions.update({
             'setup_files/setup.sh': (TASK_SETUP.replace(b'pull_bucket.py', b'stage_inputs.py'), 0o755),
-            'setup_files/stage_inputs.py': (Path(__file__).with_name('stage_inputs.py').read_bytes(), 0o644),
+            'setup_files/stage_inputs.py': ((SUPPORT_DIR / 'stage_inputs.py').read_bytes(), 0o644),
             'setup_files/input-manifest.json': ((json.dumps(manifest, sort_keys=True, indent=2) + '\n').encode(), 0o644),
         })
         for item in manifest['files']:
@@ -373,6 +367,8 @@ def main():
     parser.add_argument('--inputs-cache', type=Path, required=True,
                         help='complete checksum-verified snapshot produced by prepare_inputs.py')
     parser.add_argument('--workers', type=int, default=4, help='bounded parallel task compression workers')
+    parser.add_argument('--include-archived', action='store_true',
+                        help='include any explicitly excluded tasks for revalidation')
     args = parser.parse_args()
     if not 1 <= args.workers <= 8:
         parser.error('--workers must be between 1 and 8')
@@ -397,10 +393,11 @@ def main():
     parquet = pq.ParquetFile(source)
     args.output.mkdir(parents=True, exist_ok=True)
     labels, reasons = {}, {}
+    excluded = {} if args.include_archived else EXCLUDED
     with ProcessPoolExecutor(max_workers=args.workers, mp_context=get_context('spawn')) as pool, \
             pq.ParquetWriter(destination, parquet.schema_arrow) as writer:
         for batch in parquet.iter_batches(batch_size=args.workers * 2):
-            rows = [row for row in batch.to_pylist() if row["path"] not in EXCLUDED]
+            rows = [row for row in batch.to_pylist() if row["path"] not in excluded]
             pending = []
             for row in rows:
                 config = tomllib.loads(read_members(row['task_binary'])['task.toml'].decode())
@@ -419,7 +416,7 @@ def main():
                 print(f'Packaged {len(labels)} tasks', flush=True)
     report = write_patch_report(
         source, destination, source=SOURCE,
-        dropped={name: {"category": "resource-limit", "reason": reason} for name, reason in EXCLUDED.items()},
+        dropped={name: {"category": "resource-limit", "reason": reason} for name, reason in excluded.items()},
         change_labels=labels,
         change_reasons=reasons, patches=[{"label": "runtime-preparation", **lock},
                                         {"label": "packaged-task-inputs", **input_index},
@@ -430,9 +427,9 @@ def main():
     (args.output / 'preparation.json').write_bytes(LOCK_PATH.read_bytes())
     (args.output / 'input-snapshot.json').write_text(json.dumps(input_index, indent=2) + '\n')
     for helper in ('stage_inputs.py', 'prepare_inputs.py', 'reviewed-input-conflicts.json'):
-        (args.output / helper).write_bytes(Path(__file__).with_name(helper).read_bytes())
+        (args.output / helper).write_bytes((SUPPORT_DIR / helper).read_bytes())
     print(json.dumps({"tasks": len(report["tasks"]), "changed": len(labels),
-                      "excluded": len(EXCLUDED), "output": str(destination),
+                      "excluded": len(excluded), "output": str(destination),
                       "requires_review_setup": True}))
 
 

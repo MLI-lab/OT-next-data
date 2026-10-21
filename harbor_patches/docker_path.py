@@ -12,6 +12,8 @@ from pathlib import Path
 import re
 import shlex
 import tempfile
+import base64
+import posixpath
 
 
 REFERENCE = re.compile(r'\$(?:\{PATH\}|PATH\b)')
@@ -118,8 +120,116 @@ def resolve_env_lines(lines):
 def logical_lines(original):
     """Wrap Harbor's Dockerfile reader so its ENV parsing sees resolved values."""
     def read(dockerfile_path):
-        return resolve_env_lines(original(dockerfile_path))
+        # Docker ignores full-line comments within a continued instruction.
+        # Joining them into the shell command comments out the remaining RUN.
+        raw = Path(dockerfile_path).read_text().splitlines()
+        lines, pending, i = [], '', 0
+        while i < len(raw):
+            line = raw[i].strip()
+            i += 1
+            if not line or line.startswith('#'):
+                continue
+            line = (pending + ' ' + line).strip() if pending else line
+            if line.endswith('\\'):
+                pending = line[:-1].rstrip()
+                continue
+            pending = ''
+            if line.upper().startswith('RUN '):
+                markers = re.findall(r"(?<!<)<<(-?)\s*(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z_][A-Za-z0-9_]*))", line)
+                for dash, single, double, bare in markers:
+                    end = single or double or bare
+                    body = []
+                    while i < len(raw):
+                        item = raw[i]
+                        i += 1
+                        body.append(item)
+                        if (item.lstrip('\t') if dash else item) == end:
+                            break
+                    else:
+                        raise ValueError('Unterminated Dockerfile heredoc')
+                    line += '\n' + '\n'.join(body)
+            lines.append(line)
+        if pending:
+            lines.append(pending)
+        return resolve_env_lines(lines)
     return read
+
+
+def scoped_run_lines(lines):
+    """Keep each RUN's WORKDIR and ENV, rather than applying the final values.
+
+    Encode shell bodies so heredoc newlines survive the upstream reader's
+    second pass. Docker shell-form RUN uses sh -c, not sh -ec.
+    """
+    result, environment, workdir = [], {}, None
+    for line in lines:
+        keyword, _, rest = line.partition(' ')
+        keyword = keyword.upper()
+        if keyword == 'FROM':
+            environment, workdir = {}, None
+        elif keyword == 'ENV':
+            words = shlex.split(rest)
+            if words and '=' not in words[0]:
+                environment[words[0]] = ' '.join(words[1:])
+            else:
+                for word in words:
+                    key, separator, value = word.partition('=')
+                    if not separator or not NAME.fullmatch(key):
+                        raise ValueError('Unsupported Docker ENV: ' + line)
+                    environment[key] = value
+        elif keyword == 'WORKDIR':
+            workdir = posixpath.normpath(posixpath.join(workdir or '/', rest))
+            line = 'WORKDIR ' + workdir
+        elif keyword == 'RUN':
+            exports = path_exports('\n'.join('export ' + key + '=' + shlex.quote(value)
+                                             for key, value in environment.items()))
+            script = exports + '\n'
+            if workdir is not None:
+                script += 'mkdir -p ' + shlex.quote(workdir) + ' && cd ' + shlex.quote(workdir) + ' || exit $?\n'
+            script += rest + '\n'
+            encoded = base64.b64encode(script.encode()).decode()
+            line = 'RUN printf %s ' + shlex.quote(encoded) + ' | /bin/sh -c "base64 -d | /bin/sh"'
+        result.append(line)
+    return result
+
+
+def ordered_definition_environment(run):
+    """Final ENV belongs to runtime; scoped RUN bodies set build-time ENV."""
+    def execute(command, *args, **kwargs):
+        offset = 2 if command[:2] == ['unshare', '-r'] else 0
+        inner = command[offset:]
+        if len(inner) < 4 or Path(inner[0]).name not in ('apptainer', 'singularity') or inner[1] != 'build' or not str(inner[-1]).endswith('.def'):
+            return run(command, *args, **kwargs)
+        source = Path(command[-1])
+        lines, in_post = [], False
+        for line in source.read_text().splitlines(keepends=True):
+            if line.startswith('%'):
+                in_post = line.startswith('%post')
+            if in_post and re.match(r'^    export [A-Za-z_][A-Za-z0-9_]*=', line):
+                continue
+            lines.append(line)
+        with tempfile.TemporaryDirectory(prefix='ordered-env-', dir=source.parent) as tmp:
+            target = Path(tmp)/'build.def'
+            target.write_text(''.join(lines))
+            return run([*command[:-1], str(target)], *args, **kwargs)
+    return execute
+
+
+def scoped_deferred_environment(bake, worker):
+    """Use base ENV for deferred build; restore final ENV for task execution."""
+    def execute(sif):
+        sidecar = Path(worker._deferred_sidecar(sif))
+        if not sidecar.is_file() or Path(worker._deferred_overlay(sif)).exists():
+            return bake(sif)
+        original = sidecar.read_text()
+        spec = json.loads(original)
+        spec['env'] = {}
+        sidecar.write_text(json.dumps(spec))
+        try:
+            return bake(sif)
+        finally:
+            sidecar.write_text(original)
+    return execute
 
 
 def path_exports(text):

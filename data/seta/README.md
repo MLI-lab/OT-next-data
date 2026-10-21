@@ -2,7 +2,7 @@
 
 ## Dataset stats
 
-4,567 native tasks; 1,414 excluded during upstream conversion, leaving **3,153 audited tasks: 3,107 kept, all 3,107 patched; 46 archived**. Original unique image count: **Not recorded**. Current: **11 cached Apptainer environments** covering all kept tasks; per-task setup still installs task-specific dependencies.
+4,567 native tasks; 1,414 excluded during upstream conversion, leaving **3,153 audited tasks: 3,107 kept, all 3,107 patched; 46 archived**. Original: **11 shared build contexts across the 3,153-task TaskTrove conversion**. Current: **11 cached Apptainer environments** covering all kept tasks; per-task setup still installs task-specific dependencies. The original count refers to the converted source used for validation, not all 4,567 native tasks.
 
 ## Dataset characteristics
 

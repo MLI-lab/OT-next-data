@@ -3,6 +3,42 @@ import pytest
 from validation.checks.instruction_paths import automatic
 
 
+def test_parquet_normalization_supports_large_archive_offsets(tmp_path):
+    import io
+    import tarfile
+    from types import SimpleNamespace
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from validation.checks.instruction_suffix import prepare, normalize_archive
+
+    payload = b"packaged input\n" * 100
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w:gz") as tar:
+        for name, content in {
+            "instruction.md": b"Read the input.",
+            "task.toml": b"[agent]\ntimeout_sec=120\n",
+            "setup_files/inputs/data.txt": payload,
+        }.items():
+            member = tarfile.TarInfo(name)
+            member.size = len(content)
+            tar.addfile(member, io.BytesIO(content))
+    source = tmp_path / "tasks.parquet"
+    pq.write_table(pa.Table.from_pylist([{"path": "sample", "task_binary": archive.getvalue()}]), source)
+    args = SimpleNamespace(tasks=source, limit=None, task_id_range=None,
+                           fix_instruction_paths=True, fix_instruction_suffix=True,
+                           fix_repository_leaks=False, path_resolution_report=[])
+    prepare(args, tmp_path / "normalized")
+    table = pq.read_table(tmp_path / "normalized/0000.parquet")
+    assert table.schema.field("task_binary").type == pa.large_binary()
+    normalized = table["task_binary"][0].as_py()
+    assert normalized.startswith(b"\x1f\x8b")
+    assert normalize_archive(normalized) == normalized
+    with tarfile.open(fileobj=io.BytesIO(normalized)) as tar:
+        assert tar.extractfile("setup_files/inputs/data.txt").read() == payload
+        assert b"120 seconds" in tar.extractfile("instruction.md").read()
+    assert pq.read_table(source)["task_binary"][0].as_py() == archive.getvalue()
+
+
 def evidence(text, phase='baseline'):
     scan = {'status': 'completed', 'instruction_sha256': hashlib.sha256(text.encode()).hexdigest(),
             'findings': [{'relative_path': 'src/new.py', 'status': 'unique', 'matches': ['/workspace/project/src/new.py']}]}

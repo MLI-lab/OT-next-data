@@ -31,3 +31,10 @@ def environment_dir_hash(env_dir):
 
 def environment_dir_hash_truncated(env_dir, truncate=12):
     return environment_dir_hash(env_dir)[:truncate]
+
+
+def task_dockerfiles(task):
+    """Harbor agent/verifier build roots; nested Dockerfiles are task inputs."""
+    task = Path(task)
+    return [path for path in (task / 'environment/Dockerfile', task / 'tests/Dockerfile')
+            if path.is_file()]

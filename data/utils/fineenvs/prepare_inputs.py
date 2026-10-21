@@ -11,7 +11,7 @@ import sys
 import time
 import tomllib
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from data.fineenvs.patch import EXCLUDED, SOURCE
 from data.utils.task_archive import read_members
 
@@ -80,7 +80,7 @@ def unique_inputs(remote):
     return result
 
 
-def prepare(source, cache):
+def prepare(source, cache, *, include_archived=False):
     os.environ.setdefault('HF_XET_CACHE', str(cache / '.xet'))
     import pyarrow.parquet as pq
     from huggingface_hub import list_bucket_tree, download_bucket_files
@@ -88,7 +88,7 @@ def prepare(source, cache):
     families = {}
     for batch in pq.ParquetFile(source).iter_batches(batch_size=32):
         for row in batch.to_pylist():
-            if row['path'] in EXCLUDED:
+            if row['path'] in EXCLUDED and not include_archived:
                 continue
             config = tomllib.loads(read_members(row['task_binary'])['task.toml'].decode())
             env = config['environment']['env']
@@ -168,8 +168,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--cache', type=Path, required=True)
+    parser.add_argument('--include-archived', action='store_true',
+                        help='prepare inputs for historical exclusions for revalidation')
     args = parser.parse_args()
-    result = prepare(args.source, args.cache)
+    result = prepare(args.source, args.cache, include_archived=args.include_archived)
     print(json.dumps({'complete': result['complete'], 'families': len(result['families']),
                       'unique_input_bytes': result['unique_input_bytes'],
                       'packaged_input_bytes': result['packaged_input_bytes']}))

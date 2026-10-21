@@ -554,6 +554,56 @@ EMBEDDED_FILES = {
 REVISION = '80de95c62ac792c99dcfa8e26569bcd7d036bdc3'
 MARKER = '# Multi-SWE pinned grader runtime v4'
 TASK_MEMORY_MB = {'gohugoio__hugo-12703': 8192}
+SPOTBUGS_VERIFIER_FIXTURES = {
+    'spotbugs__spotbugs-2872': 'spotbugsTestCases/src/java/ghIssues/Issue453.java',
+    'spotbugs__spotbugs-2887': 'spotbugsTestCases/src/java/ghIssues/Issue608.java',
+    'spotbugs__spotbugs-3032': 'spotbugsTestCases/src/java/ghIssues/Issue2968.java',
+}
+
+
+def repair_spotbugs_verifier_fixtures(files, task_id):
+    """Supply regression fixtures discarded by the upstream fix/test path split."""
+    fixture = SPOTBUGS_VERIFIER_FIXTURES.get(task_id)
+    target = 'setup_files/upstream/test.patch'
+    if fixture is None or target not in files:
+        return files
+    header = f'diff --git a/{fixture} b/{fixture}\n'.encode()
+    blocks = re.split(rb'(?m)(?=^diff --git )', files['solution/gold.patch'])
+    matches = [block for block in blocks if block.startswith(header)]
+    if len(matches) != 1 or b'\n--- /dev/null\n' not in matches[0]:
+        raise ValueError(f'Expected one new regression fixture for {task_id}')
+    test_patch = files[target]
+    if header in test_patch:
+        if matches[0].rstrip(b'\n') not in test_patch:
+            raise ValueError(f'Conflicting regression fixture for {task_id}')
+        return files
+    # The fixture is a verifier input, not the production fix. Preserve the
+    # original reference and assertions; apply the fixture after extraction
+    # resets the repository, for both oracle and unchanged-baseline trials.
+    return {**files, target: test_patch.rstrip(b'\n') + b'\n' + matches[0]}
+
+
+def normalize_hugo_output(output):
+    """Separate Go test results appended to a warning without a newline."""
+    import re
+    return re.sub(
+        r'(?m)(?<=[^\n])(?=--- (?:PASS|FAIL|SKIP): \S+ \([0-9]+(?:\.[0-9]+)?s\)[ \t]*$)',
+        '\n', output)
+
+
+def repair_hugo_result_lines(files, task_id):
+    if task_id != 'gohugoio__hugo-13005':
+        return files
+    import inspect
+    grade = files['tests/grade.py'].decode()
+    if 'def normalize_hugo_output(' in grade:
+        return files
+    anchor = '    reward_path = Path(sys.argv[3])'
+    if grade.count('def main():') != 1 or grade.count(anchor) != 1:
+        raise ValueError('Unknown Hugo grader structure')
+    grade = grade.replace('def main():', inspect.getsource(normalize_hugo_output) + '\n\ndef main():')
+    grade = grade.replace(anchor, '    output = normalize_hugo_output(output)\n' + anchor)
+    return {**files, 'tests/grade.py': grade.encode()}
 
 
 def apply_task_memory(files, task_id):
@@ -1004,6 +1054,8 @@ def patch_blob(blob, recipe=None, locks=None, task_id=None):
     if recipe is not None:
         updated = share_image(updated, recipe, locks or {})
     updated = apply_task_memory(updated, task_id)
+    updated = repair_spotbugs_verifier_fixtures(updated, task_id)
+    updated = repair_hugo_result_lines(updated, task_id)
     if updated == files:
         return blob
     output = io.BytesIO()
@@ -1098,6 +1150,18 @@ def main():
                 labels[row['path']].append('task-memory-budget')
                 reasons[row['path']] += (' Set this task to the operator-selected 8 GiB budget for the reference solution; '
                                          'its expected no-op assertion-output OOM is accepted only through individual review.')
+            if (row['path'] in SPOTBUGS_VERIFIER_FIXTURES and args.share_images
+                    and row['path'] not in unresolved and patched != row['task_binary']):
+                labels.setdefault(row['path'], []).append('reference-test-fixture')
+                reasons[row['path']] = reasons.get(row['path'], '') + (
+                    ' Include the original Java regression fixture in the verifier test patch so '
+                    'the fix/test path filter cannot discard it before compilation; preserve the '
+                    'reference implementation and all test assertions.')
+            if row['path'] == 'gohugoio__hugo-13005' and patched != row['task_binary']:
+                labels.setdefault(row['path'], []).append('verifier-log-parser')
+                reasons[row['path']] = reasons.get(row['path'], '') + (
+                    ' Separate existing Go test result markers appended to warnings before parsing, '
+                    'preserving PASS/FAIL/SKIP statuses and required-test checks.')
             row['task_binary'] = patched
         output = args.output / source.name
         pq.write_table(pa.Table.from_pylist(rows, schema=table.schema), output)

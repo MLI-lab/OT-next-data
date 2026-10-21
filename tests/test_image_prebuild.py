@@ -107,3 +107,14 @@ def test_prebuild_operation_is_frozen(tmp_path, site):
     assert contract['arguments']['prebuild_only'] is True
     assert contract['execution_profile']['operation'] == 'image-prebuild-only'
     assert contract['execution_profile']['scheduler_target'] == site + '/Slurm'
+
+
+def test_prebuild_does_not_build_dockerfiles_supplied_as_task_inputs(tmp_path):
+    from harbor_patches.image_context import task_dockerfiles
+    names = ['environment/Dockerfile', 'tests/Dockerfile',
+             'environment/task_file/input/Dockerfile', 'setup_files/context/input/Dockerfile']
+    for name in names:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('FROM scratch\n')
+    assert [p.relative_to(tmp_path).as_posix() for p in task_dockerfiles(tmp_path)] == names[:2]

@@ -6,7 +6,7 @@
 - **Kept:** 2,509
 - **Changed:** 2,509 (converted to Harbor)
 - **Archived:** 1,189
-- **Images:** 2,509 retained task environments, each using its own pinned upstream image. No shared-image condensation; cached Apptainer images are not included in this release.
+- **Images:** 2,698 original Docker image references in the Code subset; 2,509 kept task environments in v1, each using its own pinned upstream image. The separate 1,000-task Cyber subset was excluded. No shared-image condensation; cached Apptainer images are not included in this release.
 
 ## Dataset characteristics
 
