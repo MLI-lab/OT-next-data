@@ -42,6 +42,10 @@ does not change generated output.
 - Keep internal patch version labels, run IDs, contract hashes, payload-hash
   audits and instruction-suffix normalization details in the linked run JSON
   or manifests. Do not explain those bookkeeping mechanisms in PR prose.
+- Integrate completed rerun outcomes into the per-stage change and archive totals.
+  Do not describe a retry cohort separately or repeat its stage-by-stage counts.
+  Preserve unresolved cases as pending; do not count them as archives or final kept
+  tasks. Update check coverage using unique task IDs across runs.
 - If results combine a full run and reruns, one sentence is sufficient:
   “Includes the full validation run and reruns of repaired tasks.” Match the
   wording to what actually ran; do not imply a fresh full run.
