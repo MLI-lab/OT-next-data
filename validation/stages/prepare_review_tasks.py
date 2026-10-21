@@ -118,7 +118,7 @@ def read_partial_verdicts(path, rubric_path):
     if not isinstance(checks, dict):
         raise ValueError(f'{path}: verdicts have no checks object')
     valid = {name: verdict for name, verdict in checks.items() if name in criteria
-             and isinstance(verdict, dict) and verdict.get('outcome') in ('pass', 'fail', 'not_applicable')
+             and isinstance(verdict, dict) and verdict.get('outcome') in ('pass', 'fail', 'not_applicable', 'incomplete')
              and isinstance(verdict.get('explanation'), str) and verdict['explanation'].strip()}
     if not valid:
         raise ValueError(f'{path}: no valid rubric judgment')

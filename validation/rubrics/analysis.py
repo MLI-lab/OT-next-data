@@ -87,7 +87,7 @@ def analyze(paths):
                     continue
                 seen.add(sample)
                 checks = trial.get('checks', {})
-                if not checks or any(v.get('outcome') not in ('pass', 'fail', 'not_applicable') for v in checks.values()):
+                if not checks or any(v.get('outcome') not in ('pass', 'fail', 'not_applicable', 'incomplete') for v in checks.values()):
                     group['errors'].add(task)
                     continue
                 group['completed'][task] += 1

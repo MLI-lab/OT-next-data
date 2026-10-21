@@ -34,6 +34,32 @@ def test_stage_five_calibration_survives_legacy_script_removal():
 
 
 class RepairWorkflow(IsolatedAsyncioTestCase):
+    async def test_incomplete_is_recorded_without_retry(self):
+        for output_format in ('criteria', 'classification'):
+            text = review.load('custom', output_format)[0]
+            rubric = tomllib.loads(text)
+            if output_format == 'criteria':
+                raw = {'checks': {c['name']: check('incomplete' if c['name'] == 'anti_cheat_robustness' else 'pass')
+                                  for c in rubric['criteria']}}
+                pending = 'anti_cheat_robustness'
+            else:
+                raw = {'category': 'INCOMPLETE', 'explanation': 'Exploit remains unverified.'}
+                pending = 'task_clean'
+            parsed = review.validate_complete(raw, rubric)
+            self.assertEqual(parsed['checks'][pending]['outcome'], 'incomplete')
+            calls = []
+            async def invoke(selected_rubric, prompt, folder):
+                calls.append(folder)
+                return raw, {}
+            with tempfile.TemporaryDirectory() as tmp:
+                state = await review.complete_review(text, 'Review', tmp, invoke, retries=2)
+                self.assertTrue(state['complete'])
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(state['verdict']['checks'][pending]['outcome'], 'incomplete')
+                resumed = await review.complete_review(text, 'Review', tmp, invoke)
+                self.assertTrue(resumed['resumed'])
+                self.assertEqual(len(calls), 1)
+
     async def test_partial_repair_preserves_valid_labels_and_resume_skips_launch(self):
         text = review.load('custom')[0]
         names = [c['name'] for c in tomllib.loads(text)['criteria']]
