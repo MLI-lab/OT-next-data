@@ -46,6 +46,30 @@ does not change generated output.
   Do not describe a retry cohort separately or repeat its stage-by-stage counts.
   Preserve unresolved cases as pending; do not count them as archives or final kept
   tasks. Update check coverage using unique task IDs across runs.
+- Merge identical reasons across runs: 26 existing baseline-score exclusions
+  plus 3 new ones means “Archived 29 tasks whose unchanged baseline scored 1.”
+  Give other reasons their own counts in the same sentence. Count each archived
+  task once, at the stage responsible for its exclusion. Reconcile stage totals,
+  overall totals and the saved decisions together.
+- Do not leave approved exclusions or completed reviews labeled “pending”.
+  Distinguish jobs awaiting results from decisions awaiting review. Avoid process
+  narration such as “Completed runs left…” or “await inclusion…” in stage prose;
+  state the outcome and reason directly. Keep genuine remaining limitations brief.
+- A passing reference is evidence for reviewing a failed no-op, not automatic
+  grounds for accepting it. Inspect the baseline output and reference changes.
+  Manually approve only supported cases, preserve missing scores, and update
+  approval and archive totals together. If some reference attempts also failed,
+  quantify that subset rather than calling every reference unreliable.
+- Prefer short behavioral repair descriptions, such as “Fixed passing-test
+  detection in 1 task” or “Increased memory from 4 to 8 GiB for X tasks to prevent
+  reference-solution OOMs.” Explain unfamiliar terms such as verifier fixtures
+  as missing regression-test inputs. Do not append a validation history to each
+  repair; report any genuinely incomplete validation in the brief limitations note.
+- Describe partial check coverage with the verified number of kept tasks checked
+  and their outcome, followed by one short statement about the remainder.
+  Do not recount old and new batches, downstream inclusion steps or task IDs.
+  Never describe an errored check as not run, or imply all tasks passed when
+  only a subset was checked. Keep completed and incomplete coverage distinct.
 - If results combine a full run and reruns, one sentence is sufficient:
   “Includes the full validation run and reruns of repaired tasks.” Match the
   wording to what actually ran; do not imply a fresh full run.
