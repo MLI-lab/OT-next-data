@@ -21,6 +21,12 @@ def selected_cluster(args):
     return cluster
 
 
+def allocated_cpu_count(cluster, partition, requested):
+    """Respect partition-specific CPU granularity (Helma preempt_cpu allows single cores)."""
+    step = dict(cluster.cpu_partition_allocation_steps).get(partition, cluster.cpu_allocation_step)
+    return -(-requested // step) * step
+
+
 def choose_allocation(args):
     from config.models import resolve
     cluster = selected_cluster(args)
@@ -203,8 +209,7 @@ def maybe_submit(args, numbers):
     payload.update(submit='never', gpus=gpus, partition=partition)
     if not gpus:
         # CPU partitions may require whole NUMA domains. Record the actual allocation.
-        step = cluster.cpu_allocation_step
-        payload['cpus'] = -(-args.cpus // step) * step
+        payload['cpus'] = allocated_cpu_count(cluster, partition, args.cpus)
     allocation.update(cpus=payload['cpus'], cluster=cluster.name)
     request = folder / 'request.json'
     save(request, {'args': payload, 'stages': numbers})

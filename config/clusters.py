@@ -55,6 +55,7 @@ class Cluster:
     account: str = ''  # Slurm accounting project; empty uses the site default
     network_mode: str = 'isolated'  # default --network-mode; 'host' where isolated task containers get no network
     cpu_allocation_step: int = 48  # round CPU-only requests up to this multiple
+    cpu_partition_allocation_steps: tuple[tuple[str, int], ...] = ()  # partition overrides
     max_cpus_per_gpu: int = 32  # GPU allocation CPU limit; 0 disables this check
     storage: tuple[Storage, ...] = ()  # available roots; setup's workspace remains a user choice
     note: str = ''  # human-readable site notes
@@ -63,6 +64,7 @@ class Cluster:
 
 CLUSTERS = [
     Cluster(name='helma', hostname_pattern=r'helma\d*',
+            cpu_partition_allocation_steps=(('preempt_cpu', 1),),
             # Install Python once with `uv python install 3.12.14` (no cluster module).
             # Select it during setup with --python "$(uv python find 3.12.14)".
             # No Apptainer module: /usr/bin/apptainer is already available.
