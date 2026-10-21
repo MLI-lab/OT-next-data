@@ -5,8 +5,8 @@
 - **Original tasks:** 2,232
 - **Kept:** 1,872
 - **Changed:** 1,872
-- **Archived:** 271
-- **Pending 8 GiB retry:** 89
+- **Archived:** 303
+- **Pending review after the 8 GiB reference retry:** 57
 - **Images:** 2,232 original per-task Docker image references, reduced to 339 shared image build contexts before exclusions and **290** for the kept tasks.
 
 The kept set is not yet a fully validated release. Reconciliation of saved outcomes still finds 3 setup failures, 635 reference failures, 622 no-op failures and 24 tasks without complete stage 4 results among kept tasks; these groups overlap. Manual approvals are included in these counts. Historical passes do not certify compliance with the current validation settings.
@@ -32,7 +32,7 @@ Real repository issue-solving tasks with a base checkout, issue instructions, up
 ## Per-stage breakdown
 
 - **1. Build and setup: 1,872 changed, 8 archived.** Archived 8 tasks: 4 Nuxt setup OOMs, 1 Checkstyle setup failure and 3 Mockito image-build failures due to Maven dependency downloads.
-- **2. Reference solution (reward 1): 5 changed, 237 archived, 89 pending retry.** Changed 1 task from 4 to 8 GiB, restored missing verifier fixtures in 3 tasks, and repaired 1 task so a missing line break no longer hides a passing test result. Validation of the verifier repairs is pending. Archived 173 tasks whose reference solution scored 0, 53 with dependency, environment or test-execution errors, 10 that OOMed at 8 GiB, and 1 whose verifier exceeded 30 minutes. Retrying 89 tasks that OOMed at 4 GiB with an 8 GiB limit and peak-memory recording.
+- **2. Reference solution (reward 1): 5 changed, 269 archived, 57 pending downstream review.** Changed 1 task from 4 to 8 GiB, restored missing verifier fixtures in 3 tasks, and repaired 1 task so a missing line break no longer hides a passing test result. Validation of the verifier repairs is pending. Archived 180 tasks whose reference solution scored 0, 53 with dependency, environment or test-execution errors, 32 that hit the memory limit with an 8 GiB configuration, and 4 whose verifier exceeded 30 minutes. Of the 89 tasks retried with an 8 GiB configuration, 57 passed reference validation and 32 were excluded: 22 memory-limit failures, 3 verifier timeouts at 1,800 seconds, and 7 reference solutions returning 0. The recorded effective memory limit for the 22 memory failures was 7,782.4 MiB (7.6 GiB), so these outcomes do not establish that the tasks require more than a full 8 GiB. The 57 reference-passing tasks await no-op and final-validation review.
 - **3. No-op baseline (reward 0): 0 changed, 26 archived.** Archived 26 tasks whose unchanged baseline scored 1. Manually approved 418 false positives from the no-op checker, which could not confirm verifier execution; the corresponding reference solutions passed.
 - **4. Rule-based checks: 1,869 changed, 0 archived.** Later or unrelated Git history was accessible in 1,869 kept tasks; we removed it to prevent access to potential future fixes. Also cleared reflogs and unreachable objects and normalized tracked-file timestamps.
 
@@ -45,4 +45,4 @@ The stricter check for exact solution-file copies in the agent environment was o
 - **Task resources:** typically **4 CPUs and 4 GiB**; task-specific exceptions remain. Hugo-12703 uses **8 GiB**. The verifier limit is **1,800 seconds**. Memory retries are capped at **8 GiB**; tasks that still OOM remain archived, and final limits use measured peaks and supported resource sizes.
 - **Task preparation:** median **13.5 s**, mean **19.5 s**, p95 **53.0 s** across all 2,232 original tasks, including container startup and setup.
 - **Validation time:** summed stage wall time across the historical full run's 140 shards: setup **6.95 h**, reference **47.99 h**, no-op **46.88 h**, static checks **43.3 s**. These totals exclude queue waits, image preparation and separately recorded reruns; shards ran concurrently. Static timing predates the reference-solution leak check.
-- **Preparation batches:** The 24-task rerun finished: 23 passed stages 1, 2 and 4; Async-1142 passed setup but failed reference validation, leaving its leak check incomplete. The 89 memory-retry tasks are still running.
+- **Preparation batches:** The 24-task rerun finished: 23 passed stages 1, 2 and 4; Async-1142 passed setup but failed reference validation, leaving its leak check incomplete. The 89 memory-retry tasks finished on October 20: 57 passed reference validation and 32 were excluded under stage 2. No-op and final-validation decisions for the remaining 57 tasks are pending.
