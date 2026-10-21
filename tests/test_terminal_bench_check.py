@@ -579,6 +579,10 @@ def test_seta_nproc_allowance_requires_reviewed_task_script_and_image(tmp_path, 
     ('pip install requests > install.log\n', 'failed'),
     ('pip install pytest==8.3.5 > install.log requests\n', 'failed'),
     ('pip install pytest==8.3.5 ">" requests\n', 'failed'),
+    ('stub=/home/user/packages\npip install --no-deps "$stub"/demo\n', 'passed'),
+    ('pip install --no-deps "$stub"/demo\n', 'failed'),
+    ('stub=https://example.org\npip install "$stub"/demo\n', 'failed'),
+    ('stub=/home/user/packages\nstub=$UNKNOWN\npip install "$stub"/demo\n', 'failed'),
 ])
 def test_pip_hash_pins_and_shell_redirections(tmp_path, command, expected):
     task = make_task(tmp_path)
@@ -741,3 +745,58 @@ def test_path_check_reports_unquoted_relative_file_names(tmp_path):
     assert subprocess.run(['bash', str(upstream), str(task)], capture_output=True).returncode == 0
     result = subprocess.run(['bash', str(fixed), str(task)], capture_output=True, text=True)
     assert result.returncode == 1 and 'config.yaml' in result.stdout
+
+
+@pytest.mark.parametrize('command,expected', [
+    ("bash -c 'pip install requests==2.31.0; pip freeze > snapshot.txt'\n", 'passed'),
+    ("bash -c 'pip install requests; pip freeze > snapshot.txt'\n", 'failed'),
+    ('pip install requests==2.31.0; pip freeze > snapshot.txt\n', 'passed'),
+    ('pip install requests==2.31.0; pip install wheel\n', 'failed'),
+    ("bash -c 'pip install requests==2.31.0; pip install wheel'\n", 'failed'),
+    ("bash -c 'set -e; /env/bin/pip install ping3==5.1.6; /env/bin/pip freeze > requirements.txt; cat > helper.py << \"PY\"; #!/usr/bin/env python3\nprint(1)\nPY\n'\n", 'passed'),
+    ("bash -c 'set -e; /env/bin/pip install ping3; /env/bin/pip freeze > requirements.txt; cat > helper.py << \"PY\"; #!/usr/bin/env python3\nprint(1)\nPY\n'\n", 'failed'),
+    ('command -v nproc >/dev/null && nproc --all\n', 'passed'),
+    ('command -v nproc >/dev/null && nproc\n', 'failed'),
+])
+def test_shell_separators_and_nproc_probes(tmp_path, command, expected):
+    task = make_task(tmp_path)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(command)
+    selected = 'check-nproc.sh' if 'nproc' in command else 'check-pip-pinning.sh'
+    if selected == 'check-pip-pinning.sh' and expected == 'failed':
+        expected = 'warning'
+    checks = load_checks('training')[1]
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[c for c in checks if c != selected])
+    assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected
+
+
+@pytest.mark.parametrize('instruction,source,expected', [
+    (r'Write /home/user/report\_final.log.', 'x = "/home/user/report_final.log"', 'passed'),
+    ('Write /home/user/other.log.', 'x = "/home/user/report_final.log"', 'failed'),
+    ('Write /home/user/report.log. Its content is VALID.', r'x = "/home/user/report.log : VALID\n"', 'passed'),
+    ('Write /home/user/report.log.', r'x = "/home/user/report.log\tUPDATED"', 'passed'),
+    ('Write /home/user/report.log.', 'x = "/home/user/hidden.log"', 'failed'),
+])
+def test_reference_escaping_does_not_invent_or_hide_requirements(tmp_path, instruction, source, expected):
+    task = make_task(tmp_path)
+    (task / 'instruction.md').write_text(instruction)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(source)
+    (task / 'tests/test_outputs.py').write_text(source)
+    checks = load_checks('training')[1]
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[c for c in checks if c != 'check-test-file-references.sh'])
+    assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected
+
+
+@pytest.mark.parametrize('usage,expected', [('', 'passed'), ('assert all(Path(p).exists() for p in FILES)', 'failed')])
+def test_unused_reference_set_is_not_a_graded_requirement(tmp_path, usage, expected):
+    task = make_task(tmp_path)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text('echo temporary > intermediate.txt\nrm intermediate.txt\n')
+    (task / 'tests/test_outputs.py').write_text('FILES = {"intermediate.txt"}\n' + usage + '\n')
+    checks = load_checks('training')[1]
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[c for c in checks if c != 'check-test-file-references.sh'])
+    assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected

@@ -1,5 +1,6 @@
 """Find references in initial supplied files without executing task setup."""
 import json
+import base64
 import posixpath
 import re
 import shlex
@@ -213,6 +214,25 @@ def supplied_files(task):
     """Index COPY payloads and statically recognizable setup writes."""
     files = {}
     directories = set()
+    # ET's compatibility compiler stores literal RUN programs in an exact,
+    # auditable base64 wrapper. Read those writes just as operations.json writes;
+    # never execute a program or decode arbitrary strings from the task.
+    dockerfile = task / 'environment/Dockerfile'
+    if dockerfile.is_file():
+        text = dockerfile.read_text(errors='replace')
+        if text.startswith('# et-apptainer-build-v6\n') and len(re.findall(r'^FROM ', text, re.M)) == 1:
+            wrapper = re.compile(
+                r'''^RUN /usr/bin/printf 'ET_RUN source-line=%s\\n' (?P<line>\d+) >&2 && cd (?P<cwd>/[\w/.-]*) && '''
+                r'''/usr/bin/env [^\n]* /bin/sh -c "\$\(/usr/bin/printf %s (?P<data>[A-Za-z0-9+/=]+) \| /usr/bin/base64 -d\)"$''')
+            for line in text.splitlines():
+                match = wrapper.fullmatch(line)
+                if match:
+                    try:
+                        command = base64.b64decode(match['data'], validate=True).decode()
+                    except (ValueError, UnicodeDecodeError):
+                        continue
+                    read_setup_files(command, match['cwd'], files,
+                                     'environment/Dockerfile:source-line ' + match['line'], directories)
     manifest = task / 'setup_files/operations.json'
     if not manifest.is_file():
         return files
@@ -297,10 +317,11 @@ def discoverable_references(task):
         if root in files:
             queue.append((root, root))
         else:
-            # Only explicit directory syntax permits directory enumeration.
-            if root.endswith('/'):
+            # A trailing slash or known supplied children establishes a directory.
+            prefix = root.rstrip('/') + '/'
+            if root.endswith('/') or any(path.startswith(prefix) for path in files):
                 for path in files:
-                    if path.startswith(root):
+                    if path.startswith(prefix):
                         queue.append((path, root))
                         evidence[path] = {'entry_point': root, 'supplied_file': path, 'source': files[path][1]}
     seen = set()
