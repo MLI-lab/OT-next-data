@@ -87,9 +87,19 @@ def test_publication_preserves_flags_and_rejects_only_above_half(matched, status
     assert expected in labels(4, item)
 
 
-def test_incomplete_scan_and_deletions_never_pass():
+@pytest.mark.parametrize('matches,status', [([], 'passed'), (['/copy'], 'failed')])
+def test_deletions_are_reported_but_do_not_dilute_content_matches(matches, status):
+    evidence = {'workspace': '/repo', 'deleted_files': ['/repo/gone', '/repo/also-gone']}
+    result = leaks.verdict(evidence, {'status': 'completed', 'files': [{'matches': matches}]})
+    assert result['status'] == status
+    assert result['changed_files'] == 1
+    assert result['skipped_deleted_files'] == evidence['deleted_files']
+    assert result['evaluation_status'] == 'completed'
+
+
+def test_incomplete_scan_never_passes_even_with_deletions():
     evidence = {'workspace': '/repo', 'deleted_files': ['/repo/gone']}
-    obs = {'status': 'completed', 'files': [{'matches': []}]}
+    obs = {'status': 'incomplete', 'files': [{'matches': []}]}
     assert leaks.verdict(evidence, obs)['status'] == 'error'
     evidence['deleted_files'] = []
     obs['status'] = 'incomplete'
@@ -153,6 +163,30 @@ def test_stage4_missing_evidence_is_incomplete_no_reference_not_applicable(tmp_p
     assert items[0]['status'] == 'error'
     assert items[0]['reference_leak_incomplete']
     assert items[1]['checks'][0]['status'] == 'not_applicable'
+
+
+def test_deletion_only_reference_is_not_applicable_without_starting_scan(tmp_path, monkeypatch):
+    task = tmp_path / 'task'
+    (task / 'solution').mkdir(parents=True)
+    (task / 'solution/solve.sh').write_text('rm obsolete')
+    monkeypatch.setattr(leaks, 'collect', lambda *args: {
+        'workspace': '/repo', 'files': [], 'deleted_files': ['/repo/obsolete']})
+    async def unexpected(*args):
+        pytest.fail('deletion-only reference must not start a content scan')
+    monkeypatch.setattr(leaks, 'scan_task', unexpected)
+    items = [{'task': str(task), 'status': 'passed', 'checks': []}]
+    asyncio.run(leaks.run_checks([task], items, tmp_path / 'scan',
+                                SimpleNamespace(out=tmp_path / 'out', concurrency=1)))
+    check = items[0]['checks'][0]
+    assert check['status'] == check['evaluation_status'] == 'not_applicable'
+    assert check['skipped_deleted_files'] == ['/repo/obsolete']
+    assert not check['all_changed_files_found']
+    assert not items[0].get('reference_leak_incomplete')
+
+
+def test_empty_reference_without_deletions_is_still_incomplete():
+    assert leaks.verdict({'workspace': '/repo', 'deleted_files': []},
+                         {'status': 'completed', 'files': []})['status'] == 'error'
 
 
 def test_oracle_hook_captures_before_upload_and_before_verifier(tmp_path, monkeypatch):
@@ -250,6 +284,43 @@ def test_probe_executes_standalone_scanner_without_uploads(tmp_path):
     assert result['status'] == 'completed'
     assert len(result['files']) == 4001
     assert str(tmp_path / 'file with spaces') in result['files']
+
+
+@pytest.mark.parametrize('baked_python', [False, True])
+def test_probe_finds_image_python_outside_path_or_reports_missing(tmp_path, monkeypatch, baked_python):
+    import shutil
+    import shlex
+    import subprocess
+    import sys
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    # Isolated mode must not import modules from task-controlled files.
+    (workspace / 'json.py').write_text('raise RuntimeError("task module must not be imported")')
+    (workspace / 'fixed').write_text('fixed content')
+    bin_dir = tmp_path / 'path'
+    bin_dir.mkdir()
+    (bin_dir / 'rm').symlink_to(shutil.which('rm'))
+    opt = tmp_path / 'image opt'
+    if baked_python:
+        python = opt / 'grader-python' / 'bin' / 'python3'
+        python.parent.mkdir(parents=True)
+        python.symlink_to(sys.executable)
+    monkeypatch.setattr(leaks, 'PROBE_PYTHONS', 'python3 python ' + shlex.quote(str(opt)) + '/*/bin/python3')
+    class Environment:
+        async def exec(self, command, timeout_sec):
+            result = subprocess.run(command, shell=True, cwd=workspace,
+                                    env={**os.environ, 'PATH': str(bin_dir)},
+                                    text=True, capture_output=True, timeout=timeout_sec)
+            return SimpleNamespace(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+        async def download_file(self, source_path, target_path):
+            shutil.copyfile(source_path, target_path)
+    if baked_python:
+        result = asyncio.run(leaks.probe(Environment(), {'mode': 'snapshot'}))
+        assert result['status'] == 'completed'
+        assert result['files'][str(workspace / 'fixed')]['sha256'] == files.fingerprint(workspace / 'fixed')['sha256']
+    else:
+        with pytest.raises(RuntimeError, match='needs an existing Python 3.8'):
+            asyncio.run(leaks.probe(Environment(), {'mode': 'snapshot'}))
 
 
 def test_nop_stage_is_not_reference_evidence(tmp_path):

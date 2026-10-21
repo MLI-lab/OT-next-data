@@ -69,16 +69,16 @@ def validate(data, rubric):
             raise ValueError('Classification requires a nonempty explanation')
         # Derive the compatibility check ourselves; never trust conflicting checks.
         return {**data, 'checks': {'task_clean': {
-            'outcome': 'pass' if category == 'CLEAN' else 'fail',
+            'outcome': 'pass' if category == 'CLEAN' else ('incomplete' if category == 'INCOMPLETE' else 'fail'),
             'explanation': explanation}}}
     names = {entry['name'] for entry in rubric['criteria']}
     checks = data.get('checks')
     if not isinstance(checks, dict) or set(checks) != names:
         raise ValueError('Missing or unexpected rubric criteria')
     for name, verdict in checks.items():
-        if (not isinstance(verdict, dict) or verdict.get('outcome') not in ('pass', 'fail', 'not_applicable')
+        if (not isinstance(verdict, dict) or verdict.get('outcome') not in ('pass', 'fail', 'not_applicable', 'incomplete')
                 or not isinstance(verdict.get('explanation'), str) or not verdict['explanation'].strip()):
-            raise ValueError(f'Expected pass/fail/not_applicable and a nonempty explanation for {name}')
+            raise ValueError(f'Expected pass/fail/not_applicable/incomplete and a nonempty explanation for {name}')
     return data
 
 
@@ -90,10 +90,11 @@ def read_output(path, rubric):
 
 
 def valid_checks(data, names):
+    # Incomplete is a recorded label for manual inspection, not a missing response.
     checks=data.get('checks',{}) if isinstance(data, dict) else {}
     if not isinstance(checks,dict): return {}
     return {k:v for k,v in checks.items() if k in names and isinstance(v,dict)
-            and v.get('outcome') in ('pass','fail','not_applicable')
+            and v.get('outcome') in ('pass','fail','not_applicable','incomplete')
             and isinstance(v.get('explanation'),str) and v['explanation'].strip()}
 
 
@@ -424,7 +425,7 @@ async def review_files(staged, source, out, args, agent, model):
             errors.append(f'{attempt}: {type(exc).__name__}: {exc}')
             rows.extend(new_rows)
     return {'status': 'error' if errors else ('findings' if any(
-        value['outcome'] == 'fail' for trial in verdicts for value in trial['checks'].values()) else 'passed'),
+        value['outcome'] in ('fail', 'incomplete') for trial in verdicts for value in trial['checks'].values()) else 'passed'),
         'findings': errors, 'verdicts': verdicts, 'automatic_skips': skipped, 'evidence_mode': 'files', 'review_checkpoint': str(cache),
         'usage': {'trials': rows, 'expected_trials': runs, 'summary': summarize_rows(rows, runs, 1)}}
 

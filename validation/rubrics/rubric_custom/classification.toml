@@ -34,8 +34,16 @@ The task and verifier should be hard to game, so that an agent cannot obtain rew
 
 The task and verifier should resist obvious shortcuts, such as modifying test data, replacing tools, monkey-patching libraries, tampering with verification, or fabricating outputs. When the verifier executes agent-produced code, that code must not be able to modify or control the final reward. Tests should verify actual correctness through execution or checking the resulting behavior and state, rather than relying only on keywords, string patterns, or self-reported results.
 
+Assign this category only when a concrete exploit has been demonstrated to successfully obtain reward without genuinely solving the task, using only access available to the solving agent in the configured verifier mode. Include the exploit steps or code and the observed verifier result; hypothetical vulnerabilities, untested shortcuts, and unsuccessful exploit attempts do not justify this category.
+
 Note:
 You have access to the full Harbor task folder, including tests and the reference solution, but the solving agent does not. The agent receives only the instruction and task environment. In shared verifier mode (default), tests are uploaded after the agent finishes and run in its modified container. In separate verifier mode, tests run in a fresh container with only the submitted artifacts transferred. The mode is specified in `task.toml`. Evaluate potential leaks and exploits based on what the solving agent can actually access, including anything unintentionally exposed through the task image or environment.
+"""
+
+[[categories]]
+name = "INCOMPLETE"
+description = """
+A plausible exploit remains unverified or required verification could not be completed. Explain what remains unverified for manual inspection. This category is neither CLEAN nor a confirmed defect.
 """
 
 [[categories]]

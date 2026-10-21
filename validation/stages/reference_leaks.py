@@ -14,6 +14,9 @@ from validation.stages.layout import REFERENCE
 CHECK = 'reference-solution-leak'
 ARTIFACT = 'reference-file-fingerprints.json'
 enabled = ContextVar('capture_reference_files', default=False)
+# Shell words are fixed checker configuration, not task-controlled input. The
+# /opt glob covers image-baked runtimes that are intentionally absent from PATH.
+PROBE_PYTHONS = 'python3 python /usr/bin/python3 /usr/local/bin/python3 /opt/*/bin/python3 /opt/*/bin/python'
 
 
 def evidence_digest(task):
@@ -27,8 +30,17 @@ def evidence_digest(task):
 async def probe(environment, request):
     source = Path(reference_files.__file__).read_text()
     remote = '/tmp/ot-reference-probe-' + uuid4().hex + '.json'
-    command = ('umask 077; python3 -c ' + shlex.quote(source) + ' '
-               + shlex.quote(json.dumps(request)) + ' > ' + shlex.quote(remote))
+    sanity = 'import sys, hashlib, json; assert sys.version_info >= (3, 8); hashlib.sha256(b"probe")'
+    command = (
+        'umask 077; ot_probe_python=; for ot_candidate in ' + PROBE_PYTHONS + '; do '
+        'if command -v "$ot_candidate" >/dev/null 2>&1 && '
+        '"$ot_candidate" -I -c ' + shlex.quote(sanity) + ' >/dev/null 2>&1; then '
+        'ot_probe_python=$ot_candidate; break; fi; done; '
+        'if [ -z "$ot_probe_python" ]; then '
+        'echo "reference probe needs an existing Python 3.8+ interpreter (PATH, /usr/bin, /usr/local/bin or /opt/*/bin)" >&2; '
+        'exit 127; fi; '
+        '"$ot_probe_python" -I -c ' + shlex.quote(source) + ' '
+        + shlex.quote(json.dumps(request)) + ' > ' + shlex.quote(remote))
     try:
         result = await environment.exec(command, timeout_sec=300)
         if result.return_code:
@@ -122,22 +134,28 @@ def verdict(evidence, observation):
     count = sum(bool(f['matches']) for f in files)
     total = len(files)
     fraction = count / total if total else 0
-    complete = bool(total and observation['status'] == 'completed' and not evidence.get('deleted_files'))
+    deleted = evidence.get('deleted_files', [])
+    deletion_only = bool(not total and deleted and observation['status'] == 'not_applicable')
+    complete = bool(total and observation['status'] == 'completed')
     above_threshold = count * 2 > total
-    status = 'error' if not complete else 'failed' if above_threshold else 'warning' if count else 'passed'
+    status = ('not_applicable' if deletion_only else 'error' if not complete else
+              'failed' if above_threshold else 'warning' if count else 'passed')
     return {'check': CHECK, 'status': status,
             'scan_status': observation['status'], 'flagged': bool(count),
-            'evaluation_status': 'completed' if complete else 'incomplete',
+            'evaluation_status': 'not_applicable' if deletion_only else 'completed' if complete else 'incomplete',
             'reference_task_sha256': evidence.get('task_sha256'),
             'fingerprint_version': evidence.get('version'),
             'matched_files': count, 'changed_files': total, 'matched_file_fraction': fraction,
             'matched_file_percent': 100 * fraction,
             'rejection_threshold_percent': 50, 'above_rejection_threshold': above_threshold,
             'all_changed_files_found': bool(total and count == total and complete),
-            'deleted_files': evidence.get('deleted_files', []), 'files': files,
+            'deleted_files': deleted, 'skipped_deleted_files': deleted,
+            'deletion_policy': 'Deleted files have no post-solution contents to hash; excluded from exact-content matching and its denominator.',
+            'files': files,
             'stats': observation.get('stats', {}), 'errors': observation.get('errors', []),
             'scope': evidence.get('scope'), 'workspace': evidence['workspace'],
-            'reason': ('Incomplete scan or deleted reference files cannot be checked by exact file matching' if not complete else
+            'reason': ('Reference only deletes files; no added or modified file contents to check' if deletion_only else
+                       'Incomplete scan or no captured added or modified file contents' if not complete else
                        f'{count}/{total} changed files ({100 * fraction:.2f}%) already readable before solving; '
                        + ('above the 50% rejection threshold' if above_threshold else 'flagged without rejection') if count else
                        'No exact copies of the captured reference changes found')}
@@ -199,9 +217,12 @@ async def run_checks(sources, items, out, args):
             else:
                 try:
                     evidence = collect(task, args.out, records)
-                    if not evidence['files']:
+                    if not evidence['files'] and evidence.get('deleted_files'):
+                        result = verdict(evidence, {'status': 'not_applicable', 'files': []})
+                    elif not evidence['files']:
                         raise ValueError('Reference produced no changed regular files in the captured workspace')
-                    result = await scan_task(task, out / task.name, args, evidence)
+                    else:
+                        result = await scan_task(task, out / task.name, args, evidence)
                 except Exception as exc:
                     result = {'check': CHECK, 'status': 'error', 'scan_status': 'incomplete', 'reason': str(exc)}
             item = by_name[task.name]

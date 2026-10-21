@@ -261,6 +261,6 @@ async def review(source, staged, out, args, agent, model):
                     await environment.stop(delete=True)
                 except Exception as exc:
                     errors.append(f'{attempt}: environment cleanup failed: {exc}')
-    return {'status': 'error' if errors else ('findings' if any(v['outcome'] == 'fail' for d in verdicts for v in d['checks'].values()) else 'passed'),
+    return {'status': 'error' if errors else ('findings' if any(v['outcome'] in ('fail', 'incomplete') for d in verdicts for v in d['checks'].values()) else 'passed'),
             'findings': errors, 'verdicts': verdicts, 'automatic_skips': skipped, 'evidence_mode': 'image', 'inspection_attempts': records, 'review_checkpoint': str(cache),
             'usage': {'trials': usage, 'expected_trials': runs, 'summary': summarize_rows(usage, runs, 1)}}

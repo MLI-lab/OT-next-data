@@ -415,10 +415,10 @@ The repository leak checks (git history and timestamps) are task-quality checks
 as well; they run in stage 1 because they need the container. See "Repository
 leak checks" there.
 
-`reference-solution-leak` runs in stage 4. Stage 3 records SHA-256 hashes and
+`reference-solution-leak` runs in stage 4. Stage 2 records SHA-256 hashes and
 sizes of regular files added or changed by the reference solution, comparing
 the agent workspace immediately before and after solving, before verification.
-Stage 4 reuses these fingerprints from a successful stage-3 report in the same
+Stage 4 reuses these fingerprints from a successful stage-2 report in the same
 output directory and scans a fresh agent environment after its normal setup and
 healthcheck. It never uploads the reference solution or hidden tests to the
 searched environment. Task content must match the fingerprint evidence;
@@ -436,14 +436,21 @@ counts files, not how much of the required behavior is solved.
 
 This check uses prepared Apptainer images (`OT_IMAGES_PREPARED=1`), so cache
 misses cannot trigger builds. It starts a disposable container, but does not
-rerun the reference solution. Missing fingerprints, unavailable Python 3,
+rerun the reference solution. The probe uses an existing Python 3.8+ interpreter
+from `PATH`, `/usr/bin`, `/usr/local/bin` or `/opt/*/bin`, including image-baked
+grader runtimes absent from `PATH`. It runs in isolated mode and does not install
+packages or change cached images. Missing fingerprints, unavailable Python 3,
 timeouts, conflicting attempts, unsupported backends and scan errors are
 incomplete, never passes. Tasks without a reference solution are not applicable.
 Fingerprint capture requires a fresh reference trial, not container reuse after
 verification. Capture covers regular-file contents under the initial working
 directory, excluding Git metadata; changes outside that workspace and
-permission-only changes are not covered. Deleted files are recorded but cannot
-be matched and prevent a complete verdict. The search covers readable regular
+permission-only changes are not covered. Deleted files have no post-solution
+contents to hash. They are explicitly recorded as skipped and excluded from the
+matching denominator; added and modified files are still checked normally.
+A reference that only deletes files is `not_applicable` for this content check,
+not a leak-free pass. An empty capture with no deletions remains incomplete.
+The search covers readable regular
 files outside `/proc`, `/sys` and `/dev`, including installed packages and caches;
 it does not unpack archives or inspect compiled representations. Exact matches
 can be legitimate existing code and require review before exclusion.

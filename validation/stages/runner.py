@@ -358,7 +358,7 @@ async def run_review_async(number, source, item_dir, args, upstream, references=
         await repair_criteria(result, partial, source, item_dir, args, upstream, references, suffixes)
     if result['status'] not in ('failed', 'error', 'previewed'):
         result['status'] = 'findings' if any(
-            v['outcome'] == 'fail' for data in result['verdicts'] for v in data['checks'].values()) else 'passed'
+            v['outcome'] in ('fail', 'incomplete') for data in result['verdicts'] for v in data['checks'].values()) else 'passed'
     return result
 
 

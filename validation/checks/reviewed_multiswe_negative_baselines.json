@@ -1070,5 +1070,69 @@
     "acceptance_class": "expected-baseline-build-or-import-failure",
     "operator_decision": "2026-10-20: explicitly accept Caddy-6229, Caddy-6606, Async-1078 and Go-zero-2357 as no-op checker false positives. Exact saved results only.",
     "diagnostic_review": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/records.json"
+  },
+  "checkstyle__checkstyle-7932": {
+    "reviewed": "2026-10-21",
+    "report_item_sha256": "e3307c38932962d5b67dd2f639a5704615dcf949a04ef3233b275a89711b06c0",
+    "oracle_report_item_sha256": "b533b87c29b861b9e34e0beb122897b480376116cd2a50a7a3a1c1af8df5beaf",
+    "oracle_status": "passed",
+    "oracle_rewards": [
+      1.0
+    ],
+    "report": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/nop-manual-review-20261021/review.json",
+    "evidence_archive": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/oom-8g-rerun/batch-01/results/submissions/43f483b02cbd/evidence.tar.gz",
+    "reference_patch_sha256": "222aa83c1aa5802434fdc7b69d7e95698f6439d66c0509f789d4e5507509a884",
+    "reason": "No-op test compilation fails because RequireEmptyLineBeforeBlockTagGroupCheck and its message constant are absent. The reference patch adds that production class and constant.",
+    "acceptance_class": "expected-baseline-build-or-import-failure",
+    "observed_rewards": [],
+    "operator_decision": "User requested individual inspection and manual acceptance where passing reference and baseline evidence support it. Numeric rewards remain unchanged."
+  },
+  "checkstyle__checkstyle-8401": {
+    "reviewed": "2026-10-21",
+    "report_item_sha256": "ada6dcaaeaedec21228198c39a46b401917b7c0a6f839233d3aad06a3e5c63b3",
+    "oracle_report_item_sha256": "92f890339fe62c96a5f14aaff8a7f1082169f5df62771f52b242b4d6e8afbe1c",
+    "oracle_status": "passed",
+    "oracle_rewards": [
+      1.0
+    ],
+    "report": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/nop-manual-review-20261021/review.json",
+    "evidence_archive": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/oom-8g-rerun/batch-02/results/submissions/037a43cc84ae/evidence.tar.gz",
+    "reference_patch_sha256": "deaf9d3aa6b8a6c7b47584490c56af6fb1808c09a9ae1c10e6806b113b017642",
+    "reason": "No-op test compilation fails because GeneratedJavaTokenTypes.PATTERN_VARIABLE_DEF is absent. The reference patch adds the grammar token and TokenTypes constant.",
+    "acceptance_class": "expected-baseline-build-or-import-failure",
+    "observed_rewards": [],
+    "operator_decision": "User requested individual inspection and manual acceptance where passing reference and baseline evidence support it. Numeric rewards remain unchanged."
+  },
+  "checkstyle__checkstyle-8743": {
+    "reviewed": "2026-10-21",
+    "report_item_sha256": "0ad4ed264fffa1c1ae7f14fefd39e09cc38451a0a882b6de50864ca77c0510bd",
+    "oracle_report_item_sha256": "7234e58276cc420528adc0a7f7b944a38c530982df330921a8045d255231a1e9",
+    "oracle_status": "passed",
+    "oracle_rewards": [
+      1.0
+    ],
+    "report": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/nop-manual-review-20261021/review.json",
+    "evidence_archive": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/oom-8g-rerun/batch-03/results/submissions/632ec943b319/evidence.tar.gz",
+    "reference_patch_sha256": "b00f26a1e1a88981bf6cbcd1af3af64f37e6e7a2cb614a5d90b363e2a0f3a12e",
+    "reason": "No-op test compilation fails because org.reflections and Definitions.INTERNAL_MODULES are absent. The reference patch adds the Maven dependency and INTERNAL_MODULES definition.",
+    "acceptance_class": "expected-baseline-build-or-import-failure",
+    "observed_rewards": [],
+    "operator_decision": "User requested individual inspection and manual acceptance where passing reference and baseline evidence support it. Numeric rewards remain unchanged."
+  },
+  "checkstyle__checkstyle-9761": {
+    "reviewed": "2026-10-21",
+    "report_item_sha256": "e4890a54cb47f740e208eb567a86c72b826fd1bb3df3b9023cf9d080e8ff9641",
+    "oracle_report_item_sha256": "e91449ce2da23fd13b6a113fe0ad56487f70ddfd67837383fc501b7a2d1740a9",
+    "oracle_status": "passed",
+    "oracle_rewards": [
+      1.0
+    ],
+    "report": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/nop-manual-review-20261021/review.json",
+    "evidence_archive": "/hnvme/workspace/y500bb12-optiagent/multiswe-review-20261020/oom-8g-rerun/batch-04/results/submissions/156dda1fcd13/evidence.tar.gz",
+    "reference_patch_sha256": "0fc70a2f610c6e34bb7186a0dd3aeb226bb03fba4d6a3d1f4ebee6ab5407dffa",
+    "reason": "No-op test compilation fails because Violation is absent. The task requests renaming LocalizedMessage; the reference patch introduces Violation and updates its callers.",
+    "acceptance_class": "expected-baseline-build-or-import-failure",
+    "observed_rewards": [],
+    "operator_decision": "User requested individual inspection and manual acceptance where passing reference and baseline evidence support it. Numeric rewards remain unchanged."
   }
 }
