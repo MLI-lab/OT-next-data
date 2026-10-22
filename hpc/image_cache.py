@@ -2,7 +2,7 @@
 import argparse
 from contextlib import contextmanager
 import tarfile
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
@@ -91,7 +91,16 @@ def bundle_directory(bundle, scratch):
         directory = Path(temporary) / bundle_name(bundle)
         directory.mkdir()
         with tarfile.open(bundle) as archive:
-            members = archive.getmembers()
+            members = []
+            for member in archive:
+                # PAX size describes stored bytes, not the GNU sparse real size.
+                # Correct both the extracted size and the next header offset.
+                if member.sparse is not None and 'GNU.sparse.realsize' in member.pax_headers:
+                    member.size = int(member.pax_headers['GNU.sparse.realsize'])
+                    data_size = sum(length for _, length in member.sparse)
+                    archive.offset = member.offset_data + (
+                        (data_size + tarfile.BLOCKSIZE - 1) // tarfile.BLOCKSIZE * tarfile.BLOCKSIZE)
+                members.append(member)
             names = [m.name for m in members]
             if len(set(names)) != len(names) or any(Path(m.name).name != m.name or not m.isfile() for m in members):
                 raise ValueError('Unsafe packed image bundle')
@@ -134,12 +143,12 @@ def restore(bundle, target):
 
 def prepare_images(tasks, images, shared, args):
     """Run outside task timers; independent srun steps enforce build-only resources."""
-    from harbor_patches.image_context import environment_dir_hash_truncated, environment_dir_hash
+    from harbor_patches.image_context import task_dockerfiles, environment_dir_hash_truncated, environment_dir_hash
     images, shared = Path(images), Path(shared)
     selected = {}
     task_paths = {}
     for task in tasks:
-        for dockerfile in task.rglob('Dockerfile'):
+        for dockerfile in task_dockerfiles(task):
             key = environment_dir_hash_truncated(dockerfile.parent)
             selected.setdefault(key, (task.name, dockerfile))
             task_paths.setdefault(key, task)
@@ -258,10 +267,22 @@ def prepare_images(tasks, images, shared, args):
                 record.update(status='error', error=f'Cannot release image scratch: {exc}')
         return record
 
-    with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        for record in pool.map(prepare_one, selected.items()):
+    pool = ThreadPoolExecutor(max_workers=concurrency)
+    try:
+        pending = [pool.submit(prepare_one, item) for item in selected.items()]
+        for future in as_completed(pending):
+            record = future.result()
             records.append(record)
-            (images / 'preparation.json').write_text(json.dumps(records, indent=2))
+            temporary = images / 'preparation.json.tmp'
+            temporary.write_text(json.dumps(records, indent=2))
+            temporary.replace(images / 'preparation.json')
+    except BaseException:
+        # Return to the worker's evidence archiver immediately on allocation
+        # signals. Waiting for all queued builds consumes Slurm's cleanup grace.
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    else:
+        pool.shutdown(wait=True)
     return records
 
 
@@ -327,13 +348,29 @@ def main():
     # explicitly forward the configured proxy just as task containers do.
     patch.configure_explicit_host_network(force=True)
     patch.worker._parse_copies = patch.parse_copies_docker_semantics
-    from harbor_patches.image_build import build_budget_commands
-    patch.worker.subprocess.run = build_budget_commands(patch.worker.subprocess.run, args.timeout_sec or None)
+    from harbor_patches.docker_path import (definition_commands, deferred_baker, logical_lines,
+        scoped_run_lines, ordered_definition_environment, scoped_deferred_environment)
+    patch.worker._dockerfile_logical_lines = logical_lines(patch.worker._dockerfile_logical_lines)
+    patch.worker._bake_deferred_overlay = deferred_baker(
+        scoped_deferred_environment(patch.worker._bake_deferred_overlay, patch.worker), patch.worker)
+    from harbor_patches.image_build import authenticated_registry_commands, build_budget_commands
+    patch.worker.subprocess.run = authenticated_registry_commands(
+        build_budget_commands(patch.worker.subprocess.run, args.timeout_sec or None))
+    # The budget runner launches Popen directly. Definition rewrites must wrap
+    # it, or build commands never reach them.
+    patch.worker.subprocess.run = definition_commands(patch.worker.subprocess.run)
+    patch.worker.subprocess.run = ordered_definition_environment(patch.worker.subprocess.run)
+    from harbor_patches.image_build import image_tmp_build_mounts
+    patch.worker.subprocess.run = image_tmp_build_mounts(patch.worker.subprocess.run)
     if args.timeout_sec == 0:
         os.environ['OT_IMAGE_BUILD_NO_TIMEOUT'] = '1'
     patch.worker.subprocess.run = patch.run_container_commands(patch.worker.subprocess.run)
     from harbor_patches.image_build import certificate_build_mountpoints, file_backed_build_scripts, logged_build_commands
     patch.worker.subprocess.run = certificate_build_mountpoints(patch.worker.subprocess.run)
+    from harbor_patches.image_build import definition_build_home
+    patch.worker.subprocess.run = definition_build_home(patch.worker.subprocess.run)
+    from harbor_patches.image_build import definition_build_workdir
+    patch.worker.subprocess.run = definition_build_workdir(patch.worker.subprocess.run)
     if os.environ.get('OT_IMAGE_BUILD_ARTIFACTS'):
         from harbor_patches.image_build import artifact_build_mount
         patch.worker.subprocess.run = artifact_build_mount(
@@ -359,9 +396,7 @@ def main():
         # so its exit status is checked by the enclosing build script.
         dockerfile = context / 'Dockerfile'
         lines = patch.worker._dockerfile_logical_lines(str(dockerfile))
-        dockerfile.write_text('\n'.join(
-            'RUN /bin/sh -ec ' + shlex.quote(line[4:].strip())
-            if line.upper().startswith('RUN ') else line for line in lines) + '\n')
+        dockerfile.write_text('\n'.join(scoped_run_lines(lines)) + '\n')
         patch.worker.ApptainerInstance._build_sif(None, str(context / 'Dockerfile'), str(args.output))
         verify_image_runtime(args.output, patch.worker.APPTAINER)
 

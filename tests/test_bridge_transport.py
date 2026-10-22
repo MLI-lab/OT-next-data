@@ -84,6 +84,39 @@ def test_lost_submission_responses_do_not_duplicate_execution(live_bridge):
     assert all(counts['/env/' + op] == 2 for op in ('create', 'exec', 'upload'))
 
 
+def test_cancel_fences_queued_and_late_commands_without_affecting_other_envs(live_bridge):
+    server, base, dropped, counts = live_bridge
+    transport = client.BridgeClient()
+
+    async def scenario():
+        first = await transport.post(base + '/env/create', {'task_name': 'first'})
+        finish_one(base, {})
+        second = await transport.post(base + '/env/create', {'task_name': 'second'})
+        finish_one(base, {})
+        env_id = first['env_id']
+        old = await transport.post(base + '/env/exec', {'env_id': env_id, 'command': 'old'})
+        assert server._jobs[old['job_id']]['payload']['command_generation'] == 0
+        dropped.append('/env/cancel')
+        cancellation = asyncio.create_task(transport.cancel_environment(base, env_id))
+        while not server._envs[env_id].get('cancellation'):
+            await asyncio.sleep(.01)
+        generation = server._envs[env_id]['command_generation']
+        assert generation == 1  # Lost response must not issue two cancellations.
+        with pytest.raises(urllib.error.HTTPError):
+            await transport.post(base + '/env/exec', {'env_id': env_id, 'command': 'too late'})
+        other = await transport.post(base + '/env/exec', {'env_id': second['env_id'], 'command': 'other'})
+        assert server._jobs[other['job_id']]['payload']['command_generation'] == 0
+        request(base, '/worker/cancelled', {'env_id': env_id, 'generation': generation})
+        await cancellation
+        new = await transport.post(base + '/env/exec', {'env_id': env_id, 'command': 'grade preserved files'})
+        assert server._jobs[new['job_id']]['payload']['command_generation'] == 1
+        # A delayed HTTP submission from before cancellation cannot bypass the fence.
+        stale = client.BridgeClient()
+        with pytest.raises(urllib.error.HTTPError):
+            await stale.post(base + '/env/exec', {'env_id': env_id, 'command': 'stale'})
+    asyncio.run(scenario())
+
+
 def test_lost_status_and_terminal_result_are_retrievable(live_bridge):
     server, base, dropped, counts = live_bridge
     transport = client.BridgeClient()
@@ -294,3 +327,21 @@ def test_environment_operations_require_deduplication_headers(live_bridge):
         request(base, '/env/create', {'environment_name': 'unsafe'})
     assert exc.value.code == 400
     assert not server._envs and not server._jobs
+
+
+def test_chunk_metadata_survives_queue_and_retry(live_bridge):
+    server, base, dropped, counts = live_bridge
+    transport = client.BridgeClient()
+    async def scenario():
+        created = await transport.post(base + '/env/create', {'task_name': 'example'})
+        finish_one(base, {})
+        metadata = {'id': 'a' * 32, 'offset': 0, 'final': False}
+        dropped.append('/env/upload')
+        response = await transport.post(base + '/env/upload', {
+            'env_id': created['env_id'], 'target_path': '/inputs', 'is_dir': True,
+            'file_b64': 'eA==', 'upload_chunk': metadata})
+        job = finish_one(base, {})
+        assert job['job_id'] == response['job_id']
+        assert job['payload']['upload_chunk'] == metadata
+        assert request(base, '/worker/get_job?worker_id=node-0')['job_id'] is None
+    asyncio.run(scenario())

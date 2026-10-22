@@ -1,0 +1,50 @@
+{
+  "task_count": 199,
+  "trial_count": 199,
+  "expected_trials": 199,
+  "metrics": {
+    "input_tokens": {
+      "total": 26634300,
+      "known_subtotal": 26634300,
+      "trials_with_data": 199,
+      "average_per_task": 133840.70351758794
+    },
+    "cache_read_input_tokens": {
+      "total": 20114088,
+      "known_subtotal": 20114088,
+      "trials_with_data": 199,
+      "average_per_task": 101075.81909547739
+    },
+    "cache_write_input_tokens": {
+      "total": 6518282,
+      "known_subtotal": 6518282,
+      "trials_with_data": 199,
+      "average_per_task": 32755.18592964824
+    },
+    "output_tokens": {
+      "total": 808651,
+      "known_subtotal": 808651,
+      "trials_with_data": 199,
+      "average_per_task": 4063.572864321608
+    },
+    "reported_cost_usd": {
+      "total": 72.3498136,
+      "known_subtotal": 72.3498136,
+      "trials_with_data": 199,
+      "average_per_task": 0.36356690251256285
+    },
+    "estimated_cost_usd": {
+      "total": null,
+      "known_subtotal": null,
+      "trials_with_data": 0,
+      "average_per_task": null
+    },
+    "cost_usd": {
+      "total": 72.3498136,
+      "known_subtotal": 72.3498136,
+      "trials_with_data": 199,
+      "average_per_task": 0.36356690251256285
+    }
+  },
+  "scope": "All review attempts, including failed reviews; input includes cache. Cost excludes GPU/container compute."
+}

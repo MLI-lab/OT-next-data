@@ -71,6 +71,9 @@ For teacher generation and LLM reviews:
 | `--serve-model MODEL` | Start a local model configured in `config/models.py`. |
 | `--api-base URL` | Connect to an existing model endpoint. |
 | `--attempts K` | Attempts per task, default 1. In stage 6 this is `k` for solved counts and pass@k. Also sets repetitions for reference, no-op, and review trials. |
+| `--review-runs N` | Independent stage-2 judge runs per task; defaults to `--attempts`. |
+| `--review-retries N` | Repair rounds for missing/invalid judgments, default 2. |
+| `--review-resume` / `--no-review-resume` | Resume matching stage-2 checkpoints (enabled by default), or request fresh reviews. |
 | `--review-agent`, `--review-model` | Override stage 2 defaults; also apply to stage 8 unless separately overridden. |
 | `--analysis-agent`, `--analysis-model` | Override only the stage 8 judge. |
 | `--review-local` | Use the locally served model for reviews; requires `--serve-model`. |
@@ -94,6 +97,16 @@ or space), the evidence, `execution.json` and `report/` go to
 that location is full too.
 
 Run `python validation/run.py --help` for all options.
+
+Large contracts run as an array of shards under the same contract:
+
+```bash
+python validation/shards.py plan --contract "$OT_WORKSPACE/contracts/check.json" --count 40 --out "$OT_WORKSPACE/runs/check" --time 06:00:00 --submit
+python validation/shards.py merge "$OT_WORKSPACE/runs/check" --contract "$OT_WORKSPACE/contracts/check.json" --out "$OT_WORKSPACE/runs/check/merged/report"
+```
+
+Each shard validates one slice of the frozen task list; `merge` writes one report per stage
+once every slice has reported, and `publish.py` takes the merged directory like any run.
 
 ## Publishing after validation
 

@@ -1,0 +1,42 @@
+#!/bin/sh
+# Execution evidence for Maven verifiers, first on PATH for the verifier call only.
+# Executed tests are recorded from the JUnit reports Surefire writes (junit_reports.sh).
+# This shim records the one case without reports: the outer `mvn` of this call
+# ending before any test ran (a compile failure is a collection error, a clean
+# build that ran no tests executed nothing). Nested mvn calls run the real binary.
+here=$(cd "$(dirname "$0")" && pwd -P)
+real=
+saved_ifs=$IFS
+IFS=:
+for dir in $PATH; do
+    [ -n "$dir" ] || continue
+    [ "$(cd "$dir" 2>/dev/null && pwd -P)" = "$here" ] && continue
+    if [ -f "$dir/mvn" ] && [ -x "$dir/mvn" ]; then real=$dir/mvn; break; fi
+done
+IFS=$saved_ifs
+if [ -z "$real" ]; then
+    echo "mvn: command not found" >&2
+    exit 127
+fi
+token=$OT_VERIFIER_EXECUTION_TOKEN
+if [ -z "$token" ] || [ "$OT_MAVEN_EXECUTION_ACTIVE" = "$token" ]; then
+    exec "$real" "$@"
+fi
+start=$(mktemp "${TMPDIR:-/tmp}/ot-mvn-start.XXXXXX") || exec "$real" "$@"
+OT_MAVEN_EXECUTION_ACTIVE=$token "$real" "$@"
+code=$?
+reports=$(find . \( -name node_modules -o -name .git \) -prune -o -type f -name 'TEST-*.xml' -newer "$start" -print 2>/dev/null | head -n 1)
+rm -f "$start"
+if [ -z "$reports" ]; then
+    id=mvn-$(date +%s%N 2>/dev/null || date +%s)-$$
+    if [ "$code" -eq 0 ]; then status=5 collection=0; else status=2 collection=1; fi
+    # The call's own log keeps records out of the output the task's grader parses.
+    log=${OT_VERIFIER_EXECUTION_LOG:-/dev/stdout}
+    { [ -w "$log" ] || [ "$log" = /dev/stdout ]; } || log=/dev/stdout
+    {
+    printf 'OT_VERIFIER_EXECUTION:%s:BEGIN:{"id":"%s","version":1}\n' "$token" "$id"
+    printf 'OT_VERIFIER_EXECUTION:%s:END:{"collection_error_files":[],"collection_errors":%d,"executed":0,"exitstatus":%d,"finished":true,"id":"%s","maven_exit":%d,"setup_errors":0,"skipped":0,"source":"maven","version":1}\n' \
+        "$token" "$collection" "$status" "$id" "$code"
+    } >> "$log"
+fi
+exit "$code"

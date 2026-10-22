@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
 
 
 def digest(path):
@@ -81,6 +82,19 @@ def build(environment, output):
         print(pointer)
 
 
+def refresh_times(root):
+    """Give every staged file the staging time.
+
+    Archives and copies keep the source's months-old modification times. Node-local
+    scratch can be cleaned by age while a job runs (on CLAIX every shard running at
+    23:00 lost its Python standard library), so staged files must look new.
+    """
+    now = time.time()
+    for path in [root, *root.rglob('*')]:
+        if not path.is_symlink():
+            os.utime(path, (now, now))
+
+
 def stage(bundle, source, root):
     root = root.resolve()
     root.mkdir(parents=True)  # Never reuse a partially staged runtime.
@@ -115,6 +129,7 @@ def stage(bundle, source, root):
     pins = json.loads((code / 'validation/upstream/upstream.lock.json').read_text())
     for name in pins:
         shutil.copytree(source / 'external' / name, code / 'external' / name, symlinks=False)
+    refresh_times(root)
     values = {'VALIDATION_REPO': str(code), 'OT_NEXT_DATA': str(code),
         'HARBOR_BRIDGE_VENV': str(root / 'env'), 'VIRTUAL_ENV': str(root / 'env'),
         'PYTHONPATH': str(code), 'PYTHONNOUSERSITE': '1',

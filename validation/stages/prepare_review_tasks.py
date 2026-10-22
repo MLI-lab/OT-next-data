@@ -7,10 +7,10 @@ from pathlib import Path
 import tomllib
 
 from validation.upstream import module
-from validation.rubrics import harbor_rubric, implementation_rubric
+from validation.rubrics import harbor_rubric, implementation_rubric, select_criteria
 
 
-def stage_review(source, destination, upstream, references=None, suffixes=None, rubric_kind='terminal-bench'):
+def stage_review(source, destination, upstream, references=None, suffixes=None, rubric_kind='terminal-bench', criteria=None, review_format=None, evidence_mode='image'):
     stager = module(upstream / 'scripts/review/stage_task.py', 'tb_stage_review')
     # Reuse upstream's production prompt and verifier, apply our rubric diffs,
     # and replace its GitHub-fetch Dockerfile with per-trial setup-file uploads.
@@ -21,8 +21,16 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
         rubric, skipped = implementation_rubric(rubric_path, references, suffixes)
     elif rubric_kind == 'harbor':
         rubric, skipped = harbor_rubric()
+    elif rubric_kind in ('custom', 'river'):
+        from validation.rubrics.run_review import load
+        rubric, skipped = load(rubric_kind, review_format)
     else:
         raise ValueError(f'unknown implementation rubric: {rubric_kind}')
+    if review_format and rubric_kind not in ('custom', 'river'):
+        raise ValueError('--review-format is supported only for custom and river rubrics')
+    if tomllib.loads(rubric).get('review', {}).get('format') == 'classification' and criteria is not None:
+        raise ValueError('--review-criteria cannot restrict a single-category classification')
+    rubric, skipped = select_criteria(rubric, skipped, criteria)
     instruction = destination / 'instruction.md'
     # The production staging template always embeds Terminal-Bench's rubric;
     # replace that exact source regardless of which effective rubric is chosen.
@@ -30,13 +38,22 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     text = instruction.read_text()
     if text.count(original_rubric) != 1:
         raise ValueError('expected exactly one embedded upstream rubric')
-    instruction.write_text(text.replace(original_rubric, rubric))
+    text = text.replace(original_rubric, rubric)
+    if rubric_kind in ('custom', 'river'):
+        from validation.rubrics.run_review import prompt, install_verifier
+        text = prompt(rubric, source.name, evidence_mode)
+        install_verifier(destination)
+    instruction.write_text(text)
     (destination / 'rubric.toml').write_text(rubric)
+    if rubric_kind in ('custom', 'river'):
+        (destination / 'setup_files/review-rubric.toml').write_text(rubric)
+        (destination / 'setup_files/rubric.toml').write_text(rubric)
     (destination / 'rubric-skips.json').write_text(json.dumps(skipped, indent=2) + '\n')
     env = destination / 'environment'
     original = (env / 'Dockerfile').read_text()
     header = original.split('RUN git init /tmp/source', 1)[0]
-    (env / 'Dockerfile').write_text(header + 'WORKDIR /app\nRUN ln -s /setup_files/task-under-review /app/task-under-review\n')
+    (env / 'Dockerfile').write_text(header + 'WORKDIR /app\nRUN ln -s /setup_files/task-under-review /app/task-under-review\n'
+        + ('RUN ln -s /setup_files/rubric.toml /app/rubric.toml\n' if rubric_kind in ('custom', 'river') else ''))
     shutil.copytree(source, destination / 'setup_files' / 'task-under-review' / source.name)
     # Explicit artifact destination keeps host-side validation independent of
     # container absolute paths. Schema is checked by our result reader too.
@@ -88,9 +105,54 @@ def stage_analysis(source_task, trial, destination, upstream):
     return destination
 
 
-def read_verdicts(path, rubric_path, analysis=False):
+def read_partial_verdicts(path, rubric_path):
+    """Valid judgments under exact rubric names, plus the names still unjudged.
+
+    Unrecognized names are reported, never mapped onto rubric criteria. Output
+    that is not a JSON object with a `checks` object, or has no valid judgment
+    at all, is not a partial review and raises.
+    """
     data = json.loads(path.read_text())
     criteria = {c['name'] for c in tomllib.loads(rubric_path.read_text())['criteria']}
+    checks = data.get('checks') if isinstance(data, dict) else None
+    if not isinstance(checks, dict):
+        raise ValueError(f'{path}: verdicts have no checks object')
+    valid = {name: verdict for name, verdict in checks.items() if name in criteria
+             and isinstance(verdict, dict) and verdict.get('outcome') in ('pass', 'fail', 'not_applicable', 'incomplete')
+             and isinstance(verdict.get('explanation'), str) and verdict['explanation'].strip()}
+    if not valid:
+        raise ValueError(f'{path}: no valid rubric judgment')
+    return valid, sorted(criteria - valid.keys()), sorted(set(checks) - criteria)
+
+
+def collect_verdict(result, trial, path, rubric_path, skipped, analysis=False):
+    """Add one judge output to result: complete verdicts, a partial review for
+    criteria repair (stage 5 only), or a finding that fails the review."""
+    try:
+        data = read_verdicts(path, rubric_path, analysis=analysis)
+    except (OSError, ValueError) as exc:
+        try:
+            if analysis:
+                raise exc
+            valid, missing, unexpected = read_partial_verdicts(path, rubric_path)
+        except (OSError, ValueError):
+            result['status'] = 'failed'
+            result['findings'].append(f'{Path(trial).name}: invalid or missing reviewer output: {exc}')
+            return
+        result.setdefault('partial', []).append({'trial': str(trial), 'checks': valid,
+                                                 'missing': missing, 'unexpected': unexpected})
+        return
+    data['checks'].update(skipped)
+    result['verdicts'].append({'trial': str(trial), **data})
+
+
+def read_verdicts(path, rubric_path, analysis=False):
+    data = json.loads(path.read_text())
+    config = tomllib.loads(rubric_path.read_text())
+    if config.get('review'):
+        from validation.rubrics.run_review import read_output
+        return read_output(path, config)
+    criteria = {c['name'] for c in config['criteria']}
     checks = data.get('checks')
     if not isinstance(checks, dict) or set(checks) != criteria:
         raise ValueError(f'{path}: missing or unexpected rubric criteria')

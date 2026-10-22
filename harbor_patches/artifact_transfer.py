@@ -57,6 +57,17 @@ def install(bridge):
             return await download(self, source_env=source_env, artifacts_dir=artifacts_dir,
                                   artifact=artifact, convention_source=convention_source)
         if not await source_env.is_dir(artifact.source, user='root'):
+            # The bridge client reports an empty file as "no data" (its base64 payload is
+            # empty), so a valid zero-byte artifact such as a no-change submission patch
+            # would fail here. Keep the existence check, transfer the emptiness directly.
+            probe = await source_env.exec(f'test -f {shlex.quote(artifact.source)} && wc -c < {shlex.quote(artifact.source)}',
+                                          timeout_sec=30, user='root')
+            if probe.return_code == 0 and (probe.stdout or '').strip() == '0':
+                host = self._host_path(artifacts_dir, artifact, convention_source=convention_source)
+                host.parent.mkdir(parents=True, exist_ok=True)
+                host.write_bytes(b'')
+                return ArtifactManifestEntry(source=artifact.source, type='file', status='ok',
+                                             destination=self._manifest_destination(artifacts_dir, host))
             result = await download(self, source_env=source_env, artifacts_dir=artifacts_dir,
                                     artifact=artifact, convention_source=convention_source)
             if result.status != 'ok':

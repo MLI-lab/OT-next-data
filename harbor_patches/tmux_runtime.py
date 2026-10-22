@@ -4,12 +4,24 @@ Harbor keeps the agent terminal in a tmux session. Upstream Harbor installs tmux
 startup bootstrap when an image lacks it; datasets such as Scale-SWE reference upstream
 Docker Hub images that ship without it. The bridge performs that installation itself,
 before the persistent tmux owner starts, so the image stays byte-identical to upstream
-and no per-task image rebuild is needed. Only tmux is installed, nothing is repaired.
+and no per-task image rebuild is needed. Only tmux is installed: no Python package is
+added and nothing is repaired, so the task runs in the published image.
 """
 
 LEGACY_INSTALL = (
     "if ! command -v tmux >/dev/null 2>&1; then "
     "  apt-get update -qq && apt-get install -y -qq tmux 2>/dev/null || true; "
+    "fi; "
+)
+
+# Harbor's proxychains workaround for another benchmark. Our prefix for the tmux socket makes Harbor
+# treat every run as proxied, so without this removal each container would get these packages.
+LEGACY_PIP_INSTALL = (
+    "pip install chardet 2>/dev/null || "
+    "python3 -m pip install chardet 2>/dev/null || true; "
+    "if ! command -v uv >/dev/null 2>&1; then "
+    "  pip install uv 2>/dev/null || "
+    "  python3 -m pip install uv 2>/dev/null || true; "
     "fi; "
 )
 
@@ -24,9 +36,20 @@ INSTALL = (
 )
 
 
-def without_runtime_install(script):
-    """Remove Harbor's own startup installer: the bridge already installed tmux before the bootstrap."""
-    return script.replace(LEGACY_INSTALL, '')
+def proxychains_configured(environ=None):
+    """Harbor's own condition for its proxy workaround: a proxychains host and port are set."""
+    import os
+    environ = os.environ if environ is None else environ
+    return bool(environ.get('BRIDGE_PROXY_HOST') and environ.get('BRIDGE_PROXY_PORT'))
+
+
+def without_runtime_install(script, environ=None):
+    """Remove Harbor's own startup installers: the bridge already installed tmux, and nothing else is added.
+
+    The pip workaround stays only where Harbor intends it, on a cluster that really uses proxychains.
+    """
+    script = script.replace(LEGACY_INSTALL, '')
+    return script if proxychains_configured(environ) else script.replace(LEGACY_PIP_INSTALL, '')
 
 
 def ensure_tmux(cmd, run):

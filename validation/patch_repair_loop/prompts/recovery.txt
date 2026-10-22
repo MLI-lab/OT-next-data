@@ -4,8 +4,10 @@ You may run diagnostics and repair files within editable_paths. Preserve task in
 
 Choose one action:
 - wait: An existing job or temporary infrastructure problem needs time. Explain what must recover.
-- restart: Resume the saved checkpoint, or restart stage 3 when changed inputs require fresh validation. Supply instructions for the next agent, including how to finish partial work.
+- restart: Resume the saved checkpoint, or restart stage 1 when changed inputs require fresh validation. Supply instructions for the next agent, including how to finish partial work.
 - escalate: Shared infrastructure may need a fix. Explain the suspected cause and evidence for the stronger supervisor model to judge.
+
+Also escalate undersized allocations or shard sizes to the supervisor. It can approve resource_changes for future jobs, including walltime, image-build resources and sharding, without editing the frozen base config. Do not stop solely because these settings are frozen or repeatedly resume a terminal failed job.
 - stop: Explain the credentials, permissions, or other decision needed to proceed.
 
 The runner executes restart requests. Do not launch another controller or submit validation/publication jobs. Never create a duplicate PR when publication status is uncertain.

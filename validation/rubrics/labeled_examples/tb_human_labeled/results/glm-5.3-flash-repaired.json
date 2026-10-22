@@ -1,0 +1,1260 @@
+{
+  "model": "glm-5.3-flash",
+  "policy": "Original and retry judgments are reported separately; a retry is not an independent stability repetition.",
+  "complete_reviews": 7,
+  "reviews": [
+    {
+      "group": "tb_human_labeled-task-0002-repeat-0",
+      "original_group": "tb_human_labeled",
+      "repeat": 0,
+      "task_id": "fail-rubric-anti-cheat",
+      "directory": "task-0002",
+      "original_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0002/results/task-0002/verdicts.json",
+      "original_sha256": "e239abccddef58399f2eb6ba959b033e682221f4cde3b28237173abb31e9d68e",
+      "all_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "instruction_concision",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solution_quality",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "retained_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "requested_criteria": [
+        "instruction_concision",
+        "solution_quality"
+      ],
+      "status": "completed_after_repair",
+      "verdict": {
+        "checks": {
+          "verifiable": {
+            "outcome": "fail",
+            "explanation": "The check itself (test_state.py) is programmatic and deterministic, but tests/test.sh performs runtime network installs at verify time: 'apt-get update && apt-get install -y curl', 'curl -LsSf https://astral.sh/uv/0.9.7/install.sh | sh', and uvx downloading pytest from PyPI. This verifier tooling should be baked into a tests/Dockerfile (which does not even exist for this task), exactly the anti-pattern the criterion rejects."
+          },
+          "solvable": {
+            "outcome": "pass",
+            "explanation": "solution/solve.sh writes the correct SHA256 ('echo -n \"benchmark\" | sha256sum') and the test computes the identical expected value (hashlib.sha256(b\"benchmark\").hexdigest()), so the provided solution passes. It is implementable in minutes by anyone who knows what to do."
+          },
+          "interesting": {
+            "outcome": "fail",
+            "explanation": "Computing the hash of a fixed string and writing it to a file is a one-command artificial exercise with no real-world problem to solve; the metadata itself admits it is a 'Test task for QA pipeline'. Nobody would get paid to solve this as a problem."
+          },
+          "outcome_verified": {
+            "outcome": "pass",
+            "explanation": "The test grades the final deliverable (content of /app/hash.txt) and the instruction states only the end state, with no process or tool constraints. The agent is free to compute the hash any way it likes."
+          },
+          "anti_cheat_robustness": {
+            "outcome": "fail",
+            "explanation": "The final answer is baked into the agent image at build time: environment/Dockerfile writes the SHA256 of 'benchmark' to /app/.secret-answer.txt, which the root agent can read via trivial file inspection and copy to /app/hash.txt. This is a textbook answer leak through agent-image environment files/image layers."
+          },
+          "task_security": {
+            "outcome": "pass",
+            "explanation": "All files contain only benign code directly related to the task: a hash computation, a file-content assertion, and a standard uv/pytest verify harness. There is no credential access, exfiltration to external endpoints, obfuscated payloads, prompt injection, or cross-task interference."
+          },
+          "functional_verification": {
+            "outcome": "pass",
+            "explanation": "The test executes an output check: it computes the expected hash via hashlib and asserts equality with the actual /app/hash.txt content. It does not grep source files for keywords, function names, or import patterns."
+          },
+          "deterministic_reproducible": {
+            "outcome": "pass",
+            "explanation": "The deliverable and expected value are fully deterministic (pinned sha256/hashlib), pytest==9.1.1 and pytest-json-ctrf==0.5.2 are pinned, and there is no live service dependency whose content is task-relevant. Results will not vary between runs."
+          },
+          "essential_difficulty": {
+            "outcome": "pass",
+            "explanation": "While the task is trivially easy (flagged under interesting/agentic), there is no formatting minutiae, arbitrary precision, or clerical burden in the instruction or tests, so failures would not stem from formatting edge cases. The criterion's failure mode does not apply."
+          },
+          "test_instruction_alignment": {
+            "outcome": "pass",
+            "explanation": "The instruction requires exactly one thing (SHA256 of 'benchmark' written to /app/hash.txt) and the single test asserts exactly that; no test assertion goes beyond the instruction and no instruction requirement is left untested. The test's use of .strip() only tolerates trailing whitespace and adds no new requirement."
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The task is solvable zero-shot with a single one-line command ('echo -n \"benchmark\" | sha256sum | awk ... > /app/hash.txt') requiring no environment exploration, tool use, debugging, or iteration. It does not test multi-step agentic interaction."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "The task is trivially auditable: the instruction, one-line solution, and single test assertion are mutually consistent and make sense to any reviewer, with expected values derived by the test itself rather than hardcoded."
+          },
+          "structured_data_schema": {
+            "outcome": "not_applicable",
+            "explanation": "The expected output is a plain text file containing a single hash string; there is no structured output (API, JSON, CSV, schema, config) that would require a normative schema specification."
+          },
+          "typos": {
+            "outcome": "pass",
+            "explanation": "All filenames, paths, commands, and variable names across instruction.md, task.toml, both Dockerfile/script files, and test_state.py are spelled correctly (e.g., sha256sum, pytest-json-ctrf, --ctrf, /app/hash.txt). No typos found."
+          },
+          "resource_configuration": {
+            "outcome": "pass",
+            "explanation": "All values are template defaults (verifier/agent timeout 120s, 1 cpu, 2048 MB, 10240 MB storage, 0 gpus), and those defaults happen to fit this task since the test suite runs in seconds and the expected effort is ~1 minute. They are not excessive or clearly too short, though the author appears to have taken them wholesale rather than tuned them."
+          },
+          "no_extraneous_files": {
+            "outcome": "fail",
+            "explanation": "The environment build bakes an unused scratch file, /app/.secret-answer.txt, into the agent image; nothing in the task (instruction, solve.sh, or tests) references or consumes it. It is a debug leftover that also constitutes the answer leak."
+          },
+          "artifact_efficiency": {
+            "outcome": "not_applicable",
+            "explanation": "task.toml configures no [[verifier.collect]] hooks or artifact entries at all; the deliverable is a tiny text file the verifier reads directly, so there is no artifact transfer to evaluate."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "not_applicable",
+            "explanation": "The verifier only reads and parses the agent-produced /app/hash.txt; it never executes agent code (no agent binaries run, no agent modules imported by pytest, which collects only /tests/test_state.py), so there is no execution surface to isolate."
+          },
+          "ctrf_reporting": {
+            "outcome": "pass",
+            "explanation": "The pytest-based verifier is invoked with 'pytest --ctrf /logs/verifier/ctrf.json /tests/test_state.py -rA', matching the standard CTRF pattern, so per-test results are emitted to the collected location."
+          },
+          "do_not_modify_enforced": {
+            "outcome": "not_applicable",
+            "explanation": "The instruction contains no constraint forbidding modification of, or requiring preservation of, any concrete artifact \u2014 it is a single-line goal statement."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single concise sentence: 'Compute the SHA256 hash of the string \"benchmark\" and write it to /app/hash.txt.' It uses an absolute path (/app/hash.txt), contains no headings, preamble, roleplay, or fluff, lists no tools/libraries, and describes what to achieve without hinting at how to do it. It reads as human-written and is auditable by a non-specialist."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh computes the hash at runtime by piping the string through 'echo -n \"benchmark\" | sha256sum | awk {print $1}', which is exactly the genuine computation an agent would perform; it does not echo a hardcoded final answer. I verified the command's output matches an independent hashlib computation (0e898208...d5bcc), and the script is short with no heredoc bloat."
+          }
+        }
+      },
+      "criterion_origin": {
+        "outcome_verified": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
+        "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
+        "reviewable": "original",
+        "artifact_efficiency": "original",
+        "test_instruction_alignment": "original",
+        "instruction_concision": "retry",
+        "deterministic_reproducible": "original",
+        "functional_verification": "original",
+        "anti_cheat_robustness": "original",
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
+      },
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0002-repeat-0/repeat-0/task-0002/results/task-0002/verdicts.json",
+      "retry_status": "complete"
+    },
+    {
+      "group": "tb_human_labeled-task-0003-repeat-0",
+      "original_group": "tb_human_labeled",
+      "repeat": 0,
+      "task_id": "fail-rubric-artifact-efficiency",
+      "directory": "task-0003",
+      "original_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0003/results/task-0003/verdicts.json",
+      "original_sha256": "180b1b84e1fad851420769bed6e080e5877d02ff408d8deb8ecbe3692fb87d60",
+      "all_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "instruction_concision",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solution_quality",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "retained_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "requested_criteria": [
+        "instruction_concision",
+        "solution_quality"
+      ],
+      "status": "completed_after_repair",
+      "verdict": {
+        "checks": {
+          "verifiable": {
+            "outcome": "pass",
+            "explanation": "Verification is a pinned pytest run (pytest==9.1.1, pytest-json-ctrf==0.5.2) over a deterministic random.seed(42) dataset \u2014 fully programmatic, deterministic, and fast. uv is baked into tests/Dockerfile at build time; the pinned pytest packages fetched by uvx in test.sh match the rubric's own endorsed standard CTRF pattern verbatim (baking pytest into tests/Dockerfile would be a marginal robustness improvement, not a flakiness defect)."
+          },
+          "solvable": {
+            "outcome": "pass",
+            "explanation": "solution/solve.sh is provided and verified working: simulating the environment's seed-42 dataset, it writes 9992563710 to /app/output/total.txt and the verification assertion passes. It is a one-liner implementable well within a few hours (expert_time_estimate_hours = 0.25)."
+          },
+          "interesting": {
+            "outcome": "pass",
+            "explanation": "Aggregating a CSV column into a report total is a realistic, if trivial, professional data-processing chore with marginal utility to analysts and scripting gigs. The metadata confirms the task's utility as a minimal QA scaffold, and the stated problem retains a real-world analogue."
+          },
+          "outcome_verified": {
+            "outcome": "pass",
+            "explanation": "The test grades the final end state only \u2014 /app/output/total.txt containing the correct integer \u2014 without constraining tools, commands, or procedure. The one-sentence instruction states what to achieve, not how."
+          },
+          "anti_cheat_robustness": {
+            "outcome": "fail",
+            "explanation": "The verifier recomputes the expected value from /app/data/records.csv as shipped in the post-agent artifact (artifacts = [\"/app\"]); since agents run as root and nothing prevents tampering, an agent can truncate the dataset to a header row and plant a matching 0 in total.txt to score reward 1 with zero computation \u2014 confirmed by simulation. Both Dockerfiles even carry comments flagging this design ('the task ships all of /app to the verifier as an artifact'; 'the verifier reads the reference dataset from the shipped /app artifact instead of baking its own pristine copy'), yet the fix (baking a pristine seed-42 copy into tests/Dockerfile and grading only total.txt) was not applied."
+          },
+          "task_security": {
+            "outcome": "pass",
+            "explanation": "All files (Dockerfiles, instruction.md, solve.sh, test.sh, test_state.py) contain only legitimate task setup and verification code: no credential access, no exfiltration, no obfuscated payloads, no prompt injection, no destructive operations. The astral.sh/uv installer and PyPI fetches are standard, justified tooling."
+          },
+          "functional_verification": {
+            "outcome": "pass",
+            "explanation": "The test executes actual computation (csv.DictReader over the records, integer comparison against the output file) and grades outputs, not source keywords or import patterns. No string matching is used."
+          },
+          "deterministic_reproducible": {
+            "outcome": "pass",
+            "explanation": "The dataset is pinned via random.seed(42) and generated at build time, verifier packages are pinned (pytest==9.1.1, pytest-json-ctrf==0.5.2, uv 0.9.7), and no live/mutable external services are involved. Repeated runs yield identical results."
+          },
+          "essential_difficulty": {
+            "outcome": "pass",
+            "explanation": "The format demand is a single word ('integer') and the test strips whitespace, so there are no formatting traps or arbitrary precision requirements that would drive failures for the wrong reasons. (This task's flaw is lack of agentic difficulty, not format-driven difficulty.)"
+          },
+          "test_instruction_alignment": {
+            "outcome": "pass",
+            "explanation": "Every instruction requirement \u2014 sum the amount column of /app/data/records.csv, write as integer to /app/output/total.txt \u2014 maps to the test's assertions, and the test introduces no requirements beyond the instruction. Paths and column names match exactly."
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The deliverable is attainable with a single command (a python one-liner that sums the column and writes the file), with no environment exploration, debugging, or iteration required \u2014 exactly the 'solvable by a single command' failure mode the criterion excludes."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "The task is simple and self-explaining: the instruction, verification, and solution all align and are auditable by a non-specialist. Expected values are derived by recomputation in the verifier rather than hardcoded, so the verification process is verifiable."
+          },
+          "structured_data_schema": {
+            "outcome": "not_applicable",
+            "explanation": "No structured output (JSON/CSV/config schema) is expected; the deliverable is a single integer documented explicitly in the instruction itself."
+          },
+          "typos": {
+            "outcome": "pass",
+            "explanation": "Filenames, paths (records.csv, total.txt, /app/data, /app/output, /tests/), commands, and variable/column names (id, account, amount) are consistent and typo-free across all files."
+          },
+          "resource_configuration": {
+            "outcome": "pass",
+            "explanation": "All values are template defaults, which are flagged but appropriate here: the task needs only seconds of CPU and ~2GB memory (a 4.5MB CSV sum), the 120s verifier timeout comfortably covers the pinned pytest run, and the 120s agent timeout suffices for a one-command deliverable. Difficulty is intellectual/clerical, not computational intensity."
+          },
+          "no_extraneous_files": {
+            "outcome": "pass",
+            "explanation": "The directory contains only required scaffold files: task.toml, instruction.md, environment/Dockerfile, solution/solve.sh, and tests/{Dockerfile, test.sh, test_state.py}. No editor cruft, backups, or unreferenced assets."
+          },
+          "artifact_efficiency": {
+            "outcome": "fail",
+            "explanation": "artifacts = [\"/app\"] transfers the entire agent tree \u2014 including the 4.5MB, build-time-fixed seed-42 reference dataset \u2014 to the verifier every trial, when the only agent-produced deliverable is /app/output/total.txt. The rubric requires build-time-fixed content to be baked into tests/Dockerfile rather than transferred (the agent's copy must never reach the grader), and both Dockerfiles' comments acknowledge this red-flag design; the artifact should have been narrowed to total.txt with a pristine baseline in the verifier image."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "not_applicable",
+            "explanation": "The verifier never executes agent-produced code: pytest imports only stdlib modules and merely parses agent-produced files (CSV, total.txt), so no privilege-dropping or reward-channel protection is needed."
+          },
+          "ctrf_reporting": {
+            "outcome": "pass",
+            "explanation": "The pytest verifier emits a per-test CTRF report via --ctrf /logs/verifier/ctrf.json and root derives reward.txt from pytest's exit code, exactly matching the standard pattern."
+          },
+          "do_not_modify_enforced": {
+            "outcome": "not_applicable",
+            "explanation": "The instruction contains no constraint protecting a concrete artifact from modification (no 'do not modify'/'preserve' phrasing naming a file, directory, or signature), so there is nothing to enforce."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is one concise sentence that uses absolute paths (/app/data/records.csv, /app/output/total.txt), describes only what to achieve without hinting at the solution approach or tools, and contains no headings, preamble, roleplay, fluff, or LLM-generated patterns."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh performs genuine computation: a Python script reads the CSV, sums the amount column via csv.DictReader, and writes the derived total, which I verified produces a correct result against a simulated fixed-seed dataset. The inline snippet is only ~7 lines (solve.sh is 12 lines total), well under the threshold requiring separate solution files, and 'echo Done!' is a status message rather than a bare echo of the final answer."
+          }
+        }
+      },
+      "criterion_origin": {
+        "outcome_verified": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
+        "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
+        "reviewable": "original",
+        "artifact_efficiency": "original",
+        "test_instruction_alignment": "original",
+        "instruction_concision": "retry",
+        "deterministic_reproducible": "original",
+        "functional_verification": "original",
+        "anti_cheat_robustness": "original",
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
+      },
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0003-repeat-0/repeat-0/task-0003/results/task-0003/verdicts.json",
+      "retry_status": "complete"
+    },
+    {
+      "group": "tb_human_labeled-task-0005-repeat-0",
+      "original_group": "tb_human_labeled",
+      "repeat": 0,
+      "task_id": "fail-rubric-essential-difficulty",
+      "directory": "task-0005",
+      "original_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0005/results/task-0005/verdicts.json",
+      "original_sha256": "83baa316e50b4392634d7bc6f2651929861098ff58686efb0c01c8f609108bb9",
+      "all_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "instruction_concision",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solution_quality",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "retained_criteria": [
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "requested_criteria": [
+        "agentic",
+        "instruction_concision",
+        "reviewable",
+        "solution_quality"
+      ],
+      "status": "completed_after_repair",
+      "verdict": {
+        "checks": {
+          "verifiable": {
+            "outcome": "fail",
+            "explanation": "tests/test.sh installs verifier tooling over the network at verify time (apt-get install curl, then curl | sh for the uv installer, plus uvx wheel/CPython downloads) and the task ships no tests/Dockerfile into which these dependencies could be baked, so every verifier trial depends on live network fetches of untrusted-at-runtime tooling. The check logic itself is programmatic and deterministic, but the rubric explicitly fails tasks whose test.sh installs verifier tooling that could be baked into tests/Dockerfile."
+          },
+          "solvable": {
+            "outcome": "fail",
+            "explanation": "solution/solve.sh invokes python3, but the agent environment is exactly FROM ubuntu:24.04 + WORKDIR /app with nothing installed, and official Ubuntu Docker base images do not ship a Python interpreter (nothing in the task installs one). The oracle therefore cannot write /app/config.json and both tests fail with FileNotFoundError, so the provided solution does not pass the tests."
+          },
+          "interesting": {
+            "outcome": "fail",
+            "explanation": "The metadata itself declares 'Test task for QA pipeline': writing a hardcoded one-key config JSON with arbitrary whitespace requirements is an artificial exercise with no professional analogue anyone would be paid to solve. It is a pipeline canary, not a realistic problem."
+          },
+          "outcome_verified": {
+            "outcome": "pass",
+            "explanation": "The instruction describes only the end state (file at /app/config.json with a specific key/value and formatting) and the tests grade the final file, leaving the agent free to use any tool (printf, python, echo, etc.). No process constraints or step-by-step procedures are enforced."
+          },
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The agent image is a bare ubuntu:24.04 with nothing baked in; ground truth (the expected string) lives verifier-side in /tests/test_state.py, which the agent cannot read at runtime, and the deliverable check actually requires the file to exist. The only stated 'answer' is the instruction's own statement of the deliverable, so no adversarial shortcut gains an advantage."
+          },
+          "task_security": {
+            "outcome": "pass",
+            "explanation": "All files are minimal and directly related to the task's purpose: the uv installer is fetched from the official astral.sh endpoint with a pinned version, rm -rf is confined to apt list cleanup, and there is no secret access, external posting, obfuscation, prompt injection, or cross-task interference. The canary comments are standard scaffold."
+          },
+          "functional_verification": {
+            "outcome": "pass",
+            "explanation": "Both tests read the produced file, parse it with json.loads, and check its actual contents (including an exact content match), so grading is output-based through execution of checks rather than scanning source files for keywords or patterns."
+          },
+          "deterministic_reproducible": {
+            "outcome": "pass",
+            "explanation": "The verifier's Python dependencies are pinned (pytest==9.1.1, pytest-json-ctrf==0.5.2, uv 0.9.7), apt packages cannot be pinned per guidance, and no live services with mutable task-relevant content are required (astral.sh/PyPI are stable infrastructure). Results are consistent across runs."
+          },
+          "essential_difficulty": {
+            "outcome": "fail",
+            "explanation": "The task's entire difficulty is whitespace/formatting precision \u2014 exactly 4-space indentation, trailing newline, no trailing spaces \u2014 which is the bulk of the instruction text. Any failure would be a clerical formatting edge case, not genuine technical or logical reasoning."
+          },
+          "test_instruction_alignment": {
+            "outcome": "pass",
+            "explanation": "Both assertions trace directly to instruction requirements: a JSON file at the stated path containing key \"name\" with value \"test\", and the whitespace rules (indentation, trailing newline, no trailing spaces) covered by the exact-match test. The tests are hand-written, concise, and introduce no requirements beyond the instruction."
+          },
+          "structured_data_schema": {
+            "outcome": "pass",
+            "explanation": "The structured output (a JSON config file) has its exact schema documented normatively in instruction.md itself: the absolute path, the single key \"name\" with value \"test\", 4-space indentation, and trailing newline are all stated explicitly, with no reliance on examples."
+          },
+          "typos": {
+            "outcome": "pass",
+            "explanation": "Filenames, paths (/app/config.json, /tests/test_state.py), pinned version identifiers (pytest==9.1.1, pytest-json-ctrf==0.5.2, uv 0.9.7), and variable names are consistent and correct across all files; the byte-level scan also found no deceptive characters. No typos found."
+          },
+          "resource_configuration": {
+            "outcome": "pass",
+            "explanation": "All timeout/resource values are template defaults (120s verifier/agent, 1 CPU, 2048 MB), which are appropriate for a trivial task whose test suite runs in seconds; the author calibrated the difficulty separately (expert_time_estimate_hours=0.25), showing the defaults were considered. Difficulty does not stem from computational intensity."
+          },
+          "no_extraneous_files": {
+            "outcome": "pass",
+            "explanation": "The directory contains exactly the six required scaffold files (task.toml, instruction.md, environment/Dockerfile, solution/solve.sh, tests/test.sh, tests/test_state.py), each used by build, instruction, solution, or verification. No editor cruft, backups, or unreferenced assets."
+          },
+          "artifact_efficiency": {
+            "outcome": "not_applicable",
+            "explanation": "No [[verifier.collect]] artifact entries are configured in task.toml; the deliverable is graded by reading /app/config.json from the trial state, and there is no build-time-fixed data being transferred. There is no artifact mechanism to evaluate for narrowing or fail-safe capture."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "not_applicable",
+            "explanation": "The verifier never executes agent-produced code: pytest imports only the verifier-owned /tests/test_state.py, and the agent's artifact is read as inert JSON data (json.loads on a config file), which the rubric distinguishes from execution. No reward-channel exposure through executed artifacts is possible."
+          },
+          "ctrf_reporting": {
+            "outcome": "pass",
+            "explanation": "tests/test.sh runs pytest with --ctrf /logs/verifier/ctrf.json -rA using the pinned pytest-json-ctrf plugin, exactly matching the standard per-test reporting pattern, and derives reward.txt from the child's exit code."
+          },
+          "do_not_modify_enforced": {
+            "outcome": "not_applicable",
+            "explanation": "The instruction contains no do-not-modify/preserve constraint protecting a concrete existing artifact; the whitespace rules constrain the agent's own newly created deliverable, not an artifact to be left intact."
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The task is a single-file write with fully specified content ('write /app/config.json containing {\"name\": \"test\"} with 4-space indent'), solvable zero-shot with one command (e.g., printf or a one-line python3 -c). The environment is an empty Ubuntu container with nothing to explore, and no multi-step interaction, debugging, or adaptation is required."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "A non-specialist can verify correctness end-to-end: the instruction requests a specific file with specific content, the pytest asserts exactly that content, and the solution's output was confirmed to match the expected bytes. No specialized domain knowledge or unexplained hardcoded ground truth is involved."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single concise sentence using the absolute path /app/config.json, with no headings, preamble, roleplay, tool listings, or step-by-step hints. The whitespace requirements are the task specification itself, not solution hand-holding."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh derives the file programmatically via json.dump(..., indent=4) plus an explicit trailing newline, matching the same process an agent would follow, rather than bare-echoing the final answer. It is well under 20 lines, so inlining in solve.sh is acceptable, and the output was verified byte-for-byte against the test's expected content."
+          }
+        }
+      },
+      "criterion_origin": {
+        "outcome_verified": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
+        "agentic": "retry",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
+        "reviewable": "retry",
+        "artifact_efficiency": "original",
+        "test_instruction_alignment": "original",
+        "instruction_concision": "retry",
+        "deterministic_reproducible": "original",
+        "functional_verification": "original",
+        "anti_cheat_robustness": "original",
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
+      },
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0005-repeat-0/repeat-0/task-0005/results/task-0005/verdicts.json",
+      "retry_status": "complete"
+    },
+    {
+      "group": "tb_human_labeled-task-0006-repeat-0",
+      "original_group": "tb_human_labeled",
+      "repeat": 0,
+      "task_id": "fail-rubric-functional-verification",
+      "directory": "task-0006",
+      "original_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0006/results/task-0006/verdicts.json",
+      "original_sha256": "36ef49530440449696fc031f955dfe0180ad19e53d1964354971f1ae9883a19f",
+      "all_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "instruction_concision",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solution_quality",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "retained_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable"
+      ],
+      "requested_criteria": [
+        "instruction_concision",
+        "solution_quality",
+        "verifier_execution_isolation"
+      ],
+      "status": "completed_after_repair",
+      "verdict": {
+        "checks": {
+          "verifiable": {
+            "outcome": "fail",
+            "explanation": "While the pytest run itself is deterministic and efficient, tests/test.sh performs runtime network installs at verify time (`apt-get update && apt-get install -y curl`, `curl -LsSf https://astral.sh/uv/0.9.7/install.sh | sh`, and `uvx` resolving pytest wheels) instead of baking the pinned tooling into a tests/Dockerfile \u2014 which does not exist at all. This is exactly the flaky runtime-install pattern the rubric requires to be baked in."
+          },
+          "solvable": {
+            "outcome": "pass",
+            "explanation": "solution/solve.sh writes /app/math_utils.py with double(n) returning n * 2, and its content satisfies both test assertions (verified programmatically). An expert could implement this in minutes."
+          },
+          "interesting": {
+            "outcome": "fail",
+            "explanation": "This is an artificial QA/toy exercise \u2014 the metadata literally states 'Test task for QA pipeline'. Nobody would get paid to write a two-line double(n) function; there is no realistic professional problem analogue."
+          },
+          "outcome_verified": {
+            "outcome": "fail",
+            "explanation": "The tests grade the implementation's source text rather than the final solution's behavior: a functionally correct solution computing n*2 differently (e.g. `return 2 * n` or `return n + n`) would fail test_returns_multiplication, while a keyword-only file (function body `pass` with the strings in comments) passes. Grading is based on the approach taken, not the delivered end state."
+          },
+          "anti_cheat_robustness": {
+            "outcome": "fail",
+            "explanation": "The tests can be trivially bypassed: an agent can insert the exact strings 'def double' and 'n * 2' into a file (e.g. in a comment) without the function working, and all assertions pass (verified). There is no mechanistic prevention of adversarial shortcuts \u2014 the answer is fully spelled out in the instruction and the oracle passes only keyword checks."
+          },
+          "task_security": {
+            "outcome": "pass",
+            "explanation": "All task files are benign: the Dockerfile sets up an empty ubuntu:24.04 /app, solve.sh writes only /app/math_utils.py, and the verifier's network downloads (curl from astral.sh, pinned pytest) are standard, justified tooling. No exfiltration, obfuscated payloads, prompt injection, or destructive operations are present."
+          },
+          "functional_verification": {
+            "outcome": "fail",
+            "explanation": "Both tests are pure string matching against source code \u2014 the docstrings even admit it: 'Checks for function name via string matching instead of importing and calling it' and 'Checks for n * 2 in source instead of testing the actual behavior'. No code is executed, no API called, no output checked."
+          },
+          "deterministic_reproducible": {
+            "outcome": "pass",
+            "explanation": "The test dependencies are pinned (pytest==9.1.1, pytest-json-ctrf==0.5.2, uv install URL pins 0.9.7) and the test logic is deterministic with no live-service dependencies. Results are consistent across runs (runtime install flakiness is assessed under 'verifiable')."
+          },
+          "essential_difficulty": {
+            "outcome": "fail",
+            "explanation": "There is no logical, algorithmic, or multi-step reasoning difficulty whatsoever. The only failure mode for a capable model would be clerical: not containing the literal source pattern 'n * 2' required by the string-matching test."
+          },
+          "test_instruction_alignment": {
+            "outcome": "fail",
+            "explanation": "The instruction describes behavior ('defines a function double(n) which returns n * 2') but the tests never check that behavior \u2014 they check literal source text instead, adding an unstated implementation-pattern requirement that goes beyond the described behavior (and a correct variant like `n + n` still fails). The stated behavioral requirement is not tested."
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The task is solvable through zero-shot generation: writing a two-line file with a single command, with no exploration, debugging, iteration, or multi-step environment interaction required."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "A non-specialist can fully audit this task: the instruction, tests, and solution are trivially consistent and no specialized domain knowledge is needed to verify correctness."
+          },
+          "ctrf_reporting": {
+            "outcome": "pass",
+            "explanation": "The verifier runs pytest with `--ctrf /logs/verifier/ctrf.json -rA`, so per-test results are reported in CTRF at the expected location, matching the rubric's standard pattern."
+          },
+          "do_not_modify_enforced": {
+            "outcome": "not_applicable",
+            "explanation": "The instruction contains no do-not-modify / preserve / leave-unchanged constraint protecting any concrete artifact; it only asks the agent to write a new module."
+          },
+          "resource_configuration": {
+            "outcome": "pass",
+            "explanation": "Values are the template defaults (120s verifier/agent timeouts, 1 cpu, 2048 MB), which are more than adequate for a trivial task consistent with the stated expert_time_estimate_hours of 0.25; resources are not excessive and difficulty does not stem from computation. Defaults are appropriate here even though unchanged from the template."
+          },
+          "no_extraneous_files": {
+            "outcome": "pass",
+            "explanation": "The directory contains only required scaffold files: task.toml, instruction.md, environment/Dockerfile, solution/solve.sh, and tests/ (test.sh, test_state.py). No editor cruft, backups, or unreferenced assets are present."
+          },
+          "structured_data_schema": {
+            "outcome": "not_applicable",
+            "explanation": "No structured output (JSON/CSV/API/schema/config) is expected; the deliverable is a plain Python module."
+          },
+          "artifact_efficiency": {
+            "outcome": "not_applicable",
+            "explanation": "No [[verifier.collect]] artifacts or collect hooks are configured; nothing is transferred from the agent container to the verifier."
+          },
+          "typos": {
+            "outcome": "pass",
+            "explanation": "Identifiers (double, n * 2, /app/math_utils.py, /tests/test_state.py) are consistent and correct across all files, and a byte-level scan found no non-ASCII or control characters. No typos in filenames, paths, commands, or variable names."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single, human-readable sentence that specifies the deliverable with an absolute path (/app/math_utils.py), the required function name and behavior, and nothing else \u2014 no headings, preamble, tool listings, or solution hints."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "The task's deliverable is a source file; solve.sh authors it via a 3-line heredoc, which is exactly the process an agent would follow \u2014 there is no derived answer being echoed without computation. The inlined heredoc is far under the ~20-line threshold, so keeping it in solve.sh is appropriate."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "not_applicable",
+            "explanation": "The verifier's pytest tests only read /app/math_utils.py as text and assert on string contents (explicitly string-matching rather than importing or calling), so no agent-produced code is ever executed or imported by the verifier. Reading/parsing files is not execution per this criterion."
+          }
+        }
+      },
+      "criterion_origin": {
+        "outcome_verified": "original",
+        "ctrf_reporting": "original",
+        "resource_configuration": "original",
+        "no_extraneous_files": "original",
+        "verifier_execution_isolation": "retry",
+        "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
+        "reviewable": "original",
+        "artifact_efficiency": "original",
+        "test_instruction_alignment": "original",
+        "instruction_concision": "retry",
+        "deterministic_reproducible": "original",
+        "functional_verification": "original",
+        "anti_cheat_robustness": "original",
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
+      },
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0006-repeat-0/repeat-0/task-0006/results/task-0006/verdicts.json",
+      "retry_status": "complete"
+    },
+    {
+      "group": "tb_human_labeled-task-0008-repeat-0",
+      "original_group": "tb_human_labeled",
+      "repeat": 0,
+      "task_id": "fail-rubric-instruction-concision-fluff",
+      "directory": "task-0008",
+      "original_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0008/results/task-0008/verdicts.json",
+      "original_sha256": "31e4ed621ff3b380fe6d3ad38ac66b86d1ff4652139e83e4050702fab1ec85db",
+      "all_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "instruction_concision",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solution_quality",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "retained_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "requested_criteria": [
+        "instruction_concision",
+        "solution_quality"
+      ],
+      "status": "completed_after_repair",
+      "verdict": {
+        "checks": {
+          "verifiable": {
+            "outcome": "fail",
+            "explanation": "tests/test.sh performs runtime network installs at verify time: `apt-get install -y curl`, `curl ... https://astral.sh/uv/0.9.7/install.sh | sh`, and `uvx` resolving pytest/pytest-json-ctrf from PyPI. These are verifier tooling that the rubric requires to be baked into tests/Dockerfile \u2014 which does not exist \u2014 so every trial is exposed to network flakiness and slow, rate-limited installs."
+          },
+          "solvable": {
+            "outcome": "fail",
+            "explanation": "The agent image is FROM ubuntu:24.04, which does not ship python3 (nor numpy/pandas), and the Dockerfile installs nothing, so the oracle solution/solve.sh (`python3 -c ...`) fails with 'command not found' and never writes /app/sum.txt. The instruction also falsely claims 'Available tools: Python 3, numpy, pandas'; the provided solution does not pass the verifier."
+          },
+          "interesting": {
+            "outcome": "fail",
+            "explanation": "The metadata itself states this is a 'Test task for QA pipeline'; summing five hardcoded integers (1-5) into a file is a hello-world artificial exercise with no professional analogue, and no one would be paid to do this."
+          },
+          "outcome_verified": {
+            "outcome": "pass",
+            "explanation": "The instruction states only the end state (sum written to /app/sum.txt) and the test grades only the final file content. The 'Available tools' line is informational and not enforced; an agent using awk/bash instead of Python is equally allowed."
+          },
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "Input data is pinned at build time via printf (1-5) and no ground-truth/oracle data exists in the agent image layers; the expected value lives only in the test file, which the agent cannot read at runtime. No mutable external resources or trivially inspectable answers are present (though the task is trivial enough that cheating is moot)."
+          },
+          "task_security": {
+            "outcome": "pass",
+            "explanation": "All task files contain only legitimate, task-related code: an ubuntu base image, a printf of data, a Python sum, and the rubric's own standard uvx/pytest CTRF pattern. A non-ASCII scan found no smuggled characters, and there is no exfiltration, obfuscation, prompt injection, or destructive behavior (rm -rf is limited to apt list hygiene)."
+          },
+          "functional_verification": {
+            "outcome": "pass",
+            "explanation": "The test reads the agent's produced output file and checks its contents against the expected sum, which is output checking rather than keyword/regex scanning of source code."
+          },
+          "deterministic_reproducible": {
+            "outcome": "pass",
+            "explanation": "Data is fixed at build time (sum always 15), the single check is deterministic, and tooling pins exist where the ecosystem supports them (pytest==9.1.1, pytest-json-ctrf==0.5.2, uv 0.9.7 install script); PyPI/astral.sh/apt mirrors are stable infrastructure. The runtime-install flakiness penalty is counted under 'verifiable'."
+          },
+          "essential_difficulty": {
+            "outcome": "fail",
+            "explanation": "There is no logical reasoning component whatsoever; success hinges entirely on clerical details (writing the exact value to the exact path). Any failures would be formatting/clerical edge cases rather than conceptual errors, which is the criterion's FAIL condition."
+          },
+          "test_instruction_alignment": {
+            "outcome": "pass",
+            "explanation": "The single assertion traces directly to the instruction's only requirement (compute the sum and write it to /app/sum.txt), and the instruction's requirements are fully covered. The tests introduce no new requirements."
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The task is solvable by a single shell command (e.g., awk '{s+=$1} END{print s}' /app/numbers.txt > /app/sum.txt) with zero environment exploration, debugging, or iteration, so it fails the rubric's explicit 'solvable by a single command' condition."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "The task is trivially auditable by a non-specialist: instruction, test, and solution are mutually consistent, and the hardcoded expected value '15' has an obvious derivation (1+2+3+4+5) visible in the Dockerfile. (The Python-availability bug is visible, not obscuring.)"
+          },
+          "structured_data_schema": {
+            "outcome": "not_applicable",
+            "explanation": "No structured output is expected \u2014 the deliverable is a single integer in a plain text file, whose format is stated plainly in the instruction."
+          },
+          "typos": {
+            "outcome": "pass",
+            "explanation": "All paths (/app/numbers.txt, /app/sum.txt, /tests/test_state.py, /logs/verifier/*), filenames, commands (apt-get, uvx, pytest flags), and variable names (total, s, content) are consistent across all files with no typos found."
+          },
+          "resource_configuration": {
+            "outcome": "pass",
+            "explanation": "Values are unchanged from template defaults (120s verifier/agent timeouts, 1 cpu, 2048MB memory, 10240MB storage, 0 gpus), which are more than sufficient for a task with expert_time_estimate_hours=0.25 and a single seconds-long test; nothing is excessive or clearly too short/long."
+          },
+          "no_extraneous_files": {
+            "outcome": "pass",
+            "explanation": "The directory contains exactly the six required scaffold files (task.toml, instruction.md, environment/Dockerfile, solution/solve.sh, tests/test.sh, tests/test_state.py) with no editor cruft, backups, or unreferenced data."
+          },
+          "artifact_efficiency": {
+            "outcome": "not_applicable",
+            "explanation": "No [[verifier.collect]] hooks or artifact entries are configured; the deliverable is read directly by the verifier, so nothing transfers between containers and there is no artifact behavior to judge."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "not_applicable",
+            "explanation": "The verifier never executes agent-produced code \u2014 it only parses the text file the agent wrote \u2014 so privilege dropping and reward-channel protection rules do not apply."
+          },
+          "ctrf_reporting": {
+            "outcome": "pass",
+            "explanation": "The pytest-based verifier emits a per-test CTRF report at /logs/verifier/ctrf.json via `pytest --ctrf /logs/verifier/ctrf.json /tests/test_state.py -rA`, matching the standard pattern."
+          },
+          "do_not_modify_enforced": {
+            "outcome": "not_applicable",
+            "explanation": "The instruction contains no constraint forbidding modification of, or requiring preservation of, a concrete artifact, so there is nothing to enforce."
+          },
+          "instruction_concision": {
+            "outcome": "fail",
+            "explanation": "The instruction includes an unnecessary heading ('# Number Summation Challenge'), a roleplay preamble ('You are a data processing specialist. Your mission is...'), and lists available tools ('Available tools: Python 3, numpy, pandas') that the agent should discover on its own. While it does use absolute paths and the core instruction is clear, these fluff elements and the tool listing violate the criterion."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh performs genuine computation via a short Python one-liner that reads /app/numbers.txt line-by-line, accumulates the sum with sum(int(line) for line in f), and writes the result to /app/sum.txt. No hardcoded final answer is echoed, and the inline code block (~8 lines) is short enough that a separate file is not required."
+          }
+        }
+      },
+      "criterion_origin": {
+        "outcome_verified": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
+        "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
+        "reviewable": "original",
+        "artifact_efficiency": "original",
+        "test_instruction_alignment": "original",
+        "instruction_concision": "retry",
+        "deterministic_reproducible": "original",
+        "functional_verification": "original",
+        "anti_cheat_robustness": "original",
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
+      },
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0008-repeat-0/repeat-0/task-0008/results/task-0008/verdicts.json",
+      "retry_status": "complete"
+    },
+    {
+      "group": "tb_human_labeled-task-0009-repeat-0",
+      "original_group": "tb_human_labeled",
+      "repeat": 0,
+      "task_id": "fail-rubric-interesting",
+      "directory": "task-0009",
+      "original_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0009/results/task-0009/verdicts.json",
+      "original_sha256": "00724fbc2cf00988f03b14556d05a415070fb319c8d05a3d05f0e0f2e9043e78",
+      "all_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "instruction_concision",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solution_quality",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "retained_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "requested_criteria": [
+        "instruction_concision",
+        "solution_quality"
+      ],
+      "status": "completed_after_repair",
+      "verdict": {
+        "checks": {
+          "verifiable": {
+            "outcome": "fail",
+            "explanation": "Verification itself is deterministic and programmatic (pytest reads /app/count.txt and asserts \"10\"), but tests/test.sh performs runtime network installs at verify time (`apt-get update && apt-get install -y curl` and `curl -LsSf https://astral.sh/uv/0.9.7/install.sh | sh`). There is no tests/Dockerfile in the task, so these verifier dependencies (curl, uv, pytest tooling) could and should be baked into a tests/Dockerfile instead of installed flakily at verify time \u2014 the exact anti-pattern the rubric rejects."
+          },
+          "solvable": {
+            "outcome": "pass",
+            "explanation": "solution/solve.sh writes the correct count (\"10\" \u2014 verified: 'aababaaabbbaaaa'.count('a') == 10) and the provided pytest test passes against that output. The task is trivially solvable in minutes."
+          },
+          "interesting": {
+            "outcome": "fail",
+            "explanation": "The task metadata itself labels it \"Test task for QA pipeline\"; counting the letter 'a' in a hardcoded string and echoing it to a file is an artificial scaffold exercise with no professional real-world analogue \u2014 no reasonable person would wonder if it's solvable or pay for a solution."
+          },
+          "outcome_verified": {
+            "outcome": "pass",
+            "explanation": "Grading checks only the final deliverable: /app/count.txt must contain \"10\". The instruction states the end state (write the count), and the agent has full latitude over the method used to produce it."
+          },
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The agent image is a bare ubuntu:24.04 with no baked answers, no hidden/dot files, and no ground truth under /app; the expected value lives only in the verifier-side test file, and the agent has no /tests or /solution access at runtime. The answer is trivially derivable from the instruction itself, which is inherent to the (trivial) task rather than a leak, so no hidden-answer or mutable-external-resource shortcut is enabled."
+          },
+          "task_security": {
+            "outcome": "pass",
+            "explanation": "All files perform only legitimate setup/verification actions: installing curl and uv (official, version-pinned installer) to run pinned pytest tooling, and writing the count file. No credential access, exfiltration, obfuscation, prompt injection, or destructive operations are present; rm -rf is limited to /var/lib/apt/lists/* hygiene."
+          },
+          "functional_verification": {
+            "outcome": "pass",
+            "explanation": "The test reads the agent's output file and asserts its contents via execution (pytest), with no keyword/regex scanning of source code, imports, or function names."
+          },
+          "deterministic_reproducible": {
+            "outcome": "fail",
+            "explanation": "The Python test tooling versions are pinned (pytest==9.1.1, pytest-json-ctrf==0.5.2, uv 0.9.7) and the pytest run itself is deterministic, but the verifier relies on live network channels at verify time \u2014 `apt-get install` of curl and `curl | sh` from astral.sh, which is not a standard pinned package repository \u2014 so trial outcomes can vary with network conditions and upstream installer behavior."
+          },
+          "essential_difficulty": {
+            "outcome": "fail",
+            "explanation": "The objective has no core technical or logical challenge: the entire task is a clerical operation (a single letter count obtainable by one command). There is no reasoning-based difficulty, and any agent failure would stem from clerical minutiae (miscounting or output format) rather than genuine problem-solving."
+          },
+          "test_instruction_alignment": {
+            "outcome": "pass",
+            "explanation": "The instruction's single requirement \u2014 write the 'a' count to /app/count.txt \u2014 is exactly what the one test asserts (content == \"10\", the correct count). The test introduces no requirements beyond the instruction, and every instruction requirement is covered."
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The task is solvable with a single command (`echo \"10\" > /app/count.txt`) and requires zero environment exploration, tool use, debugging, or iteration \u2014 a zero-shot LLM generation produces both the answer and the command in one shot."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "Correctness is trivially auditable by any non-specialist: the string, the expected count, the test, and the solution are all consistent and require no domain expertise to verify."
+          },
+          "structured_data_schema": {
+            "outcome": "not_applicable",
+            "explanation": "The only output is a plain text file containing a single integer; no structured output (JSON, CSV, config, API schema) is expected, and the 'count' semantics are unambiguous."
+          },
+          "typos": {
+            "outcome": "pass",
+            "explanation": "No typos found in filenames, paths (/app/count.txt, /logs/verifier/ctrf.json, /tests/test_state.py), commands (apt-get, curl, uvx, pytest flags), or variable names across all task files; the string 'aababaaabbbaaaa' is spelled consistently in instruction and derivations."
+          },
+          "resource_configuration": {
+            "outcome": "pass",
+            "explanation": "All values are template defaults (120s verifier/agent timeouts, 1 CPU, 2 GB RAM, 10 GB storage), which are appropriate \u2014 indeed generous \u2014 for a task requiring seconds; difficulty is not gamed through computational intensity. The defaults match the trivial actual needs."
+          },
+          "no_extraneous_files": {
+            "outcome": "pass",
+            "explanation": "The directory contains exactly the six required scaffold files (task.toml, instruction.md, environment/Dockerfile, solution/solve.sh, tests/test.sh, tests/test_state.py), all referenced by the build/solve/verify chain, with no editor cruft, backups, scratch, or unused assets."
+          },
+          "artifact_efficiency": {
+            "outcome": "pass",
+            "explanation": "No [[verifier.collect]] hooks or artifact entries are configured in task.toml, so nothing large or build-time-fixed is transferred and no fail-safe rules (rm -f temp-write, loud install failures, pinned baselines) are violated. The deliverable is a tiny single-value file."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "not_applicable",
+            "explanation": "The verifier never executes agent-produced code: pytest imports only verifier-side test files, and the agent-produced artifact (count.txt) is merely parsed with read_text, which involves no execution, import, or spawn, so privilege dropping and reward-channel protection do not apply."
+          },
+          "ctrf_reporting": {
+            "outcome": "pass",
+            "explanation": "test.sh runs pytest with `--ctrf /logs/verifier/ctrf.json -rA` using pinned pytest==9.1.1 and pytest-json-ctrf==0.5.2, exactly matching the standard per-test reporting pattern, and the reward is derived from pytest's exit code."
+          },
+          "do_not_modify_enforced": {
+            "outcome": "not_applicable",
+            "explanation": "The instruction contains no constraint forbidding modification of \u2014 or requiring preservation of \u2014 any concrete artifact."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single concise sentence that uses the absolute path /app/count.txt, contains no headings, preamble, roleplay, fluff, or tool listings, and describes only what to achieve without hinting at the solution approach."
+          },
+          "solution_quality": {
+            "outcome": "fail",
+            "explanation": "solve.sh directly writes the hardcoded final answer via `echo \"10\" > /app/count.txt` with no computation. The precomputed-artifact exception cannot apply because counting 'a's in a 15-character string is trivially cheap and no generation script or provenance documentation exists in solution/."
+          }
+        }
+      },
+      "criterion_origin": {
+        "outcome_verified": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
+        "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
+        "reviewable": "original",
+        "artifact_efficiency": "original",
+        "test_instruction_alignment": "original",
+        "instruction_concision": "retry",
+        "deterministic_reproducible": "original",
+        "functional_verification": "original",
+        "anti_cheat_robustness": "original",
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
+      },
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0009-repeat-0/repeat-0/task-0009/results/task-0009/verdicts.json",
+      "retry_status": "complete"
+    },
+    {
+      "group": "tb_human_labeled-task-0016-repeat-0",
+      "original_group": "tb_human_labeled",
+      "repeat": 0,
+      "task_id": "fail-rubric-test-alignment",
+      "directory": "task-0016",
+      "original_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0016/results/task-0016/verdicts.json",
+      "original_sha256": "d444d2338b401aebb4f6496e2097b350620d3bbb3661674b2ec1909b2de3818e",
+      "all_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "instruction_concision",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solution_quality",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "retained_criteria": [
+        "agentic",
+        "anti_cheat_robustness",
+        "artifact_efficiency",
+        "ctrf_reporting",
+        "deterministic_reproducible",
+        "do_not_modify_enforced",
+        "essential_difficulty",
+        "functional_verification",
+        "interesting",
+        "no_extraneous_files",
+        "outcome_verified",
+        "resource_configuration",
+        "reviewable",
+        "solvable",
+        "structured_data_schema",
+        "task_security",
+        "test_instruction_alignment",
+        "typos",
+        "verifiable",
+        "verifier_execution_isolation"
+      ],
+      "requested_criteria": [
+        "instruction_concision",
+        "solution_quality"
+      ],
+      "status": "completed_after_repair",
+      "verdict": {
+        "checks": {
+          "verifiable": {
+            "outcome": "fail",
+            "explanation": "Grading itself is programmatic and deterministic (pytest asserts on fixed strings), but tests/test.sh performs runtime network installs at verify time: `apt-get update && apt-get install -y curl` and `curl ... | sh` to bootstrap uv, plus uvx fetching pytest/pytest-json-ctrf. curl and uv are verifier tooling that should be baked into a tests/Dockerfile (which does not exist in this task), and re-running hundreds of trials would introduce intermittent network/rate-limit failures and slow every trial."
+          },
+          "solvable": {
+            "outcome": "pass",
+            "explanation": "solution/solve.sh writes /app/text_utils.py implementing all five described functions; the executed tests (uppercase/lowercase) pass against it. An expert could implement it in minutes."
+          },
+          "interesting": {
+            "outcome": "fail",
+            "explanation": "The deliverable is five one-line wrappers around built-in str methods, and the task's own metadata declares it a 'Test task for QA pipeline'. It is an artificial exercise with no professional scenario where solving it has marginal utility."
+          },
+          "outcome_verified": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the end state (a module with five functions and their semantics) and tests grade outputs by calling the functions; no tools, approaches, or procedures are enforced."
+          },
+          "anti_cheat_robustness": {
+            "outcome": "pass",
+            "explanation": "The agent image is empty (ubuntu:24.04 with WORKDIR /app), no answers or oracle data are baked into the agent image or /app at start, and the agent cannot read /tests/ at runtime. Tests call the agent's actual functions, so there is nothing to trivially bypass beyond the design's inherent triviality (judged under interesting/agentic)."
+          },
+          "task_security": {
+            "outcome": "pass",
+            "explanation": "All files contain only task-related code: the uv installer is the official pinned astral.sh URL, the rm -rf is limited to the apt lists cache, and there is no credential access, exfiltration, obfuscation, prompt injection, or destructive/interfering behavior."
+          },
+          "functional_verification": {
+            "outcome": "pass",
+            "explanation": "Tests import the agent's module and execute its functions, asserting on returned values; no source keyword scanning or regex pattern matching is used."
+          },
+          "deterministic_reproducible": {
+            "outcome": "pass",
+            "explanation": "Dependencies are pinned where the ecosystem supports it (pytest==9.1.1, pytest-json-ctrf==0.5.2, uv 0.9.7); apt packages are appropriately unpinned since apt mirrors only carry current point releases. Test cases are fixed strings with no live-service or mutable-content dependencies, so results are consistent across runs for a given module."
+          },
+          "essential_difficulty": {
+            "outcome": "pass",
+            "explanation": "There are no formatting-precision traps: the only executed tests check unambiguous semantics, so failures would not stem from formatting edge cases, arbitrary precision, or clerical details. (The task's lack of genuine difficulty is judged under interesting/agentic/solvable.)"
+          },
+          "test_instruction_alignment": {
+            "outcome": "fail",
+            "explanation": "The instruction requires five functions (uppercase, lowercase, titlecase, word_count, char_count), but the test suite executes only uppercase and lowercase; titlecase, word_count, and char_count are described requirements with zero test coverage. The test docstrings openly admit this: 'Only tests 1/2 of the 5 functions described in instruction.md.'"
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The task is solved by a single command (one heredoc writing one file), producible completely by zero-shot generation with no environment exploration, debugging, adaptation, or iteration required."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "The instruction, tests, and solution are trivial and mutually consistent; any non-specialist reviewer can audit that the tests check what the instruction describes."
+          },
+          "structured_data_schema": {
+            "outcome": "not_applicable",
+            "explanation": "No structured data output (JSON/CSV/config schema) is expected; the deliverable is a Python module whose API is fully specified in the instruction itself."
+          },
+          "typos": {
+            "outcome": "pass",
+            "explanation": "Filenames, paths (app/text_utils.py, tests/test_state.py), commands, and variable/function names are consistent across instruction, tests, and solution; no typos found."
+          },
+          "resource_configuration": {
+            "outcome": "pass",
+            "explanation": "Values are unchanged template defaults (verifier/agent timeout 120s, 1 CPU, 2048 MB, no GPUs), which are adequate for this trivial task; the calibrated expert_time_estimate_hours=0.25 shows the author considered difficulty. The verifier 120s budget is tight only because of the runtime installs already flagged under verifiable."
+          },
+          "no_extraneous_files": {
+            "outcome": "pass",
+            "explanation": "The directory contains only the six required scaffold files (task.toml, instruction.md, environment/Dockerfile, solution/solve.sh, tests/test.sh, tests/test_state.py); no editor cruft, backups, or unreferenced assets."
+          },
+          "artifact_efficiency": {
+            "outcome": "not_applicable",
+            "explanation": "No [[verifier.collect]] hooks or artifact entries are defined in task.toml; nothing transfers from the agent container to the verifier."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "fail",
+            "explanation": "The verifier executes agent-produced code as root: pytest imports /app/text_utils.py at collection time with no privilege drop (no setpriv/unprivileged user) and no chmod 700 /logs/verifier before that code runs, so import-time side effects from the module (e.g., a double-fork daemon or in-process monkey-patching) could forge or interfere with /logs/verifier/reward.txt rather than the root-run test.sh alone deciding the reward from the child's exit code."
+          },
+          "ctrf_reporting": {
+            "outcome": "pass",
+            "explanation": "The pytest run emits a per-test CTRF report directly to /logs/verifier/ctrf.json via the --ctrf flag with -rA for full per-test reporting."
+          },
+          "do_not_modify_enforced": {
+            "outcome": "not_applicable",
+            "explanation": "The instruction contains no constraint forbidding modification of, or requiring preservation of, a concrete artifact."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is a single concise sentence using the absolute path /app/text_utils.py, with no headings, preamble, roleplay, fluff, or tool listings, and it describes only what to build (five functions and their behavior) without hinting at how. Behavior definitions like 'number of words' are left for the agent to interpret rather than spelled out."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh writes an actual implementation module via heredoc, which is the legitimate process for a code-writing task (no bare echo of a final result), and the inlined file is ~11 lines, well under the ~20-line threshold that would require a separate file in solution/. No computation is skipped since the deliverable is the source code itself."
+          }
+        }
+      },
+      "criterion_origin": {
+        "outcome_verified": "original",
+        "resource_configuration": "original",
+        "verifier_execution_isolation": "original",
+        "no_extraneous_files": "original",
+        "ctrf_reporting": "original",
+        "agentic": "original",
+        "solvable": "original",
+        "typos": "original",
+        "verifiable": "original",
+        "interesting": "original",
+        "structured_data_schema": "original",
+        "reviewable": "original",
+        "artifact_efficiency": "original",
+        "test_instruction_alignment": "original",
+        "instruction_concision": "retry",
+        "deterministic_reproducible": "original",
+        "functional_verification": "original",
+        "anti_cheat_robustness": "original",
+        "do_not_modify_enforced": "original",
+        "essential_difficulty": "original",
+        "task_security": "original",
+        "solution_quality": "retry"
+      },
+      "still_missing": [],
+      "retry_file": "/hnvme/workspace/y500bb12-optiagent/local-judges-missing-criteria-20261015/glm-5.3-flash/tb_human_labeled-task-0016-repeat-0/repeat-0/task-0016/results/task-0016/verdicts.json",
+      "retry_status": "complete"
+    }
+  ]
+}

@@ -1,0 +1,317 @@
+{
+  "upstream_revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+  "criteria": [
+    "agentic",
+    "anti_cheat_robustness",
+    "artifact_efficiency",
+    "ctrf_reporting",
+    "deterministic_reproducible",
+    "do_not_modify_enforced",
+    "essential_difficulty",
+    "functional_verification",
+    "instruction_concision",
+    "interesting",
+    "no_extraneous_files",
+    "outcome_verified",
+    "resource_configuration",
+    "reviewable",
+    "solution_quality",
+    "solvable",
+    "structured_data_schema",
+    "task_security",
+    "test_instruction_alignment",
+    "typos",
+    "verifiable",
+    "verifier_execution_isolation"
+  ],
+  "tasks": {
+    "fail-rubric-agentic": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-agentic",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-agentic"
+    },
+    "fail-rubric-anti-cheat": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-anti-cheat",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-anti-cheat"
+    },
+    "fail-rubric-artifact-efficiency": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-artifact-efficiency",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-artifact-efficiency"
+    },
+    "fail-rubric-deterministic": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-deterministic",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-deterministic"
+    },
+    "fail-rubric-essential-difficulty": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-essential-difficulty",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-essential-difficulty"
+    },
+    "fail-rubric-functional-verification": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-functional-verification",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-functional-verification"
+    },
+    "fail-rubric-instruction-concision": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-instruction-concision",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-instruction-concision"
+    },
+    "fail-rubric-instruction-concision-fluff": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-instruction-concision-fluff",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-instruction-concision-fluff"
+    },
+    "fail-rubric-interesting": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-interesting",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-interesting"
+    },
+    "fail-rubric-no-ctrf": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-no-ctrf",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-no-ctrf"
+    },
+    "fail-rubric-outcome-verified": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-outcome-verified",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-outcome-verified"
+    },
+    "fail-rubric-reviewable": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-reviewable",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-reviewable"
+    },
+    "fail-rubric-solution-quality": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-solution-quality",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-solution-quality"
+    },
+    "fail-rubric-solvable": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-solvable",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-solvable"
+    },
+    "fail-rubric-structured-schema": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-structured-schema",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-structured-schema"
+    },
+    "fail-rubric-test-alignment": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-test-alignment",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-test-alignment"
+    },
+    "fail-rubric-typos": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-typos",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-typos"
+    },
+    "fail-rubric-verifiable": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-verifiable",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-verifiable"
+    },
+    "fail-rubric-verifier-isolation": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-verifier-isolation",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-verifier-isolation"
+    },
+    "fail-rubric-resource-config": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-resource-config",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-resource-config"
+    },
+    "fail-rubric-no-extraneous-files": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-no-extraneous-files",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-no-extraneous-files"
+    },
+    "build-stp": {
+      "path": "tasks/build-stp",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "query-optimize": {
+      "path": "tasks/query-optimize",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "sanitize-git-repo": {
+      "path": "tasks/sanitize-git-repo",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "install-windows-3.11": {
+      "path": "tasks/install-windows-3.11",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "vimscript-vim-quine": {
+      "path": "tasks/vimscript-vim-quine",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "chess-best-move": {
+      "path": "tasks/chess-best-move",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "password-recovery": {
+      "path": "tasks/password-recovery",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "cartpole-rl-training": {
+      "path": "tasks/cartpole-rl-training",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "causal-inference-r": {
+      "path": "tasks/causal-inference-r",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "modernize-scientific-stack": {
+      "path": "tasks/modernize-scientific-stack",
+      "revision": "ad6c97b34f14d34b22f5e4f277f1b0a663227299",
+      "repository": "laude-institute/terminal-bench",
+      "url": "https://github.com/laude-institute/terminal-bench/tree/ad6c97b34f14d34b22f5e4f277f1b0a663227299/tasks/modernize-scientific-stack"
+    },
+    "form-filling": {
+      "path": "tasks/form-filling",
+      "revision": "e5e9f8a5003324d7ccc8747b6a2f4bd715dbc07a",
+      "repository": "laude-institute/terminal-bench",
+      "url": "https://github.com/laude-institute/terminal-bench/tree/e5e9f8a5003324d7ccc8747b6a2f4bd715dbc07a/tasks/form-filling"
+    },
+    "mailman": {
+      "path": "tasks/mailman",
+      "revision": "c006cd3ac1a0e69f452d0e8bec870122a55699f3",
+      "repository": "laude-institute/terminal-bench",
+      "url": "https://github.com/laude-institute/terminal-bench/tree/c006cd3ac1a0e69f452d0e8bec870122a55699f3/tasks/mailman"
+    },
+    "protocol-analysis-rs": {
+      "path": "tasks/protocol-analysis-rs",
+      "revision": "aeb3d8acfd83a0b4cab1fdff50796f25b89c2ec7",
+      "repository": "laude-institute/terminal-bench",
+      "url": "https://github.com/laude-institute/terminal-bench/tree/aeb3d8acfd83a0b4cab1fdff50796f25b89c2ec7/tasks/protocol-analysis-rs"
+    },
+    "mcmc-sampling-stan": {
+      "path": "tasks/mcmc-sampling-stan",
+      "revision": "79a98f58ef2ca86f463d307b3fc046127f1cdce8",
+      "repository": "laude-institute/terminal-bench",
+      "url": "https://github.com/laude-institute/terminal-bench/tree/79a98f58ef2ca86f463d307b3fc046127f1cdce8/tasks/mcmc-sampling-stan"
+    },
+    "financial-document-processor": {
+      "path": "tasks/financial-document-processor",
+      "revision": "04e43d4f210dc5dfcf3629e40fb884a73a116a1e",
+      "repository": "laude-institute/terminal-bench",
+      "url": "https://github.com/laude-institute/terminal-bench/tree/04e43d4f210dc5dfcf3629e40fb884a73a116a1e/tasks/financial-document-processor"
+    },
+    "winning-avg-corewars": {
+      "path": "tasks/winning-avg-corewars",
+      "revision": "a4dec5e7342e5634b16ba346f2dca7f54b7ff13f",
+      "repository": "laude-institute/terminal-bench",
+      "url": "https://github.com/laude-institute/terminal-bench/tree/a4dec5e7342e5634b16ba346f2dca7f54b7ff13f/tasks/winning-avg-corewars"
+    },
+    "train-fasttext": {
+      "path": "tasks/train-fasttext",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "mteb-retrieve": {
+      "path": "tasks/mteb-retrieve",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "build-linux-kernel-qemu": {
+      "path": "tasks/build-linux-kernel-qemu",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "prove-plus-comm": {
+      "path": "tasks/prove-plus-comm",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "raman-fitting": {
+      "path": "tasks/raman-fitting",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "cron-broken-network": {
+      "path": "tasks/cron-broken-network",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "extract-moves-from-video": {
+      "path": "tasks/extract-moves-from-video",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "nginx-request-logging": {
+      "path": "tasks/nginx-request-logging",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "sqlite-with-gcov": {
+      "path": "tasks/sqlite-with-gcov",
+      "revision": null,
+      "repository": "laude-institute/terminal-bench",
+      "url": null
+    },
+    "fail-rubric-do-not-modify": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-do-not-modify",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-do-not-modify"
+    },
+    "fail-rubric-task-security": {
+      "repository": "harbor-framework/terminal-bench",
+      "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+      "path": "scripts/checks/test-tasks/fail-rubric-task-security",
+      "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-task-security"
+    }
+  }
+}

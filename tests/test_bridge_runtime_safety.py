@@ -117,6 +117,28 @@ def test_explicit_host_mode_supplies_dns_and_proxy(patch, monkeypatch):
         assert {'localhost', '127.0.0.1', '::1'} <= set(hosts)
 
 
+def test_proxy_hosts_get_the_java_ipv6_preference_appended_by_the_login_hook(patch, monkeypatch, tmp_path):
+    """Helma: JVMs prefer IPv4, which hangs; Maven through the proxy stalls (MiMo, 2026-10-18)."""
+    import os
+    import subprocess
+    from pathlib import Path
+    monkeypatch.setenv('OT_NET_ISOLATION', '0')
+    for name in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY'):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv('APPTAINERENV_OT_JAVA_PREFER_IPV6', raising=False)
+    patch.configure_explicit_host_network()
+    assert 'APPTAINERENV_OT_JAVA_PREFER_IPV6' not in os.environ
+    monkeypatch.setenv('https_proxy', 'http://proxy.example:8080')
+    patch.configure_explicit_host_network()
+    assert os.environ['APPTAINERENV_OT_JAVA_PREFER_IPV6'] == '1'
+    hook = Path(patch.__file__).parent / 'ot_execution' / 'profile.sh'
+    def options(env):
+        return subprocess.run(['bash', '-c', f'. {hook}; . {hook}; printf %s "$JAVA_TOOL_OPTIONS"'],
+                              env={'PATH': os.environ['PATH'], **env}, capture_output=True, text=True).stdout
+    assert options({'OT_JAVA_PREFER_IPV6': '1', 'JAVA_TOOL_OPTIONS': '-Xmx2g'}) == '-Xmx2g -Djava.net.preferIPv6Addresses=true'
+    assert options({'OT_JAVA_PREFER_IPV6': '1'}) == '-Djava.net.preferIPv6Addresses=true'
+    assert options({'JAVA_TOOL_OPTIONS': '-Xmx2g'}) == '-Xmx2g'
+
 def test_host_mode_keeps_the_hosts_no_proxy_and_adds_loopback_once(patch, monkeypatch):
     import os
     monkeypatch.setenv('OT_NET_ISOLATION', '0')
@@ -351,8 +373,8 @@ def test_dependency_archive_is_mounted_only_for_the_trial_that_has_one(patch, mo
     run(start)
     run(['apptainer', 'exec', 'instance://hb_env_1', 'true'])
     patch._trial.archive = None
-    start = start[:3] + ['--contain'] + start[3:]
-    assert seen == [start, start[:4] + ['--bind', f'{tmp_path}/task-1.tar:/opt/deps.tar:ro'] + start[4:],
+    start = start[:3] + ['--contain', '--ipc'] + start[3:]
+    assert seen == [start, start[:5] + ['--bind', f'{tmp_path}/task-1.tar:/opt/deps.tar:ro'] + start[5:],
                     ['apptainer', 'exec', '--cleanenv', 'instance://hb_env_1', 'true']]
 
 
@@ -408,10 +430,11 @@ def test_instances_get_private_filesystems_without_losing_task_mounts(patch, mon
     run = patch.run_container_commands(lambda cmd, **kwargs: seen.append(cmd))
     command = ['apptainer', 'instance', 'start', '--bind', '/stage/tmp:/tmp:rw', '--fakeroot', 'task.sif', 'env']
     run(command)
-    assert seen[0] == command[:3] + ['--contain'] + command[3:]
+    assert seen[0] == command[:3] + ['--contain', '--ipc'] + command[3:]
     assert '--contain' not in command  # do not mutate upstream retry arguments
     run(seen[0])
     assert seen[1].count('--contain') == 1
+    assert seen[1].count('--ipc') == 1
     exec_command = ['apptainer', 'exec', '--env', 'UV_CACHE_DIR=/task/cache', 'instance://env', 'true']
     run(exec_command)
     assert seen[2] == exec_command[:2] + ['--cleanenv'] + exec_command[2:]
@@ -429,6 +452,16 @@ def test_startup_preserves_tests_upload_and_other_mounts(patch, monkeypatch):
     assert '--contain' in result and '--net' in result
     assert result[-2:] == ['verifier.sif', 'env']
     assert '/stage/tests:/tests:rw' in command
+
+
+@pytest.mark.parametrize('flag', ['--ipc', '-i', '--containall', '-C'])
+def test_instance_ipc_isolation_respects_existing_flags(patch, flag):
+    command = ['apptainer', 'instance', 'start', flag, 'task.sif', 'env']
+    result = patch.instance_start_command(command, [])
+    assert result.count(flag) == 1
+    if flag != '--ipc':
+        assert '--ipc' not in result
+    assert result[-2:] == ['task.sif', 'env']
 
 
 def test_directory_copy_expands_contents_and_keeps_file_copy(patch, monkeypatch, tmp_path):
@@ -732,6 +765,23 @@ def test_image_build_bounds_memory_and_retries_only_registry_import(patch, monke
     assert len(calls) == 1
 
 
+def test_definition_build_retries_without_incompatible_fakeroot_helper(patch, monkeypatch):
+    """MiMo 000822: the host fakeroot helper cannot exec in the image."""
+    monkeypatch.delenv('OT_IMAGE_COMPRESSION_ARGS', raising=False)
+    import subprocess
+    calls = []
+    def run(cmd, **kwargs):
+        calls.append(list(cmd))
+        failed = '--ignore-fakeroot-command' not in cmd
+        return subprocess.CompletedProcess(cmd, 255 if failed else 0, '', 'FATAL:   exec '
+            '/.singularity.d/libs/fakeroot failed: a shared library is likely missing in the image' if failed else '')
+    result = patch.run_image_build(run, ['apptainer', 'build', '--fakeroot', '/c/t.sif.tmp', '/t.def'], (), {})
+    assert result.returncode == 0 and len(calls) == 2
+    assert calls[1] == ['apptainer', 'build', '--fakeroot', '--ignore-fakeroot-command', '/c/t.sif.tmp', '/t.def']
+    calls.clear()
+    patch.run_image_build(run, ['apptainer', 'build', '/c/t.sif.tmp', '/t.def'], (), {})
+    assert len(calls) == 1
+
 def test_no_global_compression_override(patch, monkeypatch):
     import subprocess
     monkeypatch.delenv('OT_IMAGE_COMPRESSION_ARGS', raising=False)
@@ -859,3 +909,120 @@ def test_startup_workspace_and_fakeroot_probes_use_task_step(patch, monkeypatch)
     with protected_step.active(controller):
         run(['apptainer', 'instance', 'start', 'image.sif', 'test'])
     assert [cmd[-1] for cmd in calls] == ['workspace-probe', 'fakeroot-probe', 'test']
+
+
+@pytest.mark.parametrize('failure', ['timeout', 'nonzero'])
+def test_failed_workdir_copy_cannot_start_with_a_partial_repository(patch, monkeypatch, failure):
+    from types import SimpleNamespace
+    import subprocess
+    from harbor_patches import protected_step
+    seen = []
+    def execute(cmd, *args, **kwargs):
+        seen.append(cmd)
+        if failure == 'timeout':
+            raise subprocess.TimeoutExpired(cmd, 120)
+        return SimpleNamespace(returncode=1, stderr='copy failed')
+    monkeypatch.setattr(protected_step, 'run_in_step', lambda original, cmd, *a, **k: original(cmd, *a, **k))
+    patch._trial.workdir_seed_error = None
+    run = patch.run_container_commands(execute)
+    seed = ['apptainer', 'exec', '--bind', '/tmp/workdir:/_workdir_init:rw',
+            '/tmp/base.sif', 'sh', '-c', 'copy']
+    with pytest.raises((RuntimeError, subprocess.TimeoutExpired)):
+        run(seed, timeout=120)
+    # Model upstream swallowing the pre-copy exception and trying to start.
+    with pytest.raises(RuntimeError, match='Workdir initialization failed'):
+        run(['apptainer', 'instance', 'start', '/tmp/base.sif', 'task'])
+    assert len(seen) == 1
+    patch._trial.workdir_seed_error = None
+
+
+@pytest.mark.parametrize('error,uid,fallback', [
+    ('', '0', False),
+    ('faked: GLIBC_2.34 not found', '0', True),
+    ('faked: GLIBC_2.34 not found', '1000', False),
+    ('unrelated mount error', '0', False),
+])
+def test_cold_fakeroot_probes_share_instance_start_budget(
+        patch, tmp_path, monkeypatch, error, uid, fallback):
+    from subprocess import CompletedProcess, TimeoutExpired
+    sif = tmp_path / 'cold.sif'
+    sif.touch()
+    now, calls = [0.0], []
+    def seed(cmd, run):
+        run(['apptainer', 'exec', str(sif), 'workspace-probe'], timeout=300)
+    monkeypatch.setattr(patch, 'seed_image_workspace', seed)
+    def execute(cmd, **kwargs):
+        calls.append((cmd, kwargs['timeout']))
+        probe = cmd[-2:] == ['/usr/bin/id', '-u']
+        duration = 40 if probe else 20
+        if kwargs['timeout'] < duration:
+            raise TimeoutExpired(cmd, kwargs['timeout'])
+        now[0] += duration
+        if probe:
+            if '--ignore-fakeroot-command' in cmd:
+                return CompletedProcess(cmd, 0, uid, '')
+            return CompletedProcess(cmd, int(bool(error)), '0', error)
+        return CompletedProcess(cmd, 0, '', '')
+    wrapped = patch.run_container_commands(execute, clock=lambda: now[0])
+    cmd = ['apptainer', 'instance', 'start', '--fakeroot', str(sif), 'name']
+    assert wrapped(cmd, timeout=300).returncode == 0
+    has_fallback_probe = error.startswith('faked:')
+    assert [timeout for _, timeout in calls] == (
+        [300, 280, 240, 200] if has_fallback_probe else [300, 280, 240])
+    started = calls[-1][0]
+    assert '--fakeroot' in started
+    assert ('--ignore-fakeroot-command' in started) == fallback
+    # A completed compatibility decision is cached for ordinary warm starts.
+    calls.clear()
+    assert wrapped(cmd, timeout=300).returncode == 0
+    assert [timeout for _, timeout in calls] == [300, 280]
+    assert ('--ignore-fakeroot-command' in calls[-1][0]) == fallback
+
+
+
+@pytest.mark.parametrize('hang_at', ['workspace', 'probe', 'fallback', 'instance'])
+def test_start_budget_timeout_propagates_without_retry(
+        patch, tmp_path, monkeypatch, hang_at):
+    from subprocess import CompletedProcess, TimeoutExpired
+    sif = tmp_path / 'image.sif'
+    sif.touch()
+    now, calls = [0.0], []
+    def seed(cmd, run):
+        run(['apptainer', 'exec', str(sif), 'workspace'], timeout=300)
+    monkeypatch.setattr(patch, 'seed_image_workspace', seed)
+    def execute(cmd, **kwargs):
+        phase = ('instance' if cmd[1:3] == ['instance', 'start'] else
+                 'workspace' if cmd[-1] == 'workspace' else
+                 'fallback' if '--ignore-fakeroot-command' in cmd else 'probe')
+        calls.append(phase)
+        if phase == hang_at:
+            now[0] += kwargs['timeout']
+            raise TimeoutExpired(cmd, kwargs['timeout'])
+        now[0] += 10
+        return CompletedProcess(cmd, int(phase == 'probe'), '0',
+                                'faked: GLIBC_2.34 not found' if phase == 'probe' else '')
+    wrapped = patch.run_container_commands(execute, clock=lambda: now[0])
+    cmd = ['apptainer', 'instance', 'start', '--fakeroot', str(sif), 'name']
+    with pytest.raises(TimeoutExpired):
+        wrapped(cmd, timeout=100)
+    assert now[0] == 100
+    assert calls == ['workspace', 'probe', 'fallback', 'instance'][:calls.index(hang_at) + 1]
+    if hang_at in ('probe', 'fallback'):
+        # An interrupted probe must not cache an unverified compatibility result.
+        calls.clear()
+        hang_at = None
+        assert wrapped(cmd, timeout=100).returncode == 0
+        assert calls == ['workspace', 'probe', 'fallback', 'instance']
+
+
+
+def test_exhausted_start_budget_does_not_launch_another_command(patch, monkeypatch):
+    from subprocess import TimeoutExpired
+    now = [0.0]
+    def seed(cmd, run):
+        now[0] = 100
+    monkeypatch.setattr(patch, 'seed_image_workspace', seed)
+    wrapped = patch.run_container_commands(
+        lambda *a, **kw: pytest.fail('launched after deadline'), clock=lambda: now[0])
+    with pytest.raises(TimeoutExpired):
+        wrapped(['apptainer', 'instance', 'start', 'image.sif', 'name'], timeout=100)

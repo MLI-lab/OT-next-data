@@ -58,9 +58,13 @@ def check(cluster, system_only=False, gpu=False):
     raw = subprocess.check_output(['apptainer', '--version'], text=True).strip()
     found = re.search(r'\d+\.\d+\.\d+', raw)
     expected = cluster.apptainer_version if os.environ.get('SLURM_JOB_ID') else cluster.apptainer_login_version
-    if not found or found.group() != expected:
-        raise RuntimeError(f'{cluster.name} requires Apptainer {expected}; found {raw}. '
+    allowed = (expected,) + (cluster.apptainer_compute_alternatives if os.environ.get('SLURM_JOB_ID') else ())
+    if not found or found.group() not in allowed:
+        raise RuntimeError(f'{cluster.name} requires Apptainer {" or ".join(allowed)}; found {raw}. '
                            'Configure the module/version in config/clusters.py.')
+    if found.group() != expected:
+        print(f'WARNING: {cluster.name} is using allowed site alternative {raw}; '
+              f'preferred version is {expected}. Record the actual version with the run.', file=sys.stderr)
     if not system_only:
         for line in requirements().splitlines():
             match = re.match(r'([\w-]+)(?:\[[^]]+\])?==([^\s]+)', line)

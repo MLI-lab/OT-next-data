@@ -72,6 +72,9 @@ def test_confirmed_oom_returns_feedback_without_replaying_command(tmp_path, monk
 @pytest.mark.parametrize('error', [None, ConnectionResetError('local connection')])
 def test_no_recovery_without_oom_evidence(tmp_path, monkeypatch, error):
     obj, calls, recovered = controller(tmp_path, monkeypatch, oom=False, error=error)
+    clock = [0.0]
+    monkeypatch.setattr(p.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(p.time, 'sleep', lambda seconds: clock.__setitem__(0, clock[0] + seconds))
     payload = {'command': p.AGENT_TAG + 'nonce\nexit 137'}
     if error:
         with pytest.raises(ConnectionResetError):
@@ -81,11 +84,109 @@ def test_no_recovery_without_oom_evidence(tmp_path, monkeypatch, error):
     assert len(calls) == 1 and not recovered
 
 
+@pytest.mark.parametrize('evidence', ['counter', 'log'])
+def test_delayed_oom_evidence_prevents_terminal_protocol_error(tmp_path, monkeypatch, evidence):
+    obj, calls, recovered = controller(tmp_path, monkeypatch, oom=False)
+    monkeypatch.delattr(obj, '_oom')
+    events = tmp_path / 'memory.events'
+    events.write_text('oom_kill 0\n')
+    obj.info = {'memory_events': str(events)}
+    obj.oom_baseline = 0
+    log = ['']
+    obj.slot = SimpleNamespace(log_tail=lambda: log[0])
+    clock = [0.0]
+    monkeypatch.setattr(p.time, 'monotonic', lambda: clock[0])
+    def advance(seconds):
+        clock[0] += seconds
+        if clock[0] >= .3:
+            if evidence == 'counter':
+                events.write_text('oom_kill 1\n')
+            else:
+                events.unlink(missing_ok=True)
+                log[0] = 'Detected 1 oom_kill event in this step'
+    monkeypatch.setattr(p.time, 'sleep', advance)
+    result = obj.exec({'command': p.AGENT_TAG + 'nonce\nmutate-files', 'timeout_sec': 20})
+    assert result['stdout'].startswith(p.OOM_PREFIX + 'nonce\n')
+    assert len(calls) == len(recovered) == 1
+    assert .3 <= clock[0] < 2
+
+
+@pytest.mark.parametrize('version', [1, 2])
+def test_memory_counter_never_uses_parent_job_limit(tmp_path, monkeypatch, version):
+    monkeypatch.setenv('SLURM_STEP_ID', '3')
+    membership = tmp_path / 'membership'
+    root = tmp_path / 'cgroup'
+    group = '/slurm/job_7/step_3/task_0'
+    if version == 1:
+        membership.write_text('0::/system.slice/slurmd.service\n4:memory:' + group + '\n')
+        path = root / 'memory' / group.lstrip('/')
+        limit, events, unlimited = 'memory.limit_in_bytes', 'memory.oom_control', str((1 << 63) - 4096)
+    else:
+        membership.write_text('0::' + group + '\n')
+        path = root / group.lstrip('/')
+        limit, events, unlimited = 'memory.max', 'memory.events', 'max'
+    path.mkdir(parents=True)
+    (path / limit).write_text(unlimited)
+    (path / events).write_text('oom_kill 0\n')
+    (path.parent / limit).write_text('4294967296')
+    (path.parent / events).write_text('oom_kill 2\n')
+    assert p.memory_events_path(membership, root) == str(path.parent / events)
+    (path.parent / limit).write_text(unlimited)
+    (path.parent.parent / limit).write_text('128849018880')
+    (path.parent.parent / events).write_text('oom_kill 10\n')
+    with pytest.raises(RuntimeError, match='enforcing task-step'):
+        p.memory_events_path(membership, root)
+
+
 def test_setup_oom_is_not_replayed_or_converted_to_agent_feedback(tmp_path, monkeypatch):
     obj, calls, recovered = controller(tmp_path, monkeypatch, oom=True)
     with pytest.raises(RuntimeError, match='outside a recoverable'):
         obj.exec({'command': 'setup.sh'})
     assert len(calls) == 1 and not recovered
+
+
+def test_cancel_interrupts_busy_command_preserves_files_and_fences_queue(tmp_path, monkeypatch):
+    import threading
+    entered, interrupted = threading.Event(), threading.Event()
+    written = tmp_path / 'answer'
+    written.write_text('agent answer')
+    class Inner:
+        def exec(self, payload):
+            entered.set()
+            assert interrupted.wait(3)
+            return {'return_code': 1}
+    obj = p.ProtectedInstance('test', '', '', 1000,
+        instance_factory=lambda *a: Inner(), step_prefix=lambda *a: [])
+    obj.slot = SimpleNamespace(interrupt=lambda tag: interrupted.set(),
+                               process=SimpleNamespace(poll=lambda: 0))
+    monkeypatch.setattr(obj, '_confirmed_exec_oom', lambda *a: False)
+    monkeypatch.setattr(obj, '_close_step', lambda: None)
+    reopened = []
+    monkeypatch.setattr(obj, '_recover', lambda deadline: reopened.append(written.read_text()))
+    thread = threading.Thread(target=lambda: obj.exec({'command': 'busy'}))
+    thread.start()
+    assert entered.wait(2)
+    obj.cancel_commands(1)
+    thread.join(2)
+    assert not thread.is_alive() and written.read_text() == 'agent answer'
+    with pytest.raises(RuntimeError, match='before session cancellation'):
+        obj.exec({'command': 'queued earlier', 'command_generation': 0})
+    assert not reopened
+    obj.exec({'command': 'grade', 'command_generation': 1})
+    assert reopened == ['agent answer']
+
+
+def test_command_timeout_kills_child_group_and_keeps_partial_output(tmp_path):
+    marker = tmp_path / 'leaked-child'
+    command = [sys.executable, '-c',
+               'import subprocess,sys,time; '
+               'subprocess.Popen([sys.executable,"-c",'
+               + repr('import time,pathlib; time.sleep(.5); pathlib.Path(' + repr(str(marker)) + ').touch()')
+               + ']); print("before timeout",flush=True); time.sleep(30)']
+    result = p.retained_run(command, {'capture_output': True, 'text': True, 'timeout': .2}, tmp_path)
+    assert result['timeout'] and result['stdout'] == 'before timeout\n'
+    time.sleep(.6)
+    assert not marker.exists()
 
 
 @pytest.fixture
@@ -126,6 +227,13 @@ def test_executor_preserves_binary_results_timeouts_and_background_processes(exe
     assert proc.wait(5) != 0
 
 
+def test_interrupt_stops_real_executor_without_removing_control_files(executor):
+    executor.interrupt('test')
+    executor.process.wait(timeout=5)
+    assert executor.control.exists()
+    executor.interrupt('test')  # Safe when a concurrent exit has already won.
+
+
 def test_cgroup_counter_is_not_inferred_from_exit_code(tmp_path):
     events = tmp_path / 'memory.events'
     events.write_text('oom 2\noom_kill 1\n')
@@ -136,12 +244,12 @@ def test_cgroup_counter_is_not_inferred_from_exit_code(tmp_path):
 @pytest.mark.parametrize('kind', ['missing-overlay', 'volatile-overlay', 'missing-bind'])
 def test_recovery_refuses_a_fresh_or_incomplete_filesystem(tmp_path, monkeypatch, kind):
     pytest.importorskip('harbor')
-    from harbor_patches import bridge_worker
     obj, calls, recovered = controller(tmp_path, monkeypatch, oom=True)
     # Use the real recovery method, with only the old step's teardown substituted.
     monkeypatch.delattr(obj, '_recover')
     monkeypatch.setattr(obj, '_close_step', lambda: None)
-    monkeypatch.setattr(bridge_worker, 'stop_anchor', lambda inner: None)
+    monkeypatch.setattr(obj, 'start_anchor', lambda inner: None)
+    monkeypatch.setattr(obj, 'stop_anchor', lambda inner: None)
     obj.slot = SimpleNamespace(process=SimpleNamespace(poll=lambda: 0))
     overlay = tmp_path / 'overlay'
     if kind != 'missing-overlay':
@@ -186,3 +294,86 @@ def test_recovery_subprocesses_share_remaining_budget(tmp_path, monkeypatch):
     with pytest.raises(TimeoutError, match='budget exhausted'):
         obj.remote_run(['apptainer', 'exec'], {'timeout': 120})
     assert len(calls) == 1
+
+
+def test_stop_interrupts_command_before_waiting_for_controller_lock(tmp_path, monkeypatch):
+    import threading
+    entered, interrupted, released = threading.Event(), threading.Event(), threading.Event()
+    calls = []
+    class Inner:
+        staging_dir = tmp_path / 'staging'
+        def exec(self, payload):
+            entered.set()
+            assert interrupted.wait(3), 'stop is blocked behind the running command'
+            released.set()
+            return {'return_code': 1, 'stdout': '', 'stderr': 'interrupted'}
+    Inner.staging_dir.mkdir()
+    obj = p.ProtectedInstance('test', '', '', 1000,
+        instance_factory=lambda *a: Inner(), step_prefix=lambda *a: [])
+    obj.slot = SimpleNamespace(interrupt=lambda tag: (calls.append(tag), interrupted.set()), alive=lambda: False)
+    monkeypatch.setattr(obj, '_oom', lambda: False)
+    def close():
+        assert released.is_set(), 'cannot clean files while command still owns the lock'
+        calls.append('close')
+    monkeypatch.setattr(obj, '_close_step', close)
+    command = threading.Thread(target=lambda: obj.exec({'command': 'blocked verifier'}))
+    command.start()
+    assert entered.wait(1)
+    try:
+        assert obj.stop({}) == {'stopped': True}
+    finally:
+        interrupted.set()
+        command.join(3)
+    assert not command.is_alive()
+    assert calls == ['test', 'close']
+    assert not Inner.staging_dir.exists()
+    assert obj.slot is None
+
+
+def _read_only_go_cache(root):
+    module = root / 'overlay/upper/go/pkg/mod/github.com/dustin/go-humanize@v1.0.0'
+    (module / 'nested').mkdir(parents=True)
+    (module / 'humanize.go').write_text('package humanize\n')
+    (module / 'nested/x.go').write_text('package nested\n')
+    for path in (module / 'nested/x.go', module / 'humanize.go'):
+        path.chmod(0o444)
+    for path in (module / 'nested', module, module.parent):
+        path.chmod(0o555)
+    return module
+
+
+def test_remove_tree_deletes_read_only_go_module_cache(tmp_path):
+    import os
+    if os.geteuid() == 0:
+        pytest.skip('root ignores directory permissions')
+    staging = tmp_path / 'staging'
+    _read_only_go_cache(staging)
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'keep').write_text('keep')
+    (staging / 'link').symlink_to(outside, target_is_directory=True)
+    outside.chmod(0o555)
+    try:
+        with pytest.raises(PermissionError):
+            import shutil
+            shutil.rmtree(staging)   # the failure seen in job 1039663
+        p.remove_tree(staging)
+        assert not staging.exists()
+        # Symlinked directories are removed as links, never made writable.
+        assert (outside / 'keep').read_text() == 'keep'
+        assert outside.stat().st_mode & 0o777 == 0o555
+    finally:
+        outside.chmod(0o755)
+
+
+def test_stop_removes_staging_with_read_only_directories(tmp_path):
+    import os
+    if os.geteuid() == 0:
+        pytest.skip('root ignores directory permissions')
+    class Inner:
+        staging_dir = tmp_path / 'staging'
+    _read_only_go_cache(Inner.staging_dir)
+    obj = p.ProtectedInstance('test', '', '', 1000,
+        instance_factory=lambda *a: Inner(), step_prefix=lambda *a: [])
+    assert obj.stop({}) == {'stopped': True}
+    assert not Inner.staging_dir.exists()

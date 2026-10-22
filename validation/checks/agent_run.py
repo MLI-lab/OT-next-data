@@ -48,7 +48,8 @@ def record(args, config, tasks, contract=None):
         'sampling': {'temperature': settings.get('temperature'), 'extra_body': settings.get('extra_body'),
                      'reasoning_effort': settings.get('reasoning_effort')},
         'limits': {'context_tokens': info.get('max_input_tokens') or (args.serve_context if args.serve_model else None),
-                   'output_tokens': settings.get('max_tokens') or info.get('max_output_tokens'),
+                   'output_tokens': (settings.get('llm_call_kwargs') or {}).get('max_tokens')
+                                    or settings.get('max_tokens') or info.get('max_output_tokens'),
                    'max_turns': settings.get('max_turns')},
         'attempts': config['n_attempts'], 'concurrency': config['n_concurrent_trials'],
         'reward': {'key': args.reward_key, 'solved_if': 'reward >= 1',

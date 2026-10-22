@@ -3,11 +3,13 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 
 class InstanceRegistry(dict):
     """The worker's table of running containers, which also remembers early stop requests.
@@ -62,6 +64,8 @@ class StepSlot:
         self.control = Path(tempfile.mkdtemp(prefix='trial-', dir=os.environ.get('TMPDIR', '/tmp')))
         self.log = None
         self.process = None
+        self.slurm_job = os.environ.get('SLURM_JOB_ID') if Path(command[0]).name == 'srun' else None
+        self.slurm_step = None
         if len(os.fsencode(self.control / 'rpc.sock')) >= 108:
             shutil.rmtree(self.control)
             raise ValueError(f'Trial socket path too long: {self.control}')
@@ -103,6 +107,12 @@ class StepSlot:
         response = json.loads(line)
         if 'error' in response:
             raise RuntimeError(response['error'])
+        if operation == 'info' and self.slurm_job:
+            info = response['result']
+            step = str(info.get('step_id', ''))
+            if str(info.get('job_id')) != self.slurm_job or not step.isdecimal():
+                raise RuntimeError('Executor returned an invalid or foreign Slurm step identity')
+            self.slurm_step = step
         return response['result']
 
     def log_tail(self):
@@ -113,6 +123,63 @@ class StepSlot:
             log.seek(0, os.SEEK_END)
             log.seek(max(0, log.tell() - 8192))
             return log.read().decode(errors='replace').strip()
+
+    def interrupt(self, tag='step'):
+        """Stop this executor even while another thread waits for its command.
+
+        Do not delete control files here; the owning controller does that after
+        the in-flight RPC releases its lock. Slurm reaps the step descendants.
+        """
+        if self.process is None or self.process.poll() is not None:
+            return
+        try:
+            if self.ready():
+                self.request(tag, 'close', {}, 2)
+        except Exception:
+            pass
+        if self.process.poll() is None:
+            try:
+                self.process.terminate()
+            except ProcessLookupError:
+                pass
+
+    def force_stop(self, tag='step', timeout=30):
+        """Kill only this executor's step, without its RPC or operation lock.
+
+        Keep control files and writable task files until the controller releases
+        its lock. A dead srun process alone is not proof that Slurm reaped the step.
+        """
+        if self.slurm_job:
+            if not self.slurm_job.isdecimal() or self.slurm_step is None or not self.slurm_step.isdecimal():
+                raise RuntimeError(f'{tag}: cannot force-stop an unverified Slurm step')
+            target = f'{self.slurm_job}.{self.slurm_step}'
+            # A concurrent normal exit can make scancel report "invalid job".
+            # Confirm absence below instead of treating that race as a failure.
+            cancelled = subprocess.run(['scancel', '--signal=KILL', target],
+                                       capture_output=True, text=True, timeout=5)
+            deadline = time.monotonic() + timeout
+            while True:
+                listing = subprocess.check_output(
+                    ['squeue', '--steps', '--jobs', self.slurm_job, '--noheader', '--format=%i'],
+                    text=True, timeout=5)
+                # squeue can display an array alias rather than the numeric job
+                # ID. The job filter supplies ownership; compare the step part.
+                active = any(line.strip().rsplit('.', 1)[-1] == self.slurm_step
+                             for line in listing.splitlines() if '.' in line)
+                if not active:
+                    break
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(f'{tag}: Slurm step {target} remains alive after KILL; '
+                                       f'{cancelled.stderr.strip()}')
+                time.sleep(.2)
+        if self.process is not None and self.process.poll() is None:
+            # For srun this reaps the launcher after the step is confirmed gone.
+            # Local executors have a private process group created in __init__.
+            try:
+                os.killpg(self.process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            self.process.wait(timeout=5)
 
     def close(self, tag='step'):
         """End the step and remove its control files; harmless when repeated."""
@@ -133,9 +200,22 @@ class StepSlot:
         if self.log is not None:
             self.log.close()
         if self.control.exists():
+            for output in sorted(self.control.glob('command-*')):
+                with output.open('rb') as stream:
+                    stream.seek(0, os.SEEK_END)
+                    stream.seek(max(0, stream.tell() - 8192))
+                    tail = stream.read().decode(errors='replace')
+                print(f'[{tag}] interrupted command {output.suffix[1:]} (last 8192 bytes):\n{tail}', flush=True)
             tail = self.log_tail()
             if tail:
-                print(f'[{tag}] lifecycle log tail:\n{tail}', flush=True)
+                # A step that does not exit on the close request is terminated, then
+                # killed, above. Slurm then writes "STEP ... CANCELLED ... DUE to SIGNAL
+                # Killed" into the step log. That line is this teardown: it is not a
+                # memory kill and says nothing about the task (run 965822 on 2026-10-11:
+                # 306 such lines, all 247 tasks passed every stage). Real memory kills
+                # appear as "oom_kill events" and in the trial's own findings.
+                note = ' (teardown of a stopped step, not a task failure)' if 'DUE to SIGNAL' in tail else ''
+                print(f'[{tag}] lifecycle log tail{note}:\n{tail}', flush=True)
             shutil.rmtree(self.control)
 
 

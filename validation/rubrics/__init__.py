@@ -53,7 +53,7 @@ def reference_inventory(tasks, *, complete=True):
 
 def implementation_rubric(source, references=None, suffixes=None):
     """Return the effective rubric and deterministic not-applicable verdicts."""
-    metadata = json.loads((ROOT / 'UPSTREAM.json').read_text())
+    metadata = json.loads((ROOT / 'rubric_terminal_bench/UPSTREAM.json').read_text())
     payload = source.read_bytes()
     expected = metadata['upstream_files']['task-implementation.toml']['sha256']
     if hashlib.sha256(payload).hexdigest() != expected:
@@ -84,12 +84,13 @@ def implementation_rubric(source, references=None, suffixes=None):
     if not all_standard:
         patches.append('concision-timeout.patch')
     patches.append('concision-formatting.patch')
+    patches.append('concision-paths.patch')
     with tempfile.TemporaryDirectory(prefix='ot-rubric-') as directory:
         target = Path(directory) / 'rubric.toml'
         target.write_bytes(payload)
         for name in patches:
             subprocess.run(['patch', '--batch', '--fuzz=0', '--reject-file=-',
-                            str(target), str((ROOT / 'patches' / name).resolve())],
+                            str(target), str((ROOT / 'rubric_terminal_bench/patches' / name).resolve())],
                            check=True, capture_output=True, text=True)
         text = target.read_text()
     tomllib.loads(text)
@@ -98,7 +99,7 @@ def implementation_rubric(source, references=None, suffixes=None):
 
 def harbor_rubric():
     """Return Harbor's pinned rubric with locally inapplicable checks removed."""
-    directory = ROOT / 'harbor'
+    directory = ROOT / 'rubric_harbor'
     metadata = json.loads((directory / 'UPSTREAM.json').read_text())
     source = directory / 'upstream/default-rubric.toml'
     payload = source.read_bytes()
@@ -127,3 +128,22 @@ def harbor_rubric():
             'explanation': 'Automatically skipped: training tasks may install reusable test tooling such as pytest in shared task images to reduce unique image storage and task setup time.'},
     }
     return target_text, skipped
+
+
+def select_criteria(rubric, skipped, criteria=None):
+    """Restrict a review to named criteria without changing their guidance."""
+    if criteria is None:
+        return rubric, skipped
+    if not criteria or len(criteria) != len(set(criteria)):
+        raise ValueError('--review-criteria requires distinct criterion names')
+    blocks = re.findall(r'(?ms)^\[\[criteria\]\][ \t]*\n.*?(?=^\[\[criteria\]\]|\Z)', rubric)
+    named = {tomllib.loads(block)['criteria'][0]['name']: block for block in blocks}
+    unknown = set(criteria) - (named.keys() | skipped.keys())
+    if unknown:
+        raise ValueError('Unknown review criteria: ' + ', '.join(sorted(unknown))
+                         + '; available: ' + ', '.join(sorted(named.keys() | skipped.keys())))
+    prefix = rubric[:rubric.index('[[criteria]]')] if '[review]' in rubric else ''
+    selected = prefix + ''.join(block for name, block in named.items() if name in criteria)
+    if not any(name in criteria for name in named):
+        raise ValueError('Selected review criteria are all automatically skipped; no LLM review is needed')
+    return selected, {name: value for name, value in skipped.items() if name in criteria}

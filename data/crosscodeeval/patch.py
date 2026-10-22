@@ -1362,7 +1362,77 @@ def rewards_cli():
         print(label, grade(task, answer), "expected", want)
 
 
+
+def prepare_release(root):
+    """Repackage the existing release, preserving every retained task byte."""
+    from collections import Counter
+    root = Path(root)
+    output = root / 'prepared'
+    output.mkdir(exist_ok=False)
+    images = json.loads((root / 'input/pr-5/images/crosscodeeval.json').read_text())
+    tables, archives, audit = [], [], []
+    original_images, retained_images = set(), set()
+    totals = Counter()
+    for lang, (source, patched) in SOURCES.items():
+        published = patched.removeprefix('laion__exp_rpt_')
+        original = {r['path']: r for r in pq.read_table(root / 'input/original' / source / 'tasks.parquet').to_pylist()}
+        table = pq.read_table(root / 'input/pr-5' / published / 'tasks.parquet')
+        historical = pq.read_table(root / 'input/pr-14' / published / 'tasks.parquet')
+        assert table.replace_schema_metadata(None).equals(historical.replace_schema_metadata(None))
+        regenerated = root / 'reconstructed' / patched
+        manifest = json.loads((regenerated / 'tasks.manifest.json').read_text())
+        kept = set(table['path'].to_pylist())
+        assert kept == {r['task_id'] for r in manifest['tasks'] if r['action'] != 'dropped'}
+        archive = pq.read_table(regenerated / 'tasks.archive.parquet')
+        assert set(archive['path'].to_pylist()) == set(original) - kept
+        for row in archive.to_pylist():
+            assert row['task_binary'] == original[row['path']]['task_binary']
+        counts = Counter()
+        for row in original.values():
+            original_images.add(unpack(row['task_binary'])['environment/Dockerfile'])
+        for row in table.to_pylist():
+            files = unpack(row['task_binary'])
+            before = unpack(original[row['path']]['task_binary'])
+            retained_images.add(files['environment/Dockerfile'])
+            assert row['stages_passed'] == '1,3,4,5'
+            assert images['tasks'][row['path']]['content_sha256'] == row['content_sha256']
+            counts['changed'] += files != before
+            counts['dependency_pins'] += files['environment/Dockerfile'] != before['environment/Dockerfile']
+            counts['context'] += any(k.startswith('setup_files/context/') for k in files)
+            counts['oracle'] += files.get('solution/solve.sh') != before.get('solution/solve.sh')
+            counts['verifier'] += files.get('tests/test.sh') != before.get('tests/test.sh')
+            counts['instructions'] += files['instruction.md'] != before['instruction.md']
+        reasons = Counter(r['labels'][0] for r in manifest['tasks'] if r['action'] == 'dropped')
+        totals.update(counts)
+        audit.append(dict(language=lang, original=len(original), kept=len(kept), archived=archive.num_rows,
+                          changes=dict(counts), exclusions=dict(reasons)))
+        tables.append(table.replace_schema_metadata(None))
+        archives.append(archive.replace_schema_metadata(None))
+    tasks = pa.concat_tables(tables)
+    archive = pa.concat_tables(archives)
+    assert tasks.num_rows == 6710 and archive.num_rows == 1053
+    assert totals['changed'] == 6710
+    summary = dict(original=7763, kept=6710, archived=1053, unchanged=0, changes=dict(totals),
+                   original_image_definitions=len(original_images), retained_image_definitions=len(retained_images),
+                   cached_images=len(images['bundles']), languages=audit,
+                   task_payloads_unchanged_from_pr14=True, all_existing_instruction_changes_preserved=True,
+                   source_revision=UPSTREAM_REVISION,
+                   release_revision=json.loads((root / 'input/files-14.json').read_text())['revision'],
+                   image_release_revision=json.loads((root / 'input/files-5.json').read_text())['revision'])
+    metadata = {b'ot.images.v1': json.dumps(images).encode(), b'ot.release.v1': json.dumps(summary).encode()}
+    pq.write_table(tasks.replace_schema_metadata(metadata), output / 'tasks.parquet')
+    pq.write_table(archive.replace_schema_metadata({b'ot.release.v1': json.dumps(summary).encode()}), output / 'archive.parquet')
+    (output / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+    print(json.dumps(summary, indent=2))
+
+
+def prepare_release_cli():
+    parser = argparse.ArgumentParser(description='Preserve and reorganize the reviewed CrossCodeEval release')
+    parser.add_argument('root', type=Path)
+    prepare_release(parser.parse_args().root)
+
+
 if __name__ == '__main__':
     from data.utils.cli import dispatch
-    dispatch({'prepare': prepare_cli, 'warmup': warmup_cli, 'rewards': rewards_cli})
+    dispatch({'prepare-release': prepare_release_cli, 'prepare': prepare_cli, 'warmup': warmup_cli, 'rewards': rewards_cli})
     main()

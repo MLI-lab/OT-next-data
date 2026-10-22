@@ -79,6 +79,18 @@ MODELS = {
         # some throughput; drop the flag when a vLLM release fixes capture under PP.
         extra_args=['--enforce-eager'],
         sampling={'temperature': 1.0, 'top_p': 0.95}),
+    # Local rubric judge. FP8, 306 GB, one Helma node, so no pipeline stage spans
+    # nodes and CUDA graphs stay on (the 2026-10-15 judge runs kept GLM-5.3's
+    # --enforce-eager and reached ~11 tokens/s per review). Sampling is its
+    # generation_config; reasoning effort is the chat template's default (max).
+    # 32,768 per reply: the 16,384 of those runs ended 57 reviews inside one
+    # thinking block.
+    'glm-5.3-flash': Model(
+        name='GLM-5.3-Flash', hf_repo='zai-org/GLM-5.3-Flash',
+        gpus=4, thinking=True, weights_gb=306, dtype='auto', reasoning_parser='glm47',
+        context=131072, max_output_tokens=32768,
+        extra_args=['--language-model-only'],
+        sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
 
 # The two models the RL runs start from, measured on every dataset. Sampling is
@@ -118,16 +130,27 @@ def weights_dir(model_name: str):
 
 
 def serving_agent_kwargs(spec, context, overrides):
-    """Keep Harbor's context accounting consistent with the actual reply budget."""
-    output = overrides.get('max_tokens', spec.max_output_tokens)
+    """Forward the reply budget to Terminus requests and its context accounting."""
+    call_kwargs = dict(overrides.get('llm_call_kwargs') or {})
+    budgets = [value for value in (overrides.get('max_tokens'),
+                                   call_kwargs.get('max_tokens'),
+                                   call_kwargs.get('max_completion_tokens')) if value is not None]
+    if budgets and any(value != budgets[0] for value in budgets):
+        raise ValueError('Conflicting output limits in max_tokens and llm_call_kwargs')
+    output = budgets[0] if budgets else spec.max_output_tokens
     info = {'max_input_tokens': context, 'input_cost_per_token': 0, 'output_cost_per_token': 0,
             **overrides.get('model_info', {}), 'max_output_tokens': output}
-    if not isinstance(output, int) or not 0 < output < min(context, info['max_input_tokens']):
+    if type(output) is not int or not 0 < output < min(context, info['max_input_tokens']):
         raise ValueError('max_tokens must be positive and smaller than --serve-context; leave room for the agent prompt')
+    # Top-level max_tokens is swallowed by Terminus's **kwargs. Only the
+    # explicit request kwargs reach chat.chat and the OpenAI/vLLM transport.
+    call_kwargs.pop('max_completion_tokens', None)
+    call_kwargs['max_tokens'] = output
     return {'temperature': spec.sampling['temperature'],
             'extra_body': {**{k: v for k, v in spec.sampling.items() if k != 'temperature'},
                            'chat_template_kwargs': {'enable_thinking': spec.thinking}},
-            **overrides, 'max_tokens': output, 'model_info': info}
+            **overrides, 'max_tokens': output, 'model_info': info,
+            'llm_call_kwargs': call_kwargs}
 
 
 def placement(spec: 'Model', gpus_per_node: int | None = None, replicas: int = 1) -> dict:

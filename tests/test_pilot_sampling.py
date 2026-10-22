@@ -74,11 +74,11 @@ def candidates(n=12):
 
 def test_sampling_diversity_is_finite_reproducible_and_keeps_quotas():
     rows = candidates()
-    selected, buckets = sample(rows, 3, 2, seed=0)
+    selected, buckets = sample(rows, 3, 5, seed=0)
     assert len(selected) == 3 and sum(b['quota'] for b in buckets) == 3
     assert any(r['id'] == 't11' for r in selected)
     assert any(r['selection_reason'] == 'command_diversity' for r in selected)
-    assert sample(rows[::-1], 3, 2, seed=0) == (selected, buckets)
+    assert sample(rows[::-1], 3, 5, seed=0) == (selected, buckets)
     assert len({r['id'] for r in selected}) == 3
 
 
@@ -90,7 +90,7 @@ def test_stage8_balances_termination():
     assert all('family' in b['bucket'] and 'termination' in b['bucket'] for b in buckets)
 
 
-@pytest.mark.parametrize('stage', [2, 8])
+@pytest.mark.parametrize('stage', [5, 8])
 def test_every_pick_after_first_maximizes_minimum_distance(stage):
     rows = candidates(8)
     for index, row in enumerate(rows):
@@ -111,7 +111,7 @@ def test_identical_distributions_fill_without_duplicates():
     rows = candidates(5)
     for row in rows:
         row['distribution'] = {'ls': 1}
-    chosen, _ = sample(rows, 5, 2, seed=4)
+    chosen, _ = sample(rows, 5, 5, seed=4)
     assert len({r['id'] for r in chosen}) == 5
     assert all(r['nearest_js_distance'] == 0 for r in chosen[1:])
 
@@ -121,7 +121,7 @@ def test_missing_or_invalid_distributions_fail(distribution):
     rows = candidates(5)
     rows[0]['distribution'] = distribution
     with pytest.raises(ValueError, match='missing or invalid command distribution'):
-        sample(rows, 2, 2)
+        sample(rows, 2, 5)
 
 
 def dataset(tmp_path):
@@ -153,7 +153,7 @@ def test_stage7_means_family_and_missing_rewards(tmp_path):
     unknown = tasks / 'untried'
     unknown.mkdir()
     (unknown / 'instruction.md').write_text('Untried')
-    rows, _ = build_candidates(discover_tasks(tasks), metrics, 2, {}, True)
+    rows, _ = build_candidates(discover_tasks(tasks), metrics, 5, {}, True)
     by_name = {r['task']: r for r in rows}
     assert by_name['set-python-0001']['length'] == 4
     assert metrics['tasks']['set-python-0001']['turns']['mean'] == 4
@@ -163,12 +163,12 @@ def test_stage7_means_family_and_missing_rewards(tmp_path):
     assert by_name['set-java-0002']['ungraded_attempts'] == 1
     assert by_name['untried']['reward_group'] == 'no_reward'
     assert by_name['untried']['length_bucket'] == 'unknown_length'
-    rows, _ = build_candidates(discover_tasks(tasks), metrics, 2, {'set-python-0001': 'custom'}, False)
+    rows, _ = build_candidates(discover_tasks(tasks), metrics, 5, {'set-python-0001': 'custom'}, False)
     assert next(r for r in rows if r['task'] == 'set-python-0001')['family'] == 'custom'
     assert next(r for r in rows if r['task'] == 'set-java-0002')['family'] == 'unknown'
 
 
-@pytest.mark.parametrize('stage', [2, 8])
+@pytest.mark.parametrize('stage', [5, 8])
 def test_exported_pilot_is_consumable_and_source_unchanged(tmp_path, stage):
     tasks, job, metrics_path, metrics = dataset(tmp_path)
     before = metrics_path.read_bytes()
@@ -176,7 +176,7 @@ def test_exported_pilot_is_consumable_and_source_unchanged(tmp_path, stage):
     args = parser().parse_args([str(tasks), '--trace-metrics', str(metrics_path), '--trials', str(job),
                                '--stage', str(stage), '--size', '3', '--family-from-id', '--out', str(out)])
     manifest = create(args)
-    assert manifest['selected_size'] == (2 if stage == 2 else 3)
+    assert manifest['selected_size'] == (2 if stage == 5 else 3)
     assert {p.name for p in discover_tasks(out)} == {r['task'] for r in manifest['selected']}
     assert metrics_path.read_bytes() == before
     assert json.loads((out / 'pilot.json').read_text()) == manifest
@@ -190,7 +190,7 @@ def test_exported_pilot_is_consumable_and_source_unchanged(tmp_path, stage):
         create(args)
 
 
-@pytest.mark.parametrize('stage', [2, 8])
+@pytest.mark.parametrize('stage', [5, 8])
 def test_missing_metrics_fail_even_with_trials(tmp_path, stage):
     tasks, job, metrics_path, metrics = dataset(tmp_path)
     del metrics['trajectories'][0]['command_profile']

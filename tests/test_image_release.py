@@ -13,6 +13,23 @@ from validation.publishing.publish import pack_task, write
 from harbor.utils.container_cache import environment_dir_hash
 
 
+def test_only_build_contexts_are_staged_but_all_task_bytes_are_verified(tmp_path):
+    task = tmp_path / 'task'
+    (task / 'environment').mkdir(parents=True)
+    (task / 'environment/Dockerfile').write_text('FROM example\n')
+    (task / 'setup_files').mkdir()
+    (task / 'setup_files/input.csv').write_bytes(b'input data\n' * 100000)
+    expected = task_digest(task)
+    target = tmp_path / 'staged'
+    target.mkdir()
+    assert release.stage_build_contexts(pack_task(task), target, expected) == [target / 'environment/Dockerfile']
+    assert not (target / 'setup_files').exists()
+    assert environment_dir_hash(target / 'environment') == environment_dir_hash(task / 'environment')
+    (task / 'setup_files/input.csv').write_bytes(b'changed input')
+    with pytest.raises(ValueError, match='Task changed since validation'):
+        release.stage_build_contexts(pack_task(task), target, expected)
+
+
 def fixture(tmp_path, legacy=False):
     task = tmp_path / 'original/task-1'
     env = task / 'environment'
@@ -29,7 +46,7 @@ def fixture(tmp_path, legacy=False):
                       architecture=platform.machine(), format='apptainer-sif')
     cache = tmp_path / 'cache'
     bundle = cache_publish(image, cache, provenance=None if legacy else provenance)
-    row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='1,3,4,5')
+    row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='1,2,3,4')
     tables = {'example': ([row, dict(row, path='task-2')], [])}
     return task, cache, bundle, tables
 
@@ -40,7 +57,9 @@ def write_parquet(tmp_path, tables, manifest, monkeypatch):
     return tmp_path / 'release/example/tasks.parquet'
 
 
-def test_publish_materialize_restore_and_reuse(tmp_path, monkeypatch):
+@pytest.mark.parametrize('workers', [1, 2])
+def test_publish_materialize_restore_and_reuse(tmp_path, monkeypatch, workers):
+    monkeypatch.setenv('OT_PUBLISH_IMAGE_WORKERS', str(workers))
     task, cache, bundle, tables = fixture(tmp_path)
     manifest, artifacts = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
     assert len(manifest['bundles']) == 1 and len(manifest['tasks']) == 2
@@ -71,12 +90,36 @@ def test_legacy_unvalidated_and_changed_tasks_not_exported(tmp_path):
     task, cache, bundle, tables = fixture(tmp_path, legacy=True)
     manifest, artifacts = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
     assert not artifacts and len(manifest['missing']) == 2
-    tables['example'][0][0]['stages_passed'] = '1'
+    tables['example'][0][0]['stages_passed'] = '4'
     manifest, _ = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
     assert len(manifest['missing']) == 1
     tables['example'][0][1]['content_sha256'] = '0' * 64
     with pytest.raises(ValueError, match='changed since validation'):
         release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
+
+
+@pytest.mark.parametrize('folder', ['camel-ai__SETA-Env_filtered_stages_3_4_5', '../escape', '/absolute'])
+def test_dataset_scoped_cached_images(tmp_path, monkeypatch, folder):
+    task, cache, bundle, tables = fixture(tmp_path)
+    manifest, artifacts = release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks')
+    manifest['revision'] = 'a' * 40
+    remapped = {}
+    for record in manifest['bundles'].values():
+        old = record['prefix']
+        record['prefix'] = folder + '/cached_images/' + old.split('/cached_images/', 1)[1]
+        for name in record['files']:
+            remapped[record['prefix'] + '/' + name] = artifacts[old + '/' + name]
+    parquet = write_parquet(tmp_path, tables, manifest, monkeypatch)
+    tasks = materialize(parquet, tmp_path / 'downloaded/tasks', limit=1)
+    def download(**kwargs):
+        return remapped[kwargs['filename']]
+    if folder.startswith(('.', '/')):
+        with pytest.raises(ValueError, match='Unsafe artifact path'):
+            release.stage_published(tasks, tmp_path / 'fresh-cache', tmp_path / 'runtime', download)
+    else:
+        records = release.stage_published(tasks, tmp_path / 'fresh-cache', tmp_path / 'runtime', download)
+        assert len(records) == 1
+        assert (tmp_path / 'runtime' / bundle.name).read_bytes() == b'pristine sif'
 
 
 def test_corrupt_download_not_visible_and_edited_task_skipped(tmp_path, monkeypatch):
@@ -88,7 +131,7 @@ def test_corrupt_download_not_visible_and_edited_task_skipped(tmp_path, monkeypa
     bad = tmp_path / 'bad'
     bad.write_bytes(b'corrupt')
     with pytest.raises(ValueError, match='Corrupt'):
-        release.stage_published(tasks, cache, tmp_path / 'runtime', lambda **kw: bad)
+        release.stage_published(tasks, tmp_path / 'fresh-cache', tmp_path / 'runtime', lambda **kw: bad)
     assert not list((tmp_path / 'runtime').glob('*.sif'))
     (tasks[0] / 'environment/payload').write_text('changed')
     assert not release.stage_published(tasks, cache, tmp_path / 'runtime', lambda **kw: pytest.fail('stale image'))
@@ -126,7 +169,7 @@ def test_publisher_pins_artifact_commit_in_same_pr(tmp_path, monkeypatch):
             commits.append(kwargs)
             if len(commits) == 1:
                 assert kwargs['create_pr'] is True
-                assert all(op.path_in_repo.startswith('images/bundles-v1/') for op in kwargs['operations'])
+                assert all(op.path_in_repo.startswith('example/cached_images/bundles-v1/') for op in kwargs['operations'])
                 return SimpleNamespace(oid='a' * 40, pr_revision='refs/pr/7', pr_url='https://example/pr/7')
             assert kwargs['create_pr'] is False
             assert kwargs['revision'] == 'refs/pr/7'
@@ -179,3 +222,31 @@ def test_packed_cache_exports_and_stages_without_rebuild(tmp_path):
     assert not manifest['missing']
     stage_images([task], packed_cache, tmp_path / 'local')
     assert (tmp_path / 'local' / bundle.name).read_bytes() == b'pristine sif'
+
+
+def test_explicit_runtime_context_keeps_nested_exercise_inputs(tmp_path):
+    task, cache, bundle, tables = fixture(tmp_path)
+    nested = task / 'environment/exercise/Dockerfile'
+    nested.parent.mkdir()
+    nested.write_text('FROM deliberately-invalid-exercise\n')
+    new_hash = environment_dir_hash(task / 'environment')
+    assert new_hash != json.loads((bundle / 'manifest.json').read_text())['provenance']['environment_sha256']
+    image = bundle / bundle.name
+    cache = tmp_path / 'updated-cache'
+    cache_publish(image, cache, provenance=dict(pristine=True, builder='hpc.image_cache',
+        environment_sha256=new_hash, architecture=platform.machine(), format='apptainer-sif'))
+    row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='1')
+    manifest, _ = release.prepare_release({'example': ([row], [])}, cache, tmp_path / 'selected',
+                                          'org/tasks', environment_paths=('environment',))
+    assert not manifest['missing']
+    assert [e['path'] for e in manifest['tasks'][task.name]['environments']] == ['environment']
+    assert manifest['tasks'][task.name]['environments'][0]['environment_sha256'] == new_hash
+    default, _ = release.prepare_release({'example': ([row], [])}, cache, tmp_path / 'default', 'org/tasks')
+    assert len(default['missing']) == 1  # Existing recursive discovery remains available.
+
+
+@pytest.mark.parametrize('path', ['../outside', '/outside', 'missing'])
+def test_explicit_runtime_context_rejects_invalid_path(tmp_path, path):
+    task, cache, bundle, tables = fixture(tmp_path)
+    with pytest.raises(ValueError):
+        release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks', environment_paths=(path,))

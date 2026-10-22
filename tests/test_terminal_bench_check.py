@@ -41,6 +41,24 @@ def test_pinned_scripts_match_upstream_workflow_and_profiles():
     assert 'check-task-package-name.sh' in skipped
 
 
+def test_all_profile_includes_every_dataset_static_check():
+    _, checks, excluded = load_checks('all')
+    _, benchmark, _ = load_checks('terminal-bench')
+    assert set(checks) == set(benchmark) | {'check-task-changelog.sh'}
+    assert set(excluded) == {'rubric_review.py'}
+
+
+def test_all_profile_does_not_accept_missing_ai_prerequisite(tmp_path):
+    task = make_task(tmp_path)
+    _, checks, _ = load_checks('all')
+    out = tmp_path / 'all-checks'
+    run_checks([task], out, 'all', exclude=[c for c in checks if c != 'check_ai_detection.py'])
+    item = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert item['status'] == 'failed'
+    assert item['checks'][0]['status'] == 'skipped'
+    assert item['checks'][0]['optional'] is False
+
+
 def test_real_upstream_scripts_pass_and_catch_unpinned_dependency(tmp_path):
     good = make_task(tmp_path, 'good')
     bad = make_task(tmp_path, 'bad')
@@ -251,6 +269,9 @@ def test_configured_ai_check_uses_python_without_real_api_calls(tmp_path, monkey
     ('Create a symlink: `relative/item.conf` -> `../available/item.conf`.', False),
     ('Create a symlink: `/etc/$APP/item.conf` -> `../available/item.conf`.', False),
     ('Run `ln -s ../available/item.conf "$LINK"`.', False),
+    ('Report the location, e.g. `"$.paths./items.get"`.', True),
+    ('Head each section with the file name (e.g., `## src/auth.py`).', True),
+    ('Head each section with `## Summary` and read `src/auth.py`.', False),
 ])
 def test_absolute_path_check_only_accepts_explicit_command_and_link_bases(tmp_path, instruction, passes):
     from validation.checks.check_terminal_bench import path_check_copy
@@ -416,6 +437,7 @@ def test_stage1_adaptations_keep_real_failures(tmp_path, check, source, expected
     out = tmp_path / 'report'
     run_checks([task], out, exclude=[n for n in checks if n != check])
     row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    expected = 'warning' if check == 'check-pip-pinning.sh' and expected == 'failed' else expected
     assert row['checks'][0]['status'] == expected
     assert (task / 'solution/solve.sh').read_text() == source
 
@@ -503,8 +525,8 @@ def test_relative_path_is_advisory_and_does_not_archive(tmp_path):
     item = json.loads((out / 'summary.json').read_text())['tasks'][0]
     assert item['status'] == 'passed'
     assert item['warnings'][0]['tag'] == 'relative-instruction-path'
-    assert labels(1, item) == ['warning:relative-instruction-path']
-    assert judge(1, item) == ('passed', '')
+    assert labels(4, item) == ['warning:relative-instruction-path']
+    assert judge(4, item) == ('passed', '')
 
 
 @pytest.mark.parametrize('profile,changed,expected', [
@@ -557,6 +579,10 @@ def test_seta_nproc_allowance_requires_reviewed_task_script_and_image(tmp_path, 
     ('pip install requests > install.log\n', 'failed'),
     ('pip install pytest==8.3.5 > install.log requests\n', 'failed'),
     ('pip install pytest==8.3.5 ">" requests\n', 'failed'),
+    ('stub=/home/user/packages\npip install --no-deps "$stub"/demo\n', 'passed'),
+    ('pip install --no-deps "$stub"/demo\n', 'failed'),
+    ('stub=https://example.org\npip install "$stub"/demo\n', 'failed'),
+    ('stub=/home/user/packages\nstub=$UNKNOWN\npip install "$stub"/demo\n', 'failed'),
 ])
 def test_pip_hash_pins_and_shell_redirections(tmp_path, command, expected):
     task = make_task(tmp_path)
@@ -566,5 +592,211 @@ def test_pip_hash_pins_and_shell_redirections(tmp_path, command, expected):
     out = tmp_path / 'report'
     run_checks([task], out, exclude=[name for name in checks if name != 'check-pip-pinning.sh'])
     report = json.loads((out / 'summary.json').read_text())
+    expected = 'warning' if expected == 'failed' else expected
     assert report['tasks'][0]['checks'][0]['status'] == expected
     assert script.read_text() == command
+
+
+@pytest.mark.parametrize('check,dockerfile,expected', [
+    ('check-dockerfile-references.sh', '# Verifier preparation from tests/test.sh, installed at build time.\nRUN echo ready\n', 'passed'),
+    ('check-dockerfile-references.sh', 'COPY tests/test.sh /tests/test.sh\n', 'failed'),
+    ('check-dockerfile-references.sh', 'RUN echo "tests/test.sh"\n', 'failed'),
+    ('check-dockerfile-sanity.sh', 'RUN apt-get update && apt-get install -y gcc\nENV NODE_EXPORTER_VERSION=1.8.2\nRUN python - <<\'PY\'\nk10=0.25\nPY\n', 'passed'),
+    ('check-dockerfile-sanity.sh', 'RUN apt-get install -y \\\n  "build-essential=12.10ubuntu1"\n', 'failed'),
+    ('check-dockerfile-sanity.sh', 'RUN apt-get install -y gcc=4\n', 'failed'),
+    ('check-dockerfile-sanity.sh', '# RUN apt-get install gcc=1.2\nRUN apt-get install gcc\n', 'passed'),
+])
+def test_dockerfile_check_adaptations(tmp_path, check, dockerfile, expected):
+    task = make_task(tmp_path)
+    target = task / 'environment/Dockerfile'
+    target.write_text('FROM ubuntu:24.04\n' + dockerfile)
+    before = target.read_bytes()
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[name for name in checks if name != check])
+    row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert row['checks'][0]['status'] == expected
+    assert target.read_bytes() == before
+
+
+@pytest.mark.parametrize('changed', [None, 'image', 'script', 'task_id'])
+def test_calibforge_nproc_allowance_is_content_pinned(tmp_path, monkeypatch, changed):
+    import hashlib
+    from validation.checks import check_terminal_bench as checker
+    task = make_task(tmp_path)
+    script = task / 'tests/test.sh'
+    script.write_text('make -j$(nproc)\n')
+    record = {'file': 'tests/test.sh', 'sha256': {
+        name: hashlib.sha256((task / name).read_bytes()).hexdigest()
+        for name in ('environment/Dockerfile', 'tests/test.sh')}}
+    monkeypatch.setattr(checker, 'CALIBFORGE_REVIEWED_NPROC', {task.name: record})
+    if changed == 'image':
+        (task / 'environment/Dockerfile').write_text('FROM other\n')
+    elif changed == 'script':
+        script.write_text('make -j$(nproc)\nmake -j$(nproc)\n')
+    elif changed == 'task_id':
+        task = task.rename(tmp_path / 'other')
+        script = task / 'tests/test.sh'
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[n for n in checks if n != 'check-nproc.sh'])
+    row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert row['checks'][0]['status'] == ('passed' if changed is None else 'failed')
+
+
+def test_dockerfile_comment_filter_preserves_heredoc_data():
+    from validation.checks.check_terminal_bench import dockerfile_without_comments
+    text = '# tests/test.sh provenance\nCOPY <<EOF /app/example\n# tests/test.sh is data here\nEOF\n'
+    assert dockerfile_without_comments(text) == text.split('\n', 1)[1]
+
+
+@pytest.mark.parametrize('text,has_pin', [
+    ('RUN echo "apt-get install gcc=1.2"\n', False),
+    ('RUN apt-get update && apt-get install "gcc=1:4.2"\nENV OTHER=1.2\n', True),
+    ('RUN ["apt-get", "install", "gcc=1.2"]\n', True),
+    ('RUN bash -c "apt-get install gcc=1.2"\n', True),
+    ('RUN DEBIAN_FRONTEND=noninteractive apt-get install gcc=1.2\n', True),
+    ('RUN sudo -n apt-get install gcc=1.2\n', True),
+])
+def test_apt_sanity_shell_forms(text, has_pin):
+    from validation.checks.check_terminal_bench import dockerfile_sanity_text
+    result = dockerfile_sanity_text(text)
+    assert bool(re.search(r'\b[a-zA-Z0-9_-]+=[0-9]+\.[0-9]', result)) == has_pin
+
+
+@pytest.mark.parametrize('profile,expected,exit_code', [('training', 'warning', 0), ('portable', 'failed', 1), ('terminal-bench', 'failed', 1)])
+def test_pip_warning_keeps_training_task_and_preserves_strict_profiles(tmp_path, profile, expected, exit_code):
+    from validation.publishing.outcome_labels import labels
+    task = make_task(tmp_path)
+    (task / 'environment/Dockerfile').write_text('FROM python:3.12-slim\nRUN pip install requests\n')
+    _, checks, _ = load_checks(profile)
+    out = tmp_path / 'report'
+    assert run_checks([task], out, profile, exclude=[n for n in checks if n != 'check-pip-pinning.sh']) == exit_code
+    item = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert item['checks'][0]['status'] == expected
+    assert item['checks'][0]['exit_code'] == 1
+    assert item['status'] == ('passed' if profile == 'training' else 'failed')
+    if profile == 'training':
+        assert item['warnings'][0]['tag'] == 'unpinned-dependency'
+        assert labels(4, item) == ['warning:unpinned-dependency']
+
+
+@pytest.mark.parametrize('source,instruction,expected', [
+    # URL routes, regular expressions and PDF name objects are not files.
+    ('r = client.get("/healthz")\n@app.route("/healthz")\n', None, 'passed'),
+    ('requests.post(base + "/openapi/export")\n', None, 'passed'),
+    ('m = re.search(r"/([^/]+)/?$", url)\n', None, 'passed'),
+    ('m = re.match(r"/task_file/input/[\\w\\-\\.]+", line)\n', None, 'passed'),
+    ('annots = page["/Annots"]\nkind = field["/Subtype"]\n', None, 'passed'),
+    # The task's own harness scripts.
+    ('subprocess.run(["bash", "/solution/solve.sh"])\n', None, 'passed'),
+    # Mentioned in the instruction; only trailing punctuation was glued on.
+    ('cat /app/report.txt.\n', 'Write the report to `/app/report.txt`.\n', 'passed'),
+    # Real hidden requirements still fail.
+    ('Path("/app/output").mkdir()\n', None, 'failed'),
+    ('out = open("/app/report.pdf", "wb")\n', None, 'failed'),
+    ('cat /app/report.txt.\n', 'Write the report.\n', 'failed'),
+])
+def test_reference_check_ignores_non_file_strings(tmp_path, source, instruction, expected):
+    task = make_task(tmp_path)
+    if instruction:
+        (task / 'instruction.md').write_text(instruction)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(source)
+    (task / 'tests/test_outputs.py').write_text(source)
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[n for n in checks if n != 'check-test-file-references.sh'])
+    row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert row['checks'][0]['status'] == expected
+
+
+@pytest.mark.parametrize('source,expected', [
+    ("with zipfile.ZipFile(p) as zf:\n    data = zf.open('content.xml').read()\n", 'passed'),
+    ('zf.writestr("content.xml", body)\nif "content.xml" not in names:\n    fail()\nx = \'<file-entry full-path="content.xml"/>\'\n', 'passed'),
+    ('home = Path(os.environ.get("HOME", "/root"))\nHOME_DIR="${HOME:-/root}"\n', 'passed'),
+    ('expected = "/app/out.mp3\\n"\n', 'failed'),
+    # A real file opened elsewhere is still a finding even if also read from an archive.
+    ("zf.open('content.xml')\nopen('content.xml').read()\n", 'failed'),
+])
+def test_reference_check_archive_members_and_env_defaults(tmp_path, source, expected):
+    task = make_task(tmp_path)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(source)
+    (task / 'tests/test_outputs.py').write_text(source)
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[n for n in checks if n != 'check-test-file-references.sh'])
+    assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected
+
+
+def test_path_check_reports_unquoted_relative_file_names(tmp_path):
+    """Upstream collects unquoted names in a piped while loop (a subshell) and loses them."""
+    import subprocess
+    from validation.checks import check_terminal_bench as ctb
+    task = tmp_path / 'task'
+    (task / 'environment').mkdir(parents=True)
+    (task / 'instruction.md').write_text('Read settings from config.yaml and write the summary.\n')
+    (task / 'environment' / 'Dockerfile').write_text('FROM ubuntu:22.04\nWORKDIR /app\n')
+    (task / 'task.toml').write_text('[metadata]\n')
+    upstream = ctb.TERMINAL_BENCH / 'scripts/checks' / ctb.PATH_CHECK
+    fixed = tmp_path / ctb.PATH_CHECK
+    fixed.write_text(ctb.path_check_script(upstream.read_text()))
+    assert subprocess.run(['bash', str(upstream), str(task)], capture_output=True).returncode == 0
+    result = subprocess.run(['bash', str(fixed), str(task)], capture_output=True, text=True)
+    assert result.returncode == 1 and 'config.yaml' in result.stdout
+
+
+@pytest.mark.parametrize('command,expected', [
+    ("bash -c 'pip install requests==2.31.0; pip freeze > snapshot.txt'\n", 'passed'),
+    ("bash -c 'pip install requests; pip freeze > snapshot.txt'\n", 'failed'),
+    ('pip install requests==2.31.0; pip freeze > snapshot.txt\n', 'passed'),
+    ('pip install requests==2.31.0; pip install wheel\n', 'failed'),
+    ("bash -c 'pip install requests==2.31.0; pip install wheel'\n", 'failed'),
+    ("bash -c 'set -e; /env/bin/pip install ping3==5.1.6; /env/bin/pip freeze > requirements.txt; cat > helper.py << \"PY\"; #!/usr/bin/env python3\nprint(1)\nPY\n'\n", 'passed'),
+    ("bash -c 'set -e; /env/bin/pip install ping3; /env/bin/pip freeze > requirements.txt; cat > helper.py << \"PY\"; #!/usr/bin/env python3\nprint(1)\nPY\n'\n", 'failed'),
+    ('command -v nproc >/dev/null && nproc --all\n', 'passed'),
+    ('command -v nproc >/dev/null && nproc\n', 'failed'),
+])
+def test_shell_separators_and_nproc_probes(tmp_path, command, expected):
+    task = make_task(tmp_path)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(command)
+    selected = 'check-nproc.sh' if 'nproc' in command else 'check-pip-pinning.sh'
+    if selected == 'check-pip-pinning.sh' and expected == 'failed':
+        expected = 'warning'
+    checks = load_checks('training')[1]
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[c for c in checks if c != selected])
+    assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected
+
+
+@pytest.mark.parametrize('instruction,source,expected', [
+    (r'Write /home/user/report\_final.log.', 'x = "/home/user/report_final.log"', 'passed'),
+    ('Write /home/user/other.log.', 'x = "/home/user/report_final.log"', 'failed'),
+    ('Write /home/user/report.log. Its content is VALID.', r'x = "/home/user/report.log : VALID\n"', 'passed'),
+    ('Write /home/user/report.log.', r'x = "/home/user/report.log\tUPDATED"', 'passed'),
+    ('Write /home/user/report.log.', 'x = "/home/user/hidden.log"', 'failed'),
+])
+def test_reference_escaping_does_not_invent_or_hide_requirements(tmp_path, instruction, source, expected):
+    task = make_task(tmp_path)
+    (task / 'instruction.md').write_text(instruction)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text(source)
+    (task / 'tests/test_outputs.py').write_text(source)
+    checks = load_checks('training')[1]
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[c for c in checks if c != 'check-test-file-references.sh'])
+    assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected
+
+
+@pytest.mark.parametrize('usage,expected', [('', 'passed'), ('assert all(Path(p).exists() for p in FILES)', 'failed')])
+def test_unused_reference_set_is_not_a_graded_requirement(tmp_path, usage, expected):
+    task = make_task(tmp_path)
+    (task / 'solution').mkdir()
+    (task / 'solution/solve.sh').write_text('echo temporary > intermediate.txt\nrm intermediate.txt\n')
+    (task / 'tests/test_outputs.py').write_text('FILES = {"intermediate.txt"}\n' + usage + '\n')
+    checks = load_checks('training')[1]
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[c for c in checks if c != 'check-test-file-references.sh'])
+    assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected

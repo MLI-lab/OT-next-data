@@ -3,7 +3,7 @@ from validation.publishing import patch_provenance
 
 def test_automation_counts_overlap_and_exclude_source_drops():
     tables = {'set': ([{'path': 'a', 'patch_labels': ['manual']}],
-                      [{'path': 'b', 'archive_stage': 4}, {'path': 'drop', 'archive_stage': 0}])}
+                      [{'path': 'b', 'archive_stage': 3}, {'path': 'drop', 'archive_stage': 0}])}
     contract = {'dataset': {'automation_changes': {
         'a': ['anti-cheat-instruction', 'relative-path-fix', 'relative-path-fix'],
         'b': ['dependency-pinning'], 'drop': ['dependency-pinning'],

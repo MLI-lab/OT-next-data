@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 
-@pytest.mark.parametrize('kind', ['TmuxSessionEndedError', 'TmuxCommandError'])
+@pytest.mark.parametrize('kind', ['TmuxSessionEndedError', 'TmuxCommandError', 'TmuxBatchProtocolError'])
 @pytest.mark.parametrize('probe_fails', [False, True])
 def test_terminal_error_records_failed_commands_without_retry(monkeypatch, caplog, kind, probe_fails):
     pytest.importorskip('harbor')

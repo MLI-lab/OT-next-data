@@ -1,4 +1,4 @@
-"""Explicit preparation-only boundary for stage-3 setup review.
+"""Explicit preparation-only boundary for stage-1 setup review.
 
 Never infer a preparation prefix from test.sh: that can execute grading, and a
 tests/setup.sh is the preparation boundary; test.sh is never run here.
@@ -76,10 +76,19 @@ async def review_task(task_path, out, args):
             raise RuntimeError(f'{phase} exited {result.return_code}: {result.stderr}')
 
     async def start_container(env, spec, record):
+        from harbor_patches.start_wait import run_with_budget, status_reader
         record['startup_timeout_seconds'] = spec.build_timeout_sec
         record['failure_phase'] = 'container_start'
-        await asyncio.wait_for(measured(record, 'container_start',
-            lambda: env.start(force_build=False)), timeout=spec.build_timeout_sec)
+        def note_wait(seconds):
+            record['timings_seconds']['start_wait'] = seconds
+        try:
+            await measured(record, 'container_start', lambda: run_with_budget(
+                env.start(force_build=False), spec.build_timeout_sec,
+                status_reader(env), record=note_wait))
+        finally:
+            timings = record['timings_seconds']
+            timings['container_start'] = max(0.0, timings.get('container_start', 0.0)
+                                            - timings.get('start_wait', 0.0))
         record.pop('failure_phase', None)
 
     agent_entry = {'environment': 'agent', 'timings_seconds': {}, 'status': 'error'}
@@ -189,6 +198,8 @@ async def review_task(task_path, out, args):
             try:
                 inspection = await inspect_environment(agent, task, task.paths.environment_dir, 'agent')
                 agent_entry.update(inspection)
+                from validation.stages.normalize_paths import capture_build_paths
+                await capture_build_paths(agent, task_path, args, agent_entry)
             except Exception as exc:
                 agent_entry.update(status='error', error=f'{type(exc).__name__}: {exc}')
     finally:

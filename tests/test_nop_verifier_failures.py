@@ -272,7 +272,7 @@ def test_nop_usage_error_for_an_option_the_reference_removes_is_a_valid_zero(tmp
     assert assess_trials(results, 1, 0, task_path=task)['status'] == 'failed'
 
 
-def test_nop_failure_before_any_test_is_a_valid_zero_when_the_oracle_ran_the_suite(tmp_path):
+def test_passing_oracle_alone_does_not_excuse_unexplained_collection_failure(tmp_path):
     # Seven SWE-Lego no-op runs fail in unpatched code without a usable traceback
     # (one-line tb mode); the oracle of the same job executed the suite.
     output = block('collecting', 'tests/test_api.py', "E   TypeError: __new__() got an unexpected keyword argument 'write_reference'\n")
@@ -282,9 +282,7 @@ def test_nop_failure_before_any_test_is_a_valid_zero_when_the_oracle_ran_the_sui
     strict = assess_trials(results, 1, 0, task_path=None)
     assert strict['status'] == 'failed'
     relaxed = assess_trials(results, 1, 0, task_path=None, oracle_passed=True)
-    assert relaxed['status'] == 'completed'
-    assert relaxed['notes'] == ['trial: verifier invocation failed during collection or execution; '
-                                'accepted because the reference run of this job executed the suite']
+    assert relaxed['status'] == 'failed'
     # It never excuses a no-op that executed tests and still failed the checks,
     # a reward of 1, or an oracle run.
     assert assess_trials(results, 1, 1, task_path=None, oracle_passed=True)['status'] == 'failed'
@@ -294,11 +292,94 @@ def test_nop_failure_before_any_test_is_a_valid_zero_when_the_oracle_ran_the_sui
 
 def test_oracle_passed_tasks_reads_this_submissions_stage_4_reports(tmp_path):
     from validation.stages.runner import oracle_passed_tasks
-    report = tmp_path / 'stage_4_oracle_validation' / 'abc' / 'summary.json'
+    report = tmp_path / 'stage_2_oracle_validation' / 'abc' / 'summary.json'
     report.parent.mkdir(parents=True)
-    report.write_text(json.dumps({'items': [{'task': '/x/tasks/a__1', 'status': 'passed'},
+    report.write_text(json.dumps({'items': [{'task': '/x/tasks/a__1', 'status': 'passed', 'rewards': [1.0]},
                                             {'task': '/x/tasks/b__2', 'status': 'failed'}]}))
-    (tmp_path / 'stage_4_oracle_validation' / 'broken').mkdir()
-    (tmp_path / 'stage_4_oracle_validation' / 'broken' / 'summary.json').write_text('{')
+    (tmp_path / 'stage_2_oracle_validation' / 'broken').mkdir()
+    (tmp_path / 'stage_2_oracle_validation' / 'broken' / 'summary.json').write_text('{')
     assert oracle_passed_tasks(tmp_path) == {'a__1'}
     assert oracle_passed_tasks(tmp_path / 'missing') == set()
+
+
+@pytest.mark.parametrize("reward,exception", [(None, "RewardFileNotFoundError"), (None, "VerifierRuntimeError"), (0, None)])
+def test_paired_reference_accepts_explained_missing_score_without_faking_reward(tmp_path, reward, exception):
+    task = reference_task(tmp_path, RENAMED_MODULE)
+    trial = tmp_path / "trial"
+    result = {"verifier_result": {"rewards": {"reward": reward},
+              "stdout": collection_error_evidence(trial, MISSING_TYPES)},
+              "exception_info": {"exception_type": exception} if exception else None}
+    report = assess_trials([(trial, result)], 1, 0, task_path=task, oracle_passed=True)
+    assert report["status"] == "completed"
+    assert report["rewards"] == ([] if reward is None else [0])
+    assert report["expected_baseline_failures"][0]["observed_reward"] == reward
+    from validation.publishing.publish import judge
+    assert judge(3, {**report, 'status': 'passed'})[0] == 'passed'
+    assert result["verifier_result"]["rewards"]["reward"] == reward
+    if reward is None:
+        assert assess_trials([(trial, result)], 1, 0, task_path=task)["status"] == "failed"
+    assert assess_trials([(trial, result)], 1, 1, task_path=task, oracle_passed=True)["status"] == "failed"
+
+
+@pytest.mark.parametrize("error", ["MemoryLimitExceededError", "VerifierTimeoutError", "ContainerStartError"])
+def test_paired_reference_cannot_override_resource_or_infrastructure_exception(tmp_path, error):
+    task = reference_task(tmp_path, RENAMED_MODULE)
+    trial = tmp_path / "trial"
+    result = {"verifier_result": {"rewards": {"reward": 0},
+              "stdout": collection_error_evidence(trial, MISSING_TYPES)},
+              "exception_info": {"exception_type": error}}
+    assert assess_trials([(trial, result)], 1, 0, task_path=task, oracle_passed=True)["status"] == "failed"
+
+
+@pytest.mark.parametrize("extra", ["Killed (out of memory)", "connection refused", "permission denied", "verifier timed out"])
+def test_missing_score_rule_does_not_mask_mixed_infrastructure_failure(tmp_path, extra):
+    task = reference_task(tmp_path, RENAMED_MODULE)
+    trial = tmp_path / "trial"
+    result = {"verifier_result": {"rewards": {},
+              "stdout": collection_error_evidence(trial, MISSING_TYPES + extra)}}
+    assert assess_trials([(trial, result)], 1, 0, task_path=task, oracle_passed=True)["status"] == "failed"
+
+
+def test_paired_reference_requires_matching_contract_and_actual_reward_one(tmp_path):
+    from validation.stages.runner import oracle_passed_tasks
+    root = tmp_path / "stage_2_oracle_validation"
+    for name,contract,rewards in [("a", "current", [1]), ("b", "old", [1]), ("c", "current", []), ("d", "current", [0])]:
+        p = root / name / "summary.json"
+        p.parent.mkdir(parents=True)
+        p.write_text(json.dumps({"contract_sha256": contract, "items": [
+            {"task": "/tasks/" + name, "status": "passed", "rewards": rewards}]}))
+    assert oracle_passed_tasks(tmp_path, "current") == {"a"}
+
+
+@pytest.mark.parametrize('symbol,paired,extra,expected', [
+    ('NewAPI', True, '', 'completed'),
+    ('NewAPI', False, '', 'failed'),
+    ('OtherAPI', True, '', 'failed'),
+    ('NewAPI', True, 'missing go.sum entry for dependency', 'failed'),
+])
+def test_compiler_failure_requires_patch_match_and_paired_reference(tmp_path, symbol, paired, extra, expected):
+    task = reference_task(tmp_path, 'diff --git a/api.go b/api.go\n--- a/api.go\n+++ b/api.go\n+func NewAPI() {}\n')
+    trial = tmp_path / 'trial'
+    token = 'a' * 32
+    (trial / 'verifier').mkdir(parents=True)
+    (trial / 'verifier' / 'execution-context.json').write_text(json.dumps({'version': 1, 'token': token}))
+    begin = {'version': 1, 'id': 'outer'}
+    end = dict(begin, finished=True, executed=2, skipped=0, setup_errors=0,
+               collection_errors=1, exitstatus=1, collection_error_files=['api_test.go'],
+               collection_error_messages=['api_test.go:3: undefined: ' + symbol] + ([extra] if extra else []))
+    output = ('OT_VERIFIER_EXECUTION:' + token + ':BEGIN:' + json.dumps(begin) + '\n'
+              + 'OT_VERIFIER_EXECUTION:' + token + ':END:' + json.dumps(end) + '\n')
+    result = {'verifier_result': {'stdout': output, 'rewards': {}},
+              'exception_info': {'exception_type': 'RewardFileNotFoundError'}}
+    report = assess_trials([(trial, result)], 1, 0, task_path=task, oracle_passed=paired)
+    assert report['status'] == expected
+    assert report['rewards'] == []
+
+
+def test_infrastructure_zero_is_retried_not_archived_as_wrong_reward(tmp_path):
+    from validation.publishing.publish import judge
+    output = execution_evidence(tmp_path, 'connection refused', executed=0, setup_errors=1)
+    report = assess_trials([(tmp_path, {'verifier_result': {'stdout': output, 'rewards': {'reward': 0}}})],
+                           1, 0, oracle_passed=True)
+    assert report['status'] == 'failed'
+    assert judge(3, report)[0] == 'not_run'

@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from harbor_patches.tmux_runtime import INSTALL, LEGACY_INSTALL, ensure_tmux, without_runtime_install
+from harbor_patches.tmux_runtime import INSTALL, LEGACY_INSTALL, LEGACY_PIP_INSTALL, ensure_tmux, without_runtime_install
 
 
 def test_image_tmux_is_used_without_installing():
@@ -48,3 +48,16 @@ def test_pinned_harbor_startup_installer_is_removed_because_the_bridge_installs_
 def test_unrelated_script_is_unchanged():
     script = 'apt-get install custom-package; tmux -V'
     assert without_runtime_install(script) == script
+
+
+def test_pinned_harbor_startup_adds_no_python_packages_to_the_task_image():
+    pytest.importorskip('harbor')
+    from harbor.environments.apptainer import worker
+    constants = worker.ApptainerInstance.start.__code__.co_consts
+    pip = next(c for c in constants if isinstance(c, str) and 'pip install' in c)
+    assert pip == LEGACY_PIP_INSTALL
+    script = "echo 'precedence ::ffff:0:0/96 100'; " + LEGACY_INSTALL + pip + 'true'
+    assert 'pip' not in without_runtime_install(script, environ={})
+    # Kept only where Harbor intends it: a cluster that really routes containers through proxychains.
+    proxied = without_runtime_install(script, environ={'BRIDGE_PROXY_HOST': 'login1', 'BRIDGE_PROXY_PORT': '1080'})
+    assert pip in proxied and LEGACY_INSTALL not in proxied

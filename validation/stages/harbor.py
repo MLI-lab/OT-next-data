@@ -24,6 +24,8 @@ INFRASTRUCTURE_RETRY = {'max_retries': 0}
 
 
 def install_runtime_patches():
+    from harbor_patches.output_recovery import install as install_output_recovery
+    install_output_recovery()
     from harbor_patches.verifier_setup import install as install_verifier_setup
     install_verifier_setup()
     from validation.stages.task_setup import install as install_task_setup
@@ -38,6 +40,8 @@ def install_runtime_patches():
     install_tmux_diagnostics()
     from harbor_patches.oom_recovery import install as install_oom_recovery
     install_oom_recovery()
+    from harbor_patches.resource_usage import install as install_resource_usage
+    install_resource_usage()
     from validation.stages.container_reuse import install
     install()
     # The pinned bridge keys images only by Dockerfile text. Include COPY
@@ -118,11 +122,14 @@ async def execute_job(config, *, path_search_roots=(), pip_pin_capture=None):
     install_runtime_patches()
     from validation.stages.path_diagnostics import install as install_path_diagnostics, observations
     install_path_diagnostics()
+    from validation.stages.reference_leaks import install as install_reference_files, enabled as reference_files_enabled
+    install_reference_files()
     from harbor.job import Job
     from harbor.models.job.config import JobConfig
     job = await Job.create(JobConfig.model_validate(config))
     token = _save_dependencies.set(all(agent.get('name') == 'oracle' for agent in config['agents']))
     diagnostic_agents = {agent.get('name') for agent in config['agents']}
+    reference_files_token = reference_files_enabled.set(diagnostic_agents == {'oracle'})
     diagnostic_token = observations.set(
         {'roots': list(path_search_roots)}
         if path_search_roots and diagnostic_agents == {'oracle'} else None)
@@ -136,6 +143,7 @@ async def execute_job(config, *, path_search_roots=(), pip_pin_capture=None):
         _save_dependencies.reset(token)
         observations.reset(diagnostic_token)
         _capture.reset(pip_token)
+        reference_files_enabled.reset(reference_files_token)
     return Path(str(job.job_dir))
 
 
@@ -221,12 +229,36 @@ def expected_missing_output_setup(output, task_path):
 
 
 def verifier_output(path, verifier):
-    outputs = [verifier.get('stdout') or '', verifier.get('stderr') or '']
-    for name in ('test-stdout.txt', 'test-stderr.txt'):
+    # Result streams and saved logs can contain the same invocation. Merge
+    # copies across sources, never repeated invocation markers within a source.
+    outputs = []
+    clean = lambda text: re.sub(r'\x1b\[[0-9;]*m', '', text).strip()
+    for stream, name in (('stdout', 'test-stdout.txt'), ('stderr', 'test-stderr.txt')):
+        inline = clean(verifier.get(stream) or '')
         log = path / 'verifier' / name
-        if log.is_file():
-            outputs.append(log.read_text(errors='replace'))
-    return re.sub(r'\x1b\[[0-9;]*m', '', '\n'.join(outputs))
+        saved = clean(log.read_text(errors='replace')) if log.is_file() else ''
+        if inline in saved:
+            outputs.append(saved)
+        elif saved in inline:
+            outputs.append(inline)
+        else:
+            outputs.extend((inline, saved))
+    # Verifiers that redirect the runner into a log of their own (Multi-SWE's
+    # /logs/verifier/test_output.txt) leave the evidence there, not on stdout.
+    # Add such a log when it holds records the streams lack; the caller still
+    # accepts only records with this call's token.
+    joined = '\n'.join(outputs)
+    folder = path / 'verifier'
+    for log in sorted(folder.glob('*')) if folder.is_dir() else ():
+        if (not log.is_file() or log.suffix not in ('.txt', '.log')
+                or log.name in ('test-stdout.txt', 'test-stderr.txt') or log.name.startswith('setup-')):
+            continue
+        text = clean(log.read_text(errors='replace'))
+        records = [line for line in text.splitlines() if line.startswith('OT_VERIFIER_EXECUTION:')]
+        if records and not all(line in joined for line in records):
+            outputs.append(text)
+            joined += '\n' + text
+    return '\n'.join(outputs)
 
 
 def nop_missing_instruction_files(path, result, task_path, reward_key):
@@ -335,6 +367,42 @@ def reference_explains_errors(output, task_path, kind):
     return True
 
 
+# MiMo's usecase.sh scripts report "FAIL: F<n> ..." from their fail() helper for a
+# feature check and "FAIL: <message>" without a number when a precondition (tool,
+# build) is missing. No agent runs in the no-op, so nothing else writes this output.
+NUMBERED_SCRIPT_CHECK = re.compile(r'^FAIL: F\d+\b', re.M)
+
+
+def reviewed_nop_zero(output, task_path):
+    """validation/checks/reviewed_nop_zeros.py: a manually inspected verifier without a test
+    runner whose no-op zero is a check failure. Only the exact reviewed line counts."""
+    from validation.checks.reviewed_nop_zeros import REVIEWED
+    review = REVIEWED.get(Path(task_path).name) if task_path is not None else None
+    return bool(review) and review['output_line'] in (line.strip() for line in output.splitlines())
+
+
+def grader_reports_test_results(task_path):
+    """task.toml [metadata] verifier_reports_test_results = true: the task's own grader
+    scores named test results and fails with an error when it parses none (Multi-SWE's
+    grade.py requires every listed test in the runner output). Its reward 1 then shows
+    those tests ran even when the runner has no execution recorder (custom scripts)."""
+    if task_path is None or not (Path(task_path) / 'task.toml').is_file():
+        return False
+    import tomllib
+    try:
+        config = tomllib.loads((Path(task_path) / 'task.toml').read_text())
+    except (OSError, ValueError):
+        return False
+    return (config.get('metadata') or {}).get('verifier_reports_test_results') is True
+
+
+def numbered_script_check_failed(output, task_path):
+    """The task's own test patch adds a usecase.sh, and its output names a failed
+    numbered check: the script ran its checks, so the zero is not a setup failure."""
+    scripts = [p for p in task_test_patch_paths(task_path) if p.rsplit('/', 1)[-1] == 'usecase.sh']
+    return bool(scripts) and bool(NUMBERED_SCRIPT_CHECK.search(output))
+
+
 def reference_removes_rejected_option(output, task_path):
     """pytest exited with a usage error for options that come from the project's own
     configuration and that the reference patch removes (poliastro-192 carried
@@ -349,8 +417,143 @@ def reference_removes_rejected_option(output, task_path):
     return bool(flags) and all(flag in removed for flag in flags)
 
 
+def task_test_patch_paths(task_path):
+    """Paths the task's own test patch (tests/*.patch, *.diff) adds or changes."""
+    paths = set()
+    if task_path is None or not (Path(task_path) / 'tests').is_dir():
+        return paths
+    for patch in sorted((Path(task_path) / 'tests').rglob('*')):
+        if patch.is_file() and patch.suffix in ('.patch', '.diff'):
+            for line in patch.read_text(errors='replace').splitlines():
+                match = re.match(r'(?:diff --git a/\S+ b/(\S+)|\+\+\+ b/(\S+))$', line)
+                if match:
+                    paths.add(match[1] or match[2])
+    return paths
+
+
+# Compiler and loader errors meaning "the API this test uses does not exist yet".
+# A missing third-party package, a bad go.sum or a syntax error is not one of them.
+MISSING_API_ERRORS = re.compile(
+    r'undefined: |has no field or method |\(type .* has no method |unknown field |cannot refer to unexported '
+    r'|too many arguments in call|not enough arguments in call|too many return values|not enough return values'
+    r'|assignment mismatch: |cannot use .* as .* (?:value|type) in |does not implement '
+    r"|Cannot find module '\.{1,2}/|does not provide an export named |is not exported from "
+    # An absolute or root-relative module path in the project (vite resolves "/packages/..."
+    # from its root; node ESM reports "/workspace/repo/core/..."), never one in node_modules.
+    r"|Cannot find module '/(?![^']*node_modules)"
+    # Python: a name the project's own module does not define yet, never an installed package.
+    r"|cannot import name '[^']+' from '[^']+' \((?![^)]*(?:site|dist)-packages)[^)]*\)")
+# The compiler's closing line after its first errors names no API of its own.
+CLOSING_COMPILER_LINES = re.compile(r': too many errors$')
+
+
+def missing_api_explains_build_errors(invocation, task_path):
+    """For tasks without a reference solution: the unpatched project cannot build
+    only the test files the task's own test patch adds or changes, and every
+    error names API that does not exist yet (MiMo's new Go tests reference the
+    function the agent must write). Runners report the failing files and
+    messages themselves (go test, jest, vitest); pytest records carry neither,
+    so this never applies to them."""
+    files = invocation.get('collection_error_files')
+    messages = invocation.get('collection_error_messages')
+    if not files or not messages or invocation.get('setup_failed_packages'):
+        return False
+    changed = task_test_patch_paths(task_path)
+    if not changed or reference_patch_lines(task_path)[0]:
+        return False
+    messages = [m for m in messages if not CLOSING_COMPILER_LINES.search(m)]
+    return (bool(messages) and all(_patched_file(f, changed) for f in files)
+            and all(MISSING_API_ERRORS.search(m) for m in messages))
+
+
+def unrelated_build_errors(invocation, task_path):
+    """Reference runs only: every file that failed to build lies outside the task.
+
+    Multi-SWE runs `go test ./...` with the Go release of its upstream images; some
+    packages the task neither tests nor changes fail there (newer vet checks, a
+    dependency refusing a newer Go), and its expected results already contain those
+    failures. The task's own patches must name at least one file, so a task whose
+    patches cannot be read never qualifies.
+    """
+    files = invocation.get('collection_error_files')
+    if not files or not invocation.get('executed') or invocation.get('setup_failed_packages'):
+        return False
+    patched = set(reference_patch_lines(task_path)[1]) | task_test_patch_paths(task_path)
+    if task_path is not None and (Path(task_path) / 'setup_files').is_dir():
+        for patch in sorted((Path(task_path) / 'setup_files').rglob('*')):
+            if patch.is_file() and patch.suffix in ('.patch', '.diff'):
+                for line in patch.read_text(errors='replace').splitlines():
+                    match = re.match(r'(?:diff --git a/\S+ b/(\S+)|\+\+\+ b/(\S+))$', line)
+                    if match:
+                        patched.add(match[1] or match[2])
+    patched.discard('/dev/null')
+    return bool(patched) and not any(_patched_file(f, patched) for f in files)
+
+
 def reference_explains_collection_errors(output, task_path):
     return reference_explains_errors(output, task_path, 'collecting')
+
+
+BASELINE_RESOURCE_OR_INFRA_ERROR = re.compile(
+    r'out of memory|memory limit|oomkill|\boom[- ]killed\b|\bkilled\b|'
+    r'timed? out|timeout|segmentation fault|permission denied|no space left|'
+    r'connection refused|network is unreachable|temporary failure in name resolution|'
+    r'command not found|cannot connect to.*docker|file format not recognized', re.I)
+
+
+def reference_explains_build_errors(invocation, task_path):
+    """Require each recorded missing-API error to name a reference-patch symbol."""
+    changed, patched = reference_patch_lines(task_path)
+    messages = invocation.get('collection_error_messages') or []
+    messages = [m for m in messages if not CLOSING_COMPILER_LINES.search(m)]
+    if not changed or not messages or invocation.get('setup_failed_packages'):
+        return False
+    code = '\n'.join(line[1:] for line in changed if line.startswith(('+', '-'))
+                     and not line.startswith(('+++', '---')))
+    symbols = set(re.findall(r'\b[A-Za-z_]\w*\b', code))
+    symbols.update(Path(name).stem for name in patched)
+    for message in messages:
+        match = MISSING_API_ERRORS.search(message)
+        if not match:
+            return False
+        # Read the diagnostic after its error prefix, not filenames or compiler
+        # source context which might coincidentally mention patched code.
+        names = re.findall(r'\b[A-Za-z_]\w*\b', message[match.end():])
+        if not names or names[0] not in symbols:
+            return False
+    return True
+
+
+def expected_baseline_failure(path, result, task_path, oracle_passed, reward_key):
+    """Accept a proven solution-related failure without inventing a reward."""
+    if not oracle_passed:
+        return None
+    exception = result.get('exception_info') or {}
+    if exception.get('exception_type') not in (None, 'VerifierRuntimeError', 'RewardFileNotFoundError'):
+        return None
+    verifier = result.get('verifier_result') or {}
+    reward = (verifier.get('rewards') or {}).get(reward_key)
+    if reward is not None and (isinstance(reward, bool) or reward != 0):
+        return None
+    output = verifier_output(path, verifier)
+    if BASELINE_RESOURCE_OR_INFRA_ERROR.search(output):
+        return None
+    # This validates the current token and every invocation, including mixed
+    # successful/failing packages; incomplete execution never qualifies.
+    if nop_execution_problem(path, verifier, task_path, 0, oracle_passed=True):
+        return None
+    from validation.stages.execution_evidence import MANIFEST, scope_output
+    token = json.loads((path / 'verifier' / MANIFEST).read_text())['token']
+    _, invocations, _ = scope_output(output, token)
+    failures = [i for i in invocations if i['collection_errors'] or i['setup_errors']]
+    if not failures:
+        return None
+    if not all(reference_explains_build_errors(i, task_path)
+               or reference_explains_errors(output, task_path, 'collecting')
+               or reference_explains_errors(output, task_path, 'at setup of') for i in failures):
+        return None
+    return {'trial': str(path), 'reason': 'solution-related build/import failure with passing paired reference',
+            'observed_reward': reward, 'exception_info': exception or None}
 
 
 def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, oracle_passed=False):
@@ -371,31 +574,78 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
     except (ValueError, KeyError, TypeError):
         return 'invalid verifier execution context'
     output = verifier_output(path, verifier)
+    if expected_reward == 0 and BASELINE_RESOURCE_OR_INFRA_ERROR.search(output):
+        return 'verifier invocation failed: baseline resource or infrastructure failure requires review or retry'
     _, invocations, problem = scope_output(output, token)
     if problem:
+        if (problem == 'verifier invocation did not finish'
+                and 'Fatal Python error: Segmentation fault' in output):
+            return 'verifier process crashed with a segmentation fault; execution evidence is incomplete'
         return problem
     if not invocations:
+        if expected_reward == 0:
+            from validation.checks.fineenvs_verifier import missing_answer_checked
+            if missing_answer_checked(output, task_path, oracle_passed):
+                return None
         if expected_reward == 0 and reference_removes_rejected_option(output, task_path):
             # pytest refused the unpatched project's own addopts before any
             # plugin loaded; the reference patch removes that option.
+            return None
+        if expected_reward == 0 and reviewed_nop_zero(output, task_path):
+            # A person read this script and its no-op output; the reviewed line is the
+            # script's own check failing (validation/checks/reviewed_nop_zeros.py).
+            return None
+        if expected_reward == 0 and numbered_script_check_failed(output, task_path):
+            # A shell verifier without a test runner (MiMo's usecase.sh) got past its
+            # preconditions: one of its numbered feature checks ran and failed.
+            return None
+        if grader_reports_test_results(task_path) and (expected_reward == 1 or (expected_reward == 0 and oracle_passed)):
+            # No recorder for this runner, but the grader names each test it scored: a
+            # reference reward of 1 (checked by the caller) shows the tests ran, and after
+            # that reference run passed, the no-op zero is the missing solution's.
             return None
         return 'verifier execution evidence is missing; runner instrumentation did not report an invocation'
     for invocation in invocations:
         if invocation['collection_errors'] or invocation['exitstatus'] in (2, 3, 4):
             if (expected_reward == 0 and invocation['collection_errors'] and not invocation['executed']
-                    and (oracle_passed or reference_explains_collection_errors(output, task_path))):
+                    and reference_explains_collection_errors(output, task_path)):
                 # The unpatched task cannot even import the tested code: a
                 # genuine zero for a change the reference patch makes. The
-                # reference run of the same job executing this suite proves the
-                # environment itself can run it.
+                # patch evidence is required even when a paired reference passed.
+                continue
+            if expected_reward == 0 and oracle_passed and reference_explains_build_errors(invocation, task_path):
+                continue
+            if expected_reward == 0 and missing_api_explains_build_errors(invocation, task_path):
+                # No reference to compare with: the zero is the task's new tests
+                # failing to build against the code the agent must still write.
+                continue
+            if expected_reward == 1 and invocation['collection_errors'] and unrelated_build_errors(invocation, task_path):
+                # The reference run executed tests; only packages outside both of the
+                # task's patches failed to build. The reward check still applies.
+                continue
+            if expected_reward == 0 and reviewed_nop_zero(output, task_path):
+                # A person read the no-op output: the failing call is the missing feature
+                # (validation/checks/reviewed_nop_zeros.py, exact line).
                 continue
             return 'verifier invocation failed during collection or execution'
         if not invocation['executed']:
+            if (not invocation['setup_errors'] and invocation['exitstatus'] == 0
+                    and any(other['executed'] for other in invocations)):
+                # A clean call that runs no tests on purpose (MiMo 001782 compiles with
+                # `go test -run '^$'` first); another call of this verifier ran the tests.
+                continue
             if invocation['setup_errors'] and expected_missing_output_setup(output, task_path):
                 continue
             if (expected_reward == 0 and invocation['setup_errors']
-                    and (oracle_passed or reference_explains_errors(output, task_path, 'at setup of'))):
+                    and missing_api_explains_build_errors(invocation, task_path)):
+                # mocha: a "before all" hook of the task's new test file imports the
+                # module the agent must still write (MiMo 001555).
+                continue
+            if (expected_reward == 0 and invocation['setup_errors']
+                    and reference_explains_errors(output, task_path, 'at setup of')):
                 # Every fixture failed inside the code the reference patch changes.
+                continue
+            if expected_reward == 0 and reviewed_nop_zero(output, task_path):
                 continue
             return 'verifier executed no tests (empty, skipped, or setup errors)'
     return None
@@ -413,14 +663,22 @@ def trial_seconds(result, phase=None):
         return None
 
 
-def assess_trials(results, expected_count, expected_reward=None, reward_key='reward', *, task_path=None, oracle_passed=False):
+def assess_trials(results, expected_count, expected_reward=None, reward_key='reward', *, task_path=None, oracle_passed=False, require_execution=True):
     findings = []
     notes = []
     missing_file_zeros = []
+    expected_baseline_failures = []
     if len(results) != expected_count:
         findings.append(f'expected {expected_count} trials, found {len(results)}')
     scores = []
     for path, result in results:
+        negative = (expected_baseline_failure(path, result, task_path, oracle_passed, reward_key)
+                    if expected_reward == 0 and require_execution else None)
+        if negative:
+            expected_baseline_failures.append(negative)
+            if negative['observed_reward'] is not None:
+                scores.append(negative['observed_reward'])
+            continue
         missing = (nop_missing_instruction_files(path, result, task_path, reward_key)
                    if expected_reward == 0 else [])
         if missing:
@@ -436,7 +694,7 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
             if expected_reward is not None or result['exception_info'].get('exception_type') != 'AgentTimeoutError':
                 continue
         verifier = result.get('verifier_result') or {}
-        if expected_reward in (0, 1):
+        if require_execution and expected_reward in (0, 1):
             problem = nop_execution_problem(path, verifier, task_path, expected_reward, oracle_passed)
             if problem:
                 findings.append(f'{path.name}: {problem}')
@@ -455,6 +713,7 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
     return {'status': 'failed' if findings else 'completed', 'findings': findings, 'rewards': scores,
             **({'notes': notes} if notes else {}),
             **({'missing_file_zeros': missing_file_zeros} if missing_file_zeros else {}),
+            **({'expected_baseline_failures': expected_baseline_failures} if expected_baseline_failures else {}),
             'trial_seconds': [trial_seconds(result) for _, result in results],
             # How long the solution and the verifier themselves ran: the slow tasks can be found later.
             'agent_seconds': [trial_seconds(result, 'agent_execution') for _, result in results],
@@ -510,12 +769,16 @@ async def build_task(task_path, out, args):
                 trial_paths=paths, task_env_config=spec, **config['kwargs'])
             from validation.stages.task_setup import detect, prepare, upload_setup
             command = detect(task_path) if label == 'agent' else None
-            await asyncio.wait_for(
+            from harbor_patches.start_wait import run_with_budget, status_reader
+            waited = status_reader(environment)
+            # Working time only: waiting for a worker or a Slurm step is added on top.
+            await run_with_budget(
                 prepare(environment, command=command, timeout_sec=spec.build_timeout_sec,
                         force_build=args.force_build,
                         timings=entry['timings_seconds'],
-                        upload=lambda: upload_setup(environment, task_path)),
-                timeout=spec.build_timeout_sec)
+                        upload=lambda: upload_setup(environment, task_path), waited=waited),
+                spec.build_timeout_sec, waited,
+                record=lambda wait: entry['timings_seconds'].__setitem__('start_wait', wait))
             if command:
                 entry['setup_command'] = command
                 entry['preparation_budget_seconds'] = spec.build_timeout_sec
@@ -534,11 +797,14 @@ async def build_task(task_path, out, args):
             from validation.checks.environment import inspect_environment
             inspection = await inspect_environment(environment, task, context, label)
             entry.update(inspection)
-            if label == 'agent' and getattr(args, 'resolve_path_root', None):
-                from data.utils.resolve_absolute_paths import resolve_in_environment
-                entry['instruction_paths'] = await resolve_in_environment(environment, task_path, args.resolve_path_root)
+            if label == 'agent':
+                from validation.stages.normalize_paths import capture_build_paths
+                await capture_build_paths(environment, task_path, args, entry)
         except Exception as exc:
-            entry.update(status='error', error=str(exc))
+            # A bare timeout has no text; the publisher needs the cause to classify it.
+            entry.update(status='error', error=str(exc) or f'{type(exc).__name__} during {phase}')
+            if getattr(exc, 'diagnostics', None):
+                entry['setup_diagnostics'] = exc.diagnostics
         finally:
             entry['timings_seconds'][phase] = time.monotonic() - started
             if environment is not None:

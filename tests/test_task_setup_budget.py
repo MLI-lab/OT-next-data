@@ -109,3 +109,82 @@ def test_tasks_without_setup_keep_original_start(tmp_path, monkeypatch):
     asyncio.run(trial._start_agent_environment())
     asyncio.run(trial._upload_setup_files())
     assert calls == ['original-start', 'original-upload']
+
+
+def test_start_without_setup_does_not_charge_waiting_to_the_budget(tmp_path, monkeypatch):
+    from harbor.trial import trial as trial_module
+    from harbor_patches import start_wait
+    started = []
+    class Environment:
+        _env_id = _bridge_url = None
+        async def start(self, **kwargs):
+            started.append(kwargs)
+    class Trial:
+        async def _start_agent_environment(self): raise AssertionError('upstream start charges waiting time')
+        async def _upload_setup_files(self): pass
+    monkeypatch.setattr(trial_module, 'Trial', Trial)
+    task_setup.install()
+    trial = Trial()
+    trial.task = SimpleNamespace(paths=SimpleNamespace(task_dir=tmp_path))
+    trial._environment_build_timeout_sec = 600
+    trial.agent_environment = Environment()
+    trial.config = SimpleNamespace(environment=SimpleNamespace(force_build=False))
+    trial.logger = logging.getLogger('test')
+    asyncio.run(trial._start_agent_environment())
+    assert started == [{'force_build': False}]
+
+
+def test_setup_budget_is_extended_by_the_reported_wait(monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr(task_setup.time, 'monotonic', lambda: clock[0])
+    seen = {}
+    class Environment:
+        async def start(self, **kwargs):
+            clock[0] += 500                      # 450 s of it waiting for a Slurm step
+        async def exec(self, command, **kwargs):
+            seen.update(kwargs)
+            return SimpleNamespace(return_code=0, stdout='', stderr='')
+    async def upload(): pass
+    async def waited(): return 450.0
+    timings = {}
+    asyncio.run(task_setup.prepare(Environment(), command='setup', timeout_sec=600, force_build=False,
+                                   upload=upload, timings=timings, waited=waited))
+    assert seen['timeout_sec'] == 550 and timings['start_wait'] == 450.0
+
+
+def test_failed_setup_records_container_diagnostics():
+    calls = []
+    class Environment:
+        async def start(self, **kwargs): pass
+        async def exec(self, command, **kwargs):
+            calls.append(command)
+            if command == 'setup':
+                return SimpleNamespace(return_code=1, stdout='checkout cleanliness failed', stderr="No module named 'keyword'")
+            return SimpleNamespace(return_code=0, stdout='== mounts\noverlay / overlay rw\n', stderr='')
+    async def upload(): pass
+    with pytest.raises(RuntimeError, match='Task setup exited 1') as caught:
+        asyncio.run(task_setup.prepare(Environment(), command='setup', timeout_sec=60, force_build=False, upload=upload))
+    assert caught.value.diagnostics.startswith('== mounts') and calls[1] == task_setup.SETUP_DIAGNOSTICS
+    assert 'checkout cleanliness failed' in str(caught.value)
+
+
+@pytest.mark.parametrize('python_section,damaged', [
+    ('3.9.18 stdlib ok\npython3.9\n212\n', False),
+    ("ModuleNotFoundError: No module named 'keyword'\nOT_PYTHON_STDLIB_IMPORT_FAILED:/opt/conda/bin/python\n", True),
+    ("", False),
+    ("OT_PYTHON_PROBE:/usr/bin/python3\n3.12 stdlib ok\n", False),
+])
+def test_setup_failure_on_a_broken_interpreter_is_marked_as_environment_damage(python_section, damaged):
+    from validation.publishing.publish import judge
+    class Environment:
+        async def start(self, **kwargs): pass
+        async def exec(self, command, **kwargs):
+            if command == 'setup':
+                return SimpleNamespace(return_code=1, stdout='', stderr='ERROR: Could not install packages')
+            return SimpleNamespace(return_code=0, stdout='== mounts\n== space\n== python\n' + python_section + '== processes\n', stderr='')
+    async def upload(): pass
+    with pytest.raises(RuntimeError) as caught:
+        asyncio.run(task_setup.prepare(Environment(), command='setup', timeout_sec=60, force_build=False, upload=upload))
+    assert str(caught.value).startswith(task_setup.DAMAGED) is damaged
+    item = {'status': 'error', 'environments': [{'status': 'error', 'error': str(caught.value)}]}
+    assert judge(1, item)[0] == ('not_run' if damaged else 'archive')

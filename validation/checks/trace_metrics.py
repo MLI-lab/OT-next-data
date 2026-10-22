@@ -7,6 +7,7 @@ import re
 
 from validation.checks.reward_metrics import group_of, trial_reward, passk_reward, REWARD_POLICY
 from validation.checks.command_metrics import profile, mean_distribution
+from validation.checks.trace_outcomes import classify_outcome
 
 PARSE_ERROR = 'Previous response had parsing errors'
 OUTPUT_CAP = 'NONE of the actions you just requested were performed'
@@ -17,7 +18,9 @@ ERROR_TEXT = re.compile(r'command not found|No such file or directory|Permission
 TERMINATIONS = {
     'AgentTimeoutError': 'task_timeout', 'TrialTimeoutError': 'task_timeout',
     'TurnCapExhaustedError': 'turn_limit',
-    'ContextLengthExceededError': 'context_limit', 'ContextBudgetExceededError': 'context_limit',
+    'ContextLengthExceededError': 'context_limit',
+    'ContextBudgetExceededError': 'harness_error',
+    'RepeatedOutputTruncationError': 'repeated_output_truncation',
     'OutputLengthExceededError': 'output_cap',
     'TaskMemoryLimitError': 'task_memory_limit',
 }
@@ -95,6 +98,7 @@ def trial_metrics(trial, result, context_limit=None, key='reward'):
     reward = passk_reward(result, key)
     if reward is None and not exceptions:
         errors['verifier'].append('no reward and no recorded exception')
+    termination = classify_outcome(termination, errors)
     return {
         'trial': Path(trial).parent.parent.name if Path(trial).parent.name == 'attempts' else Path(trial).name,
         'trial_path': str(Path(trial).resolve()),

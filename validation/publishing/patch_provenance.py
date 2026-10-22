@@ -6,7 +6,27 @@ from pathlib import Path
 from validation.publishing.pr_tables import cell, label_table
 
 
-def attach(record, tables, specifications):
+def source_binaries(contract):
+    """Task -> sha256 of its archive before contract preparation rewrote the instruction.
+
+    The patcher's manifest names its own output; the published task is that output plus
+    the timeout and anti-cheat sentence (recorded as an automation change). Reading the
+    contract's original source lets the manifest still be checked against the exact payload.
+    """
+    original = ((contract or {}).get('dataset', {}).get('normalization') or {}).get('original_path')
+    if not original or not Path(original).exists():
+        return {}
+    import pyarrow.parquet as pq
+    from validation.data.materialize import parquet_files
+    found = {}
+    for path in parquet_files(Path(original)):
+        for batch in pq.ParquetFile(path).iter_batches(batch_size=64, columns=['path', 'task_binary']):
+            for row in batch.to_pylist():
+                found[row['path']] = hashlib.sha256(row['task_binary']).hexdigest()
+    return found
+
+
+def attach(record, tables, specifications, source_hashes=None):
     """FOLDER=JSON inputs: one cumulative manifest per output folder, no guessing."""
     for specification in specifications:
         folder, filename = specification.split('=', 1)
@@ -58,7 +78,8 @@ def attach(record, tables, specifications):
         for task in tasks:
             row = rows[task['task_id']]
             expected = task.get('output_binary_sha256')
-            if not expected or hashlib.sha256(row['task_binary']).hexdigest() != expected:
+            if not expected or expected not in (hashlib.sha256(row['task_binary']).hexdigest(),
+                                                (source_hashes or {}).get(task['task_id'])):
                 raise ValueError('patch manifest payload does not match published task: ' + task['task_id'])
             row.update(patch_labels=task.get('labels', []) if task['action'] == 'changed' else [],
                        patch_changed=task['action'] == 'changed', source_task_id=task['source_task_id'])

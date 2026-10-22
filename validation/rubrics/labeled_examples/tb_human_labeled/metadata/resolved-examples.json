@@ -1,0 +1,1254 @@
+{
+  "schema_version": 1,
+  "upstream_revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+  "rule": "Preserve original upstream labels, including when the reviewed revision is unknown. Exclude evidence that refers to a different task. Add separate assumed passes only for later revisions linked to a reviewed version in the same merged PR.",
+  "tasks": [
+    {
+      "task_id": "fail-rubric-agentic",
+      "upstream_task_id": "fail-rubric-agentic",
+      "split_group": "fail-rubric-agentic",
+      "labels": {
+        "agentic": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-agentic",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-agentic"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-anti-cheat",
+      "upstream_task_id": "fail-rubric-anti-cheat",
+      "split_group": "fail-rubric-anti-cheat",
+      "labels": {
+        "anti_cheat_robustness": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-anti-cheat",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-anti-cheat"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-artifact-efficiency",
+      "upstream_task_id": "fail-rubric-artifact-efficiency",
+      "split_group": "fail-rubric-artifact-efficiency",
+      "labels": {
+        "artifact_efficiency": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-artifact-efficiency",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-artifact-efficiency"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-deterministic",
+      "upstream_task_id": "fail-rubric-deterministic",
+      "split_group": "fail-rubric-deterministic",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-deterministic",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-deterministic"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-essential-difficulty",
+      "upstream_task_id": "fail-rubric-essential-difficulty",
+      "split_group": "fail-rubric-essential-difficulty",
+      "labels": {
+        "essential_difficulty": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-essential-difficulty",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-essential-difficulty"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-functional-verification",
+      "upstream_task_id": "fail-rubric-functional-verification",
+      "split_group": "fail-rubric-functional-verification",
+      "labels": {
+        "functional_verification": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-functional-verification",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-functional-verification"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-instruction-concision",
+      "upstream_task_id": "fail-rubric-instruction-concision",
+      "split_group": "fail-rubric-instruction-concision",
+      "labels": {
+        "instruction_concision": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-instruction-concision",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-instruction-concision"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-instruction-concision-fluff",
+      "upstream_task_id": "fail-rubric-instruction-concision-fluff",
+      "split_group": "fail-rubric-instruction-concision-fluff",
+      "labels": {
+        "instruction_concision": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-instruction-concision-fluff",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-instruction-concision-fluff"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-interesting",
+      "upstream_task_id": "fail-rubric-interesting",
+      "split_group": "fail-rubric-interesting",
+      "labels": {
+        "interesting": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-interesting",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-interesting"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-no-ctrf",
+      "upstream_task_id": "fail-rubric-no-ctrf",
+      "split_group": "fail-rubric-no-ctrf",
+      "labels": {
+        "ctrf_reporting": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-no-ctrf",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-no-ctrf"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-outcome-verified",
+      "upstream_task_id": "fail-rubric-outcome-verified",
+      "split_group": "fail-rubric-outcome-verified",
+      "labels": {
+        "outcome_verified": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-outcome-verified",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-outcome-verified"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-reviewable",
+      "upstream_task_id": "fail-rubric-reviewable",
+      "split_group": "fail-rubric-reviewable",
+      "labels": {
+        "reviewable": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-reviewable",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-reviewable"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-solution-quality",
+      "upstream_task_id": "fail-rubric-solution-quality",
+      "split_group": "fail-rubric-solution-quality",
+      "labels": {
+        "solution_quality": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-solution-quality",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-solution-quality"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-solvable",
+      "upstream_task_id": "fail-rubric-solvable",
+      "split_group": "fail-rubric-solvable",
+      "labels": {
+        "solvable": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-solvable",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-solvable"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-structured-schema",
+      "upstream_task_id": "fail-rubric-structured-schema",
+      "split_group": "fail-rubric-structured-schema",
+      "labels": {
+        "structured_data_schema": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-structured-schema",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-structured-schema"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-test-alignment",
+      "upstream_task_id": "fail-rubric-test-alignment",
+      "split_group": "fail-rubric-test-alignment",
+      "labels": {
+        "test_instruction_alignment": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-test-alignment",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-test-alignment"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-typos",
+      "upstream_task_id": "fail-rubric-typos",
+      "split_group": "fail-rubric-typos",
+      "labels": {
+        "typos": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-typos",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-typos"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-verifiable",
+      "upstream_task_id": "fail-rubric-verifiable",
+      "split_group": "fail-rubric-verifiable",
+      "labels": {
+        "verifiable": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-verifiable",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-verifiable"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-verifier-isolation",
+      "upstream_task_id": "fail-rubric-verifier-isolation",
+      "split_group": "fail-rubric-verifier-isolation",
+      "labels": {
+        "verifier_execution_isolation": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-verifier-isolation",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-verifier-isolation"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-resource-config",
+      "upstream_task_id": "fail-rubric-resource-config",
+      "split_group": "fail-rubric-resource-config",
+      "labels": {
+        "resource_configuration": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-resource-config",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-resource-config"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-no-extraneous-files",
+      "upstream_task_id": "fail-rubric-no-extraneous-files",
+      "split_group": "fail-rubric-no-extraneous-files",
+      "labels": {
+        "no_extraneous_files": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-no-extraneous-files",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-no-extraneous-files"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "build-stp",
+      "upstream_task_id": "build-stp",
+      "split_group": "build-stp",
+      "labels": {
+        "anti_cheat_robustness": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/build-stp",
+        "revision": "4d5f5c410583b3545847d95b42b0cc6c58490cf3",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/4d5f5c410583b3545847d95b42b0cc6c58490cf3/tasks/build-stp"
+      },
+      "role": "reviewed",
+      "label_binding": "review_comment_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/934",
+        "https://github.com/harbor-framework/terminal-bench-1/pull/934#discussion_r2320914529"
+      ],
+      "reason": "Use original_commit_id of the review comment describing the labeled defect."
+    },
+    {
+      "task_id": "build-stp--after",
+      "upstream_task_id": "build-stp",
+      "split_group": "build-stp",
+      "role": "after",
+      "labels": {
+        "anti_cheat_robustness": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/build-stp",
+        "revision": "5a33adf0c65db228b83628576c4bda9b33f77357",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/5a33adf0c65db228b83628576c4bda9b33f77357/tasks/build-stp"
+      },
+      "paired_with": "build-stp",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/934"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "query-optimize",
+      "upstream_task_id": "query-optimize",
+      "split_group": "query-optimize",
+      "labels": {
+        "anti_cheat_robustness": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/query-optimize",
+        "revision": "58cf74842d7b69569f8e1b11e7edd9bfad8e961d",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/58cf74842d7b69569f8e1b11e7edd9bfad8e961d/tasks/query-optimize"
+      },
+      "role": "reviewed",
+      "label_binding": "review_comment_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/968",
+        "https://github.com/harbor-framework/terminal-bench-1/pull/968#discussion_r2317632769"
+      ],
+      "reason": "Use original_commit_id of the review comment describing the labeled defect."
+    },
+    {
+      "task_id": "query-optimize--after",
+      "upstream_task_id": "query-optimize",
+      "split_group": "query-optimize",
+      "role": "after",
+      "labels": {
+        "anti_cheat_robustness": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/query-optimize",
+        "revision": "b090a220df8197fcaf6d23f8fb62355ad5d941d6",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/b090a220df8197fcaf6d23f8fb62355ad5d941d6/tasks/query-optimize"
+      },
+      "paired_with": "query-optimize",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/968"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "sanitize-git-repo",
+      "upstream_task_id": "sanitize-git-repo",
+      "split_group": "sanitize-git-repo",
+      "labels": {
+        "anti_cheat_robustness": "fail"
+      },
+      "label_status": "unverified_version",
+      "score": false,
+      "task_reference": {
+        "path": "tasks/sanitize-git-repo",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/sanitize-git-repo"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1034"
+      ],
+      "reason": "PR 1034 changes eleven other tasks, not sanitize-git-repo.",
+      "exclusion_reason": "PR 1034 does not change this task; the claimed git-history exploit has no verified reviewed version or fix for sanitize-git-repo.",
+      "inspection_status": "evidence_points_to_different_tasks",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "install-windows-3.11",
+      "upstream_task_id": "install-windows-3.11",
+      "split_group": "install-windows-3.11",
+      "labels": {
+        "test_instruction_alignment": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/install-windows-3.11",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/install-windows-3.11"
+      },
+      "role": "reviewed",
+      "label_binding": "fix_pr_base",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/886",
+        "https://github.com/laude-institute/terminal-bench/pull/1400"
+      ],
+      "reason": "This PR fixes an existing task; use its base version for the reported defect. Upstream also links unrelated POV-Ray PR 886; use the task-specific PR 1400, which is open."
+    },
+    {
+      "task_id": "vimscript-vim-quine",
+      "upstream_task_id": "vimscript-vim-quine",
+      "split_group": "vimscript-vim-quine",
+      "labels": {
+        "anti_cheat_robustness": "pass"
+      },
+      "label_status": "unverified_version",
+      "score": false,
+      "task_reference": {
+        "path": "tasks/vimscript-vim-quine",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/vimscript-vim-quine"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1175"
+      ],
+      "reason": "PR 1175 and its answer-isolation review concern large-scale-text-editing, not vimscript-vim-quine.",
+      "exclusion_reason": "The upstream pass evidence is for large-scale-text-editing (PR 1175), not vimscript-vim-quine.",
+      "inspection_status": "evidence_points_to_different_tasks",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "chess-best-move",
+      "upstream_task_id": "chess-best-move",
+      "split_group": "chess-best-move",
+      "labels": {
+        "anti_cheat_robustness": "fail"
+      },
+      "label_status": "unverified_version",
+      "score": false,
+      "task_reference": {
+        "path": "tasks/chess-best-move",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/chess-best-move"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/988"
+      ],
+      "reason": "PR 988 adds chess-beat-kendrick, not chess-best-move.",
+      "exclusion_reason": "The Stockfish review concerns chess-beat-kendrick (PR 988), not the downloaded chess-best-move task.",
+      "inspection_status": "evidence_points_to_different_tasks",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "password-recovery",
+      "upstream_task_id": "password-recovery",
+      "split_group": "password-recovery",
+      "labels": {
+        "anti_cheat_robustness": "fail"
+      },
+      "label_status": "unverified_version",
+      "score": false,
+      "task_reference": {
+        "path": "tasks/password-recovery",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/password-recovery"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/961"
+      ],
+      "reason": "PR 961 adds hack-hidden-password, not password-recovery.",
+      "exclusion_reason": "The /proc file-descriptor review concerns hack-hidden-password (PR 961), not password-recovery.",
+      "inspection_status": "evidence_points_to_different_tasks",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "cartpole-rl-training",
+      "upstream_task_id": "cartpole-rl-training",
+      "split_group": "cartpole-rl-training",
+      "labels": {
+        "anti_cheat_robustness": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/cartpole-rl-training",
+        "revision": "94e8728501d2892a92d8508dc499b5b0120becde",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/94e8728501d2892a92d8508dc499b5b0120becde/tasks/cartpole-rl-training"
+      },
+      "role": "reviewed",
+      "label_binding": "fix_pr_base",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1095"
+      ],
+      "reason": "This PR fixes an existing task; use its base version for the reported defect."
+    },
+    {
+      "task_id": "causal-inference-r",
+      "upstream_task_id": "causal-inference-r",
+      "split_group": "causal-inference-r",
+      "labels": {
+        "anti_cheat_robustness": "fail",
+        "functional_verification": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/causal-inference-r",
+        "revision": "94e8728501d2892a92d8508dc499b5b0120becde",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/94e8728501d2892a92d8508dc499b5b0120becde/tasks/causal-inference-r"
+      },
+      "role": "reviewed",
+      "label_binding": "fix_pr_base",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1068"
+      ],
+      "reason": "This PR fixes an existing task; use its base version for the reported defect."
+    },
+    {
+      "task_id": "modernize-scientific-stack",
+      "upstream_task_id": "modernize-scientific-stack",
+      "split_group": "modernize-scientific-stack",
+      "labels": {
+        "functional_verification": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/modernize-scientific-stack",
+        "revision": "ad6c97b34f14d34b22f5e4f277f1b0a663227299",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/ad6c97b34f14d34b22f5e4f277f1b0a663227299/tasks/modernize-scientific-stack"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/966"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    {
+      "task_id": "modernize-scientific-stack--after",
+      "upstream_task_id": "modernize-scientific-stack",
+      "split_group": "modernize-scientific-stack",
+      "role": "after",
+      "labels": {
+        "functional_verification": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/modernize-scientific-stack",
+        "revision": "884b669b12553f52f2ae20d5665e8a69412df60e",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/884b669b12553f52f2ae20d5665e8a69412df60e/tasks/modernize-scientific-stack"
+      },
+      "paired_with": "modernize-scientific-stack",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/966"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "form-filling",
+      "upstream_task_id": "form-filling",
+      "split_group": "form-filling",
+      "labels": {
+        "functional_verification": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/form-filling",
+        "revision": "e5e9f8a5003324d7ccc8747b6a2f4bd715dbc07a",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/e5e9f8a5003324d7ccc8747b6a2f4bd715dbc07a/tasks/form-filling"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1064"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    {
+      "task_id": "form-filling--after",
+      "upstream_task_id": "form-filling",
+      "split_group": "form-filling",
+      "role": "after",
+      "labels": {
+        "functional_verification": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/form-filling",
+        "revision": "5c29c62f05fc272e6bd4e985ff45259833d3cda0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/5c29c62f05fc272e6bd4e985ff45259833d3cda0/tasks/form-filling"
+      },
+      "paired_with": "form-filling",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/1064"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "mailman",
+      "upstream_task_id": "mailman",
+      "split_group": "mailman",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/mailman",
+        "revision": "c006cd3ac1a0e69f452d0e8bec870122a55699f3",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/c006cd3ac1a0e69f452d0e8bec870122a55699f3/tasks/mailman"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/922"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    {
+      "task_id": "mailman--after",
+      "upstream_task_id": "mailman",
+      "split_group": "mailman",
+      "role": "after",
+      "labels": {
+        "deterministic_reproducible": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/mailman",
+        "revision": "eccc6b644cf68845763984a0e3ed2c558456713d",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/eccc6b644cf68845763984a0e3ed2c558456713d/tasks/mailman"
+      },
+      "paired_with": "mailman",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/922"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "protocol-analysis-rs",
+      "upstream_task_id": "protocol-analysis-rs",
+      "split_group": "protocol-analysis-rs",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/protocol-analysis-rs",
+        "revision": "aeb3d8acfd83a0b4cab1fdff50796f25b89c2ec7",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/aeb3d8acfd83a0b4cab1fdff50796f25b89c2ec7/tasks/protocol-analysis-rs"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/838"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    {
+      "task_id": "protocol-analysis-rs--after",
+      "upstream_task_id": "protocol-analysis-rs",
+      "split_group": "protocol-analysis-rs",
+      "role": "after",
+      "labels": {
+        "deterministic_reproducible": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/protocol-analysis-rs",
+        "revision": "fe9a2df385b5720f190af4163af3826453b6e58f",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/fe9a2df385b5720f190af4163af3826453b6e58f/tasks/protocol-analysis-rs"
+      },
+      "paired_with": "protocol-analysis-rs",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/838"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "mcmc-sampling-stan",
+      "upstream_task_id": "mcmc-sampling-stan",
+      "split_group": "mcmc-sampling-stan",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/mcmc-sampling-stan",
+        "revision": "79a98f58ef2ca86f463d307b3fc046127f1cdce8",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/79a98f58ef2ca86f463d307b3fc046127f1cdce8/tasks/mcmc-sampling-stan"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/832"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    {
+      "task_id": "mcmc-sampling-stan--after",
+      "upstream_task_id": "mcmc-sampling-stan",
+      "split_group": "mcmc-sampling-stan",
+      "role": "after",
+      "labels": {
+        "deterministic_reproducible": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/mcmc-sampling-stan",
+        "revision": "2c74c168adb97302388749d2b788c36b821bd9cb",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/2c74c168adb97302388749d2b788c36b821bd9cb/tasks/mcmc-sampling-stan"
+      },
+      "paired_with": "mcmc-sampling-stan",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/832"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "financial-document-processor",
+      "upstream_task_id": "financial-document-processor",
+      "split_group": "financial-document-processor",
+      "labels": {
+        "reviewable": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/financial-document-processor",
+        "revision": "04e43d4f210dc5dfcf3629e40fb884a73a116a1e",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/04e43d4f210dc5dfcf3629e40fb884a73a116a1e/tasks/financial-document-processor"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/954"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    {
+      "task_id": "financial-document-processor--after",
+      "upstream_task_id": "financial-document-processor",
+      "split_group": "financial-document-processor",
+      "role": "after",
+      "labels": {
+        "reviewable": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/financial-document-processor",
+        "revision": "953965e510853d78145c3376d79c7a53fd2aa626",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/953965e510853d78145c3376d79c7a53fd2aa626/tasks/financial-document-processor"
+      },
+      "paired_with": "financial-document-processor",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/954"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "winning-avg-corewars",
+      "upstream_task_id": "winning-avg-corewars",
+      "split_group": "winning-avg-corewars",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/winning-avg-corewars",
+        "revision": "a4dec5e7342e5634b16ba346f2dca7f54b7ff13f",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/a4dec5e7342e5634b16ba346f2dca7f54b7ff13f/tasks/winning-avg-corewars"
+      },
+      "role": "reviewed",
+      "label_binding": "upstream_commit",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/783"
+      ],
+      "reason": "Use the pre-fix commit explicitly supplied by upstream."
+    },
+    {
+      "task_id": "winning-avg-corewars--after",
+      "upstream_task_id": "winning-avg-corewars",
+      "split_group": "winning-avg-corewars",
+      "role": "after",
+      "labels": {
+        "deterministic_reproducible": "pass"
+      },
+      "label_status": "assumed_pass",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/winning-avg-corewars",
+        "revision": "58569a50df5af57b7529ff254d38eddd4f88825a",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/58569a50df5af57b7529ff254d38eddd4f88825a/tasks/winning-avg-corewars"
+      },
+      "paired_with": "winning-avg-corewars",
+      "evidence_urls": [
+        "https://github.com/harbor-framework/terminal-bench-1/pull/783"
+      ],
+      "reason": "A later task revision was uploaded in the same PR and merged. Pass is assumed for the previously failing criteria, not human-confirmed."
+    },
+    {
+      "task_id": "train-fasttext",
+      "upstream_task_id": "train-fasttext",
+      "split_group": "train-fasttext",
+      "labels": {
+        "deterministic_reproducible": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/train-fasttext",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/train-fasttext"
+      },
+      "role": "reviewed",
+      "label_binding": "fix_pr_base",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1399"
+      ],
+      "reason": "This PR fixes an existing task; use its base version for the reported defect."
+    },
+    {
+      "task_id": "mteb-retrieve",
+      "upstream_task_id": "mteb-retrieve",
+      "split_group": "mteb-retrieve",
+      "labels": {
+        "test_instruction_alignment": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/mteb-retrieve",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/mteb-retrieve"
+      },
+      "role": "reviewed",
+      "label_binding": "fix_pr_base",
+      "evidence_urls": [
+        "https://github.com/laude-institute/terminal-bench/pull/1393"
+      ],
+      "reason": "This PR fixes an existing task; use its base version for the reported defect."
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "upstream_task_id": "build-linux-kernel-qemu",
+      "split_group": "build-linux-kernel-qemu",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "pass",
+        "outcome_verified": "pass",
+        "anti_cheat_robustness": "pass",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "fail",
+        "essential_difficulty": "pass",
+        "test_instruction_alignment": "pass",
+        "agentic": "pass",
+        "reviewable": "pass",
+        "instruction_concision": "pass",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/build-linux-kernel-qemu",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/build-linux-kernel-qemu"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "reported_issues_still_present",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "upstream_task_id": "prove-plus-comm",
+      "split_group": "prove-plus-comm",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "fail",
+        "outcome_verified": "pass",
+        "anti_cheat_robustness": "pass",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "pass",
+        "essential_difficulty": "pass",
+        "test_instruction_alignment": "pass",
+        "reviewable": "pass",
+        "instruction_concision": "fail",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/prove-plus-comm",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/prove-plus-comm"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "reported_concerns_still_present",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "raman-fitting",
+      "upstream_task_id": "raman-fitting",
+      "split_group": "raman-fitting",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "pass",
+        "outcome_verified": "pass",
+        "anti_cheat_robustness": "pass",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "pass",
+        "essential_difficulty": "pass",
+        "test_instruction_alignment": "fail",
+        "agentic": "pass",
+        "reviewable": "fail",
+        "instruction_concision": "fail",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/raman-fitting",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/raman-fitting"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "partial_changes_reported_concerns_remain",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "cron-broken-network",
+      "upstream_task_id": "cron-broken-network",
+      "split_group": "cron-broken-network",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "pass",
+        "outcome_verified": "pass",
+        "anti_cheat_robustness": "fail",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "fail",
+        "essential_difficulty": "pass",
+        "agentic": "pass",
+        "reviewable": "pass",
+        "instruction_concision": "pass",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/cron-broken-network",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/cron-broken-network"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "unmerged_fix_reported_dependency_remains",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "upstream_task_id": "extract-moves-from-video",
+      "split_group": "extract-moves-from-video",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "fail",
+        "interesting": "pass",
+        "outcome_verified": "pass",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "fail",
+        "essential_difficulty": "pass",
+        "test_instruction_alignment": "fail",
+        "agentic": "pass",
+        "reviewable": "fail",
+        "instruction_concision": "pass",
+        "solution_quality": "fail",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/extract-moves-from-video",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/extract-moves-from-video"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "reported_issues_still_present",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "upstream_task_id": "nginx-request-logging",
+      "split_group": "nginx-request-logging",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "pass",
+        "outcome_verified": "fail",
+        "anti_cheat_robustness": "pass",
+        "functional_verification": "fail",
+        "essential_difficulty": "fail",
+        "test_instruction_alignment": "pass",
+        "reviewable": "pass",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "pass"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/nginx-request-logging",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/nginx-request-logging"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "partial_changes_reported_concerns_remain",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "upstream_task_id": "sqlite-with-gcov",
+      "split_group": "sqlite-with-gcov",
+      "labels": {
+        "verifiable": "pass",
+        "solvable": "pass",
+        "interesting": "pass",
+        "outcome_verified": "pass",
+        "anti_cheat_robustness": "pass",
+        "functional_verification": "pass",
+        "deterministic_reproducible": "pass",
+        "essential_difficulty": "pass",
+        "test_instruction_alignment": "pass",
+        "agentic": "pass",
+        "reviewable": "pass",
+        "instruction_concision": "pass",
+        "solution_quality": "pass",
+        "structured_data_schema": "pass",
+        "typos": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "path": "tasks/sqlite-with-gcov",
+        "revision": "1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0",
+        "repository": "laude-institute/terminal-bench",
+        "url": "https://github.com/laude-institute/terminal-bench/tree/1b025c4c8177e59ee7b9a6f5938fd8adae5ec1c0/tasks/sqlite-with-gcov"
+      },
+      "role": "candidate",
+      "label_binding": "unverified_snapshot",
+      "evidence_urls": [],
+      "reason": "No reviewed commit in upstream labels. Download the last repository version before tasks/ was renamed; the label-to-version match remains unverified.",
+      "inspection_status": "reported_typo_still_present",
+      "version_note": "Reviewed revision is unverified; original upstream labels are retained without changes."
+    },
+    {
+      "task_id": "fail-rubric-do-not-modify",
+      "upstream_task_id": "fail-rubric-do-not-modify",
+      "split_group": "fail-rubric-do-not-modify",
+      "labels": {
+        "do_not_modify_enforced": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-do-not-modify",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-do-not-modify"
+      },
+      "role": "synthetic"
+    },
+    {
+      "task_id": "fail-rubric-task-security",
+      "upstream_task_id": "fail-rubric-task-security",
+      "split_group": "fail-rubric-task-security",
+      "labels": {
+        "task_security": "fail"
+      },
+      "label_status": "upstream",
+      "score": true,
+      "task_reference": {
+        "repository": "harbor-framework/terminal-bench",
+        "revision": "1dcda8716784493721921c23e4bc7f7d988b4494",
+        "path": "scripts/checks/test-tasks/fail-rubric-task-security",
+        "url": "https://github.com/harbor-framework/terminal-bench/tree/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/checks/test-tasks/fail-rubric-task-security"
+      },
+      "role": "synthetic"
+    }
+  ]
+}

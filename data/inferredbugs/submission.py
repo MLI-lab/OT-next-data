@@ -29,14 +29,15 @@ def git(root, *args, check=True, **kwargs):
         '-C', str(root), *map(str, args)], check=check, env=env, **kwargs)
 
 
-def record(root):
+def record(root, compact=True):
     root = Path(root)
     shutil.rmtree(root / '.git', ignore_errors=True)
     git(root, 'init', '-q')
     (root / '.git/info/attributes').write_text('* -ident -text -eol\n')
     git(root, 'add', '-A', '-f', '.')
     git(root, 'commit', '-q', '--allow-empty', '-m', 'Pinned buggy source')
-    git(root, 'gc', '--prune=now', stdout=subprocess.DEVNULL)
+    if compact:      # worth it in an image layer, not for a snapshot fetched at setup
+        git(root, 'gc', '--prune=now', stdout=subprocess.DEVNULL)
     sha = git(root, 'rev-parse', 'HEAD', stdout=subprocess.PIPE).stdout
     (root / '.git/inferredbugs-baseline').write_bytes(sha)
     # Some projects use names such as src/.../target or build/CodeGen for
@@ -147,10 +148,11 @@ def apply(root, patch):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=['record', 'collect', 'apply'])
+    parser.add_argument('--no-gc', action='store_true')
     parser.add_argument('paths', nargs='+')
     args = parser.parse_args()
     if args.action == 'record':
-        record(*args.paths)
+        record(*args.paths, compact=not args.no_gc)
     elif args.action == 'collect':
         collect(*args.paths)
     else:

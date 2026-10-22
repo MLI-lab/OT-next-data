@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
@@ -40,7 +41,7 @@ POLICY = {
 }
 PR_ONLY = {'check-task-changelog.sh': 'training tasks do not require Terminal-Bench PR changelogs'}
 TRAINING_EXCLUSIONS = {
-    'check-test-sh-sanity.sh': 'training permits shared system Python and image-installed verifier dependencies; uv is not required, and stages 4/5 check execution',
+    'check-test-sh-sanity.sh': 'training permits shared system Python and image-installed verifier dependencies; uv is not required, and stages 3/3 check execution',
     'check-separate-verifier.sh': 'training permits grading in the agent environment, including installed packages and changed system state; separate verification is optional',
     'check-allow-internet.sh': 'network policy is declared by the task and checked at runtime',
     'check-no-allow-internet-true.sh': 'explicit task network policies are allowed',
@@ -59,7 +60,17 @@ LOCAL_CHECKS = {'check-task-toml-schema.py': Path(__file__).with_name('task_toml
 
 
 
-def load_checks(profile, upstream=None, exclude=()):
+ENVIRONMENT_CHECKS = frozenset({
+    'check-compose-host-binds.sh', 'check-dockerfile-platform.sh',
+    'check-dockerfile-sanity.sh', 'check-nproc.sh', 'check-pip-pinning.sh',
+    'check-resource-sizes.sh', 'check-task-timeout.sh', 'check-trial-network-fetch.sh',
+    'check-verifier-tooling-baked.sh', 'check-task-toml-schema.py',
+    'check-allow-internet.sh', 'check-no-allow-internet-true.sh', 'check-gpu-types.sh',
+    'check-separate-verifier.sh', 'check-pytest-version.sh', 'check-test-sh-sanity.sh',
+})
+
+
+def load_checks(profile, upstream=None, exclude=(), group=None):
     manifest = json.loads((TERMINAL_BENCH / 'UPSTREAM.json').read_text())
     # Detect accidental edits or incomplete copies before executing anything.
     for name, digest in manifest['files'].items():
@@ -67,8 +78,8 @@ def load_checks(profile, upstream=None, exclude=()):
             raise ValueError(f'upstream file differs from pinned copy: {name}')
     names = sorted(Path(p).name for p in manifest['files'] if p.startswith('scripts/checks/'))
     names = sorted([*names, *LOCAL_CHECKS])
-    excluded = {**PR_ONLY, **(POLICY if profile == 'portable' else TRAINING_EXCLUSIONS if profile == 'training' else {}),
-                'rubric_review.py': 'LLM rubric review is opt-in via stage 2, never a default static check'}
+    excluded = {**(PR_ONLY if profile != 'all' else {}), **(POLICY if profile == 'portable' else TRAINING_EXCLUSIONS if profile == 'training' else {}),
+                'rubric_review.py': 'LLM rubric review is opt-in via stage 5, never a default static check'}
     inactive = {'rubric_review.py', *CHECKER_UNIT_TESTS}
     for value in exclude:
         # NAME=reason records why; a reason may contain commas, so it is one item.
@@ -87,6 +98,12 @@ def load_checks(profile, upstream=None, exclude=()):
             excluded[name] = (reason.strip() or 'explicitly excluded' if name in names else
                 'upstream checker unit test, not dataset validation' if name in CHECKER_UNIT_TESTS else
                 'not part of the static suite (LLM review is opt-in)')
+    if group not in (None, 'environment', 'task-quality'):
+        raise ValueError(f'unknown static check group: {group}')
+    if group:
+        excluded.update({n: f'belongs to the other static check group ({group} selected)'
+                         for n in names if (n in ENVIRONMENT_CHECKS) != (group == 'environment')
+                         and n not in excluded})
     return manifest, [n for n in names if n not in excluded], excluded
 
 
@@ -129,23 +146,36 @@ def safe_copy(task, scratch):
 
 PATH_CHECK = 'check-task-absolute-path.sh'
 SHELL_FENCES = {'', 'bash', 'sh', 'shell', 'zsh', 'console', 'text', 'txt'}
-ADAPTATIONS = {PATH_CHECK: 'Relative-path findings are advisory warnings and do not fail stage 1. Runs on a copy of the task whose instruction.md has its source-code blocks removed '
-                           '(fenced blocks tagged with a programming language); masks complete absolute paths '
+ADAPTATIONS = {PATH_CHECK: 'Relative-path findings are advisory warnings and do not fail stage 4. Runs on a copy of the task whose instruction.md has its source-code blocks removed '
+                           '(fenced blocks tagged with a programming language); masks complete absolute paths, inline JSON paths and inline Markdown heading examples '
                            'and JavaScript console calls/sed substitutions so their substrings are not mistaken for paths; '
                            'masks complete non-file URLs, quoted absolute paths with spaces, simple inline commands rooted by cd /absolute/path &&, '
                            'and literal relative symlink targets with explicit absolute link locations; '
                            'skips all Markdown fenced blocks, recognizes $HOME/${HOME}/~/ paths, and accepts adjacent literal cd and command lines; '
                            'accepts explicit named-file-in-directory clauses, pure parent-navigation commands, and relative command tokens for uniquely absolute-named executables; '
-                           'unresolved relative file references outside fenced blocks are otherwise kept',
+                           'unresolved relative file references outside fenced blocks are otherwise kept; '
+                           'unquoted relative file names are reported too (upstream collected them in a subshell and lost them)',
                'check-test-file-references.sh': 'masks complete non-file URLs, XML hostnames and excluded system paths; fixes full-token extraction and shell redirections, preserving basenames without inventing /app paths; accepts conventional boot artifacts, explicit numeric X filename ranges, explicit label filename templates resolved from supplied label:glob configurations, and references discovered through named supplied files/directories; reads literal writes and copies/moves in explicitly invoked local setup shell scripts without executing them, with source evidence',
-               'check-pip-pinning.sh': 'recognizes SHA-256-pinned HTTP(S) requirements as single shell arguments; masks unquoted shell redirections and argument forwarding in generated offline installer heredocs, retaining actual package installations',
+               'check-pip-pinning.sh': 'Training reports unresolved pins as advisory warnings, not exclusion failures; recognizes SHA-256-pinned HTTP(S) requirements as single shell arguments; masks unquoted shell redirections and argument forwarding in generated offline installer heredocs, retaining actual package installations',
                'check-nproc.sh': 'training permits measurement-only variables and the exact audited InferredBugs Python 2.7.18 Dockerfile build on Maven Java 8/11/17 (Helma Slurm affinity probes 934209/934274); also permits four content-pinned SETA solutions tested with 1/2 CPUs (Helma probe 948213); other worker selection remains checked; not a Docker quota-only portability guarantee',
                'file names': 'a task with whitespace or *?[] in a file name is checked on a copy where those characters '
                              'are replaced by _, because the upstream scripts split paths at spaces and expand globs; '
                              'the renamed files are listed per task'}
+ADAPTATIONS['check-dockerfile-references.sh'] = 'Ignore full-line Dockerfile comments; executable references remain checked on a scratch copy.'
+ADAPTATIONS['check-dockerfile-sanity.sh'] = 'Inspect apt install arguments within RUN commands, including continuations and quoted pins; do not scan unrelated ENV assignments or embedded source following apt.'
+ADAPTATIONS['check-nproc.sh'] += ' Also permits five content-pinned CalibForge image/script pairs measured at 2/4 CPUs in Helma job 1017578; nproc --all still saw 384 node CPUs.'
 ADAPTATIONS['check-task-toml-schema.py'] = (
     'Local deterministic replacement for the task_toml_schema rubric: validates against pinned Harbor models '
     'and rejects unrecognized fields recursively; Harbor free-form metadata/env mappings remain allowed.')
+ADAPTATIONS['check-test-file-references.sh'] += (
+    '; renders escaped Markdown underscores in prose, rejects whitespace/escape-containing report strings as single paths, '
+    'ignores unused top-level literal sets in Python without reflective namespace access, and follows literal initial '
+    'writes in the exact ET v6 encoded RUN wrapper; a named directory with proven supplied children need not end in a slash')
+ADAPTATIONS['check-pip-pinning.sh'] += (
+    '; separates shell commands even without whitespace before semicolons, including literal shell -c payloads, '
+    'so later commands are not package arguments and later unpinned installations remain checked; '
+    'allows a variable-based local package subdirectory only with literal absolute directory assignments')
+ADAPTATIONS['check-nproc.sh'] += '; training ignores command -v nproc availability probes while retaining subsequent bare calls'
 
 
 def without_source_code(instruction):
@@ -215,12 +245,87 @@ CONVENTIONAL_REFERENCE_PATHS = (
 )
 
 
+# Called by the adapted check for each candidate before it is reported; exit 0 = not a missing file.
+# The upstream extractor treats any quoted "/..." string that appears in both the tests and the
+# solution as an output file. Reviewed false positives (FACET full run 2026-10-17, 14 of 20 sampled):
+# URL routes ("/healthz"), regular expressions ("/([^/]+)/?$"), PDF name objects ("/Annots"), the
+# task's own scripts (solve.sh), and names the instruction does contain but with trailing
+# punctuation glued on ("...transcript.txt."). Second pass (63 remaining): members read inside a
+# zip/ODF/OOXML archive (zf.open('content.xml')), escaped newlines glued to a name, and paths used
+# only as an environment variable's default (os.environ.get("HOME", "/root")). Three reviewed
+# FACET word tokens are listed below. Real outputs with an extension still fail.
+REFERENCE_FILTER = r'''
+import pathlib, re, sys
+ref, test, solution, instruction, toml = sys.argv[1:6]
+read = lambda p: pathlib.Path(p).read_text(errors='replace') if p and pathlib.Path(p).is_file() else ''
+task = read(instruction) + '\n' + read(toml)
+# 0. Reviewed tokens that are words, not files (FACET full run 2026-10-17): a docstring example
+#    ('a.b.c'), a word from an error message ('still'), part of test function names ('exists'), and an
+#    ODT member listed in a plain list of required archive members ('content.xml').
+REVIEWED = {('task_001311', 'a.b.c'), ('task_001458', 'still'), ('task_001913', 'exists'),
+            ('task_004394', 'content.xml')}
+if (pathlib.Path(test).parents[1].name, ref) in REVIEWED:
+    sys.exit(0)
+# 1. Mentioned once tokenization noise is removed (escaped newlines, trailing punctuation, glued code).
+cleaned = re.split(r'[\[(]', re.sub(r'(\\[ntr])+$', '', ref))[0].rstrip('.,;:')
+if cleaned and cleaned != ref and (cleaned in task or cleaned.rsplit('/', 1)[-1] in task.split()
+                                   or re.search(r'(?<![\w.-])' + re.escape(cleaned.rsplit('/', 1)[-1]) + r'(?![\w-])', task)):
+    sys.exit(0)
+# 2. Regular expressions, not paths.
+if re.search(r'\\[wdsWDS.\-/]|\[\^?[^\]]*\][+*?]|\(\?|\)\?|\$$|^\^|\.\*|\.\+|\|', ref):
+    sys.exit(0)
+name = ref.rstrip('/').rsplit('/', 1)[-1]
+quoted = [l for t in (read(test), read(solution)) for l in t.splitlines()
+          if "'" + ref + "'" in l or '"' + ref + '"' in l]
+# 2b. Members read or written inside an archive (zf.open('content.xml')), never files on disk.
+member = re.compile(r'\b\w*(?:zf|zip|zh|archive|odt|ods|docx|xlsx|pptx|tf|tar)\w*\.(?:open|read|writestr|getinfo'
+                    r'|extractfile|getmember)\(|namelist\(|\bin\s+(?:names|members|namelist)\b|full-path=')
+if quoted and all(member.search(l) for l in quoted):
+    sys.exit(0)
+# 2c. Only the default value of an environment variable (HOME -> "/root").
+default = re.compile(r'(?:environ\.get|getenv)\([^)]*,\s*["\']' + re.escape(ref) + r'["\']|\$\{\w+:-' + re.escape(ref) + r'\}')
+users = [l for t in (read(test), read(solution)) for l in t.splitlines() if ref in l]
+if users and all(default.search(l) for l in users):
+    sys.exit(0)
+# 3. The task's own harness scripts.
+if name in ('solve.sh', 'test.sh', 'setup.sh') or re.fullmatch(r'test_[\w.-]*\.py', name):
+    sys.exit(0)
+# 4. Without an extension, count it only where the code uses it as a file or directory
+#    (URL routes and PDF name objects are never opened, listed or written).
+if '.' not in name:
+    use = re.compile(r'open\(|Path\(|os\.path|exists\(|is_file|is_dir|read_text|read_bytes|write_text|write_bytes'
+                     r'|mkdir|makedirs|listdir|scandir|stat\(|glob\(|shutil\.|chmod|\b(?:cat|cp|mv|touch|ls|rm|tee'
+                     r'|head|tail|find|tar|zip|unzip)\b')
+    lines = [l for t in (read(test), read(solution)) for l in t.splitlines() if ref in l]
+    redirect = any(re.search(r'>>?\s*["\']?' + re.escape(ref), l) for l in lines)
+    if lines and not redirect and not any(use.search(l) for l in lines):
+        sys.exit(0)
+sys.exit(1)
+'''
+
+
+def path_check_script(source):
+    """Keep upstream's unquoted-filename pattern on a temporary copy of pinned upstream.
+
+    Upstream appends those names to relative_files inside `echo ... | while read`, which
+    bash runs in a subshell, so the additions were lost and the pattern never reported."""
+    old = 'echo "$pattern2_files" | while IFS= read -r file; do'
+    end = '$file"\n        fi\n    done\n'
+    if source.count(old) != 1 or source.count(end) != 1:
+        raise ValueError('upstream relative-path extractor changed')
+    source = source.replace(old, 'while IFS= read -r file; do')
+    return source.replace(end, '$file"\n        fi\n    done <<< "$pattern2_files"\n')
+
+
 def reference_check_script(source):
     """Correct lexical extraction on a temporary copy of pinned upstream."""
     old = "grep -E '^/(app|home|tests|tmp|usr|var|etc)/'"
     if source.count(old) != 1 or source.count('/[a-zA-Z0-9_./]+\\.') != 1:
         raise ValueError('upstream file-reference extractor changed')
     source = source.replace(old, "grep -E '^/'")
+    # Quoted report text is not one filename. Stop at whitespace or a shell/
+    # Python escape instead of splitting the entire string into path fragments.
+    source = source.replace('[^"\'"\'"\']*', '[^"\'"\'"\'[:space:]\\\\]*')
     # A quoted basename supplies no working directory. Keep it as a basename.
     source = source.replace("sed 's|^|/app/|'", 'cat')
     # Upstream uses optional quote markers (?) with basic sed regex syntax.
@@ -234,11 +339,21 @@ def reference_check_script(source):
             line = line.replace('/[a-zA-Z0-9_./]+\\.', '/[a-zA-Z0-9_./-]+\\.')
             line = line.replace("grep -oE '/", "grep -oE '(^|[[:space:]=])/")
             lines[i] = line.replace("wad)'", "wad)[a-zA-Z0-9_.+-]*'").rstrip('\n') + " | sed 's|^[^/]||'\n"
-    return ''.join(lines)
+    source = ''.join(lines)
+    anchor = '        # Check if the filename or full path is mentioned in instruction.md or task.toml\n'
+    if source.count(anchor) != 1:
+        raise ValueError('upstream file-reference comparison changed')
+    hook = ('        if python3 - "$file_ref" "$test_file" "$solution_sh" "$instruction_md" "$task_toml" '
+            "<<'OT_REFERENCE_FILTER'" + REFERENCE_FILTER + 'OT_REFERENCE_FILTER\n'
+            '        then\n            continue\n        fi\n\n')
+    return source.replace(anchor, hook + anchor)
 
 
 def reference_check_text(text):
     text = without_urls(text)
+    # A path printed with only a trailing newline is still a file reference.
+    # Embedded report fields and escaped content remain excluded as whole paths.
+    text = re.sub(r'''(["'])(/[^\s"'\\]+)(?:\\[nr])+\1''', r'\1\2\1', text)
     text = re.sub(r'file://(?=/)', '', text)
     text = re.sub(r'<host>[^<\n]+</host>', '<host>[hostname]</host>', text)
     # Upstream deliberately excludes these system roots, but its second regex
@@ -247,6 +362,42 @@ def reference_check_text(text):
     for path in CONVENTIONAL_REFERENCE_PATHS:
         text = re.sub(r'(?<![\w/])' + path + r'(?![\w./+-])', '[conventional boot artifact]', text)
     return text
+
+
+def markdown_reference_text(text):
+    """Render Markdown punctuation escapes in prose, preserving code literals."""
+    fenced = False
+    result = []
+    for line in text.splitlines(keepends=True):
+        if re.match(r'^\s*(```|~~~)', line):
+            fenced = not fenced
+        if not fenced:
+            parts = re.split(r'(`+[^`\n]*`+)', line)
+            for i in range(0, len(parts), 2):
+                parts[i] = re.sub(r'\\([_*])', r'\1', parts[i])
+            line = ''.join(parts)
+        result.append(line)
+    return ''.join(result)
+
+
+def without_unused_reference_sets(text):
+    """Unused literal sets are not graded outputs (e.g. stale forbidden lists)."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text
+    if any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+           and n.func.id in ('globals', 'locals', 'eval', 'exec') for n in ast.walk(tree)):
+        return text
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    lines = text.splitlines(keepends=True)
+    for node in tree.body:
+        if (isinstance(node, ast.Assign) and all(isinstance(t, ast.Name) and t.id not in used for t in node.targets)
+                and isinstance(node.value, ast.Set)
+                and all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in node.value.elts)):
+            for i in range(node.lineno - 1, node.end_lineno):
+                lines[i] = '# unused literal reference set\n'
+    return ''.join(lines)
 
 
 def numeric_reference_patterns(instruction, sources):
@@ -265,10 +416,18 @@ def numeric_reference_patterns(instruction, sources):
     return result
 
 
-def pip_check_line(line):
+def pip_check_line(line, local_directories=()):
     """Adapt shell syntax on the check copy, never rewriting the installation."""
     from packaging.requirements import Requirement, InvalidRequirement
     from urllib.parse import urlsplit
+    # Upstream's separator regex requires whitespace before ';'. A literal
+    # shell -c payload can otherwise consume its next command as package names.
+    # Split at real shell operators, including inside a known
+    # shell -c payload; never reinterpret arbitrary quoted package arguments.
+    shell_payload = re.search(r'''\b(?:bash|sh|dash)\s+-c\s+(['"])(.*)\1\s*$''', line)
+    if shell_payload:
+        start, end = shell_payload.span(2)
+        line = line[:start] + pip_check_line(shell_payload[2], local_directories) + line[end:]
     # Keep quotes intact so quoted '>' and spaces inside requirements are not
     # mistaken for shell operators or separate package arguments.
     pattern = r'''(?:\d+)?(?:>>?|<<?)&?|&&|\|\||[;|&]|(?:[^\s'"\\<>;&|]+|\\[^\n]|'[^']*'|"(?:\\.|[^"\\])*")+'''
@@ -284,6 +443,10 @@ def pip_check_line(line):
     while i < len(tokens):
         token = tokens[i]
         raw = token.group()
+        if raw in (';', '&&', '||', '|', '&'):
+            # Upstream scans only the first install per line. Separate commands
+            # so a later unpinned installation cannot hide behind a pinned one.
+            edits.append((token.start(), token.end(), '\n'))
         if raw.startswith('#'):
             break
         if re.fullmatch(r'(?:\d+)?(?:>>?|<)&?', raw) and i + 1 < len(tokens):
@@ -295,6 +458,13 @@ def pip_check_line(line):
         try:
             value, = shlex.split(raw)
         except ValueError:
+            i += 1
+            continue
+        local = re.fullmatch(r'\$([A-Za-z_]\w*)/[A-Za-z0-9_./-]+', value)
+        if local and local[1] in local_directories:
+            # Same exemption as an explicit /local/path, with a proven literal
+            # absolute assignment. Unknown variables and URLs remain findings.
+            edits.append((token.start(), token.end(), '/local-package-source'))
             i += 1
             continue
         url = value
@@ -326,8 +496,22 @@ def pip_check_text(text):
     # Generated offline installers are tools accepting user-specified packages,
     # not an unpinned install into the task environment. Only exempt forwarding
     # inside a quoted heredoc; retain concrete installs inside those heredocs.
+    assignments = {}
+    for match in re.finditer(r'(?m)^\s*([A-Za-z_]\w*)=([^\n]*)$', text):
+        assignments.setdefault(match[1], []).append(match[2])
+    local_directories = {name for name, values in assignments.items()
+                         if all(re.fullmatch(r'/[A-Za-z0-9_./-]+', value) for value in values)}
     lines, delimiter = [], None
     for line in text.splitlines(keepends=True):
+        header = re.match(r'''\s*(?:/(?:usr/)?bin/)?(?:bash|sh|dash)(?:\s+-[a-zA-Z]+)*\s+-c\s+(['"])(.*)''', line)
+        if header:
+            try:
+                shlex.split(line)
+            except ValueError:
+                # A literal -c argument can span lines (often a heredoc). The
+                # opening quote is shell packaging, not part of a requirement.
+                # Normalize its first physical command line on the check copy.
+                line = header[2] + '\n'
         if delimiter and line.strip() == delimiter:
             delimiter = None
         elif delimiter and re.fullmatch(
@@ -337,8 +521,95 @@ def pip_check_text(text):
             match = re.search(r"<<\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]", line)
             if match:
                 delimiter = match.group(1)
-        lines.append(pip_check_line(line))
+        lines.append(pip_check_line(line, local_directories))
     return ''.join(lines)
+
+
+# Content-pinned CPU-affinity audit: Helma job 1017578, all five images at 2/4 CPUs.
+CALIBFORGE_REVIEWED_NPROC = {'contrastive_solver-security_20260508_045740_002': {'file': 'environment/Dockerfile',
+                                                     'sha256': {'environment/Dockerfile': '8554c71778e6d80171e69483cafc1c53f016d16607b586eb8d259936c2996ad1'}},
+ 'contrastive_solver-software-engineering_20260510_053611_008': {'file': 'environment/Dockerfile',
+                                                                 'sha256': {'environment/Dockerfile': 'fe371f2e4d5ccf5ac295269324bf2d7dbfb6d3e10377e84910f457f384f365cb'}},
+ 'contrastive_solver-software-engineering_20260611_210349_008': {'file': 'tests/test.sh',
+                                                                 'sha256': {'environment/Dockerfile': '4f6194d3d652fd8cb9d9de5681211adf5ba57146718f2fc0db9d977d11f8d8b7',
+                                                                            'tests/test.sh': 'b7f4a23eaffed3576d649078f6bb09f89b84e2a5573063b53552799af644560a'}},
+ 'contrastive_solver-system-administration_20260604_004411_008': {'file': 'environment/Dockerfile',
+                                                                  'sha256': {'environment/Dockerfile': '47c7d9e917e98d3965d48a380c1d82a2fd774505857ccfdcc6bfdaacba388db9'}},
+ 'contrastive_solver-system-administration_20260604_004411_009': {'file': 'environment/Dockerfile',
+                                                                  'sha256': {'environment/Dockerfile': 'bbe5c1425ac6323702e29c0faae4d27efa23de0c6202797491ed5343887a2373'}}}
+
+
+def dockerfile_without_comments(text):
+    """Ignore full-line Dockerfile comments, retaining inline arguments/data."""
+    kept, heredocs = [], []
+    for line in text.splitlines(keepends=True):
+        if heredocs:
+            kept.append(line)
+            if line.strip() == heredocs[0]:
+                heredocs.pop(0)
+            continue
+        if line.lstrip().startswith('#'):
+            continue
+        kept.append(line)
+        # Heredoc payload is data, not Dockerfile comments.
+        heredocs.extend(re.findall(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", line))
+    return ''.join(kept)
+
+
+def dockerfile_sanity_text(text):
+    """Give upstream only apt command arguments, not the next 20 source lines.
+
+    Shell tokenization preserves quoted pins and joins continued RUN commands.
+    Unparseable shell is kept for conservative upstream checking.
+    """
+    text = dockerfile_without_comments(text)
+    logical = re.sub(r'\\\n', ' ', text)
+    commands = []
+    for line in logical.splitlines():
+        if not re.match(r'^\s*RUN\s', line, re.I):
+            continue
+        if re.search(r'\bapt(?:-get)?\b', line) and ('<<' in line or re.match(r'^\s*RUN\s*\[', line, re.I) or re.search(r'\b(?:sh|bash)\s+-c', line)):
+            return text  # Preserve conservative checking of unsupported shell forms.
+        try:
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=';&|()<>' )
+            lexer.whitespace_split = True
+            tokens = list(lexer)
+        except ValueError:
+            return text
+        for i, token in enumerate(tokens):
+            if token.rsplit('/', 1)[-1] not in ('apt', 'apt-get'):
+                continue
+            args = []
+            for arg in tokens[i + 1:]:
+                if arg and all(c in ';&|()<>' for c in arg):
+                    break
+                args.append(arg)
+            # Keep update/cleanup advisory behavior, but expose version pins
+            # only in install arguments. Epochs/integer pins count too.
+            if 'install' in args:
+                if (i and tokens[i - 1] not in ('RUN', 'run', '&&', '||', ';', '|', 'sudo', 'env', 'then', 'do', '{', '(', '!')
+                        and not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', tokens[i - 1])):
+                    return text  # Do not silently exempt unknown command wrappers.
+                packages = args[args.index('install') + 1:]
+                pinned = [a for a in packages if re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9+.:_-]*=[^=\s]+', a)]
+                commands.append('RUN apt install ' + ('pinned-package=1.0' if pinned else 'packages'))
+            elif 'update' in args:
+                commands.append('RUN apt update')
+    if 'rm -rf /var/lib/apt/lists' in text:
+        commands.append('RUN rm -rf /var/lib/apt/lists/*')
+    return '\n'.join(commands) + '\n'
+
+
+def calibforge_nproc_text(text, task, relative):
+    """Allow only the exact image/script pairs measured in Helma job 1017578."""
+    record = CALIBFORGE_REVIEWED_NPROC.get(task.name)
+    if not record or relative != record['file']:
+        return text
+    for filename, digest in record['sha256'].items():
+        path = task / filename
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            return text
+    return text.replace('$(nproc)', 'VERIFIED_CPU_AFFINITY')
 
 
 def nproc_check_text(text, *, dockerfile=False):
@@ -347,6 +618,8 @@ def nproc_check_text(text, *, dockerfile=False):
     Also recognize the exact Python 2 build audited under Slurm CPU affinity.
     Other build flags and unknown uses retain the original check.
     """
+    # Checking for the executable does not invoke it. Keep later bare calls.
+    text = re.sub(r'\bcommand\s+-v\s+nproc\b', 'command -v CPU_COUNT_TOOL', text)
     if dockerfile and re.search(r'^FROM maven:3\.9-eclipse-temurin-(?:8|11|17)$', text, re.M):
         # Match the build context and complete command, not make/nproc generally.
         # Mask only on the check's scratch copy; the actual task is unchanged.
@@ -379,7 +652,9 @@ def nproc_check_text(text, *, dockerfile=False):
 
 def adapted_check_copy(task, scratch, name, profile):
     transforms = {'check-test-file-references.sh': reference_check_text,
-                  'check-pip-pinning.sh': pip_check_text}
+                  'check-pip-pinning.sh': pip_check_text,
+                  'check-dockerfile-references.sh': dockerfile_without_comments,
+                  'check-dockerfile-sanity.sh': dockerfile_sanity_text}
     if profile == 'training':
         transforms['check-nproc.sh'] = nproc_check_text
     if name not in transforms:
@@ -396,15 +671,20 @@ def adapted_check_copy(task, scratch, name, profile):
             target = copy / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             text = source.read_text(errors='replace')
+            if name == 'check-test-file-references.sh' and relative == 'instruction.md':
+                text = markdown_reference_text(text)
             if name == 'check-nproc.sh' and relative not in ('instruction.md', 'task.toml'):
                 if profile == 'training' and relative == 'solution/solve.sh':
                     from data.seta.patch import reviewed_nproc_text
                     dockerfile = task / 'environment/Dockerfile'
                     text = reviewed_nproc_text(text, task.name,
                                                dockerfile.read_bytes() if dockerfile.is_file() else b'')
+                text = calibforge_nproc_text(text, task, relative)
                 text = nproc_check_text(text, dockerfile=relative == 'environment/Dockerfile')
             elif relative not in ('instruction.md', 'task.toml'):
                 text = transforms[name](text)
+                if name == 'check-test-file-references.sh' and relative.startswith('tests/') and relative.endswith('.py'):
+                    text = without_unused_reference_sets(text)
             target.write_text(text)
     if name == 'check-test-file-references.sh':
         evidence = discoverable_references(task)
@@ -541,6 +821,12 @@ def path_check_text(instruction):
             # A sed substitution is an expression, not a directory reference.
             if re.fullmatch(r's/[^\n]*/[^\n]*/[gip0-9]*', value):
                 return '`[sed expression]`'
+            # A JSON path ("$.paths./items.get") or a Markdown heading example
+            # ("## src/auth.py") names a location in a document, not a file to use.
+            if re.fullmatch(r'''["']?\$[.\[][^\n]*''', value):
+                return '`[JSON path]`'
+            if re.fullmatch(r'#{1,6} [^\n]+', value):
+                return '`[Markdown heading]`'
             if re.search(method + r'\s*\(', value) or (code_context and re.fullmatch(method, value)):
                 return '`' + re.sub(method, '[JavaScript method]', value) + '`'
             return match.group(0)
@@ -591,12 +877,12 @@ def rebuild_summary(out):
 
 
 def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclude=(), concurrency=1,
-               resume=None, resume_record=None, accept_previous_path_check=False):
+               resume=None, resume_record=None, accept_previous_path_check=False, group=None):
     if concurrency < 1:
         raise ValueError('concurrency must be positive')
     if sys.version_info < (3, 11):
         raise ValueError('Terminal-Bench checks require Python 3.11+; activate your prep environment')
-    manifest, checks, excluded = load_checks(profile, upstream, exclude)
+    manifest, checks, excluded = load_checks(profile, upstream, exclude, group=group)
     if not checks:
         raise ValueError('no static checks selected')
     for command in ('bash', 'grep', 'sed', 'awk', 'find', 'sort', 'uniq', 'mktemp', 'dirname', 'basename', 'cat', 'tr', 'rm'):
@@ -606,11 +892,11 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
     if (out / 'outcomes.jsonl').exists():
         raise ValueError('output already has task outcomes; use a new output directory or --rebuild-summary')
     report = {'upstream': manifest['repository'], 'commit': manifest['commit'],
-              'concurrency': concurrency, 'profile': profile, 'selected_tasks': [str(t) for t in tasks],
+              'concurrency': concurrency, 'profile': profile, 'group': group, 'selected_tasks': [str(t) for t in tasks],
               'checks': checks, 'excluded_checks': excluded, 'tasks': [],
               'adaptations': {name: text for name, text in ADAPTATIONS.items() if name in checks or name == 'file names'},
               'checker_unit_tests_not_run': list(CHECKER_UNIT_TESTS),
-              'conditional_checks': {AI_CHECK: 'runs only when GPTZERO_API_KEY is configured; missing key is a non-failing skip'},
+              'conditional_checks': {AI_CHECK: 'requires GPTZERO_API_KEY; missing key is incomplete' if profile == 'all' else 'runs only when GPTZERO_API_KEY is configured; missing key is a non-failing skip'},
               'complete': False, 'passed': False}
     imported = {}
     if resume:
@@ -622,7 +908,8 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
     for name, reason in excluded.items():
         print(f'SKIP {name}: {reason}', flush=True)
     if AI_CHECK in checks and not os.environ.get('GPTZERO_API_KEY', '').strip():
-        print('SKIP check_ai_detection.py: no GPTZERO_API_KEY configured (not a failure)', flush=True)
+        print('SKIP check_ai_detection.py: no GPTZERO_API_KEY configured (' +
+              ('incomplete' if profile == 'all' else 'not a failure') + ')', flush=True)
     summary = out / 'summary.json'
     summary.write_text(json.dumps(report, indent=2) + '\n')
     log = out / 'checks.log'
@@ -641,6 +928,10 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
         if reference_script.name in checks:
             reference_script.parent.mkdir()
             reference_script.write_text(reference_check_script((scripts / reference_script.name).read_text()))
+        path_script = Path(scratch) / 'adapted-scripts' / PATH_CHECK
+        if PATH_CHECK in checks:
+            path_script.parent.mkdir(exist_ok=True)
+            path_script.write_text(path_check_script((scripts / PATH_CHECK).read_text()))
         if static_root:
             local_scripts = Path(scratch) / 'scripts'
             shutil.copytree(scripts, local_scripts)
@@ -673,7 +964,7 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                         entry['checks'].append(imported[task.name][name])
                         continue
                     if name == AI_CHECK and not os.environ.get('GPTZERO_API_KEY', '').strip():
-                        entry['checks'].append({'check': name, 'status': 'skipped', 'optional': True,
+                        entry['checks'].append({'check': name, 'status': 'skipped', 'optional': profile != 'all',
                             'reason': 'no GPTZERO_API_KEY configured', 'exit_code': None, 'log': None})
                         continue
                     started = time.monotonic()
@@ -688,7 +979,8 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                         # file system stalled (job 916252), so one more attempt is made.
                         for attempt in (1, 2):
                             try:
-                                script = LOCAL_CHECKS.get(name) or (reference_script if name == reference_script.name else scripts / name)
+                                script = LOCAL_CHECKS.get(name) or (reference_script if name == reference_script.name
+                                                                    else path_script if name == PATH_CHECK else scripts / name)
                                 interpreter = sys.executable if name in LOCAL_CHECKS else check_python if name.endswith('.py') else 'bash'
                                 result = subprocess.run([interpreter, str(script), str(target)],
                                     cwd=scratch, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
@@ -700,10 +992,12 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                                 stream.write(f'\nTimed out after {timeout} seconds (attempt {attempt})\n')
                                 stream.flush()
                         stream.seek(0)
-                        if name == PATH_CHECK and rc == 1:
+                        if profile != 'all' and name == PATH_CHECK and rc == 1:
                             if re.search(r'relative paths used \(should be absolute under /[^)]*\): ', stream.read()):
                                 status = 'warning'
                             stream.seek(0)
+                        if profile == 'training' and name == 'check-pip-pinning.sh' and rc == 1:
+                            status = 'warning'
                         if name == AI_CHECK and rc == 0:
                             text = stream.read()
                             if 'skipped' in text.lower() or 'No files to check' in text:
@@ -714,11 +1008,11 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             shutil.copyfileobj(stream, combined_log)
                             combined_log.write(f'\n=== result: {status}, exit_code: {rc} ===\n')
                             combined_log.flush()
-                    entry['checks'].append({'check': name, 'status': status, 'optional': name == AI_CHECK, 'exit_code': rc,
+                    entry['checks'].append({'check': name, 'status': status, 'optional': name == AI_CHECK and profile != 'all', 'exit_code': rc,
                                             'log': str(log.resolve()), 'duration_seconds': round(time.monotonic() - started, 3)})
                     if status != 'passed':
                         print(f'{task.name}: {name}: {status} (see {log})', flush=True)
-                entry['warnings'] = [{'tag': 'relative-instruction-path', 'check': c['check'], 'log': c.get('log')} for c in entry['checks'] if c['status'] == 'warning']
+                entry['warnings'] = [{'tag': 'unpinned-dependency' if c['check'] == 'check-pip-pinning.sh' else 'relative-instruction-path', 'check': c['check'], 'log': c.get('log')} for c in entry['checks'] if c['status'] == 'warning']
                 entry['status'] = 'passed' if all(c['status'] in ('passed', 'warning') or (c['status'] == 'skipped' and c.get('optional')) for c in entry['checks']) else 'failed'
             return entry
         def check_task(task):
@@ -753,7 +1047,7 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('root', nargs='?', type=Path)
-    ap.add_argument('--profile', choices=('training', 'portable', 'terminal-bench'), default='training')
+    ap.add_argument('--profile', choices=('training', 'portable', 'terminal-bench', 'all'), default='training')
     ap.add_argument('--out', type=Path, default=Path('verify-out/terminal-bench'))
     ap.add_argument('--limit', type=int)
     ap.add_argument('--concurrency', type=int, default=1, help='parallel static tasks')

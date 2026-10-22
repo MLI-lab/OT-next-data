@@ -46,6 +46,13 @@ test shells retain their configuration. Longer polling accommodates the upload's
 multiple operations and safe mkdir retries; it cannot fix missing files, broken
 archives, disk failures or a permanently failed worker.
 
+Uploads above 4 MiB use 4 MiB requests and assemble files on disk; smaller
+uploads keep the single-request path. Directory archives are
+spooled to temporary disk storage, with symlinks preserved, instead of building
+whole-file base64 payloads in memory. The client, queue server and worker patches
+must be deployed together. Transfer chunks use the existing retry protocol;
+unfinished uploads are removed with the environment staging directory.
+
 Directory uploads preserve symlinks. `artifact_transfer.py` keeps declared
 Apptainer submission directories in compressed archives between containers,
 without extracting container links on the host or packing the same directory

@@ -5,6 +5,7 @@ its beginning. Bound each capture before those markers are added instead.
 The lifecycle worker supplies the budget from its actual per-stream limit.
 """
 from functools import wraps
+import shlex
 
 BATCH_TAG = '# ot-next-data: bounded tmux captures\n'
 FRAME_RESERVE = 1024
@@ -32,6 +33,18 @@ def install():
         script = original(self, batches, markers)
         if not isinstance(self.environment, ApptainerEnvironment):
             return script
+        # Harbor already treats a shell ending after the last command as
+        # SESSION_ENDED, allowing verification of the work left behind. Apply
+        # the same behavior when another send in this batch finds it gone.
+        # An absent session at batch entry must still raise; never replay keys.
+        ended = f"    printf '%s\\n' {shlex.quote(markers.session_ended)}"
+        dead = f"    printf '%s\\n' {shlex.quote(markers.dead_after)}"
+        lines = script.splitlines()
+        expected = sum(len(self._tmux_send_keys(self._prepare_keys(keys=b.keystrokes, block=False)[0]))
+                       for b in batches)
+        if lines.count(ended) != expected:
+            raise RuntimeError('Harbor tmux batch layout changed; review session end patch')
+        script = '\n'.join(dead if line == ended else line for line in lines)
         assert len((markers.visible + '\n' + markers.full + '\n').encode()) < FRAME_RESERVE
         for entire in (False, True):
             capture = self._tmux_capture_pane(capture_entire=entire)

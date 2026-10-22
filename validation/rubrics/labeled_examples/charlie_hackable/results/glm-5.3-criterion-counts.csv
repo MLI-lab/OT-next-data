@@ -1,0 +1,2 @@
+category,criterion,expected,total,pass,fail,not_applicable,pending
+reported_hackable,anti_cheat_robustness,fail,27,0,0,0,27

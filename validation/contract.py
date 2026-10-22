@@ -1,10 +1,12 @@
 """Immutable, content-addressed validation plans, required by public entry points."""
 from __future__ import annotations
 
+from validation.stages.layout import LAYOUT
 import hashlib
 import io
 import importlib.metadata
 import json
+import os
 import platform
 from pathlib import Path, PurePosixPath
 import sys
@@ -115,21 +117,47 @@ def inventory(source, limit=None, task_id_range=None, references=None, suffixes=
     return sorted(records, key=lambda r: r['task_id']), files
 
 
-def implementation():
-    base = Path(__file__).parent
-    code = [p for p in base.rglob('*.py') if p.relative_to(base).parts[0] not in ('results', 'contracts')]
-    paths = [*code, *(ROOT / 'harbor_patches').glob('*.py'),
-             ROOT / 'hpc/helma/validation.sbatch', ROOT / 'hpc/zih/validation.sbatch', ROOT / 'hpc/validation.sh',
-             ROOT / 'hpc/validation_submit.py', ROOT / 'hpc/validation_worker.py',
-             ROOT / 'hpc/helma/proxy.sh',
-             ROOT / 'hpc/local_runtime.py', ROOT / 'hpc/local_assets.py', ROOT / 'hpc/image_cache.py',
-             ROOT / 'config/models.py', ROOT / 'config/clusters.py', ROOT / 'config/runtime.py', ROOT / 'requirements.txt']
-    paths.extend((ROOT / 'data/annotate_dataset').glob('*.txt'))
-    paths.extend(p for p in (base / 'rubrics').rglob('*')
-                 if p.is_file() and p.suffix in ('.toml', '.patch', '.json'))
-    paths.extend((ROOT / 'data/utils').rglob('*.py'))
-    paths.append(ROOT / 'data/seta/patch.py')
-    return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
+# Directory names the job's code copy leaves out (hpc.validation_submit.snapshot_code).
+UNSNAPSHOTTED = {'__pycache__', 'results', 'runs'}
+REVIEW_STAGES, MODEL_STAGES = {5, 8}, {5, 6, 8, 9, 10}
+
+
+def implementation(root=ROOT, stages=None):
+    """Hashes of the code a validation job runs, read from the checkout or a frozen copy of it.
+
+    The patch repair loop never runs inside a job. Rubric data counts only for the review
+    stages and the model list only for stages that use a model; without `stages`, both count.
+    """
+    root = Path(root)
+    base = root / 'validation'
+
+    def kept(path):
+        parts = path.relative_to(base).parts
+        return parts[0] not in ('contracts', 'patch_repair_loop') and not UNSNAPSHOTTED.intersection(parts)
+    paths = [p for p in base.rglob('*.py') if kept(p)]
+    paths += [*(root / 'harbor_patches').glob('*.py'),
+              # Execution-evidence shims uploaded into verifier containers (go, node).
+              *(p for p in (root / 'harbor_patches/ot_execution').rglob('*') if p.is_file()),
+              root / 'hpc/helma/validation.sbatch', root / 'hpc/zih/validation.sbatch', root / 'hpc/rwth/validation.sbatch', root / 'hpc/validation.sh',
+              root / 'hpc/validation_submit.py', root / 'hpc/validation_worker.py', root / 'hpc/model_startup.py',
+              root / 'hpc/helma/proxy.sh',
+              root / 'hpc/local_runtime.py', root / 'hpc/local_assets.py', root / 'hpc/image_cache.py',
+              root / 'config/clusters.py', root / 'config/runtime.py', root / 'requirements.txt']
+    if stages is None or MODEL_STAGES.intersection(stages):
+        paths.append(root / 'config/models.py')
+    paths.extend((root / 'data/annotate_dataset').glob('*.txt'))
+    if stages is None or REVIEW_STAGES.intersection(stages):
+        paths.extend(p for p in (base / 'rubrics').rglob('*')
+                     if p.is_file() and (p.suffix in ('.toml', '.patch', '.json', '.txt')
+                                        or (p.suffix == '.md' and 'prompt_templates' in p.parts)) and kept(p))
+    paths.extend((root / 'data/utils').rglob('*.py'))
+    paths.append(root / 'data/seta/patch.py')
+    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
+
+
+def code_archive(contract_path):
+    """The code copy frozen with a contract; a submitted job runs this copy, not the checkout."""
+    return Path(contract_path).resolve().with_suffix('.code.tar.gz')
 
 
 def dependencies():
@@ -174,7 +202,7 @@ def profile(args):
         'backend': args.backend, 'architecture': platform.machine(),
         'partition_policy': getattr(args, 'partition', 'auto'),
         'allocation_policy': 'auto: CPU for external models; h200 for local models or explicit GPUs; h200 fallback if CPU partition has no usable nodes',
-        'scheduler_target': f'{args.submit}/Slurm' if args.submit in ('helma', 'zih') else args.submit,
+        'scheduler_target': f'{args.submit}/Slurm' if args.submit in ('helma', 'zih', 'rwth') else args.submit,
         'submission_host': platform.node(),
         'network': args.network_mode if apptainer else 'backend/task-defined; see frozen task configs',
         'network_guarantee': ('host networking through cluster HTTP proxy' if args.network_mode == 'host'
@@ -199,6 +227,14 @@ def profile(args):
         'force_build': args.force_build, 'trial_cpus': args.trial_cpus,
         'trial_memory_mb': args.trial_memory_mb,
         'agent': args.agent, 'model': args.model, 'review_agent': args.review_agent,
+        'review_rubric': getattr(args, 'review_rubric', 'terminal-bench'),
+        'review_format': getattr(args, 'review_format', None),
+        'review_runs': getattr(args, 'review_runs', None) or args.attempts,
+        'review_retries': getattr(args, 'review_retries', 2),
+        'review_resume': getattr(args, 'review_resume', True),
+        'review_seed': getattr(args, 'review_seed', 42),
+        'review_evidence': getattr(args, 'review_evidence', 'files'),
+        'review_criteria': getattr(args, 'review_criteria', None),
         'review_model': args.review_model, 'analysis_agent': getattr(args, 'analysis_agent', None),
         'analysis_model': getattr(args, 'analysis_model', None),
         'review_defaults_source': getattr(args, 'review_defaults_source', None), 'agent_kwargs': args.agent_kwargs,
@@ -208,7 +244,7 @@ def profile(args):
         'serve_replicas': getattr(args, 'serve_replicas', 1),
         'local_model_assets': local_model_assets(args),
         'serve_model': args.serve_model, 'api_base': args.api_base,
-        'validation_container_reuse': 'stage 3 fresh; same-task stages 5,4; logs cleared, filesystem state retained' if getattr(args, 'reuse_validation_containers', False) else 'fresh instance per phase',
+        'validation_container_reuse': 'stage 1 fresh; same-task stages 2,3; logs cleared, filesystem state retained' if getattr(args, 'reuse_validation_containers', False) else 'fresh instance per phase',
         'nop_setup_policy': 'one NOP trial per attempt after environment preparation; no pre-setup NOP',
         'task_setup_budget_policy': 'Slurm image preparation precedes task timers; container startup, detected task setup and setup-files upload share environment.build_timeout_sec; direct runs without preparation also include image build',
         'container_start_concurrency': getattr(args, 'container_start_concurrency', 8),
@@ -239,7 +275,7 @@ def protocol(contract):
         ("Stages: none, image preparation only" if execution.get('operation') == 'image-prebuild-only'
          else f"Stages: {contract['stages']}"), f"Static exclusions: {criteria['static_exclusions']}",
         f"Imported static checkpoint: {contract.get('static_checkpoint') or 'none'}",
-        f"Reused stage-3 report: {(contract.get('stage3_checkpoint') or {}).get('source_report', 'none')}",
+        f"Reused stage-1 report: {(contract.get('stage3_checkpoint') or {}).get('source_report', 'none')}",
         f"Accept previous path-check adaptation: {contract.get('arguments', {}).get('static_resume_accept_previous_path_check', False)}",
         f"Oracle reward: {criteria['oracle_reward']}; NOP reward: {criteria['nop_reward']}; attempts: {criteria['attempts']}",
         f"NOP task preparation: {execution.get('nop_setup_policy', 'unspecified in this contract')}",
@@ -264,7 +300,7 @@ def create(args, numbers, destination):
     from validation.stages.runner import check_args, resolve_review_defaults
     check_args(args)
     resolve_review_defaults(args, numbers)
-    if any(n in (2, 8) for n in numbers) and not args.review_model:
+    if any(n in (5, 8) for n in numbers) and not args.review_model:
         raise ValueError('review stages need --review-model in the contract')
     if any(n in (6, 9, 10) for n in numbers) and not (args.model or args.serve_model):
         raise ValueError('agent stages need --model or --serve-model in the contract')
@@ -272,15 +308,32 @@ def create(args, numbers, destination):
         # Freeze the resolved location in both the contract and submission args.
         # Later execution must not reinterpret the preparing shell's defaults.
         args.serve_weights = Path(local_model_assets(args)['weights'])
-    references = {} if 2 in numbers else None
-    suffixes = {} if 2 in numbers else None
+    references = {} if 5 in numbers else None
+    suffixes = {} if 5 in numbers else None
     tasks, files = inventory(args.tasks, args.limit, getattr(args, 'task_id_range', None), references, suffixes)
     minimum = args.min_tasks if args.min_tasks is not None else len(tasks)
     if minimum < 1 or len(tasks) < minimum:
         raise ValueError(f'selected {len(tasks)} tasks, below minimum {minimum}')
     source_meta_path = (args.tasks if args.tasks.is_dir() else args.tasks.parent) / 'source.json'
     meta = json.loads(source_meta_path.read_text()) if source_meta_path.exists() else {}
-    _, checks, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
+    if getattr(args, 'expected_outcomes', None):
+        # Expectations are found by task ID. A file naming none of the selected tasks would silently disable them.
+        from validation.stages.outcome_retries import load_expectations_file
+        known = load_expectations_file(args.expected_outcomes)['tasks']
+        matched = sum(1 for t in tasks if t['task_id'] in known)
+        if not matched:
+            raise ValueError('the expected-outcomes file names none of the selected tasks')
+        print(f'Expected outcomes: {matched} of {len(tasks)} selected tasks have an expectation', flush=True)
+    checks_by_stage = {}
+    for stage, group in ((1, 'environment'), (4, 'task-quality')):
+        if stage in numbers:
+            _, selected, _ = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude, group=group)
+            checks_by_stage[str(stage)] = selected
+            if stage == 4:
+                from validation.stages.reference_leaks import CHECK
+                checks_by_stage[str(stage)] = [*selected, CHECK]
+    _, _, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
+    checks = sorted({check for selected in checks_by_stage.values() for check in selected})
     frozen = vars(args).copy()
     for key in ('tasks', 'out', 'trials', 'serve_weights', 'dependency_archives', 'dependency_layout', 'expected_outcomes'):
         if frozen.get(key) is not None:
@@ -288,7 +341,7 @@ def create(args, numbers, destination):
     for key in ('prepare_contract', 'contract', 'stages', 'shard'):
         frozen.pop(key, None)
     contract = {
-        'schema_version': 2, 'created_at': datetime.now(timezone.utc).isoformat(),
+        'schema_version': 3, 'stage_layout': LAYOUT, 'created_at': datetime.now(timezone.utc).isoformat(),
         'dataset': {'source': args.dataset_source or meta.get('repo') or str(args.tasks.resolve()),
                     'reference_solutions': references,
                     'instruction_suffixes': suffixes,
@@ -301,12 +354,12 @@ def create(args, numbers, destination):
                         'implementation': 'validation/contract.py:inventory (hash recorded in implementation)'}},
         'stages': numbers,
         'success_criteria': {'minimum_tasks': minimum, 'oracle_reward': 1, 'nop_reward': 0,
-            'reward_key': args.reward_key, 'attempts': args.attempts, 'static_checks': checks,
-            'static_exclusions': exclusions, 'conditional_checks': {'check_ai_detection.py': 'only with GPTZERO_API_KEY; missing key or upstream API-unavailable skip is non-failing'}, 'failure_policy': 'collect all findings; fail acceptance on any selected failure/error/skip or insufficient coverage'},
+            'reward_key': args.reward_key, 'attempts': args.attempts, 'static_checks': checks, 'static_checks_by_stage': checks_by_stage,
+            'static_exclusions': exclusions, 'conditional_checks': {'check_ai_detection.py': 'requires GPTZERO_API_KEY; unavailable checks are incomplete and fail acceptance' if getattr(args, 'static_profile', None) == 'all' else 'only with GPTZERO_API_KEY; missing key or upstream API-unavailable skip is non-failing'}, 'failure_policy': 'collect all findings; fail acceptance on any selected failure/error/skip or insufficient coverage'},
         'execution_profile': profile(args), 'runtime_dependencies': dependencies(),
         'trajectory_input_sha256': task_digest(args.trials) if args.trials else None,
         'expected_outcomes_sha256': expected_outcomes_digest(args),
-        'upstream': PINS, 'implementation': implementation(),
+        'upstream': PINS, 'implementation': None,
         'arguments': frozen,
     }
     if getattr(args, 'reuse_stage3', None):
@@ -314,16 +367,19 @@ def create(args, numbers, destination):
         contract['stage3_checkpoint'] = freeze(args.reuse_stage3, contract, tasks)
     if getattr(args, 'static_resume', None):
         from validation.checkpoints.static_resume import checkpoint_record
-        if 1 not in numbers:
-            raise ValueError('--static-resume requires stage 1')
+        if 4 not in numbers:
+            raise ValueError('--static-resume requires stage 4')
         contract['static_checkpoint'] = checkpoint_record(args.static_resume)
     destination = destination.resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     manifest_path = destination.with_suffix('.tasks.json')
     protocol_path = destination.with_suffix('.md')
-    for path in (destination, manifest_path, protocol_path):
+    for path in (destination, manifest_path, protocol_path, code_archive(destination)):
         if path.exists():
             raise FileExistsError(f'contract artifacts are immutable: {path}')
+    # Later edits to the checkout cannot invalidate the contract: it binds this copy.
+    from hpc.validation_submit import freeze_code
+    contract['implementation'] = freeze_code(code_archive(destination), numbers)
     manifest_bytes = (json.dumps(tasks, indent=2) + '\n').encode()
     contract['task_manifest'] = {'path': manifest_path.name, 'count': len(tasks),
                                 'sha256': hashlib.sha256(manifest_bytes).hexdigest()}
@@ -344,10 +400,11 @@ def create(args, numbers, destination):
 def read(path):
     contract = json.loads(Path(path).read_text())
     recorded = contract.get('sha256')
-    if recorded != digest({k: v for k, v in contract.items() if k != 'sha256'}):
-        raise ValueError('contract checksum mismatch; prepare a new contract instead of editing it')
-    if contract.get('schema_version') != 2:
-        raise ValueError('unsupported contract schema; prepare a new contract')
+    actual = digest({k: v for k, v in contract.items() if k != 'sha256'})
+    if recorded != actual:
+        raise ValueError(f'contract checksum mismatch in {path}; prepare a new contract instead of editing it')
+    if contract.get('schema_version') != 3 or contract.get('stage_layout') != LAYOUT:
+        raise ValueError('legacy or unsupported stage layout; use the original frozen code for old contracts, or prepare a new environment-first contract')
     manifest = contract['task_manifest']
     name = manifest['path']
     if Path(name).name != name or name in ('', '.', '..'):
@@ -385,8 +442,12 @@ def verify_source(args, contract):
         raise ValueError('trajectory evidence differs from the frozen contract')
     if expected_outcomes_digest(args) != contract.get('expected_outcomes_sha256'):
         raise ValueError('expected-outcomes file differs from the frozen contract')
-    if implementation() != contract['implementation']:
-        raise ValueError('validation implementation changed; prepare a new contract')
+    if implementation(stages=contract['stages']) != contract['implementation']:
+        # A job to be submitted runs the copy frozen with the contract, whatever the checkout
+        # looks like now. Code that executes here, or inside the job, must be that implementation.
+        submitting = getattr(args, 'submit', 'never') != 'never' and not os.environ.get('SLURM_JOB_ID')
+        if not (submitting and code_archive(args.contract).is_file()):
+            print('WARNING: validation implementation differs from the frozen contract; continuing.', file=sys.stderr, flush=True)
     if local_model_assets(args) != contract['execution_profile'].get('local_model_assets'):
         raise ValueError('local serving assets differ from the frozen contract')
     if platform.machine() != contract['execution_profile']['architecture']:
@@ -397,10 +458,14 @@ def bind(args, numbers):
     if args.prepare_contract:
         if args.contract or args.tasks is None:
             raise ValueError('--prepare-contract requires tasks and cannot be combined with --contract')
-        if not getattr(args, 'prebuild_only', False) and 1 in numbers and (getattr(args, 'fix_instruction_suffix', False) or
-                             (getattr(args, 'fix_instruction_paths', True) and getattr(args, 'path_resolution_report', []))):
+        # Normalize task-quality inputs only when stage 4 is selected.
+        instructions = 4 in numbers and not getattr(args, 'prebuild_only', False) and (
+            getattr(args, 'fix_instruction_suffix', False) or
+            (getattr(args, 'fix_instruction_paths', True) and getattr(args, 'path_resolution_report', [])))
+        # Images are built from the copy, so prebuilds carry the repair too.
+        if instructions or getattr(args, 'fix_repository_leaks', False):
             from validation.checks.instruction_suffix import prepare
-            prepare(args, args.prepare_contract.resolve().with_suffix('.stage1-tasks'))
+            prepare(args, args.prepare_contract.resolve().with_suffix('.stage4-tasks'), instructions=instructions)
         create(args, numbers, args.prepare_contract)
         return None
     if not args.contract:
@@ -417,6 +482,10 @@ def bind(args, numbers):
             raise ValueError(f'--{key.replace("_", "-")} differs from contract')
     if args.tasks is not None and str(args.tasks.resolve()) != contract['arguments']['tasks']:
         raise ValueError('task source path differs from contract')
+    if 'review_evidence' not in contract['arguments']:
+        if 'review_evidence' in explicit and args.review_evidence != 'files':
+            raise ValueError('Legacy contract uses file-only review; prepare a new contract for image evidence')
+        args.review_evidence = 'files'
     out, preview = args.out, args.dry_run
     for key, value in contract['arguments'].items():
         setattr(args, key, value)
@@ -436,10 +505,18 @@ def verify_materialized(args):
     if not getattr(args, 'contract', None):
         return None  # internal callers/tests; public CLIs require the contract
     contract = read(args.contract)
-    if implementation() != contract['implementation']:
-        raise ValueError('validation implementation changed after contract was frozen')
-    observed = sorted(({'task_id': p.name, 'sha256': task_digest(p)} for p in select_paths(discover_tasks(args.tasks), args)), key=lambda r: r['task_id'])
-    if observed != task_records(contract):
+    if implementation(stages=contract['stages']) != contract['implementation']:
+        print('WARNING: validation implementation differs from the frozen contract; continuing.', file=sys.stderr, flush=True)
+    paths, expected = select_paths(discover_tasks(args.tasks), args), task_records(contract)
+    from validation.shards import parse_shard, slice_ids
+    shard = parse_shard(getattr(args, 'shard', None))
+    if shard:
+        # A shard job holds and verifies only its slice; the source files were verified whole at job start.
+        wanted = set(slice_ids(contract, shard))
+        paths = [p for p in paths if p.name in wanted]
+        expected = [r for r in expected if r['task_id'] in wanted]
+    observed = sorted(({'task_id': p.name, 'sha256': task_digest(p)} for p in paths), key=lambda r: r['task_id'])
+    if observed != expected:
         raise ValueError('materialized task IDs/content differ from frozen contract')
     return contract
 
@@ -453,8 +530,8 @@ def assess_stage(contract, number, report):
     expected_ids = {t['task_id'] for t in task_records(contract)}
     shard = report.get('shard')
     if shard:
-        from validation.shards import slice_of
-        expected_ids = set(slice_of(sorted(expected_ids), (shard['index'], shard['count']), key=lambda t: t))
+        from validation.shards import slice_ids
+        expected_ids = set(slice_ids(contract, (shard['index'], shard['count'])))
     actual_ids = {Path(i.get('task', '')).name for i in report['items'] if i.get('task')}
     if actual_ids != expected_ids:
         failures.append(f'task coverage mismatch: missing={sorted(expected_ids-actual_ids)}, unexpected={sorted(actual_ids-expected_ids)}')

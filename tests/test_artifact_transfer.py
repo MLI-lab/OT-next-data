@@ -120,3 +120,32 @@ async def test_missing_conventional_artifacts_dir_is_recorded_empty_without_a_br
     entry = await handler._download_artifact(source_env=NoArtifacts(), artifacts_dir=tmp_path / 'artifacts',
                                              artifact=artifact, convention_source='/logs/artifacts')
     assert (entry.status, entry.type, entry.source) == ('empty', 'directory', '/logs/artifacts')
+
+
+@run_async
+async def test_empty_required_file_is_transferred_as_an_empty_artifact(tmp_path, packed_transfer):
+    """A no-change submission patch is a zero-byte file; the bridge client calls that "no data"."""
+    Environment, uploaded = packed_transfer
+    patch = tmp_path / 'inferredbugs-submission.patch'
+    patch.write_bytes(b'')
+
+    class Bridge(Environment):
+        async def is_dir(self, path, **kwargs):
+            return False
+        async def download_file(self, source_path, target_path):
+            if not Path(source_path).stat().st_size:
+                raise FileNotFoundError(f'Download returned no data for {source_path}')
+            shutil.copyfile(source_path, target_path)
+
+    artifact = ArtifactConfig(source=str(patch))
+    handler = ArtifactHandler(artifacts=[artifact], logger=logging.getLogger(__name__))
+    entry = await handler._download_artifact(source_env=Bridge(), artifacts_dir=tmp_path / 'artifacts',
+                                             artifact=artifact, convention_source='/logs/artifacts')
+    assert (entry.status, entry.type) == ('ok', 'file')
+    saved = list((tmp_path / 'artifacts').rglob('inferredbugs-submission.patch'))
+    assert len(saved) == 1 and saved[0].stat().st_size == 0
+    # A file that does not exist is still a failed required download.
+    artifact = ArtifactConfig(source=str(tmp_path / 'missing.patch'))
+    with pytest.raises(RuntimeError, match='Required submission download failed'):
+        await ArtifactHandler(artifacts=[artifact], logger=logging.getLogger(__name__))._download_artifact(
+            source_env=Bridge(), artifacts_dir=tmp_path / 'artifacts2', artifact=artifact, convention_source='/logs/artifacts')

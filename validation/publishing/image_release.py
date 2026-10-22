@@ -2,6 +2,8 @@
 import hashlib
 import io
 import json
+import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
 import platform
 import re
@@ -33,13 +35,64 @@ def validate_bundle(name, manifest, directory=None):
                 raise ValueError(f'Corrupt image bundle: {source}')
 
 
-def prepare_release(tables, cache, out, repo):
+def stage_build_contexts(binary, target, expected_hash, environment_paths=None):
+    """Verify every task byte, but only write image build contexts to disk."""
+    with tarfile.open(fileobj=io.BytesIO(binary), mode='r:*') as archive:
+        members = archive.getmembers()
+        names = set()
+        files = []
+        for member in members:
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+                raise ValueError(f'Unsafe task archive member: {member.name}')
+            if member.isfile():
+                if path in names:
+                    raise ValueError(f'Duplicate task archive member: {member.name}')
+                names.add(path)
+                files.append((path.as_posix(), member))
+        if environment_paths is None:
+            dockerfiles = sorted(path for path in names if path.name == 'Dockerfile')
+        else:
+            dockerfiles = []
+            for value in environment_paths:
+                relative = PurePosixPath(value)
+                if relative.is_absolute() or '..' in relative.parts:
+                    raise ValueError(f'Unsafe environment path: {value}')
+                if relative / 'Dockerfile' not in names:
+                    raise ValueError(f'Missing runtime Dockerfile: {value}')
+                dockerfiles.append(relative / 'Dockerfile')
+        roots = [path.parent for path in dockerfiles]
+        digest = hashlib.sha256()
+        for name, member in sorted(files):
+            encoded = name.encode()
+            digest.update(len(encoded).to_bytes(8, 'big'))
+            digest.update(encoded)
+            digest.update(member.size.to_bytes(8, 'big'))
+            destination = None
+            if any(PurePosixPath(name).is_relative_to(root) for root in roots):
+                path = target / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                destination = path.open('wb')
+            try:
+                with archive.extractfile(member) as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                        digest.update(chunk)
+                        if destination is not None:
+                            destination.write(chunk)
+            finally:
+                if destination is not None:
+                    destination.close()
+        if digest.hexdigest() != expected_hash:
+            raise ValueError('Task changed since validation')
+    return [target / path.as_posix() for path in dockerfiles]
+
+
+def prepare_release(tables, cache, out, repo, *, environment_paths=None):
     """Export only build-time bundles matching validated task environment contents.
 
     Legacy caches lack pristine-build provenance and are deliberately omitted.
     Returns small manifest plus explicit upload paths; never scans live instances.
     """
-    from validation.contract import files_digest
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     manifest = {'version': 1, 'repo_id': repo, 'revision': None,
@@ -61,25 +114,20 @@ def prepare_release(tables, cache, out, repo):
                 candidates.setdefault(provenance['environment_sha256'], (directory, entry))
     if candidates and out.resolve().is_relative_to('/home'):
         raise ValueError('Image release files must be outside /home; set --out to a cluster workspace')
-    for kept, _ in tables.values():
-        for row in kept:
-            if '3' not in row['stages_passed'].split(','):
-                continue
-            with tempfile.TemporaryDirectory(prefix='.image-task-', dir=out) as temporary:
-                task = Path(temporary)
-                with tarfile.open(fileobj=io.BytesIO(row['task_binary']), mode='r:*') as archive:
-                    members = archive.getmembers()
-                    for member in members:
-                        path = PurePosixPath(member.name)
-                        if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
-                            raise ValueError(f'Unsafe task archive member: {member.name}')
-                    contents = [(str(PurePosixPath(m.name)), archive.extractfile(m).read()) for m in members if m.isfile()]
-                    if files_digest(contents) != row['content_sha256']:
-                        raise ValueError(f"Task changed since validation: {row['path']}")
-                    archive.extractall(task, members=members, filter='data')
+    def contexts(row):
+        with tempfile.TemporaryDirectory(prefix='.image-task-', dir=out) as temporary:
+            task = Path(temporary)
+            dockerfiles = stage_build_contexts(row['task_binary'], task, row['content_sha256'], environment_paths)
+            return row, [(dockerfile.parent.relative_to(task).as_posix(),
+                          environment_dir_hash(dockerfile.parent)) for dockerfile in dockerfiles]
+    workers = int(os.environ.get('OT_PUBLISH_IMAGE_WORKERS', os.environ.get('OT_PUBLISH_CONTRACT_WORKERS', '1')))
+    if not 1 <= workers <= 8:
+        raise ValueError('OT_PUBLISH_IMAGE_WORKERS must be between 1 and 8')
+    for folder, (kept, _) in sorted(tables.items()):
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for row, observed in pool.map(contexts, (r for r in kept if '1' in r['stages_passed'].split(','))):
                 environments = []
-                for dockerfile in sorted(task.rglob('Dockerfile')):
-                    env_hash = environment_dir_hash(dockerfile.parent)
+                for relative, env_hash in observed:
                     candidate = candidates.get(env_hash)
                     if candidate is None:
                         manifest['missing'].append({'task': row['path'], 'environment_sha256': env_hash})
@@ -89,7 +137,8 @@ def prepare_release(tables, cache, out, repo):
                     if bundle_id not in manifest['bundles']:
                         with bundle_directory(directory, out) as unpacked:
                             validate_bundle(bundle_name(directory), entry, unpacked)
-                            prefix = f'images/bundles-v1/{bundle_id}/{bundle_name(directory)}'
+                            # Each dataset folder keeps its own images (<folder>/cached_images).
+                            prefix = f'{folder}/cached_images/bundles-v1/{bundle_id}/{bundle_name(directory)}'
                             # Upload immutable copies, never mutable build/trial files.
                             staged = out / prefix
                             staged.mkdir(parents=True, exist_ok=True)
@@ -99,7 +148,7 @@ def prepare_release(tables, cache, out, repo):
                                     raise ValueError('Image changed during release preparation')
                                 artifacts[f'{prefix}/{name}'] = staged / name
                             manifest['bundles'][bundle_id] = dict(entry, name=bundle_name(directory), prefix=prefix)
-                    environments.append({'path': dockerfile.parent.relative_to(task).as_posix(),
+                    environments.append({'path': relative,
                                          'environment_sha256': env_hash, 'bundle': bundle_id})
                 if environments:
                     manifest['tasks'][row['path']] = {'content_sha256': row['content_sha256'], 'environments': environments}
@@ -144,21 +193,55 @@ def stage_published(tasks, cache, target, download=None, *, selected_keys=None):
             validate_bundle(bundle['name'], bundle)
             if not bundle['name'].endswith('-' + env_hash[:12] + '.sif'):
                 raise ValueError('Published image cache key mismatch')
-            prefix = f"images/bundles-v1/{environment['bundle']}/{bundle['name']}"
-            if bundle['prefix'] != prefix or not re.fullmatch('[0-9a-f]{64}', environment['bundle']):
+            prefix = bundle['prefix']
+            suffix = f"bundles-v1/{environment['bundle']}/{bundle['name']}"
+            parts = PurePosixPath(prefix).parts
+            dataset_prefix = (len(parts) == 5 and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', parts[0])
+                              and prefix == f'{parts[0]}/cached_images/{suffix}')
+            if (prefix != f'images/{suffix}' and not dataset_prefix) or not re.fullmatch('[0-9a-f]{64}', environment['bundle']):
                 raise ValueError('Unsafe artifact path')
             identity = (manifest['repo_id'], manifest['revision'], prefix)
             if identity in done:
                 continue
             target = Path(target)
             target.mkdir(parents=True, exist_ok=True)
+            # Staging may already have restored this exact published bundle.
+            # Verify against the pinned manifest, not just its filename/key.
+            try:
+                validate_bundle(bundle['name'], bundle, target)
+            except (OSError, ValueError):
+                pass
+            else:
+                done.add(identity)
+                records.append({'source': prefix, 'revision': manifest['revision'],
+                                'local': str(target / bundle['name']),
+                                'verified_bundle': True, 'reused': True})
+                continue
+            # Also support callers that have not run local bundle staging.
+            cached = Path(cache) / 'bundles-v1' / bundle['name']
+            if not cached.exists():
+                cached = cached.with_name(cached.name + '.tar')
+            if cached.exists():
+                if cached.is_symlink():
+                    raise ValueError(f'Invalid cached image bundle: {cached}')
+                with bundle_directory(cached, target) as unpacked:
+                    local_manifest = bundle_manifest(unpacked)
+                    if (local_manifest['files'] != bundle['files']
+                            or local_manifest.get('provenance') != provenance):
+                        raise ValueError(f'Published image cache manifest mismatch: {cached}')
+                    validate_bundle(bundle['name'], bundle, unpacked)
+                    local = restore(unpacked, target)
+                done.add(identity)
+                records.append({'source': str(cached), 'revision': manifest['revision'],
+                                'local': str(local), 'verified_bundle': True, 'reused': True})
+                continue
             with tempfile.TemporaryDirectory(prefix='.hf-image-', dir=target) as temporary:
                 directory = Path(temporary) / bundle['name']
                 directory.mkdir()
                 for name in bundle['files']:
                     downloaded = download(repo_id=manifest['repo_id'], repo_type='dataset',
                         revision=manifest['revision'], filename=f'{prefix}/{name}',
-                        cache_dir=str(Path(cache) / 'hf-hub'))
+                        cache_dir=str(Path(temporary) / 'hf-hub'))
                     copy_image(downloaded, directory / name)
                 (directory / 'manifest.json').write_text(json.dumps(bundle))
                 local = restore(directory, target)

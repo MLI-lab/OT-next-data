@@ -111,37 +111,38 @@ def test_bundle_order_rewards_and_journals(tmp_path, monkeypatch, fake_environme
         await asyncio.sleep(0)
         await env.stop()
     async def build(task, out, args):
-        await phase(task, 3)
+        await phase(task, 1)
         return {'status': 'passed'}
     def config(task, out, args, agent):
         return {'task': str(task), 'agent': agent, 'out': str(out)}
     async def execute(config):
-        stage = 5 if config['agent'] == 'nop' else 4
+        stage = 3 if config['agent'] == 'nop' else 2
         await phase(Path(config['task']), stage)
         out = Path(config['out'])
-        rewards[out] = nop_reward if stage == 5 else 1
+        rewards[out] = nop_reward if stage == 3 else 1
         return out
     monkeypatch.setattr(run_reused_containers.runtime, 'build_task', build)
     monkeypatch.setattr(run_reused_containers.runtime, 'job_config', config)
     monkeypatch.setattr(run_reused_containers.runtime, 'execute_job', execute)
     monkeypatch.setattr(run_reused_containers.runtime, 'trial_results', lambda path: [(path, {
         'verifier_result': {'rewards': {'reward': rewards[path]}}})])
-    reports = run_reused_containers.run_validation_bundle(args, {3, 4, 5})
-    assert [stage for stage, _, _ in reports] == [3, 5, 4]
-    assert list(events.values()) == [[3, 5, 4], [3, 5, 4]]
+    reports = run_reused_containers.run_validation_bundle(args, {1, 2, 3})
+    # Same container: the no-op (3) must run before the reference (2) can change files.
+    assert [stage for stage, _, _ in reports] == [1, 3, 2]
+    assert list(events.values()) == [[1, 3, 2], [1, 3, 2]]
     assert len(fake_environment.starts) == len(fake_environment.stops) == 2
     for stage, path, report in reports:
-        failed = stage == 5 and nop_reward != 0
+        failed = stage == 3 and nop_reward != 0
         assert report['complete'] and report['has_findings'] == failed
         assert len((path.parent / 'outcomes.jsonl').read_text().splitlines()) == 2
         assert all(i['status'] == ('failed' if failed else 'passed') for i in report['items'])
-        if stage == 4:
+        if stage == 2:
             assert all(i['container_reuses'] == 2 for i in report['items'])
 
 
 @pytest.mark.parametrize('stages,enabled,bundles,singles', [
-    ([1, 3, 4, 5], True, [{4, 5}], [1, 3]),
-    ([4], True, [], [4]), ([3, 4, 5], False, [], [3, 4, 5])])
+    ([1, 2, 3, 4], True, [{2, 3}], [1, 4]),
+    ([3], True, [], [3]), ([1, 2, 3], False, [], [1, 2, 3])])
 def test_pipeline_dispatch(tmp_path, monkeypatch, stages, enabled, bundles, singles):
     from validation import run
     from validation.stages import run_reused_containers, runner
@@ -154,7 +155,7 @@ def test_pipeline_dispatch(tmp_path, monkeypatch, stages, enabled, bundles, sing
     calls, individual = [], []
     def bundle(args, selected):
         calls.append(selected)
-        return [(n, tmp_path / str(n), {'has_findings': False}) for n in (3, 5, 4) if n in selected]
+        return [(n, tmp_path / str(n), {'has_findings': False}) for n in (1, 3, 2) if n in selected]
     def single(n, args):
         individual.append(n)
         return tmp_path / str(n), {'has_findings': False, 'items': []}

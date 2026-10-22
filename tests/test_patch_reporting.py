@@ -88,7 +88,7 @@ def test_manifest_requires_archive_and_matching_output_payloads(tmp_path):
         patch_provenance.attach(record, tables, [f'set={tmp_path}/manifest.json'])
 
 
-@pytest.mark.parametrize('stage', [4, 5])
+@pytest.mark.parametrize('stage', [2, 3])
 @pytest.mark.parametrize('finding,label', [
     ('exception: BuildTimeoutError', 'build-execution-error'),
     ('exception: BridgeOutageError', 'infrastructure-error'),
@@ -100,18 +100,18 @@ def test_manifest_requires_archive_and_matching_output_payloads(tmp_path):
     ('verifier invocation failed during collection or execution', 'verifier-execution-error'),
 ])
 def test_execution_failure_never_becomes_reward_failure(stage, finding, label):
-    item = {'status': 'failed', 'rewards': [0 if stage == 4 else 1], 'findings': [finding]}
+    item = {'status': 'failed', 'rewards': [0 if stage == 2 else 1], 'findings': [finding]}
     assert publish.judge(stage, item)[0] == 'not_run'
     assert labels(stage, item) == [label]
 
 
 def test_real_reward_failures_and_reference_verifier_execution(tmp_path):
-    assert labels(4, {'status': 'failed', 'rewards': [0]}) == ['reference-solution-reward-zero']
-    assert labels(5, {'status': 'failed', 'rewards': [1]}) == ['no-op-reward-one']
+    assert labels(2, {'status': 'failed', 'rewards': [0]}) == ['reference-solution-reward-zero']
+    assert labels(3, {'status': 'failed', 'rewards': [1]}) == ['no-op-reward-one']
     result = assess_trials([(tmp_path, {'verifier_result': {
         'rewards': {'reward': 0}, 'stdout': '/usr/bin/python3: No module named pytest\n'}})], 1, 1)
-    assert labels(4, result) == ['verifier-execution-error']
-    assert publish.judge(4, result)[0] == 'not_run'
+    assert labels(2, result) == ['verifier-execution-error']
+    assert publish.judge(2, result)[0] == 'not_run'
 
 
 def test_patch_columns_and_labels_survive_publishing(tmp_path):

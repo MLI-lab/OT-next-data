@@ -14,7 +14,7 @@ result_dir="$(dirname "$contract_path")"
 "$python_bin" validation/run.py "$workspace/ten-task-sample/tasks.parquet" \
   --dataset-source open-thoughts/TaskTrove \
   --dataset-revision 12df4483fe99c79ccbb4c923d76ab5a2b042e64a \
-  --stages 1,3,4,5 --static-profile training --min-tasks 10 \
+  --stages 1,2,3,4 --static-profile training --min-tasks 10 \
   --exclude "separate-verifier=CrossCodeEval grades in the agent's container; the verifier reads one file and its reference is uploaded after the agent has finished" \
   --exclude "test-sh-sanity=applies to shared verifiers that install test tools; this verifier uses only the Python standard library" \
   --backend apptainer --submit helma --network-mode host \

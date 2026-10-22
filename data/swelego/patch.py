@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from collections import Counter
 from functools import lru_cache
 import hashlib
 import io
@@ -15,8 +16,10 @@ import tarfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from validation.contract import files_digest
+
 REVISION = '8b0d2bed6f04ef571ca04abebf737ea23cbceaf3'
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent / 'assets'
 MARKER = 'swelego-shared-python-v2'
 COMMON_PACKAGES = {'gcc', 'g++', 'gfortran', 'make', 'git', 'curl', 'wget',
                    'ca-certificates', 'tmux', 'patch', 'pkg-config', 'libffi-dev', 'libssl-dev'}
@@ -54,17 +57,17 @@ TASK_RESOURCE_FIXES = {
         'label': 'task-memory-8gib',
         'reason': 'Raise the task memory limit from 4 GiB to 8 GiB. With a 12 GiB limit the unchanged verifier passed reference (reward 1) and no-op (reward 0) in job 960179; its steps recorded 6.49 GiB and 6.65 GiB MaxRSS. At 4 GiB the verifier was killed before scoring.'},
     'tobymao__sqlglot-1889': {
-        'memory_mb': 10240,
-        'label': 'task-memory-10gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 10 GiB. With a 12 GiB limit the unchanged reference verifier passed (reward 1) in job 960179 and recorded 7.82 GiB MaxRSS even with its two bounded worker processes; 8 GiB would leave too little margin. At 4 GiB the verifier was killed before scoring.'},
+        'memory_mb': 16384,
+        'label': 'task-memory-16gib',
+        'reason': 'Raise the task memory limit from 4 GiB to 16 GiB. With a 12 GiB limit the unchanged reference verifier passed (reward 1) in job 960179 and recorded 7.82 GiB MaxRSS even with its two bounded worker processes; 8 GiB would leave too little margin, and 16 GiB is the next size the static resource check allows (1, 2, 4, 8, 16, 32 GiB; a 10 GiB limit failed that check in job 965822). At 4 GiB the verifier was killed before scoring.'},
     'microsoft__electionguard-python-381': {
         'memory_mb': 8192,
         'label': 'task-memory-8gib',
         'reason': 'Raise the task memory limit from 4 GiB to 8 GiB. The big-integer key-ceremony and decryption tests passed reference in four of five 4 GiB attempts and were killed by the task memory limit in the fifth (job 959908); the 12 GiB rerun in job 960179 passed with 3.06 GiB MaxRSS. 8 GiB removes the limit-dependent flakiness without changing tests or dependencies.'},
     'zarr-developers__zarr-python-2784': {
-        'memory_mb': 10240,
-        'label': 'task-memory-10gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 10 GiB. With a 12 GiB limit the verifier ran to completion in job 964135 and its reference and no-op steps recorded 8.11 GiB and 8.09 GiB MaxRSS; at 4 GiB it was killed before scoring. Tests and dependency versions are unchanged.'},
+        'memory_mb': 16384,
+        'label': 'task-memory-16gib',
+        'reason': 'Raise the task memory limit from 4 GiB to 16 GiB. With a 12 GiB limit the verifier ran to completion in job 964135 and its reference and no-op steps recorded 8.11 GiB and 8.09 GiB MaxRSS, above 8 GiB; 16 GiB is the next size the static resource check allows (1, 2, 4, 8, 16, 32 GiB; a 10 GiB limit failed that check in job 965822). At 4 GiB it was killed before scoring. Tests and dependency versions are unchanged.'},
     'tcgdex__python-sdk-2': {
         'no_proxy': 'api.tcgdex.net',
         'label': 'recorded-http',
@@ -91,13 +94,13 @@ ARCHIVED_TASKS = {
         'reason': 'The reference verifier (modin/test/storage_formats/pandas/test_internals.py on Ray 2.7.2) ran for the full 1800 s and was killed at a 12 GiB task limit (job 960179). With MODIN_CPUS=4 and a 512 MiB MODIN_MEMORY object store, the bound that fixed modin-1842, it was still killed at 12 GiB after 16 minutes with 46 OOM-killed Ray processes (job 964168) and at 4 GiB in job 964134. Archived at user request as exceeding supportable task memory; original payload preserved.'},
     'lundberg__respx-13': {
         'category': 'incompatible-verifier-dependency',
-        'reason': 'The reference run crashes inside respx/mock.py:229 with AttributeError: str object has no attribute attachment for every HTTPX mock test (job 959554, batch v66-1). The pinned httpx no longer passes the pattern objects this historical respx expects, so the recorded dependency set cannot execute the suite. Archived with the original payload preserved; see pilot-results/swelego-reference-17-diagnosis-v68.json.'},
+        'reason': 'The reference run crashes inside respx/mock.py:229 with AttributeError: str object has no attribute attachment for every HTTPX mock test (job 959554, batch v66-1). The pinned httpx no longer passes the pattern objects this historical respx expects, so the recorded dependency set cannot execute the suite. Archived with the original payload preserved; see https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-17-diagnosis-v68.json.'},
     'lundberg__respx-21': {
         'category': 'incompatible-verifier-dependency',
-        'reason': 'The same str-versus-pattern AttributeError as respx-13 occurs at respx/mock.py:273 together with unmatched-mock assertions (job 959554, batch v66-1); the pinned httpx is incompatible with this historical respx. Archived with the original payload preserved; see pilot-results/swelego-reference-17-diagnosis-v68.json.'},
+        'reason': 'The same str-versus-pattern AttributeError as respx-13 occurs at respx/mock.py:273 together with unmatched-mock assertions (job 959554, batch v66-1); the pinned httpx is incompatible with this historical respx. Archived with the original payload preserved; see https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-17-diagnosis-v68.json.'},
     'mdsol__rwslib-111': {
         'category': 'incompatible-verifier-dependency',
-        'reason': 'Seventeen tests fail because the pinned HTTPretty exposes no HTTPrettyRequest.headers attribute under Python 3.7 while 24 pass (job 959554, batch v66-1), the same HTTPretty incompatibility that archived PyPeri-8. Archived with the original payload preserved; see pilot-results/swelego-reference-17-diagnosis-v68.json.'},
+        'reason': 'Seventeen tests fail because the pinned HTTPretty exposes no HTTPrettyRequest.headers attribute under Python 3.7 while 24 pass (job 959554, batch v66-1), the same HTTPretty incompatibility that archived PyPeri-8. Archived with the original payload preserved; see https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-17-diagnosis-v68.json.'},
     'getsentry__sentry-python-79': {
         'category': 'incompatible-verifier-dependency',
         'reason': 'test_safe_repr_never_broken_for_strings fails inside hypothesis 3.69.9, which drives coverage.py internals that the pinned coverage 7.2.7 no longer provides (TypeError: missing should_start_context and file_mapper). test_transport_works additionally saw its local pytest-localserver bypassed by the cluster proxy (job 964137); loopback is now excluded from the proxy, but the hypothesis/coverage pin conflict remains in the recorded environment. Archived with the original payload preserved.'},
@@ -109,28 +112,28 @@ ARCHIVED_TASKS = {
         'reason': 'Three nested pytester tests expect exactly two unclosed-event-loop warnings but observe three: the recorded Python/pytest patch versions emit an additional unraisable ResourceWarning for the loop\'s self-pipe socket (job 964137). The other four selected tests pass. Archived with the original payload preserved.'},
     'ctypesgen__ctypesgen-150': {
         'category': 'unsupported-host-environment',
-        'reason': 'Archived because the task does not work with the shared base image we chose: the historical parser reports syntax errors in the glibc 2.36 sys/cdefs.h of the Debian 12 image and its version test exits 2 (jobs 959554 and batch v66-0). It could be repaired with a separate older base image, which would mean one extra image for a single task. Archived with the original payload preserved; see pilot-results/swelego-reference-17-diagnosis-v68.json.'},
+        'reason': 'Archived because the task does not work with the shared base image we chose: the historical parser reports syntax errors in the glibc 2.36 sys/cdefs.h of the Debian 12 image and its version test exits 2 (jobs 959554 and batch v66-0). It could be repaired with a separate older base image, which would mean one extra image for a single task. Archived with the original payload preserved; see https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-17-diagnosis-v68.json.'},
     'richardkiss__pycoin-353': {
         'category': 'unreliable-external-service-dependency',
-        'reason': 'Reference and no-op verification exceeded 1800 seconds. A diagnostic rerun traced test_tx_create_dump_sign_txt to an unbounded blockchain.info socket connection; the CLI test helper removes proxy settings. Archived at user request, with original payload preserved. Evidence: pilot-results/swelego-correctness-investigation-20261008.json.'},
+        'reason': 'Reference and no-op verification exceeded 1800 seconds. A diagnostic rerun traced test_tx_create_dump_sign_txt to an unbounded blockchain.info socket connection; the CLI test helper removes proxy settings. Archived at user request, with original payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-correctness-investigation-20261008.json.'},
     'fatiando__pooch-291': {
         'category': 'unreliable-external-service-dependency',
-        'reason': 'Required Zenodo download tests intermittently fail resolving DOI 10.5281/zenodo.4924875. The same payload also passed previously; caching files alone would bypass neither the fresh-directory downloads nor their assertions. Archived at user request instead of adding response replay, with original payload preserved. Evidence: pilot-results/swelego-correctness-investigation-20261008.json.'},
+        'reason': 'Required Zenodo download tests intermittently fail resolving DOI 10.5281/zenodo.4924875. The same payload also passed previously; caching files alone would bypass neither the fresh-directory downloads nor their assertions. Archived at user request instead of adding response replay, with original payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-correctness-investigation-20261008.json.'},
     'takeontom__PyPeri-29': {
         'category': 'unreliable-live-service-dependency',
-        'reason': 'Reference verification calls the live Periscope service for API, broadcast, and user data; these requests failed TLS verification in the cluster and depend on an external service remaining available. Archived because live-service verification is unreliable here. Original task payload preserved. Evidence: pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
+        'reason': 'Reference verification calls the live Periscope service for API, broadcast, and user data; these requests failed TLS verification in the cluster and depend on an external service remaining available. Archived because live-service verification is unreliable here. Original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
     'takeontom__PyPeri-35': {
         'category': 'unreliable-live-service-dependency',
-        'reason': 'Reference verification calls the live Periscope service for API, broadcast, user, and session-token data; these requests failed TLS verification in the cluster and depend on an external service remaining available. Archived because live-service verification is unreliable here. Original task payload preserved. Evidence: pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
+        'reason': 'Reference verification calls the live Periscope service for API, broadcast, user, and session-token data; these requests failed TLS verification in the cluster and depend on an external service remaining available. Archived because live-service verification is unreliable here. Original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
     'kivy__kivy-6954': {
         'category': 'unreliable-live-service-dependency',
-        'reason': 'Verifier tests issue real requests to google.com and httpbin.org to check callbacks, authentication, and TLS behavior. Those external endpoints failed to complete in the cluster, so reference scores depend on live service and network availability. Archived as unreliable; original task payload preserved. Evidence: pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
+        'reason': 'Verifier tests issue real requests to google.com and httpbin.org to check callbacks, authentication, and TLS behavior. Those external endpoints failed to complete in the cluster, so reference scores depend on live service and network availability. Archived as unreliable; original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
     'sphinx-doc__sphinx-5203': {
         'category': 'unreliable-live-service-dependency',
-        'reason': 'The linkcheck verifier fetches https://www.w3.org/TR/2006/REC-xml-names-20060816/#defaulting and asserts the remote anchor exists. The current W3C response no longer contains that anchor, so results depend on mutable live site content. Archived as unreliable; original task payload preserved. Evidence: pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
+        'reason': 'The linkcheck verifier fetches https://www.w3.org/TR/2006/REC-xml-names-20060816/#defaulting and asserts the remote anchor exists. The current W3C response no longer contains that anchor, so results depend on mutable live site content. Archived as unreliable; original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
     'cisagov__check-cve-2019-19781-10': {
         'category': 'unreliable-live-service-dependency',
-        'reason': 'The valid timeout and retry verifier cases call github.com directly rather than using a local HTTP fixture. Their outcome depends on live DNS/network/service behavior, so verification is unreliable on our cluster. Archived as unreliable; original task payload preserved. Evidence: pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
+        'reason': 'The valid timeout and retry verifier cases call github.com directly rather than using a local HTTP fixture. Their outcome depends on live DNS/network/service behavior, so verification is unreliable on our cluster. Archived as unreliable; original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
 }
 ARCHIVED_TASKS.update({'Azure__azure-cli-3409': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
@@ -138,98 +141,98 @@ ARCHIVED_TASKS.update({'Azure__azure-cli-3409': {'category': 'proxy-sensitive-ve
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1030': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1040': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1095': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1211': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1229': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1269': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1308': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1404': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1415': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1417': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'burnash__gspread-1498': {'category': 'proxy-sensitive-verification',
                            'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
                                      'matching the recorded HTTP responses used by verification. Archived at '
                                      'user request because verification is unreliable under our proxy '
                                      'environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'cdent__gabbi-186': {'category': 'proxy-sensitive-verification',
                       'reason': 'HTTP interception tests reject inherited proxy environment variables; '
                                 'wsgi-intercept explicitly requires them to be unset. Archived at user '
                                 'request because verification is unreliable under our proxy environment. '
                                 'This does not establish that the test requires live external network '
                                 'access. Original task payload preserved. Evidence: '
-                                'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'cdent__gabbi-191': {'category': 'proxy-sensitive-verification',
                       'reason': 'HTTP interception tests reject inherited proxy environment variables; '
                                 'wsgi-intercept explicitly requires them to be unset. Archived at user '
                                 'request because verification is unreliable under our proxy environment. '
                                 'This does not establish that the test requires live external network '
                                 'access. Original task payload preserved. Evidence: '
-                                'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'cdent__wsgi-intercept-47': {'category': 'proxy-sensitive-verification',
                               'reason': 'HTTP interception tests reject inherited proxy environment '
                                         'variables; wsgi-intercept explicitly requires them to be unset. '
@@ -237,7 +240,7 @@ ARCHIVED_TASKS.update({'Azure__azure-cli-3409': {'category': 'proxy-sensitive-ve
                                         'our proxy environment. This does not establish that the test '
                                         'requires live external network access. Original task payload '
                                         'preserved. Evidence: '
-                                        'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                        'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'desihub__desitransfer-5': {'category': 'proxy-sensitive-verification',
                              'reason': 'Case-insensitive environment parsing fails because inherited '
                                        'NO_PROXY/no_proxy settings produce duplicate configuration keys. '
@@ -245,7 +248,7 @@ ARCHIVED_TASKS.update({'Azure__azure-cli-3409': {'category': 'proxy-sensitive-ve
                                        'our proxy environment. This does not establish that the test '
                                        'requires live external network access. Original task payload '
                                        'preserved. Evidence: '
-                                       'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                       'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'getsentry__sentry-python-2009': {'category': 'proxy-sensitive-verification',
                                    'reason': 'Proxy configuration assertions observe the inherited cluster '
                                              'proxy instead of the test-controlled configuration. Archived '
@@ -253,7 +256,7 @@ ARCHIVED_TASKS.update({'Azure__azure-cli-3409': {'category': 'proxy-sensitive-ve
                                              'proxy environment. This does not establish that the test '
                                              'requires live external network access. Original task payload '
                                              'preserved. Evidence: '
-                                             'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                             'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'getsentry__sentry-python-3351': {'category': 'proxy-sensitive-verification',
                                    'reason': 'Proxy configuration assertions observe the inherited cluster '
                                              'proxy instead of the test-controlled configuration. Archived '
@@ -261,45 +264,45 @@ ARCHIVED_TASKS.update({'Azure__azure-cli-3409': {'category': 'proxy-sensitive-ve
                                              'proxy environment. This does not establish that the test '
                                              'requires live external network access. Original task payload '
                                              'preserved. Evidence: '
-                                             'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                             'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'lundberg__respx-60': {'category': 'proxy-sensitive-verification',
                         'reason': 'Verification reaches the inherited HTTP proxy and receives HTTP 503 '
                                   'instead of the expected mocked transport response. Archived at user '
                                   'request because verification is unreliable under our proxy environment. '
                                   'This does not establish that the test requires live external network '
                                   'access. Original task payload preserved. Evidence: '
-                                  'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                  'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'pdm-project__pdm-3255': {'category': 'proxy-sensitive-verification',
                            'reason': 'The inherited cluster proxy overrides the localhost proxy selected by '
                                      'the test. Archived at user request because verification is unreliable '
                                      'under our proxy environment. This does not establish that the test '
                                      'requires live external network access. Original task payload '
                                      'preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'radiasoft__pykern-107': {'category': 'proxy-sensitive-verification',
                            'reason': 'Case-insensitive environment parsing fails because inherited '
                                      'NO_PROXY/no_proxy settings produce duplicate configuration keys. '
                                      'Archived at user request because verification is unreliable under our '
                                      'proxy environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                                     'pilot-results/swelego-reference-failure-triage-20261009.json.'},
+                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
  'radiasoft__pykern-259': {'category': 'proxy-sensitive-verification',
                            'reason': 'Case-insensitive environment parsing fails because inherited '
                                      'NO_PROXY/no_proxy settings produce duplicate configuration keys. '
                                      'Archived at user request because verification is unreliable under our '
                                      'proxy environment. This does not establish that the test requires live '
                                      'external network access. Original task payload preserved. Evidence: '
-                            'pilot-results/swelego-reference-failure-triage-20261009.json.'}})
+                            'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'}})
 ARCHIVED_TASKS.update({
     'Yelp__bravado-410': {
         'category': 'proxy-sensitive-verification',
-        'reason': 'The verifier uses local HTTP mocks, but the fresh reference rerun received HTTP 503 responses from the inherited cluster proxy for the HTTP-client tests, including test_real_post. Reference reward remained 0.0; the no-op also scored 0.0 as expected. Archived because the proxy prevents reliable mock verification in this environment, not because the task intentionally requires a live service. Original task payload preserved. Evidence: pilot-results/swelego-reference-stage4-remaining-20261009.json and the reference42-v66-0 stage 4 report.'},
+        'reason': 'The verifier uses local HTTP mocks, but the fresh reference rerun received HTTP 503 responses from the inherited cluster proxy for the HTTP-client tests, including test_real_post. Reference reward remained 0.0; the no-op also scored 0.0 as expected. Archived because the proxy prevents reliable mock verification in this environment, not because the task intentionally requires a live service. Original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json and the reference42-v66-0 stage 4 report.'},
     'takeontom__PyPeri-8': {
         'category': 'incompatible-verifier-dependency',
-        'reason': 'The verifier uses HTTP mocks, but its pinned HTTPretty 1.1.4 test adapter raises AttributeError because HTTPrettyRequest has no headers attribute in the pinned Python environment. The reference scored 0.0 while the no-op scored 0.0, so the required reference/no-op distinction is not established. Archived as an incompatible verifier dependency; this is not classified as a live-service failure. A fresh Stage 4/5 retry already in progress is retained as diagnostic evidence only. Original task payload preserved. Evidence: pilot-results/swelego-reference-stage4-remaining-20261009.json and the reference42-v66-2 stage 4 report.'},
+        'reason': 'The verifier uses HTTP mocks, but its pinned HTTPretty 1.1.4 test adapter raises AttributeError because HTTPrettyRequest has no headers attribute in the pinned Python environment. The reference scored 0.0 while the no-op scored 0.0, so the required reference/no-op distinction is not established. Archived as an incompatible verifier dependency; this is not classified as a live-service failure. A fresh Stage 4/5 retry already in progress is retained as diagnostic evidence only. Original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json and the reference42-v66-2 stage 4 report.'},
     'PyPSA__linopy-77': {
         'category': 'unsupported-expired-proprietary-license',
-        'reason': 'The reference verifier exercises Xpress solver cases, but the available Xpress license expired on 2026-02-28. The required proprietary solver cases cannot be validated on our infrastructure without a renewed license. Archived with the original task payload preserved. Evidence: pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
+        'reason': 'The reference verifier exercises Xpress solver cases, but the available Xpress license expired on 2026-02-28. The required proprietary solver cases cannot be validated on our infrastructure without a renewed license. Archived with the original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
     'airbrake__pybrake-77': {
         'category': 'unreliable-live-service-verification',
         'reason': 'The verifier calls the default Airbrake endpoint and an intentionally invalid external host without HTTP mocks. The unauthorized test received a non-JSON response and raised JSONDecodeError; the invalid-host test also failed instead of observing the expected DNS URLError. The reference scored 0.0 and no-op scored 0.0. These tests depend on live network/proxy behavior, so archive the original payload as unreliable on our cluster.'},
@@ -1174,15 +1177,197 @@ def patch_blob(blob, row, lock):
     return result.getvalue()
 
 
+BASE_LABELS = {'shared-python-image', 'pinned-dependencies-in-setup', 'setup-timing',
+               'pinned-build-backend'}
+NOOP_REPAIRS = {'F5Networks__f5-common-python-967', 'msgpack__msgpack-python-388',
+                'sdss__sdss_access-69'}
+REFERENCE_DROP_LABELS = {
+    'incompatible-verifier-dependency', 'proxy-sensitive-verification',
+    'unreliable-external-service-dependency', 'unreliable-live-service-dependency',
+    'unreliable-live-service-verification', 'unsupported-expired-proprietary-license',
+    'unsupported-host-environment', 'verifier-memory-exceeds-limits',
+    'version-sensitive-test-expectation',
+}
+SUFFIX = re.compile(rb'\n\nYou have [0-9]+ seconds to complete this task\. '
+                    rb'Do not cheat by using online solutions or hints specific to this task\.\n$')
+
+
+def restore_payload(blob, expected_sha256):
+    """Remove exactly the recorded quality suffix and require pre-static identity."""
+    files = {}
+    with tarfile.open(fileobj=io.BytesIO(blob), mode='r:*') as archive:
+        for member in archive:
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+                raise ValueError('Unsafe task archive member')
+            if member.isfile():
+                if str(path) in files:
+                    raise ValueError('Duplicate task archive member')
+                files[str(path)] = archive.extractfile(member).read()
+    previous_digest = files_digest(files.items())
+    instruction, count = SUFFIX.subn(b'\n', files['instruction.md'])
+    if count != 1:
+        raise ValueError('Expected exactly one canonical task-quality suffix')
+    files['instruction.md'] = instruction
+    out = io.BytesIO()
+    # Reproduce patch_blob's canonical packaging, not just its file contents.
+    with tarfile.open(fileobj=out, mode='w') as archive:
+        for name, content in sorted(files.items()):
+            member = tarfile.TarInfo(name)
+            member.mode = 0o755 if name.endswith('.sh') else 0o644
+            member.size = len(content)
+            archive.addfile(member, io.BytesIO(content))
+    payload = out.getvalue()
+    if hashlib.sha256(payload).hexdigest() != expected_sha256:
+        raise ValueError('Restored payload differs from the recorded pre-static patcher output')
+    return payload, files_digest(files.items()), previous_digest
+
+
+def exclusion_stage(row):
+    """Attribute patch-time exclusions by recorded cause, not the synthetic stage 0."""
+    if row['archive_stage'] in (3, 4, 5):
+        return row['archive_stage']
+    if row['archive_stage'] != 0:
+        raise ValueError('Unexpected archive stage')
+    labels = {x.removeprefix('patch-drop:') for x in row['archive_labels']}
+    if labels == {'no-op-passes-required-tests'}:
+        return 5
+    if labels and labels <= REFERENCE_DROP_LABELS:
+        return 4
+    raise ValueError('Unclassified exclusion: ' + row['path'])
+
+
+def prepare_environment(tasks, archive, run_record, output, source_revision):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    if not re.fullmatch('[0-9a-f]{40}', source_revision):
+        raise ValueError('Use an immutable source publication commit')
+    record = json.loads(run_record.read_text())
+    source_name = 'swelego-real-data-verified'
+    source_url = 'https://huggingface.co/datasets/FWeindel/validated-tasks'
+    provenance = record['patch_provenance'][source_name]
+    patch_tasks = {x['task_id']: x for x in provenance['tasks']}
+    automation = record['automation_changes'][source_name]
+    if any(set(x['labels']) != {'anti-cheat-instruction'} for x in automation['tasks']):
+        raise ValueError('Unreviewed automatic change; do not silently retain it')
+    normalized = {x['task_id'] for x in automation['tasks']}
+    table = pq.ParquetFile(tasks)
+    metadata = dict(table.schema_arrow.metadata or {})
+    images = json.loads(metadata[b'ot.images.v1'])
+    audit = []
+    rows = []
+    for batch in table.iter_batches(batch_size=16):
+        for row in batch.to_pylist():
+            task = row['path']
+            if task not in normalized or row['stages_passed'] != '1,3,4,5':
+                raise ValueError('Missing normalization or historical stage coverage: ' + task)
+            payload, digest, old_digest = restore_payload(
+                row['task_binary'], patch_tasks[task]['output_binary_sha256'])
+            if old_digest != row['content_sha256'] or images['tasks'][task]['content_sha256'] != old_digest:
+                raise ValueError('Historical payload/image binding mismatch: ' + task)
+            row['task_binary'] = payload
+            row['content_sha256'] = digest
+            row['stages_passed'] = '3,4,5'
+            row['patch_labels'] = [x for x in row['patch_labels'] if x != 'anti-cheat-instruction']
+            row['run'] = f"{source_url}/blob/{source_revision}/runs/{record['run']}.json"
+            images['tasks'][task]['content_sha256'] = digest
+            audit.append({'task_id': task, 'historical_content_sha256': old_digest,
+                          'content_sha256': digest, 'pre_static_binary_sha256': hashlib.sha256(payload).hexdigest(),
+                          'changed_files': ['instruction.md'], 'historical_stages': [3, 4, 5]})
+            rows.append(row)
+    archived = pq.read_table(archive)
+    archive_rows = archived.to_pylist()
+    if len({x['path'] for x in rows + archive_rows}) != len(rows) + len(archive_rows):
+        raise ValueError('Duplicate or overlapping task IDs')
+    if {x['path'] for x in rows + archive_rows} != set(patch_tasks):
+        raise ValueError('Incomplete source task accounting')
+    exclusions = []
+    for row in archive_rows:
+        exclusions.append({'task_id': row['path'], 'original_archive_stage': row['archive_stage'],
+                           'attributed_stage': exclusion_stage(row), 'labels': row['archive_labels'],
+                           'reason': row['archive_reason']})
+    changed = [x for x in patch_tasks.values() if x['action'] == 'changed']
+    targeted = {x['task_id'] for x in changed if set(x['labels']) - BASE_LABELS}
+    if not NOOP_REPAIRS <= targeted:
+        raise ValueError('Missing reviewed no-op repairs')
+    reference_repairs = targeted - NOOP_REPAIRS
+    stage_counts = Counter(x['attributed_stage'] for x in exclusions)
+    summary = {
+        'source_publication': {'repo': 'FWeindel/validated-tasks', 'revision': source_revision,
+                               'run': record['run'], 'run_sha256': hashlib.sha256(run_record.read_bytes()).hexdigest()},
+        'source': provenance['source'], 'source_tasks': len(patch_tasks), 'kept': len(rows),
+        'archived': len(archive_rows), 'build_patched': len(changed),
+        'reference_patched': len(reference_repairs), 'noop_patched': len(NOOP_REPAIRS),
+        'archived_by_attributed_stage': dict(sorted(stage_counts.items())),
+        'patch_counts_overlap': True, 'patcher_drops': provenance['counts']['dropped'],
+        'patched_then_archived': len(changed) - len(rows),
+        'build_backend_restorations': provenance['change_labels']['pinned-build-backend'],
+        'quality_suffix_in_historical_run': len(normalized), 'quality_suffix_removed_from_kept': len(rows),
+        'task_quality_exclusions': 0, 'fresh_validation': False,
+        'evidence_transfer': 'Historical stages 3/4/5 transferred after removing only the instruction suffix. Every retained archive exactly matches its recorded pre-static patcher SHA256. No new runtime or teacher measurements.',
+        'images': len(images['bundles']),
+        'image_revision': images['revision'], 'image_paths_changed': False,
+        'archive_payloads_and_reasons_unchanged': True,
+    }
+    metadata[b'ot.images.v1'] = json.dumps(images).encode()
+    metadata[b'ot.environment_reliable.v1'] = json.dumps(summary).encode()
+    output.mkdir(parents=True, exist_ok=False)
+    pq.write_table(pa.Table.from_pylist(rows, schema=table.schema_arrow.with_metadata(metadata)), output/'tasks.parquet')
+    # Keep the original excluded payloads and their recorded stage-0 provenance.
+    # The audit supplies the separate cause-based attribution used by the README.
+    import shutil
+    shutil.copyfile(archive, output/'archive.parquet')
+    (output/'image-manifest.json').write_text(json.dumps(images, indent=2)+'\n')
+    (output/'audit.json').write_text(json.dumps({'summary': summary, 'retained': audit,
+        'exclusions': exclusions, 'reference_repairs': sorted(reference_repairs),
+        'noop_repairs': sorted(NOOP_REPAIRS), 'patch_provenance': provenance}, indent=2)+'\n')
+    (output/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
+    return summary
+
+
+
 def main():
     import pyarrow as pa
     import pyarrow.parquet as pq
     from data.utils.patch_reporting import write_patch_report
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--source', type=Path, required=True)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument('--source', type=Path)
+    inputs.add_argument('--validated-tasks', type=Path, help='Prepare environment-reliable tasks from the audited publication')
+    parser.add_argument('--validated-archive', type=Path)
+    parser.add_argument('--run-record', type=Path)
+    parser.add_argument('--publication-revision', help='Immutable HF commit of the validated inputs')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--metadata', type=Path, help='Pinned upstream recipe JSON; defaults to recipes.json beside source')
+    parser.add_argument('--restore-historical-instructions', type=Path, help='Current release tasks; restore recorded historical instructions and preserve runtime/image bindings')
     args = parser.parse_args()
+    if args.restore_historical_instructions:
+        if not all((args.validated_tasks, args.validated_archive, args.run_record, args.publication_revision)):
+            parser.error('Historical restoration requires validated tasks, archive, run record and immutable publication revision')
+        helper = Path(__file__).resolve().parent / 'assets' / 'historical_release.py'
+        if helper.is_file():
+            import importlib.util
+            spec = importlib.util.spec_from_file_location('historical_release', helper)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            restore = module.restore
+        else:
+            from data.utils.historical_release import restore
+        print(json.dumps(restore(args.restore_historical_instructions, args.validated_tasks,
+            args.validated_archive, args.run_record, 'swelego-real-data-verified',
+            args.publication_revision, args.output), indent=2))
+        return
+    if args.validated_tasks:
+        if not all((args.validated_archive, args.run_record, args.publication_revision)):
+            parser.error('--validated-tasks requires --validated-archive, --run-record and --publication-revision')
+        if args.metadata:
+            parser.error('--metadata applies only to upstream --source conversion')
+        print(json.dumps(prepare_environment(args.validated_tasks, args.validated_archive,
+            args.run_record, args.output, args.publication_revision), indent=2))
+        return
+    if any((args.validated_archive, args.run_record, args.publication_revision)):
+        parser.error('publication inputs require --validated-tasks')
     metadata = args.metadata or (args.source.parent if args.source.is_file() else args.source) / 'recipes.json'
     recipes = load_recipes(metadata, args.output.parent / 'swelego-upstream-cache')
     lock = json.loads((HERE / 'base-environments.json').read_text())
@@ -1265,8 +1450,9 @@ def main():
         (args.output / (source.stem + '.images.json')).write_text(json.dumps({
             'tasks': len(rows), 'archived': len(dropped), 'converted': len(labels), 'unique_images': len(images),
             'unconverted': unresolved}, indent=2) + '\n')
+        (args.output / 'assets').mkdir(exist_ok=True)
         for name in ('base-environments.json', 'conda-explicit-lock.json', 'wheel-cache.json', 'build-backends.json', 'setup.sh', 'f5_test_imports.py', 'sdss_verifier_clock.py', 'swelego_pytrakt_clock.py', 'environment-repairs.json', 'swelego_sympy_pytest.py', 'swelego_sqlglot_workers.py', 'swelego_rope_workers.py', 'swelego_rpyc_affinity.py', 'Leap_Second.dat'):
-            (args.output / name).write_bytes((HERE / name).read_bytes())
+            (args.output / 'assets' / name).write_bytes((HERE / name).read_bytes())
         print(f'{output}: {len(rows)} tasks, {len(images)} images, {len(unresolved)} explicitly unconverted, {len(dropped)} archived')
 
 

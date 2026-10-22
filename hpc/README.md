@@ -41,8 +41,14 @@ Previously frozen submissions retain their own code and paths.
 
 Without local model serving, validation requests CPUs. `--serve-model` adds GPUs;
 external model APIs do not need local GPUs. The `auto` partition policy can use a
-GPU partition if CPUs are unavailable; use `--partition cpu --cpus 48` to require CPUs. Helma CPU allocations require
-multiples of 48 cores; a single GPU allows up to 32 cores.
+GPU partition if CPUs are unavailable; use `--partition cpu --cpus 48` to require CPUs.
+On Helma, `cpu` requires multiples of 48 cores, but `preempt_cpu` accepts smaller
+requests, for example `--partition preempt_cpu --cpus 12 --memory 20G`.
+The launcher preserves the requested CPU count on `preempt_cpu`. Both CPU
+partitions currently limit memory to 1,950 MiB per requested CPU, so 24 GiB is
+too much for 12 CPUs. Preemptible jobs can be cancelled by higher-priority work.
+A single GPU allows up to 32 cores. The CPU distinction was verified with
+`sbatch --test-only` on 2026-10-21.
 
 Each run saves its exact submission command in `submissions/ID/submission.json`,
 settings in `request.json`, and frozen code with its results. Keep experiment

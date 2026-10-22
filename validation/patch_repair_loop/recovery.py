@@ -171,20 +171,27 @@ def controller_locks(config):
 def jobs(work):
     """Unknown or active Slurm jobs prevent starting a fresh validation generation."""
     identifiers = set()
+    uncertain = []
     for root in [*Path(work).glob('generation-*'), Path(work) / 'publication']:
         for name in ('job.json', 'submission.json'):
             for path in root.rglob(name):
                 value = read(path)
-                if value.get('job_id'):
+                if value.get('status') == 'submitting' and not value.get('job_id'):
+                    uncertain.append({'job_id': None, 'state': 'UNKNOWN', 'finished': False,
+                                      'submission': str(path)})
+                if value.get('job_id') and not (value.get('shards') or value.get('array')):
                     identifiers.add(str(value['job_id']))
     if not identifiers:
-        return []
+        return uncertain
     terminal = {'COMPLETED', 'FAILED', 'CANCELLED', 'TIMEOUT', 'OUT_OF_MEMORY',
                 'NODE_FAIL', 'PREEMPTED', 'BOOT_FAIL', 'DEADLINE', 'REVOKED'}
     states = {}
     try:
-        result = subprocess.run(['sacct', '-X', '-n', '-P', '-j', ','.join(sorted(identifiers)),
-                                 '--format', 'JobIDRaw,State'], capture_output=True,
+        # Pending arrays cancelled before dispatch may only have a parent record;
+        # query that record and ask sacct to expand every child explicitly.
+        parents = {job.split('_', 1)[0] for job in identifiers}
+        result = subprocess.run(['sacct', '--array', '-X', '-n', '-P', '-j', ','.join(sorted(parents)),
+                                 '--format', 'JobID,State'], capture_output=True,
                                 text=True, check=True, timeout=30)
         for line in result.stdout.splitlines():
             fields = line.split('|')
@@ -193,7 +200,7 @@ def jobs(work):
     except (OSError, subprocess.SubprocessError):
         pass
     return [{'job_id': job, 'state': states.get(job, 'UNKNOWN'),
-             'finished': states.get(job) in terminal} for job in sorted(identifiers)]
+             'finished': states.get(job) in terminal} for job in sorted(identifiers)] + uncertain
 
 
 def file_snapshot(paths):
@@ -248,6 +255,11 @@ def validate_decision(value, role='recovery'):
         raise ValueError('Restart requires checkpoint or stage3 and a restart prompt')
     if value['action'] == 'wait' and not value.get('wait_reason'):
         raise ValueError('Wait requires the condition that must recover')
+    if value.get('resource_changes'):
+        from validation.patch_repair_loop.resources import validate
+        if role != 'supervisor' or value['action'] != 'restart' or value['restart_from'] != 'stage3':
+            raise ValueError('Only a supervisor stage3 restart may change execution resources')
+        validate(value['resource_changes'])
     return value
 
 
@@ -256,6 +268,11 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
     if shared and role != 'supervisor':
         raise ValueError('Only the supervisor role may edit shared infrastructure')
     state = read(state_path)
+    from validation.patch_repair_loop.resources import effective, FIELDS
+    config = effective(config, state)
+    wait_key = f'{role}_wait_started_at'
+    if state.get(wait_key) is not None and time.time() - state[wait_key] >= config.get('max_wait_hours', 168) * 3600:
+        raise core.LoopBlocked('infrastructure', f'{role} wait exceeded max_wait_hours; inspect the unresolved condition')
     for phase, setting, counter in [('fixer', 'max_repairs', 'repair_count'),
                                      ('final_retry', 'max_infra_retries', 'infra_retry_count')]:
         if state.get('phase') == phase:
@@ -265,8 +282,10 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
     core.check_limit(config, state, setting, counter)
     state['status'] = 'blocked'
     state[counter] = state.get(counter, 0) + 1
+    review_counter = f'{role}_review_count'
+    state[review_counter] = max(state.get(review_counter, 0), state[counter] - 1) + 1
     core.save(state_path, state)
-    directory = failure / f'{role}-{state[counter]:04d}'
+    directory = failure / f'{role}-{state[review_counter]:04d}'
     directory.mkdir(parents=True)
     editable = (list(shared) if role == 'supervisor' else
                 [str(Path(config['patcher']).parent), *config.get('recovery_edit_paths', [])])
@@ -288,6 +307,8 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
             'jobs': jobs(config['work_root']), 'source': config['source'],
             'recovery_history': str(Path(config['work_root']) / 'occurred-failures'),
             'publication_status': read(Path(config['work_root']) / 'publication/publish-status.json'),
+            'execution_resources': {key: config[key] for key in FIELDS if key in config},
+            'allowed_resource_changes': sorted(FIELDS) if role == 'supervisor' else [],
         }, directory, role, watched_paths=editable)
         decision = validate_decision(parse_json_answer(answer), role)
         core.save(directory / 'decision.json', decision)
@@ -313,18 +334,37 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
             state['recovery_requires_stage3'] = True
             state['review_setup'] = True
             core.save(state_path, state)
+    def waiting():
+        # A read-only wait is not an attempted recovery. Keep its numbered
+        # evidence, but do not consume the allowance for real interventions.
+        if not changed:
+            state[counter] -= 1
+            state.setdefault(wait_key, time.time())
+            core.save(state_path, state)
+            core.save(directory / 'budget.json', {'charged': False, 'reason': 'read-only wait'})
+        return 'wait'
     if decision['action'] == 'escalate':
         state['supervisor_pending'] = str(directory / 'decision.json')
-        core.save(Path(config['work_root']) / 'infrastructure-findings' / f'recovery-{state[counter]:04d}.json', {
+        core.save(Path(config['work_root']) / 'infrastructure-findings' / f'recovery-{state[review_counter]:04d}.json', {
             'source': 'recovery', 'decision': str(directory / 'decision.json'),
             'cause': decision['cause'], 'evidence': decision['evidence']})
     elif role == 'supervisor':
         state.pop('supervisor_pending', None)
         state['reviewed_findings'] = sorted(set(state.get('reviewed_findings', [])) | set(findings(config)))
     if decision['action'] == 'restart':
+        if decision.get('resource_changes'):
+            active = [job for job in jobs(config['work_root']) if not job['finished']]
+            if active:
+                core.save(directory / 'restart.json', {'status': 'waiting', 'jobs': active})
+                return waiting()
+            if (Path(config['work_root']) / 'publication/job.json').exists():
+                raise RuntimeError('Publication was submitted; reconcile it before changing resources')
+            from validation.patch_repair_loop.resources import approve
+            approve(state, decision['resource_changes'], decision=directory / 'decision.json',
+                    evidence=decision['evidence'])
         fresh = decision['restart_from'] == 'stage3' or state.get('recovery_requires_stage3', False)
         # An interrupted mutating agent must finish its reporting contract first.
-        # An idle fixer holds no partial edit; its stale evidence is replaced by stage 3.
+        # An idle fixer holds no partial edit; its stale evidence is replaced by stage 1.
         if state.get('phase') in ('proposer', 'implementer') or (
                 state.get('phase') == 'fixer' and not core.fixer_idle(config, state)):
             fresh = False
@@ -332,7 +372,7 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
             active = [job for job in jobs(config['work_root']) if not job['finished']]
             if active:
                 core.save(directory / 'restart.json', {'status': 'waiting', 'jobs': active})
-                return 'wait'
+                return waiting()
             if (Path(config['work_root']) / 'publication/job.json').exists():
                 raise RuntimeError('Publication was submitted; reconcile it before replacing validated results')
             core.restart_stage3(state)
@@ -346,6 +386,10 @@ def recover_locked(config, state_path, failure, shared=(), role='recovery'):
                             'evidence': str(directory / 'decision.json')}
         core.save(state_path, state)
     core.save(directory / 'restart.json', {'status': decision['action'], 'at': now()})
+    if decision['action'] == 'wait':
+        return waiting()
+    state.pop(wait_key, None)
+    core.save(state_path, state)
     return decision['action']
 
 

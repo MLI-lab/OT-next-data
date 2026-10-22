@@ -35,7 +35,7 @@ def run_worker(tmp_path, monkeypatch, prepare):
     monkeypatch.setattr(hpc.validation_submit, 'archive_code_snapshot', lambda *a: None)
     monkeypatch.setattr(validation.stages.normalize_paths, 'enabled', lambda *a: False)
     monkeypatch.setattr(data.utils.resolve_pip_pins, 'enabled', lambda *a: False)
-    monkeypatch.setattr(worker, 'trial_capacity', lambda tasks, args: {
+    monkeypatch.setattr(worker, 'trial_capacity', lambda tasks, args, **kwargs: {
         'requested_concurrency': args.concurrency, 'max_concurrency': 1,
         'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 4})
 
@@ -51,7 +51,7 @@ def run_worker(tmp_path, monkeypatch, prepare):
     args = runner.parser().parse_args([str(source), '--submit', 'helma', '--cpus', '4'])
     request = tmp_path / 'submission/request.json'
     request.parent.mkdir()
-    request.write_text(json.dumps({'args': vars(args), 'stages': [3]}, default=str))
+    request.write_text(json.dumps({'args': vars(args), 'stages': [1]}, default=str))
     return request
 
 

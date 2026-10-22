@@ -48,8 +48,8 @@ def test_missing_results_do_not_become_attempts():
 def reports():
     results = [trial(1, 1), trial(2, error='VerifierRuntimeError')]
     item = dict(task='/tasks/example', **assess(results, 2), metrics=task_metrics(results, 2))
-    six = {'stage': 6, 'complete': True, 'contract_sha256': 'hash', 'items': [item]}
-    seven = {'stage': 7, 'complete': True, 'contract_sha256': 'hash',
+    six = {'stage_layout': 'environment-first-v2', 'stage': 6, 'complete': True, 'contract_sha256': 'hash', 'items': [item]}
+    seven = {'stage_layout': 'environment-first-v2', 'stage': 7, 'complete': True, 'contract_sha256': 'hash',
              'items': [{'task': '/tasks/example', 'trajectories': 2}],
              'trace_metrics': {'trajectories': [{'task': 'example', 'trial_path': str(p)} for p, _ in results],
                                'all_tasks': {'errors': {'verifier': {'trajectories': 1}}}}}

@@ -1,0 +1,39 @@
+#!/bin/sh
+# Execution evidence for `go test` verifiers. This directory is first on PATH
+# for the verifier command only. The outer `go test` of the current verifier
+# call runs through ot-go-execution (built from ../gosrc with the image's own
+# go); every other go command, and every nested one, runs the real toolchain.
+here=$(cd "$(dirname "$0")" && pwd -P)
+real=
+# A toolchain called by absolute path is replaced by a wrapper during the verifier
+# call (verifier_setup.install_go_wrappers_command); it passes its original binary.
+case "${1:-}" in
+    --ot-real=*) real=${1#--ot-real=}; shift ;;
+esac
+saved_ifs=$IFS
+IFS=:
+for dir in $PATH; do
+    [ -z "$real" ] || break
+    [ -n "$dir" ] || continue
+    [ "$(cd "$dir" 2>/dev/null && pwd -P)" = "$here" ] && continue
+    if [ -f "$dir/go" ] && [ -x "$dir/go" ]; then real=$dir/go; break; fi
+done
+IFS=$saved_ifs
+if [ -z "$real" ]; then
+    echo "go: command not found" >&2
+    exit 127
+fi
+token=$OT_VERIFIER_EXECUTION_TOKEN
+if [ "$1" = test ] && [ -n "$token" ] && [ "$OT_PYTEST_EXECUTION_ACTIVE" != "$token" ]; then
+    work=${TMPDIR:-/tmp}/ot-go-execution-$token
+    recorder=$work/ot-go-execution
+    if [ ! -x "$recorder" ]; then
+        mkdir -p "$work" &&
+        (cd "$here/../gosrc" && GOFLAGS= GOWORK=off GO111MODULE=on GOTOOLCHAIN=local CGO_ENABLED=0 \
+            GOOS= GOARCH= GOCACHE="$work/cache" GOPATH="$work/gopath" \
+            "$real" build -o "$recorder.$$" . && mv -f "$recorder.$$" "$recorder") >"$work/build.log" 2>&1
+    fi
+    # Without a recorder the call stays unrecorded; validation rejects it.
+    [ -x "$recorder" ] && exec "$recorder" "$real" "$@"
+fi
+exec "$real" "$@"

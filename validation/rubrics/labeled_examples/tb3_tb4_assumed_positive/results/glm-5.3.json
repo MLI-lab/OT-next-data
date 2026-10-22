@@ -1,0 +1,15 @@
+{
+  "model": "GLM-5.3",
+  "revision": "ba32f8c19c8738e2c57c71798c601d477a7bf844",
+  "completed": 0,
+  "planned": 20,
+  "errors": 0,
+  "results": [],
+  "comparisons": [],
+  "compute": {
+    "allocated_gpus": 8,
+    "elapsed_seconds": 734.184029340744,
+    "gpu_hours": 1.6315200667911105,
+    "note": "Wall-clock GPU allocation from server startup through reviews; excludes runtime staging."
+  }
+}

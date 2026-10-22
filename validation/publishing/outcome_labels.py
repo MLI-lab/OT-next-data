@@ -1,4 +1,5 @@
 """Machine-readable validation findings, independent of the stage where observed."""
+from validation.stages.layout import NOP, REFERENCE
 import re
 
 
@@ -20,12 +21,33 @@ def execution_label(item):
 
 
 def labels(stage, item, not_required=()):
-    if stage == 1:
-        warnings = {'warning:relative-instruction-path' for c in item.get('checks', []) if c['status'] == 'warning' and c['check'] == 'check-task-absolute-path.sh'}
+    static = item.get('environment_static') if stage == 1 else None
+    if static:
+        found = _labels(4, static, not_required)
+        if static.get('status') != 'passed':
+            return found
+        return sorted(set(found + _labels(stage, item, not_required)))
+    return _labels(stage, item, not_required)
+
+
+def _labels(stage, item, not_required=()):
+    if stage == 4:
+        warning_labels = {'check-task-absolute-path.sh': 'warning:relative-instruction-path',
+                          'reference-solution-leak': 'warning:reference-solution-leak',
+                          'check-pip-pinning.sh': 'warning:unpinned-dependency'}
+        warnings = {warning_labels[c['check']] for c in item.get('checks', [])
+                    if c['status'] == 'warning' and c['check'] in warning_labels}
         return sorted(warnings | {'static:' + c['check'].removeprefix('check-').removesuffix('.sh')
                        for c in item.get('checks', [])
                        if c['status'] == 'failed' and c['check'] not in not_required})
-    if stage == 3:
+    if stage == 1:
+        if item.get('environment_leak') == 'failed':
+            return sorted({'environment-leak:' + ('after-repair:' if ((e.get('leaks') or {}).get('repair') or {}).get('version') else '')
+                           + c['check'].removeprefix('repository-')
+                           for e in item.get('environments', []) if e.get('environment') == 'agent'
+                           for c in (e.get('leaks') or {}).get('checks', []) if c['status'] == 'failed'})
+        if item.get('environment_leak') in ('error', 'not_run'):
+            return ['validation-not-run']
         if item.get('build_stability') == 'unstable_build':
             return ['unstable-build-under-our-infra']
         if item.get('build_stability') == 'recovered':
@@ -34,17 +56,17 @@ def labels(stage, item, not_required=()):
             cause = execution_label(attempts[0]) if attempts else None
             return ['infra-recovered' if cause == 'infrastructure-error' else 'build-recovered']
         return [] if item.get('status') == 'passed' else ['build-execution-error']
-    if stage not in (4, 5):
+    if stage not in (REFERENCE, NOP):
         return []
-    if item.get('blocked_by_stage') == 3:
+    if item.get('blocked_by_stage') == 1:
         return ['blocked-by-build']
     problem = execution_label(item)
     if problem:
         return [problem]
     rewards = item.get('rewards') or []
-    if stage == 4 and any(r != 1 for r in rewards):
+    if stage == REFERENCE and any(r != 1 for r in rewards):
         return ['reference-solution-reward-zero' if all(r == 0 for r in rewards)
                 else 'reference-solution-unexpected-reward']
-    if stage == 5 and any(r != 0 for r in rewards):
+    if stage == NOP and any(r != 0 for r in rewards):
         return ['no-op-reward-one' if any(r == 1 for r in rewards) else 'no-op-unexpected-reward']
     return []

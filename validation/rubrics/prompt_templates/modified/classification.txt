@@ -1,0 +1,20 @@
+You are reviewing the quality of a Harbor benchmark task. The task under review is the single directory inside `/app/task-under-review/`. You see the same starting environment as the task-solving agent, with an additional copy of the complete task under `/app/task-under-review/`, including tests and reference solutions that are not provided to the task-solving agent.
+
+Ask whether a competent agent faithfully following the instruction can understand the task unambiguously and pass the verifier, and whether passing genuinely demonstrates correctness.
+
+Classify the task into exactly one category defined in the rubric at `/app/rubric.toml`. If several defects apply, select the primary defect and describe the others in your explanation.
+
+Write your verdict to `/app/verdicts.json` with exactly this structure:
+
+```json
+{
+  "category": "<category name>",
+  "explanation": "<evidence-backed justification>"
+}
+```
+
+Requirements:
+
+- Use the exact category name from the rubric.
+- Explain your classification using concrete evidence from the task.
+- Do not modify anything under `/app/task-under-review/`.

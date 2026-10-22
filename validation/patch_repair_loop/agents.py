@@ -60,11 +60,15 @@ def record_event(path, event):
 
 
 def prompt_for(role, context):
+    policy = ("Shared repair and archiving rules "
+              "(validation/patch_repair_loop/archive_rules.md; apply when "
+              "interpreting archive/retry guidance below):\n" +
+              (HERE / "archive_rules.md").read_text())
     if role in ("recovery", "supervisor"):
-        return (HERE / f"prompts/{role}.txt").read_text() + "\n\n" + json.dumps(context, indent=2)
+        return "\n\n".join((policy, (HERE / f"prompts/{role}.txt").read_text(), json.dumps(context, indent=2)))
     if role == "final_failure_reviewer":
         prompt = (HERE / "prompts/final_failure_reviewer.txt").read_text()
-        return prompt.replace("{evidence_dir}", str(context["evidence_dir"])) + "\n\n" + json.dumps(context, indent=2)
+        return "\n\n".join((policy, prompt.replace("{evidence_dir}", str(context["evidence_dir"])), json.dumps(context, indent=2)))
     if role in {"proposer", "implementer", "fixer"}:
         name = "image_reduction_proposer" if role == "proposer" else role
         common = (HERE / "prompts/system_prompt.txt").read_text()
@@ -88,7 +92,7 @@ def prompt_for(role, context):
             "The evidence archive preserves detailed logs; paths inside reports can refer to "
             "expired node-local scratch. Locate those logs by archive member path."
         )
-        return "\n\n".join((common, specific, protocol, json.dumps(context, indent=2)))
+        return "\n\n".join((policy, common, specific, protocol, json.dumps(context, indent=2)))
     raise ValueError(f"Unknown agent role: {role}")
 
 
@@ -122,6 +126,39 @@ def usage_from_output(provider, output):
                 if type(value) is int and value >= 0:
                     totals[key] = totals.get(key, 0) + value
     return {'usage': totals or None, 'estimated_cost_usd': None}
+
+
+def delivery_prompt(role, context, output_dir, full_prompt):
+    """Keep CLI input bounded while retaining all evidence and instructions on disk."""
+    if len(full_prompt.encode()) <= 64_000:
+        return full_prompt
+    context_path = (Path(output_dir) / 'context.json').resolve()
+    save_json(context_path, context)
+    compact, used = {}, 0
+    # Template substitutions and filesystem scope must remain directly readable.
+    required = ('dataset', 'dataset_dir', 'integration_plan', 'evidence_dir')
+    keys = [key for key in required if key in context]
+    keys.extend(key for key in context if key not in required)
+    for key in keys:
+        value = context[key]
+        size = len(json.dumps(value).encode())
+        if key in required or (size <= 8_000 and used + size <= 32_000):
+            compact[key] = value
+            used += size
+        else:
+            compact[key] = {'read_from': str(context_path), 'json_key': key,
+                            'bytes': size, 'items': len(value) if isinstance(value, (list, dict)) else None}
+    instructions = (
+        'Large context fields are stored in context.json; no evidence has been dropped. '
+        'Before acting, read all referenced policy, user-instruction, recovery-handoff and scope fields. '
+        'Inspect evidence using targeted JSON queries and bounded file reads; do not load the whole '
+        'context or archive into the conversation. References identify top-level JSON keys. '
+        f'The complete original prompt is {(Path(output_dir) / "prompt.txt").resolve()}. '
+        'Preserve the required output schema and all controller restrictions.\n\n')
+    result = instructions + prompt_for(role, compact)
+    if len(result.encode()) > 96_000:
+        raise ValueError('Agent instructions exceed the bounded delivery budget')
+    return result
 
 
 def invoke(role, context, *, provider, repo, output_dir, model=None, timeout=3600,
@@ -161,6 +198,7 @@ def invoke(role, context, *, provider, repo, output_dir, model=None, timeout=360
     if (output_dir / "partial-edit.json").exists():
         raise RuntimeError(f"agent left a partial edit; inspect {output_dir / 'partial-edit.json'}")
     (output_dir / "prompt.txt").write_text(prompt)
+    transmitted_prompt = delivery_prompt(role, context, output_dir, prompt)
     (output_dir / "command.json").write_text(json.dumps(command, indent=2) + "\n")
     pending = output_dir / "usage-wait.json"
     if pending.exists():
@@ -174,7 +212,7 @@ def invoke(role, context, *, provider, repo, output_dir, model=None, timeout=360
         before = fingerprints(watched_paths)
         # A previous failed Codex call must not supply a stale answer.
         (output_dir / "answer.txt").unlink(missing_ok=True)
-        trial_prompt = prompt
+        trial_prompt = transmitted_prompt
         if attempt > 1 and (output_dir / "protocol-error.txt").exists():
             trial_prompt += ("\n\nYour previous response could not be parsed. "
                              "Return exactly one JSON object with the requested keys, "

@@ -10,6 +10,7 @@ from validation.stages.container_reuse import ReuseScope
 
 def run_validation_bundle(args, numbers):
     from validation.stages.runner import check_args, save, stage_clock, stage_timing, NAMES
+    from validation.stages.layout import LAYOUT, NOP, REFERENCE
     from validation.contract import verify_materialized, assess_stage
     from validation.data.selection import discover_tasks, select_paths
     from validation.upstream import PINS
@@ -18,11 +19,13 @@ def run_validation_bundle(args, numbers):
     sources = select_paths(discover_tasks(args.tasks), args)
     from validation.stages.build_retries import partition_builds
     sources, skipped = partition_builds(sources, args)
-    if 5 in numbers:
+    if NOP in numbers:
         from validation.stages.task_setup import detect
         if any(detect(task) for task in sources):
             raise ValueError('prepared NOP requires fresh trials; disable --reuse-validation-containers')
-    order = [n for n in (3, 5, 4) if n in numbers]
+    # The container keeps its filesystem between phases, so the no-op must run before the
+    # reference solution even though the reference has the lower stage number.
+    order = [n for n in (1, NOP, REFERENCE) if n in numbers]
     run_id = uuid4().hex[:12]
     outputs, reports = {}, {}
     for stage in order:
@@ -31,22 +34,28 @@ def run_validation_bundle(args, numbers):
             raise ValueError('--out must be outside source task directories')
         out.mkdir(parents=True)
         outputs[stage] = out
-        reports[stage] = {'stage': stage, 'name': NAMES[stage], 'upstream': PINS,
+        reports[stage] = {'stage': stage, 'name': NAMES[stage], 'stage_layout': LAYOUT, 'upstream': PINS,
                          'backend': args.backend, 'dry_run': args.dry_run, 'items': [dict(item) for item in skipped],
                          'complete': False, 'execution_order': order,
                          'container_reuse': 'same-task; logs cleared; filesystem state retained'}
         save(out / 'summary.json', reports[stage])
 
     async def trial(stage, task, out):
-        if stage == 4 and not (task / 'solution/solve.sh').is_file():
+        if stage == REFERENCE and not (task / 'solution/solve.sh').is_file():
             return {'status': 'skipped', 'reason': 'no solution/solve.sh for oracle validation'}
         runtime.check_runtime_task(task, args.backend)
-        config = runtime.job_config(task, out / 'jobs', args, 'nop' if stage == 5 else 'oracle')
+        config = runtime.job_config(task, out / 'jobs', args, 'nop' if stage == NOP else 'oracle')
         config['n_concurrent_trials'] = 1
         save(out / 'job.json', config)
         job_dir = await runtime.execute_job(config)
-        result = runtime.assess_trials(runtime.trial_results(job_dir), 1, 0 if stage == 5 else 1,
+        result = runtime.assess_trials(runtime.trial_results(job_dir), 1, 0 if stage == NOP else 1,
                                        args.reward_key, task_path=task)
+        if stage == REFERENCE:
+            from validation.stages.reference_leaks import ARTIFACT
+            result['reference_file_fingerprints'] = [
+                json.loads((trial / ARTIFACT).read_text()) if (trial / ARTIFACT).is_file()
+                else {'status': 'incomplete', 'reason': 'Reference fingerprints were not captured'}
+                for trial, _ in runtime.trial_results(job_dir)]
         result['job_dir'] = str(job_dir)
         if result['status'] == 'completed':
             result['status'] = 'passed'
@@ -66,7 +75,7 @@ def run_validation_bundle(args, numbers):
                             else:
                                 if position:
                                     await scope.clear_logs()
-                                if stage == 3:
+                                if stage == 1:
                                     runtime.check_runtime_task(task, args.backend)
                                     result = await runtime.build_task(task, out, args)
                                 else:

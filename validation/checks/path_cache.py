@@ -11,7 +11,8 @@ NAME = 'instruction-path-cache.json'
 
 def fingerprint(files):
     from validation.contract import files_digest
-    normalized = []
+    # Invalidate completed scans from before instruction-derived search roots.
+    normalized = [('__path_resolution_policy__', b'preceding-absolute-roots-cwd-v3')]
     for name, data in files:
         if name == 'instruction.md':
             text = data.decode().rstrip()

@@ -7,10 +7,26 @@ progressively larger pilots, and publishes the reviewed results as a Hugging Fac
 
 The controller and agent sessions run **directly on the host**, usually inside a
 persistent tmux session. Agents use the configured **Claude or Codex CLI** with
-full permissions and no approval prompts. They work in `OT_next_data/` and can
+full permissions and no approval prompts. They work in a private controller checkout and can
 access the datasource and saved execution evidence. Role prompts define their edit scope. They do not run inside Harbor or need agent-container mounts.
 The controller launches Slurm jobs to run task validation through Harbor,
 including image preparation and caching.
+
+The CLI creates a persistent code copy for each `work_root` before `run`,
+`resume`, or `supervise`. By default it lives under
+`~/.local/share/ot-next-data/repair-code/`; `controller_code_root` records its
+location. The dataset patcher and infrastructure locks belong to that copy.
+Supervisors can repair their own runtime hooks without waiting for another
+dataset's jobs. Shared installed Python packages and upstream checkouts remain
+read-only inputs; implement runtime adaptations in `harbor_patches/`.
+
+Migration refuses a live controller or supervisor. It preserves job records,
+generations and partial dataset repairs, and records the configuration change
+under `operator-decisions/code-isolation-*`. Stop the old controller before
+migrating an existing loop; already submitted jobs keep running their frozen
+code. Every new contract archives the code it hashes, and submission unpacks
+that archive. A later checkout edit cannot change a queued job's implementation.
+Fixes in one controller copy are not automatically propagated to other copies.
 
 
 ## The loop
@@ -76,5 +92,28 @@ Under `work_root`, find progress in `loop-state.json`, shared infrastructure iss
 in `infrastructure-findings/`, and failure/recovery records in `occurred-failures/`.
 Agent folders hold prompts, answers, logs, and available token counts and cost
 estimates, which may be incomplete.
+
+## Large datasets and execution resources
+
+Set `shard_size` to the maximum tasks per Slurm job and `shard_concurrency` to
+the number of simultaneous array jobs. Selections larger than `shard_size` use
+`validation.shards` with one frozen contract. This applies to image prebuilding,
+full stage 3, final validation and large retry selections. Completed shards are
+read again on controller restart; existing arrays are never blindly resubmitted.
+Reports are merged only after checking task coverage and contract identity.
+Terminal incomplete shards retain observed results and identify unfinished tasks
+as errors. Their archives and build logs are included in the fixer's evidence.
+
+`prebuild_all_images` caches images in a separate allocation before the pilots.
+Combined with sharding, it bounds per-node image scratch use. Successful cached
+images survive later repair attempts. `time` is the limit for each job, not the
+entire loop; `max_wait_hours` also needs room for scheduler queueing.
+
+The supervisor may return `resource_changes` with a stage-3 restart decision.
+The runner validates the allowed execution settings, records `resource_history`
+and `resource_overrides` in loop state, and applies them to subsequent submissions.
+Dataset identity, validation success criteria and retry limits remain outside this
+resource-change interface. Active or uncertain jobs and unresolved publication
+prevent a fresh restart.
 
 See the [validation protocol](../PROTOCOL.md) for stage definitions.

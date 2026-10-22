@@ -39,14 +39,14 @@ def copy_asset(source, target, *, reserve=20 * GIB):
 
 
 def stage_images(tasks, source, target, *, selected_keys=None):
-    from harbor_patches.image_context import environment_dir_hash_truncated
+    from harbor_patches.image_context import task_dockerfiles, environment_dir_hash_truncated
     target.mkdir(parents=True, exist_ok=True)
     selected = set()
     bundles = set()
     # Include both agent and separate verifier environments. Match content keys,
     # never the obsolete Dockerfile-only key used before COPY payload hashing.
     for task in tasks:
-        for dockerfile in task.rglob('Dockerfile'):
+        for dockerfile in task_dockerfiles(task):
             key = environment_dir_hash_truncated(dockerfile.parent)
             if selected_keys is not None and key not in selected_keys:
                 continue

@@ -1,7 +1,7 @@
 """Pin flagged pip requirements from a successful oracle's environment snapshot.
 
 Called by validation/run.py before normal validation. Discovery never counts as
-stage 3 or 4, and original task files are never changed.
+stage 1 or 3, and original task files are never changed.
 """
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ CHECK = 'check-pip-pinning.sh'
 FILES = ('environment/Dockerfile', 'tests/Dockerfile', 'tests/test.sh', 'solution/solve.sh')
 _capture = ContextVar('pip_pin_capture', default=None)
 _TOKEN = re.compile(r'''(?:[^\s'"\\]+|'[^']*'|"[^"]*")+''')
-_COMMAND = re.compile(r'(?m)^[ \t]*(?:RUN[ \t]+)?(?P<pip>(?:/[\w./-]+/)?pip[0-9.]*|(?:/[\w./-]+/)?python[0-9.]*[ \t]+-m[ \t]+pip)[ \t]+install[ \t]+(?P<args>[^\n]*)')
+_COMMAND = re.compile(r'(?m)(?:^[ \t]*(?:RUN[ \t]+)?|(?<=[;&| \t])(?=/)|(?<=\|\|)[ \t]*(?=python[0-9.]+\s+-m\s+pip\b))(?P<pip>(?:/[\w./-]+/)?pip[0-9.]*|(?:/[\w./-]+/)?python[0-9.]*[ \t]+-m[ \t]+pip)[ \t]+install[ \t]+(?P<args>[^\n]*)')
 _VALUE_OPTIONS = {'-i', '--index-url', '--extra-index-url', '-f', '--find-links', '--trusted-host', '--timeout', '--retries', '--cache-dir'}
-_BOOL_OPTIONS = {'--no-cache-dir', '--no-deps', '--upgrade', '-U', '--pre', '--prefer-binary', '--disable-pip-version-check', '--quiet', '-q', '--verbose', '-v'}
+_BOOL_OPTIONS = {'--no-cache-dir', '--no-deps', '--upgrade', '-U', '--pre', '--prefer-binary', '--disable-pip-version-check', '--quiet', '-q', '--verbose', '-v', '--user', '--no-input'}
 
 
 def commands(task):
@@ -109,18 +109,19 @@ def enabled(args, numbers):
 
 
 def check(tasks, args, out):
-    """Run the existing checker; hand its failed tasks and commands to resolve()."""
+    """Run the existing checker; hand its flagged tasks and commands to resolve()."""
     from validation.checks.check_terminal_bench import load_checks, run_checks
-    _, selected, _ = load_checks(args.static_profile, exclude=args.exclude)
+    _, selected, _ = load_checks(args.static_profile, exclude=args.exclude, group='environment')
     if CHECK not in selected:
         return {}
     run_checks(tasks, out, profile=args.static_profile,
-               exclude=[*args.exclude, *(name for name in selected if name != CHECK)],
+               exclude=args.exclude, group='environment',
                concurrency=max(1, args.concurrency))
     results = json.loads((out / 'summary.json').read_text())
     by_name = {task.name: task for task in tasks}
     return {item['task']: commands(by_name[item['task']]) for item in results['tasks']
-            if any(c['check'] == CHECK and c['status'] == 'failed' for c in item['checks'])}
+            if any(c['check'] == CHECK and c['status'] in ('failed', 'warning') for c in item['checks'])
+            and not any(c['check'] != CHECK and c['status'] in ('failed', 'error') for c in item['checks'])}
 
 
 async def snapshot(environment, findings):
@@ -228,7 +229,7 @@ def resolve(tasks, findings, out, args):
     discovery = copy.copy(args)
     discovery.attempts = 1
     discovery._pip_pin_findings = findings
-    items = run_trial_batch(4, selected, out, discovery, checkout('terminal-bench'))
+    items = run_trial_batch(3, selected, out, discovery, checkout('terminal-bench'))
     for item in items:
         item['pip_snapshots'] = []
         if item['status'] != 'passed':
@@ -276,7 +277,10 @@ def prepare(args, numbers):
     from validation.checks.instruction_suffix import prepare as prepare_copy
     derived = copy.copy(args)
     derived.path_resolution_report = []
-    # A derived task tree needs fresh stage-3 validation.
+    if 4 not in numbers:
+        derived.fix_instruction_suffix = False
+        derived.fix_instruction_paths = False
+    # A derived task tree needs fresh stage-1 validation.
     derived.reuse_stage3 = None
     prepare_copy(derived, destination)
     by_name = {task.name: task for task in tasks}

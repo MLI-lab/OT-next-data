@@ -1,0 +1,61 @@
+{
+  "agent_model": "claude-opus-5-5",
+  "agent_provider": "claude",
+  "concurrency": 8,
+  "controller_code_root": "/home/hpc/y500bb/y500bb12/OT_mimo_repair_20261012",
+  "cpus": 48,
+  "dataset": "XiaomiMiMo/MiMo-V2.6-RL-oss",
+  "dataset_identity_root": "/home/hpc/y500bb/y500bb12/OT_mimo_repair_20261012/data/mimo",
+  "max_infra_retries": 2,
+  "max_recoveries": 6,
+  "max_repairs": 3,
+  "max_supervisor_reviews": 3,
+  "max_wait_hours": 168,
+  "memory": "128G",
+  "partition": "cpu",
+  "patch_command": [
+    "{python}",
+    "{patcher}",
+    "--source",
+    "{source}",
+    "--output",
+    "{output}"
+  ],
+  "patcher": "/home/hpc/y500bb/y500bb12/OT_mimo_repair_20261012/data/mimo/patch.py",
+  "pilot_sizes": [
+    10,
+    50,
+    200
+  ],
+  "prebuild_all_images": false,
+  "publish": true,
+  "publish_dataset_folder": "mimo",
+  "publish_readme_model": "claude-opus-5-5",
+  "publish_repo": "FWeindel/validated-tasks",
+  "python": "/home/vault/y500bb/y500bb12/ot-next-data/envs/prep/bin/python",
+  "required_stages": [
+    1,
+    2,
+    4
+  ],
+  "review_setup_runs": 5,
+  "shard_concurrency": 2,
+  "shard_size": 24,
+  "source": "/hnvme/workspace/y500bb12-optiagent/mimo-patch-loop-20261011/upstream",
+  "source_revision": "639865fd3374018d6cb29b9fb82dd531406fcf5f",
+  "supervisor_model": "gpt-6-astra",
+  "supervisor_provider": "codex",
+  "supervisor_reasoning_effort": "high",
+  "supervisor_shared_infra": true,
+  "time": "24:00:00",
+  "usage_retry_seconds": 600,
+  "user_instructions": "Run the standard conversion and validation repair loop for MiMo CODE AND CYBER ONLY: 2698 Code and 1000 Cyber tasks. The source directory contains pinned original code.parquet, cyber.parquet and image-mapping.jsonl, not Harbor-format Parquets. Read ../input-manifest.json for counts, hashes and upstream code revisions. Existing data/mimo/patch.py only copies an already converted Code Parquet; initial implementation must add deterministic conversion from this raw directory before the build phase. Proposer must plan this required conversion work, not return changes_needed=false while the configured invocation remains unsupported. Keep original instance IDs. Use the native-source conversion reporting helper; preserve excluded payloads and record individual reasons. Do not silently omit Cyber. General, WebDev/Visual and Music are out of scope.\nCyber adapter: preserve the published startup and grading contract in verifier-source/arvo.py and server_arvo.py under the pinned source directory (MiMo-Agent commit 467f0a19016f0ac4d63b8d17a1f0da9ba07f232c, verl a2ad9f6160b03ff2d47e59832bfb6b289f37c917). Preserve interactive submission feedback, crash/function/sanitizer/error-type scoring and original agent/verifier permissions. If the runtime cannot implement the upstream contract, report the concrete infrastructure blocker. This is faithful conversion, not a separate adversarial audit.\nThe user explicitly clarified that the Vals article, screenshot and external sandbox profiling notes were supplied for explanation only. Do not turn them into additional repair gates, perform dedicated reward-hacking or solution-leakage searches, sanitize Git histories/caches/installed copies, change internet policy based on those reports, or import the external resource limits/exclusions. Any later LLM judging/filtering is a separate phase and is not to be launched here. Do not claim that ordinary validation certifies absence of reward hacking. Repair concrete failures from the configured standard checks while preserving task intent and upstream grading semantics. Resource changes require the normal measured justification.\nStage 4 is explicitly skipped with user approval because these records have no supplied reference solutions; require stages 1, 3 and 5. Follow the configured 10/50/200/full progression and finite retry limits. Two concurrent Slurm shards maximum. Do not start other datasource loops or teacher generation.",
+  "validation_args": [
+    "--image-build-concurrency",
+    "4",
+    "--pack-image-cache"
+  ],
+  "validation_policy_reason": "User explicitly approved skipping stage 3 for MiMo Code/Cyber, as for CalibForge. All 2698 Code and 1000 Cyber pinned rows lack supplied reference solutions. Do not invent an oracle or claim stage-3 validation. Require stages 1, 2 and 4.",
+  "work_root": "/hnvme/workspace/y500bb12-optiagent/mimo-patch-loop-20261011/loop-standard",
+  "workspace": "/hnvme/workspace/y500bb12-crosscodeeval-pilot/validation-smoke"
+}

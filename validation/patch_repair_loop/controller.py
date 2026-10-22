@@ -1,7 +1,8 @@
-"""Resumable stage-3 pilots, repairs, final infrastructure retries, and publication."""
+"""Resumable stage-1 pilots, repairs, final infrastructure retries, and publication."""
 
 from __future__ import annotations
 
+from validation.stages.layout import NOP, REFERENCE
 import argparse
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
@@ -22,7 +23,7 @@ from validation.patch_repair_loop.agents import ROLES, invoke, parse_json_answer
 from validation.patch_repair_loop.reports import STAGES, summarize
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = 2
+VERSION = 3
 
 class LoopBlocked(Exception):
     def __init__(self, kind, reason, evidence=None):
@@ -63,15 +64,16 @@ def save(path, value):
 def validation_policy(config):
     stages = config.get("required_stages", list(STAGES))
     exclusions = config.get("static_exclusions", {})
-    if stages not in (list(STAGES), [1, 3, 5]):
-        raise ValueError("required_stages must be [1,3,4,5] or [1,3,5]")
+    if stages not in (list(STAGES), [1, NOP, 4]):
+        # Layout environment-first-v2: 2 = reference, 3 = no-op.
+        raise ValueError(f"required_stages must be [1,2,3,4] or [1,{NOP},4] (no reference solution)")
     if not isinstance(exclusions, dict) or any(not isinstance(reason, str) or not reason.strip()
                                               for reason in exclusions.values()):
         raise ValueError("static_exclusions must map checks to explicit reasons")
     if (stages != list(STAGES) or exclusions) and not config.get("validation_policy_reason"):
         raise ValueError("custom validation requires a human-approved validation_policy_reason")
     return {"required_stages": stages, "static_exclusions": exclusions,
-            "oracle_validated": 4 in stages, "reason": config.get("validation_policy_reason")}
+            "oracle_validated": REFERENCE in stages, "reason": config.get("validation_policy_reason")}
 
 
 
@@ -142,6 +144,9 @@ def load_config(path):
 
 def loop_settings(config):
     validation_args(config)
+    for key in ('shard_size', 'shard_concurrency', 'prebuild_shard_size'):
+        if key in config and (type(config[key]) is not int or config[key] < 1):
+            raise ValueError(f'{key} must be a positive integer')
     if type(config.setdefault('prebuild_all_images', False)) is not bool:
         raise ValueError('prebuild_all_images must be boolean')
     if type(config.setdefault('allow_exclusions', True)) is not bool:
@@ -242,6 +247,43 @@ def task_ids(source):
 
 
 
+def reconcile_task_ids(config, state, available, generation):
+    """Allow archived source tasks back without admitting genuinely new IDs."""
+    current = set(available)
+    if state['known_ids'] is not None:
+        previous = set(state['known_ids'])
+        records = state['exclusions']
+        declared = {item['task_id'] for item in records}
+        missing = previous - current
+        if not missing <= declared:
+            raise ValueError(f'Undeclared task exclusions: {sorted(missing - declared)}')
+        restored = current - previous
+        if restored:
+            # Membership in the prior output is not source provenance. A task
+            # can legitimately return after the reason for its archive is fixed.
+            source_ids = set(task_ids(Path(config['source'])))
+            if restored - source_ids:
+                raise ValueError(f'A repair unexpectedly added task IDs outside the pinned source: {sorted(restored - source_ids)}')
+            prior = exclusions({'exclusions': [item for item in records
+                                               if item['task_id'] in restored]})
+            if restored - {item['task_id'] for item in prior}:
+                raise ValueError(f'Restored task IDs lack prior exclusion evidence: {sorted(restored - declared)}')
+            reconciliation = {
+                'source': config['source'], 'source_revision': config['source_revision'],
+                'restored_task_ids': sorted(restored), 'prior_exclusions': prior,
+                'previous_count': len(previous), 'current_count': len(current),
+                'newly_excluded_task_ids': sorted(missing),
+                'reason': 'Previously excluded pinned-source tasks returned in the materialized repair; validation must run again.',
+            }
+            path = generation / 'task-id-reconciliation.json'
+            save(path, reconciliation)
+            state.setdefault('restorations', []).append({**reconciliation, 'evidence': str(path)})
+            state['exclusions'] = [item for item in records if item['task_id'] not in restored]
+            state.update(phase='build', pilot=0, review_setup=True)
+            state.pop('stage3_passed_ids', None)
+    state['known_ids'] = sorted(current)
+
+
 def source_hashes(source):
     """Hash every generated task to show full-source effects of a patch rule."""
     files = parquet_files(source)
@@ -305,7 +347,7 @@ def pilot_input(source, selected, destination):
     files = parquet_files(source)
     if files:
         # Keep task archives packed on shared storage. Validation materializes
-        # them only in node-local scratch, including for the full stage-3 run.
+        # them only in node-local scratch, including for the full stage-1 run.
         import pyarrow as pa
         import pyarrow.compute as pc
         import pyarrow.parquet as pq
@@ -358,7 +400,8 @@ def pilot_input(source, selected, destination):
 
 
 
-def submit(config, source, selected, round_dir, *, full=False, stages=None, review_setup=False, reuse_stage3=None, prebuild_only=False):
+def submit(config, source, selected, round_dir, *, full=False, stages=None, review_setup=False, reuse_stage3=None, prebuild_only=False, prepare_only=False):
+    round_dir.mkdir(parents=True, exist_ok=True)
     pilot = source if full else pilot_input(source, selected, round_dir / "pilot/tasks")
     contract = round_dir / "contract.json"
     results = round_dir / "results"
@@ -401,7 +444,7 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
     else:
         # An interrupted older controller may have left a contract or normalized
         # task tree. Preserve it and prepare in a new location, never overwrite
-        # an immutable contract or collide with its stage-1 copy.
+        # an immutable contract or collide with its stage-4 copy.
         if any(round_dir.glob("contract*")):
             number = 0
             while (round_dir / "contract-preparations" / f"preparation-{number:04d}").exists():
@@ -413,6 +456,11 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
             subprocess.run(base + [str(pilot), *options, "--prepare-contract", str(contract)],
                            cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
         save(prepared, {"path": str(contract), "policy": policy})
+    if prepare_only:
+        return {'contract': str(contract), 'selected_ids': selected}
+    if config.get('shard_size') and len(selected) > config['shard_size']:
+        from validation.patch_repair_loop.sharding import submit as submit_shards
+        return submit_shards(config, contract, selected, round_dir)
     with (round_dir / "submit.log").open("w") as log:
         subprocess.run(base + ["--contract", str(contract)], cwd=ROOT, env=env,
                        stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -428,30 +476,52 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
 
 
 def wait_for_job(job, poll_seconds, max_wait_hours=24):
+    if job.get('shards'):
+        from validation.patch_repair_loop.sharding import collect
+        return collect(job, poll_seconds, max_wait_hours)
     submission = Path(job["submission"])
     deadline = time.monotonic() + max_wait_hours * 3600
+    terminal_since = None
+    contract = json.loads(Path(job['contract']).read_text())
+    def ready():
+        try:
+            summary = json.loads((submission / 'report/summary.json').read_text())
+            if not summary.get('complete'):
+                return False
+            outcome = summarize(submission / 'report', job['selected_ids'], contract['stages'])
+            if outcome['contract_sha256'] != contract['sha256']:
+                raise RuntimeError('Completed reports belong to another execution contract')
+            return True
+        except (FileNotFoundError, ValueError):
+            # Old workers publish summary.json first, and shared storage may
+            # expose files at different times. Require the actual stage reports.
+            return False
     while True:
         if time.monotonic() > deadline:
             raise TimeoutError(f"job {job['job_id']} did not produce a complete report in {max_wait_hours}h")
-        report = submission / "report/summary.json"
-        if report.is_file():
-            summary = json.loads(report.read_text())
-            if summary.get("complete"):
-                return submission / "report"
+        if ready():
+            return submission / 'report'
         result = subprocess.run(["sacct", "-X", "-n", "-P", "-j", job["job_id"],
-                                 "--format", "JobIDRaw,State"], capture_output=True,
+                                 "--format", "JobID,State", "--noheader"], capture_output=True,
                                 text=True, check=True)
-        states = [line.split("|")[1] for line in result.stdout.splitlines()
+        states = [line.split("|")[1].split()[0].rstrip('+') for line in result.stdout.splitlines()
                   if line.split("|")[0] == job["job_id"]]
-        if states and states[0] in ("FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "COMPLETED"):
-            if report.is_file() and json.loads(report.read_text()).get("complete"):
+        if states and states[0] in ("FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "COMPLETED",
+                                    "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "REVOKED"):
+            if ready():
                 return submission / "report"
-            raise RuntimeError(f"job {job['job_id']} ended {states[0]} without a complete report: {submission}")
+            if terminal_since is None:
+                terminal_since = time.monotonic()
+            if time.monotonic() - terminal_since >= 60:
+                raise RuntimeError(f"job {job['job_id']} ended {states[0]} without a complete report: {submission}")
         time.sleep(poll_seconds)
 
 
 
 def wait_for_prebuild(job, poll_seconds, max_wait_hours=24):
+    if job.get('shards'):
+        from validation.patch_repair_loop.sharding import collect_prebuild
+        return collect_prebuild(job, poll_seconds, max_wait_hours)
     submission = Path(job['submission'])
     deadline = time.monotonic() + max_wait_hours * 3600
     while True:
@@ -464,21 +534,27 @@ def wait_for_prebuild(job, poll_seconds, max_wait_hours=24):
         if time.monotonic() > deadline:
             raise TimeoutError(f'prebuild job {job["job_id"]} exceeded {max_wait_hours}h')
         result = subprocess.run(['sacct', '-X', '-n', '-P', '-j', job['job_id'],
-                                 '--format', 'JobIDRaw,State'], capture_output=True, text=True, check=True)
-        states = [line.split('|')[1] for line in result.stdout.splitlines()
+                                 '--format', 'JobID,State'], capture_output=True, text=True, check=True)
+        states = [line.split('|')[1].split()[0].rstrip('+') for line in result.stdout.splitlines()
                   if line.split('|')[0] == job['job_id']]
-        if states and states[0] in ('FAILED', 'CANCELLED', 'TIMEOUT', 'OUT_OF_MEMORY', 'COMPLETED'):
+        if states and states[0] in ('FAILED', 'CANCELLED', 'TIMEOUT', 'OUT_OF_MEMORY', 'COMPLETED',
+                                    'NODE_FAIL', 'PREEMPTED', 'BOOT_FAIL', 'DEADLINE', 'REVOKED'):
             raise RuntimeError(f'prebuild job {job["job_id"]} ended {states[0]} without archived results')
         time.sleep(poll_seconds)
 
 
-def prebuild_gate(config, source, available, generation):
-    """Cache the whole generation before any pilot or validation submission."""
+def prebuild_gate(config, source, available, generation, *, selected=None):
+    """Prepare missing images for the generation or an incremental repair subset."""
+    # Image-only workers release each image's scratch after publication. Their
+    # shard size need not increase the image set retained by validation workers.
+    config = {**config, **({'shard_size': config['prebuild_shard_size']}
+                           if 'prebuild_shard_size' in config else {})}
     directory = generation / 'image-prebuild'
     directory.mkdir(exist_ok=True)
     job_path = directory / 'job.json'
     job = json.loads(job_path.read_text()) if job_path.exists() else submit(
-        config, source, available, directory, full=True, stages=[3], prebuild_only=True)
+        config, source, available if selected is None else selected, directory,
+        full=selected is None, stages=[1], prebuild_only=True)
     save(job_path, job)
     evidence(directory, job)
     result = wait_for_prebuild(job, config['poll_seconds'], config.get('max_wait_hours', 24))
@@ -536,14 +612,16 @@ def selection(ids, size, seed, prefix=()):
 
 def dataset_hashes(config):
     root = Path(config['patcher']).parent
-    return {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+    # Keep checkpoint identities stable when code moves to a private checkout.
+    identity = Path(config.get('dataset_identity_root', root))
+    return {str(identity / p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(root.rglob('*')) if p.is_file()
             and not any(part.startswith('.') or part in ('__pycache__', 'pilot-results')
                         for part in p.relative_to(root).parts)}
 
 
 def fixer_idle(config, state):
-    """A fixer phase without partial dataset edits may be replaced by a fresh stage 3.
+    """A fixer phase without partial dataset edits may be replaced by a fresh stage 1.
 
     The fixer snapshot is written before its agent runs. When the dataset still
     matches it (the fixer never started, or finished without a dataset change
@@ -615,25 +693,37 @@ def evidence(directory, job=None, outcome=None, error=None):
                'slurm_logs': [str(p) for p in submission.glob('slurm-*.out')] if submission else [],
                'archive_note': 'Detailed execution logs and timing samples are in evidence.tar.gz. '
                                'Report paths may name expired node-local scratch; find matching archive members.'}
+    if job and job.get('shards'):
+        payload['shard_evidence'] = [
+            {'job': child, 'evidence_archive': str(Path(child['submission']) / 'evidence.tar.gz'),
+             'slurm_log': str(submission / f'slurm-{child["job_id"]}.out')}
+            for child in job['shards']]
     save(directory / 'evidence.json', payload)
     return payload
+
+
+def config_digest(raw):
+    frozen_config = {key: value for key, value in raw.items()
+                     if not key.startswith(('publish', 'recovery_', 'supervisor_')) and key not in ('max_repairs', 'max_infra_retries', 'max_recoveries', 'max_supervisor_reviews')}
+    return hashlib.sha256(json.dumps(frozen_config, sort_keys=True).encode()).hexdigest()
 
 
 def drive(config, config_path, state_path, resume=False):
     loop_settings(config)
     work = Path(config['work_root'])
-    frozen_config = {key: value for key, value in json.loads(Path(config_path).read_text()).items()
-                     if not key.startswith(('publish', 'recovery_', 'supervisor_')) and key not in ('max_repairs', 'max_infra_retries', 'max_recoveries', 'max_supervisor_reviews')}
-    digest = hashlib.sha256(json.dumps(frozen_config, sort_keys=True).encode()).hexdigest()
+    digest = config_digest(json.loads(Path(config_path).read_text()))
     state = json.loads(state_path.read_text()) if state_path.exists() else {
         'version': VERSION, 'config_sha256': digest, 'dataset': config['dataset'],
         'status': 'running', 'phase': 'proposer', 'generation': 0, 'pilot': 0,
         'started_at': datetime.now(timezone.utc).isoformat(),
         'review_setup': False, 'history': [], 'exclusions': [], 'known_ids': None}
     if state.get('version') != VERSION:
-        raise ValueError('Legacy loop state: use a new work_root for the stage-3-first workflow')
+        raise ValueError('Legacy loop state: use a new work_root for the stage-1-first workflow')
     if state['config_sha256'] != digest:
         raise ValueError('Configuration changed; use a new work_root')
+    from validation.patch_repair_loop.resources import effective
+    config = effective(config, state)
+    loop_settings(config)
     if resume:
         if state['status'] != 'blocked':
             raise ValueError('resume requires a blocked controller')
@@ -656,7 +746,7 @@ def drive(config, config_path, state_path, resume=False):
                 state['phase'] not in ('proposer', 'implementer', 'fixer') or fixer_idle(config, state)
                 ) and not (work / 'publication/job.json').exists():
             if any(not job['finished'] for job in jobs(work)):
-                raise LoopBlocked('infrastructure', 'Shared infrastructure changed; wait for existing jobs before restarting stage 3')
+                raise LoopBlocked('infrastructure', 'Shared infrastructure changed; wait for existing jobs before restarting stage 1')
             restart_stage3(state)
         state['shared_infrastructure_revision'] = revision
         save(state_path, state)
@@ -714,7 +804,7 @@ def drive(config, config_path, state_path, resume=False):
                 job = json.loads(job_path.read_text()) if job_path.exists() else submit(
                     config, Path(original['arguments']['tasks']),
                     selected, directory, stages=original['stages'], review_setup=state['review_setup'],
-                    reuse_stage3=work / 'stage3-passing-subset.json')
+                    reuse_stage3=None)
                 job['reviewer_decision'] = state['retry_decision']
                 save(job_path, job)
                 evidence(directory, job)
@@ -777,17 +867,19 @@ def drive(config, config_path, state_path, resume=False):
                 if not config.get('allow_exclusions', True):
                     require_retained_tasks(config, set(task_ids(Path(config['source']))) - set(available),
                                            generation / 'materialized.json')
-                if state['known_ids'] is not None:
-                    missing = set(state['known_ids']) - set(available)
-                    declared = {item['task_id'] for item in state['exclusions']}
-                    if not missing <= declared:
-                        raise ValueError(f'Undeclared task exclusions: {sorted(missing - declared)}')
-                    if set(available) - set(state['known_ids']):
-                        raise ValueError('A repair unexpectedly added task IDs')
-                state['known_ids'] = available
+                reconcile_task_ids(config, state, available, generation)
+                phase = state['phase']
                 save(state_path, state)
-                if config.get('prebuild_all_images', False):
-                    build_directory, build_job, build_result = prebuild_gate(config, source, available, generation)
+                from validation.patch_repair_loop import incremental
+                incremental_plan = incremental.plan(config, state, source, available, generation) if phase == 'build' else None
+                if incremental_plan:
+                    state['pilot'] = len(config['pilot_sizes'])
+                    save(state_path, state)
+                prebuild_ids = incremental_plan['execute_ids'] if incremental_plan else available
+                if config.get('prebuild_all_images', False) and (prebuild_ids or
+                        (generation / 'image-prebuild/job.json').exists()):
+                    build_directory, build_job, build_result = prebuild_gate(config, source, available, generation,
+                        **({'selected': prebuild_ids} if incremental_plan else {}))
                     if not build_result['passed']:
                         bundle = evidence(build_directory, build_job, build_result)
                         state.update(phase='fixer', pending_evidence=bundle)
@@ -801,21 +893,25 @@ def drive(config, config_path, state_path, resume=False):
                     raise ValueError('No valid retained tasks to validate')
                 directory = generation / ('validation' if final else f'stage3-{size or "full"}')
                 directory.mkdir(exist_ok=True)
-                stages = validation_policy(config)['required_stages'] if final else [3]
+                stages = validation_policy(config)['required_stages'] if final else [1]
                 job_path = directory / 'job.json'
-                job = json.loads(job_path.read_text()) if job_path.exists() else submit(
-                    config, source, selected, directory, stages=stages,
-                    full=final, review_setup=state['review_setup'],
-                    reuse_stage3=work / 'stage3-passing-subset.json' if final else None)
-                save(job_path, job)
-                # Persist paths before waiting, so running and failed jobs are inspectable too.
-                evidence(directory, job)
-                if final:
-                    from validation.patch_repair_loop.retries import collect
-                    report, outcome = collect(config, job, selected, stages, directory)
+                if incremental_plan:
+                    job, report, outcome = incremental.execute(config, state, source, available, generation, incremental_plan)
+                    save(job_path, job)
                 else:
-                    report = wait_for_job(job, config['poll_seconds'], config.get('max_wait_hours', 24))
-                    outcome = summarize(report, selected, required_stages=stages)
+                    job = json.loads(job_path.read_text()) if job_path.exists() else submit(
+                        config, source, selected, directory, stages=stages,
+                        full=final, review_setup=state['review_setup'],
+                        reuse_stage3=work / 'stage3-passing-subset.json' if final else None)
+                    save(job_path, job)
+                    # Persist paths before waiting, so running and failed jobs are inspectable too.
+                    evidence(directory, job)
+                    if final:
+                        from validation.patch_repair_loop.retries import collect
+                        report, outcome = collect(config, job, selected, stages, directory)
+                    else:
+                        report = wait_for_job(job, config['poll_seconds'], config.get('max_wait_hours', 24))
+                        outcome = summarize(report, selected, required_stages=stages)
                 save(directory / 'outcome.json', outcome)
                 bundle = evidence(directory, job, outcome)
                 bundle['report_dir'] = str(report)
@@ -872,6 +968,9 @@ def main():
     parser.add_argument("command", choices=("run", "status", "resume", "supervise"))
     parser.add_argument("--config", type=Path, required=True)
     args = parser.parse_args()
+    if args.command != 'status':
+        from validation.patch_repair_loop.isolation import enter
+        enter(args.config.resolve(), args.command)
     config = load_config(args.config)
     state_path = Path(config["work_root"]) / "loop-state.json"
     if args.command == "supervise":

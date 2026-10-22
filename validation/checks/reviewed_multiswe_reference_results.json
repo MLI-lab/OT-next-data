@@ -1,0 +1,20 @@
+{
+  "gohugoio__hugo-13005": {
+    "reviewed": "2026-10-19",
+    "report_item_sha256": "7798f7c30eeb566b624ff20511071c1d63965861aafd28e749d2c8b320621262",
+    "report": "/hnvme/workspace/y500bb12-optiagent/multiswe-followup-20261019/stage1-paths/slow/batch-013/results/submissions/packed/report/stage-2-08b1f8aae48d.json",
+    "contract_sha256": "4437e4ac9ef97837e59a6cf79d326eb48f0d9dc64cc71bb48d9a637e33722ec1",
+    "observed_rewards": [
+      0.0
+    ],
+    "replayed_rewards": [
+      1.0
+    ],
+    "acceptance_class": "verified-reference-parser-false-positive",
+    "reason": "Pinned parser missed the existing PASS for TestConfigHugoWorkingDir appended to a warning. Inserting one newline before that marker makes the pinned Report and required-test checks score 1.",
+    "replay_evidence": "/hnvme/workspace/y500bb12-optiagent/multiswe-oracle-investigation-20261019/eight-reference-failure-review/hugo13005-parser-replay.json",
+    "replay_evidence_sha256": "c0c2e94895a888c874d03933ab339cc6fef84ccab0e91d05b97baf852b856383",
+    "wheel_sha256": "09a5770096d6a035383c5240762ffa8c87b1e8df7d374110de8fb781b4e5a9f9",
+    "operator_decision": "2026-10-19: restore Hugo-13005 and manually accept the inspected reference result."
+  }
+}

@@ -1,5 +1,6 @@
 import io
 import tarfile
+import hashlib
 
 import pytest
 
@@ -11,6 +12,33 @@ RUN chmod +x /tmp/build_scripts/* && \\
     python3 /tmp/build_scripts/gen.py
 """
 TOML = b'[task]\nname = "FACET-Terminal"\n'
+
+
+def test_ownership_archive_preserves_original_payload_and_reason(tmp_path, monkeypatch):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from data.facet import patch
+    data = io.BytesIO()
+    with tarfile.open(fileobj=data, mode='w') as archive:
+        for name, content in task_files().items():
+            member = tarfile.TarInfo(name); member.size = len(content)
+            archive.addfile(member, io.BytesIO(content))
+    blob = data.getvalue()
+    decision = {'source_binary_sha256': hashlib.sha256(blob).hexdigest(),
+                'category': 'backend_build_ownership', 'reason': 'Observed unmapped group in build log'}
+    monkeypatch.setattr(patch, 'EXCLUSIONS', {'excluded': decision})
+    source = tmp_path / 'source.parquet'
+    pq.write_table(pa.table({'path': ['excluded', 'retained'], 'task_binary': [blob, blob]},
+                           schema=patch.SCHEMA), source)
+    summary = patch.patch_parquet(source, tmp_path / 'output')
+    assert summary['archived_tasks'] == 1
+    assert pq.read_table(tmp_path / 'output/tasks.parquet')['path'].to_pylist() == ['retained']
+    rows = pq.read_table(tmp_path / 'output/tasks.archive.parquet').to_pylist()
+    assert len(rows) == 1 and rows[0]['task_binary'] == blob
+    assert rows[0]['archive_category'] == 'backend_build_ownership'
+    assert decision['reason'] in rows[0]['archive_reason']
+    with pytest.raises(ValueError, match='source changed'):
+        patch.ownership_exclusion('excluded', blob + b'changed')
 
 
 def task_files(dockerfile=DOCKERFILE):

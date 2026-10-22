@@ -1,4 +1,5 @@
 """Automatic container discovery before validation, with a derived frozen contract."""
+from validation.stages.layout import LAYOUT, REFERENCE
 import asyncio
 import copy
 import json
@@ -10,7 +11,26 @@ from validation.checks.path_cache import NAME, completed, read as read_cache, ta
 
 
 def enabled(args, numbers):
-    return 1 in numbers and getattr(args, 'fix_instruction_paths', False) and not args.dry_run
+    return 4 in numbers and getattr(args, 'fix_instruction_paths', False) and not args.dry_run
+
+
+async def capture_build_paths(environment, task, args, entry):
+    """Collect stage-4 evidence in an already prepared stage-1 container.
+
+    Discovery failures belong to stage 4, not the build/setup verdict.
+    """
+    roots = getattr(args, 'resolve_path_root', None)
+    automatic = getattr(args, '_collect_stage1_paths', False)
+    if not roots and not automatic:
+        return
+    try:
+        from data.utils.resolve_absolute_paths import flagged_paths, resolve_in_environment
+        if automatic and not roots and not flagged_paths(task)[0]:
+            return
+        entry['instruction_paths'] = await resolve_in_environment(environment, task, roots or ['auto'])
+        entry['instruction_paths']['reference_unavailable'] = not (task / 'solution/solve.sh').is_file()
+    except Exception as exc:
+        entry['instruction_paths'] = {'status': 'error', 'error': f'{type(exc).__name__}: {exc}'}
 
 
 def candidates(args, tasks):
@@ -22,7 +42,7 @@ def candidates(args, tasks):
         try:
             return task if flagged_paths(task)[0] else None
         except (ValueError, OSError, RuntimeError):
-            # Stage 1 reports malformed instructions/checker errors itself.
+            # Stage 4 reports malformed instructions/checker errors itself.
             return None
     with ThreadPoolExecutor(max_workers=max(1, min(16, args.concurrency))) as pool:
         return [task for task in pool.map(inspect, tasks) if task is not None]
@@ -37,6 +57,9 @@ def discover(selected, out, args):
     async def baselines():
         semaphore = asyncio.Semaphore(args.concurrency)
         async def one(task):
+            previous = getattr(args, '_path_baselines', {}).get(task.name)
+            if previous:
+                return previous
             async with semaphore:
                 try:
                     directory = out / 'setup' / task.name
@@ -55,7 +78,7 @@ def discover(selected, out, args):
                   if (task / 'solution/solve.sh').is_file() and
                   not any(completed(d) for d in item.get('instruction_path_diagnostics', []))]
     if unresolved:
-        references = run_trial_batch(4, unresolved, out, args, checkout('terminal-bench'))
+        references = run_trial_batch(REFERENCE, unresolved, out, args, checkout('terminal-bench'))
         by_name = {Path(item['task']).name: item for item in items}
         for item in references:
             previous = by_name[Path(item['task']).name]
@@ -82,22 +105,43 @@ def prepare(args, numbers):
         selected = candidates(args, tasks)
     if not selected:
         return
+    if getattr(args, 'shard', None):
+        # A shard cannot derive its own contract: every shard must run the one frozen task list.
+        raise ValueError(f'{len(selected)} tasks of this shard need instruction path discovery, e.g. {selected[0].name}; '
+                         'resolve paths before preparing the contract of a sharded run')
     out = args.out.resolve() / 'path-normalization' / uuid4().hex[:12]
     out.mkdir(parents=True)
-    print(f'Automatic path discovery: {len(selected)} tasks; starting setup/reference containers.', flush=True)
+    print(f'Automatic path discovery: {len(selected)} tasks; checking saved evidence first.', flush=True)
     discovery = copy.copy(args)
     discovery.resolve_path_root = args.resolve_path_root or ['auto']
     discovery.attempts = 1
+    # Reuse only observations made against precisely the same task payload.
+    from validation.contract import task_digest
+    reports = list(getattr(args, '_stage1_path_reports', []))
+    reports += list(getattr(args, 'path_resolution_report', []) or [])
+    previous = collect_reports(reports) if reports else {}
+    discovery._path_baselines = {}
+    for task in selected:
+        diagnostic = previous.get(task.name, {}).get('selected', {}).get('diagnostic', {})
+        baseline = diagnostic.get('agent_baseline', {})
+        if baseline.get('status') == 'completed' and baseline.get('task_sha256') == task_digest(task):
+            discovery._path_baselines[task.name] = {
+                'task': str(task), 'status': 'passed', 'instruction_path_diagnostics': [diagnostic]}
+    if discovery._path_baselines:
+        print(f'Reusing stage-1/path evidence for {len(discovery._path_baselines)} tasks.', flush=True)
+    missing = len(selected) - len(discovery._path_baselines)
+    if missing:
+        print(f'Starting path-discovery setup containers for {missing} tasks without matching evidence.', flush=True)
     try:
         items = discover(selected, out, discovery)
     except Exception as exc:
         items = [{'task': str(task), 'status': 'error', 'reason': str(exc)} for task in selected]
     evidence_path = out / 'resolver-evidence.json'
-    save(evidence_path, {'stage': 4, 'purpose': 'path-discovery-only', 'items': items})
+    save(evidence_path, {'stage': REFERENCE, 'stage_layout': LAYOUT, 'purpose': 'path-discovery-only', 'items': items})
     derived = copy.copy(args)
     derived.path_resolution_report = [evidence_path]
     derived.static_resume = None
-    # A derived task tree needs fresh stage-3 validation.
+    # A derived task tree needs fresh stage-1 validation.
     derived.reuse_stage3 = None
     # Keep selected coverage even when a direct caller used a task selection.
     derived.limit = args.limit

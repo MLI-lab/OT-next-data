@@ -1,0 +1,1564 @@
+{
+  "model": "GLM-5.3-Flash",
+  "revision": "46a050bec13002ad29ee795c16e61cf4fa3c4a9c",
+  "completed": 1,
+  "planned": 57,
+  "errors": 16,
+  "results": [
+    {
+      "task_id": "fail-rubric-agentic",
+      "status": "completed",
+      "verdict": {
+        "checks": {
+          "verifiable": {
+            "outcome": "fail",
+            "explanation": "tests/test.sh performs runtime network installs of verifier tooling at verify time (`apt-get update && apt-get install -y curl` and `curl -LsSf https://astral.sh/uv/0.9.7/install.sh | sh`) and the task ships no tests/Dockerfile to bake uv/pytest into a verifier image. The pinned-manifest exception does not apply because pytest/uv are verifier tooling, not the agent's pinned dependency manifest."
+          },
+          "solvable": {
+            "outcome": "pass",
+            "explanation": "solution/solve.sh writes /app/add.py and executes it to produce /app/result.txt containing '7', exactly what tests/test_state.py asserts. An expert who knows the (trivial) answer implements this in minutes."
+          },
+          "interesting": {
+            "outcome": "fail",
+            "explanation": "Writing an add(a,b) function and echoing '7' to a text file is a toy exercise with no real-world analogue \u2014 the task.toml metadata itself labels it a boilerplate 'Test task for QA pipeline', and no professional audience would care whether it is solvable."
+          },
+          "outcome_verified": {
+            "outcome": "pass",
+            "explanation": "The instruction states only the desired end state (a function file at /app/add.py and a result at /app/result.txt) with no procedural steps or tool constraints, and the test grades only final artifact content."
+          },
+          "anti_cheat_robustness": {
+            "outcome": "fail",
+            "explanation": "The verifier never checks, imports, or executes /app/add.py, so the primary deliverable stated in the instruction can be entirely skipped or stubbed with a hardcoded '7' while still scoring reward 1 \u2014 the check is trivially bypassable for the required function. (No ground truth is baked into the agent image and the agent cannot reach /tests, but the stated deliverable goes unverified.)"
+          },
+          "task_security": {
+            "outcome": "pass",
+            "explanation": "All files perform only task-related setup and verification; the only network fetch is the official uv bootstrap from astral.sh (a trusted, standard installer), and there is no exfiltration, obfuscation, prompt injection, or destructive behavior."
+          },
+          "functional_verification": {
+            "outcome": "pass",
+            "explanation": "The test executes pytest and checks the actual content of the agent-produced output file /app/result.txt rather than grepping source files for keywords or patterns."
+          },
+          "deterministic_reproducible": {
+            "outcome": "fail",
+            "explanation": "Verification depends on live network fetches at verify time \u2014 apt-get update/install of curl plus a curl-piped installer script from astral.sh inside test.sh \u2014 so trial outcomes can vary with network conditions. uv/pytest versions are pinned, but the live installer dependency should be baked into a tests/Dockerfile."
+          },
+          "essential_difficulty": {
+            "outcome": "pass",
+            "explanation": "There are no formatting traps, precision requirements, or clerical details that would drive failures \u2014 the output requirement is a plain '7'. The task's lack of genuine difficulty is penalized under the 'interesting' and 'agentic' criteria instead of this one, whose FAIL condition (format-minutiae-driven errors) does not apply."
+          },
+          "test_instruction_alignment": {
+            "outcome": "fail",
+            "explanation": "The instruction requires a Python function at /app/add.py defining add(a,b), but tests/test_state.py never verifies that file \u2014 the function requirement has zero test coverage. The only assertion (result.txt == '7') traces to the second instruction requirement."
+          },
+          "agentic": {
+            "outcome": "fail",
+            "explanation": "The task is solvable with a single shell command (`echo 7 > /app/result.txt`) or at most two trivial commands, requiring no environment exploration, debugging, or multi-step terminal interaction \u2014 it is zero-shot solvable."
+          },
+          "reviewable": {
+            "outcome": "pass",
+            "explanation": "The task is trivial and fully self-consistent \u2014 instruction, solution, and test all agree that add(3,4) is '7' \u2014 so any non-specialist reviewer can verify correctness without domain expertise or hardcoded-oracle concerns."
+          },
+          "instruction_concision": {
+            "outcome": "pass",
+            "explanation": "The instruction is two concise sentences with absolute paths (/app/add.py, /app/result.txt), no headings, roleplay, fluff, tool listings, or solution-approach hints."
+          },
+          "solution_quality": {
+            "outcome": "pass",
+            "explanation": "solve.sh writes a short (8-line) function file via heredoc and executes it, so '7' is genuinely derived by running code rather than echoed as a final answer; the heredoc is under the ~20-line threshold for placing files in solution/ directly."
+          },
+          "structured_data_schema": {
+            "outcome": "not_applicable",
+            "explanation": "The only expected output is a plain-text scalar in /app/result.txt; no JSON, CSV, API, or config schema is expected."
+          },
+          "typos": {
+            "outcome": "pass",
+            "explanation": "All filenames, paths, commands, and identifiers (/app/add.py, /app/result.txt, python3, astral.sh/uv/0.9.7, pytest==9.1.1, pytest-json-ctrf==0.5.2, /logs/verifier/ctrf.json, /tests/test_state.py) are correct and consistent across all files."
+          },
+          "resource_configuration": {
+            "outcome": "pass",
+            "explanation": "The unchanged defaults (120s verifier/agent, 1 cpu, 2048 MB, 600s build) are appropriate for a task requiring seconds of compute, and difficulty is not computationally derived \u2014 though the boilerplate 'Test task for QA pipeline' explanations suggest the defaults were not deeply considered, they happen to fit."
+          },
+          "no_extraneous_files": {
+            "outcome": "pass",
+            "explanation": "The directory contains exactly the required scaffolds (task.toml, instruction.md, environment/Dockerfile, solution/solve.sh, tests/test.sh, tests/test_state.py), each consumed by the build/run/solve/verify flow, with no cruft or unused assets."
+          },
+          "artifact_efficiency": {
+            "outcome": "not_applicable",
+            "explanation": "No [[verifier.collect]] hooks or artifact entries are configured; the deliverables are tiny files the verifier reads directly, so there is no artifact transfer to evaluate."
+          },
+          "verifier_execution_isolation": {
+            "outcome": "not_applicable",
+            "explanation": "The verifier only reads the contents of /app/result.txt; it never imports, runs, or otherwise executes agent-produced code, so privilege dropping and reward-channel protection do not apply."
+          },
+          "ctrf_reporting": {
+            "outcome": "pass",
+            "explanation": "test.sh runs pytest with `--ctrf /logs/verifier/ctrf.json` and `-rA`, emitting the per-test CTRF report at the required path, and derives reward.txt from pytest's exit code."
+          },
+          "do_not_modify_enforced": {
+            "outcome": "not_applicable",
+            "explanation": "The instruction contains no do-not-modify / preserve constraint on any concrete artifact."
+          }
+        }
+      },
+      "tool_calls": 7,
+      "successful_tool_calls": 7,
+      "model_usage": {
+        "GLM-5.3-Flash": {
+          "input_tokens": 65935,
+          "output_tokens": 13035
+        }
+      },
+      "reported_cost_usd": null,
+      "cost_basis": "Local inference; no API charge. GPU compute cost not priced."
+    },
+    {
+      "task_id": "fail-rubric-anti-cheat",
+      "status": "error",
+      "error": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0002/results/task-0002/verdicts.json: missing or unexpected rubric criteria",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-artifact-efficiency",
+      "status": "error",
+      "error": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0003/results/task-0003/verdicts.json: missing or unexpected rubric criteria",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-deterministic",
+      "status": "error",
+      "error": "Model response exceeded the recorded output budget",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-essential-difficulty",
+      "status": "error",
+      "error": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0005/results/task-0005/verdicts.json: missing or unexpected rubric criteria",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-functional-verification",
+      "status": "error",
+      "error": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0006/results/task-0006/verdicts.json: missing or unexpected rubric criteria",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-instruction-concision",
+      "status": "error",
+      "error": "timed out",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-instruction-concision-fluff",
+      "status": "error",
+      "error": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0008/results/task-0008/verdicts.json: missing or unexpected rubric criteria",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-interesting",
+      "status": "error",
+      "error": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0009/results/task-0009/verdicts.json: missing or unexpected rubric criteria",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-no-ctrf",
+      "status": "error",
+      "error": "Model response exceeded the recorded output budget",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-outcome-verified",
+      "status": "error",
+      "error": "Model response exceeded the recorded output budget",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-reviewable",
+      "status": "error",
+      "error": "timed out",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-solution-quality",
+      "status": "error",
+      "error": "Model response exceeded the recorded output budget",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-solvable",
+      "status": "error",
+      "error": "timed out",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-structured-schema",
+      "status": "error",
+      "error": "timed out",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-test-alignment",
+      "status": "error",
+      "error": "/hnvme/workspace/y500bb12-optiagent/local-judges-20261015/glm-5.3-flash/tb_human_labeled/repeat-0/task-0016/results/task-0016/verdicts.json: missing or unexpected rubric criteria",
+      "reported_cost_usd": null
+    },
+    {
+      "task_id": "fail-rubric-typos",
+      "status": "error",
+      "error": "timed out",
+      "reported_cost_usd": null
+    }
+  ],
+  "comparisons": [
+    {
+      "task_id": "fail-rubric-agentic",
+      "category": "synthetic",
+      "criterion": "agentic",
+      "expected": "fail",
+      "observed": "fail",
+      "match": true,
+      "explanation": "The task is solvable with a single shell command (`echo 7 > /app/result.txt`) or at most two trivial commands, requiring no environment exploration, debugging, or multi-step terminal interaction \u2014 it is zero-shot solvable."
+    },
+    {
+      "task_id": "fail-rubric-anti-cheat",
+      "category": "synthetic",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-artifact-efficiency",
+      "category": "synthetic",
+      "criterion": "artifact_efficiency",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-deterministic",
+      "category": "synthetic",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-essential-difficulty",
+      "category": "synthetic",
+      "criterion": "essential_difficulty",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-functional-verification",
+      "category": "synthetic",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-instruction-concision",
+      "category": "synthetic",
+      "criterion": "instruction_concision",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-instruction-concision-fluff",
+      "category": "synthetic",
+      "criterion": "instruction_concision",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-interesting",
+      "category": "synthetic",
+      "criterion": "interesting",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-no-ctrf",
+      "category": "synthetic",
+      "criterion": "ctrf_reporting",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-outcome-verified",
+      "category": "synthetic",
+      "criterion": "outcome_verified",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-reviewable",
+      "category": "synthetic",
+      "criterion": "reviewable",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-solution-quality",
+      "category": "synthetic",
+      "criterion": "solution_quality",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-solvable",
+      "category": "synthetic",
+      "criterion": "solvable",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-structured-schema",
+      "category": "synthetic",
+      "criterion": "structured_data_schema",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-test-alignment",
+      "category": "synthetic",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-typos",
+      "category": "synthetic",
+      "criterion": "typos",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-verifiable",
+      "category": "synthetic",
+      "criterion": "verifiable",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-verifier-isolation",
+      "category": "synthetic",
+      "criterion": "verifier_execution_isolation",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-resource-config",
+      "category": "synthetic",
+      "criterion": "resource_configuration",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-no-extraneous-files",
+      "category": "synthetic",
+      "criterion": "no_extraneous_files",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-stp",
+      "category": "reviewed",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-stp--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "query-optimize",
+      "category": "reviewed",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "query-optimize--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sanitize-git-repo",
+      "category": "excluded",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "install-windows-3.11",
+      "category": "reviewed",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "vimscript-vim-quine",
+      "category": "excluded",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "chess-best-move",
+      "category": "excluded",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "password-recovery",
+      "category": "excluded",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cartpole-rl-training",
+      "category": "reviewed",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "causal-inference-r",
+      "category": "reviewed",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "causal-inference-r",
+      "category": "reviewed",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "modernize-scientific-stack",
+      "category": "reviewed",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "modernize-scientific-stack--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "form-filling",
+      "category": "reviewed",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "form-filling--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "mailman",
+      "category": "reviewed",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "mailman--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "protocol-analysis-rs",
+      "category": "reviewed",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "protocol-analysis-rs--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "mcmc-sampling-stan",
+      "category": "reviewed",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "mcmc-sampling-stan--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "financial-document-processor",
+      "category": "reviewed",
+      "criterion": "reviewable",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "financial-document-processor--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "winning-avg-corewars",
+      "category": "reviewed",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "winning-avg-corewars--after",
+      "category": "later_PR_assumed_positive",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "train-fasttext",
+      "category": "reviewed",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "mteb-retrieve",
+      "category": "reviewed",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "test_instruction_alignment",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "instruction_concision",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "build-linux-kernel-qemu",
+      "category": "candidate",
+      "criterion": "typos",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "interesting",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "test_instruction_alignment",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "instruction_concision",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "prove-plus-comm",
+      "category": "candidate",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "reviewable",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "instruction_concision",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "raman-fitting",
+      "category": "candidate",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "anti_cheat_robustness",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "instruction_concision",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "cron-broken-network",
+      "category": "candidate",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "solvable",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "deterministic_reproducible",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "test_instruction_alignment",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "reviewable",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "instruction_concision",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "solution_quality",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "extract-moves-from-video",
+      "category": "candidate",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "outcome_verified",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "functional_verification",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "essential_difficulty",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "test_instruction_alignment",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "nginx-request-logging",
+      "category": "candidate",
+      "criterion": "typos",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "verifiable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "solvable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "interesting",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "outcome_verified",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "anti_cheat_robustness",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "functional_verification",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "deterministic_reproducible",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "essential_difficulty",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "test_instruction_alignment",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "agentic",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "reviewable",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "instruction_concision",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "solution_quality",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "structured_data_schema",
+      "expected": "pass",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "sqlite-with-gcov",
+      "category": "candidate",
+      "criterion": "typos",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-do-not-modify",
+      "category": "synthetic",
+      "criterion": "do_not_modify_enforced",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    },
+    {
+      "task_id": "fail-rubric-task-security",
+      "category": "synthetic",
+      "criterion": "task_security",
+      "expected": "fail",
+      "observed": null,
+      "match": null,
+      "explanation": ""
+    }
+  ],
+  "compute": null
+}

@@ -13,6 +13,11 @@ import time
 import uuid
 from pathlib import Path
 
+try:
+    from harbor_patches import start_wait
+except ModuleNotFoundError:  # run as a script from this directory
+    import start_wait
+
 REPLAY_SECONDS = 300
 
 
@@ -24,8 +29,36 @@ def install_transport(server):
     original = server.BridgeHandler
     routes = {'/env/' + name: '_handle_env_' + name
               for name in ('create', 'exec', 'upload', 'download', 'stop')}
+    routes['/env/cancel'] = '_handle_env_cancel'
 
     class ReliableHandler(original):
+        def _handle_env_upload(self, data):
+            super()._handle_env_upload(data)
+            if 'upload_chunk' in data and self._captured[1] == 200:
+                # Dispatch runs under the queue lock, so metadata is attached
+                # before any worker can claim the job.
+                server._jobs[self._captured[0]['job_id']]['payload']['upload_chunk'] = data['upload_chunk']
+
+        def _handle_env_cancel(self, data):
+            env_id = data.get('env_id')
+            env = server._envs.get(env_id)
+            if not env or env['state'] != server.ENV_READY:
+                return self._json({'error': 'Cancellation requires a ready environment'}, 409)
+            if env.get('cancellation', {}).get('state') == 'pending':
+                return self._json({'generation': env['cancellation']['generation']})
+            generation = env.get('command_generation', 0) + 1
+            env['command_generation'] = generation
+            env['cancellation'] = {'generation': generation, 'state': 'pending'}
+            self._json({'generation': generation})
+
+        def do_GET(self):
+            if self.path == '/worker/cancellations':
+                with server._lock:
+                    pending = {key: env['cancellation'] for key, env in server._envs.items()
+                               if env.get('cancellation', {}).get('state') == 'pending'}
+                return self._json({'pending': pending})
+            return super().do_GET()
+
         def _json(self, data, status=200):
             if getattr(self, '_capture_response', False):
                 self._captured = (data, status)
@@ -36,6 +69,25 @@ def install_transport(server):
 
         def do_POST(self):
             request_id = self.headers.get('X-Bridge-Request-ID')
+            if self.path == '/worker/cancelled':
+                data = json.loads(self._read_body())
+                with server._lock:
+                    env = server._envs.get(data.get('env_id'))
+                    ticket = (env or {}).get('cancellation', {})
+                    if ticket.get('generation') == data.get('generation'):
+                        ticket.update(state='error' if data.get('error') else 'done', error=data.get('error'))
+                return self._json({'recorded': True})
+            if self.path == '/worker/phase':
+                # A worker reports that a start is waiting for resources (see start_wait).
+                try:
+                    data = json.loads(self._read_body())
+                    with server._lock:
+                        env = server._envs.get(data.get('env_id'))
+                        if env is not None:
+                            start_wait.record_phase(env, bool(data.get('waiting')), time.time())
+                except (ValueError, UnicodeError, AttributeError):
+                    return self._json({'error': 'invalid JSON object'}, 400)
+                return self._json({'recorded': True})
             if self.path != '/job/ack' and self.path not in routes:
                 return super().do_POST()  # Upstream worker registration and updates.
             if self.path in routes and not request_id:
@@ -82,7 +134,18 @@ def install_transport(server):
                     receipts[request_id] = (created + REPLAY_SECONDS, fingerprint, response)
                     self._capture_response = True
                     try:
-                        getattr(self, routes[self.path])(data)
+                        env = server._envs.get(data.get('env_id'), {})
+                        operation = self.path in ('/env/exec', '/env/upload', '/env/download')
+                        generation = env.get('command_generation', 0)
+                        if operation and (data.get('command_generation', 0) != generation or
+                                          env.get('cancellation', {}).get('state') in ('pending', 'error')):
+                            self._json({'error': 'Environment commands cancelled; stale generation or cancellation incomplete'}, 409)
+                        else:
+                            getattr(self, routes[self.path])(data)
+                            if operation and self._captured[1] == 200:
+                                job = server._jobs.get(self._captured[0].get('job_id'))
+                                if job:
+                                    job['payload']['command_generation'] = generation
                         response = self._captured
                         if response[1] == 409:
                             del receipts[request_id]  # Rejected, so nothing was queued.
@@ -105,7 +168,27 @@ def install_transport(server):
                     response = (result, 200)
                 else:
                     response = ({'state': job['state']}, 200)
+                    env = server._envs.get(job.get('env_id'))
+                    if job.get('type') == server.JOB_START and (job['state'] == 'pending' or (env and 'wait_since' in env)):
+                        # Waiting for a worker or a Slurm step: not start time (start_wait).
+                        response[0]['waiting'] = True
             self._json(*response)
+
+        def _handle_env_status(self, env_id):
+            with server._lock:
+                env = server._envs.get(env_id)
+                if not env:
+                    return self._json({'error': 'Unknown env'}, 404)
+                queued = None
+                if env['state'] != server.ENV_PENDING and 'queue_seconds' not in env:
+                    start = next((j for j in server._jobs.values()
+                                  if j.get('env_id') == env_id and j.get('type') == server.JOB_START and 'started' in j), None)
+                    queued = (start['started'] - start['submitted']) if start else None
+                response = {'env_id': env_id, 'state': env['state'], 'task_name': env['task_name'],
+                            'worker_id': env['worker_id'],
+                            'waited_seconds': round(start_wait.waited_seconds(env, time.time(), queued), 3)}
+                response['cancellation'] = env.get('cancellation')
+            self._json(response)
 
         def _handle_worker_result(self, data):
             super()._handle_worker_result(data)
@@ -163,6 +246,11 @@ def cleanup_once(server, now, stale_sec, batch_cap):
         for job in list(server._jobs.values()):
             if job['state'] == 'running':
                 elapsed = now - job.get('started', now)
+                waiting_env = server._envs.get(job['env_id']) if job.get('type') == getattr(server, 'JOB_START', 'start') else None
+                if waiting_env:
+                    # Time a start spent waiting for its Slurm step is not worker run time.
+                    step_wait = waiting_env.get('waited', 0.0) + (now - waiting_env['wait_since'] if 'wait_since' in waiting_env else 0.0)
+                    elapsed -= min(step_wait, start_wait.WAIT_LIMIT)
                 timeout = job['payload'].get('timeout_sec', 600)
                 if workers_dead or elapsed > timeout * 2 + 120:
                     job['state'] = 'error'

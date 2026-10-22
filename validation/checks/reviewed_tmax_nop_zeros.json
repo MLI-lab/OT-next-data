@@ -1,0 +1,1127 @@
+{
+  "task_002207_f7a42d13": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Service not ready: /home/user/ready.txt not found or does not contain 'READY'.",
+    "reason": "E       Failed: Service not ready: /home/user/ready.txt not found or does not contain 'READY'.",
+    "instruction_evidence": "   Once implemented, start your Go service in the background so it binds to `127.0.0.1:9090` and is ready to accept requests. Ensure it dynamically links to your compiled `libmathcheck.so` (you may need to set `LD_LIBRARY_PATH`). Write a file `/home/user/ready.txt` containing the word \"READY\" when your service is running.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0000/evidence.tar.gz",
+    "report_item_sha256": "c140f8b20faa6589a5c23bfcb3ce0f3709160a9a64f33580fcef9956af9920b6",
+    "publication_only": true
+  },
+  "task_002288_cb01f41c": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The HTTP service on 127.0.0.1:8080 did not start or is unreachable.",
+    "reason": "E       AssertionError: The HTTP service on 127.0.0.1:8080 did not start or is unreachable.",
+    "instruction_evidence": "Your C program must start an HTTP server listening on `127.0.0.1:8080`. It must implement the following endpoints:\n- Ensure the server runs continuously in the background or foreground once started.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0000/evidence.tar.gz",
+    "report_item_sha256": "999f53971addb639399165893458762db65604e59b13ef5224560a6724e6abd4",
+    "publication_only": true
+  },
+  "task_002984_da127a34": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Manifest file not found at /home/user/repo/manifest.json",
+    "reason": "E       AssertionError: Manifest file not found at /home/user/repo/manifest.json",
+    "instruction_evidence": "Once all artifacts are processed, generate a single JSON manifest file at `/home/user/repo/manifest.json`. The JSON must precisely follow this structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0000/evidence.tar.gz",
+    "report_item_sha256": "470c496ce56f70e5c4c72cada73f4d4ddfa48d81f4a59618a9e4621a1517dd4d",
+    "publication_only": true
+  },
+  "task_002370_d3ba541d": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script not found at /home/user/process_citations.sh",
+    "reason": "E       AssertionError: Script not found at /home/user/process_citations.sh",
+    "instruction_evidence": "Your task is to create a robust Bash script at `/home/user/process_citations.sh` that automates the ingestion, graph traversal, and extraction of this data using `sqlite3`. \n- Write the entire workflow in standard Bash (`/home/user/process_citations.sh`). Make it executable.\nWhen you are finished, ensure `/home/user/process_citations.sh` has `+x` permissions and is ready to be run by the testing environment.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0001/evidence.tar.gz",
+    "report_item_sha256": "e6753141965842daec2aeb3ea4492587bbc6320ef932045fc7d123371c19becf",
+    "publication_only": true
+  },
+  "task_001121_7cba7d5e": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Rust application directory missing at /home/user/etl_filter",
+    "reason": "E       AssertionError: Rust application directory missing at /home/user/etl_filter",
+    "instruction_evidence": "1. **Rust CLI Tool**: Create a Rust application at `/home/user/etl_filter`. It must compile with standard Cargo commands.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0002/evidence.tar.gz",
+    "report_item_sha256": "46e9a67b5a14ac51c1575af79ee11ed02da660e69eb937bd5a35c87320a5d054",
+    "publication_only": true
+  },
+  "task_001175_247c0751": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: HTTP server did not start on http://127.0.0.1:9090",
+    "reason": "E       Failed: HTTP server did not start on http://127.0.0.1:9090",
+    "instruction_evidence": "5. Write and start an HTTP server listening on `127.0.0.1:9090` that performs the following:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0002/evidence.tar.gz",
+    "report_item_sha256": "634fd505b9b69121183fe1e5855c2d977317c0478a51482dad109fa6d6e69374",
+    "publication_only": true
+  },
+  "task_002502_e7dfd462": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: File /home/user/fixed_math_service.py not found.",
+    "reason": "E       AssertionError: File /home/user/fixed_math_service.py not found.",
+    "instruction_evidence": "3. Save your corrected code to `/home/user/fixed_math_service.py`. \nThe automated test will verify your solution by running `/home/user/fixed_math_service.py` and sending a rigorous barrage of edge-case and concurrent requests to ensure it returns valid HTTP 200 responses with the correct standard deviation without crashing.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0002/evidence.tar.gz",
+    "report_item_sha256": "6232a45f1b20de81e68ec7e13bbcce3bb9b0d698d69f6d0b5b73c3f9aaec3ac1",
+    "publication_only": true
+  },
+  "task_003279_85c60a38": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Could not connect to API server at http://127.0.0.1:8000. Is it running?",
+    "reason": "E       AssertionError: Could not connect to API server at http://127.0.0.1:8000. Is it running?",
+    "instruction_evidence": "3. Build an HTTP server listening on `127.0.0.1:8000` that serves this graph data. You may use any language (e.g., Python, Node) and install any packages you need. \n- Your API must run on `127.0.0.1:8000`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0002/evidence.tar.gz",
+    "report_item_sha256": "e0b42b82701aef17f865181642dc5be1524474e43b0c7f04ca90f7fd429cca2a",
+    "publication_only": true
+  },
+  "task_007689_73a1802e": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script not found at /home/user/deploy_edge.py",
+    "reason": "E       AssertionError: Script not found at /home/user/deploy_edge.py",
+    "instruction_evidence": "Write a Python script at `/home/user/deploy_edge.py` that fulfills the following requirements:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0002/evidence.tar.gz",
+    "report_item_sha256": "02c8b7b76a6d9198fbe0be8324c5492fccc8edf21679699176fe65682e1341fe",
+    "publication_only": true
+  },
+  "task_000723_d6633261": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The report file /home/user/stability_report.json was not found.",
+    "reason": "E       AssertionError: The report file /home/user/stability_report.json was not found.",
+    "instruction_evidence": "   Save your results in a JSON file at `/home/user/stability_report.json` with the following exact keys:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0003/evidence.tar.gz",
+    "report_item_sha256": "77762f74a82db04fc7797a9300365fa8a85cfa89d074d9d48fb27dbf6d8a3d7b",
+    "publication_only": true
+  },
+  "task_003762_a6fb3481": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Results file missing at /home/user/pi_results.json",
+    "reason": "E       AssertionError: Results file missing at /home/user/pi_results.json",
+    "instruction_evidence": "5. Write the results to a JSON file at `/home/user/pi_results.json` matching exactly this structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0003/evidence.tar.gz",
+    "report_item_sha256": "8b07c3ff005ca28c69370efecd4cf0b8b742f7937e433b0e6b8a96d2330ba674",
+    "publication_only": true
+  },
+  "task_001528_2c019191": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Service is not listening on port 9090.",
+    "reason": "E       AssertionError: Service is not listening on port 9090.",
+    "instruction_evidence": "4. **Deploy the Service**: Once fixed, bind the service to port `9090` using `socat` so it can receive actual network requests. Run the server in the background so it stays alive for verification:\n   `socat TCP-LISTEN:9090,reuseaddr,fork EXEC:/home/user/handle_req.sh &`\nMake sure the server is actively listening on `127.0.0.1:9090` when you finish. Do not close the terminal or kill the background process.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0005/evidence.tar.gz",
+    "report_item_sha256": "b4f28cf50d7de4a78e1244cc496f64d09f3d915ef7459ab4007cdf47427a2fbb",
+    "publication_only": true
+  },
+  "task_001738_1ba34f1a": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The output file /home/user/model_fit.json was not created.",
+    "reason": "E       AssertionError: The output file /home/user/model_fit.json was not created.",
+    "instruction_evidence": "   - The program must write its results to a JSON file at `/home/user/model_fit.json`.\n- Compile and run your program to produce the final `/home/user/model_fit.json` file.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0005/evidence.tar.gz",
+    "report_item_sha256": "31918b43cbf6cc837c794a8a01377a94751f94076a8ac0d91ef63785e47a163b",
+    "publication_only": true
+  },
+  "task_002158_10a1bd0e": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Proxy script not found at /home/user/proxy.py",
+    "reason": "E       AssertionError: Proxy script not found at /home/user/proxy.py",
+    "instruction_evidence": "3. **Build a Reverse Proxy**: Write a Python script at `/home/user/proxy.py` that starts an HTTP reverse proxy on `localhost:8080`. ",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0005/evidence.tar.gz",
+    "report_item_sha256": "5a96e2d823323907f6e09dc451a0f3f978dbd488cb73b6af258593a6f6b4e5a2",
+    "publication_only": true
+  },
+  "task_002610_dc080f96": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Agent source code is missing at /home/user/processor.go",
+    "reason": "E       AssertionError: Agent source code is missing at /home/user/processor.go",
+    "instruction_evidence": "Write a Go program at `/home/user/processor.go` that reads a stream of JSON-lines from standard input and writes the aggregated results to standard output. \nYour program should read until EOF, then print the aggregated, sorted results to standard output. Do not output any extra text. Make sure your Go code is self-contained in `/home/user/processor.go` and handles the requirements perfectly.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0005/evidence.tar.gz",
+    "report_item_sha256": "0562c73c5f61a0cf6d3e9b61dacefcf11680672da45bf47d3c55cf3b9eb77683",
+    "publication_only": true
+  },
+  "task_005155_e1a6eadf": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/run_etl.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/run_etl.sh does not exist.",
+    "instruction_evidence": "Create a script at `/home/user/run_etl.sh` that does the following:\n- The Bash script `/home/user/run_etl.sh` must install the `scikit-learn` and `pandas` packages (using `pip install`).\nEnsure `/home/user/run_etl.sh` is executable and runs the entire pipeline from start to finish when executed.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0005/evidence.tar.gz",
+    "report_item_sha256": "61609167ab969df2e01bcb47e8c0ebbccde8db4555b0fc34f6067893f520ce1c",
+    "publication_only": true
+  },
+  "task_006694_377bcf32": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/builder.sh does not exist.",
+    "reason": "E       AssertionError: /home/user/builder.sh does not exist.",
+    "instruction_evidence": "Your objective is to write a Bash script `/home/user/builder.sh` that dynamically analyzes the provided artifacts and generates a raw HTTP evasion payload. \nYour Bash script (`/home/user/builder.sh`) must perform the following tasks when executed:\nMake sure `/home/user/builder.sh` has executable permissions. You may use standard Linux utilities (`grep`, `strings`, `sed`, `awk`, `printf`, etc.). ",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0005/evidence.tar.gz",
+    "report_item_sha256": "36a73dbcec29da96d8bbc5399f54e7c502f18b48c6d88b0c4ef8199ab1f9a748",
+    "publication_only": true
+  },
+  "task_009027_f56b54a9": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: make test failed with return code 2.",
+    "reason": "E       AssertionError: make test failed with return code 2. | E | E         make: *** No rule to make target 'test'.  Stop.",
+    "instruction_evidence": "   Create a Python 3 HTTP server (using `http.server` or similar built-in libraries, do not use external libraries like Flask) that listens on `127.0.0.1:8080`. It must implement three endpoints:\n   Write a `Makefile` with a `test` target that acts as a local CI pipeline step. Running `make test` must:\n   2. Start `mock_server.py` in the background.\n   3. Wait briefly (e.g., 1-2 seconds) to ensure the server is listening.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0005/evidence.tar.gz",
+    "report_item_sha256": "e9ae7f194c186b5eada1649a3f0be365916a52e0e19c81f930517960ffc3aecd",
+    "publication_only": true
+  },
+  "task_000003_2a1af405": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Service ready signal file (/home/user/service_ready.txt) not found.",
+    "reason": "E       AssertionError: Service ready signal file (/home/user/service_ready.txt) not found.",
+    "instruction_evidence": "Keep the API running in the foreground or background so it can be tested. Once the service is successfully running on port 8080, write a file at `/home/user/service_ready.txt` containing the word \"READY\" to signal that verification can begin.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0006/evidence.tar.gz",
+    "report_item_sha256": "184257e335b2b29c975b9f7c9d9941de96de9d576a0675417f6d3a642a06ea0f",
+    "publication_only": true
+  },
+  "task_001871_193d888c": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Server ready log not found or does not contain 'READY'.",
+    "reason": "E       AssertionError: Server ready log not found or does not contain 'READY'.",
+    "instruction_evidence": "3. The server MUST listen on `127.0.0.1:9090`.\n8. Start the server in the background and ensure it is running and ready to accept requests.\nCreate a log file at `/tmp/server_ready.log` containing the text \"READY\" once your server is listening and the package is fixed.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0007/evidence.tar.gz",
+    "report_item_sha256": "ece407f058c53cb10c2cd5950b9038446caeffc6ba471770cdb99d8777c86afc",
+    "publication_only": true
+  },
+  "task_003151_15ee8162": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Agent script missing at /home/user/cleanup.sh",
+    "reason": "E       AssertionError: Agent script missing at /home/user/cleanup.sh",
+    "instruction_evidence": "2. Create a bash script at `/home/user/cleanup.sh` that takes two arguments: a target directory containing `.wav` files, and the path to a manifest file.\n    `bash /home/user/cleanup.sh <target_directory> <manifest_file>`",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0007/evidence.tar.gz",
+    "report_item_sha256": "1d781415a3844f43893da9d6b08d7b04b7b2120106fa75da22034ad894115633",
+    "publication_only": true
+  },
+  "task_005210_f8f4d3c0": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Server is not running on port 8080 or /cgi-bin/upload.sh is not accessible",
+    "reason": "E       AssertionError: Server is not running on port 8080 or /cgi-bin/upload.sh is not accessible",
+    "instruction_evidence": "Create a Bash CGI script at `/app/cgi-bin/upload.sh` to handle file uploads securely.\n2. Ensure `/app/cgi-bin/upload.sh` is executable.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0007/evidence.tar.gz",
+    "report_item_sha256": "f79b08b717aee925d121c4a832b5939a9f9171aed3705c32e35e7ae6eb063d46",
+    "publication_only": true
+  },
+  "task_002211_b4ce9314": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Service at http://127.0.0.1:8080 is not responding.",
+    "reason": "E       AssertionError: Service at http://127.0.0.1:8080 is not responding.",
+    "instruction_evidence": "   - Create a Python HTTP service (you may use frameworks like Flask or FastAPI) listening exactly on `127.0.0.1:8080`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0008/evidence.tar.gz",
+    "report_item_sha256": "8dae3ec117f3a33d76eda808e00d74184a5376b2ac112e6d9cea5dac2e22413f",
+    "publication_only": true
+  },
+  "task_002586_3d141a4e": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Service is not listening on 127.0.0.1:8080 after waiting.",
+    "reason": "E       Failed: Service is not listening on 127.0.0.1:8080 after waiting.",
+    "instruction_evidence": "4. **Deploy the Service**: \n   - Compile the service by running `make` inside `/app/data-server/`.\n   - Start the service. It must listen for HTTP traffic on `127.0.0.1:8080`.\nEnsure the service remains running in the background so it can be tested. Do not change the existing functional logic of the processor, only add the necessary bounds checking to prevent the buffer overflow.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0008/evidence.tar.gz",
+    "report_item_sha256": "9b2fcc00700227c59335096be1532c797e277b7c2e7cc021f7b0d8ac4aa772bb",
+    "publication_only": true
+  },
+  "task_002853_5fe14c39": {
+    "reviewed": "2026-10-18",
+    "output_line": "E           AssertionError: Server script not found at /home/user/server.py and port 8000 is not open.",
+    "reason": "E           AssertionError: Server script not found at /home/user/server.py and port 8000 is not open.",
+    "instruction_evidence": "   Write a Python HTTP server in `/home/user/server.py`. The server must:\nLeave the server running in the background or ready to be executed via `python3 /home/user/server.py`. Our automated test suite will send real HTTP requests to your service to verify its correctness. Use standard library modules (like `http.server` and `json`) to implement the server.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0008/evidence.tar.gz",
+    "report_item_sha256": "e96ee289bcf24525fdf0b5c53c461a96243db75f48dcb514b0d2da9c57af07a3",
+    "publication_only": true
+  },
+  "task_000299_76be1391": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The forensic report was not found at /home/user/forensics/report.json.",
+    "reason": "E       AssertionError: The forensic report was not found at /home/user/forensics/report.json.",
+    "instruction_evidence": "Using Python and/or shell commands, perform this analysis and create a final report at `/home/user/forensics/report.json`. The file must be valid JSON with the exact following structure and keys:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0009/evidence.tar.gz",
+    "report_item_sha256": "b43f8227b994a020f795f0f39d8c462e0cb5f2afe9dc2ff86e9d39e89b25924c",
+    "publication_only": true
+  },
+  "task_001314_908c6117": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Server is not running or not accepting connections on 127.0.0.1:8080",
+    "reason": "E       AssertionError: Server is not running or not accepting connections on 127.0.0.1:8080",
+    "instruction_evidence": "You are a data scientist studying a rare bioluminescent organism. You have been provided with a video recording of the organism's light emissions over time. Your goal is to extract the temporal signal from the video, analyze its spectral properties to find the dominant pulsation frequency, and deploy a local API that can dynamically analyze specific frame ranges upon request.\n**Part 2: API Deployment**\nYou must write and start an HTTP server (in the language of your choice) listening on `127.0.0.1:8080`. \n- **Request Body format:** `{\"start_frame\": <int>, \"end_frame\": <int>}` (both inclusive, 0-indexed).\nKeep the server running in the background or foreground so that it can be tested. Ensure your server handles potential errors gracefully (e.g., if the frame range is invalid or too short to compute an FFT).\nLet me know once your API is up and running!",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0009/evidence.tar.gz",
+    "report_item_sha256": "e4d06616e8de789113ab63242c0f66a1aa0d4fc57a8a782eaefdf18e3ed3287d",
+    "publication_only": true
+  },
+  "task_001474_b772f98d": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The results file /home/user/ml_prep/results.json does not exist.",
+    "reason": "E       AssertionError: The results file /home/user/ml_prep/results.json does not exist.",
+    "instruction_evidence": "Your program must output a JSON file at `/home/user/ml_prep/results.json` with the exact following structure and keys:\n- Run your program to generate the `results.json` file.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0009/evidence.tar.gz",
+    "report_item_sha256": "57434a7d17acbd0e349a877ff4312b50b02429fb17b297f20ee2cb024b49560e",
+    "publication_only": true
+  },
+  "task_002989_779b1821": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: File /home/user/analysis_report.json does not exist.",
+    "reason": "E       AssertionError: File /home/user/analysis_report.json does not exist.",
+    "instruction_evidence": "Create a JSON file at `/home/user/analysis_report.json` exactly matching this structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0009/evidence.tar.gz",
+    "report_item_sha256": "8634e1774a185fde619efc2bb5a05b8978c48c5024e5910a76f4d47ddc09353c",
+    "publication_only": true
+  },
+  "task_000456_68f109e3": {
+    "reviewed": "2026-10-18",
+    "output_line": "E           Failed: Required script /home/user/account_system/ci_run.sh does not exist.",
+    "reason": "E           Failed: Required script /home/user/account_system/ci_run.sh does not exist.",
+    "instruction_evidence": "   Create a shell script at `/home/user/account_system/ci_run.sh` that orchestrates the final pipeline. This script must:\nEnsure that `/home/user/account_system/ci_run.sh` has executable permissions.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0010/evidence.tar.gz",
+    "report_item_sha256": "9bae15a35b876ae3a6418441fd7b75d6c1b4389b235a04e58fb083eb632723a3",
+    "publication_only": true
+  },
+  "task_003419_0d27a2ba": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/investigate_leak.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/investigate_leak.sh does not exist.",
+    "instruction_evidence": "Write a reproducible bash script at `/home/user/investigate_leak.sh` that performs the following steps when executed:\nEnsure your bash script is executable. You do not need to run the script yourself, but the automated test will execute `/home/user/investigate_leak.sh` to verify your solution.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0010/evidence.tar.gz",
+    "report_item_sha256": "58062754fab6e9b398e8e31a6824025a3a2f5148aa2f08b1c2d36339e6a0b02b",
+    "publication_only": true
+  },
+  "task_000456_86365763": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Service is not listening on 127.0.0.1:8118",
+    "reason": "E       AssertionError: Service is not listening on 127.0.0.1:8118",
+    "instruction_evidence": "1. Listens on `127.0.0.1:<PORT>` (using the port from the blueprint).\nStart the Rust service in the background and leave it running.\n2. The Rust service running on the correct port and correctly authenticating requests.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0011/evidence.tar.gz",
+    "report_item_sha256": "9a325d8467f7cf11a60e32ce8524e68d889201c06b48d21dba4c71c9d4928d92",
+    "publication_only": true
+  },
+  "task_008779_67fd7b30": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The file /home/user/backup_manager.go does not exist.",
+    "reason": "E       AssertionError: The file /home/user/backup_manager.go does not exist.",
+    "instruction_evidence": "Your task is to write a Go program at `/home/user/backup_manager.go` that performs the following steps when executed:\nOnce you have written and tested your Go program, please leave it at `/home/user/backup_manager.go` so it can be automatically evaluated.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0011/evidence.tar.gz",
+    "report_item_sha256": "c5dd0a2ad863bb07cd45af4099de96100e12776a1a5ad439d11400c3cf2af88a",
+    "publication_only": true
+  },
+  "task_009965_f839e983": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Output file /home/user/processed_translations.json is missing.",
+    "reason": "E       AssertionError: Output file /home/user/processed_translations.json is missing.",
+    "instruction_evidence": "4. **Output**: Write the final processed data to `/home/user/processed_translations.json`. The output must be a single JSON object where the keys are the `locale` strings, and the values are arrays of the processed JSON objects (containing `locale`, `key`, `text`, and the new `features` object). The JSON should be pretty-printed with 2 spaces.\nRun your program so that `/home/user/processed_translations.json` is generated correctly.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0011/evidence.tar.gz",
+    "report_item_sha256": "243a9e3e816e8cc54583ff7c6d9269fc910de8ddcce89e05952e60e8c9370b39",
+    "publication_only": true
+  },
+  "task_003794_8a2a6cc0": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Service did not start on port 8000 within 30 seconds.",
+    "reason": "E       Failed: Service did not start on port 8000 within 30 seconds.",
+    "instruction_evidence": "   Create a FastAPI or Flask application listening on `0.0.0.0:8000`. It must expose the following endpoints:\nStart the service in the background and ensure it remains running. Do not use an excessive number of samples by default; let the API payload dictate it.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0012/evidence.tar.gz",
+    "report_item_sha256": "88af0c06ec2dea1e00b059f5f73f5c537965a91a4114c48b9067731e5c47a321",
+    "publication_only": true
+  },
+  "task_009341_dd21984c": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The file /home/user/audit_results.json does not exist. Did you save your findings?",
+    "reason": "E       AssertionError: The file /home/user/audit_results.json does not exist. Did you save your findings?",
+    "instruction_evidence": "   Write your final findings to a file named `/home/user/audit_results.json`. The file must be strictly formatted as valid JSON with the following structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0012/evidence.tar.gz",
+    "report_item_sha256": "79fd50fc63f228ed92bc6d61901b4fed47d7627d880322fce2cae930e55483a7",
+    "publication_only": true
+  },
+  "task_009390_cb0bd224": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Expected results file /home/user/results.json does not exist.",
+    "reason": "E       AssertionError: Expected results file /home/user/results.json does not exist.",
+    "instruction_evidence": "   - Save your final results to a JSON file at `/home/user/results.json`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0012/evidence.tar.gz",
+    "report_item_sha256": "bbda70c223bef3c7632b2e4be1d5b0c292255e6c4d418e50775d477ab84742b0",
+    "publication_only": true
+  },
+  "task_009911_6f100fcb": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/process_logs.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/process_logs.sh does not exist.",
+    "instruction_evidence": "Your objective is to build a robust Bash pipeline (written in a script at `/home/user/process_logs.sh`) that processes these logs, handles the multi-line anomalies, anonymizes PII, calculates rolling aggregates, and flags performance anomalies.\n- Your script `/home/user/process_logs.sh` must be written in Bash (using tools like `awk`, `sed`, `grep`, `sort`, etc.).",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0012/evidence.tar.gz",
+    "report_item_sha256": "5b701441ac96d241127e94774bbe433b89bca7af22aefeec2e866ee7f5937c14",
+    "publication_only": true
+  },
+  "task_001235_5004418b": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Report file missing at /home/user/report.json",
+    "reason": "E       AssertionError: Report file missing at /home/user/report.json",
+    "instruction_evidence": "Your task is to write a Go program (`/home/user/analyze_backups.go`) that parses this metadata, reverse-engineers the implicit dependency graph, performs graph analytics, and outputs a JSON report to `/home/user/report.json`.\nThe output at `/home/user/report.json` must exactly match this structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0015/evidence.tar.gz",
+    "report_item_sha256": "f4b693cb01ab4de581d7d260eedb5ee2bb536bbfea079b52a71bbede4c8abdec",
+    "publication_only": true
+  },
+  "task_005241_84245059": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Agent script missing at /home/user/pack_ccf.py",
+    "reason": "E       AssertionError: Agent script missing at /home/user/pack_ccf.py",
+    "instruction_evidence": "2. Write a Python script at `/home/user/pack_ccf.py` that perfectly replicates the `pack` functionality.\n   `python3 /home/user/pack_ccf.py <input_directory> <output_file.ccf>`",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0015/evidence.tar.gz",
+    "report_item_sha256": "062aa1287052ab5d966396baaed2314fdd875fdb30b78debf244327c33691e69",
+    "publication_only": true
+  },
+  "task_006121_00d9c6c3": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Setup script missing: /home/user/project/setup_and_run.sh",
+    "reason": "E       AssertionError: Setup script missing: /home/user/project/setup_and_run.sh",
+    "instruction_evidence": "Your goal is to write a bash script `/home/user/project/setup_and_run.sh` that performs the following tasks:\n   Your `setup_and_run.sh` script must apply all `.sql` files found in the `migrations` directory to `data.db` in alphabetical order.\n   Your `setup_and_run.sh` must generate a script at `/home/user/project/api_handler.sh`. This script will act as a CGI-like handler. It will receive a raw HTTP GET request on standard input.\nMake sure your `setup_and_run.sh` script is executable. You do not need to start a long-running web server; an automated test will pipe raw HTTP requests directly into your `api_handler.sh` to verify its correctness.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0015/evidence.tar.gz",
+    "report_item_sha256": "c73efb5593cb67644820b4e1bfbc6810e8e6e5c3e9a5d5184d350e4a8b6ef81f",
+    "publication_only": true
+  },
+  "task_007119_4d6fe865": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Audit report file /home/user/audit_report.json does not exist.",
+    "reason": "E       AssertionError: Audit report file /home/user/audit_report.json does not exist.",
+    "instruction_evidence": "A staging deployment artifact is located at `/home/user/deploy_artifact/`. You need to write a Python script at `/home/user/audit_trail.py` that performs a security audit on this directory and generates a strict JSON report at `/home/user/audit_report.json`.\nYour script must output a JSON file at `/home/user/audit_report.json` with exactly the following structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0015/evidence.tar.gz",
+    "report_item_sha256": "de8154f4efa739092eeec0ac28908d2419bc209f7527c61dac01be6a95c00347",
+    "publication_only": true
+  },
+  "task_002190_2cab17db": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Release archive not found at /home/user/release_v2.tar.gz",
+    "reason": "E       AssertionError: Release archive not found at /home/user/release_v2.tar.gz",
+    "instruction_evidence": "   Create a release tarball at `/home/user/release_v2.tar.gz` containing:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0016/evidence.tar.gz",
+    "report_item_sha256": "b2be5fe3fbfb8bb0c79a63deccbcebe3d82833d53eff185ff9a736114deff9b9",
+    "publication_only": true
+  },
+  "task_003287_5e636c42": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/preprocess.py does not exist.",
+    "reason": "E       AssertionError: /home/user/preprocess.py does not exist.",
+    "instruction_evidence": "First, write a Python script `/home/user/preprocess.py` that does the following:\n1. **Reproducibility Test**: Run `/home/user/preprocess.py` twice. Save the output of the first run as `run1.csv` and the second as `run2.csv`. Compare the files. If they are exactly identical, write the word `REPRODUCIBLE` to `/home/user/reproducibility.log`. Otherwise, write `DIVERGENT`.\n3. **Performance Benchmark**: Use the `/usr/bin/time -p` command to benchmark the execution of `/home/user/preprocess.py`. Redirect the output of the `time` command to `/home/user/benchmark.log`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0016/evidence.tar.gz",
+    "report_item_sha256": "b6a9f58da8f1ba4c83de935209d383beed4df841de949965cdd7e426ff49e0fd",
+    "publication_only": true
+  },
+  "task_004490_3af2a2a7": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Service is not running or not reachable at 127.0.0.1:8888",
+    "reason": "E       Failed: Service is not running or not reachable at 127.0.0.1:8888",
+    "instruction_evidence": "5. **Start the Service:** Run the fixed Flask service. It must listen on `127.0.0.1:8888`. ",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0016/evidence.tar.gz",
+    "report_item_sha256": "c1909ed9fb35837ca91c31980c27ca816ec1a1c05eadfbccc208683c32eba403",
+    "publication_only": true
+  },
+  "task_008116_5be67e8d": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/setup_env.sh does not exist.",
+    "reason": "E       AssertionError: /home/user/setup_env.sh does not exist.",
+    "instruction_evidence": "   Create a bash script at `/home/user/setup_env.sh` that initializes a bare Git repository at `/home/user/project.git`.\n   In your `/home/user/setup_env.sh` script, after setting up the bare repository and hook, start `/home/user/monitor.py` in the background. It is critical that the monitor is started *only after* the Git repository and hook are fully configured, mimicking a service startup dependency.\nEnsure that all files have the correct executable permissions where necessary. You do not need to run the setup script yourself; the verification suite will execute `/home/user/setup_env.sh`, push multiple commits to `/home/user/project.git` to trigger the hooks and rotation, and then verify the system state.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0016/evidence.tar.gz",
+    "report_item_sha256": "1d1e3c9f8c8496243222a1f03b4e2a261bcac73f66b0cbe820411bddbe576c27",
+    "publication_only": true
+  },
+  "task_008635_4dcb846e": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Missing script: /home/user/pipeline.sh",
+    "reason": "E       AssertionError: Missing script: /home/user/pipeline.sh",
+    "instruction_evidence": "You need to write a standalone Bash script named `/home/user/pipeline.sh` that processes a raw sensor dataset, enforces schema validity, aggregates statistics, computes mathematical correlations, and logs the experiment metadata. \nEnsure your script is executable (`chmod +x /home/user/pipeline.sh`) and runs without user interaction.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0017/evidence.tar.gz",
+    "report_item_sha256": "0e4e5316263192785fbf17d628589c100d64411440660f3a9c19dab540a0cdd9",
+    "publication_only": true
+  },
+  "task_003104_4b65bc0b": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Proxy executable not found at /home/user/proxy",
+    "reason": "E       AssertionError: Proxy executable not found at /home/user/proxy",
+    "instruction_evidence": "To protect the new backend during the migration, we need to place a custom reverse proxy in front of it. \nYour task is to write a reverse proxy in Go that filters out malicious payloads.\n1. Write a Go program at `/home/user/proxy.go` and compile it to `/home/user/proxy`.\n2. The proxy must listen on `127.0.0.1:8080` and forward all HTTP requests to the Python 3 backend at `http://127.0.0.1:9000`.\n3. The proxy must read the incoming request body (specifically for POST requests). If the body contains a specific malicious byte sequence, the proxy must immediately return an HTTP `403 Forbidden` status code and NOT forward the request to the backend. Otherwise, it should forward the request normally.\n4. We have lost the original documentation for the exact byte sequence of the exploit, but the previous lead engineer left a scan of a sticky note at `/app/malware_note.png`. You will need to extract the x86 assembly instructions written in that image and determine their compiled binary representation (opcodes/hex bytes). The proxy must search for this exact compiled byte sequence in the request body.\n5. Your proxy should gracefully handle concurrent requests.\nEnsure the compiled binary `/home/user/proxy` is ready to be executed by our automated end-to-end test orchestrator, which will start your proxy and send a corpus of clean and malicious payloads through it to verify correct behavior.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0018/evidence.tar.gz",
+    "report_item_sha256": "609f49e14ddf037bad8ad78bdee7a2719f5d94b7d9833f0a20f0b6594fd500f3",
+    "publication_only": true
+  },
+  "task_004279_806e5674": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The service is not running or not reachable on 127.0.0.1:8000.",
+    "reason": "E       AssertionError: The service is not running or not reachable on 127.0.0.1:8000.",
+    "instruction_evidence": "3. Start the fixed service so it listens on `127.0.0.1:8000`. Ensure the service is running in the background and is ready to accept connections before you finish the task.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0018/evidence.tar.gz",
+    "report_item_sha256": "9c6b79e2c966cb7e5e96c5af172d523f1aff527b18c663d5d840f22ade85e5c3",
+    "publication_only": true
+  },
+  "task_001745_2bff5967": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/math_project/run_pipeline.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/math_project/run_pipeline.sh does not exist.",
+    "instruction_evidence": "I need you to write a Bash script at `/home/user/math_project/run_pipeline.sh` that performs the following steps to organize the project, fix the build orchestration, benchmark the algorithm, and encode the results:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0019/evidence.tar.gz",
+    "report_item_sha256": "c1f708bb593de363435389af8211a8bb04d061b7dd8736df1d4a28025604cedf",
+    "publication_only": true
+  },
+  "task_002244_5fe880f6": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Output file /home/user/config_report.json is missing.",
+    "reason": "E       AssertionError: Output file /home/user/config_report.json is missing.",
+    "instruction_evidence": "Create a JSON file at `/home/user/config_report.json` exactly following this structure:\n- Write and execute your script to produce the final `/home/user/config_report.json` file.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0019/evidence.tar.gz",
+    "report_item_sha256": "2f703a50afb83514f12c0897752cc2825ddf9a711f501b38c75f49e0ac01e467",
+    "publication_only": true
+  },
+  "task_004546_53b8007b": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Startup script not found: /home/user/start_service.sh",
+    "reason": "E       AssertionError: Startup script not found: /home/user/start_service.sh",
+    "instruction_evidence": "Write the service in Python or C, but the core Monte Carlo logic *must* be executed via your fixed C program. Create a shell script `/home/user/start_service.sh` that compiles the C code and starts the web service.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0019/evidence.tar.gz",
+    "report_item_sha256": "840335a33f68f3775e0c34c7526663412965fe4c32bf19e593e274825773b17e",
+    "publication_only": true
+  },
+  "task_000569_a45c9979": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/start_service.sh does not exist",
+    "reason": "E       AssertionError: /home/user/start_service.sh does not exist",
+    "instruction_evidence": "3. **Setup the Service**: Write a bash script `/home/user/start_service.sh` that uses standard CLI tools (like `nc` or `socat`) to listen on TCP port `8888`.\nEnsure your `start_service.sh` is executable and runs the service in the background or blocks appropriately.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0020/evidence.tar.gz",
+    "report_item_sha256": "95ae8e98501b9d45a78e38a3ecd2c8d0281cc4f1196a438a8e9a4190bca8ccde",
+    "publication_only": true
+  },
+  "task_000623_a08b73ac": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The report file /home/user/audit_report.json was not found. Did the Rust program generate it?",
+    "reason": "E       AssertionError: The report file /home/user/audit_report.json was not found. Did the Rust program generate it?",
+    "instruction_evidence": "   - Write the final results to `/home/user/audit_report.json` in the exact format shown below:\n- Run your tool and ensure `/home/user/audit_report.json` is generated correctly.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0020/evidence.tar.gz",
+    "report_item_sha256": "89f7a606339ff906479b180a3e38d32f74da7310e8efa35e559c0b1bb377e735",
+    "publication_only": true
+  },
+  "task_002167_0ef63c7f": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Service at http://127.0.0.1:8080 did not start or is not reachable.",
+    "reason": "E       AssertionError: Service at http://127.0.0.1:8080 did not start or is not reachable.",
+    "instruction_evidence": "4. **Service**: Create and run an HTTP service (using Flask, FastAPI, or similar) listening on `127.0.0.1:8080`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0020/evidence.tar.gz",
+    "report_item_sha256": "ce4cd9d1b75febcf393cceef8583d5df87844f303346f02110ca8db6315a3587",
+    "publication_only": true
+  },
+  "task_004840_c18def22": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/deploy_and_monitor.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/deploy_and_monitor.sh does not exist.",
+    "instruction_evidence": "Please create a Bash script at `/home/user/deploy_and_monitor.sh` that performs the following steps exactly:\nMake sure the script is executable (`chmod +x`). I will test your work by executing `/home/user/deploy_and_monitor.sh` and then inspecting `/home/user/metrics.csv` and checking that no stray background processes were left running.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0020/evidence.tar.gz",
+    "report_item_sha256": "50503359c58654ed53c4a196ebdae1b4d481844383d74b49c1bf2ba84a967c86",
+    "publication_only": true
+  },
+  "task_005293_d6e59082": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: API service did not become available on 127.0.0.1:8000 within 10 seconds.",
+    "reason": "E       Failed: API service did not become available on 127.0.0.1:8000 within 10 seconds.",
+    "instruction_evidence": "1. A PostgreSQL database running locally on port 5432 containing dataset metadata. The database `catalog` has a table `datasets` with columns: `id` (integer), `name` (text), and `description` (text).\nYour task is to implement and run an HTTP API service (using Python, e.g., Flask or FastAPI) that listens on `127.0.0.1:8000`.\n- A script to start and seed the PostgreSQL database is provided at `/app/setup_db.sh`. You must run it to start the database service. It sets up the `catalog` DB with user `postgres` and password `postgres`.\nStart the API on port 8000 and ensure it is fully functional.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0020/evidence.tar.gz",
+    "report_item_sha256": "190a12c229d7713732db8a72f0ab9c745bea7f60fac31f4bc6322dc0de064480",
+    "publication_only": true
+  },
+  "task_008583_788d0622": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Build script /home/user/workspace/build.sh not found.",
+    "reason": "E       AssertionError: Build script /home/user/workspace/build.sh not found.",
+    "instruction_evidence": "   Create an executable bash script at `/home/user/workspace/build.sh` that automates the build process:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0020/evidence.tar.gz",
+    "report_item_sha256": "eba0901567360d9d918389b71efca56e3a4d41595df7ebcc0a767aef7edbabdc",
+    "publication_only": true
+  },
+  "task_002272_b17557b0": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script not found at /home/user/storage_cleaner.py",
+    "reason": "E       AssertionError: Script not found at /home/user/storage_cleaner.py",
+    "instruction_evidence": "Your objective is to write a Python script, `/home/user/storage_cleaner.py`, that acts as a robust filesystem filter. This script must process a given target directory, performing the following tasks safely:\n`python3 /home/user/storage_cleaner.py <directory_path>`",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0021/evidence.tar.gz",
+    "report_item_sha256": "d919c07c0a0494c20c98fbb2bef1f79f0670ba451132b3f751d80d7e1189a468",
+    "publication_only": true
+  },
+  "task_002035_46fbf7f4": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Agent script not found at /home/user/process_configs.py",
+    "reason": "E       AssertionError: Agent script not found at /home/user/process_configs.py",
+    "instruction_evidence": "Second, write a Python CLI script at `/home/user/process_configs.py` that processes a directory of JSON configuration logs. ",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0022/evidence.tar.gz",
+    "report_item_sha256": "9eb61e12da2591677dec1d86008ee484b51a311bf51a743fb5de843f4f901973",
+    "publication_only": true
+  },
+  "task_004360_219c7a5d": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/deploy.sh is missing",
+    "reason": "E       AssertionError: /home/user/deploy.sh is missing",
+    "instruction_evidence": "Write a bash script at `/home/user/deploy.sh` that performs the following actions:\nMake sure `/home/user/deploy.sh` is executable. You do not need to run the `deploy.sh` script to completion if it blocks, but ensure all commands are correctly formatted so our automated test suite can execute it.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0022/evidence.tar.gz",
+    "report_item_sha256": "55cb98b6f85e3801331b47baf00d30413564473bf1d8a187f2cd616572cfc6fd",
+    "publication_only": true
+  },
+  "task_001239_0618df17": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/run.sh does not exist.",
+    "reason": "E       AssertionError: /home/user/run.sh does not exist.",
+    "instruction_evidence": "   - Write a Bash script at `/home/user/run.sh` that runs your Python script, and then computes the SHA-256 checksums of `category_stats.csv` and `recommendations.txt`.\n   - Make sure `/home/user/run.sh` is executable.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0023/evidence.tar.gz",
+    "report_item_sha256": "6d0965ae22efab59b172dee3a10edaf62d62e4e79617ff0f75fa8f0ae2f72216",
+    "publication_only": true
+  },
+  "task_002327_f57f58ba": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Server is not reachable at 127.0.0.1:8080. Did you start it?",
+    "reason": "E       AssertionError: Server is not reachable at 127.0.0.1:8080. Did you start it?",
+    "instruction_evidence": "You are a database administrator tasked with optimizing and deploying a custom C++ graph database engine. \nWe have a vendored graph database package located at `/app/vendored/simple-graph-db`. It provides a lightweight HTTP server for querying graph analytics (specifically, node centrality). We need to get this service up and running to serve a new application, but it has a few problems:\n3. **Deployment**: Once fixed, compile the engine using `make`. Then, start the server so that it listens on `127.0.0.1` port `8080`. You must load the graph dataset located at `/app/data/edges.csv` by passing it via the `--graph` command-line argument.\nPlease leave the server running in the background once you have fixed the code, compiled it, and verified it works. The automated verification system will send real HTTP requests to your server to ensure pagination is working correctly and the correct top nodes are returned.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0023/evidence.tar.gz",
+    "report_item_sha256": "57072933f5698baa28588b94606c85786e3f294b238cdbc105a0b4cdfdc0374b",
+    "publication_only": true
+  },
+  "task_008173_91a185a8": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/build_and_test.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/build_and_test.sh does not exist.",
+    "instruction_evidence": "I need you to write a Bash script at `/home/user/build_and_test.sh` that performs the following steps to build, link, and test our custom C serialization library:\nMake sure your script has execute permissions, but do not execute it for me\u2014I will execute `/home/user/build_and_test.sh` myself after you create it.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0023/evidence.tar.gz",
+    "report_item_sha256": "1837bbb94d3547cd76c997e31489052b280489b0740703b7517ad0b3d8875acf",
+    "publication_only": true
+  },
+  "task_002998_668f249e": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Server is not listening on 127.0.0.1:8080",
+    "reason": "E       Failed: Server is not listening on 127.0.0.1:8080",
+    "instruction_evidence": "Your task is to write and run a C++ HTTP server listening on `127.0.0.1:8080`. \n4. **Open Redirect Mitigation:** Validate the `redirect` parameter. The server should only allow local relative redirects (e.g., paths starting with a single `/`, like `/dashboard`). If the redirect URL is absolute (contains `http://`, `https://`, or starts with `//`), the server must reject the request by returning an HTTP 400 Bad Request.\n- Leave the server running in the background once compiled and started so it can be verified.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0024/evidence.tar.gz",
+    "report_item_sha256": "138875246df6ebfecef296a7eb02bd3092bd5f03fdb49408ae90757c37c539cf",
+    "publication_only": true
+  },
+  "task_006183_5a64ec52": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/project/start.sh does not exist.",
+    "reason": "E       AssertionError: /home/user/project/start.sh does not exist.",
+    "instruction_evidence": "3. **Execution Script**: Create a bash script at `/home/user/project/start.sh` that:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0024/evidence.tar.gz",
+    "report_item_sha256": "6413b7e257b02f7800f4a8d6b463b6e4f42242f291b605ac4159d82dcdc83612",
+    "publication_only": true
+  },
+  "task_000204_7f3ff91b": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The script /home/user/upgrade_pipeline.sh does not exist.",
+    "reason": "E       AssertionError: The script /home/user/upgrade_pipeline.sh does not exist.",
+    "instruction_evidence": "Your task is to write a Bash script at `/home/user/upgrade_pipeline.sh` that performs the following steps automatically:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0025/evidence.tar.gz",
+    "report_item_sha256": "249bf71efc55c1b1a781427d0d2729d687852eca7dbe0397e404e49f9693da77",
+    "publication_only": true
+  },
+  "task_000792_16bc86f2": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Server at http://127.0.0.1:9090 is not responding.",
+    "reason": "E       AssertionError: Server at http://127.0.0.1:9090 is not responding.",
+    "instruction_evidence": "Create and start an HTTP server listening on `127.0.0.1:9090`. The server must implement the following endpoints:\n*   Ensure your HTTP server binds specifically to `127.0.0.1:9090`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0025/evidence.tar.gz",
+    "report_item_sha256": "2295fd4ddde98312c81eb980623c0ed983821ada2b2939fd3e104487715434b8",
+    "publication_only": true
+  },
+  "task_003907_c111dc21": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/restore_tester.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/restore_tester.sh does not exist.",
+    "instruction_evidence": "Your task is to write a robust Bash script at `/home/user/restore_tester.sh` that automates the extraction, processing, and verification of this backup. \nEnsure your script is executable (`chmod +x /home/user/restore_tester.sh`) and can be run without any arguments. Do not run the script yourself; the automated testing suite will execute your script and verify the resulting `/home/user/restore_report.json` and `/home/user/restore_test/local_proxy.conf` files.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0025/evidence.tar.gz",
+    "report_item_sha256": "45ef9f568d83b28d013917ab157070470f54bd35f6f71d2d7d762ec03f6d4128",
+    "publication_only": true
+  },
+  "task_007343_6694081e": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The file /home/user/experiment_results.json does not exist. Did you save your results?",
+    "reason": "E       AssertionError: The file /home/user/experiment_results.json does not exist. Did you save your results?",
+    "instruction_evidence": "8. **Experiment Tracking**: Save the final results to a JSON file at `/home/user/experiment_results.json`. The JSON file must have exactly two keys:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0025/evidence.tar.gz",
+    "report_item_sha256": "79a8a1d86214e5909f18b6a4635f1979fe4ba87805eb838b9f5980ddc4cd6c7f",
+    "publication_only": true
+  },
+  "task_004444_9da7f8d9": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Sanitizer script not found at /home/user/log_sanitizer.py",
+    "reason": "E       AssertionError: Sanitizer script not found at /home/user/log_sanitizer.py",
+    "instruction_evidence": "Finally, implement the log sanitizer. Create a Python script at `/home/user/log_sanitizer.py`. Your script must accept two arguments: an input directory containing `.log` text files, and an output directory.\n`python3 /home/user/log_sanitizer.py <input_dir> <output_dir>`",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0026/evidence.tar.gz",
+    "report_item_sha256": "73f2f623c52062960c65ad297afca3113cabb7971622dd38cb39e183591d168f",
+    "publication_only": true
+  },
+  "task_006556_1963d425": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The audit report is missing: /home/user/audit_report.json",
+    "reason": "E       AssertionError: The audit report is missing: /home/user/audit_report.json",
+    "instruction_evidence": "4. Generate a final report in JSON format at `/home/user/audit_report.json`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0026/evidence.tar.gz",
+    "report_item_sha256": "479d88d65e79cdd933eabab4cc6b74d22c46a2acf471c8c229a86ec678da516d",
+    "publication_only": true
+  },
+  "task_007402_0a45b61a": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The script /home/user/run_etl.sh does not exist.",
+    "reason": "E       AssertionError: The script /home/user/run_etl.sh does not exist.",
+    "instruction_evidence": "Your goal is to write a Python script `/home/user/etl.py` and a Bash runner script `/home/user/run_etl.sh` that satisfy the following requirements.\n**Bash Script (`/home/user/run_etl.sh`):**",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0026/evidence.tar.gz",
+    "report_item_sha256": "31d6265679324b480bad6b93635fa64d71ee2a1e3d44ef4a9ca9ad85ff67008a",
+    "publication_only": true
+  },
+  "task_003482_58371f3f": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/start_gateway.sh does not exist",
+    "reason": "E       AssertionError: /home/user/start_gateway.sh does not exist",
+    "instruction_evidence": "   - Provide a final script `/home/user/start_gateway.sh` that launches `fcgiwrap` in the background, starts `nginx` using your configuration, and ensures all permissions are correctly set. ",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0027/evidence.tar.gz",
+    "report_item_sha256": "d0fbb53631cc7f2d9e9ab83ae48732aa734d7d2ed8eb0cfb268a30fa118f2ed0",
+    "publication_only": true
+  },
+  "task_001643_276dfc6c": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Service on port 8080 is not responding within the timeout.",
+    "reason": "E       Failed: Service on port 8080 is not responding within the timeout.",
+    "instruction_evidence": "* Your Go service must listen for HTTP traffic on `0.0.0.0:8080`.\n* Ensure your service is running and remains running (do not exit) once you consider the task complete.\n* **Zip-Slip Prevention (Log Parsing):** Parse the output. If *any* `Filepath` contains path traversal sequences (e.g., `../`, `..\\\\`) or is an absolute path (starts with `/`), the archive is malicious.\nCreate the `/home/user/staging/` and `/home/user/repository/` directories before starting your service. Write your Go code in `/home/user/curator.go` and run it. You may use standard Go library packages.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0028/evidence.tar.gz",
+    "report_item_sha256": "04f6edba7f3e00486850102693151da638435663c32668de5d5b69268b92bbbb",
+    "publication_only": true
+  },
+  "task_002597_755ce35a": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Report file not found at /home/user/report.json",
+    "reason": "E       AssertionError: Report file not found at /home/user/report.json",
+    "instruction_evidence": "Write your findings to a JSON file at `/home/user/report.json` with the exact following structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0029/evidence.tar.gz",
+    "report_item_sha256": "70e6ec41390096569889b010762c1525cda60f0540575fc7ae91f0fea27b66f1",
+    "publication_only": true
+  },
+  "task_003242_5c8f858c": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: API server file /home/user/linker_api.py not found",
+    "reason": "E       AssertionError: API server file /home/user/linker_api.py not found",
+    "instruction_evidence": "   Create a Python API server at `/home/user/linker_api.py` using Flask or FastAPI.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0029/evidence.tar.gz",
+    "report_item_sha256": "aa6688d375f308ddba6bbc6386c1d71a9240bdea1a228663ad73ed71fcf616d2",
+    "publication_only": true
+  },
+  "task_003483_c28db7a0": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Deployment script missing at /home/user/deploy.sh",
+    "reason": "E       AssertionError: Deployment script missing at /home/user/deploy.sh",
+    "instruction_evidence": "Create a deployment script at `/home/user/deploy.sh` that:\nEnsure your `deploy.sh` script is executable. You may interactively run the legacy binary to deduce its behavior and test your proxy before finalizing the deployment script.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0029/evidence.tar.gz",
+    "report_item_sha256": "e802fbd8ddb423a928afa16f1a4a89f623914eaded0ccb45d32b0bf832abb3a5",
+    "publication_only": true
+  },
+  "task_005007_e62d390a": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The report file /home/user/report.txt was not created.",
+    "reason": "E       AssertionError: The report file /home/user/report.txt was not created.",
+    "instruction_evidence": "Your script must execute these steps and output the findings to `/home/user/report.txt` in the following exact format:\nExample of expected output format in `/home/user/report.txt`:\nOnce you have written `/home/user/investigate.sh`, run it so that `/home/user/report.txt` is created with the correct data. Ensure your script handles the file parsing robustly using Bash utilities.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0029/evidence.tar.gz",
+    "report_item_sha256": "71c7efa05070ac33a74b3c697a695a72ecb6d6e6bb92f38df203d18663f79fe5",
+    "publication_only": true
+  },
+  "task_002066_b2d16222": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Server is not listening on port 8080.",
+    "reason": "E       AssertionError: Server is not listening on port 8080.",
+    "instruction_evidence": "**Step 3: Service Deployment**\nYour C++ application must start an HTTP server listening on `0.0.0.0:8080`.\n- Compile your C++ server and leave it running in the background. Write a script `run_server.sh` in `/home/user/` that compiles and runs your server. Execute it before finishing.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0030/evidence.tar.gz",
+    "report_item_sha256": "3547939c24ef4c39e649f15d9aad53a523f03f1c9d2890078168480e88e07496",
+    "publication_only": true
+  },
+  "task_004819_ff5724ef": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Service is not listening on 127.0.0.1:8080. Is the C application running?",
+    "reason": "E       Failed: Service is not listening on 127.0.0.1:8080. Is the C application running?",
+    "instruction_evidence": "We are deploying a new configuration manager that receives ETL logs from remote edge devices. Due to network instability, the remote data transfer mechanism frequently retries, causing duplicate records to be sent to our endpoint. \n2. **Develop the Service:** Create a C application at `/home/user/config_server.c` that uses `tinyhttp` to listen on `127.0.0.1:8080`.\nCompile your service and start it in the background so it binds to `127.0.0.1:8080` and is ready to receive traffic.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0030/evidence.tar.gz",
+    "report_item_sha256": "c47953cd562cae70c5743fcfbe60c5cc35fd29edb5616d572daf6dafd5491208",
+    "publication_only": true
+  },
+  "task_000100_29669868": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: API server is not reachable at 127.0.0.1:8000",
+    "reason": "E       AssertionError: API server is not reachable at 127.0.0.1:8000",
+    "instruction_evidence": "5. **Serve the Data**: Start an HTTP server listening on `0.0.0.0:8000`. \nYou must write a Python script (or multiple scripts) to execute this entire pipeline and launch the API server. You may install any necessary open-source libraries (e.g., `openai-whisper`, `fastapi`, `uvicorn`, `pandas`) using `pip`. Leave the server running in the foreground or background so it can be tested.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0031/evidence.tar.gz",
+    "report_item_sha256": "83383a469a4efa530ac7909ac8d060825438fee73770d2df162a18e828951d68",
+    "publication_only": true
+  },
+  "task_004472_d57be815": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/clean_and_backup.py does not exist.",
+    "reason": "E       AssertionError: Script /home/user/clean_and_backup.py does not exist.",
+    "instruction_evidence": "I need you to create a Python script located at `/home/user/clean_and_backup.py` that acts as a safe wrapper and backup orchestrator. \n`python3 /home/user/clean_and_backup.py <target_dir>`\nPlease write the complete Python script at `/home/user/clean_and_backup.py`. Make sure it's executable.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0031/evidence.tar.gz",
+    "report_item_sha256": "2e61d77af3afcfc1360c25c0887b79f5d9bc721d2a5c12713732b3b8bc4c9a0c",
+    "publication_only": true
+  },
+  "task_008384_868932b3": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Missing results file: /home/user/results.json",
+    "reason": "E       AssertionError: Missing results file: /home/user/results.json",
+    "instruction_evidence": "   - Save the results to a JSON file at `/home/user/results.json` strictly matching this structure:\n- Ensure `/home/user/results.json` is created successfully with the correct data.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0031/evidence.tar.gz",
+    "report_item_sha256": "ee3ee324a676aec0c84d6441adfd240526b388ff6e79b9882b82fb81b4db7d13",
+    "publication_only": true
+  },
+  "task_009462_e9383c4b": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Deployment script /home/user/deploy.py not found.",
+    "reason": "E       AssertionError: Deployment script /home/user/deploy.py not found.",
+    "instruction_evidence": "Your objective is to write a single Python script at `/home/user/deploy.py` that performs the following steps. The script must be completely idempotent (safe to run multiple times without causing errors or overriding generated files unnecessarily).\nRequirements for `/home/user/deploy.py`:\nDo not start the server or the forwarder inside `deploy.py`. The automated test will execute `/home/user/deploy.py` twice to verify idempotency and log outputs, and then it will execute `/home/user/app_v2/server.py` and `/home/user/forward.sh` in the background to test the HTTPS endpoint. Ensure `deploy.py` is executable.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0031/evidence.tar.gz",
+    "report_item_sha256": "ea7416ed8b4e97dfff58b2bf07bf736890827ba5691c5e5a326b4b3c3e470624",
+    "publication_only": true
+  },
+  "task_000740_487424b2": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/deploy_mock_lib.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/deploy_mock_lib.sh does not exist.",
+    "instruction_evidence": "Write a Bash script at `/home/user/deploy_mock_lib.sh` that performs the following steps:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0032/evidence.tar.gz",
+    "report_item_sha256": "868296bcbe4b3195ac6d1e158377677ff7df970e5a40ce0b0a4830290bdccb4b",
+    "publication_only": true
+  },
+  "task_000713_4d9b0f30": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Agent executable not found at /home/user/workspace/dep_solver",
+    "reason": "E       AssertionError: Agent executable not found at /home/user/workspace/dep_solver",
+    "instruction_evidence": "We have an existing proprietary utility that calculates build orders and detects cycles, but we lost its source code. We only have a stripped compiled binary located at `/app/bin/dep_solver_oracle`. \n    - You must also write a command-line wrapper in C++ named `dep_solver` that links against this shared library, calls the FFI function, and prints the resulting output buffer to `stdout`.\n3. **Behavior:** The oracle parses the dependency graph and either outputs a deterministic build order or reports a cycle. You must deduce the exact algorithmic rules (e.g., how ties are broken in the topological sort, how cycle errors are formatted) by passing test protobuf binaries to `/app/bin/dep_solver_oracle` and observing its `stdout`.\n4. **Build:** Your final executable must be compiled to `/home/user/workspace/dep_solver` and the shared library to `/home/user/workspace/libdepsolver.so`. Use a Makefile or CMake to build your project. Protobuf C++ headers and the `protoc` compiler are already installed on the system.\nCreate the necessary files, compile your code, and ensure `/home/user/workspace/dep_solver` produces exactly the same standard output as `/app/bin/dep_solver_oracle` for any valid protobuf input defined by `deps.proto`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0033/evidence.tar.gz",
+    "report_item_sha256": "e1fb975697aa159233a46966245ef01333ee5cefba90ac2fb7d6d8cc8c9ce835",
+    "publication_only": true
+  },
+  "task_001516_79b81530": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Tarball not found at /app/final_backup.tar.gz",
+    "reason": "E       AssertionError: Tarball not found at /app/final_backup.tar.gz",
+    "instruction_evidence": "*   Create a compressed tarball of this directory at `/app/final_backup.tar.gz`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0033/evidence.tar.gz",
+    "report_item_sha256": "b7cde40e1e7f87a882a1070a2887b16f82d3d83d5419d338e663349219e4715e",
+    "publication_only": true
+  },
+  "task_002466_26b76ea7": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Agent executable not found at /home/user/analyzer",
+    "reason": "E       AssertionError: Agent executable not found at /home/user/analyzer",
+    "instruction_evidence": "Once you know the weights, I need a C++ CLI tool located at `/home/user/analyzer`. \nThe C++ tool must be compiled and ready to execute at `/home/user/analyzer`. It must be highly performant and handle missing frame sequences (e.g., if a node has data for frames 2, 5, and 10, the window for frame 10 uses the rows from 2, 5, and 10). ",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0033/evidence.tar.gz",
+    "report_item_sha256": "56c8a7a489cc338c2374a98c11ea86294c7ae693f63962a4bb889c209e5a9036",
+    "publication_only": true
+  },
+  "task_003458_cafb7c65": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Server never became ready (did not write 'READY' to /home/user/app/server_ready.log within 30 seconds).",
+    "reason": "E       AssertionError: Server never became ready (did not write 'READY' to /home/user/app/server_ready.log within 30 seconds).",
+    "instruction_evidence": "Start your server in the background using `uvicorn server:app --host 0.0.0.0 --port 8000` when you are done, so we can verify it. Write a log file to `/home/user/app/server_ready.log` containing the word \"READY\" when your server is fully initialized and ready to receive requests.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0033/evidence.tar.gz",
+    "report_item_sha256": "2e242d19d71733a8f2b49d8ac97bf85f09f90c3a90f27faa01920aa13c99d056",
+    "publication_only": true
+  },
+  "task_008853_e0285ac7": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Source file /home/user/safe_backup.c is missing.",
+    "reason": "E       AssertionError: Source file /home/user/safe_backup.c is missing.",
+    "instruction_evidence": "Write a C program at `/home/user/safe_backup.c` that performs the following steps when executed:\n- Ensure your code compiles without warnings using standard `gcc`. You do not need to compile or run the program yourself; the evaluation environment will compile `/home/user/safe_backup.c` and execute it to verify the results.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0033/evidence.tar.gz",
+    "report_item_sha256": "294a33554ca6b72f8e762a71242f668be9ac4d42f75c8450f24032a71a8cb6c6",
+    "publication_only": true
+  },
+  "task_000101_5b83d1ba": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Missing required file: /home/user/converter.go",
+    "reason": "E       AssertionError: Missing required file: /home/user/converter.go",
+    "instruction_evidence": "Create a Go program at `/home/user/converter.go`. It must accept exactly two arguments:\n`go run /home/user/converter.go <input_file> <output_json_file>`\nWrite the code and ensure it is saved at `/home/user/converter.go`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0034/evidence.tar.gz",
+    "report_item_sha256": "12c79fc6be3d95a99abb269fe5ec11cc8eae91a1d484c6e7b1265895ab47c0b8",
+    "publication_only": true
+  },
+  "task_001031_8c0bbebe": {
+    "reviewed": "2026-10-18",
+    "output_line": "E           Failed: deploy.py timed out after 20 seconds. It may be hanging or failing to detect readiness.",
+    "reason": "E           subprocess.TimeoutExpired: Command '['python3', '/home/user/deploy/deploy.py']' timed out after 20 seconds | E           Failed: deploy.py timed out after 20 seconds. It may be hanging or failing to detect readiness.",
+    "instruction_evidence": "You are a Site Reliability Engineer managing a staged rolling deployment of a local application suite.\nCurrently, our deployment script `/home/user/deploy/deploy.py` is failing. It attempts to launch three worker processes concurrently, but these workers have strict start-up dependencies, similar to missing `After=` directives in systemd. \nIf a worker starts before its dependency is fully ready, it crashes immediately.\n1. It has created its readiness file (`/home/user/deploy/w<ID>.ready`).\n2. It is successfully listening on its assigned local port (Worker 1: 8081, Worker 2: 8082, Worker 3: 8083).\nYour task is to rewrite `/home/user/deploy/deploy.py` in Python to act as a proper staged deployment automation script. \nThe updated `deploy.py` must:\n1. Start Worker 1 (`python3 /home/user/deploy/worker.py 1`).\n2. Continuously poll the filesystem to check if `/home/user/deploy/w1.ready` exists, AND perform a connectivity diagnostic to verify that local port 8081 is accepting connections.\n3. Once both conditions are met for Worker 1, proceed to start Worker 2.\n5. Start Worker 3 and repeat the checks (file: `w3.ready`, port: 8083).\n6. Once Worker 3 is fully verified as ready, the script must write the exact string `DEPLOYMENT SUCCESSFUL` to a new log file at `/home/user/deploy/status.log` and exit gracefully.\n- Do not modify `/home/user/deploy/worker.py`.\n- You must use Python to write the updated `deploy.py`.\n- Make sure to leave the background worker processes running when `deploy.py` exits.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0034/evidence.tar.gz",
+    "report_item_sha256": "36f89e7d9fd583c582ddcaa3596eef4c2b2cc6ad65566aa8d8793b1b5138c9ce",
+    "publication_only": true
+  },
+  "task_002068_20c818ba": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/start_services.sh not found",
+    "reason": "E       AssertionError: Script /home/user/start_services.sh not found",
+    "instruction_evidence": "Create a bash script at `/home/user/start_services.sh` that starts both services. The verifier will execute this script and wait 5 seconds before testing.\nMake sure `/home/user/start_services.sh` is executable (`chmod +x`). Once you are confident your script works and the services are ready, simply finish the task.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0034/evidence.tar.gz",
+    "report_item_sha256": "a1cf24e40bbbead9868a4fc5979ada8d7413d958f25c97050f51982ad44efff6",
+    "publication_only": true
+  },
+  "task_002333_9fc62ff2": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/etl_pipeline.py does not exist.",
+    "reason": "E       AssertionError: Script /home/user/etl_pipeline.py does not exist.",
+    "instruction_evidence": "Your task is to write a Python script `/home/user/etl_pipeline.py` that handles data ingestion, anonymization, deduplication, and persistence.\n`python3 /home/user/etl_pipeline.py <input_file> <output_parquet>`\nYou must create and test `/home/user/etl_pipeline.py`. To test your code, you can use the sample files located in `/home/user/data/`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0035/evidence.tar.gz",
+    "report_item_sha256": "ab7a52aaa6422537576ddb63149fae07f195a4889cdaa5143ce40b11c536e3a0",
+    "publication_only": true
+  },
+  "task_003058_80b78b29": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script not found at /home/user/sequence_classifier.sh",
+    "reason": "E       AssertionError: Script not found at /home/user/sequence_classifier.sh",
+    "instruction_evidence": "Write a Bash script at `/home/user/sequence_classifier.sh` with the following signature:\n`bash /home/user/sequence_classifier.sh <input_directory> <output_directory>`",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0035/evidence.tar.gz",
+    "report_item_sha256": "c3f7f0c38069fcdfe8859312196a09608d3f935785d72f79077e91f779b4733d",
+    "publication_only": true
+  },
+  "task_003591_3f60cb25": {
+    "reviewed": "2026-10-18",
+    "output_line": "E           AssertionError: Sanitiser source not found at /home/user/sanitiser.cpp and binary not found at /home/user/sanitiser",
+    "reason": "E           AssertionError: Sanitiser source not found at /home/user/sanitiser.cpp and binary not found at /home/user/sanitiser",
+    "instruction_evidence": "Since we cannot currently patch the binary, your task is to write a standalone C++ sanitiser that acts as a gatekeeper. The sanitiser must inspect incoming telemetry files and reject any payload that would cause the processor to crash, hang, or fail, while allowing all valid payloads through.\n2. Write a C++ program at `/home/user/sanitiser.cpp`.\n3. Compile it to `/home/user/sanitiser` (e.g., `g++ -O2 /home/user/sanitiser.cpp -o /home/user/sanitiser`).\n4. The sanitiser must take a single command-line argument: the path to a telemetry file to check.\n   - Example invocation: `/home/user/sanitiser ./test_payload.bin`\n5. If the file is perfectly valid and can be safely processed by `/app/telemetry_processor`, the sanitiser must exit with code **0**.\n6. If the file has an invalid checksum, an invalid header, or contains any structural anomalies/records that would cause the processor to crash or hang, the sanitiser must exit with code **1**.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0035/evidence.tar.gz",
+    "report_item_sha256": "cd60a98d6cd6919ae95407fe264350e9cec7dd8edf2e079696e85b2dec4d4d92",
+    "publication_only": true
+  },
+  "task_008904_5bac056c": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Archive /home/user/release_archive.tar.gz does not exist.",
+    "reason": "E       AssertionError: Archive /home/user/release_archive.tar.gz does not exist.",
+    "instruction_evidence": "   - The archive must be saved to `/home/user/release_archive.tar.gz`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0035/evidence.tar.gz",
+    "report_item_sha256": "51ca5433de3e3f2e5ff12b1e38eaee017a3aca1da0c13e15ef90577fc46fef82",
+    "publication_only": true
+  },
+  "task_003754_6113759b": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: FastAPI service is not running on 127.0.0.1:8000",
+    "reason": "E       AssertionError: FastAPI service is not running on 127.0.0.1:8000",
+    "instruction_evidence": "   Create a FastAPI application and run it on `127.0.0.1:8000` (it must stay running in the background or you can start it as the final blocking command).",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0036/evidence.tar.gz",
+    "report_item_sha256": "637ec0f5ab405592ba494614d07594b0603525895813ae4d1cf9f7ffe095251e",
+    "publication_only": true
+  },
+  "task_005575_bf641f22": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Report file not found at /home/user/audit_report.txt",
+    "reason": "E       AssertionError: Report file not found at /home/user/audit_report.txt",
+    "instruction_evidence": "Please perform the following tasks using standard Linux CLI tools and generate a final report at `/home/user/audit_report.txt`.\nCreate the file `/home/user/audit_report.txt` exactly matching the following format (replace the bracketed placeholders with your findings). Do not include paths in the filenames, just the basenames:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0036/evidence.tar.gz",
+    "report_item_sha256": "56105c3f16c6350a09f7b9933c94f8c7f184a7955ac7dad01527e7745c2b580f",
+    "publication_only": true
+  },
+  "task_000902_c122671d": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Server did not start on http://127.0.0.1:8000 within 10 seconds.",
+    "reason": "E       Failed: Server did not start on http://127.0.0.1:8000 within 10 seconds.",
+    "instruction_evidence": "3. **API Service Implementation**: Create a Python HTTP API (e.g., using FastAPI, Flask, or simple HTTP server) that listens on `127.0.0.1:8000`. The API must have the following endpoints:\nRun your Python server in the background so that automated network tests can verify the endpoints. Keep the server running on `127.0.0.1:8000`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0037/evidence.tar.gz",
+    "report_item_sha256": "e2f50c68d6ad6184a5d837e47678ee450f3bb7a1b267b2da674cda0c527357a0",
+    "publication_only": true
+  },
+  "task_008658_42dbe617": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Results file missing: /home/user/exploit_results.json",
+    "reason": "E       AssertionError: Results file missing: /home/user/exploit_results.json",
+    "instruction_evidence": "8. Your script must write the results of your exploit to `/home/user/exploit_results.json`. The JSON file must have exactly this structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0038/evidence.tar.gz",
+    "report_item_sha256": "369be9a46a1e90d2bf9bffa2fab2d443601b885561bdcc269dddc86f8f95859a",
+    "publication_only": true
+  },
+  "task_009940_4aa7840d": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/secure_deploy.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/secure_deploy.sh does not exist.",
+    "instruction_evidence": "Your objective is to write a comprehensive Bash script at `/home/user/secure_deploy.sh` that automates this entire process.\nEnsure your script is executable (`chmod +x /home/user/secure_deploy.sh`). \nFor the purpose of this task, you will need to start a dummy WebSocket server in the background before running your script to test it, or rely on your script's logic. (You do not need to leave the dummy server running for the final evaluation, but the `secure_deploy.sh` script must contain the exact `websocat` command).\nCreate `/home/user/secure_deploy.sh` fulfilling all these requirements.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0038/evidence.tar.gz",
+    "report_item_sha256": "29cc4ba4371798ee7f308715c2b21d8a336e7d461ca0c1ca88a01b39494c35c9",
+    "publication_only": true
+  },
+  "task_000633_4cd90538": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Missing ETL script: /home/user/etl.sh",
+    "reason": "E       AssertionError: Missing ETL script: /home/user/etl.sh",
+    "instruction_evidence": "1. **ETL Script (`/home/user/etl.sh`)**:\nAutomated tests will run your `etl.sh`, wait for completion, start your `serve.sh`, and issue protocol-level HTTP requests to verify correct transformations and filtering.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0039/evidence.tar.gz",
+    "report_item_sha256": "188ede2206555d418c2ac3a4c5fb9f1b34178736db557ca4643270d9cedbf3f0",
+    "publication_only": true
+  },
+  "task_001221_6603ce68": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Flask service is not running on 127.0.0.1:5000",
+    "reason": "E       AssertionError: Flask service is not running on 127.0.0.1:5000",
+    "instruction_evidence": "We have a multi-service setup located in `/app/`. Redis is already running on `127.0.0.1:6379` to store build pipeline configurations. \nImplement `/app/build_service.py` to meet these requirements, and then start the service in the background so it binds to `127.0.0.1:5000`. Leave the service running when you are finished.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0039/evidence.tar.gz",
+    "report_item_sha256": "400b84d1c9387cedaee4aacb2345e0eed7ff894fa292ab2253177d3f17724fea",
+    "publication_only": true
+  },
+  "task_003115_8d7e16d4": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/run_server.sh does not exist",
+    "reason": "E       AssertionError: /home/user/run_server.sh does not exist",
+    "instruction_evidence": "Create a shell script at `/home/user/run_server.sh` that installs any necessary Python dependencies (like `flask`, `scipy`, `pandas` - assuming standard pip availability) and starts your API server in the background. Ensure the script is executable.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0039/evidence.tar.gz",
+    "report_item_sha256": "6dfa402cb9aa116a937d084a8ae2d907f4473c580959d3ca555bc2033867d6a4",
+    "publication_only": true
+  },
+  "task_009627_a8254c13": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/start_observability.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/start_observability.sh does not exist.",
+    "instruction_evidence": "Your task is to write an orchestration script at `/home/user/start_observability.sh` (make sure it is executable) that correctly manages the lifecycle of these services. \n- You must use bash or Python to write `/home/user/start_observability.sh`.\n- Ensure `/home/user/start_observability.sh` exits cleanly (exit code 0) after writing the `pids.json` file, leaving the two processes running in the background.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0040/evidence.tar.gz",
+    "report_item_sha256": "e6a586177565592d5e36f8c4eb96726c1c5e1a0c1527b0ad259abab974766901",
+    "publication_only": true
+  },
+  "task_001992_efddd807": {
+    "reviewed": "2026-10-18",
+    "output_line": "E               Failed: Service did not start on port 8080 within 15 seconds",
+    "reason": "E               Failed: Service did not start on port 8080 within 15 seconds",
+    "instruction_evidence": "   - The service must listen on `127.0.0.1:8080`.\n4. **Build and Compose:** Modify the startup script at `/app/start.sh` so that it starts Redis in the background, compiles your Go application, and runs the Go service in the foreground.\nPlease implement the Go service, fix the C library, and ensure `/app/start.sh` cleanly brings up the entire composed system. We will verify your solution by running `/app/start.sh` and sending multiple concurrent HTTP requests to your Go API to ensure it processes data correctly without crashing.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0041/evidence.tar.gz",
+    "report_item_sha256": "8341d29cc9b191b21a2ae90dc87fcae5fd5457c46591bbecadca846edc587b7a",
+    "publication_only": true
+  },
+  "task_000475_3cd62e16": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Agent executable missing at /home/user/audio_filter_fixed",
+    "reason": "E       AssertionError: Agent executable missing at /home/user/audio_filter_fixed",
+    "instruction_evidence": "4. Compile your fixed version to `/home/user/audio_filter_fixed`.\nYour final compiled executable `/home/user/audio_filter_fixed` must behave identically to `/app/ref_filter.py` for any valid WAV file input, producing byte-for-byte identical binary output files without leaking memory.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0042/evidence.tar.gz",
+    "report_item_sha256": "50d8add3ee0cd6423993f0fad3dacdbabda9aa3c8c1731c2c04ee9a40e0523d3",
+    "publication_only": true
+  },
+  "task_002019_5ea2ac51": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/build.sh does not exist. Did you create it?",
+    "reason": "E       AssertionError: Script /home/user/build.sh does not exist. Did you create it?",
+    "instruction_evidence": "Your goal is to write a single Bash script at `/home/user/build.sh` that automatically repairs the codebase, builds the binaries, starts the services, and verifies they are working correctly. \nYour script `/home/user/build.sh` must perform the following actions:\nMake sure your script `/home/user/build.sh` is executable (`chmod +x`). Do not run the script yourself; the automated testing suite will execute `/home/user/build.sh` and verify the contents of `/home/user/build_result.log` and the system state.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0042/evidence.tar.gz",
+    "report_item_sha256": "5bc5084c1c4d70d8ae83bc30f9efaec6fc1b017a35207857a1fa4cb8c9405101",
+    "publication_only": true
+  },
+  "task_003623_b2e0bc7e": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The Go service is not listening on 127.0.0.1:8080 or is not reachable.",
+    "reason": "E       AssertionError: The Go service is not listening on 127.0.0.1:8080 or is not reachable.",
+    "instruction_evidence": "   The Go HTTP server must listen continuously on `127.0.0.1:8080`. Ensure the service is running in the background or foreground when you finish your task. Do not require authentication tokens.\nAll necessary files (except `/app/transmission.wav` which is already provided) are in `/home/user/audio-svc`. Make your edits, compile, and start the service.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0042/evidence.tar.gz",
+    "report_item_sha256": "7bb2b8e2c7c836921c6b3ced79ad7b2e7cf9a7e42e49f82e9070f00bfb5047e8",
+    "publication_only": true
+  },
+  "task_002179_e5a6a893": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Executable missing at /home/user/sanitizer",
+    "reason": "E       AssertionError: Executable missing at /home/user/sanitizer",
+    "instruction_evidence": "Create a C program at `/home/user/sanitizer.c` and compile it to an executable at `/home/user/sanitizer`.\n*Note: Your compiled binary `/home/user/sanitizer` will be automatically tested against a hidden adversarial corpus of \"clean\" files (which must be processed correctly without dropping valid rows) and \"evil\" files (which contain SQL injections, buffer overflow attempts, and illegal characters in the license plate, all of which must be dropped safely).*",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0043/evidence.tar.gz",
+    "report_item_sha256": "da4894fdd852a3f62adf7ae8c27317d9d3a85503d80be285c11c6839e693562c",
+    "publication_only": true
+  },
+  "task_005095_e90ea8fd": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script not found: /home/user/process_graph.sh",
+    "reason": "E       AssertionError: Script not found: /home/user/process_graph.sh",
+    "instruction_evidence": "Your objective is to write a comprehensive Bash script `/home/user/process_graph.sh` that uses `sqlite3` to process this data, find specific transaction patterns, and output the results and query optimization details.\nYour script `/home/user/process_graph.sh` must perform the following actions when executed:\nMake sure your script is executable (`chmod +x /home/user/process_graph.sh`) and runs successfully without user interaction.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0043/evidence.tar.gz",
+    "report_item_sha256": "008a138d637b7ca1b394436bd5dce312ec09b75fe368c868d8ed0a11e2ad2529",
+    "publication_only": true
+  },
+  "task_006418_2d5ef1bd": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Output file /home/user/clean_logs.jsonl does not exist.",
+    "reason": "E       AssertionError: Output file /home/user/clean_logs.jsonl does not exist.",
+    "instruction_evidence": "Your task is to write a Python script (you can name it `/home/user/process_etl.py`) that reads `/home/user/raw_chat_logs.jsonl`, cleans the data, and writes the output to `/home/user/clean_logs.jsonl`.\n6. **Sorting**: The final output in `/home/user/clean_logs.jsonl` must be sorted chronologically by the `ts` field.\nEnsure your Python script creates the output file at exactly `/home/user/clean_logs.jsonl`. You can run your script in the terminal to process the file.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0043/evidence.tar.gz",
+    "report_item_sha256": "ab4af8a97b51283024ef2a2498ab42b35cc6d9880cdb54e3e718afe244fad7f4",
+    "publication_only": true
+  },
+  "task_009372_61c7efe3": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Bash script /home/user/run_experiments.sh does not exist.",
+    "reason": "E       AssertionError: Bash script /home/user/run_experiments.sh does not exist.",
+    "instruction_evidence": "2. **The Bash Pipeline (`/home/user/run_experiments.sh`)**\n* Ensure `/home/user/run_experiments.sh` is executable.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0043/evidence.tar.gz",
+    "report_item_sha256": "74bb1b6c8fde93c803a16f2e69a8924508324b47f22396d59a0e7ee03d14050e",
+    "publication_only": true
+  },
+  "task_004051_0f49b01f": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Report file not found at /home/user/forensics_report.json",
+    "reason": "E       AssertionError: Report file not found at /home/user/forensics_report.json",
+    "instruction_evidence": "4. **Reporting:** Generate a final JSON report at `/home/user/forensics_report.json` with the exact following structure (lists should contain absolute file paths, and flags should be unique):\nWrite the script, execute it to generate the report, and ensure the resulting `/home/user/forensics_report.json` is perfectly formatted and accurate.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0044/evidence.tar.gz",
+    "report_item_sha256": "32157e6153789a0e9ba9a54c18c6e63424651d3532b21e1f599c5228a07cd731",
+    "publication_only": true
+  },
+  "task_004853_43c6b431": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Output file /home/user/audit_report.json was not created.",
+    "reason": "E       AssertionError: Output file /home/user/audit_report.json was not created.",
+    "instruction_evidence": "Write a Python script at `/home/user/audit.py` that performs the following steps and outputs the results to `/home/user/audit_report.json`.\nYour script must generate `/home/user/audit_report.json` with the exact following structure:",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0044/evidence.tar.gz",
+    "report_item_sha256": "9a0de98b7050ea8e1404b8bfbc145a4dd58f47cde30898656cd81987820ff7c3",
+    "publication_only": true
+  },
+  "task_004989_98e36417": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       Failed: Service at 127.0.0.1:8080 did not become ready in time.",
+    "reason": "E       Failed: Service at 127.0.0.1:8080 did not become ready in time.",
+    "instruction_evidence": "Your Go application must act as a long-running HTTP server listening on `127.0.0.1:8080`. It must expose the following endpoints:\nYour server should remain running so that our automated test suite can query it. You can assume the video frame analysis runs either on startup or on the first request. Use only standard Go libraries where possible. Put your code in `/home/user/analyzer.go` and start the server.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0044/evidence.tar.gz",
+    "report_item_sha256": "29fb6da4f7fd4333dc797c3b9ff0920be6bcf0522ecbf0529b83af64ecd987af",
+    "publication_only": true
+  },
+  "task_007313_c1bec0f6": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/start.sh does not exist.",
+    "reason": "E       AssertionError: /home/user/start.sh does not exist.",
+    "instruction_evidence": "   Create an executable bash script at `/home/user/start.sh`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0044/evidence.tar.gz",
+    "report_item_sha256": "494e9ae9534c28691bec9ad1f407338b544345d4eab6dc443f4bacb9e4a90790",
+    "publication_only": true
+  },
+  "task_009169_92436cfe": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: /home/user/planner/supervise.sh does not exist.",
+    "reason": "E       AssertionError: /home/user/planner/supervise.sh does not exist.",
+    "instruction_evidence": "Specifically, write a bash script at `/home/user/planner/supervise.sh` that fulfills the following requirements:\nMake sure your script is executable (`chmod +x`). Once you have created and verified the script, you are done. An automated test suite will execute `/home/user/planner/supervise.sh` in the background to verify the directory structure, symlink correctness, log rotation, and restart loop.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0044/evidence.tar.gz",
+    "report_item_sha256": "e1c1a933a25542794b04692ef4eb35720840c5458311912313a94dd2ae2d6c79",
+    "publication_only": true
+  },
+  "task_005418_c5642648": {
+    "reviewed": "2026-10-18",
+    "output_line": "E           AssertionError: Agent source file /home/user/replica.c is missing.",
+    "reason": "E           AssertionError: Agent source file /home/user/replica.c is missing.",
+    "instruction_evidence": "2. Write a C program at `/home/user/replica.c`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0045/evidence.tar.gz",
+    "report_item_sha256": "958af063ada61366ab31975753e11951fe7c7fb3daf0e2b3d3a3a3253b4c3b9e",
+    "publication_only": true
+  },
+  "task_000557_bc1f0ff3": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The Go HTTP server is not listening on 127.0.0.1:8080",
+    "reason": "E       AssertionError: The Go HTTP server is not listening on 127.0.0.1:8080",
+    "instruction_evidence": "   Write a Go HTTP server in `/home/user/ml-api/main.go` that listens on `127.0.0.1:8080`.\nCompile your code, start the server in the background, and ensure it is listening on `127.0.0.1:8080`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0047/evidence.tar.gz",
+    "report_item_sha256": "698552c2ee5a575a4a5b86733763400d2d5384adf48bf49385105e50ca8e0914",
+    "publication_only": true
+  },
+  "task_004882_c8e52fc8": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Startup script /home/user/start_services.sh not found.",
+    "reason": "E       AssertionError: Startup script /home/user/start_services.sh not found.",
+    "instruction_evidence": "4.  **Startup**: Create a shell script at `/home/user/start_services.sh` that launches the Flask application in the background and saves its PID to `/home/user/api.pid`.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0047/evidence.tar.gz",
+    "report_item_sha256": "2ae2f24450d3ae17219ddbe8168aca705355c47dfc738db9863bb12b64fd0490",
+    "publication_only": true
+  },
+  "task_007370_226c6b2a": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: Script /home/user/test_restore.sh does not exist.",
+    "reason": "E       AssertionError: Script /home/user/test_restore.sh does not exist.",
+    "instruction_evidence": "Create a bash script at `/home/user/test_restore.sh`. The script must perform the following tasks sequentially:\nMake sure your bash script has executable permissions (`chmod +x /home/user/test_restore.sh`) and robust error handling. Do not execute the bash script; just leave it ready for the automated test suite to run.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0047/evidence.tar.gz",
+    "report_item_sha256": "d5949eba3a05f9efc19e1705a1b261ecc6df65be0f9ec7af7ebf0a290aae126a",
+    "publication_only": true
+  },
+  "task_007736_fb49422c": {
+    "reviewed": "2026-10-18",
+    "output_line": "E       AssertionError: The output file /home/user/tickets_clean.jsonl does not exist.",
+    "reason": "E       AssertionError: The output file /home/user/tickets_clean.jsonl does not exist.",
+    "instruction_evidence": "Your objective is to write and execute a script (in any language you choose) that processes all `.txt` files in `/home/user/tickets_raw` and produces a single cleaned JSON Lines file at `/home/user/tickets_clean.jsonl`.\n   The output must be a JSON Lines file (`/home/user/tickets_clean.jsonl`), where each line is a valid JSON object representing one ticket.\nWrite the script, install any dependencies you might need, and execute it to produce the final `/home/user/tickets_clean.jsonl` file.",
+    "archive": "/rwthfs/rz/cluster/hpcwork/lva77460/ot-next-data-repair/tmax-validation-20261017/superset2-run-c/shards/0047/evidence.tar.gz",
+    "report_item_sha256": "608c6bea42faa22afff6ebe5dcb5622f4dba0206535b94d7002e22028a86320c",
+    "publication_only": true
+  }
+}

@@ -19,6 +19,7 @@ the displayed text.
 | Validation stages and checks | `validation/PROTOCOL.md` |
 | Runtime, staging, bridge behavior | `validation/docs/runtime.md` |
 | Cluster launchers | `hpc/README.md`, `hpc/zih/README.md` |
+| SSH access to CLAIX, LRZ and ZIH; agent and Mac VPN tunnel | [Cluster access](cluster-access.md) |
 | Patch outputs and publication | `data/INVENTORY.md#reporting-patches-in-the-datasource-pr` |
 | Helma mounts and quotas | `config/clusters.py`, `hpc/README.md#storage-locations` |
 | Helma performance measurements | [Helma measurements](#helma-measurements) below |
@@ -26,9 +27,22 @@ the displayed text.
 
 Skills in `.agents/skills/`: `patch-dataset` (repair a dataset), `verify-dataset`
 (stages 1, 3, 4, 5), `run-teachers` (stages 6 and 7, plotting),
-[`write-dataset-pr`](skills/write-dataset-pr/SKILL.md) (HF PR wording and automatic template).
+[`v1_readme`](skills/v1_readme/SKILL.md) (v1 dataset README and HF PR wording), and
+[`v2_readme`](skills/v2_readme/SKILL.md) (v2 evaluation results and trajectory statistics),
+and [`readme-v3`](skills/readme-v3/SKILL.md) (v3 READMEs focused on new results,
+without repeating v2 evaluation tables).
 
 ## Patch explanations in automatic PRs
+
+For per-stage dataset README breakdowns, attribute a repair to the validation
+rule it satisfies, not to the stage that happens to execute the repair.
+Relative-path normalization belongs under stage 4 (rule-based checks), even
+when it executes during stage 1. Do not count it again as a build/setup repair.
+Use verified affected-task counts; if consolidation is incomplete, mark the
+count pending rather than reporting zero or inventing a count. Integrate new
+results into existing totals and reason summaries instead of appending rerun
+history. Describe manual approvals plainly, while distinguishing an inspected
+result from an automatic pass and avoiding claims unsupported by its evidence.
 
 Follow [`validation/README.md`, Automatic PR text](../validation/README.md#automatic-pr-text).
 Put explanations in the patcher's reporting inputs, not in a custom PR template
@@ -74,6 +88,42 @@ patch statistics, retries and runtime limitations in the Hugging Face PR and its
 run JSON, not in the datasource README. Preserve detailed per-task evidence there.
 Generate the datasource README with `data/annotate_dataset/prompt_template.txt`
 and the existing renderer. Do not manually rewrite it or append validation notes.
+
+## Pass@k execution concurrency
+
+For teacher generation, explicitly choose multiple concurrent trials per GPU
+when the allocation and a throughput pilot support it. Do not default full
+runs to one trial at a time without a measured reason. Preserve every task's
+requested CPU and memory resources, sampling settings, attempts and timeouts.
+
+Distinguish the Slurm array throttle (simultaneous shard jobs), pipeline
+`--concurrency` (simultaneous trials within each job), and vLLM
+`--max-num-seqs` (serving sequence slots). Increasing the array throttle alone
+does not improve batching within a GPU job. Trials can be attempts of the same
+task, so concurrency is not necessarily the number of distinct tasks.
+
+Budget serving CPUs first, including all serving replicas. The worker's
+`trial_capacity` reserves each task's agent CPUs plus the largest separate
+verifier CPU request that can overlap it, then uses the largest per-trial
+reservation in the shard. The CPU ceiling is
+`floor((job_cpus - serving_cpus) / reserved_cpus_per_trial)`.
+Also check aggregate memory, GPU KV-cache capacity and node-local scratch.
+Never lower task CPU requests just to increase concurrency. Increase the job
+allocation if needed. Inspect the frozen worker because budget behavior can
+vary by snapshot.
+
+Check `submission/resources.json` for effective concurrency, not only the
+requested value or the current checkout. The worker can cap concurrency at
+startup. Validate higher concurrency with real task attempts, saved trajectories,
+verifier results, infrastructure errors, throughput and GPU utilization before
+expanding. Keep GPU-free agent/verifier steps on `srun --exact --gres=none`.
+
+For existing submissions, inspect frozen requests/contracts and live Slurm
+throttles. Do not silently edit frozen contracts or cancel running jobs.
+Replacements must preserve completed work and have disjoint task/attempt
+ownership; reconcile any existing acceleration controller before submitting.
+See [the 2026-10-14 audit](passk-concurrency-audit-20261014.md) for a dated
+snapshot, not a substitute for querying current queues.
 
 # Cluster storage
 
@@ -138,6 +188,44 @@ node, concurrency 28, total 3 h 23 min:
 
 ## Image build scratch and packaging
 
+Before rebuilding a task image, check both the target cluster's cache and the
+dataset's pinned Hugging Face image manifest. Prefer a compatible published
+bundle over a rebuild: verify its task/environment identity, architecture,
+provenance, file sizes and checksums, then stage it into the target cluster's
+cache. A published image does not need rebuilding merely because its local
+cache entry is missing. Prepare missing cache entries in a separate image-only
+job, verify them before submitting validation, and enforce
+`OT_REQUIRE_PREBUILT_IMAGES=1` for validation jobs. An image available only on
+Hugging Face or another cluster is not yet a verified target-cluster cache
+entry. Build only when no compatible cached or published image is available.
+
+Helma node-local storage is shared by jobs placed on the same node. On
+2026-10-10, three Scale SWE jobs on `h35-04` staged roughly 600 images
+(about 300 GB) plus trial workspace copies and exhausted `/tmp`. The Claude
+session recorded `TmpDisk=0`, so scheduler disk accounting did not prevent
+overcommit. The shard launcher used `--exclusive` to prevent co-location.
+This was a scratch-capacity precaution, not a dataset validation requirement.
+
+On 2026-10-11, the Scale SWE session removed exclusivity after estimating that
+five 24-task shards would use about 70 GB together on a node whose disk had
+filled at roughly 400 GB. These are historical estimates, not guarantees for
+other datasets. `validation/shards.py` now makes `--exclusive` opt-in, but
+already-submitted jobs retain their original request. CalibForge array
+`978995` inherited the old exclusive default.
+
+Before sharing a node, budget aggregate scratch for all co-located jobs:
+runtime extraction, staged images, unpacking/copying peaks, build directories,
+overlays, and trial workspaces. Image-only prebuild releases each image's
+scratch after publishing, so its peak depends on concurrent image operations;
+ordinary validation can retain the whole shard's image set. Check the frozen
+worker implementation and actual image sizes before transferring an estimate
+between these modes or changing a queued allocation.
+
+History: Claude session
+`/home/hpc/y500bb/y500bb12/.claude/projects/-home-hpc-y500bb-y500bb12/c67e8930-5973-4121-934e-f74c9dc03717.jsonl`,
+messages at `2026-10-10T12:26:09Z` (disk exhaustion) and
+`2026-10-11T14:38:47Z` (sharing small shards after checking disk usage).
+
 For dependency-heavy image builds, run deferred Dockerfile RUN steps in a native
 directory overlay on node-local scratch, then package the completed tree into
 the cached ext3 overlay. Keep dependencies inside the resulting image; do not
@@ -164,6 +252,27 @@ overhead both warrant investigation; this comparison does not isolate their
 individual contributions or establish timings for every dataset. Preserve full
 build logs and distinguish installation time, packaging time and complete build
 time. Larger images and other dependency managers still require validation.
+
+**Co-located shards and Apptainer contention (2026-10-17).** Slurm pins CPUs and
+memory per job, but node-local `/tmp`, image mounts (squashfuse, fuse-overlayfs)
+and Apptainer container starts are shared by all jobs on a node. Each shard's
+start limit (`BRIDGE_START_CONCURRENCY`) applies only within that shard.
+Multi-SWE pilot 1039663: three shards and three other jobs started on h31-61
+within 3 minutes. Workdir copies and `instance start` took 90-300 s there,
+against under 20 s on an uncontended node; 14 copies hit the 120 s limit, and
+Slurm drained the node ("Kill task failed"). We accept co-location for now:
+whole-node exclusive shards would lengthen queue waits. Watch for this pattern:
+start or copy timeouts clustered on one node, while the same tasks pass
+elsewhere. Rerun those tasks as infrastructure failures, never archive them, and
+record the node in the report.
+
+## Hugging Face commit authors
+
+Do not use `Codex` or another assistant identity as the author or committer of
+Hugging Face commits, including uploads and merge-conflict resolutions. Use the
+authenticated user's Hugging Face identity for API uploads and preserve the
+repository's existing user identity for Git commits. Do not invent author names
+or email addresses.
 
 # Git branches
 

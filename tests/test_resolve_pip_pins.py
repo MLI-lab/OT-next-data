@@ -36,6 +36,31 @@ def test_literal_commands_target_continuations_and_constraints(tmp_path):
     assert pins.commands(root) == []
 
 
+def test_user_install_captures_already_satisfied_system_packages(tmp_path):
+    root = task(tmp_path, 'python3 -m pip install --no-input --user --quiet psutil\n')
+    finding, = pins.commands(root)
+    # pip install --user may be satisfied by an existing system distribution.
+    assert finding['freeze'] == 'python3 -m pip freeze --all'
+    edits = pins.apply(root, [{**finding, 'exit_code': 0, 'stdout': 'psutil==7.2.2\n'}])
+    assert len(edits) == 1
+    assert '--user --quiet psutil==7.2.2' in (root / 'tests/test.sh').read_text()
+
+
+def test_explicit_interpreter_in_shell_chain_has_unambiguous_freeze(tmp_path):
+    root = task(tmp_path, 'bash -c "true && /home/user/env/bin/pip install --no-input ping3 && echo done"\n')
+    finding, = pins.commands(root)
+    assert finding['freeze'] == '/home/user/env/bin/pip freeze --all'
+    assert finding['requirements'][0]['requirement'] == 'ping3'
+    assert (root / 'tests/test.sh').read_text()[finding['requirements'][0]['start']:finding['requirements'][0]['end']] == 'ping3'
+
+
+def test_optional_python_package_install_can_be_snapshotted(tmp_path):
+    root = task(tmp_path, "python3 - <<'PY' || python3 -m pip install --quiet --user jsonschema\nimport jsonschema\nPY\n")
+    finding, = pins.commands(root)
+    assert finding['freeze'] == 'python3 -m pip freeze --all'
+    assert finding['requirements'][0]['requirement'] == 'jsonschema'
+
+
 @pytest.mark.parametrize('script', [
     'pip install "$PACKAGES"\n', 'uv pip install pytest\n',
     'pip install --prefix /tmp/env pytest\n', 'pip install --target relative pytest\n',
@@ -117,7 +142,7 @@ def test_preparation_preserves_original_and_freezes_only_successful_edits(tmp_pa
     from validation.contract import create, verify_materialized
     root = task(tmp_path, 'python3 -m pip install pytest\n')
     args = parser().parse_args([str(root.parent), '--out', str(tmp_path / 'results')])
-    stages = [1, 3, 4, 5]
+    stages = [1, 2, 3, 4]
     create(args, stages, tmp_path / 'original.json')
     args.contract = tmp_path / 'original.json'
     original_contract = args.contract.read_bytes()
@@ -142,7 +167,7 @@ def test_preparation_preserves_original_and_freezes_only_successful_edits(tmp_pa
 
 
 def test_default_optout_and_stage_selection():
-    assert pins.enabled(parser().parse_args([]), [1, 3, 4, 5])
+    assert pins.enabled(parser().parse_args([]), [1, 2, 3, 4])
     assert not pins.enabled(parser().parse_args(['--no-fix-pip-pins']), [1])
     assert not pins.enabled(parser().parse_args([]), [3, 4])
 
@@ -154,7 +179,7 @@ def test_failed_discovery_continues_without_changing_tasks(tmp_path, monkeypatch
     def fail(*args):
         raise RuntimeError('container start failed')
     monkeypatch.setattr(pins, 'resolve', fail)
-    pins.prepare(args, [1, 3, 4, 5])
+    pins.prepare(args, [1, 2, 3, 4])
     assert args.tasks == root.parent
     evidence, = (args.out / 'pip-normalization').glob('*/resolver-evidence.json')
     assert json.loads(evidence.read_text())['items'][0]['reason'] == 'container start failed'
@@ -170,8 +195,8 @@ def test_pipeline_runs_all_normal_stages_after_preparation(tmp_path, monkeypatch
         events.append(number)
         return tmp_path / f'stage-{number}.json', {'has_findings': False, 'items': []}
     monkeypatch.setattr('validation.run.run_stage', run_stage)
-    assert run_selected(args, [1, 3, 4, 5]) == 0
-    assert events == ['paths', 'pip', 1, 3, 4, 5]
+    assert run_selected(args, [1, 2, 3, 4]) == 0
+    assert events == ['pip', 1, 2, 3, 'paths', 4]
 
 
 def test_separate_verifier_and_unsupported_commands_do_not_run_oracle(tmp_path, monkeypatch):

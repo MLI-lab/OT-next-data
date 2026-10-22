@@ -51,7 +51,7 @@ def test_workflow(tmp_path, monkeypatch, consolidate, failure, pilot_sizes):
         failed = not repaired and failure == len(calls)
         return {'passed_all': len(selected) - int(failed),
                 'passed_task_ids': selected[1:] if failed else selected, 'contract_sha256': 'frozen',
-                'failures': [{'task_id': ids[0], 'stage': required_stages[0], 'detail': 'verifier timeout'}] if failed else []}
+                'failures': [{'stage_layout': 'environment-first-v2', 'task_id': ids[0], 'stage': required_stages[0], 'detail': 'verifier timeout'}] if failed else []}
 
     monkeypatch.setattr(c, 'call', agent)
     monkeypatch.setattr(c, 'materialize_source', lambda cfg, directory: directory / 'source')
@@ -66,7 +66,7 @@ def test_workflow(tmp_path, monkeypatch, consolidate, failure, pilot_sizes):
     assert roles == expected_roles
     success = calls[failure:] if failure else calls
     assert [len(selected) for selected, _ in success] == [*pilot_sizes, 229 if failure else 230, 229 if failure else 230]
-    assert [options['stages'] for _, options in success] == [[3]] * (len(pilot_sizes) + 1) + [[1, 3, 4, 5]]
+    assert [options['stages'] for _, options in success] == [[1]] * (len(pilot_sizes) + 1) + [[1, 2, 3, 4]]
     assert all(options['reuse_stage3'] is None for _, options in success[:-1])
     assert success[-1][1]['reuse_stage3'] == tmp_path / 'stage3-passing-subset.json'
     assert [options['review_setup'] for _, options in success] == [bool(consolidate or failure)] * (len(pilot_sizes) + 2)
@@ -153,7 +153,7 @@ def test_publication_requires_explicit_destination():
 def retry_fixture(tmp_path, monkeypatch):
     from copy import deepcopy
     from validation.patch_repair_loop import retries
-    contract = {'sha256': 'original', 'stages': [1, 3, 4, 5], 'execution_profile': {},
+    contract = {'sha256': 'original', 'stages': [1, 2, 3, 4], 'execution_profile': {},
                 'runtime_dependencies': {}, 'implementation': {}, 'upstream': {},
                 'success_criteria': {'minimum_tasks': 2},
                 'dataset': {'source': 'example', 'revision': 'pinned'},
@@ -167,12 +167,12 @@ def retry_fixture(tmp_path, monkeypatch):
     initial.mkdir()
     rerun.mkdir(parents=True)
     for stage in contract['stages']:
-        items = [{'task': task, 'status': 'error' if task == 'b' and stage == 4 else 'passed',
+        items = [{'task': task, 'status': 'error' if task == 'b' and stage == 3 else 'passed',
                   'checks': [{'check': 'test', 'status': 'passed'}]} for task in ('a', 'b')]
-        (initial / f'stage-{stage}-original.json').write_text(json.dumps({
+        (initial / f'stage-{stage}-original.json').write_text(json.dumps({'stage_layout': 'environment-first-v2',
             'stage': stage, 'contract_sha256': 'original', 'complete': True,
             'timing': {'wall_seconds': 10}, 'items': items}))
-        (rerun / f'stage-{stage}-retry.json').write_text(json.dumps({
+        (rerun / f'stage-{stage}-retry.json').write_text(json.dumps({'stage_layout': 'environment-first-v2',
             'stage': stage, 'contract_sha256': 'retry', 'complete': True,
             'items': [{'task': 'b', 'status': 'passed', 'checks': [{'check': 'test', 'status': 'passed'}]}]}))
     return retries, contract, retry, initial, rerun
@@ -187,11 +187,11 @@ def test_successful_retry_supersedes_failure_for_publication(tmp_path, monkeypat
     assert outcome['passed_all'] == 2 and outcome['failures'] == []
     reports = publisher.stage_reports(destination)
     assert publisher.decide(reports, {'a', 'b'})['b']['archive'] is None
-    assert publisher.decide(reports, {'a', 'b'})['b']['passed'] == [1, 3, 4, 5]
-    assert reports[4]['report_kind'] == 'retry_aggregate'
-    assert reports[4]['items'][1]['retry_provenance']['contract_sha256'] == 'retry'
-    assert 'timing' not in reports[4]
-    assert json.loads((initial / 'stage-4-original.json').read_text())['items'][1]['status'] == 'error'
+    assert publisher.decide(reports, {'a', 'b'})['b']['passed'] == [1, 2, 3, 4]
+    assert reports[3]['report_kind'] == 'retry_aggregate'
+    assert reports[3]['items'][1]['retry_provenance']['contract_sha256'] == 'retry'
+    assert 'timing' not in reports[3]
+    assert json.loads((initial / 'stage-3-original.json').read_text())['items'][1]['status'] == 'error'
     monkeypatch.setattr(publisher, 'read', lambda path: original)
     publisher.require_complete(destination, 'original')
 
@@ -228,10 +228,10 @@ def test_dead_job_becomes_unexecuted_failures_for_review(tmp_path, monkeypatch):
         raise RuntimeError('job ended FAILED without a complete report')
     monkeypatch.setattr(c, 'wait_for_job', dead)
     report, outcome = retries.collect({'poll_seconds': 5},
-        {'contract': '/contract', 'submission': str(tmp_path / 'submission')}, ['a'], [1, 3, 4, 5], tmp_path)
+        {'contract': '/contract', 'submission': str(tmp_path / 'submission')}, ['a'], [1, 2, 3, 4], tmp_path)
     assert outcome['passed_all'] == 0
     assert all(item['status'] == 'error' for item in outcome['failures'])
-    assert json.loads((report / 'stage-4-incomplete.json').read_text())['items'][0]['execution_missing']
+    assert json.loads((report / 'stage-3-incomplete.json').read_text())['items'][0]['execution_missing']
 
 
 def test_controller_retries_only_selected_infrastructure_failures(tmp_path, monkeypatch):
@@ -258,7 +258,7 @@ def test_controller_retries_only_selected_infrastructure_failures(tmp_path, monk
     (generation / 'dataset-version.json').write_text(json.dumps(c.dataset_hashes(config)))
     monkeypatch.setattr(c, 'call', lambda *args: {'findings': [
         {'task_id': 'b', 'action': 'retry', 'reason': 'worker lost', 'evidence': ['/logs/worker']}]})
-    monkeypatch.setattr(contract, 'read', lambda path: {'arguments': {'tasks': '/source'}, 'stages': [1, 3, 4, 5]})
+    monkeypatch.setattr(contract, 'read', lambda path: {'arguments': {'tasks': '/source'}, 'stages': [1, 2, 3, 4]})
     selected = []
     def submit(config, source, ids, directory, **kwargs):
         selected.extend(ids)
@@ -424,24 +424,24 @@ def test_loop_summary_counts_sessions_and_renders_pr(tmp_path):
 
 def test_explicit_missing_oracle_publication_keeps_other_gates(tmp_path, monkeypatch):
     from validation.publishing import publish as p
-    frozen = {'sha256': 'abc', 'stages': [1, 3, 5]}
+    frozen = {'sha256': 'abc', 'stages': [1, 3, 4]}
     monkeypatch.setattr(p, 'read', lambda path: frozen)
     monkeypatch.setattr(p, 'task_records', lambda contract: [{'task_id': 'task'}])
-    reports = {stage: {'complete': True, 'contract_sha256': 'abc',
-                      'items': [{'task': 'task', 'status': 'passed'}]} for stage in [1, 3, 5]}
+    reports = {stage: {'stage_layout': 'environment-first-v2', 'complete': True, 'contract_sha256': 'abc',
+                      'items': [{'task': 'task', 'status': 'passed'}]} for stage in [1, 3, 4]}
     monkeypatch.setattr(p, 'stage_reports', lambda path: reports)
-    with pytest.raises(ValueError, match='stage 4'):
+    with pytest.raises(ValueError, match='stage 2'):
         p.require_complete(tmp_path, 'contract')
-    p.require_complete(tmp_path, 'contract', skipped_stages={'4': 'No reference solutions supplied'})
-    assert p.decide(reports, ['task'])['task']['passed'] == [1, 3, 5]
-    reports[5]['items'] = []
-    with pytest.raises(ValueError, match='stage 5'):
-        p.require_complete(tmp_path, 'contract', skipped_stages={'4': 'No reference solutions supplied'})
+    p.require_complete(tmp_path, 'contract', skipped_stages={'2': 'No reference solutions supplied'})
+    assert p.decide(reports, ['task'])['task']['passed'] == [1, 3, 4]
+    reports[3]['items'] = []
+    with pytest.raises(ValueError, match='stage 3'):
+        p.require_complete(tmp_path, 'contract', skipped_stages={'2': 'No reference solutions supplied'})
     with pytest.raises(ValueError, match='Only an explicit'):
         p.require_complete(tmp_path, 'contract', skipped_stages={'5': 'skip'})
     record = {'run': 'example', 'data_sources': {}, 'static_exclusions': {}, 'not_required_checks': [],
-              'skipped_stages': {'4': 'No reference solutions supplied'}}
-    assert 'Stage 4 not run: No reference solutions supplied' in p.description(record)
+              'skipped_stages': {'2': 'No reference solutions supplied'}}
+    assert 'Stage 2 not run: No reference solutions supplied' in p.description(record)
 
 
 @pytest.mark.parametrize('args', [
@@ -474,11 +474,11 @@ def test_validation_args_are_preserved_in_contract_preparation(tmp_path, monkeyp
     config = dict(python='python', partition='cpu', cpus=4, memory='16G', concurrency=2,
                   time='01:00:00', network_mode='host', dataset='example',
                   source_revision='pinned', workspace=str(tmp_path), validation_args=args)
-    c.submit(config, tmp_path, ['a'], tmp_path, full=True, stages=[3], review_setup=True)
+    c.submit(config, tmp_path, ['a'], tmp_path, full=True, stages=[1], review_setup=True)
     command = commands[0]
     offset = command.index(args[0])
     assert command[offset:offset + len(args)] == args
-    assert command[command.index('--stages') + 1] == '3'
+    assert command[command.index('--stages') + 1] == '1'
     assert command[command.index('--review-setup') + 1] == '5'
 
 
@@ -593,7 +593,8 @@ def test_prebuild_gate_precedes_any_validation(tmp_path, monkeypatch, passed):
     patcher.write_text('# patch')
     config = {'dataset': 'example', 'patcher': str(patcher), 'source': '/original',
               'source_revision': 'pinned', 'work_root': str(tmp_path),
-              'prebuild_all_images': True, 'publish': False, 'seed': 42, 'poll_seconds': 5}
+              'prebuild_all_images': True, 'prebuild_shard_size': 200, 'shard_size': 24,
+              'publish': False, 'seed': 42, 'poll_seconds': 5}
     path = tmp_path / 'config.json'
     path.write_text(json.dumps(config))
     ids = ['a', 'b', 'c']
@@ -607,9 +608,11 @@ def test_prebuild_gate_precedes_any_validation(tmp_path, monkeypatch, passed):
     def submit(cfg, source, selected, directory, **options):
         if options.get('prebuild_only'):
             assert selected == ids and options['full']
+            assert cfg['shard_size'] == 200
             events.append('prebuild')
             return {'job_id': '1', 'submission': str(tmp_path / 'submission')}
         assert passed and events == ['prebuild']
+        assert cfg['shard_size'] == 24
         events.append('validation')
         raise c.LoopBlocked('human_review', 'test stopped before validation submission')
     monkeypatch.setattr(c, 'call', call)

@@ -73,7 +73,10 @@ def run(task, model):
         finally:
             tempfile.tempdir = previous_temp
     trials = runtime.trial_results(job)
-    assessment = runtime.assess_trials(trials, 1, 1, 'reward')
+    # Like the stage-5 review: this verifier checks the card file the agent wrote, not a
+    # task's test suite, so pytest invocation evidence does not apply. Reward 1 is still
+    # required and annotation.json is validated below.
+    assessment = runtime.assess_trials(trials, 1, 1, 'reward', require_execution=False)
     if assessment['status'] != 'completed':
         raise RuntimeError(f'annotation trial failed: {assessment}; see {job}')
     trial, _ = trials[0]

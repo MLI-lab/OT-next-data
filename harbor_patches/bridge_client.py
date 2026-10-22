@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 RETRY_SECONDS = 60
 ATTEMPT_SECONDS = 10
 SUBMISSIONS = {'/env/' + name for name in ('create', 'exec', 'upload', 'download', 'stop')}
+SUBMISSIONS.add('/env/cancel')
 
 
 def transient(exc):
@@ -76,6 +77,43 @@ class BridgeClient:
     def __init__(self):
         self.epochs = {}
         self.exec_waits = OrderedDict()
+        self.command_generations = {}
+        self.cancellations = {}
+
+    async def cancel_environment(self, base, env_id):
+        base = base.rstrip('/')
+        key = (base, env_id)
+
+        async def perform():
+            result = await self.post(base + '/env/cancel', {'env_id': env_id})
+            generation = result['generation']
+            deadline = time.monotonic() + 90
+            while time.monotonic() < deadline:
+                status = await self.get(base + '/env/status/' + env_id, 5)
+                ticket = status.get('cancellation') or {}
+                if ticket.get('generation') == generation:
+                    if ticket.get('state') == 'error':
+                        raise RuntimeError('Remote session cancellation failed: ' + str(ticket.get('error')))
+                    if ticket.get('state') == 'done':
+                        self.command_generations[key] = generation
+                        return
+                await asyncio.sleep(.1)
+            raise TimeoutError('Remote session cancellation was not acknowledged within 90s')
+
+        task = self.cancellations.get(key)
+        if task is None:
+            task = asyncio.create_task(perform())
+            self.cancellations[key] = task
+        try:
+            # A second cancellation must not abandon remote cleanup.
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                await asyncio.shield(task)
+                raise
+        finally:
+            if task.done():
+                self.cancellations.pop(key, None)
 
     async def get(self, url, timeout=60):
         deadline = time.monotonic() + min(timeout, RETRY_SECONDS)
@@ -102,6 +140,9 @@ class BridgeClient:
 
     async def post(self, url, data, timeout=60):
         parsed = urllib.parse.urlsplit(url)
+        if parsed.path in ('/env/exec', '/env/upload', '/env/download'):
+            base = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, '', '', ''))
+            data = dict(data, command_generation=self.command_generations.get((base, data.get('env_id')), 0))
         body = json.dumps(data).encode()  # Exactly the same payload on every attempt.
         headers = {'Content-Type': 'application/json'}
         if parsed.path not in SUBMISSIONS:
@@ -155,9 +196,24 @@ class BridgeClient:
             timeout_sec = budget
         interval = poll_interval
         state = 'unknown'
+        waited, wait_limit, previous = 0.0, start_wait_limit(), time.monotonic()
         while time.monotonic() < deadline:
-            result = await self.get(f'{bridge_url}/job/result/{job_id}', deadline - time.monotonic())
+            try:
+                result = await self.get(f'{bridge_url}/job/result/{job_id}', deadline - time.monotonic())
+            except TimeoutError:
+                if time.monotonic() < deadline:
+                    raise
+                # Expiry during the final HTTP poll is the same result-wait
+                # deadline as expiry between polls. Preserve its diagnostics.
+                break
             state = result.get('state', 'unknown')
+            now = time.monotonic()
+            if result.get('waiting') and waited < wait_limit:
+                # The start is queued for a worker or a Slurm step (start_wait):
+                # that is not start time, so it does not consume this deadline.
+                waited += now - previous
+                deadline += now - previous
+            previous = now
             if result.get('state') == 'done':
                 return result
             if result.get('state') == 'error':
@@ -166,6 +222,14 @@ class BridgeClient:
             interval = min(.5, interval * 1.3)
         raise TimeoutError(f'Bridge job {job_id} timed out after {timeout_sec}s '
                            f'(last state: {state}; result-wait budget, not command runtime)')
+
+
+def start_wait_limit():
+    try:
+        from harbor_patches.start_wait import WAIT_LIMIT
+    except ModuleNotFoundError:
+        from start_wait import WAIT_LIMIT
+    return WAIT_LIMIT
 
 
 def install():
@@ -181,4 +245,6 @@ def install():
     bridge._async_http_get = client.get
     bridge._async_http_post = client.post
     bridge._poll_job = client.poll_job
+    from harbor_patches.command_cancellation import install_client as install_cancellation
+    install_cancellation(bridge, client)
     bridge._reliable_transport = True

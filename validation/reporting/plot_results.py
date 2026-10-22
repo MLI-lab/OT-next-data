@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from validation.checks.reward_metrics import group_of, pass_at_k
+from validation.checks.trace_outcomes import classify_outcome, OUTCOME_LABELS
 
 
 def rates(path, ks):
@@ -92,6 +93,17 @@ def plot_solved_counts(groups, out):
     plt.close(fig)
 
 
+def histogram_upper(values):
+    """Zoom past extreme tails, reporting every observation outside the view."""
+    import math
+    ordered = sorted(values)
+    upper = ordered[-1]
+    p99 = ordered[math.ceil(.99 * len(ordered)) - 1]
+    if len(ordered) >= 100 and p99 > 0 and upper > 1.5 * p99:
+        upper = p99
+    return max(upper, 1), sum(v > max(upper, 1) for v in values)
+
+
 def write_trace_plots(path):
     """Plot observed per-trajectory measurements, retaining missing-data counts."""
     import math
@@ -107,19 +119,30 @@ def write_trace_plots(path):
         raise ValueError(f'{path}: no trajectory metrics')
     distributions = path.with_name(path.stem + '-trace-distributions.png')
     outcomes = path.with_name(path.stem + '-trace-outcomes.png')
-    fields = [('turns', 'Agent turns'), ('input_tokens', 'Input tokens'),
-              ('output_tokens', 'Output tokens'), ('peak_context_fraction', 'Peak context / limit'),
-              ('agent_seconds', 'Agent runtime (seconds)'), ('verifier_seconds', 'Verifier runtime (seconds)')]
+    fields = [('turns', 'Agent turns per attempt', 1),
+              ('input_tokens', 'Total input tokens per attempt', 1),
+              ('output_tokens', 'Total output tokens per attempt', 1),
+              ('peak_context_tokens', 'Largest recorded turn\n(input + output tokens)', 1),
+              ('agent_seconds', 'Agent elapsed time per attempt (minutes)', 1 / 60),
+              ('verifier_seconds', 'Verifier elapsed time per attempt (seconds)', 1)]
     fig, axes = plt.subplots(2, 3, figsize=(13, 7), layout='constrained')
     try:
-        for ax, (key, label) in zip(axes.flat, fields):
-            values = [r[key] for r in rows if isinstance(r.get(key), (int, float))
+        for ax, (key, label, scale) in zip(axes.flat, fields):
+            values = [r[key] * scale for r in rows if isinstance(r.get(key), (int, float))
                       and math.isfinite(r[key])]
+            beyond = 0
             if values:
-                ax.hist(values, bins=min(30, max(1, math.ceil(math.sqrt(len(values))))), color='#3979ae')
-            else:
+                upper, beyond = histogram_upper(values)
+                ax.hist(values, bins=min(30, max(1, math.ceil(math.sqrt(len(values))))),
+                        range=(0, upper), color='#3979ae')
+                ax.set_xlim(0, upper)
+            if key in ('input_tokens', 'output_tokens', 'peak_context_tokens'):
+                ax.ticklabel_format(axis='x', style='sci', scilimits=(0, 0), useOffset=False)
+            ax.xaxis.get_major_locator().set_params(nbins=4)
+            if not values:
                 ax.text(.5, .5, 'No measurements', ha='center', transform=ax.transAxes)
-            ax.set(title=f'{len(values)} measured, {len(rows) - len(values)} missing',
+            ax.set(title=f'{len(values):,} measured; {len(rows) - len(values):,} missing'
+                         + (f'\n{beyond:,} beyond shown range (99th percentile)' if beyond else ''),
                    xlabel=label, ylabel='Trajectories')
             ax.yaxis.get_major_locator().set_params(integer=True)
             ax.spines[['top', 'right']].set_visible(False)
@@ -128,28 +151,60 @@ def write_trace_plots(path):
     finally:
         plt.close(fig)
 
-    terminations = Counter(r.get('termination') or 'not_recorded' for r in rows)
-    error_kinds = sorted({kind for r in rows for kind in (r.get('errors') or {})})
-    errors = {kind: sum(bool((r.get('errors') or {}).get(kind)) for r in rows) for kind in error_kinds}
-    fig, axes = plt.subplots(1, 2, figsize=(12, max(4, .4 * max(len(terminations), len(errors)))),
-                             layout='constrained')
+    terminations = Counter(classify_outcome(r.get('termination'), r.get('errors')) for r in rows)
+    fig, ax = plt.subplots(figsize=(10, max(4, .5 * len(terminations))), layout='constrained')
     try:
-        for ax, counts, title in zip(axes, (terminations, errors),
-                                    ('Termination reasons', 'Errors (an attempt can appear in multiple groups)')):
-            entries = sorted(counts.items())
-            if entries:
-                bars = ax.barh([k.replace('_', ' ') for k, _ in entries], [v for _, v in entries], color='#3979ae')
-                ax.bar_label(bars, padding=3)
-                ax.set_xlim(0, max(v for _, v in entries) * 1.2 + 1)
-            else:
-                ax.text(.5, .5, 'No measurements', ha='center', transform=ax.transAxes)
-            ax.set(title=title, xlabel='Trajectories')
-            ax.xaxis.get_major_locator().set_params(integer=True)
-            ax.spines[['top', 'right']].set_visible(False)
+        entries = sorted(terminations.items())
+        bars = ax.barh([OUTCOME_LABELS.get(k, k.replace('_', ' ')) for k, _ in entries],
+                       [v for _, v in entries], color='#3979ae')
+        ax.bar_label(bars, padding=3)
+        ax.set(xlim=(0, max(v for _, v in entries) * 1.15 + 1),
+               title='Trace outcomes · each attempt counted once', xlabel='Attempts')
+        ax.xaxis.get_major_locator().set_params(integer=True)
+        ax.spines[['top', 'right']].set_visible(False)
         fig.savefig(outcomes, dpi=180)
     finally:
         plt.close(fig)
-    return {'trace_distributions': distributions.name, 'trace_outcomes': outcomes.name}
+    plots = {'trace_distributions': distributions.name, 'trace_outcomes': outcomes.name}
+    counts = Counter()
+    unknown = 0
+    for row in rows:
+        command_profile = row.get('command_profile') or {}
+        if isinstance(command_profile, str):
+            command_profile = json.loads(command_profile)
+        for name, count in (command_profile.get('counts') or {}).items():
+            if name.startswith('['):
+                unknown += count
+            else:
+                counts[name] += count
+    if counts:
+        commands = path.with_name(path.stem + '-trace-commands.png')
+        entries = counts.most_common(100)
+        total = sum(counts.values())
+        fig, axes = plt.subplots(1, 4, figsize=(19, 10), layout='constrained', sharex=True)
+        try:
+            for i, ax in enumerate(axes):
+                panel = entries[i * 25:(i + 1) * 25]
+                if not panel:
+                    ax.set_visible(False)
+                    continue
+                names, values = zip(*panel)
+                labels = [name if len(name) <= 42 else name[:39] + '...' for name in names]
+                ax.barh(range(len(panel)), [100 * value / total for value in values], color='#3979ae')
+                ax.set(yticks=range(len(panel)), yticklabels=labels,
+                       title=f'Ranks {i * 25 + 1}–{i * 25 + len(panel)}',
+                       xlabel='Share of recognized commands (%) · log scale')
+                ax.invert_yaxis()
+                ax.set_xscale('log')
+                ax.tick_params(axis='y', labelsize=8)
+                ax.spines[['top', 'right']].set_visible(False)
+            fig.suptitle(f'Top {len(entries)} command/tool labels · {total:,} recognized occurrences\n'
+                         f'{unknown:,} unclassified/assignment labels excluded; counts are submissions, not verified executions')
+            fig.savefig(commands, dpi=180)
+        finally:
+            plt.close(fig)
+        plots['trace_commands'] = commands.name
+    return plots
 
 
 def write_stage_plots(path):
