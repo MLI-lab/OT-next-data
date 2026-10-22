@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
@@ -166,6 +167,15 @@ ADAPTATIONS['check-nproc.sh'] += ' Also permits five content-pinned CalibForge i
 ADAPTATIONS['check-task-toml-schema.py'] = (
     'Local deterministic replacement for the task_toml_schema rubric: validates against pinned Harbor models '
     'and rejects unrecognized fields recursively; Harbor free-form metadata/env mappings remain allowed.')
+ADAPTATIONS['check-test-file-references.sh'] += (
+    '; renders escaped Markdown underscores in prose, rejects whitespace/escape-containing report strings as single paths, '
+    'ignores unused top-level literal sets in Python without reflective namespace access, and follows literal initial '
+    'writes in the exact ET v6 encoded RUN wrapper; a named directory with proven supplied children need not end in a slash')
+ADAPTATIONS['check-pip-pinning.sh'] += (
+    '; separates shell commands even without whitespace before semicolons, including literal shell -c payloads, '
+    'so later commands are not package arguments and later unpinned installations remain checked; '
+    'allows a variable-based local package subdirectory only with literal absolute directory assignments')
+ADAPTATIONS['check-nproc.sh'] += '; training ignores command -v nproc availability probes while retaining subsequent bare calls'
 
 
 def without_source_code(instruction):
@@ -313,6 +323,9 @@ def reference_check_script(source):
     if source.count(old) != 1 or source.count('/[a-zA-Z0-9_./]+\\.') != 1:
         raise ValueError('upstream file-reference extractor changed')
     source = source.replace(old, "grep -E '^/'")
+    # Quoted report text is not one filename. Stop at whitespace or a shell/
+    # Python escape instead of splitting the entire string into path fragments.
+    source = source.replace('[^"\'"\'"\']*', '[^"\'"\'"\'[:space:]\\\\]*')
     # A quoted basename supplies no working directory. Keep it as a basename.
     source = source.replace("sed 's|^|/app/|'", 'cat')
     # Upstream uses optional quote markers (?) with basic sed regex syntax.
@@ -338,6 +351,9 @@ def reference_check_script(source):
 
 def reference_check_text(text):
     text = without_urls(text)
+    # A path printed with only a trailing newline is still a file reference.
+    # Embedded report fields and escaped content remain excluded as whole paths.
+    text = re.sub(r'''(["'])(/[^\s"'\\]+)(?:\\[nr])+\1''', r'\1\2\1', text)
     text = re.sub(r'file://(?=/)', '', text)
     text = re.sub(r'<host>[^<\n]+</host>', '<host>[hostname]</host>', text)
     # Upstream deliberately excludes these system roots, but its second regex
@@ -346,6 +362,42 @@ def reference_check_text(text):
     for path in CONVENTIONAL_REFERENCE_PATHS:
         text = re.sub(r'(?<![\w/])' + path + r'(?![\w./+-])', '[conventional boot artifact]', text)
     return text
+
+
+def markdown_reference_text(text):
+    """Render Markdown punctuation escapes in prose, preserving code literals."""
+    fenced = False
+    result = []
+    for line in text.splitlines(keepends=True):
+        if re.match(r'^\s*(```|~~~)', line):
+            fenced = not fenced
+        if not fenced:
+            parts = re.split(r'(`+[^`\n]*`+)', line)
+            for i in range(0, len(parts), 2):
+                parts[i] = re.sub(r'\\([_*])', r'\1', parts[i])
+            line = ''.join(parts)
+        result.append(line)
+    return ''.join(result)
+
+
+def without_unused_reference_sets(text):
+    """Unused literal sets are not graded outputs (e.g. stale forbidden lists)."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text
+    if any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+           and n.func.id in ('globals', 'locals', 'eval', 'exec') for n in ast.walk(tree)):
+        return text
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    lines = text.splitlines(keepends=True)
+    for node in tree.body:
+        if (isinstance(node, ast.Assign) and all(isinstance(t, ast.Name) and t.id not in used for t in node.targets)
+                and isinstance(node.value, ast.Set)
+                and all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in node.value.elts)):
+            for i in range(node.lineno - 1, node.end_lineno):
+                lines[i] = '# unused literal reference set\n'
+    return ''.join(lines)
 
 
 def numeric_reference_patterns(instruction, sources):
@@ -364,10 +416,18 @@ def numeric_reference_patterns(instruction, sources):
     return result
 
 
-def pip_check_line(line):
+def pip_check_line(line, local_directories=()):
     """Adapt shell syntax on the check copy, never rewriting the installation."""
     from packaging.requirements import Requirement, InvalidRequirement
     from urllib.parse import urlsplit
+    # Upstream's separator regex requires whitespace before ';'. A literal
+    # shell -c payload can otherwise consume its next command as package names.
+    # Split at real shell operators, including inside a known
+    # shell -c payload; never reinterpret arbitrary quoted package arguments.
+    shell_payload = re.search(r'''\b(?:bash|sh|dash)\s+-c\s+(['"])(.*)\1\s*$''', line)
+    if shell_payload:
+        start, end = shell_payload.span(2)
+        line = line[:start] + pip_check_line(shell_payload[2], local_directories) + line[end:]
     # Keep quotes intact so quoted '>' and spaces inside requirements are not
     # mistaken for shell operators or separate package arguments.
     pattern = r'''(?:\d+)?(?:>>?|<<?)&?|&&|\|\||[;|&]|(?:[^\s'"\\<>;&|]+|\\[^\n]|'[^']*'|"(?:\\.|[^"\\])*")+'''
@@ -383,6 +443,10 @@ def pip_check_line(line):
     while i < len(tokens):
         token = tokens[i]
         raw = token.group()
+        if raw in (';', '&&', '||', '|', '&'):
+            # Upstream scans only the first install per line. Separate commands
+            # so a later unpinned installation cannot hide behind a pinned one.
+            edits.append((token.start(), token.end(), '\n'))
         if raw.startswith('#'):
             break
         if re.fullmatch(r'(?:\d+)?(?:>>?|<)&?', raw) and i + 1 < len(tokens):
@@ -394,6 +458,13 @@ def pip_check_line(line):
         try:
             value, = shlex.split(raw)
         except ValueError:
+            i += 1
+            continue
+        local = re.fullmatch(r'\$([A-Za-z_]\w*)/[A-Za-z0-9_./-]+', value)
+        if local and local[1] in local_directories:
+            # Same exemption as an explicit /local/path, with a proven literal
+            # absolute assignment. Unknown variables and URLs remain findings.
+            edits.append((token.start(), token.end(), '/local-package-source'))
             i += 1
             continue
         url = value
@@ -425,8 +496,22 @@ def pip_check_text(text):
     # Generated offline installers are tools accepting user-specified packages,
     # not an unpinned install into the task environment. Only exempt forwarding
     # inside a quoted heredoc; retain concrete installs inside those heredocs.
+    assignments = {}
+    for match in re.finditer(r'(?m)^\s*([A-Za-z_]\w*)=([^\n]*)$', text):
+        assignments.setdefault(match[1], []).append(match[2])
+    local_directories = {name for name, values in assignments.items()
+                         if all(re.fullmatch(r'/[A-Za-z0-9_./-]+', value) for value in values)}
     lines, delimiter = [], None
     for line in text.splitlines(keepends=True):
+        header = re.match(r'''\s*(?:/(?:usr/)?bin/)?(?:bash|sh|dash)(?:\s+-[a-zA-Z]+)*\s+-c\s+(['"])(.*)''', line)
+        if header:
+            try:
+                shlex.split(line)
+            except ValueError:
+                # A literal -c argument can span lines (often a heredoc). The
+                # opening quote is shell packaging, not part of a requirement.
+                # Normalize its first physical command line on the check copy.
+                line = header[2] + '\n'
         if delimiter and line.strip() == delimiter:
             delimiter = None
         elif delimiter and re.fullmatch(
@@ -436,7 +521,7 @@ def pip_check_text(text):
             match = re.search(r"<<\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]", line)
             if match:
                 delimiter = match.group(1)
-        lines.append(pip_check_line(line))
+        lines.append(pip_check_line(line, local_directories))
     return ''.join(lines)
 
 
@@ -533,6 +618,8 @@ def nproc_check_text(text, *, dockerfile=False):
     Also recognize the exact Python 2 build audited under Slurm CPU affinity.
     Other build flags and unknown uses retain the original check.
     """
+    # Checking for the executable does not invoke it. Keep later bare calls.
+    text = re.sub(r'\bcommand\s+-v\s+nproc\b', 'command -v CPU_COUNT_TOOL', text)
     if dockerfile and re.search(r'^FROM maven:3\.9-eclipse-temurin-(?:8|11|17)$', text, re.M):
         # Match the build context and complete command, not make/nproc generally.
         # Mask only on the check's scratch copy; the actual task is unchanged.
@@ -584,6 +671,8 @@ def adapted_check_copy(task, scratch, name, profile):
             target = copy / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             text = source.read_text(errors='replace')
+            if name == 'check-test-file-references.sh' and relative == 'instruction.md':
+                text = markdown_reference_text(text)
             if name == 'check-nproc.sh' and relative not in ('instruction.md', 'task.toml'):
                 if profile == 'training' and relative == 'solution/solve.sh':
                     from data.seta.patch import reviewed_nproc_text
@@ -594,6 +683,8 @@ def adapted_check_copy(task, scratch, name, profile):
                 text = nproc_check_text(text, dockerfile=relative == 'environment/Dockerfile')
             elif relative not in ('instruction.md', 'task.toml'):
                 text = transforms[name](text)
+                if name == 'check-test-file-references.sh' and relative.startswith('tests/') and relative.endswith('.py'):
+                    text = without_unused_reference_sets(text)
             target.write_text(text)
     if name == 'check-test-file-references.sh':
         evidence = discoverable_references(task)

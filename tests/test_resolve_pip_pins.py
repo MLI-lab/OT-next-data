@@ -36,6 +36,31 @@ def test_literal_commands_target_continuations_and_constraints(tmp_path):
     assert pins.commands(root) == []
 
 
+def test_user_install_captures_already_satisfied_system_packages(tmp_path):
+    root = task(tmp_path, 'python3 -m pip install --no-input --user --quiet psutil\n')
+    finding, = pins.commands(root)
+    # pip install --user may be satisfied by an existing system distribution.
+    assert finding['freeze'] == 'python3 -m pip freeze --all'
+    edits = pins.apply(root, [{**finding, 'exit_code': 0, 'stdout': 'psutil==7.2.2\n'}])
+    assert len(edits) == 1
+    assert '--user --quiet psutil==7.2.2' in (root / 'tests/test.sh').read_text()
+
+
+def test_explicit_interpreter_in_shell_chain_has_unambiguous_freeze(tmp_path):
+    root = task(tmp_path, 'bash -c "true && /home/user/env/bin/pip install --no-input ping3 && echo done"\n')
+    finding, = pins.commands(root)
+    assert finding['freeze'] == '/home/user/env/bin/pip freeze --all'
+    assert finding['requirements'][0]['requirement'] == 'ping3'
+    assert (root / 'tests/test.sh').read_text()[finding['requirements'][0]['start']:finding['requirements'][0]['end']] == 'ping3'
+
+
+def test_optional_python_package_install_can_be_snapshotted(tmp_path):
+    root = task(tmp_path, "python3 - <<'PY' || python3 -m pip install --quiet --user jsonschema\nimport jsonschema\nPY\n")
+    finding, = pins.commands(root)
+    assert finding['freeze'] == 'python3 -m pip freeze --all'
+    assert finding['requirements'][0]['requirement'] == 'jsonschema'
+
+
 @pytest.mark.parametrize('script', [
     'pip install "$PACKAGES"\n', 'uv pip install pytest\n',
     'pip install --prefix /tmp/env pytest\n', 'pip install --target relative pytest\n',
@@ -171,7 +196,7 @@ def test_pipeline_runs_all_normal_stages_after_preparation(tmp_path, monkeypatch
         return tmp_path / f'stage-{number}.json', {'has_findings': False, 'items': []}
     monkeypatch.setattr('validation.run.run_stage', run_stage)
     assert run_selected(args, [1, 2, 3, 4]) == 0
-    assert events == ['pip', 'paths', 1, 2, 3, 4]
+    assert events == ['pip', 1, 2, 3, 'paths', 4]
 
 
 def test_separate_verifier_and_unsupported_commands_do_not_run_oracle(tmp_path, monkeypatch):
