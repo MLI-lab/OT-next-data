@@ -67,7 +67,7 @@ setup() {
     uv python install 3.12.14
     [ -x "$ENV_DIR/bin/python" ] || uv venv --python 3.12.14 "$ENV_DIR"
     uv pip install --python "$ENV_DIR/bin/python" -r "$REPO_DIR/requirements.txt"
-    cat > "$WS/local-env.sh" <<EOF
+    [ -f "$WS/local-env.sh" ] || cat > "$WS/local-env.sh" <<EOF
 # Written by passk_local.sh setup; sourced by every step.
 export OT_WORKSPACE=$(printf %q "$WS") OT_NEXT_DATA=$(printf %q "$REPO_DIR")
 export PATH=$(printf %q "$ENV_DIR/bin"):\$PATH PYTHONPATH=$(printf %q "$REPO_DIR")\${PYTHONPATH:+:\$PYTHONPATH}
@@ -111,7 +111,18 @@ healthy() { curl -sf "http://127.0.0.1:$1/health" >/dev/null; }
 
 serve() {
     mkdir -p "$WS/serve"
-    local model port cmd
+    local model port cmd driver compat="$HOME/cuda-compat/usr/local/cuda-13.0/compat"
+    # The pinned vLLM is built for CUDA 13, which needs driver >= 580. On older drivers of data-center GPUs,
+    # NVIDIA's forward-compatibility libraries (unpacked without admin rights into ~/cuda-compat) fill the gap.
+    driver=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 | cut -d. -f1) || driver=
+    [ -n "$driver" ] || echo "WARNING: nvidia-smi gives no driver version; is this a GPU machine?" >&2
+    if [ -n "$driver" ] && [ "$driver" -lt 580 ] && [[ ":${LD_LIBRARY_PATH:-}:" != *":$compat:"* ]]; then
+        [ -d "$compat" ] || die "GPU driver $driver is older than 580 (CUDA 13). Unpack NVIDIA's cuda-compat-13-0 package into ~/cuda-compat (wget .../cuda-compat-13-0_580.159.04-1ubuntu1_amd64.deb; dpkg -x <deb> ~/cuda-compat) or ask your admin for driver 580+"
+        export LD_LIBRARY_PATH="$compat${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    fi
+    # Without nvcc, FlashInfer cannot compile its sampling kernels; vLLM's PyTorch sampler draws from the
+    # same distribution with the same temperature/top-p/top-k/min-p.
+    command -v nvcc >/dev/null || export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
     for model in instruct thinking; do
         port=$(port_of $model)
         if healthy "$port"; then echo "$model is already running on port $port"; continue; fi
@@ -200,6 +211,52 @@ prepare() {
         --out "$WS/runs/$name" --prepare-contract "$contract" "$@"
 }
 
+# Harbor's Docker backend does not create the folder the repo's grading wrapper uploads into
+# (harbor_patches/verifier_setup.py -> /tmp/ot-pytest-execution-<id>/); the cluster's Apptainer bridge
+# does. Without this every grading fails ("Could not find the file") and scores 0. The wrapper creates the
+# folder first and runs commands with umask 022 as Apptainer does. Repository files stay unchanged.
+write_docker_wrapper() {
+    mkdir -p "$WS/bin"
+    cat > "$WS/bin/run_docker.py" <<'EOF'
+"""validation/run.py on Harbor's Docker backend, with the two behaviours of the cluster's Apptainer bridge."""
+import runpy
+import sys
+from pathlib import PurePosixPath
+
+repo = sys.argv.pop(1)
+sys.path.insert(0, repo)
+from harbor.environments.docker import docker_unix  # noqa: E402
+from harbor.environments.docker.docker import DockerEnvironment  # noqa: E402
+
+_upload_file, _upload_dir, _exec = docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir, DockerEnvironment.exec
+
+
+async def _parent(self, target_path):
+    parent = str(PurePosixPath(target_path).parent)
+    await self._env._run_docker_compose_command(['exec', '-T', 'main', 'mkdir', '-p', parent], check=True)
+
+
+async def upload_file(self, source_path, target_path):
+    await _parent(self, target_path)
+    return await _upload_file(self, source_path, target_path)
+
+
+async def upload_dir(self, source_dir, target_dir):
+    await _parent(self, target_dir)
+    return await _upload_dir(self, source_dir, target_dir)
+
+
+async def exec_with_umask(self, command, *args, **kwargs):
+    return await _exec(self, f'umask 022; {command}', *args, **kwargs)
+
+
+docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir = upload_file, upload_dir
+DockerEnvironment.exec = exec_with_umask
+sys.argv = [f'{repo}/validation/run.py', *sys.argv[1:]]
+runpy.run_path(f'{repo}/validation/run.py', run_name='__main__')
+EOF
+}
+
 # Run every shard that has no complete report yet, one after another, in the background.
 start_loop() {
     local name=$1 count=$2 root="$WS/runs/$1"
@@ -207,9 +264,10 @@ start_loop() {
         die "$name is already running (stop it with: ./hpc/passk_local.sh stop ...)"
     fi
     echo "$count" > "$root/count"
+    write_docker_wrapper
     setsid nohup bash -c '
         set -u
-        contract=$1 root=$2 count=$3
+        contract=$1 root=$2 count=$3 wrapper=$4
         for ((i = 0; i < count; i++)); do
             s=$(printf %04d "$i")
             if python - "$root/shards/$s/report" <<EOF
@@ -220,14 +278,14 @@ EOF
             then continue; fi
             rm -rf "$root/shards/$s"; mkdir -p "$root/shards/$s/report"
             echo "$(date -Is) shard $i/$count started" >> "$root/loop.log"
-            python validation/run.py --contract "$contract" --shard "$i/$count" --out "$root/shards/$s" \
+            python "$wrapper" "$PWD" --contract "$contract" --shard "$i/$count" --out "$root/shards/$s" \
                 > "$root/shards/$s.log" 2>&1
             for f in "$root"/shards/$s/stage_6_*/*/summary.json; do [ -f "$f" ] && cp "$f" "$root/shards/$s/report/stage-6-agent_trials.json"; done
             for f in "$root"/shards/$s/stage_7_*/*/summary.json; do [ -f "$f" ] && cp "$f" "$root/shards/$s/report/stage-7-trace_metrics.json"; done
             echo "$(date -Is) shard $i/$count finished" >> "$root/loop.log"
         done
         echo "$(date -Is) all shards done" >> "$root/loop.log"
-    ' _ "$WS/contracts/$name.json" "$root" "$count" > "$root/loop.out" 2>&1 < /dev/null &
+    ' _ "$WS/contracts/$name.json" "$root" "$count" "$WS/bin/run_docker.py" > "$root/loop.out" 2>&1 < /dev/null &
     echo $! > "$root/loop.pid"
     echo "Running in the background (pid $(cat "$root/loop.pid")). Progress: $root/loop.log"
 }
@@ -293,8 +351,21 @@ for i in range(count):
         done += 1
     elif reports:
         bad.append(i)
-running = (root / 'loop.pid').exists()
 print(f'{done} of {count} shards complete' + (f'; incomplete: {bad} (start run again to redo them)' if bad else ''))
+attempts = solved = 0
+errors, ends = {}, {}
+for f in sorted(glob.glob(f'{root}/shards/*/report/stage-7-*.json')):
+    m = json.load(open(f)).get('trace_metrics', {}).get('all_tasks', {})
+    attempts += m.get('trajectories', 0); solved += m.get('solved', 0)
+    for kind, v in (m.get('errors') or {}).items():
+        errors[kind] = errors.get(kind, 0) + (v.get('trajectories') or 0)
+    for kind, n in (m.get('terminations') or {}).items():
+        ends[kind] = ends.get(kind, 0) + n
+if attempts:
+    print(f'{attempts} attempts finished, {solved} solved. How they ended: {ends}')
+    bad_attempts = {k: v for k, v in errors.items() if v}
+    if bad_attempts:
+        print(f'WARNING: attempts with errors {bad_attempts}. Check before going on: grading or the environment may be broken.')
 EOF
                 if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then echo "Running. Last lines of $root/loop.log:"; tail -3 "$root/loop.log" 2>/dev/null || true
                 else echo "Not running."; fi ;;
