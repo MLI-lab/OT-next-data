@@ -18,6 +18,7 @@
 #   ./hpc/passk_local.sh merge nl2bash_v1 instruct    # when status says all shards are complete
 #   ./hpc/passk_local.sh stop nl2bash_v1 instruct     # stop a run (start it again with run: it continues)
 #   ./hpc/passk_local.sh unserve                      # stop both models
+#   ./hpc/passk_local.sh check multiswe_v1            # reference solution = 1 and do-nothing = 0 here? (no GPU needed)
 set -euo pipefail
 shopt -s inherit_errexit
 
@@ -44,12 +45,12 @@ model_key() {
 port_of() { if [ "$1" = instruct ]; then echo "$INSTRUCT_PORT"; else echo "$THINKING_PORT"; fi; }
 gpu_of() { if [ "$1" = instruct ]; then echo "$INSTRUCT_GPU"; else echo "$THINKING_GPU"; fi; }
 
-# Trials at once per model. Each model gets half the machine; a 4-CPU task reserves 4 CPUs.
+# Trials at once per model. Two runs (instruct + thinking) must fit MAX_TRIALS together, because every
+# attempt needs its own Docker network; 4-CPU tasks also leave room for both models' tasks on 128 CPUs.
 default_concurrency() {
     case "$1" in
-        nl2bash_v1) echo 32 ;;
         multiswe_v1|mimo_v1) echo 12 ;;
-        *) echo 16 ;;
+        *) echo 14 ;;
     esac
 }
 
@@ -308,16 +309,19 @@ start_loop() {
             s=$(printf %04d "$i")
             if python - "$root/shards/$s/report" <<EOF
 import glob, json, sys
-reports = sorted(glob.glob(sys.argv[1] + "/stage-6-*.json"))
-sys.exit(0 if reports and json.load(open(reports[-1])).get("complete") else 1)
+reports = glob.glob(sys.argv[1] + "/stage-*-*.json")
+sys.exit(0 if reports and all(json.load(open(r)).get("complete") for r in reports) else 1)
 EOF
             then continue; fi
             rm -rf "$root/shards/$s"; mkdir -p "$root/shards/$s/report"
             echo "$(date -Is) shard $i/$count started" >> "$root/loop.log"
             python "$wrapper" "$PWD" --contract "$contract" --shard "$i/$count" --out "$root/shards/$s" \
                 > "$root/shards/$s.log" 2>&1
-            for f in "$root"/shards/$s/stage_6_*/*/summary.json; do [ -f "$f" ] && cp "$f" "$root/shards/$s/report/stage-6-agent_trials.json"; done
-            for f in "$root"/shards/$s/stage_7_*/*/summary.json; do [ -f "$f" ] && cp "$f" "$root/shards/$s/report/stage-7-trace_metrics.json"; done
+            for f in "$root"/shards/$s/stage_*_*/*/summary.json; do
+                [ -f "$f" ] || continue
+                d=$(basename "$(dirname "$(dirname "$f")")"); d=${d#stage_}
+                cp "$f" "$root/shards/$s/report/stage-${d%%_*}-${d#*_}.json"
+            done
             echo "$(date -Is) shard $i/$count finished" >> "$root/loop.log"
         done
         echo "$(date -Is) all shards done" >> "$root/loop.log"
@@ -326,11 +330,51 @@ EOF
     echo "Running in the background (pid $(cat "$root/loop.pid")). Progress: $root/loop.log"
 }
 
+# check <dataset>: the reference solution (must score 1) and a do-nothing run (must score 0) on the pilot's
+# 10 tasks, in this machine's Docker. The team validated both on the cluster; if they fail here, the
+# local environment differs. Run it again to see the results. Needs no model.
+check() {
+    local name="$ds-check" root="$WS/runs/$ds-check" parquet taskdir
+    if [ -f "$root/count" ]; then
+        if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then
+            echo "Still running. Last lines of $root/loop.log:"; tail -2 "$root/loop.log" 2>/dev/null || true; return 0
+        fi
+        python - "$root" <<'EOF'
+import glob, json, sys
+for f in sorted(glob.glob(sys.argv[1] + '/shards/0000/report/stage-*.json')):
+    d = json.load(open(f))
+    want = 1 if d['name'].startswith('oracle') else 0
+    label = 'reference solution (should score 1)' if want else 'do-nothing run (should score 0)'
+    items = d.get('items', [])
+    good = [i for i in items if i.get('rewards') and all(r == want for r in i['rewards'])]
+    print(f'{label}: {len(good)} of {len(items)} tasks as expected')
+    for i in items:
+        if i not in good:
+            finding = str((i.get('findings') or [i.get('reason') or ''])[0]).replace('\n', ' ')
+            print(f"   {i['task'].rsplit('/', 1)[-1]}: rewards {i.get('rewards')} {finding[:200]}")
+EOF
+        return 0
+    fi
+    CONCURRENCY=${CONCURRENCY:-4}
+    check_capacity "$CONCURRENCY"
+    parquet=$(fetch "$ds"); taskdir=$(unpacked "$parquet" "$ds")
+    [ -e "$WS/contracts/$name.json" ] || {
+        mkdir -p "$WS/contracts" "$root"
+        python validation/run.py "$taskdir" --stages 2,3 --backend docker --submit never \
+            --no-fix-repository-leaks --no-fix-instruction-suffix --no-fix-instruction-paths --no-fix-pip-pins \
+            --limit 10 --attempts 1 --concurrency "$CONCURRENCY" --dataset-source "$HF_REPO/$ds" \
+            --out "$root" --prepare-contract "$WS/contracts/$name.json" >/dev/null
+    }
+    start_loop "$name" 1
+    echo "Check started. Run './hpc/passk_local.sh check $ds' again later to see the results."
+}
+
 cmd=${1:-}; ds=${2:-}; model=${3:-}
 case "$cmd" in
     setup) setup; exit 0 ;;
     serve) activate; serve; exit 0 ;;
     unserve) unserve; exit 0 ;;
+    check) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh check <dataset>"; activate; check; exit 0 ;;
 esac
 [ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh {setup|serve|unserve|pilot|run|status|stop|merge} <dataset> {instruct|thinking}"
 model_key "$model" >/dev/null
