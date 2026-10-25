@@ -30,6 +30,7 @@ TASKS_PER_SHARD=${TASKS_PER_SHARD:-20}
 INSTRUCT_GPU=${INSTRUCT_GPU:-0}; THINKING_GPU=${THINKING_GPU:-1}
 INSTRUCT_PORT=${INSTRUCT_PORT:-8101}; THINKING_PORT=${THINKING_PORT:-8102}
 HF_REPO=FWeindel/validated-tasks
+MAX_TRIALS=${MAX_TRIALS:-28}   # attempts at once over all runs: each uses a Docker network, Docker has ~30 by default
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -181,15 +182,49 @@ EOF
 
 # The task folders of a Parquet, unpacked once next to it (on the cluster each job does this itself;
 # a local run reads folders). Prints the folder.
+# MultiSWE: the cluster runs use images built in 2026-10; rebuilding them now fails in their shared
+# `apt-get update` step because a package source in the Java base images (repos.azul.com/zulu) has since
+# changed its Release 'Label', which apt refuses unless allowed. The local copy allows exactly that change
+# (Acquire::AllowReleaseInfoChange); the same packages install and nothing the tasks test changes.
 unpacked() {
-    local parquet=$1 dir
+    local parquet=$1 ds=$2 dir fixed
     dir="${parquet%.parquet}-tasks"
+    [ "$ds" = multiswe_v1 ] && dir="$dir-aptfix"
     if [ ! -d "$dir" ]; then
         rm -rf "$dir.partial"
         python -m validation.data.materialize "$parquet" "$dir.partial" >&2 || die "unpacking $parquet failed"
+        if [ "$ds" = multiswe_v1 ]; then
+            fixed=$(python - "$dir.partial" <<'EOF'
+import sys
+from pathlib import Path
+old = 'RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tmux'
+new = 'RUN apt-get -o Acquire::AllowReleaseInfoChange=true update && apt-get install -y --no-install-recommends curl ca-certificates tmux'
+n = 0
+for dockerfile in Path(sys.argv[1]).glob('*/environment/Dockerfile'):
+    text = dockerfile.read_text()
+    if text.count(old) == 1:
+        dockerfile.write_text(text.replace(old, new)); n += 1
+(Path(sys.argv[1]) / 'LOCAL_CHANGES.txt').write_text(f'{n} Dockerfiles: apt-get update allows a changed Release Label (repos.azul.com).\n')
+print(n)
+EOF
+            ) || die "MultiSWE build fix failed"
+            echo "MultiSWE: build fix applied to $fixed task images" >&2
+        fi
         mv "$dir.partial" "$dir"
     fi
     echo "$dir"
+}
+
+# Refuse to start more attempts at once than Docker has networks for; drop leftover unused networks
+# when nothing else runs.
+check_capacity() {
+    local new=$1 used=0 others=0 r
+    for r in "$WS"/runs/*/loop.pid; do
+        [ -f "$r" ] && kill -0 "$(cat "$r")" 2>/dev/null || continue
+        others=$((others + 1)); used=$((used + $(cat "$(dirname "$r")/concurrency" 2>/dev/null || echo 0)))
+    done
+    [ $((used + new)) -le "$MAX_TRIALS" ] || die "$used attempts already run at once; $new more would exceed $MAX_TRIALS (Docker runs out of networks). Wait for the other run, or set CONCURRENCY lower."
+    [ "$others" -gt 0 ] || docker network prune -f >/dev/null 2>&1 || true
 }
 
 # prepare <name> <model> <task folder> [extra run.py arguments]: write the contract once, reuse it after.
@@ -264,6 +299,7 @@ start_loop() {
         die "$name is already running (stop it with: ./hpc/passk_local.sh stop ...)"
     fi
     echo "$count" > "$root/count"
+    echo "$CONCURRENCY" > "$root/concurrency"
     write_docker_wrapper
     setsid nohup bash -c '
         set -u
@@ -308,8 +344,9 @@ case "$cmd" in
             free=$(docker_space | tail -1)
             [ "${free:-0}" -ge 500 ] || [ -n "${FORCE_DOCKER_SPACE:-}" ] || die "$ds pulls hundreds of GB of Docker images; Docker's disk has ${free:-?} GB free. Ask your admin to move Docker's data-root to the big disk, or set FORCE_DOCKER_SPACE=1"
         fi
+        check_capacity "$CONCURRENCY"
         parquet=$(fetch "$ds")
-        taskdir=$(unpacked "$parquet")
+        taskdir=$(unpacked "$parquet" "$ds")
         if [ "$cmd" = pilot ]; then
             name="$ds-$model-pilot"
             prepare "$name" "$model" "$taskdir" --limit 10 --attempts 2
