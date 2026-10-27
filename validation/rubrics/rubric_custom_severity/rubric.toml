@@ -1,0 +1,84 @@
+[severity_levels]
+none = "0 defect identified in this category through the completed assessment."
+minor = "A limited defect affecting peripheral requirements, uncommon scenarios, or a small portion of the task, without substantially undermining its main objective or reward validity."
+major = "A substantial defect that undermines essential task requirements, causes materially incorrect reward assignments, or makes the task or verifier fundamentally unreliable."
+not_assessed = "Insufficient information, access, or execution capability prevents a meaningful assessment of this category."
+
+[guidance]
+example_guidance = "The examples illustrate typical defects and their severity but are not exhaustive. Evaluate each finding based on its actual impact on the task's essential requirements and verifier reliability. Do not classify findings solely by their similarity to an example."
+
+[[rubrics]]
+id = "instruction_quality"
+name = "Instruction Quality"
+definition = "The instruction clearly communicates what the agent is expected to accomplish. The task has a sufficiently well-defined, consistent, and objectively verifiable goal. Different reasonable interpretations should not lead to substantially different expected outcomes."
+allowed_severities = ["none", "minor", "major", "not_assessed"]
+
+[rubrics.examples]
+minor = 'The task specifies which statistics to compute and which file to write, but also requests a "short console summary" without clarifying its content. The main objective remains well-defined.'
+major = 'The instruction asks the agent to "improve the performance of the application" without identifying which operations should be optimized or how improvement is measured. Different reasonable interpretations lead to substantially different solutions.'
+
+[[rubrics]]
+id = "instruction_verifier_alignment"
+name = "Instruction–Verifier Alignment"
+definition = "The verifier evaluates the behavior required by the instruction without introducing unstated, unnecessarily restrictive, or contradictory requirements. A solution that correctly fulfills the instruction should not fail because of additional expectations imposed by the verifier."
+concern = "Correct solutions failing."
+allowed_severities = ["none", "minor", "major", "not_assessed"]
+subcategory_rule = "For minor or major findings, choose exactly one most specific applicable subcategory for the most severe reported defect. For none or not_assessed, use null."
+
+[[rubrics.subcategories]]
+id = "unstated_requirement"
+name = "Unstated Requirement"
+definition = "The verifier requires functionality or behavior that is not explicitly specified in the instruction. This includes requirements that are plausibly inferable from context or conventions but not clearly implied, as well as requirements that cannot reasonably be inferred. Requirements clearly implied by the instruction are not considered defects."
+
+[rubrics.subcategories.examples]
+minor = "The instruction asks the agent to implement a function that converts names to lowercase. The verifier additionally requires removing leading and trailing whitespace. Although this behavior is not explicitly specified, it is a common normalization convention that an agent might reasonably anticipate. The additional requirement affects only a limited set of inputs."
+major = "The instruction asks the agent to implement a CSV parser. The verifier additionally requires parsing JSON files, although JSON support is never mentioned or implied. A substantial additional feature is required to pass."
+
+[[rubrics.subcategories]]
+id = "overly_restrictive_verifier"
+name = "Overly Restrictive Verifier"
+definition = "The verifier rejects functionally correct solutions because it unnecessarily enforces a particular implementation, representation, ordering, or other detail not required for correctness."
+
+[rubrics.subcategories.examples]
+minor = "The instruction asks for a JSON output containing specified fields. An auxiliary test requires the JSON keys in a particular order, even though key ordering is not specified and is irrelevant to the requested behavior."
+major = "The instruction asks the agent to implement a working CSV parser. The verifier checks that the implementation imports pandas, rejecting functionally correct implementations using Python's built-in csv module."
+
+[[rubrics.subcategories]]
+id = "contradictory_requirement"
+name = "Contradictory Requirement"
+definition = "The verifier expects behavior that directly conflicts with an explicit requirement in the instruction."
+
+[rubrics.subcategories.examples]
+minor = "The instruction explicitly asks the agent to preserve existing comments in a configuration file. One test instead requires removing a particular nonessential header comment."
+major = "The instruction explicitly requires a file to contain nine lines, but the verifier accepts only an exact eight-line byte sequence. Adding a ninth line to satisfy the stated line count causes verification to fail. The verifier therefore enforces behavior that conflicts with an explicit requirement."
+
+[[rubrics]]
+id = "verifier_coverage_correctness"
+name = "Verifier Coverage & Correctness"
+definition = "The verifier meaningfully checks the essential requirements of the instruction. An incomplete or incorrect solution that fails to satisfy an important requirement should not pass. Checks must validate actual correctness rather than merely the presence, format, or superficial properties of outputs."
+concern = "Incorrect solutions passing."
+allowed_severities = ["none", "minor", "major", "not_assessed"]
+
+[rubrics.examples]
+minor = "The instruction asks for a CSV parser supporting quoted fields. Tests cover ordinary quoted fields but omit the uncommon case of embedded newlines inside quoted fields. An implementation failing only that case could pass."
+major = "The instruction asks the agent to compute summary statistics from a dataset. The verifier checks only that the output JSON contains the expected keys, without validating any computed values. Arbitrary numerical results can pass."
+
+[[rubrics]]
+id = "anti_cheating_robustness"
+name = "Anti-Cheating Robustness"
+definition = "The task and verifier should prevent an agent from obtaining reward without genuinely solving the task through unintended access to answers, modification of evaluation components, or manipulation of verification. A defect in this category must be demonstrated through a successful exploit using only access available to the solving agent."
+allowed_severities = ["none", "major", "not_assessed"]
+evidence_requirement = "A major defect requires an executed, successful exploit under the solving agent's actual access constraints and verifier mode."
+
+[rubrics.examples]
+major = "A task image unintentionally contains a readable file with the expected output. An audit demonstrates that copying this file without performing the requested computation passes the verifier."
+
+[[rubrics]]
+id = "other"
+name = "Other"
+definition = "Any task-quality defect not captured by the other rubrics, such as an unusable execution environment, missing required dependencies, verifier crashes, or unreliable and nondeterministic evaluation."
+allowed_severities = ["none", "minor", "major", "not_assessed"]
+
+[rubrics.examples]
+minor = "A test for an auxiliary timestamp occasionally fails because of a race condition, while verification of the essential functionality remains reliable."
+major = "The task requires a PostgreSQL server, but the provided environment neither starts nor provides the database service. The task cannot be completed as specified."

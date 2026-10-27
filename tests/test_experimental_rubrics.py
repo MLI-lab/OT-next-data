@@ -68,7 +68,7 @@ class ExperimentalRubrics(TestCase):
                 (destination / 'instruction.md').write_text('Upstream prompt\nORIGINAL RUBRIC')
                 (destination / 'environment/Dockerfile').write_text('FROM ubuntu:24.04\nRUN git init /tmp/source\n')
                 (destination / 'task.toml').write_text('artifacts = ["/app/verdicts.json"]\n')
-        for kind, fmt in [('custom', None), ('custom', 'classification'), ('river', None)]:
+        for kind, fmt in [('custom', None), ('custom', 'classification'), ('river', None), ('custom_severity', None)]:
             with self.subTest(kind=kind, fmt=fmt), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 source = root / 'task'; source.mkdir()

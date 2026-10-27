@@ -64,7 +64,9 @@ def analyze(paths):
             'criteria': defaultdict(lambda: defaultdict(list)), 'categories': defaultdict(list),
             'task_vectors': defaultdict(list), 'tasks': set(), 'expected': defaultdict(set),
             'completed': Counter(), 'errors': set(), 'run_vectors': defaultdict(dict),
-            'run_criteria': defaultdict(lambda: defaultdict(dict))})
+            'run_criteria': defaultdict(lambda: defaultdict(dict)), 'severities': defaultdict(Counter),
+            'subcategories': defaultdict(lambda: defaultdict(list)),
+            'run_subcategories': defaultdict(lambda: defaultdict(dict))})
         if str(path.resolve()) not in group['reports']:
             group['reports'].append(str(path.resolve()))
         for item in report['items']:
@@ -100,6 +102,20 @@ def analyze(paths):
                     group['categories'][task].append(trial['category'])
                     group['task_vectors'][task].append(trial['category'])
                     group['run_vectors'][task][run_id] = trial['category']
+                elif 'results' in trial:
+                    results = trial['results']
+                    vector = tuple(sorted((name, value['severity'], value.get('subcategory'))
+                                          for name, value in results.items()))
+                    group['task_vectors'][task].append(vector)
+                    group['run_vectors'][task][run_id] = vector
+                    for name, value in results.items():
+                        level = value['severity']
+                        group['criteria'][name][task].append(level)
+                        group['run_criteria'][name][task][run_id] = level
+                        group['severities'][name][level] += 1
+                        label = value.get('subcategory') or 'none'
+                        group['subcategories'][name][task].append(label)
+                        group['run_subcategories'][name][task][run_id] = label
                 else:
                     group['task_vectors'][task].append(tuple(sorted((name, value['outcome']) for name, value in checks.items())))
                     group['run_vectors'][task][run_id] = tuple(sorted((name, value['outcome']) for name, value in checks.items()))
@@ -122,6 +138,10 @@ def analyze(paths):
             'tasks_with_no_completed_review': ratio(sum(group['completed'][t] == 0 for t in group['tasks']), len(group['tasks'])),
             'overall': overall,
             'classification': summarize(metrics, len(group['tasks']), expected) if group['categories'] else None,
+            **({'severity_counts': {name: dict(counts) for name, counts in sorted(group['severities'].items())},
+                'per_subcategory': {name: {**summarize(tasks, len(group['tasks']), expected),
+                    'per_run_pair': pairwise_runs(group['run_subcategories'][name], len(group['tasks']))}
+                    for name, tasks in sorted(group['subcategories'].items())}} if group['severities'] else {}),
             'per_criterion': {name: {**summarize(tasks, len(group['tasks']), expected),
                 'per_run_pair': pairwise_runs(group['run_criteria'][name], len(group['tasks']))}
                 for name, tasks in sorted(group['criteria'].items())}})
@@ -129,7 +149,7 @@ def analyze(paths):
         'definitions': {
             'pairwise_agreement': 'Agreeing run pairs / all run pairs for the same task; count, total and percent.',
             'unanimous_tasks': 'Tasks where all requested reviews completed and agree / all tasks. Also reports agreement among tasks with all requested reviews and at least two reviews.',
-            'overall': 'Labeling requires the complete criterion-label vector to agree; classification compares the category.',
+            'overall': 'Labeling requires the complete criterion-label vector to agree; classification compares the category; severity compares the full severity and subcategory vector.',
             'missing': 'Pairwise agreement uses available completed pairs. Unanimity requires all requested reviews and at least two reviews; its primary denominator is all tasks.',
             'grouping': 'Different rubric, format, selected criteria, agent or model settings are analyzed separately.',
             'repairs': 'Repair rounds are merged into one review; resumed copies of the same sample are not independent runs.'}}
@@ -153,10 +173,14 @@ def render(result):
                       '  All requested runs agree, among fully reviewed tasks: ' + percent(metrics['unanimous_among_complete_tasks'])]
             for pair in metrics.get('per_run_pair', []):
                 lines.append('  ' + pair['run_a'] + ' vs ' + pair['run_b'] + ': ' + percent(pair['agreement']) + ' of all tasks; ' + str(pair['tasks_compared']) + ' tasks compared')
+        if group.get('severity_counts'):
+            lines.append('Severity counts: ' + json.dumps(group['severity_counts'], sort_keys=True))
+            for name, metrics in group['per_subcategory'].items():
+                lines.append(name + ' subcategory agreement: ' + percent(metrics['pairwise_agreement']))
         lines.append('')
     lines += [f"Duplicate resumed samples ignored: {result['duplicate_samples_ignored']}",
               'Pairwise agreement compares every unique pair of completed runs on the same task.',
-              'Overall labeling agreement requires the full label vector to match; classification compares categories.',
+              'Overall labeling agreement requires the full label vector to match; classification compares categories; severity compares severities and subcategories.',
               'Repairs count as part of their original run. Unanimity requires all requested runs and at least two completed runs.']
     return '\n'.join(lines) + '\n'
 
