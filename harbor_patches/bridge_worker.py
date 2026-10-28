@@ -510,8 +510,9 @@ def run_container_commands(original_run, net_flags=(), clock=time.monotonic):
     def run(cmd, *args, **kwargs):
         workdir_seed = (isinstance(cmd, list) and cmd[1:2] == ['exec']
                         and any(str(arg).endswith(':/_workdir_init:rw') for arg in cmd))
-        from harbor_patches.exec_environment import command_arguments
+        from harbor_patches.exec_environment import command_arguments, output_options
         cmd = command_arguments(cmd)
+        kwargs = output_options(cmd, kwargs)
         from harbor_patches.upload_runtime import upload_command
         cmd = upload_command(cmd)
         from harbor_patches.workdir_seed import workdir_seed_command
@@ -752,6 +753,8 @@ def install_container_hooks(net_flags):
     install_tmux_capture_worker(worker)
     from harbor_patches.tmux_socket import install_worker as install_tmux_socket_worker
     install_tmux_socket_worker(worker)
+    from harbor_patches.exec_environment import install_output_decoding
+    install_output_decoding(worker)
     from harbor_patches.exec_environment import install_worker as install_exec_environment
     install_exec_environment(worker)
     from harbor_patches.upload_runtime import install_worker as install_upload_worker

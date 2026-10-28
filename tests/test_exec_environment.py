@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -140,3 +141,68 @@ def test_installed_harbor_exec_preserves_image_python(tmp_path, monkeypatch):
     result = instance.exec({'command': 'python; pip'})
     assert result['return_code'] == 0
     assert result['stdout'] == 'actual-image-python\nactual-image-pip\n'
+
+def test_worker_patch_handles_binary_output_through_real_exec(monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+
+    from harbor.environments.apptainer import worker
+
+
+    original_run = subprocess.run
+    emit = 'import os; os.write(1, b"%PDF-1.4\\n%\\xe2\\xe3\\xcf\\xd3\\n"); os.write(2, b"bad \\x81"); raise SystemExit(7)'
+
+    def run(command, *args, **kwargs):
+        if any(str(arg).startswith("instance://") for arg in command):
+            command = [sys.executable, "-c", emit]
+        return original_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(worker, "subprocess", SimpleNamespace(**{**vars(subprocess), "run": run}))
+    monkeypatch.setattr(worker, "_ot_exec_utf8_replace", False, raising=False)
+    instance = object.__new__(worker.ApptainerInstance)
+    instance.instance_name = "test-instance"
+    instance.max_exec_output_chars = 1000
+    instance._proxy_command_prefix = lambda: ""
+    with pytest.raises(UnicodeDecodeError):
+        instance.exec({"command": "cat document.pdf"})
+    patch.install_output_decoding(worker)
+    patched_run = worker.subprocess.run
+    patch.install_output_decoding(worker)
+    assert worker.subprocess.run is patched_run
+    result = instance.exec({"command": "cat document.pdf"})
+    assert result["stdout"] == "%PDF-1.4\n%\ufffd\ufffd\ufffd\ufffd\n"
+    assert result["stderr"] == "bad \ufffd"
+    assert result["return_code"] == 7
+    assert subprocess.run is original_run
+    # Binary transfers and explicit decoding choices remain intact.
+    command = ["apptainer", "exec", "instance://test-instance", "anything"]
+    binary = worker.subprocess.run(command, capture_output=True)
+    assert binary.stdout == b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"
+    with pytest.raises(UnicodeDecodeError):
+        worker.subprocess.run(command, capture_output=True, text=True, errors="strict")
+    # Non-container subprocess calls retain their original strict behavior.
+    with pytest.raises(UnicodeDecodeError):
+        worker.subprocess.run([sys.executable, "-c", emit], capture_output=True, text=True)
+
+
+def test_worker_patch_preserves_timeouts(monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+
+    from harbor.environments.apptainer import worker
+
+
+    def run(command, *args, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(worker, "subprocess", SimpleNamespace(**{**vars(subprocess), "run": run}))
+    monkeypatch.setattr(worker, "_ot_exec_utf8_replace", False, raising=False)
+    patch.install_output_decoding(worker)
+    instance = object.__new__(worker.ApptainerInstance)
+    instance.instance_name = "test-instance"
+    instance.max_exec_output_chars = 1000
+    instance._proxy_command_prefix = lambda: ""
+    result = instance.exec({"command": "sleep 100", "timeout_sec": 1})
+    assert result["return_code"] == -1
+    assert "timed out" in result["stderr"]
+

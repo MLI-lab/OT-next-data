@@ -77,3 +77,32 @@ def install_worker(worker):
     instance.exec = execute
     instance._proxy_command_prefix = prefix
     instance._ot_image_exec_environment = True
+
+
+def output_options(command, kwargs):
+    """Display arbitrary container output without treating binary bytes as a trial error."""
+    if (isinstance(command, (list, tuple)) and len(command) > 1 and command[1] == 'exec'
+            and any(str(arg).startswith('instance://') for arg in command)
+            and (kwargs.get('text') or kwargs.get('universal_newlines'))):
+        kwargs = dict(kwargs)
+        kwargs.setdefault('encoding', 'utf-8')
+        kwargs.setdefault('errors', 'replace')
+    return kwargs
+
+
+def install_output_decoding(worker):
+    """Tolerate binary bytes in instance command output, only in this worker."""
+    from types import SimpleNamespace
+
+    if getattr(worker, "_ot_exec_utf8_replace", False):
+        return
+    original_run = worker.subprocess.run
+
+    def run(command, *args, **kwargs):
+        return original_run(command, *args, **output_options(command, kwargs))
+
+    # Do not mutate the shared subprocess module or other processes' decoding.
+    worker.subprocess = SimpleNamespace(**{**vars(worker.subprocess), "run": run})
+    worker._ot_exec_utf8_replace = True
+
+
