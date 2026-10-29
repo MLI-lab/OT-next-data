@@ -13,14 +13,14 @@ Combines the [Terminal-Bench task validation protocol](https://github.com/harbor
 
 | Stage | Purpose |
 | --- | --- |
-| [1](PROTOCOL.md#stage-1-build-and-runtime-checks) | Container build, setup and runtime checks |
+| [1](PROTOCOL.md#stage-1-build-setup-and-runtime-checks) | Container build, setup and runtime checks |
 | [2](PROTOCOL.md#stage-2-reference-solution) | Reference solution: reward 1 |
 | [3](PROTOCOL.md#stage-3-no-op-baseline) | No-op agent: reward 0 |
-| [4](PROTOCOL.md#stage-4-static-task-quality-checks) | All static checks |
-| [5](PROTOCOL.md#stage-5-llm-rubric-review) | LLM rubric review of instructions and task implementation |
-| [6](PROTOCOL.md#stage-6-teacher-agent-trials) | Teacher agent attempts and reward statistics |
+| [4](PROTOCOL.md#stage-4-static-checks) | All static checks |
+| [5](PROTOCOL.md#stage-5-llm-task-quality-review) | LLM rubric review of instructions and task implementation |
+| [6](PROTOCOL.md#stage-6-passk) | Student pass@k, then teacher pass@2 on unsolved tasks |
 | [7](PROTOCOL.md#stage-7-trace-metrics) | Trajectory statistics |
-| [8](PROTOCOL.md#stage-8-llm-trajectory-analysis) | LLM rubric review of trajectories |
+| [8](PROTOCOL.md#stage-8-llm-trajectory-review) | LLM rubric review of trajectories |
 | [9](PROTOCOL.md#stage-9-adversarial-trials-optional-untested) | Adversarial agent attempts |
 | [10](PROTOCOL.md#stage-10-hackerfixer-loop-optional-untested) | Hacker/fixer task hardening |
 
@@ -66,6 +66,33 @@ python validation/run.py /path/to/tasks \
   --out "$OT_WORKSPACE/validation-pilot" \
   --prepare-contract "$OT_WORKSPACE/contracts/check.json"
 ```
+
+### Contract versions and evidence reuse
+
+New contracts use schema version 3 and stage layout `environment-first-v2`
+(until 2026-10-17, `environment-first-v1` had 2 = no-op and 3 = reference; old
+records are translated by stage name).
+Reports record the same layout. Existing contracts, reports, and submitted jobs
+retain their original stage meanings and must be inspected or resumed with their
+frozen code. The current runner rejects legacy contracts instead of reinterpreting
+stage numbers. Prepare a new contract to use this layout; do not edit old contracts.
+Expected-outcome files now use `ot-expected-outcomes-v2` for the same reason.
+Stages 2 and 3 run each task 3 times by default (`--reference-runs`, `--nop-runs`), each run
+in a fresh container. Stage 1 builds each task once and retries a failed build up to 3 times.
+The `--reuse-build` option reuses compatible stage-1 build evidence; the old
+`--reuse-stage3` spelling remains an alias, not a way to import legacy evidence.
+
+The repair controller retains passing build/setup evidence across repair generations
+only when task content, source revision, runtime dependencies, execution settings,
+validation implementation and acceptance criteria match. After a completed full
+build/setup run, it skips repeated pilots when compatible passing evidence exists
+and submits only changed, restored, failed or previously untested tasks. Its full
+report combines old and new observations with per-task provenance; it is not a
+new execution of the unchanged tasks. Runtime or protocol changes invalidate reuse.
+The final validation reuses the compatible passing build/setup checkpoint while
+running its remaining checks. First runs and incompatible repairs still follow
+the pilot progression. Full-dataset image prebuilding is optional; normally each
+pilot builds missing images and reuses the resulting cache in later runs.
 
 ### Arguments
 
@@ -133,6 +160,127 @@ python validation/shards.py merge "$OT_WORKSPACE/runs/check" --contract "$OT_WOR
 
 Each shard validates one slice of the frozen task list; `merge` writes one report per stage
 once every slice has reported, and `publish.py` takes the merged directory like any run.
+
+## Run details
+
+### Retries after the run
+
+After all stages have run once, every task of runner stages 1, 2 and 3 is classified as
+the publisher classifies it: passed, archived, or not run (crash, node failure,
+missing reward, missing runner evidence). Tasks that are not run are rerun in
+those stages up to three more times, runner stage 1 first so a recovered build lets its
+trials run in the same round. A wrong reward or a failed build is a result and is
+not retried. A task still without a result after the last attempt is archived as
+not robust under this infrastructure, so every run ends in a decision for every
+task.
+
+When an earlier audit of the same tasks is supplied with `--expected-outcomes`
+(e.g. from a previous manual audit), results that differ from it are rerun
+instead of applying the classifier, and a task that never reproduces the audit
+is archived as not robust. The pull request reports, per stage, how many tasks
+matched on the first attempt, after one, two or three retries, or were archived,
+and where the expected outcomes came from.
+
+### Sharded runs of one contract
+
+A frozen contract may be executed in shards. Each shard job validates one slice of the
+contract's task list (tasks sorted by ID, taken round-robin by shard index), verifies the
+source files against the contract and the content of its own slice, and marks its stage
+reports with the slice. `validation/shards.py merge` combines the shard reports into one report per stage
+only when every slice is present exactly once and belongs to the same contract; the merged
+report records each shard's job and timing. Retries on unexpected outcomes run inside each
+shard. A merged run is published like a single run.
+
+### Sampling a diverse pilot
+
+After runner stage 7, [`create_pilot.py`](data/create_pilot.py) groups tasks by reward
+outcome: always solved, always zero, varying rewards, constant partial credit,
+or no reward. Within these groups, it splits by short, medium, and long
+trajectories, then task family. Runner stage 8 also groups by how trajectories ended.
+It samples as evenly as possible at each level, redistributing places when a
+group is too small. Within each final group, it favors examples with different
+command usage.
+
+```bash
+python validation/data/create_pilot.py /path/to/tasks \
+  --trace-metrics /path/to/stage7/trace-metrics.json \
+  --stage 5 --size 20 --family-from-id --seed 42 \
+  --out "$OT_WORKSPACE/pilot-stage5"
+```
+
+`--trace-metrics` gives runner stage 7 statistics, including command usage. `--stage`
+selects task review (`5`) or trajectory review (`8`); `--size` limits tasks or
+trajectories respectively, and `--seed` makes selection repeatable.
+`--family-from-id` reads families from `<dataset>-<family>-<number>` IDs when
+metadata is missing; use `--families mapping.json` for a custom mapping. For
+runner stage 8, also supply `--trials /path/to/teacher/job`. `--out` receives the selected
+`tasks/`, a `pilot.json` describing the selection, and, for runner stage 8, the selected
+`trials/`.
+
+### pass@k reports
+
+Acceptance checks collection completeness, independently of stages 1 through 3.
+Every selected task must have exactly the requested number of distinct terminal
+attempts.
+
+> An attempt succeeds only if verification returns a passing reward. Any other
+> outcome, including a verifier failure, counts as unsolved.
+
+This rule applies to recorded terminal attempts, regardless of the failure's
+cause. It does not turn missing or unfinished attempts into completed attempts.
+Completed attempts with a recorded error and no valid verifier reward receive
+**reward 0** in stage-6 and stage-7 results. The original verifier output and
+exceptions are preserved for diagnosis, separately from the assigned reward.
+No replacement attempt is generated. Reports expose the verifier-error rate;
+these scored failures do not contribute to the no-reward rate. Missing, duplicate, unfinished
+or unaccounted-for attempts keep collection incomplete. Reference and no-op
+validation retain their strict execution and reward requirements. In particular,
+stage 3 (NOP) still requires a measured zero reward and valid test execution,
+subject to its documented missing-file exception. The pass@k completion checker
+does not relax NOP validation.
+
+Runs the selected agent and model `k` times per task (`--attempts k`), saving
+rewards and trajectories. Each task gets a solved count: **0/k, 1/k, …, k/k**.
+
+After a Slurm run, results are saved automatically under
+`<output>/submissions/ID/report/` in `stage-6-*.json` and `summary.json`. They include:
+
+- **pass@1:** average success rate across tasks. A task solved 2 out of 4 times has 50%.
+- **pass@k:** percentage of tasks solved at least once in their `k` attempts.
+- **Mean reward:** average score over graded attempts. With binary rewards and no missing grades, this equals pass@1; otherwise it can differ.
+- **Partial-credit rate:** percentage of attempts scoring between 0 and 1. Only relevant for nonbinary rewards; it is zero for binary rewards.
+- **Missing rewards and errors:** attempts that could not be graded, with execution errors recorded separately. Missing rewards count as unsolved in pass rates.
+
+The report automatically generates two plots beside the JSON files:
+
+- `stage-6-*-pass-rates.png`: pass-rate bars for each task family and all tasks.
+- `stage-6-*-solved-counts.png`: number of tasks solved 0/k, 1/k, …, k/k times,
+  with separate panels for different attempt counts.
+
+[`publish_pass_counts.py`](publishing/publish_pass_counts.py) uploads a
+`pass_counts.parquet` table per data source to Hugging Face. Each row contains
+the task ID, its version hash, the model, and the solved and attempt counts.
+This lets you filter the dataset by a model's success rate, for example selecting
+only tasks it solved 2 out of 4 times.
+
+### Automatic change attribution
+
+Automatic fixes record cumulative per-task `automation_changes` in `source.json`
+and the frozen contract. The default labels are `anti-cheat-instruction` for
+suffix edits, `relative-path-fix` for evidence-backed path replacements, and
+`dependency-pinning` for pip pins captured from a successful reference run.
+A label is added only when that automation changes content. Later normalization
+copies preserve earlier labels and restrict them to the selected task IDs.
+Publication carries these labels into task `patch_labels` and the PR change
+table, with a separate count of unique tasks changed by automation. Category
+counts can overlap. These record automation activity, while the source comparison
+continues to describe net changes against upstream. Older frozen contracts
+without this metadata do not gain inferred automation labels.
+
+Stage-5 reviews automatically repair missing/invalid criterion output (two repair
+rounds by default; `--review-retries`), retain valid judgments, and resume matching
+checkpoints. `--review-runs N` requests independent runs per task. See
+[review execution and analysis](rubrics/README.md#running-and-comparing-reviews).
 
 ## Publishing after validation
 

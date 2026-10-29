@@ -103,6 +103,33 @@ There are two ways to start the judge:
 Each judge session is limited to 30 minutes. Claude Code and Codex judges run in their own harness. All other judges, local (Qwen, GLM) or API models, run in Terminus 2 with up to 32,768 output tokens per step; when the context window fills, Terminus 2 summarizes the conversation and continues.
 
 
+### Image evidence details
+
+Our default evidence path differs from upstream's task-files-only review:
+`--review-evidence image` adapts the Charlie calibration workflow. A host-side
+Claude Code or Codex CLI judge receives only the container inspection MCP tool;
+built-in host shell tools are disabled. The tool uses fresh task environments
+through the same runtime and image cache as validation, including separately
+configured verifier environments. Declared agent setup runs before inspection.
+The judge can inspect the complete task files, including `setup_files` and
+`tests/setup.sh`; verifier setup is not automatically executed. Inspection
+commands may change the disposable review instance, never the cached image or
+source task. The review-only copies of tests and solutions are explicitly marked
+as review evidence, not as proof of solver access to those files.
+
+The upstream prompt and patched rubric are retained with an evidence-access
+addendum. Each attempt records environment configuration, setup scope, tool
+commands and results, judge output, usage, and schema-validated verdicts. At
+least one successful inspection is required. Startup failures, unavailable
+inspection, and invalid or missing verdicts are review errors; they do not
+silently fall back to task-files-only evidence.
+`--review-evidence files` explicitly selects the previous neutral review
+container, using Harbor’s normal agent/job runtime. Image inspection supports CLI judges
+and local OpenAI-compatible judges through the same container tool. The selected judge CLI and credentials must be
+available on the worker host. Runner stage 8 is unchanged. Existing frozen contracts
+retain their recorded evidence setting; legacy contracts without one use the
+previous file-only behavior.
+
 ## Judge calibration
 
 Calibration used **our adjusted Terminal-Bench rubric**. We did not use our custom rubric because the TB human labels have gt for only the TB criterias. 
@@ -145,3 +172,61 @@ python -m validation.rubrics.analysis /path/to/run1/summary.json /path/to/run2/s
 Analysis prints and saves `results.log` here: every run pair’s agreement,
 tasks where all runs agree, and per-criterion results, with counts and percentages.
 Use `--out PATH` for another log or `--json-out PATH` for detailed distributions.
+
+## Usage and cost
+
+Runner stage 5 and runner stage 8 save per-attempt input/output token counts, cache-read
+counts, cache-write counts when available, and reported USD cost in each task's
+`usage`. Input tokens include cache tokens, so do not add the cache counts to
+input again. Failed review attempts with usage evidence are included.
+Stage reports contain totals and averages per distinct task, including all
+attempts. The exported `report/summary.json` includes combined `review_usage`;
+`report/reviews.json` preserves per-task usage, and `report/stage-5-*.json`
+preserves the full stage report. Shard merges recompute totals from task records.
+
+By default, review pricing uses the small audited Together price table in
+`validation/publishing/review_pricing.py`. Local model keys resolve to their HF
+model IDs; API model IDs must match a verified entry. The initial table covers
+GLM-5.3 and gpt-oss-120b, checked on 2026-10-11. Other models remain unpriced
+(`null`, not zero). Each stage freezes its own resolved rates, source URL, model
+ID and check date in the contract, and preserves them with the usage records.
+Validation does not fetch changing prices while a job runs. Together prices are
+reference API-equivalent estimates, including when the actual endpoint is local
+or hosted by a different provider; they are not billed local GPU costs.
+
+To override the default, pass `--review-pricing` as a JSON object of
+USD rates per million tokens with `input` and `output`, optionally `cache_read`
+and `cache_write`. For example, `--review-pricing '{"input": 1, "output": 4}'`
+uses illustrative rates, not a model price recommendation. Unspecified cache
+rates equal the input rate. This rate card applies to both review stages, so
+run judges with different prices separately. The contract freezes the rate card.
+Reported cost and token-based estimates remain separate; `cost_usd` prefers
+reported cost and otherwise uses the estimate. These are agent-reported or
+estimated costs, not a reconciliation of the provider invoice. GPU and container
+compute are excluded.
+In the pinned runtime, Claude Code reads `total_cost_usd` from its session result.
+The Terminus raw-response adapter hardcodes its internal cost to zero and the
+agent exports this as null, even for an API endpoint. Our reporting helper applies
+the default or supplied token rates to estimate USD cost.
+
+For locally served models, stage timing records `serving_gpu_count` and
+`serving_gpu_hours` (the serving GPU count multiplied by stage wall hours).
+These measure reserved GPU time during the stage, including idle time, and
+exclude model startup and final teardown. They are not utilization-weighted.
+GPU hours are never converted into dollars. External endpoints have no local
+GPU-hour measurement. GPU hardware information remains in `execution.json`.
+
+Unknown usage stays null. Each metric has a `known_subtotal` and
+`trials_with_data`; `total` and `average_per_task` are null when any expected
+attempt lacks that metric. Missing cache counts also prevent an estimate if
+the supplied cache rate differs from the input rate. Local models still record
+tokens; supply zero rates for a zero API-cost estimate, or comparison rates
+to estimate equivalent API spend.
+
+Reprice a saved stage report without another model call:
+
+```bash
+python -m validation.publishing.review_usage report/stage-5-ID.json \
+  --pricing '{"input": 1, "output": 4, "cache_read": 0.1}' \
+  --out report/repriced-stage-5.json
+```
