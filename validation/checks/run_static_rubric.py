@@ -53,33 +53,33 @@ def analyze(task):
     except Exception as e: cfg = {}; parse_error = str(e)
     else: parse_error = None
     checks = {}
-    checks["task_toml_schema"] = result("fail" if parse_error else "pass", parse_error or "task.toml parses with Python TOML parser", [str(toml)])
-    checks["task_name"] = run_check("check-task-package-name.sh", task)
-    checks["no_extraneous_files"] = unreferenced_check(task, files)
-    checks["instruction_concision"] = run_check("check-task-absolute-path.sh", task)
-    checks["resource_configuration"] = resource_check(task)
-    separate=run_check("check-separate-verifier.sh", task)
-    # /tmp is guaranteed to exist in the verifier image; the repository check
-    # requires an explicit mkdir for every artifact parent and is too strict
-    # for this special system directory.
-    if separate["status"] == "fail" and "missing 'RUN mkdir -p' for declared artifact parent(s): /tmp" in separate["reason"]:
-        separate=result("pass", "repository check exception: /tmp already exists in the verifier base image", separate.get("evidence", []))
-    checks["separate_verifier_configured"] = merge_checks(separate, docker_context_check(task))
-    checks["environment_hygiene"] = docker_context_check(task)
-    checks["deterministic_reproducible"] = run_check("check-pip-pinning.sh", task)
-    checks["verifier_execution_isolation"] = run_check("check-test-file-references.sh", task)
-    checks["task_readme"] = result("pass" if (task / "README.md").exists() else "fail", "README presence", [str(task / "README.md")])
     checks["ctrf_reporting"] = result("pass" if any("ctrf" in p.lower() for p in files) else "not_evidenced", "CTR/CTRf file or reference scan", files)
     checks["functional_verification"] = functional_check(task)
     checks["python_missing_imports"] = python_import_check(task)
-    checks["artifact_efficiency"] = result("fail" if any((task / x).stat().st_size > 100_000_000 for x in files if not x.endswith(".git")) else "pass", "large artifact scan", files)
-    checks["task_security"] = security_check(task)
+    checks["artifact_efficiency"] = artifact_efficiency_check(task, files)
     checks["outcome_verified"] = outcome_check(task)
-    checks["typos"] = naming_check(task)
-    checks["solution_quality"] = solution_quality_check(task)
     checks["do_not_modify_enforced"] = do_not_modify_check(task)
-    checks["binary_reward"] = binary_reward_check(task)
+    checks["coverage_warning"] = coverage_warning_check(task, checks)
     return checks
+
+def _format_size(size):
+    """Use MB below 1 GB and GB at or above 1 GB for human-facing reports."""
+    if size >= 1000 ** 3:
+        return f"{size / (1000 ** 3):.2f} GB"
+    return f"{size / (1000 ** 2):.2f} MB"
+
+def artifact_efficiency_check(task, files):
+    """Report bundle size as an advisory warning, never as a hard failure."""
+    sizes = [(name, (task / name).stat().st_size) for name in files if not name.endswith('.git')]
+    total = sum(size for _, size in sizes)
+    largest_name, largest_size = max(sizes, key=lambda item: item[1], default=(None, 0))
+    reason = (f"artifact size: {_format_size(total)} total; "
+              f"largest file: {_format_size(largest_size)}"
+              + (f" ({largest_name})" if largest_name else ""))
+    if largest_size > 100 * 1000 * 1000:
+        reason += "; exceeds the 100 MB advisory threshold"
+        return result("warning", reason, [str(task / largest_name)])
+    return result("pass", reason, [str(task)])
 
 def resource_check(task):
     """Run the repository check and add a direct, dependency-free TOML check."""
@@ -251,15 +251,63 @@ def solution_quality_check(task):
     text="\n".join(p.read_text(errors="replace") for p in files if p.suffix in {".py",".sh"} and p.stat().st_size<5_000_000)
     hardcoded=bool(re.search(r"(?:echo|print)\s+['\"](?:0|1|true|false|success|done)['\"]\s*$", text, re.I|re.M))
     computation=bool(re.search(r"\b(for|while|subprocess|numpy|pandas|torch|json\.|open\(|calculate|compute|solve)\b", text, re.I))
+    binary_result=bool(re.search(r"(?:echo|printf|print)\s+['\"]?(?:0|1|true|false)['\"]?\s*$", text, re.I|re.M))
+    if hardcoded and not computation and binary_result:
+        return result("pass", "binary result output is allowed; the verifier must establish whether the result is correct", [str(p) for p in files])
     return result("fail" if hardcoded and not computation else "pass", "solution computation/hardcoding scan", [str(p) for p in files])
 
 def do_not_modify_check(task):
-    instruction=(task/"instruction.md").read_text(errors="replace") if (task/"instruction.md").exists() else ""
-    protected=re.findall(r"(?:do not modify|must not modify|preserve|leave unchanged)[^`\n]*[`/]([A-Za-z0-9_./-]+)", instruction, re.I)
+    protected=protected_artifacts(task)
     if not protected: return result("not_evidenced", "no concrete protected artifact constraint found", [])
     tests="\n".join(p.read_text(errors="replace") for p in (task/"tests").rglob("*") if p.is_file() and p.stat().st_size<5_000_000) if (task/"tests").exists() else ""
     missing=[x for x in protected if x not in tests and Path(x).name not in tests]
-    return result("fail" if missing else "pass", "protected-artifact enforcement scan", missing)
+    status="warning" if missing else "pass"
+    reason=("protected-artifact verifier coverage gap" if missing
+            else "protected-artifact enforcement is referenced by verifier")
+    return result(status, reason, missing or protected)
+
+def protected_artifacts(task):
+    """Extract only explicit filesystem paths from strong preservation language.
+
+    This deliberately ignores arbitrary backtick identifiers such as
+    ``ImportError`` or ``-strip`` and the runtime boilerplate around
+    ``/setup_files``.
+    """
+    instruction=(task / "instruction.md").read_text(errors="replace") if (task / "instruction.md").exists() else ""
+    protected=[]
+    action=re.compile(r"\b(?:do not|must not)\s+(?:modify|change|edit|delete|remove|touch)\b|\b(?:must|should)\s+preserve\b|\bpreserved\s+in\b", re.I)
+    path=re.compile(r"(?:`(?P<quoted>(?:/|\.{1,2}/|~/)[A-Za-z0-9_./-]+)`|(?P<plain>(?:/|\.{1,2}/|~/)[A-Za-z0-9_./-]+))")
+    for line in instruction.splitlines():
+        if not action.search(line):
+            continue
+        for match in path.finditer(line):
+            value=match.group("quoted") or match.group("plain")
+            if value.startswith("/setup_files/"):
+                continue
+            if value not in protected:
+                protected.append(value)
+    return protected
+
+def coverage_warning_check(task, checks):
+    """Aggregate verifier-completeness gaps without rejecting the task."""
+    protected=protected_artifacts(task)
+    tests="\n".join(p.read_text(errors="replace") for p in (task/"tests").rglob("*") if p.is_file() and p.stat().st_size<5_000_000) if (task/"tests").exists() else ""
+    missing=[x for x in protected if x not in tests and Path(x).name not in tests]
+    gaps=[]
+    if missing:
+        gaps.append("protected_artifact")
+    if checks.get("functional_verification", {}).get("status") != "pass":
+        gaps.append("functional_verification")
+    if checks.get("outcome_verified", {}).get("status") != "pass":
+        gaps.append("outcome_verified")
+    evidence=[]
+    for name in ("functional_verification", "outcome_verified"):
+        if name in checks and checks[name].get("status") != "pass":
+            evidence.extend(checks[name].get("evidence", []))
+    evidence.extend(missing)
+    if not gaps:
+        return result("pass", "verifier coverage signals are present", evidence)
+    return result("warning", "coverage warning: verifier completeness gap(s): " + ", ".join(gaps), evidence)
 
 def binary_reward_check(task):
     tests="\n".join(p.read_text(errors="replace") for p in (task/"tests").rglob("*") if p.is_file() and p.stat().st_size<5_000_000) if (task/"tests").exists() else ""

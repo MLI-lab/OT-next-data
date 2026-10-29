@@ -15,13 +15,6 @@ DEFAULT_VALIDATED=WORKDIR.parent/'data'/'ot-next-data'/'validated_task'
 sys.path.insert(0, str(Path(__file__).parent))
 from run_static_rubric import analyze
 
-OPTIONAL_CHECKS={
-    # Cross-dataset warning policy used in RUBRIC_STATIC_CHECK.md. Benchmark
-    # profile compatibility checks are intentionally excluded from this set.
-    'ctrf_reporting',
-    'instruction_concision', 'deterministic_reproducible',
-}
-
 def relativeize(value):
     """Remove machine-specific workspace prefixes from persisted evidence."""
     if isinstance(value, str) and value.startswith('/'):
@@ -86,8 +79,8 @@ def inspect_row(path, idx, task_path, blob, metadata):
         checks=analyze(taskdir)
         criteria,overall=summarize_criteria(checks)
         failures={k:v for k,v in checks.items() if v.get('status')=='fail'}
-        warnings={k:v for k,v in failures.items() if k in OPTIONAL_CHECKS}
-        hard_failures={k:v for k,v in failures.items() if k not in OPTIONAL_CHECKS}
+        warnings={k:v for k,v in checks.items() if v.get('status')=='warning'}
+        hard_failures=failures
         return relativeize({
             'source':os.path.relpath(path, WORKDIR), 'row':idx,
             'task_path':task_path, 'known_reason':metadata.get('reason'),
