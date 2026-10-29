@@ -74,9 +74,24 @@ def _is_skip(excinfo):
     return excinfo is not None and issubclass(excinfo[0], Skipped)
 
 
+# Per-test outcomes, compared between the normal and shuffled no-op runs.
+MAX_RECORDED_TESTS = 5000
+
+
 class ExecutionRecorder:
     def __init__(self, state):
         self.state = state
+
+    def _outcome(self, nodeid, outcome):
+        if not nodeid:
+            return
+        tests = self.state.setdefault('tests', {})
+        if nodeid in tests or len(tests) < MAX_RECORDED_TESTS:
+            # A failed setup or call is final; a later phase cannot make it pass.
+            if tests.get(nodeid) not in ('failed', 'error'):
+                tests[nodeid] = outcome
+        else:
+            self.state['tests_truncated'] = True
 
     def pytest_collectreport(self, report):
         if report.failed:
@@ -99,12 +114,16 @@ class ExecutionRecorder:
         excinfo = outcome.excinfo
         if excinfo is not None and not _is_skip(excinfo):
             self.state['setup_errors'] += 1
+            self._outcome(item.nodeid, 'error')
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_call(self, item):
         # The call phase ran for this item, whatever its outcome.
         self.state['executed'] += 1
-        yield
+        outcome = yield
+        excinfo = outcome.excinfo
+        self._outcome(item.nodeid, 'passed' if excinfo is None else
+                      'skipped' if _is_skip(excinfo) else 'failed')
 
     def pytest_runtest_logreport(self, report):
         if report.skipped:
@@ -122,8 +141,10 @@ class ExecutionRecorder:
         when, outcome = data.get('when'), data.get('outcome')
         if when == 'call':
             self.state['executed'] += 1
+            self._outcome(data.get('nodeid'), outcome if outcome in ('passed', 'failed', 'skipped') else 'failed')
         elif when == 'setup' and outcome == 'failed':
             self.state['setup_errors'] += 1
+            self._outcome(data.get('nodeid'), 'error')
 
     def pytest_sessionfinish(self, session, exitstatus):
         self.state['finished'] = True

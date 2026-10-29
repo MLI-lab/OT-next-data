@@ -310,6 +310,68 @@ def install(argv=None, environ=None):
     return state
 
 
+def shuffle_listing(environ=None):
+    """Randomize directory listing order in this interpreter (OT_SHUFFLE_LISTING=1).
+
+    Filesystems list entries in different orders, so code that processes files in
+    listing order can behave differently between nodes. The shuffled no-op baseline
+    sets the variable for its verifier call. A private Random leaves the task's own
+    random state untouched. Only Python listings are covered (os.listdir and
+    os.scandir, which glob, os.walk and pathlib use); other programs are not.
+    """
+    environ = os.environ if environ is None else environ
+    if environ.get('OT_SHUFFLE_LISTING') != '1' or getattr(os, '_ot_shuffled_listing', False):
+        return False
+    import random
+    shuffle = random.Random().shuffle
+    original_listdir = os.listdir
+
+    def listdir(*args, **kwargs):
+        names = original_listdir(*args, **kwargs)
+        shuffle(names)
+        return names
+
+    os.listdir = listdir
+    original_scandir = getattr(os, 'scandir', None)
+    if original_scandir is not None:
+        class ShuffledScandir(object):
+            def __init__(self, iterator):
+                try:
+                    self._entries = list(iterator)
+                finally:
+                    close = getattr(iterator, 'close', None)
+                    if close is not None:
+                        close()
+                shuffle(self._entries)
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if not self._entries:
+                    raise StopIteration
+                return self._entries.pop()
+
+            next = __next__
+
+            def close(self):
+                self._entries = []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self.close()
+                return False
+
+        def scandir(*args, **kwargs):
+            return ShuffledScandir(original_scandir(*args, **kwargs))
+
+        os.scandir = scandir
+    os._ot_shuffled_listing = True
+    return True
+
+
 if __name__ != '__main__':
     try:
         announce_pytest_plugin()
@@ -318,4 +380,8 @@ if __name__ != '__main__':
     try:
         install()
     except Exception:  # pragma: no cover - evidence must never break the verifier
+        pass
+    try:
+        shuffle_listing()
+    except Exception:  # pragma: no cover - shuffling must never break the verifier
         pass

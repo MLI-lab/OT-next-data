@@ -81,7 +81,8 @@ def test_stage_five_runs_only_post_setup_nop(tmp_path, monkeypatch, prepared_rew
     args = SimpleNamespace(agent='terminus-2', agent_kwargs={}, api_base=None,
         environment_kwargs={'bridge_url': 'http://localhost', 'sif_cache': str(tmp_path)},
         backend='apptainer', dry_run=False, force_build=False, trial_cpus=None,
-        trial_memory_mb=None, attempts=1, concurrency=1, reward_key='reward')
+        trial_memory_mb=None, attempts=1, concurrency=1, reward_key='reward',
+        nop_shuffled_runs=0)
     monkeypatch.setattr(runtime, 'check_runtime_task', lambda *_: None)
 
     calls = []
@@ -120,7 +121,8 @@ def test_nop_does_not_fall_back_to_unprepared_run(tmp_path, monkeypatch, setup_k
     args = SimpleNamespace(agent='terminus-2', agent_kwargs={}, api_base=None,
         environment_kwargs={'bridge_url': 'http://localhost', 'sif_cache': str(tmp_path)},
         backend='apptainer', dry_run=False, force_build=False, trial_cpus=None,
-        trial_memory_mb=None, attempts=1, concurrency=1, reward_key='reward')
+        trial_memory_mb=None, attempts=1, concurrency=1, reward_key='reward',
+        nop_shuffled_runs=0)
     monkeypatch.setattr(runtime, 'check_runtime_task', lambda *_: None)
     calls = []
     async def execute(config):

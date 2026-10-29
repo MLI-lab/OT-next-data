@@ -1,4 +1,5 @@
 """Run the conventional verifier setup script before checks, without upstream edits."""
+import contextvars
 import functools
 
 SETUP_COMMAND = 'if [ -f /tests/setup.sh ]; then bash /tests/setup.sh; fi'
@@ -10,6 +11,9 @@ PROFILE_HOOK = '/etc/profile.d/zzzz-ot-verifier-execution.sh'
 # it is copied here, downloaded with the verifier directory and read by
 # validation.stages.harbor.verifier_output like the call's other logs.
 EXECUTION_LOG = '/logs/verifier/ot-execution.txt'
+# Set by the shuffled no-op baseline: Python directory listings in the verifier call
+# come back in random order (sitecustomize.shuffle_listing).
+SHUFFLE_LISTING = contextvars.ContextVar('ot_shuffle_listing', default=False)
 # The Python recorders go into each interpreter's own site-packages, loaded by a .pth
 # import line, not through PYTHONPATH: test scripts that assign PYTHONPATH (MiMo 001531,
 # `PYTHONPATH=src python -m pytest`) dropped the recorder and pytest aborted on the
@@ -266,7 +270,8 @@ class SetupEnvironment:
             fallback = (any(h['status'] == 'fail' for h in hooks)
                         or (bool(hooks) and not any(h['status'] == 'ok' for h in hooks)))
             (directory / 'execution-instrumentation.json').write_text(json.dumps(
-                {'python_hooks': hooks, 'pythonpath_fallback': fallback, 'go_wrappers': go_wrappers}, indent=2) + '\n')
+                {'python_hooks': hooks, 'pythonpath_fallback': fallback, 'go_wrappers': go_wrappers,
+                 **({'shuffled_listing': True} if SHUFFLE_LISTING.get() else {})}, indent=2) + '\n')
             (directory / 'execution-context.json').write_text(json.dumps({'version': 1, 'token': token}))
             prefix = (
                 'export OT_VERIFIER_EXECUTION_TOKEN=' + shlex.quote(token) + '; '
@@ -279,6 +284,7 @@ class SetupEnvironment:
                 'export OT_VERIFIER_EXECUTION_LOG=' + shlex.quote(target + '/results/execution.log') + '; '
                 'export PATH="$OT_VERIFIER_EXECUTION_BIN:$PATH"; '
                 'export NODE_OPTIONS="--require ' + shims + '/ot_node_execution.js${NODE_OPTIONS:+ $NODE_OPTIONS}"; '
+                + ('export OT_SHUFFLE_LISTING=1; ' if SHUFFLE_LISTING.get() else '')
             )
             try:
                 # JUnit reports written from here on belong to this call (junit_reports.sh).

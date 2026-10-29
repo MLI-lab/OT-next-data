@@ -207,6 +207,7 @@ def test_batch_schedules_all_tasks_and_accounts_per_task(
     a.dry_run = False
     a.outcome_retries = 0      # reruns of not-run tasks are covered by test_outcome_retries
     a.reference_runs = a.nop_runs = 1  # one fake trial per task; repetitions are tested separately
+    a.nop_shuffled_runs = 0  # the shuffled no-op is tested in test_listing_order.py
     monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
     captured = []
     async def execute(config):

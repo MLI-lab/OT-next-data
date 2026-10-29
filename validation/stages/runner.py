@@ -76,6 +76,11 @@ def parser():
                     help='stage 2: reference-solution runs per task, each in a fresh container; all must score 1')
     ap.add_argument('--nop-runs', type=int, default=3,
                     help='stage 3: no-op runs per task, each in a fresh container; all must score 0')
+    ap.add_argument('--nop-shuffled-runs', type=int, default=1,
+                    help='stage 3: extra no-op runs with shuffled Python directory listing order; a test that '
+                         'passes in every normal run but fails shuffled is reported (0 disables)')
+    ap.add_argument('--listing-order-check', choices=('warn', 'fail'), default='warn',
+                    help='stage 3: whether a listing-order finding only warns or fails the task')
     ap.add_argument('--dynamic-do-not-modify', action=argparse.BooleanOptionalAction, default=True,
                     help='stage 2: check protected files in the container and mutate them after the reference '
                          '(validation/rules/dynamic/do_not_modify; default: enabled)')
@@ -243,6 +248,8 @@ def check_args(a):
     import math
     if getattr(a, 'reference_runs', 3) < 1 or getattr(a, 'nop_runs', 3) < 1:
         raise ValueError('--reference-runs and --nop-runs must be at least 1')
+    if getattr(a, 'nop_shuffled_runs', 1) < 0:
+        raise ValueError('--nop-shuffled-runs must be nonnegative')
     budget = getattr(a, "review_max_budget_usd", 5)
     if not math.isfinite(budget) or budget <= 0:
         raise ValueError("--review-max-budget-usd must be finite and positive")
@@ -651,6 +658,7 @@ def run_nop(selected, out, args):
                 runtime.trial_results(job_dir), [task for task, _ in pairs])
             if dynamic_do_not_modify:
                 do_not_modify.evaluate_all(without_reference, groups, out, args, reference=False)
+            shuffled = run_shuffled_nop(config, pairs, out / f'nop-shuffled-jobs-{index}', args)
             for task, item in pairs:
                 prepared = runtime.assess_trials(groups[task.name], args.attempts, 0, args.reward_key, task_path=task,
                                                  oracle_passed=task.name in oracle_passed)
@@ -658,6 +666,8 @@ def run_nop(selected, out, args):
                 if unmatched:
                     prepared['status'] = 'failed'
                     prepared['findings'].append(f'unmatched NOP results: {unmatched}')
+                if shuffled is not None:
+                    add_listing_order(prepared, groups[task.name], shuffled, task, args)
                 if prepared['status'] == 'completed':
                     prepared['status'] = 'passed'
                 item.update(prepared)
@@ -665,6 +675,38 @@ def run_nop(selected, out, args):
             for _, item in pairs:
                 item.update(status='error', reason=f'{type(exc).__name__}: {exc}',
                             findings=['NOP: ' + str(exc)])
+
+
+def run_shuffled_nop(config, pairs, output, args):
+    """Extra no-op trials with shuffled directory listing order; None when disabled."""
+    runs = getattr(args, 'nop_shuffled_runs', 1)
+    if not runs:
+        return None
+    from harbor_patches.verifier_setup import SHUFFLE_LISTING
+    shuffled_config = dict(config, n_attempts=runs, jobs_dir=str(output.resolve()))
+    save(output.parent / (output.name + '.json'), shuffled_config)
+    token = SHUFFLE_LISTING.set(True)
+    try:
+        job_dir = asyncio.run(runtime.execute_job(shuffled_config))
+    finally:
+        SHUFFLE_LISTING.reset(token)
+    groups, _ = runtime.group_trial_results(runtime.trial_results(job_dir), [task for task, _ in pairs])
+    return {'job_dir': str(job_dir), 'groups': groups}
+
+
+def add_listing_order(prepared, normal, shuffled, task, args):
+    from validation.rules.dynamic.nop_baseline.listing_order import compare
+    record = compare(normal, shuffled['groups'][task.name], args.reward_key)
+    record['job_dir'] = shuffled['job_dir']
+    prepared['listing_order'] = record
+    if record['status'] != 'flagged':
+        return
+    message = 'listing order: ' + record['reason'] + ': ' + ', '.join(record['tests'][:10])
+    if getattr(args, 'listing_order_check', 'warn') == 'fail':
+        prepared['status'] = 'failed'
+        prepared['findings'].append(message)
+    else:
+        prepared.setdefault('warnings', []).append(message)
 
 
 def run_fortify(source, item_dir, args, upstream):
