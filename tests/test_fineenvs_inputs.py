@@ -9,7 +9,7 @@ import tomllib
 import pytest
 
 from data.fineenvs.patch import LOCK_PATH, SOURCE, packaged_inputs, transform
-from data.utils.fineenvs.stage_inputs import stage
+from data.fineenvs.inputs.stage_inputs import stage
 from data.utils.task_archive import read_members
 
 FIXTURE = Path(__file__).parent / 'fixtures/fineenvs_verifier/original-task.tar.gz'
@@ -28,6 +28,61 @@ def inputs(tmp_path):
     return manifest, directory
 
 
+def test_clean_verifier_adapter_preserves_inputs_grader_and_answer_contract(tmp_path):
+    from data.fineenvs.patch import prepare_verifier_runtime
+    lock = json.loads(LOCK_PATH.read_text())
+    original, _ = transform(FIXTURE.read_bytes(), lock, packaged=inputs(tmp_path))
+    before = read_members(original)
+    observed = {'dockerfile_sha256': hashlib.sha256(before['environment/Dockerfile']).hexdigest(),
+                'python': '3.12.13', 'executable': '/usr/local/bin/python3',
+                'image_sha256': 'a' * 64, 'distributions': lock['verifier_distributions']}
+    result, spec = prepare_verifier_runtime(original, observed)
+    after = read_members(result)
+    changed = {k for k in before.keys() | after.keys() if before.get(k) != after.get(k)}
+    assert changed == {'tests/setup.sh', 'tests/test.sh', 'tests/ot-verifier-runtime.json'}
+    assert spec['python'] == observed['python']
+    assert b' -I /tests/grader.py' in after['tests/test.sh']
+    assert b'OT_VERIFIER_PYTHON' in after['tests/setup.sh']
+    observed['dockerfile_sha256'] = 'b' * 64
+    with pytest.raises(ValueError, match='different FineEnvs image recipe'):
+        prepare_verifier_runtime(original, observed)
+
+
+def test_published_runtime_export_keeps_membership_and_marks_old_scores(tmp_path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from data.fineenvs.patch import export_published_runtime
+    from validation.contract import files_digest
+    lock = json.loads(LOCK_PATH.read_text())
+    blob, _ = transform(FIXTURE.read_bytes(), lock, packaged=inputs(tmp_path))
+    files = read_members(blob)
+    old_hash = files_digest(files.items())
+    observed = {'dockerfile_sha256': hashlib.sha256(files['environment/Dockerfile']).hexdigest(),
+                'python': '3.12.13', 'executable': '/usr/local/bin/python3',
+                'image_sha256': 'a' * 64, 'distributions': lock['verifier_distributions']}
+    image = {'tasks': {'task0': {'content_sha256': old_hash, 'environments': [{'bundle': 'bundle'}]}},
+             'bundles': {'bundle': {'name': 'image.sif', 'files': {'image.sif': {'sha256': 'a' * 64}}}}}
+    row = {'path': 'task0', 'task_binary': blob, 'content_sha256': old_hash,
+           'stages_passed': '1,3,4,5', 'qwen38_successes': 1, 'qwen38_attempts': 2}
+    source = tmp_path / 'source.parquet'
+    pq.write_table(pa.Table.from_pylist([row]).replace_schema_metadata({
+        b'ot.images.v1': json.dumps(image).encode(), b'ot.release.v3': b'{"old": true}'}), source)
+    output = tmp_path / 'migrated'
+    result = export_published_runtime(source, output, observed, None, revision='b' * 40, subset='fineenvs_v3')
+    assert result['tasks'] == 1
+    table = pq.read_table(output / 'tasks.parquet')
+    after = table.to_pylist()[0]
+    assert after['path'] == row['path'] and after['qwen38_successes'] == 1
+    assert after['stages_passed'] == '' and after['qwen38_attempts'] == 2
+    assert after['content_sha256'] == files_digest(read_members(after['task_binary']).items()) != old_hash
+    assert json.loads(table.schema.metadata[b'ot.images.v1'])['tasks']['task0']['content_sha256'] == after['content_sha256']
+    assert b'ot.release.v3' not in table.schema.metadata
+    assert 'ot.release.v3' in json.loads((output / 'historical-schema-metadata.json').read_text())
+    assert json.loads((output / 'historical-evidence.json').read_text())['tasks'][0]['content_sha256'] == old_hash
+    with pytest.raises(ValueError, match='new empty'):
+        export_published_runtime(source, output, observed, None, revision='b' * 40, subset='fineenvs_v3')
+
+
 def test_packaged_task_stages_bytes_without_network(tmp_path, monkeypatch):
     family = inputs(tmp_path)
     original = FIXTURE.read_bytes()
@@ -41,6 +96,10 @@ def test_packaged_task_stages_bytes_without_network(tmp_path, monkeypatch):
     assert 'No input download occurs' in reason
     before = read_members(original)
     assert files['instruction.md'] == before['instruction.md']
+    env = tomllib.loads(files['task.toml'].decode())['environment']['env']
+    expected = tomllib.loads(before['task.toml'].decode())['environment']['env']
+    del expected['HF_TOKEN']
+    assert env == expected
     assert files['environment/Dockerfile'] == f'FROM {lock["image"]}\nWORKDIR /workdir\n'.encode()
     base, _ = transform(original, lock)
     assert {k: v for k, v in files.items() if k.startswith('environment/')} == {
@@ -105,7 +164,7 @@ def test_download_once_per_family_and_resume_without_network(tmp_path, monkeypat
     import pyarrow.parquet as pq
     import huggingface_hub
     from types import SimpleNamespace
-    from data.utils.fineenvs import prepare_inputs
+    from data.fineenvs.inputs import prepare_inputs
     source = tmp_path / 'tasks.parquet'
     pq.write_table(pa.Table.from_pylist([
         {'path': name, 'task_binary': FIXTURE.read_bytes()} for name in ('first', 'second')]), source)
@@ -135,7 +194,7 @@ def test_download_once_per_family_and_resume_without_network(tmp_path, monkeypat
 
 def test_rate_limit_retry_honors_retry_after(monkeypatch):
     from types import SimpleNamespace
-    from data.utils.fineenvs import prepare_inputs
+    from data.fineenvs.inputs import prepare_inputs
     waits = []
     monkeypatch.setattr(prepare_inputs.time, 'sleep', waits.append)
     class Limited(Exception):
@@ -152,7 +211,7 @@ def test_rate_limit_retry_honors_retry_after(monkeypatch):
 
 def test_only_identical_remote_aliases_can_share_a_basename():
     from types import SimpleNamespace
-    from data.utils.fineenvs.prepare_inputs import unique_inputs
+    from data.fineenvs.inputs.prepare_inputs import unique_inputs
     first = SimpleNamespace(path='dataset/X.npy', size=123, xet_hash='same-content')
     second = SimpleNamespace(path='dataset/nested/X.npy', size=123, xet_hash='same-content')
     assert unique_inputs([first, second]) == [(first, [first.path, second.path])]
@@ -163,7 +222,7 @@ def test_only_identical_remote_aliases_can_share_a_basename():
 
 def test_reviewed_auxiliary_conflict_preserves_both_files(tmp_path):
     from types import SimpleNamespace
-    from data.utils.fineenvs.prepare_inputs import REVIEWED_CONFLICT, unique_inputs
+    from data.fineenvs.inputs.prepare_inputs import REVIEWED_CONFLICT, unique_inputs
     remote = [SimpleNamespace(path=p, size=size, xet_hash=h) for p, (size, h) in REVIEWED_CONFLICT.items()]
     assert len(unique_inputs(remote)) == 2
     manifest, directory = inputs(tmp_path)

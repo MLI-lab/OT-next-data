@@ -29,7 +29,7 @@
 
 Counts can overlap because a task can require changes at several stages.
 
-- **1. Build and setup: 5,000 changed, 0 archived.** Changed 5,000 tasks to download inputs ahead of time and package them under `setup_files/inputs`, avoiding Hugging Face rate limits during parallel setup. Upstream used the mutable `:base` image tag; we pinned the same image to an exact version.
+- **1. Build and setup: 5,000 changed, 0 archived.** Changed 5,000 tasks to download inputs ahead of time and package them under `setup_files/inputs`, avoiding Hugging Face rate limits during parallel setup, and removed the `HF_TOKEN` setting these tasks no longer need. Upstream used the mutable `:base` image tag; we pinned the same image to an exact version.
 - **2. Reference solution (reward 1): 5,000 changed, 0 archived.** Added `solution/solve.sh` to 5,000 tasks to run our reference solution checker; all passed.
 - **3. No-op baseline (reward 0): 5,000 changed, 0 archived.** Changed 5,000 tasks to normalize the JSON score key from `correctness` to `reward`; all recorded reward 0. The checker flagged missing grader execution for all tasks. Inspected a random sample of 50: all were valid no-ops, with the shell verifier writing zero and exiting before the Python grader started. Their reference trials confirmed that the grader could run successfully.
 - **4. Rule-based checks: 4,576 changed, 0 archived.** Flagged 4,745 tasks for relative paths. The automatic resolver cleared warnings for 4,575 tasks; 170 still have warnings. Inspected a random sample of 50, and all warnings were harmless.

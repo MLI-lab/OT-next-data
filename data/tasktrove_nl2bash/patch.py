@@ -194,4 +194,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == 'prepare-runtime':
+        from data.tasktrove_nl2bash.runtime import cli
+        sys.argv.pop(1)
+        cli()
+    else:
+        main()

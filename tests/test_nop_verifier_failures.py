@@ -290,6 +290,31 @@ def test_passing_oracle_alone_does_not_excuse_unexplained_collection_failure(tmp
     assert assess_trials(one, 1, 0, task_path=None, oracle_passed=True)['status'] == 'failed'
 
 
+@pytest.mark.parametrize('messages, shipped, oracle_passed, status', [
+    (["ModuleNotFoundError: No module named 'solution'"], 'solution.py', True, 'completed'),
+    (["ModuleNotFoundError: No module named 'solution'"], 'solution.py', False, 'failed'),
+    (["ModuleNotFoundError: No module named 'solution'"], 'solve.sh', True, 'failed'),
+    (["ModuleNotFoundError: No module named 'numpy'"], 'solution.py', True, 'failed'),
+    (["ModuleNotFoundError: No module named 'solution'", 'MemoryError'], 'solution.py', True, 'failed'),
+])
+def test_nop_import_of_the_module_the_reference_ships_is_a_valid_zero(tmp_path, messages, shipped, oracle_passed, status):
+    # pymethods2test: the tests run `from solution import *`; only the reference adds solution.py.
+    task = tmp_path / 'task'
+    (task / 'solution').mkdir(parents=True)
+    (task / 'solution' / shipped).write_text('x = 1\n')
+    trial = tmp_path / 'trial'
+    (trial / 'verifier').mkdir(parents=True)
+    token = 'a' * 32
+    (trial / 'verifier' / 'execution-context.json').write_text(json.dumps({'version': 1, 'token': token}))
+    begin = {'version': 1, 'id': 'outer'}
+    end = dict(begin, finished=True, executed=0, skipped=0, setup_errors=0, collection_errors=1, exitstatus=2,
+               collection_error_files=['test_solution.py'], collection_error_messages=messages)
+    evidence = ('OT_VERIFIER_EXECUTION:' + token + ':BEGIN:' + json.dumps(begin) + '\nERROR collecting test_solution.py\n'
+                + 'OT_VERIFIER_EXECUTION:' + token + ':END:' + json.dumps(end) + '\n')
+    results = [(trial, {'verifier_result': {'rewards': {'reward': 0.0}, 'stdout': evidence}})]
+    assert assess_trials(results, 1, 0, task_path=task, oracle_passed=oracle_passed)['status'] == status
+
+
 def test_oracle_passed_tasks_reads_this_submissions_stage_4_reports(tmp_path):
     from validation.stages.runner import oracle_passed_tasks
     report = tmp_path / 'stage_2_oracle_validation' / 'abc' / 'summary.json'

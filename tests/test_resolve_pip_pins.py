@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from data.utils import resolve_pip_pins as pins
+from validation.rules.static.pip_pinning import repair as pins
 from validation.stages.runner import parser
 
 
@@ -135,7 +135,7 @@ def test_preparation_preserves_original_and_freezes_only_successful_edits(tmp_pa
         frozen = verify_materialized(args)
         assert frozen['stages'] == stages
         assert frozen['dataset']['automation_changes']['sample'] == [
-            'anti-cheat-instruction', 'dependency-pinning']
+            'anti-cheat-instruction', 'dependency-pinning', 'repository-leak-repair']
     else:
         assert args.tasks == root.parent
         assert args.contract == tmp_path / 'original.json'
@@ -171,7 +171,9 @@ def test_pipeline_runs_all_normal_stages_after_preparation(tmp_path, monkeypatch
         return tmp_path / f'stage-{number}.json', {'has_findings': False, 'items': []}
     monkeypatch.setattr('validation.run.run_stage', run_stage)
     assert run_selected(args, [1, 2, 3, 4]) == 0
-    assert events == ['pip', 'paths', 1, 2, 3, 4]
+    # Path evidence is collected during stage 1; normalization is applied once
+    # stages 1-3 settle, before stage 4 (validation/run.py defer_paths).
+    assert events == ['pip', 1, 2, 3, 'paths', 4]
 
 
 def test_separate_verifier_and_unsupported_commands_do_not_run_oracle(tmp_path, monkeypatch):

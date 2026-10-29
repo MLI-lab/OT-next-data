@@ -21,7 +21,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from data.utils.patch_reporting import write_patch_report
-from data.utils.resolve_absolute_paths import apply_reviewed_replacements, collect_reports
+from validation.rules.static.task_absolute_path.repair import apply_reviewed_replacements, collect_reports
 from validation.contract import files_digest
 
 REVISION = '8935f8e55244fd56080cdb8dcd0819a57e8a003c'
@@ -1117,7 +1117,7 @@ def patch_blob(blob, diagnostic=None, decisions=(), oracle_passed=False, task_id
         changed, edits = (apply_reviewed_replacements(original, diagnostic, decisions, oracle_passed=oracle_passed)
                           if decisions else (original, []))
         if automatic_paths:
-            from validation.checks.instruction_paths import automatic
+            from validation.rules.static.task_absolute_path.instruction_paths import automatic
             changed, edits = automatic(original, diagnostic, oracle_passed)
             # Task-specific corrections take precedence over generic spans.
             protected = []
@@ -1201,7 +1201,7 @@ def archive_files(blob):
 
 def restore_source_instruction(blob, instruction):
     """Restore only the upstream instruction, preserving all runtime files and modes."""
-    from data.utils.full_source.harbor_parquet import pack_task
+    from data.utils.harbor_parquet import pack_task
     files = archive_files(blob)
     files['instruction.md'] = (instruction, files['instruction.md'][1])
     return pack_task(files)
@@ -1227,8 +1227,8 @@ def environment_archive_stage(row):
 def prepare_environment(upstream, tasks, archive, run_record, output, publication_revision):
     """Prepare the instruction-original variant from pinned source and historical tasks."""
     from collections import Counter
-    from data.utils.full_source.convert_prime import scale_files
-    from data.utils.full_source.harbor_parquet import pack_task
+    from data.utils.prime_conversion.convert_prime import scale_files
+    from data.utils.harbor_parquet import pack_task
 
     if not re.fullmatch('[0-9a-f]{40}', publication_revision):
         raise ValueError('Use an immutable publication revision')
@@ -1367,6 +1367,202 @@ def prepare_environment(upstream, tasks, archive, run_record, output, publicatio
     return summary
 
 
+# Created by tests/setup.sh after the agent finished, from the clean runtime.
+# The recorder hook in the runtime site-packages applies through the venv.
+VERIFIER_VENV = '/tests/.ot-verifier-venv'
+VERIFIER_VENV_SETUP = (
+    'rm -rf ' + VERIFIER_VENV + '\n'
+    '"$OT_VERIFIER_PYTHON" -I -m venv --without-pip --system-site-packages ' + VERIFIER_VENV + '\n'
+    'ot_site=$(' + VERIFIER_VENV + '/bin/python -I -c \'import sysconfig; print(sysconfig.get_path("purelib"))\')\n'
+    'cp /tests/ot_project_paths.py "$ot_site/ot_project_paths.py"\n'
+    'printf \'import ot_project_paths\\n\' > "$ot_site/ot_project_paths.pth"\n')
+
+
+def project_paths_module(paths):
+    """Expose task paths only after stdlib and the clean grading tools.
+
+    Last on sys.meta_path: consulted only for a top-level module no trusted path
+    provides, then appends the paths once (the earlier wrapper's order).
+    """
+    return ('"""Expose declared ScaleSWE task paths after trusted paths."""\n'
+            'import sys\n'
+            '\n'
+            'PATHS = ' + repr(paths) + '\n'
+            '\n'
+            '\n'
+            'class ProjectPaths(object):\n'
+            '    @staticmethod\n'
+            '    def find_spec(name, path=None, target=None):\n'
+            '        if path is not None:\n'
+            '            return None\n'
+            '        if ProjectPaths in sys.meta_path:\n'
+            '            sys.meta_path.remove(ProjectPaths)\n'
+            '        for entry in PATHS:\n'
+            '            if entry not in sys.path:\n'
+            '                sys.path.append(entry)\n'
+            '        from importlib.machinery import PathFinder\n'
+            '        return PathFinder.find_spec(name, PATHS)\n'
+            '\n'
+            '    @staticmethod\n'
+            '    def invalidate_caches():\n'
+            '        pass\n'
+            '\n'
+            '\n'
+            'sys.meta_path.append(ProjectPaths)\n')
+
+
+def prepared_verifier_files(files, spec, catalog, *, observation):
+    """Protect the observed apig-wsgi grading tools; preserve editable task code."""
+    from data.utils.verifier_runtime import runtime_spec, runtime_reference, preparation_command
+    if (observation.get('returncode') != 0 or not observation.get('source_unchanged')
+            or observation.get('source_content_sha256') != files_digest(files.items())):
+        raise ValueError('Missing matching pristine ScaleSWE observation')
+    measured = json.loads(observation['stdout'])
+    if (measured.get('python') != '3.11.14' or measured.get('executable') != '/usr/local/bin/python'
+            or measured.get('pip_returncode') != 0):
+        raise ValueError('Unreviewed original ScaleSWE interpreter')
+    tools = {'pytest', 'pytest-cov', 'coverage', 'pytest-randomly', 'pytest-timeout',
+             'iniconfig', 'packaging', 'pluggy', 'pygments'}
+    pins = sorted(p['name'].lower() + '==' + p['version'] for p in measured['packages']
+                  if p['name'].lower() in tools)
+    project = [p for p in measured['packages'] if p['name'] == 'apig-wsgi']
+    if len(project) != 1 or project[0].get('editable_project_location') != '/workspace/apig-wsgi':
+        raise ValueError('Unreviewed editable project location')
+    canonical = runtime_spec(**{k:v for k,v in spec.items() if k != 'runtime_layout'})
+    if (canonical != spec or spec['python'] != measured['python'] or spec['requirements'] != pins
+            or len(pins) != len(tools) or spec.get('install_no_deps') is not True
+            or spec.get('image_python') != {'image_sha256':observation['image_sha256'],
+                                           'executable':measured['executable']}):
+        raise ValueError('Runtime differs from observed grading tools/image')
+    if hashlib.sha256(files['tests/score.py']).hexdigest() != '7de17a9ba612b569894ff0c95b5331de8c0011cc7e5f1d7705bfad47f9076819':
+        raise ValueError('Unreviewed ScaleSWE scorer')
+    original = files['tests/test.sh']
+    command = b'python /tests/score.py /tests/test_ids.json'
+    if (original.count(command) != 1 or b'cd /workspace/apig-wsgi || exit 1\n' not in original
+            or any(k in files for k in ('tests/setup.sh','tests/ot-verifier-runtime.json','tests/ot_score.py','tests/ot_project_paths.py'))):
+        raise ValueError('Unreviewed ScaleSWE verifier entrypoint')
+    result = dict(files)
+    result.update(runtime_reference(spec, catalog))
+    result['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n' + preparation_command(spec, phase='verifier') +
+                              '\n: "${OT_VERIFIER_PYTHON:?trusted controller runtime required}"\n' + VERIFIER_VENV_SETUP).encode()
+    # The reviewed scorer keeps its own name and bytes: the stage-3 recorder
+    # recognizes /tests/score.py by hash as an in-process pytest driver.
+    result['tests/test.sh'] = original.replace(command, VERIFIER_VENV.encode() + b'/bin/python -I /tests/score.py /tests/test_ids.json')
+    result['tests/ot_project_paths.py'] = project_paths_module(
+        ['/workspace/apig-wsgi/src', '/workspace/apig-wsgi', '/usr/local/lib/python3.11/site-packages']).encode()
+    return result
+
+
+def prepare_runtime_candidates(source, output, selections, catalog, source_revision):
+    """Export only measured verifier changes, retaining release membership/history.
+
+    Each selection binds a pristine image observation and pristine local image
+    bundle to a runtime. This is candidate preparation, not validation evidence.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from data.utils.patch_reporting import write_patch_report
+    from validation.publishing.image_release import validate_bundle
+
+    source, output = Path(source), Path(output)
+    original = pq.ParquetFile(source)
+    metadata = dict(original.schema_arrow.metadata or {})
+    images = json.loads(metadata.get(b'ot.images.v1', b'{}'))
+    known = set(pq.read_table(source, columns=['path'])['path'].to_pylist())
+    if not selections or not set(selections).issubset(known):
+        raise ValueError('Select existing, measured ScaleSWE tasks')
+    prepared, evidence, reasons = {}, {}, {}
+    # Historical row patch_labels must not describe new changes on untouched tasks.
+    labels = {task: [] for task in known}
+    verified = set()
+    for batch in original.iter_batches(batch_size=1):
+        row = batch.to_pylist()[0]; task = row['path']
+        if task not in selections:
+            continue
+        selection = selections[task]
+        binding = images.get('tasks', {}).get(task, {})
+        environments = binding.get('environments', [])
+        if len(environments) != 1 or binding.get('content_sha256') != row['content_sha256']:
+            raise ValueError(task + ': source image binding differs')
+        bundle = images['bundles'][environments[0]['bundle']]
+        directory = Path(selection['image_directory'])
+        key = (str(directory), json.dumps(bundle, sort_keys=True))
+        if key not in verified:
+            validate_bundle(bundle['name'], bundle, directory)
+            verified.add(key)
+        files, modes = {}, {}
+        with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
+            for member in archive:
+                path = PurePosixPath(member.name)
+                if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+                    raise ValueError('Unsafe task archive member')
+                if member.isfile():
+                    if member.name in files:
+                        raise ValueError('Duplicate task archive member')
+                    files[member.name] = archive.extractfile(member).read()
+                    modes[member.name] = member.mode
+        if files_digest(files.items()) != row['content_sha256']:
+            raise ValueError(task + ': source payload digest differs')
+        runtime = catalog[selection['runtime_id']]
+        image_sha = bundle['files'][bundle['name']]['sha256']
+        if (runtime['spec'].get('image_python', {}).get('image_sha256') != image_sha
+                or selection['observation'].get('image_sha256') != image_sha):
+            raise ValueError(task + ': observed runtime image differs from task binding')
+        updated = prepared_verifier_files(files, runtime['spec'], catalog,
+            observation=selection['observation'])
+        packed = io.BytesIO()
+        with tarfile.open(fileobj=packed, mode='w') as archive:
+            for name, body in sorted(updated.items()):
+                member = tarfile.TarInfo(name)
+                member.mode = modes.get(name, 0o755 if name.endswith('.sh') else 0o644)
+                member.size = len(body)
+                archive.addfile(member, io.BytesIO(body))
+        new_hash = files_digest(updated.items())
+        prepared[task] = (packed.getvalue(), new_hash)
+        images['tasks'][task]['content_sha256'] = new_hash
+        evidence[task] = {'historical_row': {k:v for k,v in row.items() if k != 'task_binary'},
+            'source_content_sha256': row['content_sha256'], 'content_sha256': new_hash,
+            'runtime_id': runtime['id'], 'python': runtime['spec']['python'],
+            'changed_files': sorted(k for k,v in updated.items() if files.get(k) != v),
+            'historical_score_status': 'historical, evaluated on the original payload',
+            'effective_network': 'unverified', 'validation': 'incomplete'}
+        labels[task] = ['prepared-verifier-runtime']
+        reasons[task] = ('Use fresh grading tools with the exact observed Python and original tool versions. '
+            'Preserve task libraries, declared environment healthcheck, required tests and reference. Earlier scores describe '
+            'the original payload; new training validation and offline setup remain incomplete.')
+        if len(prepared) == len(selections):
+            break
+    if set(prepared) != set(selections):
+        raise ValueError('Missing selected task payload')
+    report = {'source_revision': source_revision, 'tasks': evidence,
+        'unchanged_tasks': original.metadata.num_rows - len(prepared),
+        'effective_network': 'unverified', 'validation': 'incomplete',
+        'ai_detection': 'intentionally excluded by user policy'}
+    metadata[b'ot.images.v1'] = json.dumps(images).encode()
+    metadata[b'ot.runtime_migration.v1'] = json.dumps({
+        'source_revision': source_revision, 'changed_tasks': sorted(prepared),
+        'historical_evidence': 'runtime-migration.json',
+        'effective_network': 'unverified', 'validation': 'incomplete'}).encode()
+    schema = original.schema_arrow.with_metadata(metadata)
+    output.mkdir(parents=True, exist_ok=False)
+    target = output / 'tasks.parquet'
+    with pq.ParquetWriter(target, schema, compression='zstd') as writer:
+        for batch in original.iter_batches(batch_size=1):
+            row = batch.to_pylist()[0]
+            if row['path'] in prepared:
+                row['task_binary'], row['content_sha256'] = prepared[row['path']]
+                row['stages_passed'] = ''; row['run'] = ''
+                if 'validation_labels' in row:
+                    row['validation_labels'] = []
+            writer.write_table(pa.Table.from_pylist([row], schema=schema))
+    (output / 'runtime-migration.json').write_text(json.dumps(report, indent=2) + '\n')
+    write_patch_report(source, target, source={'dataset': 'FWeindel/validated-tasks',
+        'url': 'https://huggingface.co/datasets/FWeindel/validated-tasks', 'revision': source_revision},
+        dropped={}, change_labels=labels, change_reasons=reasons, patcher=__file__)
+    return {'rows': original.metadata.num_rows, 'changed': len(prepared),
+            'validation': 'incomplete', 'effective_network': 'unverified'}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path)
@@ -1476,7 +1672,7 @@ def main():
             unresolved[name] = decision['unresolved']
     args.output.mkdir(parents=True)
     output = args.output / 'tasks.parquet'
-    from validation.checks.path_cache import KEY, blob_fingerprint, completed
+    from validation.rules.static.task_absolute_path.path_cache import KEY, blob_fingerprint, completed
     cache = {row['path']: blob_fingerprint(row['task_binary']) for row in rows
              if row['path'] in evidence and completed(evidence[row['path']]['selected']['diagnostic'])}
     metadata = dict(source.schema.metadata or {})

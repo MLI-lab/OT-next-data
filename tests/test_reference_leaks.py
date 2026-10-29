@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from validation.checks import reference_files as files
+from validation.rules.dynamic import reference_leaks as files
 from validation.stages import reference_leaks as leaks
 
 

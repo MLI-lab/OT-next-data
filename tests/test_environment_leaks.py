@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from validation.checks import environment
+from validation.rules.dynamic.environment import check as environment
 from validation.publishing import outcome_labels, publish
 
 
@@ -48,7 +48,7 @@ def uniform(repo, seconds=1_700_000_000):
 
 
 def leaks(repo):
-    report = asyncio.run(environment.inspect_leaks(Local(repo), roots=()))
+    report = asyncio.run(environment.inspect_leaks(Local(repo), roots=(), home=None))
     return report, {c['check']: c for c in report['checks']}
 
 
@@ -181,8 +181,6 @@ def test_publisher_reports_a_leak_as_a_leak(status, outcome, label):
 def test_build_stage_fails_a_leaking_task_without_rebuilding_it(tmp_path, monkeypatch):
     from validation.stages import environment_preflight
     sources = [tmp_path / 'clean', tmp_path / 'leaky']
-    monkeypatch.setattr(environment_preflight, 'preflight',
-                        lambda *a: [{'task': str(p), 'status': 'passed', 'checks': []} for p in sources])
     leak = {'status': 'failed', 'checks': [{'check': 'repository-history-leak', 'status': 'failed',
                                             'reason': '/testbed: 3 unreachable commits (3 newer than HEAD)'}]}
 
@@ -202,8 +200,6 @@ def test_build_stage_fails_a_leaking_task_without_rebuilding_it(tmp_path, monkey
 def test_reused_stage1_result_without_leak_checks_is_not_run(tmp_path, monkeypatch):
     from validation.stages import environment_preflight
     source = tmp_path / 'task'
-    monkeypatch.setattr(environment_preflight, 'preflight',
-                        lambda *a: [{'task': str(source), 'status': 'passed', 'checks': []}])
     monkeypatch.setattr('validation.checkpoints.stage3.restore', lambda checkpoint, selected: [
         {'task': str(source), 'status': 'passed', 'environments': [{'environment': 'agent', 'status': 'passed'}]}])
     item, = environment_preflight.run_build_stage([source], tmp_path, SimpleNamespace(), {'items': []})
@@ -223,7 +219,7 @@ def test_after_the_repair_mtime_outliers_are_an_observation_not_a_verdict(tmp_pa
                 return SimpleNamespace(return_code=0, stdout='{"version":1,"git":true,"repositories":[]}', stderr='')
             return await super().exec(command, timeout_sec, **kwargs)
 
-    report = asyncio.run(environment.inspect_leaks(Repaired(repo), roots=()))
+    report = asyncio.run(environment.inspect_leaks(Repaired(repo), roots=(), home=None))
     mtimes = {c['check']: c for c in report['checks']}['repository-mtime-leak']
     assert mtimes['status'] == 'passed' and report['status'] == 'passed'
     assert mtimes['reason'].startswith('observation only after the automatic repair')
@@ -239,5 +235,95 @@ def test_symlinked_root_is_the_same_repository(tmp_path):
     uniform(repo)
     link = tmp_path / 'testbed'
     link.symlink_to(repo)
-    report = asyncio.run(environment.inspect_leaks(Local(repo), roots=(str(link),)))
+    report = asyncio.run(environment.inspect_leaks(Local(repo), roots=(str(link),), home=None))
     assert [c['status'] for c in report['checks']] == ['passed', 'passed'], report
+
+
+def broken_fixture(tmp_path, readable=True):
+    repo = tmp_path / 'fixture'
+    (repo / '.git/objects/pack').mkdir(parents=True)
+    (repo / '.git/objects/info').mkdir()
+    (repo / '.git/refs/heads').mkdir(parents=True)
+    if readable:
+        (repo / '.git/HEAD').write_text('ref: refs/heads/main\n')
+    (repo / '.git/packed-refs').write_text('not-a-sha refs/heads/main\n')
+    return repo
+
+
+@pytest.mark.parametrize('readable', [True, False])
+def test_broken_git_with_verified_empty_objects_passes(tmp_path, readable):
+    repo = broken_fixture(tmp_path, readable)
+    report, checks = leaks(repo)
+    assert report['status'] == 'passed', report
+    evidence = checks['repository-history-leak']['repositories'][str(repo)]
+    assert evidence['empty_object_store']['status'] == 'passed'
+    assert checks['repository-mtime-leak']['repositories'][str(repo)]['status'] == 'passed'
+    assert (repo / '.git/packed-refs').read_text() == 'not-a-sha refs/heads/main\n'
+
+
+@pytest.mark.parametrize('path', ['objects/ab/bad', 'objects/pack/x.pack',
+                                  'objects/info/alternates', 'objects/info/commit-graph',
+                                  'commondir', 'index', 'shallow'])
+def test_broken_git_with_object_data_or_indirection_does_not_pass(tmp_path, path):
+    repo = broken_fixture(tmp_path, False)
+    target = repo / '.git' / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b'')
+    report, checks = leaks(repo)
+    assert report['status'] == 'error', report
+    assert checks['repository-history-leak']['repositories'][str(repo)]['empty_object_store']['status'] == 'not_proven'
+
+
+@pytest.mark.parametrize('path', ['objects/linked', 'refs/linked'])
+def test_broken_git_with_symlink_does_not_pass(tmp_path, path):
+    repo = broken_fixture(tmp_path, False)
+    (repo / '.git' / path).symlink_to(tmp_path / 'missing')
+    assert leaks(repo)[0]['status'] == 'error'
+
+
+def test_empty_fixture_does_not_hide_another_repository_leak(tmp_path):
+    fixture = broken_fixture(tmp_path, False)
+    real = repository(tmp_path)
+    (real / 'pkg/m1.py').write_text('solution\n')
+    git(real, 'commit', '-qam', 'fix', when=1_600_001_000)
+    git(real, 'reset', '-q', '--hard', 'HEAD~1')
+    report = asyncio.run(environment.inspect_leaks(Local(fixture), roots=(str(real),), home=None))
+    assert report['status'] == 'failed', report
+
+
+def test_empty_store_traversal_failure_is_not_a_pass(tmp_path):
+    repo = broken_fixture(tmp_path, False)
+
+    class FailedProbe(Local):
+        async def exec(self, command, **kwargs):
+            if command == environment.empty_object_store_command(str(repo)):
+                return SimpleNamespace(return_code=9, stdout='', stderr='Permission denied')
+            return await super().exec(command, **kwargs)
+
+    report = asyncio.run(environment.inspect_leaks(FailedProbe(repo), roots=(), home=None))
+    assert report['status'] == 'error'
+
+
+@pytest.mark.parametrize('variable', ['GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+                                      'GIT_COMMON_DIR', 'GIT_INDEX_FILE'])
+def test_empty_store_probe_rejects_environment_indirection(tmp_path, monkeypatch, variable):
+    repo = broken_fixture(tmp_path, False)
+    monkeypatch.setenv(variable, str(tmp_path / 'elsewhere'))
+    probe = asyncio.run(environment.inspect_empty_object_store(Local(repo), str(repo)))
+    assert probe['status'] == 'not_proven'
+
+
+@pytest.mark.parametrize('kind', ['gitfile', 'symlink', 'missing-objects'])
+def test_empty_store_probe_requires_local_object_directory(tmp_path, kind):
+    repo = tmp_path / 'fixture'
+    repo.mkdir()
+    if kind == 'gitfile':
+        (repo / '.git').write_text('gitdir: /elsewhere\n')
+    elif kind == 'symlink':
+        elsewhere = tmp_path / 'elsewhere'
+        (elsewhere / 'objects').mkdir(parents=True)
+        (repo / '.git').symlink_to(elsewhere)
+    else:
+        (repo / '.git').mkdir()
+    probe = asyncio.run(environment.inspect_empty_object_store(Local(repo), str(repo)))
+    assert probe['status'] == 'not_proven'

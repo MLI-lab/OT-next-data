@@ -77,7 +77,7 @@ grades an agent in production. The repo-level tests are elsewhere by design:
 
 Reproducibility is checked against the published dataset itself, by a hash over
 each task's files; no hash file is stored here:
-`python validation/checks/dataset_checks.py reproduce --parquet NEW --reference PUBLISHED`.
+`python validation/dataset_checks/run.py reproduce --parquet NEW --reference PUBLISHED`.
 The tasks of [TaskTrove PR #3](https://huggingface.co/datasets/open-thoughts/TaskTrove/discussions/3)
 (csharp-v5, java-v4, python-v3, typescript-v3, patched from TaskTrove revision
 96567362) predate the pip pin of 2026-09-29, so the current patcher's output

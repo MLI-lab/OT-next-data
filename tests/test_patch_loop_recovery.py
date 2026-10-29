@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from validation.patch_repair_loop import controller as c, recovery as r
+from data.patch_repair_loop import controller as c, recovery as r
 
 
 @pytest.fixture
@@ -553,7 +553,7 @@ def test_reviewed_findings_return_later_failures_to_local_recovery(setup, monkey
     assert roles == ['supervisor', 'recovery', 'supervisor']
 def test_jobs_expands_cancelled_parent_array(tmp_path, monkeypatch):
     from types import SimpleNamespace
-    from validation.patch_repair_loop import recovery
+    from data.patch_repair_loop import recovery
     for index in range(3):
         recovery.core.save(tmp_path / f'generation-0000/shards/{index}/job.json',
                            {'job_id': f'42_{index}'})

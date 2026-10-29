@@ -5,7 +5,9 @@ R1  restore COPY sources that upstream .gitignore files dropped from environment
 R2  pin flagged pip tokens from a pin in the same Dockerfile, or bare numpy to the base-image version.
 R3  pin the remaining flagged pip tokens from data/termigen/pip_lock.json (harvested from builds).
 
-Dockerfile edits keep every other byte. Tests, instruction, oracle and verifier files are never touched.
+The source-repair rules keep tests, instructions, oracles and verifier files unchanged.
+The separate prepare_runtime API adapts reviewed published verifier entrypoints
+using exact image evidence; it preserves test bodies and task initialization.
 R5 (single-file COPY replication) is shared runtime code and is not handled here.
 """
 
@@ -265,13 +267,40 @@ def load_upstream(path):
         return {i.filename: archive.read(i) for i in archive.infolist() if not i.is_dir()}
 
 
+def prepare_runtime(files, image, probe, binding, bundle, catalog):
+    """Review an already-patched published task against its measured image."""
+    from data.termigen import verifier_runtime
+    planned = verifier_runtime.plan(files, image, probe, binding, bundle)
+    return verifier_runtime.apply(files, planned, catalog), planned
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--source", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--upstream-zip", type=Path,
                         default=Path(os.environ.get("TERMIGEN_UPSTREAM_ZIP", DEFAULT_UPSTREAM_ZIP)))
+    parser.add_argument("--published-input", type=Path)
+    parser.add_argument("--published-revision")
+    parser.add_argument("--published-subset", choices=['termigen_v1', 'termigen_v2', 'termigen_v3'])
+    parser.add_argument("--runtime-image-inventory", type=Path, help="Directory of measured image JSON records")
+    parser.add_argument("--runtime-probe", type=Path)
+    parser.add_argument("--runtime-cache", type=Path)
     args = parser.parse_args()
+    runtime_options = (args.published_input, args.published_revision, args.published_subset,
+                       args.runtime_image_inventory, args.runtime_probe, args.runtime_cache)
+    if any(runtime_options):
+        if not all(runtime_options) or args.source:
+            parser.error('Published migration requires all --published-* and --runtime-* options; omit --source')
+        from data.termigen.verifier_runtime import migrate_published
+        inventories = [json.loads(p.read_text()) for p in sorted(args.runtime_image_inventory.glob('*.json'))]
+        result = migrate_published(args.published_input, args.output, revision=args.published_revision,
+            subset=args.published_subset, images_reviewed=inventories,
+            probes=json.loads(args.runtime_probe.read_text()), cache=args.runtime_cache)
+        print(json.dumps(result['counts'], indent=2))
+        return
+    if not args.source:
+        parser.error('--source is required for original source repair')
     source = args.source.resolve()
     if not source.is_file() or source.suffix != ".parquet":
         raise ValueError(f"missing pinned TermiGen Parquet: {source}")

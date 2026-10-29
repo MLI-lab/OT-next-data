@@ -27,12 +27,12 @@ def test_prebuild_requires_images_persisted(record, passed):
 @pytest.mark.parametrize('failed', [False, True])
 def test_worker_prebuild_archives_without_bridge_or_validation(tmp_path, monkeypatch, failed):
     import config.runtime
-    import hpc.image_cache
+    import hpc.offline_prep.image_cache
     import hpc.local_assets
     import hpc.validation_submit
     import validation.run
     import validation.stages.normalize_paths
-    import data.utils.resolve_pip_pins
+    import validation.rules.static.pip_pinning.repair
     source = tmp_path / 'source'
     task = source / 'example'
     task.mkdir(parents=True)
@@ -56,14 +56,14 @@ def test_worker_prebuild_archives_without_bridge_or_validation(tmp_path, monkeyp
         assert len(tasks) == 1
         (images / 'key.build.log').write_text('build evidence')
         return [record]
-    monkeypatch.setattr(hpc.image_cache, 'prepare_images', prepare)
+    monkeypatch.setattr(hpc.offline_prep.image_cache, 'prepare_images', prepare)
     def forbidden(*a, **kw):
         pytest.fail('prebuild must not start bridge, preparation checks, or validation')
     monkeypatch.setattr(worker, 'free_port', forbidden)
     monkeypatch.setattr(worker, 'trial_capacity', forbidden)
     monkeypatch.setattr(validation.run, 'run_selected', forbidden)
     monkeypatch.setattr(validation.stages.normalize_paths, 'candidates', forbidden)
-    monkeypatch.setattr(data.utils.resolve_pip_pins, 'check', forbidden)
+    monkeypatch.setattr(validation.rules.static.pip_pinning.repair, 'check', forbidden)
     args = runner.parser().parse_args([str(source), '--prebuild-only', '--submit', 'helma', '--cpus', '4'])
     request = tmp_path / 'submission/request.json'
     request.parent.mkdir()

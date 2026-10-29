@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from uuid import uuid4
 
-from validation.checks.path_cache import NAME, completed, read as read_cache, task_fingerprint
+from validation.rules.static.task_absolute_path.path_cache import NAME, completed, read as read_cache, task_fingerprint
 
 
 def enabled(args, numbers):
@@ -24,17 +24,25 @@ async def capture_build_paths(environment, task, args, entry):
     if not roots and not automatic:
         return
     try:
-        from data.utils.resolve_absolute_paths import flagged_paths, resolve_in_environment
-        if automatic and not roots and not flagged_paths(task)[0]:
+        from validation.rules.static.task_absolute_path.repair import flagged_paths, resolve_in_environment
+        from validation.rules.dynamic.do_not_modify.check import protected_artifact_matches
+        protected = protected_artifact_matches((task / 'instruction.md').read_text(errors='replace'))
+        if automatic and not roots and not flagged_paths(task)[0] and not protected:
             return
         entry['instruction_paths'] = await resolve_in_environment(environment, task, roots or ['auto'])
         entry['instruction_paths']['reference_unavailable'] = not (task / 'solution/solve.sh').is_file()
+        if protected:
+            if entry['instruction_paths'].get('healthcheck', {}).get('status') in {'passed', 'not-configured'}:
+                from validation.rules.dynamic.do_not_modify.protected_paths import observe_original_paths
+                entry['protected_paths'] = await observe_original_paths(environment, task)
+            else:
+                entry['protected_paths'] = {'status': 'error', 'error': 'original agent healthcheck not completed'}
     except Exception as exc:
         entry['instruction_paths'] = {'status': 'error', 'error': f'{type(exc).__name__}: {exc}'}
 
 
 def candidates(args, tasks):
-    from data.utils.resolve_absolute_paths import flagged_paths
+    from validation.rules.static.task_absolute_path.repair import flagged_paths
     cache = read_cache(args.tasks)
     def inspect(task):
         if cache.get(task.name) == task_fingerprint(task):
@@ -96,8 +104,8 @@ def prepare(args, numbers):
     from validation.contract import verify_materialized, create
     from validation.data.selection import discover_tasks, select_paths
     from validation.stages.runner import save
-    from validation.checks.instruction_suffix import prepare as prepare_copy
-    from data.utils.resolve_absolute_paths import collect_reports
+    from validation.rules.static.instruction_suffix import prepare as prepare_copy
+    from validation.rules.static.task_absolute_path.repair import collect_reports
     parent = verify_materialized(args)
     tasks = select_paths(discover_tasks(args.tasks), args)
     selected = getattr(args, '_path_candidates', None)

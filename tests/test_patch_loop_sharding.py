@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from validation.patch_repair_loop import controller as c, recovery, resources, sharding, retries
+from data.patch_repair_loop import controller as c, recovery, resources, sharding, retries
 from validation import contract as contracts, shards
 
 
@@ -36,7 +36,7 @@ def test_array_submission_is_bounded_resumable_and_preserves_publication_inputs(
     assert [s['selected_ids'] for s in first['shards']] == [['a', 'd'], ['b', 'e'], ['c']]
     assert [s['job_id'] for s in first['shards']] == ['123_0', '123_1', '123_2']
     assert json.loads((tmp_path / 'array/request.json').read_text())['stages'] == [1]
-    assert json.loads((tmp_path / 'array/submission.json').read_text())['code_snapshot'] == str(tmp_path / 'array/code')
+    assert json.loads((tmp_path / 'array/submission.json').read_text())['code_snapshot'] == str(tmp_path / 'array/code.tar.gz')
     c.save(tmp_path / 'array/submission.json', {'status': 'submitting'})
     with pytest.raises(RuntimeError, match='Uncertain array'):
         sharding.submit(config, '/contract', ids, tmp_path)
@@ -162,7 +162,7 @@ def test_resource_reconfigure_preserves_history_and_rejects_active_jobs(tmp_path
 
 def test_image_preparation_interrupt_does_not_wait_for_queued_builds(tmp_path, monkeypatch):
     from types import SimpleNamespace
-    from hpc import image_cache
+    from hpc.offline_prep import image_cache
     task = tmp_path / 'task'
     task.mkdir()
     (task / 'Dockerfile').write_text('FROM test\n')

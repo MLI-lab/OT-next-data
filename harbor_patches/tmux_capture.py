@@ -3,7 +3,12 @@
 Marin Harbor #136 tails the entire exec response; #137 puts status markers at
 its beginning. Bound each capture before those markers are added instead.
 The lifecycle worker supplies the budget from its actual per-stream limit.
+
+The worker also keeps the agent's keystrokes out of process command lines. The
+batch shell stays alive while typed commands run, and a task command such as
+`pkill -f ingest` would otherwise match it and kill the harness's capture.
 """
+import base64
 from functools import wraps
 import shlex
 
@@ -19,6 +24,16 @@ def bounded_capture(command):
     # and pipefail preserve capture failures, including the upstream pipeline.
     return ("(set -o pipefail; { printf '\\n'; (" + command + "); } | "
             f'tail -c "${{{BUDGET_VAR}:-{DEFAULT_CAPTURE_BYTES}}}" | sed \'1d\')')
+
+
+def hidden_script(script):
+    # Harbor's exec rewrites "uv pip install" in the plain command; keep that
+    # behavior for typed keys now that the worker no longer sees them.
+    encoded = base64.b64encode(script.replace('uv pip install', 'pip install').encode()).decode()
+    # bash reads the batch from a pipe, so its argv holds only the encoding.
+    return ("command -v base64 >/dev/null 2>&1 || "
+            "{ echo 'tmux batch requires base64 in the container' >&2; exit 127; }\n"
+            f'/bin/bash <(printf %s {encoded} | base64 -d)')
 
 
 def install():
@@ -73,7 +88,7 @@ def install_worker(worker):
                 raise ValueError('Apptainer exec output limit is too small for tmux batch framing')
             # Bytes bound Python character counts conservatively. Keep room for
             # both captures and markers; ordinary exec truncation is unchanged.
-            payload = dict(payload, command=f'{BUDGET_VAR}={budget}\n' + command)
+            payload = dict(payload, command=hidden_script(f'{BUDGET_VAR}={budget}\n' + command))
         return original(self, payload)
 
     instance.exec = execute

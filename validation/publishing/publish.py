@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from collections import Counter
 from datetime import datetime, timezone
 import json
@@ -119,8 +120,10 @@ def validated_contract(reports_dir, contract, reports, work):
             'verified_tasks': len(seen)}
     derived['arguments']['tasks'] = str(target / 'tasks')
     # The derived contract's source is the job's temporary copy; the patcher output
-    # the prepared contract started from is what the patch manifests describe.
-    original = (contract['dataset'].get('normalization') or {}).get('original_path')
+    # the prepared contract started from is what the patch manifests describe. A
+    # prepared contract left unnormalized (the job adds the suffix) starts from its tasks.
+    original = ((contract['dataset'].get('normalization') or {}).get('original_path')
+                or contract['arguments']['tasks'])
     derived['dataset']['normalization'] = dict(derived['dataset']['normalization'], original_path=original)
     return derived
 
@@ -176,6 +179,8 @@ def judge(stage, item, not_required=()):
         # Say what was observed, not only that it never matched.
         cause = next((str(f) for f in item.get('findings', []) if not str(f).startswith('not robust')), '')
         return 'archive', reason + ('; ' + cause[:300] if cause else '')
+    if stage in (REFERENCE, NOP) and (item.get('do_not_modify') or {}).get('status') == 'fail':
+        return 'archive', 'do_not_modify: ' + str(item['do_not_modify'].get('reason') or 'protected file not enforced')[:300]
     if stage == 1 and item.get('environment_static', {}).get('status') != 'passed' and 'environment_static' in item:
         return judge(4, item['environment_static'], not_required)
     if stage == 4:
@@ -195,8 +200,10 @@ def judge(stage, item, not_required=()):
         # The container built and started; what the agent could read decides the task.
         return ('archive' if item['environment_leak'] == 'failed' else 'not_run'), item['reason'][:500]
     if stage == 1:
-        if item.get('build_stability') == 'unstable_build' and len(item.get('build_attempts', [])) == 4:
+        if item.get('build_stability') == 'unstable_build':
             return 'archive', item['reason']
+        if item.get('build_stability') == 'infrastructure_failure':
+            return 'not_run', item['reason']
         reason = item.get('reason') or '; '.join(
             str(e.get('error') or [c['check'] for c in e.get('checks', []) if c.get('status') in ('failed', 'error')])
             for e in item.get('environments', []) if e.get('status') != 'passed')
@@ -751,6 +758,20 @@ def repository_patchers(record, out):
         target = Path(out) / folder / 'patch.py'
         target.write_bytes((Path(out) / scripts[0]['path']).read_bytes())
         files.append(f'{folder}/patch.py')
+    for folder, dependencies in record.get('patcher_dependencies', {}).items():
+        for dependency in dependencies:
+            name = dependency['name']
+            if Path(name).name != name or name == 'patch.py' or not name.endswith('.py'):
+                raise ValueError('Invalid repository patcher dependency name')
+            content = (Path(out) / dependency['path']).read_bytes()
+            if hashlib.sha256(content).hexdigest() != dependency['sha256']:
+                raise ValueError('Staged patcher dependency checksum changed')
+            target = Path(out) / folder / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.exists() and target.read_bytes() != content:
+                raise ValueError('Conflicting repository patcher dependency bytes')
+            target.write_bytes(content)
+            files.append(f'{folder}/{name}')
     return files
 
 
@@ -822,6 +843,8 @@ def main():
     ap.add_argument('--patch-manifest', action='append', default=[], metavar='FOLDER=JSON',
                     help='complete cumulative patch provenance compared with the original source; repeatable')
     ap.add_argument('--image-cache', type=Path, help='pristine bundles cache; defaults to $OT_WORKSPACE/images')
+    ap.add_argument('--publish-runtimes', action='store_true',
+                    help='upload prepared runtimes referenced by kept tasks to the shared runtimes/ folder and verify them before the task files')
     ap.add_argument('--dry-run', action='store_true', help='write the files and the description, open no pull request')
     ap.add_argument('--analysis', action='store_true', help='let a model group the archived tasks and suggest actions (Claude Code login); skipped on any failure')
     ap.add_argument('--analysis-model', default='sonnet')
@@ -842,7 +865,8 @@ def main():
                      readme_seed=a.readme_seed, readme_work_dir=a.readme_work_dir, readme_force=a.readme_force,
                      conversion_archives=a.conversion_archive, patch_manifests=a.patch_manifest, image_cache=a.image_cache,
                      trajectories=not a.no_trajectories, note=a.note,
-                     runs=[tuple(Path(p) for p in r.split('=', 1)) for r in a.run], tasks=a.tasks)
+                     runs=[tuple(Path(p) for p in r.split('=', 1)) for r in a.run], tasks=a.tasks,
+                     runtimes=a.publish_runtimes)
     print(result['description'])
     print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
           if a.dry_run else f"Pull request: {result['pull_request']}")
@@ -862,7 +886,7 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             readme_seed=0, readme_work_dir=None, annotation_runner=None, readme_force=False,
             conversion_archives=(), patch_manifests=(), image_cache=None, agent_patch_repair_loop=False,
             patch_repair_summary=None, skipped_stages=None, trajectories=True, note=None,
-            runs=(), tasks=None):
+            runs=(), tasks=None, runtimes=False):
     """Build the files for one run and open the pull request; returns what was done.
 
     `runs` adds later (reports_dir, contract_path) runs; `tasks` is then the final task
@@ -945,21 +969,50 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
                                     'bundles': len(manifest['bundles']),
                                     'tasks': len(manifest['tasks']), 'missing': manifest['missing'],
                                     'cache_status': manifest.get('cache_status', 'configured')}
+    runtime_manifest = None
+    if runtimes:
+        # Prepared runtimes referenced by kept tasks go to the shared runtimes/ folder
+        # in the artifact commit; task files are committed only after remote bytes verify.
+        from validation.publishing import runtime_release
+        from huggingface_hub import HfApi
+        runtime_manifest, runtime_artifacts = runtime_release.prepare_release(
+            tables, out, repo, api=None if dry_run else HfApi())
+        if runtime_manifest['missing']:
+            raise ValueError(f"{len(runtime_manifest['missing'])} referenced runtimes are missing or corrupt in the "
+                             f"runtime cache, e.g. {runtime_manifest['missing'][0]['id']}")
+        artifacts.update(runtime_artifacts)
+        record['prepared_runtimes'] = {'manifest': f"{runtime_release.FOLDER}/manifests/{record['run']}.json",
+                                       'artifacts': len(runtime_manifest['artifacts']),
+                                       'uploaded': sum(r['uploaded'] for r in runtime_manifest['artifacts'].values()),
+                                       'bytes': sum(r['bytes'] for r in runtime_manifest['artifacts'].values()),
+                                       'tasks': len(runtime_manifest['tasks'])}
     artifact_commit = None
     if artifacts and not dry_run:
         from huggingface_hub import CommitOperationAdd, HfApi
         artifact_commit = HfApi().create_commit(
             repo_id=repo, repo_type='dataset', create_pr=True,
+            **({'parent_commit': runtime_manifest['source_revision']}
+               if runtime_manifest and runtime_manifest.get('source_revision') else {}),
             operations=[CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(path))
                         for name, path in artifacts.items()],
             commit_message=commit_title(record['run'], 'environment images for'),
             commit_description=description(record))
         manifest['revision'] = artifact_commit.oid
+    if runtime_manifest is not None:
+        runtime_release.pin(runtime_manifest, artifact_commit.oid if artifact_commit else None)
+        if not dry_run:
+            verified = runtime_release.verify_remote(runtime_manifest, scratch=out)
+            record['prepared_runtimes']['remote_verified'] = len(verified)
+        runtime_path = out / record['prepared_runtimes']['manifest']
+        runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        runtime_path.write_text(json.dumps(runtime_manifest, indent=2) + '\n')
     manifest_path = record['environment_images']['manifest']
     (out / manifest_path).parent.mkdir(parents=True, exist_ok=True)
     (out / manifest_path).write_text(json.dumps(manifest, indent=2) + '\n')
     files = write(tables, record, run_file, out, cards, manifest if manifest['tasks'] else None)
     files.extend(repository_patchers(record, out))
+    if runtime_manifest is not None:
+        files.append(record['prepared_runtimes']['manifest'])
     submission = Path(reports_dir).parent
     if trajectories and 6 in reports and (submission / 'request.json').is_file():
         # A run with agent trials publishes the attempts behind its numbers: every trial's
@@ -980,7 +1033,9 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
     api = HfApi()
     commit = api.create_commit(
         repo_id=repo, repo_type='dataset', create_pr=artifact_commit is None,
-        **({'revision': artifact_commit.pr_revision, 'parent_commit': artifact_commit.oid} if artifact_commit else {}),
+        **({'revision': artifact_commit.pr_revision, 'parent_commit': artifact_commit.oid} if artifact_commit else
+           {'parent_commit': runtime_manifest['source_revision']}
+           if runtime_manifest and runtime_manifest.get('source_revision') else {}),
         operations=[CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(out / name)) for name in files],
         commit_message=commit_title(record['run']), commit_description=description(record))
     result['pull_request'] = artifact_commit.pr_url if artifact_commit else commit.pr_url

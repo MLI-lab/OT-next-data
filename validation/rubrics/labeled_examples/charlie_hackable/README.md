@@ -1,17 +1,19 @@
-# Charlie's MiMo tasks: negative examples for anti_cheat_robustness
+# MiMo tasks: negative examples for anti_cheat_robustness
 
-We review the same [27 externally reported hackable tasks](labels.json),
-using only **`anti_cheat_robustness`** and expecting `fail`.
+We review [3 MiMo Code tasks](labels.json) with only **`anti_cheat_robustness`**,
+expecting `fail`. All three are archived in [mimo_v1](https://huggingface.co/datasets/FWeindel/validated-tasks/tree/main/mimo_v1)
+because the image contains reward-hack residue (installed hidden tests or the fixed
+code): two from Charlie's report and one from our own audit.
 
-Sonnet reviews each task with shell tools in two settings:
+The set was reduced from 27 to 3: MiMo re-pushed fixed images on 2026-10-16, so
+the other 24 reported tasks are no longer hackable. The hack is in the image,
+so run these tasks with `--review-evidence image`; a task-files-only review cannot detect it.
 
-- **Task files only:** the complete task directory in a neutral Apptainer container.
-- **Task files + task image:** the task directory plus inspection inside the actual task image.
+## Earlier results: 27 tasks, images before 2026-10-16
 
-Both use the [upstream Terminal-Bench review prompt](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/rubric-regression/templates/instruction.md)
-with only the unchanged `anti_cheat_robustness` criterion. The judge receives
-neither the expected labels nor Charlie's findings. Image tags are current;
-their contents have not been matched to the historical audit.
+Judges reviewed the task files only, or the task files plus the task image, using the [upstream Terminal-Bench review prompt](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/scripts/rubric-regression/templates/instruction.md)
+with only the unchanged `anti_cheat_robustness` criterion. The judge received
+neither the expected labels nor Charlie's findings.
 
 <!-- BEGIN CHARLIE_RESULTS -->
 | Evidence, both with shell tools | Reviewed | Judge: fail (detected) | Judge: pass (missed) | Not applicable | Errors |

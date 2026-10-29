@@ -5,7 +5,7 @@ from validation.stages import path_diagnostics as diagnostics
 
 
 def test_scan_does_not_repeat_task_healthcheck(tmp_path, monkeypatch):
-    from data.utils import resolve_absolute_paths
+    from validation.rules.static.task_absolute_path import repair as resolve_absolute_paths
     (tmp_path / 'instruction.md').write_text('file.py')
     monkeypatch.setattr(resolve_absolute_paths, 'flagged_paths', lambda task: (['file.py'], {}))
     class Environment:

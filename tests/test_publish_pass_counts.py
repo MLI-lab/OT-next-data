@@ -21,3 +21,24 @@ def test_a_new_run_replaces_its_own_rows_and_keeps_the_others(tmp_path):
     rows = pq.read_table(tmp_path / 'set-x/pass_counts.parquet').to_pylist()
     assert [(r['path'], r['model'], r['solved'], r['run']) for r in rows] == [
         ('set-x-0001', 'm1', 9, 'runs/r.json'), ('set-x-0001', 'm2', 5, 'runs/old.json'), ('set-x-0002', 'm1', 1, 'runs/old.json')]
+
+
+def test_settings_use_frozen_specs_and_keep_different_budgets_separate(monkeypatch):
+    def loaded(path):
+        budget = 1024 if path == 'first' else 2048
+        task = 'x-' + path
+        contract = {'sha256': path, 'arguments': {'serve_model': 'qwen38-27b', 'serve_context': 16384},
+                    'execution_profile': {'local_model_assets': {'spec': {
+                        'max_output_tokens': budget, 'sampling': {'temperature': .2}, 'thinking': True}}},
+                    'tasks_for_test': [{'task_id': task, 'sha256': 'a'}]}
+        request = {'serve_model': 'qwen38-27b', 'attempts': 2}
+        report = {'items': [{'task': task, 'rewards': [0, 1]}]}
+        return contract, request, report
+    monkeypatch.setattr(pc, 'load', loaded)
+    monkeypatch.setattr(pc, 'task_records', lambda c: c['tasks_for_test'])
+    _, record, _ = pc.build(['first', 'second'], {'*': 'dataset'}, run_id='test')
+    model = record['models']['qwen38-27b']
+    assert model['max_output_tokens'] is None
+    assert model['sampling'] == {'temperature': .2}
+    assert [s['intended_output_tokens_per_call'] for s in model['evaluation_settings']] == [1024, 2048]
+    assert 'request forwarding not verified' in pc.description(record)

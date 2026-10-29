@@ -1,6 +1,7 @@
 """Exercise the real Harbor Verifier with an instrumented environment."""
 import asyncio
 import json
+import shlex
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,7 +13,8 @@ from harbor_patches import verifier_setup
 @pytest.mark.parametrize('mode', ['shared', 'separate', 'step', 'separate-step'])
 @pytest.mark.parametrize('outcome', ['pass', 'absent', 'failure', 'timeout', 'scored-failure'])
 @pytest.mark.parametrize('stale_reward', ['0', '1'])
-def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, stale_reward):
+@pytest.mark.parametrize('prepared_runtime', [False, True])
+def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, stale_reward, prepared_runtime, monkeypatch):
     from harbor.models.task.task import Task
     from harbor.models.trial.paths import TrialPaths
     from harbor.verifier.verifier import Verifier, VerifierRuntimeError
@@ -32,6 +34,15 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
     # Even an old reward must not turn setup failure into a successful result.
     paths.reward_text_path.write_text(stale_reward)
     events = []
+    runtime_root = '/tests/.ot-verifier-runtime-abc123'
+    runtime_prefix = (f'export OT_VERIFIER_PYTHON={runtime_root}/active/bin/python3; '
+                      f'export OT_VERIFIER_BIN={runtime_root}/active/bin; ')
+    if prepared_runtime:
+        from harbor_patches import verifier_bundle
+        async def stage(*args):
+            return dict(directory=runtime_root, python=runtime_root + '/active/bin/python3',
+                        bin=runtime_root + '/active/bin', mount_mode='readonly')
+        monkeypatch.setattr(verifier_bundle, 'stage', stage)
     class Environment:
         os = task.config.environment.os
         capabilities = SimpleNamespace(mounted=True)
@@ -47,6 +58,14 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
             assert target_path.startswith('/tmp/ot-pytest-execution-')
             events.append(('recorder', target_path))
         async def exec(self, command, **kwargs):
+            if command.startswith('unshare '):
+                events.append(('mount', command))
+                command = shlex.split(command)[-1]
+                assert command.startswith(runtime_prefix)
+                command = command.removeprefix(runtime_prefix)
+            if command.startswith('if [ -d ' + runtime_root):
+                events.append(('runtime-discard', command))
+                return SimpleNamespace(return_code=0, stdout='', stderr='')
             if command == verifier_setup.CLEAR_REWARDS_COMMAND:
                 paths.reward_text_path.unlink(missing_ok=True)
                 events.append(('clear-reward', command))
@@ -102,6 +121,10 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
         assert result.rewards == {'reward': 0 if outcome == 'scored-failure' else 1}
         assert [e[0] for e in events if e[0] in ('setup', 'grade')] == (['setup'] if outcome == 'scored-failure' else ['setup', 'grade'])
     assert verifier.environment is env
+    assert sum(e[0] == 'runtime-discard' for e in events) == int(prepared_runtime)
+    if prepared_runtime:
+        assert events[-1][0] == 'runtime-discard'
+        assert sum(e[0] == 'mount' for e in events) == (1 if outcome in ('failure', 'timeout', 'scored-failure') else 2)
     assert verifier._skip_tests_upload == mode.startswith('separate')
     uploads = [e for e in events if e[0] == 'upload']
     assert len(uploads) == (2 if mode.endswith('step') else 1)

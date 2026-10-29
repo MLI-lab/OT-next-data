@@ -158,6 +158,8 @@ class SetupEnvironment:
         self.test_command = test_command
         self.verifier = verifier
         self._tests_started = False
+        self._runtime_bundle = None
+        self._toolchain = None
 
     def __getattr__(self, name):
         return getattr(self.environment, name)
@@ -180,8 +182,26 @@ class SetupEnvironment:
                 raise VerifierRuntimeError('Could not clear stale verifier rewards before setup')
             import json
             import time
+            import shlex
+            from harbor_patches.verifier_bundle import stage as stage_bundle, stage_offline, stage_toolchain
+            from harbor_patches.verifier_mount import command as mount_command
+            _, context, _ = self.verifier._resolve_tests()
+            bundle = await stage_bundle(self.environment, context, self.verifier.trial_paths.verifier_dir)
+            self._runtime_bundle = bundle
+            bundle_prefix = ('export OT_VERIFIER_PYTHON=' + shlex.quote(bundle['python']) + '; '
+                             'export OT_VERIFIER_BIN=' + shlex.quote(bundle['bin']) + '; '
+                             if bundle else '')
+            offline = await stage_offline(self.environment, context, self.verifier.trial_paths.verifier_dir)
+            if offline:
+                bundle_prefix += 'export OT_VERIFIER_OFFLINE=' + shlex.quote(offline['directory']) + '; '
+            toolchain = await stage_toolchain(self.environment, context, self.verifier.trial_paths.verifier_dir)
+            self._toolchain = toolchain
+            if toolchain:
+                # Activation (GOROOT/PATH) stays explicit in the task's test.sh.
+                bundle_prefix += ('export OT_VERIFIER_GOROOT=' + shlex.quote(toolchain['goroot']) + '; '
+                                  'export OT_VERIFIER_GO=' + shlex.quote(toolchain['bin'] + '/go') + '; ')
             started = time.monotonic()
-            result = await self.environment.exec(SETUP_COMMAND, *args, **kwargs)
+            result = await self.environment.exec(mount_command(bundle, bundle_prefix + SETUP_COMMAND), *args, **kwargs)
             seconds = time.monotonic() - started
             directory = self.verifier.trial_paths.verifier_dir
             directory.mkdir(parents=True, exist_ok=True)
@@ -227,13 +247,16 @@ class SetupEnvironment:
                 f'{{ ! [ -d /etc/profile.d ] || cp {shlex.quote(shims)}/profile.sh {PROFILE_HOOK}; }}; '
                 + git_proxy_command(target), user='root')
             try:
-                installed = await self.environment.exec(install_python_hooks_command(target), user='root',
+                installed = await self.environment.exec(install_python_hooks_command(target,
+                    roots=(shlex.quote(bundle['directory']) + ' ' + PYTHON_SEARCH_ROOTS) if bundle else PYTHON_SEARCH_ROOTS), user='root',
                                                         timeout_sec=180)
                 hooks = parse_python_hooks(installed.stdout)
             except Exception as exc:
                 hooks = [{'status': 'fail', 'python': None, 'site': None, 'error': str(exc)[:500]}]
             try:
-                wrapped = await self.environment.exec(install_go_wrappers_command(target, shims), user='root',
+                go_roots = ((shlex.quote(toolchain['directory']) + ' ' + PYTHON_SEARCH_ROOTS)
+                            if toolchain else PYTHON_SEARCH_ROOTS)
+                wrapped = await self.environment.exec(install_go_wrappers_command(target, shims, go_roots), user='root',
                                                       timeout_sec=120)
                 go_wrappers = [line.split(' ', 1)[0] for line in (wrapped.stdout or '').splitlines() if line.strip()]
             except Exception as exc:
@@ -260,7 +283,7 @@ class SetupEnvironment:
             try:
                 # JUnit reports written from here on belong to this call (junit_reports.sh).
                 await self.environment.exec(f'touch {shlex.quote(target)}/junit-start', user='root')
-                result = await self.environment.exec(prefix + command, *args, **kwargs)
+                result = await self.environment.exec(mount_command(bundle, bundle_prefix + prefix + command), *args, **kwargs)
                 try:
                     import asyncio
                     await asyncio.wait_for(self.environment.exec(
@@ -304,6 +327,7 @@ def install():
     async def verify(self):
         environment = self.environment
         skip_tests_upload = self._skip_tests_upload
+        setup_environment = None
         # Harbor normally skips this upload for separate images. Our task files
         # are authoritative for every verifier, regardless of its image.
         self._skip_tests_upload = False
@@ -317,12 +341,24 @@ def install():
             stdout = str(paths.verifier_dir / self.trial_paths.test_stdout_path.relative_to(
                 self.trial_paths.verifier_dir).as_posix())
             command = module.build_execution_command(script, stdout_path=stdout, task_os=environment.os)
-            self.environment = SetupEnvironment(environment, command, self)
+            setup_environment = SetupEnvironment(environment, command, self)
+            self.environment = setup_environment
             # Harbor's enclosing verifier timeout covers setup and checks together.
             return await original(self)
         finally:
             self.environment = environment
             self._skip_tests_upload = skip_tests_upload
+            if setup_environment is not None and setup_environment._runtime_bundle is not None:
+                from harbor_patches.verifier_mount import release
+                await release(environment, setup_environment._runtime_bundle)
+            if setup_environment is not None and setup_environment._toolchain is not None:
+                import shlex
+                try:
+                    await environment.exec('rm -rf -- ' + shlex.quote(setup_environment._toolchain['directory']),
+                                           user='root')
+                except Exception:
+                    # Cleanup must not replace the verifier's result.
+                    pass
 
     cls.verify = verify
     cls._shared_setup_script = True

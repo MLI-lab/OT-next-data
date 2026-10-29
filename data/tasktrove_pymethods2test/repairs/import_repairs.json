@@ -1,0 +1,228 @@
+{
+  "pymethods2test-0213": {
+    "reference_sha256": "90e6f4101a630eab04ac70bcc01071780a1bd32e043eff446e75f780a477cc14",
+    "imports": [
+      "import math"
+    ]
+  },
+  "pymethods2test-0310": {
+    "reference_sha256": "45b626f9c41bf9fad10611d5eee9ff72bb2664e2edd1d82358d92099ef0698fe",
+    "imports": [
+      "from collections import defaultdict"
+    ]
+  },
+  "pymethods2test-0475": {
+    "reference_sha256": "2799b0234bb6e0cebca9032bb295f892a3e5d820fbe1f810f57ccfd70b20ab79",
+    "imports": [
+      "from heapq import heappop",
+      "from heapq import heappush"
+    ]
+  },
+  "pymethods2test-0610": {
+    "reference_sha256": "37ddef14c395e4f849dc22f291fd95a8e74a7563f557d929db99a4b70cd6fdc5",
+    "imports": [
+      "from itertools import product"
+    ]
+  },
+  "pymethods2test-0739": {
+    "reference_sha256": "2bf7ea4619663c05cc1b53aa3473ba1a1b30095d5955b3d2ca4c2f1a0c22d387",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-0979": {
+    "reference_sha256": "2240cbc6e122635bb769518ba3868f774d79d8427e91cf6f0ca9a273bcb30cdb",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-1055": {
+    "reference_sha256": "758dc3eb631976dfda68ffcff3e7f9138148bb2be5ed43f978bcd6b197b8cfca",
+    "imports": [
+      "from collections import defaultdict"
+    ]
+  },
+  "pymethods2test-1191": {
+    "reference_sha256": "03afa57d35b88b93d10294c4dd3c7640aae8c55d22a6776fe05bb2ee75f6562a",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-1327": {
+    "reference_sha256": "52a8ba2800ec5497d61dabc2d29f01facb400177ec00ddf94b20ac103e1b1068",
+    "imports": [
+      "from collections import Counter"
+    ]
+  },
+  "pymethods2test-1332": {
+    "reference_sha256": "4cc1604cc28af09661e23840a8a60c0dd675843291247b87aa643e53ebbd640a",
+    "imports": [
+      "import math"
+    ]
+  },
+  "pymethods2test-1576": {
+    "reference_sha256": "c16acea1bcb3f842615424b50ef667471cee063fb55622e0845597cc692540f6",
+    "imports": [
+      "import collections"
+    ]
+  },
+  "pymethods2test-1763": {
+    "reference_sha256": "a76717a7329e2edc84d264dc1bf57d9abefc312082f2e16fed7f7c0f2071bcc1",
+    "imports": [
+      "import math"
+    ]
+  },
+  "pymethods2test-1823": {
+    "reference_sha256": "c02e3113ddb1b3967ed2e4ca5fdc55fb6e65f4643918c9498a806ec4be181e6e",
+    "imports": [
+      "import math"
+    ]
+  },
+  "pymethods2test-1970": {
+    "reference_sha256": "f1abb9ae7576a90e47c7c3d7fe61ac77ac47bf3b58aeddab7a2973a876cdcb53",
+    "imports": [
+      "from bisect import bisect_left"
+    ]
+  },
+  "pymethods2test-1998": {
+    "reference_sha256": "94d0af479b841e8e91ed0a7f7897d42bccd62525461d60b4edc68c3d41154125",
+    "imports": [
+      "from collections import defaultdict"
+    ]
+  },
+  "pymethods2test-2107": {
+    "reference_sha256": "c0988b6034adf295c4ee320fabc983c78cd35d6cf2c1d45bd91368f346ac8e53",
+    "imports": [
+      "import math"
+    ]
+  },
+  "pymethods2test-2284": {
+    "reference_sha256": "9be6dc2902e2bb9605aa6d7c07c2d5b9693b86876826338917d0bfa97f2df336",
+    "imports": [
+      "import math"
+    ]
+  },
+  "pymethods2test-2386": {
+    "reference_sha256": "6549e17d3aac2b4a76fb9593add19d207214344f31caf4e0133673b0e87ae88e",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-2503": {
+    "reference_sha256": "7dfe8313e9ddaaecf18b8289030cf0fce5d91060eee24c2a949e1880dcd0748c",
+    "imports": [
+      "from itertools import islice"
+    ]
+  },
+  "pymethods2test-2675": {
+    "reference_sha256": "5c97fc172dcb17c5ad8baa7ced6c0ce85dd00b7dff977b4907318fe0caa9545e",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-2874": {
+    "reference_sha256": "26c9bb73f8658a061718182ba8290290692566d80de1b498b9572b1f1ea708d9",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-2927": {
+    "reference_sha256": "650c9d2b892abaed155c5f48b4db7c09234f5b628e86f2abb2499c16523bdb22",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-3052": {
+    "reference_sha256": "4d94a46d89740695b0acc6f69932320493647ea7c6eadbce9fcb295804570333",
+    "imports": [
+      "from itertools import zip_longest"
+    ]
+  },
+  "pymethods2test-3319": {
+    "reference_sha256": "a94ab983968017fafce2bbfc18d1f25b3782699685c6b6f57e724ccdc3b379ae",
+    "imports": [
+      "from itertools import product"
+    ]
+  },
+  "pymethods2test-3355": {
+    "reference_sha256": "07887d3d71c08538e19d5740cc8c9abb1a81242a01c29726fcff51bbfc8574cc",
+    "imports": [
+      "from math import gcd"
+    ]
+  },
+  "pymethods2test-3456": {
+    "reference_sha256": "134469f84149611d9704737fd861d57406727ca5d761817bd506e9463b39e948",
+    "imports": [
+      "import math"
+    ]
+  },
+  "pymethods2test-3593": {
+    "reference_sha256": "2489ac877421296dffd7ea68b4ba1e93b6020bd0ebcbfcd38652a7cc4a857824",
+    "imports": [
+      "from collections import Counter"
+    ]
+  },
+  "pymethods2test-3779": {
+    "reference_sha256": "1088e8c80b904bbb2ea80cf79892ff172ee567c88a9f69b6881186109b748c44",
+    "imports": [
+      "import re"
+    ]
+  },
+  "pymethods2test-3851": {
+    "reference_sha256": "598ad36ad3363980898f3e76d6ffd750164db2633f1a6193d62f1d1dc767bfc3",
+    "imports": [
+      "from itertools import product"
+    ]
+  },
+  "pymethods2test-3892": {
+    "reference_sha256": "08fb1a081330a38cc41fe29ae7c4162e26d275799f521a17780e4c63cc7a3b14",
+    "imports": [
+      "import sys"
+    ]
+  },
+  "pymethods2test-4188": {
+    "reference_sha256": "f2dbe5036c1a63846f1a36c5cd8c19e8c466586b5f9aea5ae2a7012043e0c3fe",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-4209": {
+    "reference_sha256": "6cbd02638341c8988437375081eb1e1b7c512c1bc1076c755402a5cb5e6e1aa7",
+    "imports": [
+      "from math import ceil",
+      "from math import floor",
+      "from math import sqrt"
+    ]
+  },
+  "pymethods2test-4281": {
+    "reference_sha256": "ecc7b2fbec7317b6f7bfa3b5d4899ddcf5d9b2dc66512292deef5639ca121746",
+    "imports": [
+      "import heapq"
+    ]
+  },
+  "pymethods2test-4350": {
+    "reference_sha256": "8f9ca76f3923ec7c7b4fb2fc0461bc6b373c00bfcf277581260a6ecf3605be90",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-4514": {
+    "reference_sha256": "0df73c75dc4a025d9493390757243d480af7dfee6cad55c3a2064315fd0a84a9",
+    "imports": [
+      "from collections import defaultdict"
+    ]
+  },
+  "pymethods2test-4526": {
+    "reference_sha256": "8f8422c8e053e0bd4a758fe05c8a2f55b63f9d497b1b2d77f3928aca6146c057",
+    "imports": [
+      "from collections import deque"
+    ]
+  },
+  "pymethods2test-4569": {
+    "reference_sha256": "a2e1c82eb7fb84b0b80f3daefea36f909ea49afcfeab4d550e1e7b5c924e3317",
+    "imports": [
+      "from collections import Counter",
+      "from collections import defaultdict"
+    ]
+  }
+}

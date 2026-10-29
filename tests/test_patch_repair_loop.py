@@ -5,10 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from validation.patch_repair_loop import controller
-from validation.patch_repair_loop import agents
-from validation.patch_repair_loop.image_audit import audit as image_audit
-from validation.patch_repair_loop.reports import summarize
+from data.patch_repair_loop import controller
+from data.patch_repair_loop import agents
+from data.patch_repair_loop.image_audit import audit as image_audit
+from data.patch_repair_loop.reports import summarize
 
 
 def test_image_audit_distinguishes_dockerfile_and_build_payload(tmp_path: Path):

@@ -4,8 +4,8 @@ The pipeline runs its configured stages once. Then every task is classified the
 way the publisher classifies it, passed, archive or not run, and the tasks
 without a result are rerun in the stages that produced none, up to
 ``--outcome-retries`` more attempts (stage 1 first, then 2, then 3, so a build
-that recovers lets its trials run in the same round). A wrong reward or a failed
-build is a result and is not retried. A task still without a result after the
+that recovers lets its trials run in the same round). A wrong reward is a result and
+is not retried; stage 1 itself retries a failed build up to 3 times. A task still without a result after the
 last attempt is archived as not robust under this infrastructure, so one run
 always ends in a decision for every task.
 

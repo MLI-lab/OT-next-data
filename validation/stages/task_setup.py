@@ -21,10 +21,12 @@ def detect(task: Path) -> str | None:
     be parsed safely is an error, never a silent omission. Only task-owned
     scripts under /setup_files may be executed automatically.
     """
+    from harbor_patches.task_runtime import declared
     default = 'bash /setup_files/setup.sh' if (task / 'setup_files/setup.sh').is_file() else None
+    runtime_only = 'true' if declared(task) else None
     oracle = task / 'solution/solve.sh'
     if not oracle.is_file():
-        return default
+        return default or runtime_only
     calls = set()
     for number, raw in enumerate(oracle.read_text().splitlines(), 1):
         line = raw.strip()
@@ -42,7 +44,7 @@ def detect(task: Path) -> str | None:
         raise ValueError(f'{oracle}: multiple setup scripts need review')
     if calls and default and calls != {default}:
         raise ValueError(f'{oracle}: calls a setup script other than the harness default')
-    return next(iter(calls), default)
+    return next(iter(calls), default or runtime_only)
 
 
 async def prepare(environment, *, command, timeout_sec, force_build, upload, logger=None, timings=None,
@@ -61,6 +63,8 @@ async def prepare(environment, *, command, timeout_sec, force_build, upload, log
             if timings is not None:
                 timings[name] = time.monotonic() - started
     if start_environment:
+        from harbor_patches.task_runtime import reset
+        reset(environment)
         await measured('container_start', lambda: environment.start(force_build=force_build))
     if waited is not None:
         wait = await waited()
@@ -90,6 +94,36 @@ async def prepare(environment, *, command, timeout_sec, force_build, upload, log
         if logger and error.diagnostics:
             logger.info('Task setup failure diagnostics:\n%s', error.diagnostics)
         raise error
+
+
+def capture_setup_command(command, directory):
+    """Review-only capture survives cancellation while retaining exit status."""
+    if not re.fullmatch(r'/setup_files/\.ot-setup-output-[a-f0-9]{32}', directory):
+        raise ValueError('Invalid setup output directory')
+    quoted = shlex.quote(directory)
+    return (f'mkdir -m 700 -- {quoted} || exit $?; '
+            f'if ( {command} ) >{quoted}/stdout 2>{quoted}/stderr; '
+            'then ot_setup_status=0; else ot_setup_status=$?; fi; '
+            f'cat -- {quoted}/stdout; cat -- {quoted}/stderr >&2; '
+            'exit "$ot_setup_status"')
+
+
+async def collect_setup_output(environment, directory, destination):
+    """Read bounded diagnostics after the measured preparation, never change its result."""
+    import asyncio
+    if not re.fullmatch(r'/setup_files/\.ot-setup-output-[a-f0-9]{32}', directory):
+        raise ValueError('Invalid setup output directory')
+    quoted = shlex.quote(directory)
+    script = (f'printf "%s\\n" "== setup stdout (last 16384 bytes)"; tail -c 16384 -- {quoted}/stdout; '
+              f'printf "%s\\n" "== setup stderr (last 16384 bytes)"; tail -c 16384 -- {quoted}/stderr')
+    try:
+        result = await asyncio.wait_for(environment.exec(script, user='root', timeout_sec=10), timeout=12)
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text((result.stdout or '') + (result.stderr or ''))
+        return {'path': str(destination), 'return_code': result.return_code}
+    except Exception as error:
+        return {'error': f'{type(error).__name__}: {error}'}
 
 
 DAMAGED = 'Container environment damaged (Python standard library not importable after the failed setup)'
@@ -145,11 +179,14 @@ async def setup_diagnostics(environment):
         return f'diagnostics unavailable: {type(exc).__name__}: {exc}'
 
 
-async def upload_setup(environment, task_path):
+async def upload_setup(environment, task_path, *, task_runtime=True):
     """Stage-1 equivalent of Harbor's setup-files upload, within the same budget."""
     await environment.empty_dirs(['/setup_files'], chmod=False)
     await environment.upload_dir(source_dir=task_path / 'setup_files', target_dir='/setup_files')
     await environment.exec('chmod -R a+rX /setup_files', user='root')
+    if task_runtime:
+        from harbor_patches.task_runtime import stage
+        await stage(environment, task_path)
 
 
 async def upload_review_files(environment, task_path):
@@ -208,11 +245,17 @@ def install():
                 self.agent_environment.start(force_build=self.config.environment.force_build),
                 budget, waited, timeout_error=error, record=note)
         timings = {}
+        async def upload_prepared():
+            await original_upload(self)
+            from harbor_patches.task_runtime import stage
+            paths = getattr(self, 'paths', None)
+            await stage(self.agent_environment, self.task.paths.task_dir,
+                        paths.trial_dir if paths is not None else None)
         try:
             await run_with_budget(
                 prepare(self.agent_environment, command=command, timeout_sec=budget,
                         force_build=self.config.environment.force_build, timings=timings,
-                        upload=lambda: original_upload(self), logger=self.logger, waited=waited),
+                        upload=upload_prepared, logger=self.logger, waited=waited),
                 budget, waited, timeout_error=error, record=note)
         finally:
             paths = getattr(self, 'paths', None)

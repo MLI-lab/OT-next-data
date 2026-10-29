@@ -932,7 +932,7 @@ def nproc_drop_hits(files, task_id=None):
 
     Keep this self-contained so the data patcher can run without the validation
     package. Recognized measurement-only assignments retain the same exemption
-    as validation.checks.check_terminal_bench.nproc_check_text. Unknown uses
+    as validation.rules.static.terminal_bench.nproc_check_text. Unknown uses
     remain excluded; this is a text heuristic, not shell execution analysis.
     """
     hits = []
@@ -2757,10 +2757,43 @@ def download_cli():
     download_main(parser.parse_args().root)
 
 
+def runtime_cli():
+    """Migrate only measured published verifier families, preserving task setup."""
+    ap = argparse.ArgumentParser(description='Prepare reviewed published SETA verifier runtimes')
+    ap.add_argument('--published-input',type=Path,required=True)
+    ap.add_argument('--published-revision',required=True)
+    ap.add_argument('--published-subset',choices=['seta_v1','seta_v2','seta_v3'],required=True)
+    ap.add_argument('--runtime-image-inventory',type=Path,required=True)
+    ap.add_argument('--runtime-probe',type=Path,required=True)
+    ap.add_argument('--runtime-cache',type=Path,required=True)
+    ap.add_argument('--task-input-manifest',type=Path,action='append',help='Verified apt/uv input manifest beside its archive; repeat for reviewed families')
+    ap.add_argument('--output',type=Path,required=True)
+    args=ap.parse_args()
+    from data.seta.verifier_runtime import migrate_published
+    report=migrate_published(args.published_input,args.output,revision=args.published_revision,
+        subset=args.published_subset,image=json.loads(args.runtime_image_inventory.read_text()),
+        probe=json.loads(args.runtime_probe.read_text()),cache=args.runtime_cache,
+        task_input_manifest=args.task_input_manifest)
+    print(json.dumps(report['counts'],indent=2))
+
+
 if __name__ == '__main__':
     from data.utils.cli import dispatch
-    dispatch({'download': download_cli, 'functional': functional_main})
+    dispatch({'download': download_cli, 'functional': functional_main, 'prepare-runtime': runtime_cli})
     import sys
     if sys.argv[1:2] == ['audit']:
         raise SystemExit(audit_main(sys.argv[2:]))
     main()
+
+
+def prepare_runtime(files, image, probe, binding, bundle, catalog):
+    """Adapt a reviewed published verifier without changing task setup."""
+    from data.seta import verifier_runtime
+    planned = verifier_runtime.plan(files, image, probe, binding, bundle)
+    return verifier_runtime.apply(files, planned, catalog), planned
+
+
+def prepare_task_inputs(files, image, record):
+    """Adapt only the reviewed task setup to prepared apt/uv download inputs."""
+    from data.seta import verifier_runtime
+    return verifier_runtime.prepare_task_inputs(files, image, record)

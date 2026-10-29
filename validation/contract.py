@@ -141,7 +141,11 @@ def implementation(root=ROOT, stages=None):
               root / 'hpc/helma/validation.sbatch', root / 'hpc/zih/validation.sbatch', root / 'hpc/rwth/validation.sbatch', root / 'hpc/validation.sh',
               root / 'hpc/validation_submit.py', root / 'hpc/validation_worker.py', root / 'hpc/model_startup.py',
               root / 'hpc/helma/proxy.sh',
-              root / 'hpc/local_runtime.py', root / 'hpc/local_assets.py', root / 'hpc/image_cache.py',
+              root / 'hpc/local_runtime.py', root / 'hpc/local_assets.py', root / 'hpc/offline_prep/image_cache.py',
+              root / 'hpc/offline_prep/verifier_bundles.py', root / 'hpc/offline_prep/verifier_offline.py', root / 'hpc/offline_prep/image_python_runtime.py',
+              root / 'hpc/offline_prep/runtime_requirements.py', root / 'hpc/offline_prep/image_toolchain.py',
+              root / 'hpc/offline_prep/offline_sources.py',
+              root / 'harbor_patches/verifier_mount.sh', root / 'harbor_patches/http_replay.sh',
               root / 'config/clusters.py', root / 'config/runtime.py', root / 'requirements.txt']
     if stages is None or MODEL_STAGES.intersection(stages):
         paths.append(root / 'config/models.py')
@@ -190,7 +194,7 @@ def local_model_assets(args):
 
 
 def profile(args):
-    from validation.checks.agent_run import agent_settings
+    from validation.metrics.agent_run import agent_settings
     apptainer = args.backend == 'apptainer'
     from validation.stages.runner import dependency_archive_spec
     return {
@@ -244,7 +248,7 @@ def profile(args):
         'serve_replicas': getattr(args, 'serve_replicas', 1),
         'local_model_assets': local_model_assets(args),
         'serve_model': args.serve_model, 'api_base': args.api_base,
-        'validation_container_reuse': 'stage 1 fresh; same-task stages 2,3; logs cleared, filesystem state retained' if getattr(args, 'reuse_validation_containers', False) else 'fresh instance per phase',
+        'validation_container_reuse': 'fresh instance per phase',
         'nop_setup_policy': 'one NOP trial per attempt after environment preparation; no pre-setup NOP',
         'task_setup_budget_policy': 'Slurm image preparation precedes task timers; container startup, detected task setup and setup-files upload share environment.build_timeout_sec; direct runs without preparation also include image build',
         'container_start_concurrency': getattr(args, 'container_start_concurrency', 8),
@@ -296,7 +300,7 @@ def protocol(contract):
 
 
 def create(args, numbers, destination):
-    from validation.checks.check_terminal_bench import load_checks
+    from validation.rules.static.terminal_bench import load_checks
     from validation.stages.runner import check_args, resolve_review_defaults
     check_args(args)
     resolve_review_defaults(args, numbers)
@@ -325,13 +329,11 @@ def create(args, numbers, destination):
             raise ValueError('the expected-outcomes file names none of the selected tasks')
         print(f'Expected outcomes: {matched} of {len(tasks)} selected tasks have an expectation', flush=True)
     checks_by_stage = {}
-    for stage, group in ((1, 'environment'), (4, 'task-quality')):
-        if stage in numbers:
-            _, selected, _ = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude, group=group)
-            checks_by_stage[str(stage)] = selected
-            if stage == 4:
-                from validation.stages.reference_leaks import CHECK
-                checks_by_stage[str(stage)] = [*selected, CHECK]
+    if 4 in numbers:
+        # All static checks run together in stage 4.
+        _, selected, _ = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
+        from validation.stages.reference_leaks import CHECK
+        checks_by_stage['4'] = [*selected, CHECK]
     _, _, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
     checks = sorted({check for selected in checks_by_stage.values() for check in selected})
     frozen = vars(args).copy()
@@ -354,7 +356,8 @@ def create(args, numbers, destination):
                         'implementation': 'validation/contract.py:inventory (hash recorded in implementation)'}},
         'stages': numbers,
         'success_criteria': {'minimum_tasks': minimum, 'oracle_reward': 1, 'nop_reward': 0,
-            'reward_key': args.reward_key, 'attempts': args.attempts, 'static_checks': checks, 'static_checks_by_stage': checks_by_stage,
+            'reward_key': args.reward_key, 'attempts': args.attempts,
+            'reference_runs': getattr(args, 'reference_runs', 3), 'nop_runs': getattr(args, 'nop_runs', 3), 'static_checks': checks, 'static_checks_by_stage': checks_by_stage,
             'static_exclusions': exclusions, 'conditional_checks': {'check_ai_detection.py': 'requires GPTZERO_API_KEY; unavailable checks are incomplete and fail acceptance' if getattr(args, 'static_profile', None) == 'all' else 'only with GPTZERO_API_KEY; missing key or upstream API-unavailable skip is non-failing'}, 'failure_policy': 'collect all findings; fail acceptance on any selected failure/error/skip or insufficient coverage'},
         'execution_profile': profile(args), 'runtime_dependencies': dependencies(),
         'trajectory_input_sha256': task_digest(args.trials) if args.trials else None,
@@ -464,11 +467,15 @@ def bind(args, numbers):
             (getattr(args, 'fix_instruction_paths', True) and getattr(args, 'path_resolution_report', [])))
         # Images are built from the copy, so prebuilds carry the repair too.
         if instructions or getattr(args, 'fix_repository_leaks', False):
-            from validation.checks.instruction_suffix import prepare
+            from validation.rules.static.instruction_suffix import prepare
             prepare(args, args.prepare_contract.resolve().with_suffix('.stage4-tasks'), instructions=instructions)
         create(args, numbers, args.prepare_contract)
         return None
     if not args.contract:
+        if numbers == [5]:
+            print('Stage-5 judge run without a validation contract; task inputs and code are captured with the submission.',
+                  flush=True)
+            return numbers
         raise ValueError('a prewritten contract is required: use TASKS --prepare-contract FILE first, then --contract FILE')
     contract = read(args.contract)
     explicit = {token.split('=')[0][2:].replace('-', '_') for token in sys.argv[1:] if token.startswith('--')}
@@ -539,5 +546,8 @@ def assess_stage(contract, number, report):
         failures.append(f'coverage {count} below minimum {contract["success_criteria"]["minimum_tasks"]}')
     if any(i['status'] == 'skipped' for i in report['items']):
         failures.append('selected tasks were skipped')
+    incomplete = sum(i['status'] == 'incomplete' for i in report['items'])
+    if incomplete:
+        failures.append(f'{incomplete} selected task results are incomplete')
     report['contract_findings'] = failures
     report['has_findings'] |= bool(failures)

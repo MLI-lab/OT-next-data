@@ -25,7 +25,8 @@ def fake_contract(monkeypatch, stages=(2, 3)):
     ('zih', 'barnard', None, 0),
     ('zih', 'capella', 'qwen3-30b-instruct-2507', 1),
 ])
-def test_array_plan_uses_site_resources_and_keeps_task_slices(tmp_path, monkeypatch, site, partition, model, expected_gpus):
+@pytest.mark.parametrize('nodelist', [None, 'cpu-[001,002]'])
+def test_array_plan_uses_site_resources_and_keeps_task_slices(tmp_path, monkeypatch, site, partition, model, expected_gpus, nodelist):
     from hpc import validation_submit
     contract = fake_contract(monkeypatch, stages=(6, 7) if model else (4, 5))
     contract['arguments'].update(submit=site, serve_model=model, gpus=None, serve_cpus=4)
@@ -37,14 +38,21 @@ def test_array_plan_uses_site_resources_and_keeps_task_slices(tmp_path, monkeypa
     monkeypatch.setattr(shards, 'snapshot_matches', lambda *args: True)
     out = tmp_path / 'run with spaces'
     shards.plan(tmp_path / 'contract.json', 3, out, time='01:00:00', cpus=12, memory='128G',
-                partition=partition, array_concurrency=2, submit=False)
+                partition=partition, array_concurrency=2, submit=False, nodelist=nodelist)
     plan = json.loads((out / 'plan.json').read_text())
     command = plan['command']
+    assert plan['allocation']['nodelist'] == nodelist
+    assert [c for c in command if c.startswith('--nodelist=')] == ([f'--nodelist={nodelist}'] if nodelist else [])
     assert plan['allocation']['cluster'] == site
     assert plan['allocation']['gpus'] == expected_gpus
     assert f'--partition={partition}' in command and '--array=0-2%2' in command
     assert f'OT_CLUSTER={site}' in next(c for c in command if c.startswith('--export='))
-    assert f'hpc/{site}/validation.sbatch' in (out / 'array.sbatch').read_text()
+    script = (out / 'array.sbatch').read_text()
+    assert f'hpc/{site}/validation.sbatch' in script
+    # One packed snapshot on shared storage, unpacked per job on node-local disk.
+    assert (out / 'code.tar.gz').is_file() and not (out / 'code').exists()
+    assert 'tar -xzf' in script and 'VALIDATION_REPO="$code/code"' in script
+    assert 'VALIDATION_REPO' not in next(c for c in command if c.startswith('--export='))
     if site == 'zih':
         assert '--account=p_agents_finetuning' in command
     assert ('--gres=gpu:1' in command) == bool(expected_gpus)
@@ -170,7 +178,7 @@ def test_a_shard_refuses_to_derive_its_own_path_contract(tmp_path, monkeypatch):
     from validation.stages import normalize_paths
     import validation.contract, validation.data.selection
     # Import first: a module first imported while the names below are patched would keep the patched functions.
-    import validation.stages.runner, validation.checks.instruction_suffix, data.utils.resolve_absolute_paths  # noqa: F401
+    import validation.stages.runner, validation.rules.static.instruction_suffix, validation.rules.static.task_absolute_path.repair  # noqa: F401
     task = tmp_path / 'task-a'
     task.mkdir()
     monkeypatch.setattr(validation.contract, 'verify_materialized', lambda args: None)
@@ -180,3 +188,14 @@ def test_a_shard_refuses_to_derive_its_own_path_contract(tmp_path, monkeypatch):
                            shard='0/2', _path_candidates=[task])
     with pytest.raises(ValueError, match='resolve paths before preparing the contract of a sharded run'):
         normalize_paths.prepare(args, [1, 4])
+
+
+def test_plan_cli_forwards_node_constraint(tmp_path, monkeypatch):
+    captured = {}
+    def fake_plan(*args, **kwargs):
+        captured.update(kwargs)
+    monkeypatch.setattr(shards, 'plan', fake_plan)
+    assert shards.main(['plan', '--contract', str(tmp_path / 'contract.json'),
+                        '--count', '2', '--out', str(tmp_path / 'out'),
+                        '--time', '00:30:00', '--nodelist', 'cpu-001']) == 0
+    assert captured['nodelist'] == 'cpu-001'

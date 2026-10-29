@@ -385,7 +385,7 @@ def write_group(out: Path, tasks: dict[str, Path], state: dict[str, dict]) -> No
     """Package accepted tasks; lay out the rest for a human, sorted by cause."""
     import pyarrow as pa
     import pyarrow.parquet as pq
-    from data.utils.full_source.harbor_parquet import pack_task
+    from data.utils.harbor_parquet import pack_task
 
     rows = []
     with (out / "audit.jsonl").open("w") as audit:

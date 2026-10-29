@@ -429,3 +429,66 @@ def test_records_go_to_the_calls_log_not_into_the_graded_output(tmp_path):
         assert 'OT_VERIFIER_EXECUTION' not in result.stdout + result.stderr
         _, invocations, problem = scope_output(log.read_text(), TOKEN)
         assert problem is None and [i['executed'] for i in invocations] == [1]
+
+
+REVIEWED = Path(__file__).parent / 'fixtures' / 'recorder_scripts'
+
+
+def reviewed_copy(tmp_path, name, tamper=False):
+    tests = tmp_path / 'tests'
+    tests.mkdir(exist_ok=True)
+    data = (REVIEWED / name).read_bytes()
+    (tests / name).write_bytes(data + (b'\n# changed\n' if tamper else b''))
+    return tests / name
+
+
+@pytest.mark.parametrize('tamper', [False, True])
+def test_reviewed_cceval_scorer_is_recorded_only_with_exact_bytes(tmp_path, tamper):
+    script = reviewed_copy(tmp_path, 'cceval_verifier.py', tamper)
+    for name, text in (('prediction.txt', 'x = 1\n'), ('reference.txt', 'x = 1\n'), ('prompt.txt', 'def f():\n')):
+        (tmp_path / name).write_text(text)
+    (tmp_path / 'out').mkdir()
+    result, (_, invocations, problem) = run_unittest(
+        tmp_path, str(script), '--language', 'python', '--prediction', 'prediction.txt',
+        '--reference', 'reference.txt', '--prompt', 'prompt.txt', '--out', 'out')
+    assert result.returncode == 0, result.stderr
+    if tamper:
+        assert invocations == [] and problem is None
+    else:
+        [record] = invocations
+        assert problem is None and record['finished'] is True and record['exitstatus'] == 0
+
+
+def test_reviewed_unittest_reporter_counts_as_outer_unittest(tmp_path):
+    sys.path.insert(0, str(PATCHES))
+    try:
+        import sitecustomize as hook
+    finally:
+        sys.path.remove(str(PATCHES))
+    environ = {'OT_VERIFIER_EXECUTION_TOKEN': TOKEN}
+    (tmp_path / 'exact').mkdir()
+    (tmp_path / 'changed').mkdir()
+    exact = reviewed_copy(tmp_path / 'exact', 'run_unittest.py')
+    changed = reviewed_copy(tmp_path / 'changed', 'run_unittest.py', tamper=True)
+    assert hook._is_outer_unittest([str(exact), 'tornado.test.web_test'], environ)
+    assert not hook._is_outer_unittest([str(changed), 'tornado.test.web_test'], environ)
+    other = tmp_path / 'tests' / 'other.py'
+    other.parent.mkdir(exist_ok=True)
+    other.write_bytes((REVIEWED / 'run_unittest.py').read_bytes())
+    assert not hook._is_outer_unittest([str(other)], environ)  # same bytes, other name
+
+
+@pytest.mark.parametrize('tamper', [False, True])
+def test_reviewed_in_process_pytest_driver_is_recorded_with_pytest_counts(tmp_path, tamper):
+    pytest.importorskip('pytest')
+    script = reviewed_copy(tmp_path, 'score.py', tamper)
+    (tmp_path / 'test_sample.py').write_text('def test_ok():\n    pass\n\ndef test_bad():\n    assert False\n')
+    (tmp_path / 'ids.json').write_text(json.dumps(['test_sample.py::test_ok', 'test_sample.py::test_bad']))
+    result, (_, invocations, problem) = run_unittest(tmp_path, str(script), 'ids.json')
+    assert '<score>0.0</score>' in result.stdout, result.stderr
+    if tamper:
+        assert invocations == [] and problem is None
+    else:
+        [record] = invocations
+        assert problem is None and record['finished'] is True
+        assert record['executed'] == 2 and record['exitstatus'] == 1

@@ -51,3 +51,30 @@ def test_missing_old_patcher_is_reported_not_substituted(tmp_path):
     record = {'run': 'run-1'}
     assert patch_provenance.stage_patchers(record, [f'data={manifest}'], tmp_path / 'out') == []
     assert 'unavailable' in record['patcher_upload_notes'][0]
+
+
+def test_patcher_dependency_snapshot_is_published_only_with_matching_bytes(tmp_path):
+    from validation.publishing.publish import repository_patchers
+    content=b'print("source-specific runtime adapter")\n'
+    helper=tmp_path/'runtime.patch.py';helper.write_bytes(content)
+    manifest=tmp_path/'manifest.json';manifest.write_text(json.dumps({'patcher_dependencies':[
+        {'path':helper.name,'sha256':hashlib.sha256(content).hexdigest()}]}))
+    out=tmp_path/'out';record={'run':'run-1'}
+    files=patch_provenance.stage_patchers(record,[f'data={manifest}'],out)
+    assert len(files)==1 and (out/files[0]).read_bytes()==content
+    assert repository_patchers(record,out)==['data/runtime.patch.py']
+    assert (out/'data/runtime.patch.py').read_bytes()==content
+    (out/'data/runtime.patch.py').write_bytes(b'conflict')
+    with pytest.raises(ValueError,match='Conflicting'):
+        repository_patchers(record,out)
+    helper.write_bytes(b'changed')
+    with pytest.raises(ValueError,match='hash mismatch'):
+        patch_provenance.stage_patchers({'run':'run-2'},[f'data={manifest}'],out)
+
+
+@pytest.mark.parametrize('name',['../runtime.py','/runtime.py','patch.py','artifact.tar.gz'])
+def test_patcher_dependency_rejects_unsafe_names(tmp_path,name):
+    manifest=tmp_path/'manifest.json';manifest.write_text(json.dumps({'patcher_dependencies':[
+        {'path':name,'sha256':'a'*64}]}))
+    with pytest.raises(ValueError,match='dependency snapshot'):
+        patch_provenance.stage_patchers({'run':'run-1'},[f'data={manifest}'],tmp_path/'out')

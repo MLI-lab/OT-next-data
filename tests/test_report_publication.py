@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from validation.patch_repair_loop import controller as core
-from validation.reporting import report
+from data.patch_repair_loop import controller as core
+from validation.publishing import report
 
 
 def stage():

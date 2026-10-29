@@ -9,7 +9,8 @@ from validation.stages.runner import parser
 from validation.contract import create, read, task_digest, task_records
 
 
-def test_plan_schedules_preparation_without_shard_slices(tmp_path, monkeypatch):
+@pytest.mark.parametrize('nodelist', [None, 'cpu-001'])
+def test_plan_schedules_preparation_without_shard_slices(tmp_path, monkeypatch, nodelist):
     from hpc import validation_submit
     contract = {'sha256': 'a'*64, 'stages': [4], 'tasks': [{'task_id': 'a'}, {'task_id': 'b'}],
                 'arguments': {'fix_instruction_paths': True, 'serve_model': None, 'gpus': None}}
@@ -24,11 +25,13 @@ def test_plan_schedules_preparation_without_shard_slices(tmp_path, monkeypatch):
     out = tmp_path / 'run'
     assert shards.plan(tmp_path/'contract.json', 2, out, time='01:00:00', cpus=12,
                        memory='32G', partition='barnard', array_concurrency=2,
-                       submit=True, cluster='zih') == '123'
+                       submit=True, cluster='zih', nodelist=nodelist) == '123'
     request = json.loads((out/'normalization/request.json').read_text())
     assert request['args']['shard'] is None
     assert request['args']['fix_instruction_paths'] is True
     assert request['shard_plan']['plan']['count'] == 2
+    assert request['shard_plan']['plan']['nodelist'] == nodelist
+    assert [c for c in commands[0] if c.startswith('--nodelist=')] == ([f'--nodelist={nodelist}'] if nodelist else [])
     assert not (out/'shards').exists()
     assert not any(arg.startswith('--array=') for arg in commands[0])
 
@@ -53,7 +56,7 @@ def test_normalization_exports_one_portable_contract_and_merge_checks_lineage(tm
     from validation.data.materialize import materialize
     args, parent, folder, request = fixture(tmp_path)
     original = parent.read_bytes()
-    monkeypatch.setattr('data.utils.resolve_absolute_paths.flagged_paths', lambda _: (['src/data.txt'], {}))
+    monkeypatch.setattr('validation.rules.static.task_absolute_path.repair.flagged_paths', lambda _: (['src/data.txt'], {}))
     def discover(tasks, out, args):
         return [{'task': str(task), 'status': 'passed', 'instruction_path_diagnostics': [{
             'agent_baseline': {'status': 'completed', 'task_sha256': task_digest(task),

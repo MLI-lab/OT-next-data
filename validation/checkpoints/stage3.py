@@ -9,7 +9,7 @@ from pathlib import Path
 
 def freeze(record_path, current, tasks):
     from validation.contract import read, task_records
-    from validation.patch_repair_loop.reports import load_reports
+    from data.patch_repair_loop.reports import load_reports
 
     record = json.loads(Path(record_path).read_text())
     previous = read(record['contract'])

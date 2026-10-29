@@ -1,5 +1,5 @@
 import json
-from validation.patch_repair_loop.reports import summarize
+from data.patch_repair_loop.reports import summarize
 
 
 def test_static_warnings_are_diagnostics_not_missing_results(tmp_path):

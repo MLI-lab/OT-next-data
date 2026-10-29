@@ -5,7 +5,7 @@ import platform
 import pyarrow.parquet as pq
 import pytest
 
-from hpc.image_cache import publish as cache_publish
+from hpc.offline_prep.image_cache import publish as cache_publish
 from validation.publishing import image_release as release
 from validation.contract import task_digest
 from validation.data.materialize import materialize
@@ -42,7 +42,7 @@ def fixture(tmp_path, legacy=False):
     image.write_bytes(b'pristine sif')
     image.with_suffix('.deferred.json').write_text('{"run": ["echo hi"]}')
     image.with_suffix('.overlay.img').write_bytes(b'pristine overlay')
-    provenance = dict(pristine=True, builder='hpc.image_cache', environment_sha256=key,
+    provenance = dict(pristine=True, builder='hpc.offline_prep.image_cache', environment_sha256=key,
                       architecture=platform.machine(), format='apptainer-sif')
     cache = tmp_path / 'cache'
     bundle = cache_publish(image, cache, provenance=None if legacy else provenance)
@@ -78,7 +78,7 @@ def test_publish_materialize_restore_and_reuse(tmp_path, monkeypatch, workers):
     assert len(records) == 1 and len(calls) == 3
     assert (target / bundle.name).read_bytes() == b'pristine sif'
     assert (target / bundle.name).with_suffix('.overlay.img').read_bytes() == b'pristine overlay'
-    from hpc.image_cache import prepare_images
+    from hpc.offline_prep.image_cache import prepare_images
     from types import SimpleNamespace
     args = SimpleNamespace(image_build_memory_mb=1024, image_build_cpus=1, cpus=1,
                            image_build_timeout_sec=60, image_build_concurrency=1, force_build=False)
@@ -210,7 +210,7 @@ def test_directory_staging_preserves_references(tmp_path, monkeypatch):
 
 
 def test_packed_cache_exports_and_stages_without_rebuild(tmp_path):
-    from hpc.image_cache import bundle_manifest
+    from hpc.offline_prep.image_cache import bundle_manifest
     from hpc.local_assets import stage_images
     task, cache, bundle, tables = fixture(tmp_path)
     entry = bundle_manifest(bundle)
@@ -233,7 +233,7 @@ def test_explicit_runtime_context_keeps_nested_exercise_inputs(tmp_path):
     assert new_hash != json.loads((bundle / 'manifest.json').read_text())['provenance']['environment_sha256']
     image = bundle / bundle.name
     cache = tmp_path / 'updated-cache'
-    cache_publish(image, cache, provenance=dict(pristine=True, builder='hpc.image_cache',
+    cache_publish(image, cache, provenance=dict(pristine=True, builder='hpc.offline_prep.image_cache',
         environment_sha256=new_hash, architecture=platform.machine(), format='apptainer-sif'))
     row = dict(path=task.name, task_binary=pack_task(task), content_sha256=task_digest(task), stages_passed='1')
     manifest, _ = release.prepare_release({'example': ([row], [])}, cache, tmp_path / 'selected',

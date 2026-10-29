@@ -122,8 +122,8 @@ def test_review_file_verifier_does_not_require_test_invocations(tmp_path, reward
     results = [(tmp_path, {'exception_info': exception,
                           'verifier_result': {'rewards': {'reward': reward}}})]
     assert runtime.assess_trials(results, 1, 1, require_execution=False)['status'] == expected
-    # Ordinary task verification still requires execution evidence.
-    assert runtime.assess_trials(results, 1, 1)['status'] == 'failed'
+    # Reference acceptance also uses the reward, not recorder coverage.
+    assert runtime.assess_trials(results, 1, 1)['status'] == expected
 
 
 def test_missing_results_and_rubric_entries_are_not_passes(tmp_path):
@@ -163,7 +163,7 @@ def test_build_starts_and_cleans_both_environments(source, tmp_path, monkeypatch
         async def stop(self, delete):
             events.append(('stop', self.context))
     monkeypatch.setattr(EnvironmentFactory, 'create_environment', lambda **kw: FakeEnvironment(**kw))
-    from validation.checks import environment as environment_checks
+    from validation.rules.dynamic.environment import check as environment_checks
     async def inspection(*args, **kwargs):
         return {'status': 'passed', 'checks': []}
     monkeypatch.setattr(environment_checks, 'inspect_environment', inspection)
@@ -206,6 +206,7 @@ def test_batch_schedules_all_tasks_and_accounts_per_task(
     a = args(source.parent, tmp_path)
     a.dry_run = False
     a.outcome_retries = 0      # reruns of not-run tasks are covered by test_outcome_retries
+    a.reference_runs = a.nop_runs = 1  # one fake trial per task; repetitions are tested separately
     monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
     captured = []
     async def execute(config):
@@ -237,7 +238,7 @@ def test_batch_schedules_all_tasks_and_accounts_per_task(
 
 
 def test_reward_metrics_per_task_family_and_variance_groups():
-    from validation.checks.reward_metrics import summarize, task_metrics
+    from validation.metrics.reward_metrics import summarize, task_metrics
     def trials(*rewards):
         return [(None, {'verifier_result': {'rewards': {'reward': r}}} if r is not None else {'exception_info': {'x': 1}})
                 for r in rewards]
@@ -263,7 +264,7 @@ def test_reward_metrics_per_task_family_and_variance_groups():
 
 
 def test_trace_metrics_separate_budget_stops_and_errors_from_model_failures(tmp_path):
-    from validation.checks.trace_metrics import distribution, gpu_peaks, summarize
+    from validation.metrics.trace_metrics import distribution, gpu_peaks, summarize
     def trial(name, reward, steps, exception=None, stop=None, start='10:00:00', end='10:30:00'):
         path = tmp_path / name / 'attempts/000'
         (path / 'agent').mkdir(parents=True)
@@ -306,7 +307,7 @@ def test_trace_metrics_separate_budget_stops_and_errors_from_model_failures(tmp_
     log.write_text('0, 1000, 80000, 50\n0, 70000, 80000, 99\n1, 5, 80000, 0\nbroken\n')
     assert gpu_peaks(log)['0'] == {'peak_memory_mib': 70000, 'memory_total_mib': 80000, 'peak_utilization_percent': 99,
         'samples': 2, 'mean_memory_mib': 35500, 'mean_utilization_percent': 74.5}
-    from validation.checks.trace_metrics import server_requests
+    from validation.metrics.trace_metrics import server_requests
     log.write_text('INFO: 127.0.0.1:1 - "POST /v1/chat/completions HTTP/1.1" 200 OK\n'
                    'INFO: 127.0.0.1:1 - "POST /v1/chat/completions HTTP/1.1" 500 Internal Server Error\n'
                    'INFO: 127.0.0.1:1 - "POST /tokenize HTTP/1.1" 200 OK\n')
@@ -413,7 +414,7 @@ def test_resource_capacity_reserves_separate_verifier(source, tmp_path):
 
 
 def test_static_exclusions_are_explicit_and_reject_typos():
-    from validation.checks.check_terminal_bench import load_checks
+    from validation.rules.static.terminal_bench import load_checks
     _, selected, excluded = load_checks('terminal-bench', exclude=['instruction-headings,ai-detection', 'rubric-review'])
     assert 'check-instruction-headings.sh' not in selected
     assert 'check_ai_detection.py' in excluded and 'rubric_review.py' in excluded
@@ -460,7 +461,7 @@ def test_helma_rejects_explicit_allocation_memory(source, tmp_path):
 def test_archive_report_ignores_nested_trial_summaries(tmp_path):
     import io
     import tarfile
-    from validation.reporting.report import summarize
+    from validation.publishing.report import summarize
     archive = tmp_path / 'evidence.tar.gz'
     summary = {'stage_layout': 'environment-first-v2', 'stage': 3, 'name': 'nop_validation', 'complete': True, 'items': [
         {'task': '/tmp/tasks/a', 'status': 'passed', 'rewards': [0]},
@@ -659,7 +660,7 @@ def test_id_range_contract_and_stage_selection(source, tmp_path):
 def test_runtime_workdir_mismatch_fails_even_after_successful_start(source, tmp_path):
     pytest.importorskip('harbor')
     from harbor.models.task.task import Task
-    from validation.checks.environment import inspect_environment
+    from validation.rules.dynamic.environment.check import inspect_environment
     class Environment:
         async def exec(self, command, **kwargs):
             wrong = command.startswith('actual=$(pwd')
@@ -672,7 +673,7 @@ def test_runtime_workdir_mismatch_fails_even_after_successful_start(source, tmp_
 
 
 def test_workdir_parser_does_not_guess_inherited_or_variable_paths(tmp_path):
-    from validation.checks.environment import declared_workdir
+    from validation.rules.dynamic.environment.check import declared_workdir
     df = tmp_path / 'Dockerfile'
     df.write_text('FROM ubuntu\nWORKDIR /app\nWORKDIR nested\n')
     assert declared_workdir(df) == '/app/nested'
@@ -685,7 +686,7 @@ def test_workdir_parser_does_not_guess_inherited_or_variable_paths(tmp_path):
 def test_report_does_not_count_optional_ai_skip_as_failure(tmp_path):
     import io
     import tarfile
-    from validation.reporting.report import summarize
+    from validation.publishing.report import summarize
     report = {'stage_layout': 'environment-first-v2', 'stage': 4, 'name': 'static_checks', 'complete': True,
               'items': [{'task': 'example', 'status': 'passed', 'checks': [
                   {'check': 'check_ai_detection.py', 'status': 'skipped', 'optional': True,
@@ -723,8 +724,9 @@ def test_judge_overrides_and_static_runs_need_no_review_model(source):
     assert a.review_model == 'custom/review' and a.analysis_model == 'custom/analysis'
 
 
-def test_network_policy_probe_mismatch_and_no_tool():
-    from validation.checks.environment import inspect_network
+def test_network_policy_probe_mismatch_and_no_tool(monkeypatch):
+    monkeypatch.delenv('OT_NET_ISOLATION', raising=False)
+    from validation.rules.dynamic.environment.check import inspect_network
     class Environment:
         def __init__(self, code): self.code = code
         async def exec(self, command, **kwargs):
@@ -737,8 +739,28 @@ def test_network_policy_probe_mismatch_and_no_tool():
     assert asyncio.run(inspect_network(Environment(0), None))['status'] == 'not_checked'
 
 
+def test_explicit_isolated_run_preserves_declaration_and_checks_egress(monkeypatch):
+    from validation.rules.dynamic.environment.check import inspect_network
+    class Environment:
+        def __init__(self, code): self.code = code
+        async def exec(self, command, **kwargs):
+            return SimpleNamespace(return_code=self.code, stdout='', stderr='')
+    monkeypatch.setenv('OT_NET_ISOLATION', '1')
+    for declared in (True, False, None):
+        blocked = asyncio.run(inspect_network(Environment(1), declared))
+        assert blocked['status'] == 'passed'
+        assert blocked['declared_allow_internet'] is declared
+        assert blocked['expected_allow_internet'] is False
+        assert blocked['expectation_source'] == 'explicit-isolated-run'
+        assert len(blocked['observations']) == 3
+        assert asyncio.run(inspect_network(Environment(0), declared))['status'] == 'failed'
+        assert asyncio.run(inspect_network(Environment(125), declared))['status'] == 'error'
+    monkeypatch.setenv('OT_NET_ISOLATION', '0')
+    assert asyncio.run(inspect_network(Environment(1), True))['status'] == 'failed'
+
+
 def test_suffix_normalization_is_idempotent_and_uses_agent_timeout():
-    from validation.checks.instruction_suffix import suffix
+    from validation.rules.static.instruction_suffix import suffix
     config = b'[agent]\ntimeout_sec=300\n'
     first = suffix(b'Solve this.\n', config)
     assert b'You have 300 seconds' in first
@@ -750,7 +772,7 @@ def test_suffix_normalization_is_idempotent_and_uses_agent_timeout():
 
 
 def test_normalized_copy_preserves_original_and_freezes_derived_bytes(source, tmp_path):
-    from validation.checks.instruction_suffix import prepare
+    from validation.rules.static.instruction_suffix import prepare
     original = (source / 'instruction.md').read_bytes()
     with (source / 'task.toml').open('a') as stream:
         stream.write('[agent]\ntimeout_sec=120\n')
@@ -764,7 +786,7 @@ def test_normalized_copy_preserves_original_and_freezes_derived_bytes(source, tm
 
 def test_suffix_archive_preserves_other_files():
     import io, tarfile
-    from validation.checks.instruction_suffix import normalize_archive
+    from validation.rules.static.instruction_suffix import normalize_archive
     data = io.BytesIO()
     with tarfile.open(fileobj=data, mode='w') as tar:
         for name, content in {'instruction.md': b'Do it.', 'task.toml': b'[agent]\ntimeout_sec=120\n', 'tests/test.sh': b'echo test'}.items():
@@ -778,7 +800,7 @@ def test_suffix_archive_preserves_other_files():
 
 
 def test_report_optional_wait(tmp_path, monkeypatch):
-    from validation.reporting import report
+    from validation.publishing import report
     archive = tmp_path / 'evidence.tar.gz'
     with pytest.raises(FileNotFoundError, match='--wait'):
         report.resolve_archive(tmp_path)
@@ -791,7 +813,7 @@ def test_report_optional_wait(tmp_path, monkeypatch):
 
 def test_contract_prepares_repository_repair_but_suffix_only_with_stage_four(source, tmp_path, monkeypatch):
     from validation import contract
-    from validation.checks import instruction_suffix
+    from validation.rules.static import instruction_suffix
     calls = []
     monkeypatch.setattr(instruction_suffix, 'prepare', lambda *a, **kw: calls.append(('fix', kw['instructions'])))
     monkeypatch.setattr(contract, 'create', lambda *a: calls.append('freeze'))
@@ -806,7 +828,7 @@ def test_contract_prepares_repository_repair_but_suffix_only_with_stage_four(sou
 
 def test_archived_report_preserves_protocol_and_pipeline_errors(tmp_path):
     import io, tarfile
-    from validation.reporting.report import write_report
+    from validation.publishing.report import write_report
     archive = tmp_path / 'evidence.tar.gz'
     entries = {'contract.json': {'sha256': 'contract', 'dataset': {}},
                'sample.tasks.json': [{'task_id': 'sample', 'sha256': 'task'}],
@@ -830,7 +852,7 @@ def test_archived_report_preserves_protocol_and_pipeline_errors(tmp_path):
 
 def test_stage_review_json_preserves_details_while_run_summary_is_short(tmp_path):
     import io, tarfile
-    from validation.reporting.report import write_report
+    from validation.publishing.report import write_report
     archive = tmp_path / 'evidence.tar.gz'
     stage = {'stage_layout': 'environment-first-v2', 'stage': 5, 'name': 'llm_rubric_review', 'complete': True, 'items': [
         {'task': '/tasks/alpha', 'status': 'findings', 'verdicts': [{'checks': {
@@ -859,7 +881,7 @@ def test_stage_review_json_preserves_details_while_run_summary_is_short(tmp_path
 
 
 def test_review_groups_fail_overrides_na_and_errors_are_not_judgments():
-    from validation.checks.review_results import group_reviews
+    from validation.metrics.review_results import group_reviews
     def item(name, outcomes, status='passed'):
         return {'task': '/tasks/'+name, 'status': status, 'verdicts': [{'checks': {str(i): {'outcome': v} for i,v in enumerate(outcomes)}}]}
     grouped = group_reviews([item('ok',['pass']),item('na',['pass','not_applicable']),
@@ -918,7 +940,8 @@ def test_job_code_snapshot_is_independent(tmp_path, monkeypatch):
         (root/name).mkdir(parents=True)
     prompt = root/'data/annotate_dataset/prompt_template.txt'; prompt.write_text('frozen prompt')
     (root/'data/__init__.py').write_text('# frozen data package\n')
-    (root/'data/utils/resolve_absolute_paths.py').write_text('frozen resolver')
+    (root/'validation/rules/static/task_absolute_path').mkdir(parents=True)
+    (root/'validation/rules/static/task_absolute_path/repair.py').write_text('frozen resolver')
     (root/'data/seta/patch.py').write_text('frozen nproc audit')
     original = root/'validation/run.py'; original.write_text('original')
     (root/'validation/results').mkdir()
@@ -939,7 +962,7 @@ def test_job_code_snapshot_is_independent(tmp_path, monkeypatch):
     original.write_text('edited')
     prompt.write_text('edited prompt')
     assert (snapshot/'validation/run.py').read_text() == 'original'
-    assert (snapshot/'data/utils/resolve_absolute_paths.py').read_text() == 'frozen resolver'
+    assert (snapshot/'validation/rules/static/task_absolute_path/repair.py').read_text() == 'frozen resolver'
     assert (snapshot/'data/seta/patch.py').read_text() == 'frozen nproc audit'
     assert (snapshot/'data/__init__.py').read_text() == '# frozen data package\n'
     assert (snapshot/'data/annotate_dataset/prompt_template.txt').read_text() == 'frozen prompt'
@@ -958,7 +981,8 @@ def test_finished_job_code_archive_preserves_snapshot(tmp_path, monkeypatch):
         (root/name).mkdir(parents=True)
     (root/'data/annotate_dataset/prompt_template.txt').write_text('frozen prompt')
     (root/'data/__init__.py').write_text('# frozen data package\n')
-    (root/'data/utils/resolve_absolute_paths.py').write_text('frozen resolver')
+    (root/'validation/rules/static/task_absolute_path').mkdir(parents=True)
+    (root/'validation/rules/static/task_absolute_path/repair.py').write_text('frozen resolver')
     (root/'data/seta/patch.py').write_text('frozen nproc audit')
     (root/'validation/run.py').write_text('frozen implementation')
     for name in ('validation_submit.py', 'validation_worker.py', 'validation.sh', 'local_runtime.py', 'local_assets.py'):
@@ -1108,7 +1132,7 @@ def test_publish_run_json_preserves_optional_build_details(tmp_path, recovered):
     saved = json.loads((tmp_path / 'out' / run_file).read_text())
     finding = next(x for x in saved['task_findings'][names[0]] if x['stage'] == 1)
     assert finding == {'stage': 1,
-                       'labels': ['build-recovered' if recovered else 'unstable-build-under-our-infra'],
+                       'labels': ['build-recovered' if recovered else 'build-not-robust'],
                        **details}
     # Ordinary findings keep their existing shape: optional details are not required.
     assert saved['task_findings'][names[4]] == [{'stage': 4, 'labels': ['static:a']}]
@@ -1240,7 +1264,7 @@ def test_static_concurrency_follows_job_budget(monkeypatch, requested, override,
 
 
 def test_stage_one_passes_configured_concurrency_to_checker(source, tmp_path, monkeypatch, upstream):
-    from validation.checks import check_terminal_bench as checker
+    from validation.rules.static import terminal_bench as checker
     monkeypatch.setenv('SLURM_CPUS_PER_TASK', '128')
     monkeypatch.setattr(stages.os, 'sched_getaffinity', lambda _: set(range(128)))
     options = args(source, tmp_path)
@@ -1259,7 +1283,6 @@ def test_stage_one_passes_configured_concurrency_to_checker(source, tmp_path, mo
 def test_stage_three_journals_outcomes_without_periodic_report_rewrites(source, tmp_path, monkeypatch, upstream):
     selected = [source.parent / f'task-{i}' for i in range(60)]
     monkeypatch.setattr(stages, 'select_paths', lambda tasks, args: selected)
-    monkeypatch.setattr('validation.stages.environment_preflight.preflight', lambda *a: [{'task': str(p), 'status': 'passed'} for p in selected])
     monkeypatch.setattr(runtime, 'check_runtime_task', lambda *args: None)
     async def build(task, out, args):
         await asyncio.sleep(0)
@@ -1420,6 +1443,8 @@ def test_stage2_prepares_review_environment_for_legacy_payload(tmp_path):
     assert (staged / 'rubric.toml').read_text() in (staged / 'instruction.md').read_text()
     assert 'deliberately-invalid' not in (staged / 'environment/Dockerfile').read_text()
     assert (staged / 'setup_files/task-under-review/legacy/task.yaml').read_bytes() == (legacy / 'task.yaml').read_bytes()
+    custom = review_runtime_tasks([legacy], [5], tmp_path / 'custom-scratch', 'files', 'custom', 'criteria')[0]
+    assert 'ln -s /setup_files/rubric.toml /app/rubric.toml' in (custom / 'environment/Dockerfile').read_text()
     assert review_runtime_tasks([legacy], [3], tmp_path) == [legacy]
 
 
@@ -1445,3 +1470,11 @@ def test_stage2_runs_reviews_with_bounded_concurrency(source, tmp_path, upstream
     assert peak == 2
     assert len(report['items']) == 3
     assert report['complete']
+
+
+def test_reference_and_nop_run_three_times_by_default(source, tmp_path):
+    a = args(source.parent, tmp_path)
+    assert (a.reference_runs, a.nop_runs, a.attempts) == (3, 3, 1)
+    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 3, 3, 1]
+    a = stages.parser().parse_args([str(source.parent), '--reference-runs', '5', '--nop-runs', '2', '--attempts', '8'])
+    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 5, 2, 8]

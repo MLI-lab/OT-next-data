@@ -1,6 +1,6 @@
 import hashlib
 import pytest
-from validation.checks.instruction_paths import automatic
+from validation.rules.static.task_absolute_path.instruction_paths import automatic
 
 
 def test_parquet_normalization_supports_large_archive_offsets(tmp_path):
@@ -9,7 +9,7 @@ def test_parquet_normalization_supports_large_archive_offsets(tmp_path):
     from types import SimpleNamespace
     import pyarrow as pa
     import pyarrow.parquet as pq
-    from validation.checks.instruction_suffix import prepare, normalize_archive
+    from validation.rules.static.instruction_suffix import prepare, normalize_archive
 
     payload = b"packaged input\n" * 100
     archive = io.BytesIO()
@@ -109,7 +109,7 @@ def test_shared_preparation_preserves_original_and_rejects_stale(tmp_path):
     import json
     from types import SimpleNamespace
     from validation.contract import task_digest
-    from validation.checks.instruction_suffix import prepare
+    from validation.rules.static.instruction_suffix import prepare
     task = tmp_path / 'input' / 'sample'
     task.mkdir(parents=True)
     text = 'Create `src/new.py`.'
@@ -128,7 +128,7 @@ def test_shared_preparation_preserves_original_and_rejects_stale(tmp_path):
     assert (task / 'instruction.md').read_text() == text
     derived = (tmp_path / 'derived/sample/instruction.md').read_text()
     assert '/workspace/project/src/new.py' in derived and '120 seconds' in derived
-    expected = {'sample': ['anti-cheat-instruction', 'relative-path-fix']}
+    expected = {'sample': ['anti-cheat-instruction', 'relative-path-fix', 'repository-leak-repair']}
     assert json.loads((tmp_path / 'derived/source.json').read_text())['automation_changes'] == expected
     repeat = args()
     repeat.tasks = tmp_path / 'derived'
@@ -139,12 +139,12 @@ def test_shared_preparation_preserves_original_and_rejects_stale(tmp_path):
     prepare(args(), tmp_path / 'stale')
     assert '/workspace/' not in (tmp_path / 'stale/sample/instruction.md').read_text()
     assert json.loads((tmp_path / 'stale/source.json').read_text())['automation_changes'] == {
-        'sample': ['anti-cheat-instruction']}
+        'sample': ['anti-cheat-instruction', 'repository-leak-repair']}
     unchanged = args()
     unchanged.fix_instruction_suffix = False
     unchanged.path_resolution_report = []
     prepare(unchanged, tmp_path / 'unchanged')
-    assert json.loads((tmp_path / 'unchanged/source.json').read_text())['automation_changes'] == {}
+    assert json.loads((tmp_path / 'unchanged/source.json').read_text())['automation_changes'] == {'sample': ['repository-leak-repair']}
 
 
 def test_incomplete_reference_observation_is_not_used():
@@ -160,7 +160,7 @@ def test_evidence_from_a_separately_prepared_copy_is_applied(tmp_path):
     import json
     from types import SimpleNamespace
     from validation.contract import task_digest
-    from validation.checks.instruction_suffix import prepare
+    from validation.rules.static.instruction_suffix import prepare
     task = tmp_path / 'input' / 'sample'
     task.mkdir(parents=True)
     (task / 'instruction.md').write_text('Create `src/new.py`.')
@@ -178,7 +178,7 @@ def test_evidence_from_a_separately_prepared_copy_is_applied(tmp_path):
     final = (tmp_path / 'final/sample/instruction.md').read_text()
     assert '`/workspace/project/src/new.py`' in final and final.count('120 seconds') == 1
     assert json.loads((tmp_path / 'final/source.json').read_text())['automation_changes'] == {
-        'sample': ['anti-cheat-instruction', 'relative-path-fix']}
+        'sample': ['anti-cheat-instruction', 'relative-path-fix', 'repository-leak-repair']}
     (task / 'task.toml').write_text('[agent]\ntimeout_sec = 120\n[verifier]\ntimeout_sec = 60\n')
     prepare(args(task.parent, report), tmp_path / 'stale')
     assert '/workspace/' not in (tmp_path / 'stale/sample/instruction.md').read_text()

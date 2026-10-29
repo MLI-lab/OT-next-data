@@ -12,7 +12,7 @@ from validation.stages.prepare_review_tasks import stage_review, read_verdicts
 
 class ExperimentalRubrics(TestCase):
     def test_classification_survives_compact_export(self):
-        from validation.reporting.report import review_task
+        from validation.publishing.report import review_task
         result = review_task({'task': '/tasks/example', 'verdicts': [{
             'category': 'ANSWER-LEAK', 'explanation': 'Ground truth is solver-visible.',
             'checks': {'task_clean': {'outcome': 'fail', 'explanation': 'Leak'}}}]})

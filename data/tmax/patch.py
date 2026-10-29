@@ -49,7 +49,31 @@ solution/ gets a setup command. If not, no task is changed: files moved to
 setup_files/ would never be executed and the tasks would start empty. The
 analysis is still written to tmax_patch_manifest.json.
 
-Instructions, tests/, task.toml and the install commands are never changed.
+Git history as task input. The repository-leak cleanup removes git data outside
+the current history (other branches, reflogs, unreachable commits) and skips
+tasks whose task.toml sets metadata.git_history_is_task_input. Tasks whose
+setup creates a git repository and whose instruction mentions git get that
+flag, so the cleanup does not delete what a git-forensics task asks the agent
+to find; the leak check still inspects them and reports them as not checked.
+
+Prepared verifier runtimes (--verifier-inventory). Upstream grades with the
+image's python3 and pytest after the agent had root access to them. Each task
+gets a read-only prepared runtime at the image's Python and package versions
+(data/tmax/verifier_runtime.py, .agents/skills/prepare-task-runtimes):
+
+    python hpc/offline_prep/image_python_inventory.py --images-manifest M --bundles B --output INV
+    python data/tmax/patch.py --source S --output PREP --verifier-inventory INV
+    python hpc/offline_prep/verifier_bundles.py --specs PREP/verifier-bundle-specs.json
+    python data/tmax/patch.py --source S --output NEW --verifier-inventory INV \
+        --verifier-runtime-cache "${OT_RUNTIME_CACHE:-$OT_WORKSPACE/runtimes}"
+
+The first pass only writes the specs; tasks change when every runtime is ready.
+That changes tests/test.sh (the pytest invocation), adds
+tests/ot-verifier-runtime.json, replaces sys.executable in the test files that
+use it and, for tests importing the task environment, adds tests/conftest.py.
+
+Instructions and the install commands are never changed; task.toml changes
+only by the git-history flag.
 The Dockerfile constants below are the upstream texts; build compatibility is
 applied last, to whatever Dockerfile a task then has.
 """
@@ -68,6 +92,9 @@ import re
 import shlex
 import tarfile
 import tempfile
+
+from data.tmax import verifier_runtime
+from harbor_patches.verifier_bundle import spec_id
 
 DATASET = "PrimeIntellect-ai/prime-tasks/datasets/tmax"
 REVISION = "27de1c1b1ed6279b607e105ff9cb598e177ad938"
@@ -1179,6 +1206,31 @@ def suffix_findings(suffix):
 
 
 # --- tasks --------------------------------------------------------------------------------
+# Setup creates or changes a git repository / the instruction refers to git.
+GIT_SETUP = re.compile(r"\bgit\s+(init|commit|clone|checkout|branch|tag|stash|reset|rebase|merge|cherry-pick|worktree)\b")
+GIT_INSTRUCTION = re.compile(r"\bgit\b", re.I)
+GIT_HISTORY_LABEL = "git-history-task-input"
+GIT_HISTORY_REASON = (
+    "The setup creates a git repository and the instruction refers to git, so the git history is "
+    "part of the task: task.toml sets metadata.git_history_is_task_input and the repository-leak "
+    "cleanup leaves the history in place.")
+
+
+def git_history_input(files):
+    """True when setup files build a git repository and the instruction mentions git."""
+    setup = "\n".join(content.decode(errors="replace") for name, (content, _) in files.items()
+                      if not name.startswith("tests/") and name not in ("instruction.md", "task.toml"))
+    instruction = files.get("instruction.md", (b"", 0))[0].decode(errors="replace")
+    return bool(GIT_SETUP.search(setup) and GIT_INSTRUCTION.search(instruction))
+
+
+def mark_git_history_input(files):
+    text, mode = files["task.toml"]
+    text = text.decode()
+    if text.count("\n[metadata]\n") != 1 or "git_history_is_task_input" in text:
+        raise ValueError("task.toml needs exactly one [metadata] table without the flag")
+    files["task.toml"] = (text.replace("\n[metadata]\n", "\n[metadata]\ngit_history_is_task_input = true\n").encode(), mode)
+
 
 def read_task(blob):
     """{name: (content, mode)}, or None when the archive holds more than regular files."""
@@ -2169,10 +2221,39 @@ def payload_hash(files):
     return digest.hexdigest()
 
 
+def environment_hash(files):
+    """The image identity of the task's environment/ (as the image cache computes it)."""
+    from harbor_patches.image_context import environment_dir_hash
+    with tempfile.TemporaryDirectory() as directory:
+        for name, (content, mode) in files.items():
+            if name.startswith("environment/"):
+                path = Path(directory) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+                path.chmod(mode & 0o777 or 0o644)
+        return environment_dir_hash(Path(directory) / "environment")
+
+
+def runtime_catalog(cache, spec):
+    """{id: manifest} for one spec from the verifier runtime cache."""
+    path = Path(cache) / (spec_id(spec) + ".json")
+    if not path.is_file():
+        raise FileNotFoundError(f"verifier runtime {spec_id(spec)} is not prepared in {cache}")
+    manifest = json.loads(path.read_text())
+    # Every installed package must be one of the image's pins; only the interpreter's own pip
+    # and setuptools may be added (a resolver-chosen version would not be the image's).
+    pinned = {re.sub(r"[-_.]+", "-", r.split("==")[0]).lower() for r in spec["requirements"]} | {"pip", "setuptools"}
+    extra = [r for r in manifest["resolved_requirements"]
+             if re.sub(r"[-_.]+", "-", r.split("==")[0]).lower() not in pinned]
+    if extra or set(spec["requirements"]) - set(manifest["resolved_requirements"]):
+        raise ValueError(f"verifier runtime {spec_id(spec)} differs from its image pins: {extra}")
+    return {spec_id(spec): manifest}
+
+
 def main():
     import pyarrow as pa
     import pyarrow.parquet as pq
-    from data.utils.full_source.harbor_parquet import pack_task
+    from data.utils.harbor_parquet import pack_task
     from data.utils.patch_reporting import write_patch_report
 
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -2184,7 +2265,26 @@ def main():
                         help="auto: share images only if the runner has a setup trigger for tasks "
                              "without solution/. force: for static inspection only; without the "
                              "trigger such tasks start without their initial files")
+    parser.add_argument("--verifier-inventory", type=Path,
+                        help="hpc/offline_prep/image_python_inventory.py output; plans a prepared verifier runtime per task")
+    parser.add_argument("--verifier-runtime-cache", type=Path,
+                        help="cache with the ready runtimes (hpc/offline_prep/verifier_bundles.py); without it only "
+                             "verifier-bundle-specs.json is written and tasks keep upstream grading")
+    parser.add_argument('--published-input', action='store_true',
+                        help='migrate only verifier runtime files in an existing published subset')
+    parser.add_argument('--published-revision')
+    parser.add_argument('--published-subset')
     args = parser.parse_args()
+    if args.verifier_runtime_cache and not args.verifier_inventory:
+        parser.error("--verifier-runtime-cache needs --verifier-inventory")
+    if args.published_input:
+        if not all((args.verifier_inventory, args.verifier_runtime_cache, args.published_revision, args.published_subset)):
+            parser.error('--published-input requires inventory, runtime cache, revision and subset')
+        verifier_runtime.migrate_published(args.source, args.output, args.verifier_inventory,
+                                          args.verifier_runtime_cache, args.published_revision, args.published_subset)
+        return
+    inventory = verifier_runtime.load_inventory(args.verifier_inventory) if args.verifier_inventory else None
+    runtime_specs, runtime_plans, runtime_labels = {}, {}, {}
     global DOWNLOAD_CACHE
     DOWNLOAD_CACHE = args.download_cache
     source = args.source.resolve()
@@ -2263,7 +2363,7 @@ def main():
     before = set(payloads.values())
     if_applied = {payloads[task] for task in tasks if task not in shared} | set(shared.values())
     after = set()
-    compatible, node, wrapper, repaired = {}, {}, {}, {}
+    compatible, node, wrapper, repaired, git_history = {}, {}, {}, {}, {}
     temporary = target.with_suffix(".parquet.tmp")
     with pq.ParquetWriter(temporary, reader.schema_arrow, compression="zstd") as writer:
         for batch in reader.iter_batches(batch_size=64):
@@ -2298,11 +2398,23 @@ def main():
                 for name, script in (wrapper_output_compatible(content) if content else {}).items():
                     content[name] = (script, content[name][1])
                     wrapper[task] = True
+                if content and task not in ARCHIVED and git_history_input(content):
+                    mark_git_history_input(content)
+                    git_history[task] = True
+                    table["task_binary"][i] = pack_task(content)
                 if content and tasks[task]["family"] and "unknown-dockerfile" not in tasks[task]["findings"]:
                     dockerfile, mode = content["environment/Dockerfile"]
                     content["environment/Dockerfile"] = (build_compatible(dockerfile.decode()).encode(), mode)
                     compatible[task] = tasks[task]["family"]
                     table["task_binary"][i] = pack_task(content)
+                if content and inventory is not None and task not in ARCHIVED:
+                    planned = verifier_runtime.plan(content, inventory.get(environment_hash(content)))
+                    runtime_specs[spec_id(planned["spec"])] = planned["spec"]
+                    runtime_plans[task] = planned
+                    if args.verifier_runtime_cache:
+                        runtime_labels[task] = verifier_runtime.apply(content, planned, runtime_catalog(
+                            args.verifier_runtime_cache, planned["spec"]))
+                        table["task_binary"][i] = pack_task(content)
                 after.add(payload_hash(content) if content else task)
             kept = [i for i, task in enumerate(table["path"]) if task not in ARCHIVED]
             writer.write_table(pa.table({key: [values[i] for i in kept] for key, values in table.items()}, schema=reader.schema_arrow))
@@ -2326,6 +2438,12 @@ def main():
     for task in wrapper:
         labels.setdefault(task, []).append(WRAPPER_LABEL)
         reasons.setdefault(task, []).append(WRAPPER_REASON)
+    for task in git_history:
+        labels.setdefault(task, []).append(GIT_HISTORY_LABEL)
+        reasons.setdefault(task, []).append(GIT_HISTORY_REASON)
+    for task, extra in runtime_labels.items():
+        labels.setdefault(task, []).extend(extra)
+        reasons.setdefault(task, []).append(verifier_runtime.reason(runtime_plans[task]))
     for task in repaired:
         labels.setdefault(task, []).append(REPAIR_LABEL)
         reasons.setdefault(task, []).append(VERIFIER_REPAIRS[task]["reason"] if task in VERIFIER_REPAIRS else TASK_REPAIRS[task][4])
@@ -2357,7 +2475,7 @@ def main():
                 "setup_files/ would not be executed. The counts below describe what the shared-image "
                 "change would do once the runner provides that trigger.")},
         "counts": {
-            "tasks": len(tasks) - len(ARCHIVED), "archived": len(ARCHIVED), "changed": len(set(changed) - set(ARCHIVED)), "build_compatible": len(compatible), "nodesource_purge": len(node), "python3_wrapper_output": len(wrapper), "task_repairs": len(repaired),
+            "tasks": len(tasks) - len(ARCHIVED), "archived": len(ARCHIVED), "changed": len(set(changed) - set(ARCHIVED)), "build_compatible": len(compatible), "nodesource_purge": len(node), "python3_wrapper_output": len(wrapper), "task_repairs": len(repaired), "git_history_task_input": len(git_history),
             "tasks_by_family": family_counts(tasks),
             "regular": len(regular), "regular_by_family": family_counts(regular),
             "irregular": len(tasks) - len(regular),
@@ -2387,6 +2505,18 @@ def main():
                          **({"findings": info["findings"]} if info["findings"] else {})}
                   for task, info in sorted(tasks.items())},
     }
+    if inventory is not None:
+        (args.output / "verifier-bundle-specs.json").write_text(json.dumps(runtime_specs, indent=1, sort_keys=True) + "\n")
+        per_spec = Counter(spec_id(planned["spec"]) for planned in runtime_plans.values())
+        manifest["verifier_runtime"] = {
+            "applied": bool(args.verifier_runtime_cache), "tasks": len(runtime_plans),
+            "runtimes": len(runtime_specs), "tasks_per_runtime": dict(per_spec.most_common()),
+            "task_environment": sum(p["task_environment"] for p in runtime_plans.values()),
+            "sys_executable": sum(p["executable"] for p in runtime_plans.values()),
+            "python3_wrapper": sum(p["wrapper"] for p in runtime_plans.values()),
+            "python_versions": dict(Counter(p["spec"]["python"] for p in runtime_plans.values())),
+            "exceptions": {task: {"reasons": p["reasons"], "excluded": p["excluded"], "unresolved": p["unresolved"]}
+                           for task, p in sorted(runtime_plans.items()) if p["task_environment"]}}
     (args.output / "tmax_patch_manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     print(json.dumps({"runtime_setup": manifest["runtime_setup"], "counts": manifest["counts"]}, indent=1))
 

@@ -5,8 +5,8 @@ import sys
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from validation.checks.task_toml_schema import check
-from validation.checks import check_terminal_bench as static
+from validation.rules.static.task_toml_schema import check
+from validation.rules.static import terminal_bench as static
 
 
 @pytest.mark.parametrize('text,location', [

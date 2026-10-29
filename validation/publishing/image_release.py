@@ -10,7 +10,7 @@ import re
 import tarfile
 import tempfile
 
-from hpc.image_cache import copy_image, digest, restore, bundle_manifest, bundle_directory, bundle_name
+from hpc.offline_prep.image_cache import copy_image, digest, restore, bundle_manifest, bundle_directory, bundle_name
 
 
 def reference_path(tasks_root):
@@ -109,7 +109,7 @@ def prepare_release(tables, cache, out, repo, *, environment_paths=None):
                 continue
             entry = bundle_manifest(directory)
             provenance = entry.get('provenance') or {}
-            if (provenance.get('pristine') is True and provenance.get('builder') == 'hpc.image_cache'
+            if (provenance.get('pristine') is True and provenance.get('builder') == 'hpc.offline_prep.image_cache'
                     and provenance.get('format') == 'apptainer-sif'):
                 candidates.setdefault(provenance['environment_sha256'], (directory, entry))
     if candidates and out.resolve().is_relative_to('/home'):

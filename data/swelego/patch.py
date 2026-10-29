@@ -1327,6 +1327,204 @@ def prepare_environment(tasks, archive, run_record, output, source_revision):
 
 
 
+def prepared_verifier_files(files, spec, catalog, *, observation, image_bundle):
+    """Protect reviewed, measured verifiers while retaining task libraries.
+
+    This optional integrity adaptation does not prepare the task's Git checkout
+    or package downloads. Other repositories and unmeasured setups need review.
+    """
+    from data.utils.verifier_runtime import runtime_spec, runtime_reference, preparation_command
+
+    metadata = json.loads(files['setup_files/swelego.json'])
+    measured_families = {
+        'pynamodb/PynamoDB': ('3.9.21', '/opt/miniconda3/envs/testbed', None, ['pytest_cov.plugin']),
+        'robotpy/robotpy-cppheaderparser': ('3.7.16', '/opt/conda/envs/testbed', [
+            'attrs==22.1.0', 'importlib-metadata==4.11.3', 'iniconfig==1.1.1',
+            'packaging==22.0', 'pluggy==1.0.0', 'py==1.11.0', 'pytest==7.1.2',
+            'tomli==2.0.1', 'typing-extensions==4.4.0', 'zipp==3.11.0'], []),
+        'tinosulzer/PyBaMM': ('3.6.13', '/opt/conda/envs/testbed', [
+            'anyio==3.6.2', 'attrs==22.2.0', 'contextvars==2.4', 'dataclasses==0.8',
+            'idna==3.10', 'immutables==0.19', 'importlib-metadata==4.2.0',
+            'iniconfig==1.1.1', 'packaging==21.3', 'pluggy==1.0.0', 'py==1.11.0',
+            'pyparsing==3.1.4', 'pytest==7.0.1', 'sniffio==1.2.0', 'tomli==1.2.3',
+            'typing-extensions==4.1.1', 'zipp==3.6.0'], ['anyio.pytest_plugin']),
+    }
+    if metadata.get('repo') not in measured_families:
+        raise ValueError('Unreviewed SWE-Lego repository')
+    python_version, prefix, observed_pins, plugins = measured_families[metadata['repo']]
+    if (observation.get('returncode') != 0 or not observation.get('source_bundle_unchanged')
+            or observation.get('source_content_sha256') != files_digest(files.items())):
+        raise ValueError('Missing matching successful post-setup observation')
+    measured = json.loads(observation['stdout'].splitlines()[-1])
+    executable = prefix + '/bin/python'
+    if measured.get('python') != python_version or measured.get('executable') != executable:
+        raise ValueError('Unreviewed actual verifier interpreter')
+    canonical = runtime_spec(**{k: v for k, v in spec.items() if k != 'runtime_layout'})
+    name = image_bundle['name']
+    expected_image = {
+        'image_sha256': image_bundle['files'][name]['sha256'],
+        'overlay_sha256': image_bundle['files'][name.replace('.sif', '.overlay.img')]['sha256'],
+        'deferred_sha256': image_bundle['files'][name.replace('.sif', '.deferred.json')]['sha256'],
+        'executable': executable,
+    }
+    tools = {'pytest', 'pytest-cov', 'coverage', 'pluggy', 'iniconfig',
+             'packaging', 'exceptiongroup', 'tomli'}
+    pins = [line for line in files['setup_files/requirements.txt'].decode().splitlines()
+            if line.split('==')[0] in tools]
+    if observed_pins is not None:
+        # Exact post-setup package/plugin closure from the reviewed image probes.
+        # Project libraries remain in the task environment and are not copied.
+        pins = observed_pins
+        tools = {pin.split('==')[0] for pin in pins}
+    if (canonical != spec or spec['python'] != measured['python']
+            or spec.get('image_python') != expected_image or not spec.get('install_no_deps')
+            or len(pins) != len(tools) or spec['requirements'] != sorted(pins)):
+        raise ValueError('Runtime differs from measured interpreter or original grading tools')
+    if any(name in files for name in ('tests/setup.sh', 'tests/ot-verifier-runtime.json',
+                                     'tests/ot_run_pytest.py', 'tests/ot_swelego_paths.py')):
+        raise ValueError('Existing verifier runtime requires composition review')
+    if hashlib.sha256(files['tests/grade.py']).hexdigest() != 'fede48517f440983dc8d0c5dc15be848097f749a21150b2265480d48c3f42264':
+        raise ValueError('Unreviewed grader')
+    pytest_command = b'LANG=C.UTF-8 LC_ALL=C.UTF-8 pytest '
+    grade_command = b'python /tests/grade.py '
+    if files['tests/eval.sh'].count(pytest_command) != 1 or files['tests/test.sh'].count(grade_command) != 1:
+        raise ValueError('Unreviewed grading entrypoints')
+    result = dict(files)
+    # `-I -m pytest` is the form the stage-3 execution recorder sees. The -p
+    # plugin keeps the earlier wrapper's order: grading plugins are imported
+    # from the clean runtime first, then the task paths are appended.
+    result['tests/eval.sh'] = files['tests/eval.sh'].replace(
+        pytest_command, b'LANG=C.UTF-8 LC_ALL=C.UTF-8 ' + VERIFIER_VENV.encode()
+        + b'/bin/python -I -m pytest -p ot_swelego_paths ')
+    result['tests/test.sh'] = files['tests/test.sh'].replace(
+        grade_command, b'"$OT_VERIFIER_PYTHON" -I -S /tests/grade.py ')
+    result['tests/ot_swelego_paths.py'] = (
+        'import sys\nimport pytest\n' + ''.join('import ' + plugin + '\n' for plugin in plugins) +
+        'for path in ' + json.dumps(['/testbed', prefix + '/lib/python' + '.'.join(python_version.split('.')[:2]) + '/site-packages']) + ':\n'
+        '    if path not in sys.path: sys.path.append(path)\n').encode()
+    result.update(runtime_reference(spec, catalog))
+    result['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n' +
+        preparation_command(spec, phase='verifier') +
+        '\n: "${OT_VERIFIER_PYTHON:?trusted controller runtime required}"\n' + VERIFIER_VENV_SETUP).encode()
+    return result
+
+
+# Created by tests/setup.sh after the agent finished, from the clean runtime;
+# the recorder hook in the runtime site-packages applies through the venv.
+VERIFIER_VENV = '/tests/.ot-verifier-venv'
+VERIFIER_VENV_SETUP = (
+    'rm -rf ' + VERIFIER_VENV + '\n'
+    '"$OT_VERIFIER_PYTHON" -I -m venv --without-pip --system-site-packages ' + VERIFIER_VENV + '\n'
+    'ot_site=$(' + VERIFIER_VENV + '/bin/python -I -c \'import sysconfig; print(sysconfig.get_path("purelib"))\')\n'
+    'cp /tests/ot_swelego_paths.py "$ot_site/ot_swelego_paths.py"\n')
+
+
+def prepare_runtime_candidates(source, output, selections, catalog, source_revision):
+    """Export only measured verifier changes, retaining release membership/history.
+
+    Each selection binds a successful setup observation and pristine local image
+    bundle to a runtime. This is candidate preparation, not validation evidence.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from data.utils.patch_reporting import write_patch_report
+    from validation.publishing.image_release import validate_bundle
+
+    source, output = Path(source), Path(output)
+    original = pq.ParquetFile(source)
+    metadata = dict(original.schema_arrow.metadata or {})
+    images = json.loads(metadata.get(b'ot.images.v1', b'{}'))
+    known = set(pq.read_table(source, columns=['path'])['path'].to_pylist())
+    if not selections or not set(selections).issubset(known):
+        raise ValueError('Select existing, measured SWE-Lego tasks')
+    prepared, evidence, reasons = {}, {}, {}
+    # Historical row patch_labels must not describe new changes on untouched tasks.
+    labels = {task: [] for task in known}
+    verified = set()
+    for batch in original.iter_batches(batch_size=1):
+        row = batch.to_pylist()[0]; task = row['path']
+        if task not in selections:
+            continue
+        selection = selections[task]
+        binding = images.get('tasks', {}).get(task, {})
+        environments = binding.get('environments', [])
+        if len(environments) != 1 or binding.get('content_sha256') != row['content_sha256']:
+            raise ValueError(task + ': source image binding differs')
+        bundle = images['bundles'][environments[0]['bundle']]
+        directory = Path(selection['image_directory'])
+        key = (str(directory), json.dumps(bundle, sort_keys=True))
+        if key not in verified:
+            validate_bundle(bundle['name'], bundle, directory)
+            verified.add(key)
+        files, modes = {}, {}
+        with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
+            for member in archive:
+                path = PurePosixPath(member.name)
+                if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+                    raise ValueError('Unsafe task archive member')
+                if member.isfile():
+                    if member.name in files:
+                        raise ValueError('Duplicate task archive member')
+                    files[member.name] = archive.extractfile(member).read()
+                    modes[member.name] = member.mode
+        if files_digest(files.items()) != row['content_sha256']:
+            raise ValueError(task + ': source payload digest differs')
+        runtime = catalog[selection['runtime_id']]
+        updated = prepared_verifier_files(files, runtime['spec'], catalog,
+            observation=selection['observation'], image_bundle=bundle)
+        packed = io.BytesIO()
+        with tarfile.open(fileobj=packed, mode='w') as archive:
+            for name, body in sorted(updated.items()):
+                member = tarfile.TarInfo(name)
+                member.mode = modes.get(name, 0o755 if name.endswith('.sh') else 0o644)
+                member.size = len(body)
+                archive.addfile(member, io.BytesIO(body))
+        new_hash = files_digest(updated.items())
+        prepared[task] = (packed.getvalue(), new_hash)
+        images['tasks'][task]['content_sha256'] = new_hash
+        evidence[task] = {'historical_row': {k:v for k,v in row.items() if k != 'task_binary'},
+            'source_content_sha256': row['content_sha256'], 'content_sha256': new_hash,
+            'runtime_id': runtime['id'], 'python': runtime['spec']['python'],
+            'changed_files': sorted(k for k,v in updated.items() if files.get(k) != v),
+            'historical_score_status': 'historical, evaluated on the original payload',
+            'effective_network': 'unverified', 'validation': 'incomplete'}
+        labels[task] = ['prepared-verifier-runtime']
+        reasons[task] = ('Use fresh grading tools with the exact observed Python and original tool versions. '
+            'Preserve task libraries, setup, required tests and reference. Earlier scores describe '
+            'the original payload; new training validation and offline setup remain incomplete.')
+        if len(prepared) == len(selections):
+            break
+    if set(prepared) != set(selections):
+        raise ValueError('Missing selected task payload')
+    report = {'source_revision': source_revision, 'tasks': evidence,
+        'unchanged_tasks': original.metadata.num_rows - len(prepared),
+        'effective_network': 'unverified', 'validation': 'incomplete',
+        'ai_detection': 'intentionally excluded by user policy'}
+    metadata[b'ot.images.v1'] = json.dumps(images).encode()
+    metadata[b'ot.runtime_migration.v1'] = json.dumps({
+        'source_revision': source_revision, 'changed_tasks': sorted(prepared),
+        'historical_evidence': 'runtime-migration.json',
+        'effective_network': 'unverified', 'validation': 'incomplete'}).encode()
+    schema = original.schema_arrow.with_metadata(metadata)
+    output.mkdir(parents=True, exist_ok=False)
+    target = output / 'tasks.parquet'
+    with pq.ParquetWriter(target, schema, compression='zstd') as writer:
+        for batch in original.iter_batches(batch_size=1):
+            row = batch.to_pylist()[0]
+            if row['path'] in prepared:
+                row['task_binary'], row['content_sha256'] = prepared[row['path']]
+                row['stages_passed'] = ''; row['run'] = ''
+                if 'validation_labels' in row:
+                    row['validation_labels'] = []
+            writer.write_table(pa.Table.from_pylist([row], schema=schema))
+    (output / 'runtime-migration.json').write_text(json.dumps(report, indent=2) + '\n')
+    write_patch_report(source, target, source={'dataset': 'FWeindel/validated-tasks',
+        'url': 'https://huggingface.co/datasets/FWeindel/validated-tasks', 'revision': source_revision},
+        dropped={}, change_labels=labels, change_reasons=reasons, patcher=__file__)
+    return {'rows': original.metadata.num_rows, 'changed': len(prepared),
+            'validation': 'incomplete', 'effective_network': 'unverified'}
+
+
 def main():
     import pyarrow as pa
     import pyarrow.parquet as pq

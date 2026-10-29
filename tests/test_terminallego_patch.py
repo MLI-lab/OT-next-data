@@ -187,3 +187,150 @@ def test_build_repairs_preserve_broken_pip_and_protected_payloads():
     assert b'rm -f /usr/local/bin/pip3 && cp' in dockerfile(fixed)
     assert fixed[1:] == original[1:]
     assert not repair_build_dependencies(fixed)[1]
+
+
+def test_proxy_task_keeps_install_before_intentional_runtime_proxy():
+    from data.terminallego.patch import shared_plan, dockerfile
+    recipe = (b'FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y curl\n'
+              b'ENV http_proxy=http://proxy.example.com:1080\nWORKDIR /app\n')
+    entries = _task(recipe)
+    assert shared_plan(entries) is None
+    assert dockerfile(entries).endswith(recipe)
+
+
+def test_php74_security_repair_preserves_task_payload():
+    from data.terminallego.patch import repair_bullseye_security, dockerfile
+    entries = _task(b'FROM php:7.4-cli\nRUN apt-get update && apt-get install -y git\n')
+    repaired, changed = repair_bullseye_security(entries)
+    assert changed
+    assert b'archive.debian.org/debian-security' in dockerfile(repaired)
+    assert b'FROM php:7.4-cli' in dockerfile(repaired)
+    assert repaired[1:] == entries[1:]
+
+
+def test_conda_target_environment_does_not_downgrade_base():
+    from data.terminallego.patch import repair_build_dependencies, dockerfile
+    entries = _task(b'FROM continuumio/miniconda3:latest\n'
+                    b'RUN conda install -y python=3.11 pip && \\\n'
+                    b'    conda install -y numpy pandas requests && \\\n'
+                    b'    pip install flask pytest beautifulsoup4 && \\\n'
+                    b'    conda clean -a -y\n')
+    repaired, reasons = repair_build_dependencies(entries)
+    recipe = dockerfile(repaired)
+    assert reasons
+    assert b'conda create --override-channels -c conda-forge -y -p /opt/terminallego-env python=3.11 pip numpy pandas requests' in recipe
+    assert b'conda run -p /opt/terminallego-env pip install flask pytest beautifulsoup4' in recipe
+    assert b'ENV CONDA_PREFIX=/opt/terminallego-env' in recipe
+    assert repaired[1:] == entries[1:]
+    assert not repair_build_dependencies(repaired)[1]
+
+
+def test_base_python_downgrade_pins_miniconda_before_channel_guide():
+    from data.terminallego.patch import MINICONDA_BEFORE_CHANNEL_GUIDE, repair_build_dependencies, dockerfile
+    install = (b'RUN conda init bash && \\\n'
+               b'    conda install -y python=3.11 numpy pandas requests flask && \\\n'
+               b'    conda clean -afy\n')
+    entries = _task(b'FROM continuumio/miniconda3:latest\n\nWORKDIR /app\n' + install)
+    repaired, reasons = repair_build_dependencies(entries)
+    recipe = dockerfile(repaired)
+    assert len(reasons) == 2
+    assert MINICONDA_BEFORE_CHANNEL_GUIDE + b'\n\nWORKDIR /app\n' in recipe
+    assert b'conda install --override-channels -c conda-forge -y python=3.11 numpy pandas requests flask' in recipe
+    assert repaired[1:] == entries[1:]
+    assert not repair_build_dependencies(repaired)[1]
+    # Other Miniconda tasks keep the moving tag.
+    other, _ = repair_build_dependencies(_task(b'FROM continuumio/miniconda3:latest\nRUN conda init bash\n'))
+    assert dockerfile(other).count(b'FROM continuumio/miniconda3:latest\n') == 1
+
+
+def test_capistrano_install_keeps_net_ssh_before_native_openssl_requirement():
+    from data.terminallego.patch import repair_build_dependencies, dockerfile
+    entries = _task(b'FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y ruby-full rubygems build-essential\n'
+                    b'RUN gem install capistrano --no-document\n')
+    repaired, reasons = repair_build_dependencies(entries)
+    assert reasons
+    assert (b"RUN gem install net-ssh -v '< 8' --no-document && gem install capistrano --conservative --no-document\n"
+            in dockerfile(repaired))
+    assert repaired[1:] == entries[1:]
+    assert not repair_build_dependencies(repaired)[1]
+
+
+def test_chromedriver_url_uses_full_chrome_version():
+    from data.terminallego.patch import repair_build_dependencies, dockerfile
+    entries = _task(b'FROM python:3.13-slim-bookworm\n'
+                    b"RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\\d+\\.\\d+\\.\\d+') \\\n"
+                    b'    && DRIVER_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}.0/linux64/chromedriver-linux64.zip" \\\n'
+                    b'    && wget -q -O /tmp/chromedriver.zip "$DRIVER_URL"\n')
+    repaired, reasons = repair_build_dependencies(entries)
+    recipe = dockerfile(repaired)
+    assert reasons
+    assert b"grep -oP '\\d+\\.\\d+\\.\\d+\\.\\d+')" in recipe
+    assert b'chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip' in recipe
+    assert repaired[1:] == entries[1:]
+    assert not repair_build_dependencies(repaired)[1]
+
+
+def test_explicit_archive_preserves_original_payload_and_reason(tmp_path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from data.terminallego.patch import patch
+    source = tmp_path / 'tasks.parquet'
+    blob = fixture()
+    pq.write_table(pa.Table.from_pylist([
+        {'path': 'keep', 'task_binary': blob},
+        {'path': 'archive', 'task_binary': blob},
+    ]), source)
+    decision = {'category': 'apptainer-build-incompatible', 'reason': 'Observed service identity failure'}
+    output = tmp_path / 'patched'
+    result = patch(source, output, archive_decisions={'archive': decision})
+    assert result['tasks'] == 1 and result['exclusions'] == 1
+    assert pq.read_table(output / 'tasks.parquet')['path'].to_pylist() == ['keep']
+    archived = pq.read_table(output / 'tasks.archive.parquet').to_pylist()
+    assert len(archived) == 1 and archived[0]['task_binary'] == blob
+    import json
+    manifest = json.loads((output / 'tasks.manifest.json').read_text())
+    entry = next(t for t in manifest['tasks'] if t['task_id'] == 'archive')
+    assert entry['action'] == 'dropped'
+    assert entry['labels'] == [decision['category']]
+    assert entry['reason'] == decision['reason']
+
+
+def test_tmux_repair_follows_bullseye_fix_and_keeps_shared_images_shared(tmp_path, monkeypatch):
+    import json
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    import data.terminallego.patch as terminallego
+    recipe = b"FROM debian:11-slim\nRUN apt-get update && apt-get install -y curl\nUSER app\n"
+    repaired = terminallego.with_tmux(HEADER + recipe.replace(b"\n", b"\n" + terminallego.BULLSEYE_SECURITY, 1))
+    lines = repaired.splitlines(keepends=True)
+    assert lines[3:5] == [terminallego.BULLSEYE_SECURITY, terminallego.TMUX_INSTALL]
+    assert lines.index(b"USER app\n") > lines.index(terminallego.TMUX_INSTALL)
+
+    def blob(header):
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode="w", format=tarfile.PAX_FORMAT) as archive:
+            for name, content in [(DOCKERFILE, header + b"FROM ubuntu:20.04\nRUN curl -fsSL https://example.com/x | sh\n"),
+                                  ("tests/test.sh", b"verifier"), ("solution/solve.sh", b"solution")]:
+                info = tarfile.TarInfo(name)
+                info.size, info.mode = len(content), 0o644
+                archive.addfile(info, io.BytesIO(content))
+        return stream.getvalue()
+    source = tmp_path / "tasks.parquet"
+    pq.write_table(pa.Table.from_pylist([{"path": "listed", "task_binary": blob(HEADER)},
+                                         {"path": "sharer", "task_binary": blob(OTHER)},
+                                         {"path": "unrelated", "task_binary": blob(HEADER).replace(b"20.04", b"22.04")}]), source)
+    monkeypatch.setattr(terminallego, "TMUX_TASKS", frozenset({"listed"}))
+    result = terminallego.patch(source, tmp_path / "out")
+    assert result["tmux_install_repairs"] == 2
+    rows = {r["path"]: dict((i.name, c) for i, c in members(r["task_binary"]))
+            for r in pq.read_table(tmp_path / "out" / "tasks.parquet").to_pylist()}
+    assert rows["listed"][DOCKERFILE] == rows["sharer"][DOCKERFILE]
+    assert terminallego.TMUX_INSTALL in rows["listed"][DOCKERFILE]
+    assert terminallego.TMUX_INSTALL not in rows["unrelated"][DOCKERFILE]
+    assert rows["listed"]["tests/test.sh"] == b"verifier"
+    manifest = json.loads((tmp_path / "out" / "tasks.manifest.json").read_text())
+    labels = {t["task_id"]: t.get("labels", []) for t in manifest["tasks"]}
+    assert "tmux-install-override" in labels["sharer"] and "tmux-install-override" not in labels["unrelated"]
+    described = {p["label"] for p in manifest["patches"]}
+    assert {label for task in labels.values() for label in task} <= described
+    assert "prepared-verifier-runtime" not in described  # only described when the verifier is prepared

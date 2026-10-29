@@ -30,12 +30,12 @@ a task. Run the patcher on the pinned upstream source; see its `--help`.
 
 ```bash
 python -m pytest tests -q
-python validation/checks/dataset_checks.py reproduce --parquet NEW.parquet --reference PUBLISHED.parquet
+python validation/dataset_checks/run.py reproduce --parquet NEW.parquet --reference PUBLISHED.parquet
 ```
 
 Check the pytest output for `failed`, not only for `passed`. The reproduce check
 applies once a version is published. Then run the `verify-dataset` skill; a
-patched Parquet that has not passed stages 1, 3, 4 and 5 is not ready for
+patched Parquet that has not passed stages 1, 2, 3 and 4 is not ready for
 teacher generation.
 
 ## Publishing

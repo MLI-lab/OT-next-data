@@ -8,7 +8,7 @@ import shlex
 import tempfile
 from uuid import uuid4
 
-from validation.checks import reference_files
+from validation.rules.dynamic import reference_leaks as reference_files
 from validation.stages.layout import REFERENCE
 
 CHECK = 'reference-solution-leak'
@@ -17,6 +17,7 @@ enabled = ContextVar('capture_reference_files', default=False)
 # Shell words are fixed checker configuration, not task-controlled input. The
 # /opt glob covers image-baked runtimes that are intentionally absent from PATH.
 PROBE_PYTHONS = 'python3 python /usr/bin/python3 /usr/local/bin/python3 /opt/*/bin/python3 /opt/*/bin/python'
+PROBE_TIMEOUT_SEC = 600
 
 
 def evidence_digest(task):
@@ -42,7 +43,7 @@ async def probe(environment, request):
         '"$ot_probe_python" -I -c ' + shlex.quote(source) + ' '
         + shlex.quote(json.dumps(request)) + ' > ' + shlex.quote(remote))
     try:
-        result = await environment.exec(command, timeout_sec=300)
+        result = await environment.exec(command, timeout_sec=PROBE_TIMEOUT_SEC)
         if result.return_code:
             raise RuntimeError('reference file probe failed: ' + (result.stderr or result.stdout or '')[-2000:])
         # Exec output is tail-limited by the worker. Snapshots can be much larger;
@@ -72,9 +73,6 @@ def install():
                   'files': [], 'deleted_files': []}
         before = None
         try:
-            from validation.stages.container_reuse import _scope
-            if _scope.get() is not None:
-                raise ValueError('reference fingerprint capture requires a fresh trial, not reused verifier state')
             if getattr(getattr(self.task, 'config', None), 'steps', None):
                 raise ValueError('Multi-step reference capture is not yet supported')
             with self.agent_environment.with_default_user(kwargs.get('user')):

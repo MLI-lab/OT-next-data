@@ -9,12 +9,14 @@ from validation.stages import build_retries
 from validation.publishing import publish
 
 
-@pytest.mark.parametrize('retries, expected', [
-    (['passed'] * 3, 'passed'),
-    (['passed', 'error', 'passed'], 'failed'),
-    (['error'] * 3, 'failed'),
+@pytest.mark.parametrize('retries, expected, stability, builds', [
+    ([{'status': 'passed'}], 'passed', 'recovered', 2),
+    ([{'status': 'error', 'reason': 'BridgeOutage'}, {'status': 'passed'}], 'passed', 'recovered', 3),
+    # The task's own build failing settles it: not robust, no further retries.
+    ([{'status': 'failed', 'reason': 'image build failed: apt error'}], 'failed', 'unstable_build', 2),
+    ([{'status': 'error', 'reason': 'BridgeOutage'}] * 3, 'error', 'infrastructure_failure', 4),
 ])
-def test_failed_cohort_gets_three_full_rounds(tmp_path, monkeypatch, retries, expected):
+def test_only_infrastructure_failures_are_retried(tmp_path, monkeypatch, retries, expected, stability, builds):
     calls = []
     sources = [tmp_path / 'good', tmp_path / 'bad']
     async def build(task, out, args):
@@ -23,18 +25,32 @@ def test_failed_cohort_gets_three_full_rounds(tmp_path, monkeypatch, retries, ex
         if task.name == 'good':
             return {'status': 'passed'}
         if attempt == 0:
-            raise RuntimeError('initial startup failure')
-        return {'status': retries[attempt - 1]}
+            return {'status': 'error', 'reason': 'BridgeOutage: worker restarted'}
+        return dict(retries[attempt - 1])
     monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
     monkeypatch.setattr(build_retries.runtime, 'build_task', build)
-    args = SimpleNamespace(concurrency=2, backend='apptainer')
+    args = SimpleNamespace(concurrency=2, backend='apptainer', outcome_retries=3)
     results = asyncio.run(build_retries.run_builds(sources, tmp_path / 'out', args, StringIO()))
-    assert [name for name, _ in calls] == ['good', 'bad', 'bad', 'bad', 'bad']
-    assert len({path for _, path in calls}) == 5
-    assert results[0]['status'] == 'passed'
-    assert results[1]['status'] == expected
-    assert len(results[1]['build_attempts']) == 4
-    assert publish.judge(1, results[1])[0] == ('passed' if expected == 'passed' else 'archive')
+    assert [name for name, _ in calls] == ['good'] + ['bad'] * builds
+    assert results[0]['status'] == 'passed' and 'build_attempts' not in results[0]
+    assert (results[1]['status'], results[1]['build_stability']) == (expected, stability)
+    assert results[1]['build_retry_summary']['builds'] == builds and results[1]['build_retry_summary']['nodes']
+    assert publish.judge(1, results[1])[0] == {'passed': 'passed', 'failed': 'archive', 'error': 'not_run'}[expected]
+    table = build_retries.summarize_retries(results)
+    assert table['tasks_built_first_try'] == 1 and table['tasks_retried'] == 1
+
+
+def test_first_task_caused_failure_is_not_retried(tmp_path, monkeypatch):
+    calls = []
+    async def build(task, out, args):
+        calls.append(task.name)
+        return {'status': 'failed', 'reason': 'image build failed'}
+    monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
+    monkeypatch.setattr(build_retries.runtime, 'build_task', build)
+    args = SimpleNamespace(concurrency=1, backend='apptainer', outcome_retries=3)
+    results = asyncio.run(build_retries.run_builds([tmp_path / 'bad'], tmp_path / 'out', args, StringIO()))
+    assert calls == ['bad'] and results[0]['status'] == 'failed' and results[0]['cause'] == 'build-execution-error'
+    assert publish.judge(1, results[0])[0] == 'archive'
 
 
 def test_pipeline_skips_failed_builds_in_both_trial_stages(tmp_path, monkeypatch):

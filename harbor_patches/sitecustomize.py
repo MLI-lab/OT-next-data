@@ -31,6 +31,26 @@ def _is_outer_trial(argv, environ):
     return script == '__main__.py' and argv[0].replace(os.sep, '/').endswith('twisted/trial/__main__.py')
 
 
+def _reviewed_script(path, digests):
+    """True only for these exact reviewed script bytes, never for a matching filename alone."""
+    import hashlib
+    try:
+        with open(path, 'rb') as source:
+            return hashlib.sha256(source.read()).hexdigest() in digests
+    except (IOError, OSError):
+        return False
+
+
+# FineEnvs answer grader, including the version that renames correctness to reward.
+FINEENVS_GRADERS = ('16f906e9248fa8b7e1141939e425e88e59d52d65e98e360bbacef3720a43629f',
+                    '6eef67d9219af848bec7293c384505290069f4f0aeca2fa8c608f0733689bdfb')
+# CrossCodeEval metric scorer: one file across all 7573 v1/v2 tasks (checked 2026-10-29).
+CCEVAL_VERIFIERS = ('d61b975f41ac37eda4404dd388718981cfbfdf6bcd1eddf8d2f61d7b88b4b3d8',)
+# BugsInPy tornado reporter: unittest.main(testRunner=RecordingRunner), a TextTestRunner
+# subclass that does not override run(); one file across the v11 candidates (checked 2026-10-29).
+BUGSINPY_UNITTEST_REPORTERS = ('bfcb3b76d5ddb81f587706cf53094ef4de32051240e2dc4f3103b3c3a2c34bf7',)
+
+
 def _is_direct_verifier(argv, environ):
     token = environ.get('OT_VERIFIER_EXECUTION_TOKEN')
     if not token or environ.get('OT_PYTEST_EXECUTION_ACTIVE') == token:
@@ -47,15 +67,10 @@ def _is_direct_verifier(argv, environ):
     # version that renames correctness to reward. Do not record arbitrary
     # scripts merely because their filename is grader.py.
     if script.endswith('/tests/grader.py'):
-        import hashlib
-        try:
-            with open(argv[0], 'rb') as source:
-                digest = hashlib.sha256(source.read()).hexdigest()
-            return digest in (
-                '16f906e9248fa8b7e1141939e425e88e59d52d65e98e360bbacef3720a43629f',
-                '6eef67d9219af848bec7293c384505290069f4f0aeca2fa8c608f0733689bdfb')
-        except (IOError, OSError):
-            return False
+        return _reviewed_script(argv[0], FINEENVS_GRADERS)
+    # CrossCodeEval runs its deterministic metric scorer directly; reviewed bytes only.
+    if script.endswith('/tests/cceval_verifier.py'):
+        return _reviewed_script(argv[0], CCEVAL_VERIFIERS)
     return False
 
 
@@ -73,6 +88,40 @@ def _command_line():
 
 
 PYTEST_SCRIPTS = ('pytest', 'py.test', 'pytest-3', 'py.test-3')
+
+
+# Reviewed verifier scripts that run one in-process pytest.main(): they receive the
+# pytest plugin like a pytest process. Exact bytes only. ScaleSWE tests/score.py
+# (all v1/v2 variants, checked 2026-10-29; each calls pytest.main once).
+REVIEWED_PYTEST_DRIVERS = {
+    '/tests/score.py': (
+    '2c557ae855ef79acd81ff0d137215cdc4602eb42b94b2abc3d730e61fd59b305',
+    '5d3bd58dc1da577b8a626fe634ae23934172955d601640bb032b6822a0aae09a',
+    '6706d8b59dfda015587993a972bc43c4b95c34b659d5a1a0b9cad2b90bf6519e',
+    '7de17a9ba612b569894ff0c95b5331de8c0011cc7e5f1d7705bfad47f9076819',
+    '7e1488f1ac1d300b0aec5d883b5887fb4e54aa1d2651ad028b6a404d8bf7a739',
+    '932923a2e6bc580b0df36ed5a06020f3ba4d4bd494b013893b641f763c9a57aa',
+    '997a51b135c75782f8876579b6858ab6d441a3469588c4b4a06903515aca3348',
+    '9a2a84dab82a43acd3c8fe61c6a227a9261304c2c3f7da698f9608869d9c3935',
+    'b02fb6ffce8b5a698b0b598520b659608c44ddfef5dc1cfd11cca3deaf2cf65e',
+    'b62d31433014374405c2016f9b48c87e5613bd6fc74dd6c142e5130e31588a8c',
+    'beaaac9f14b30d1e1d2031ef3416dc365f9de2fa2b5eb0c1b1e5a419ce96014c',
+    'cb46a2995a97248a2d19bf307dcc8d900188b33b5638e527ca7d0e482ede5e42',
+    'd56765cc56aa420a9d6cedb5b94f2154d6d417bfff580a3f60111d2cfbdcd800',
+    'fc6c4a24d17c3ab788db5ee74b697203b2c3e42d70c12d08da3a8cd7b8e09cf5',
+    ),
+}
+
+
+def _is_reviewed_pytest_driver(command):
+    rest = list(command)
+    while rest and rest[0].startswith('-') and rest[0] not in ('-m', '-c'):
+        rest = rest[1:]
+    if not rest or rest[0].startswith('-'):
+        return False
+    script = rest[0].replace(os.sep, '/')
+    return any(script.endswith(suffix) and _reviewed_script(rest[0], digests)
+               for suffix, digests in REVIEWED_PYTEST_DRIVERS.items())
 
 
 def _is_pytest_process(command):
@@ -98,7 +147,8 @@ def announce_pytest_plugin(environ=None, command=None):
         return False
     if not os.path.isfile(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ot_pytest_execution.py')):
         return False
-    if not _is_pytest_process(_command_line() if command is None else command):
+    command = _command_line() if command is None else command
+    if not (_is_pytest_process(command) or _is_reviewed_pytest_driver(command)):
         return False
     previous = environ.get('PYTEST_PLUGINS')
     if previous and 'ot_pytest_execution' in previous.split(','):
@@ -117,6 +167,8 @@ def _is_outer_unittest(argv, environ, command=None):
         # python [-X ...] -m unittest [...]: the module follows its -m.
         return any(a == '-m' and command[i + 1:i + 2] == ['unittest'] for i, a in enumerate(command))
     script = argv[0].replace(os.sep, '/')
+    if script.endswith('/tests/run_unittest.py'):
+        return _reviewed_script(argv[0], BUGSINPY_UNITTEST_REPORTERS)
     # Django's manage.py test ends in TextTestRunner as well.
     return (script.endswith('/unittest/__main__.py')
             or (os.path.basename(script) == 'manage.py' and len(argv) > 1 and argv[1] == 'test'))

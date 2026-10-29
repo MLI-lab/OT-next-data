@@ -1,4 +1,4 @@
-from validation.checks.trace_outcomes import classify_outcome
+from validation.metrics.trace_outcomes import classify_outcome
 
 
 def test_terminal_closure_has_one_label_regardless_of_reporting_path():

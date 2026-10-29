@@ -13,7 +13,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from validation.contract import read, task_records
 from validation.publishing.publish import folder_of, run_name
-from validation.checks.reward_metrics import pass_at_k, reward_group
+from validation.metrics.reward_metrics import pass_at_k, reward_group
 
 COLUMNS = ('path', 'content_sha256', 'model', 'attempts', 'graded', 'solved', 'group', 'run')
 FILE = 'pass_counts.parquet'
@@ -39,7 +39,7 @@ def load(submission):
 
 def build(submissions, mapping, run_id=None):
     """Rows per data source and the run record."""
-    from config.models import MODELS
+    from validation.publishing.evaluation_settings import from_contract
     loaded = [load(s) for s in submissions]
     name = run_name(folder_of(t['task_id'], mapping) for c, _, _ in loaded for t in task_records(c))
     digest = hashlib.sha256('\n'.join(sorted(c['sha256'] for c, _, _ in loaded)).encode()).hexdigest()
@@ -50,13 +50,18 @@ def build(submissions, mapping, run_id=None):
         model = request.get('serve_model') or request['model']
         attempts = int(request['attempts'])
         hashes = {t['task_id']: t['sha256'] for t in task_records(contract)}
-        spec = MODELS.get(model)
-        if spec:
-            models[model] = {'hf_repo': spec.hf_repo, 'thinking': spec.thinking, 'context': request.get('serve_context'),
-                             'max_output_tokens': spec.max_output_tokens, 'sampling': spec.sampling,
-                             'weights': (contract.get('local_model_assets') or {}).get('revision')}
-        else:
-            models[model] = {}
+        settings = from_contract(contract)
+        fields = {'hf_repo': settings['hf_repo'], 'thinking': settings['thinking'],
+                  'context': settings['context_tokens'],
+                  'max_output_tokens': settings['intended_output_tokens_per_call'],
+                  'sampling': settings['sampling'], 'weights': settings['weights_revision']}
+        entry = models.setdefault(model, {**fields, 'evaluation_settings': []})
+        # Legacy summary fields are retained only when all frozen runs agree.
+        for key, value in fields.items():
+            if entry[key] != value:
+                entry[key] = None
+        if settings not in entry['evaluation_settings']:
+            entry['evaluation_settings'].append(settings)
         items = {Path(item['task']).name: item for item in report['items']}
         contracts.append({'contract_sha256': contract['sha256'], 'model': model, 'attempts': attempts,
                           'tasks': len(hashes), 'reported': len(items), 'job': str(report.get('timing', {}).get('slurm_job_id') or '') or None})
@@ -110,10 +115,10 @@ def description(record):
             g = c['groups']
             lines.append(f"| {folder} | {model} | {c['tasks']} | {c['attempts'] // c['tasks']} | {c['pass@1']:.3f} | "
                          f"{c[k]:.3f} ({k}) | {g.get('all_zero', 0)} | {g.get('varying', 0)} | {g.get('all_solved', 0)} | {c['ungraded_attempts']} |")
-    lines += ['', 'Models:', '']
-    for model, m in record['models'].items():
-        lines.append(f"- `{model}`: {m.get('hf_repo')}, thinking {'on' if m.get('thinking') else 'off'}, context {m.get('context')}, "
-                     f"reply limit {m.get('max_output_tokens')}, sampling {m.get('sampling')}")
+    from validation.publishing.evaluation_settings import markdown
+    settings = [s for m in record['models'].values() for s in m.get('evaluation_settings', [])]
+    if settings:
+        lines += ['', markdown(settings)]
     traces = record.get('trajectories')
     if traces:
         lines += ['', f"Trajectories: {traces['rows']} attempts in `runs/{record['run']}/trajectories/<data source>/<model>.parquet` "

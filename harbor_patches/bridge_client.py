@@ -115,9 +115,9 @@ class BridgeClient:
             if task.done():
                 self.cancellations.pop(key, None)
 
-    async def get(self, url, timeout=60):
+    async def get(self, url, timeout=60, headers=None):
         deadline = time.monotonic() + min(timeout, RETRY_SECONDS)
-        result = await retry(lambda limit: asyncio.to_thread(http_json, url, limit),
+        result = await retry(lambda limit: asyncio.to_thread(http_json, url, limit, None, headers),
                              min(timeout, RETRY_SECONDS), label=urllib.parse.urlsplit(url).path)
         parsed = urllib.parse.urlsplit(url)
         base = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, '', '', ''))
@@ -198,8 +198,12 @@ class BridgeClient:
         state = 'unknown'
         waited, wait_limit, previous = 0.0, start_wait_limit(), time.monotonic()
         while time.monotonic() < deadline:
+            # A current bridge holds this request until the job finishes (at most
+            # RESULT_WAIT) and marks interim replies; older bridges ignore the header.
+            wait = min(RESULT_WAIT, max(0.0, deadline - time.monotonic()))
             try:
-                result = await self.get(f'{bridge_url}/job/result/{job_id}', deadline - time.monotonic())
+                result = await self.get(f'{bridge_url}/job/result/{job_id}', deadline - time.monotonic(),
+                                        headers={RESULT_WAIT_HEADER: f'{wait:.3f}'})
             except TimeoutError:
                 if time.monotonic() < deadline:
                     raise
@@ -218,10 +222,18 @@ class BridgeClient:
                 return result
             if result.get('state') == 'error':
                 raise RuntimeError(f"Bridge job {job_id} failed: {result.get('error')}")
+            if result.get('result_waited'):
+                continue  # The server already waited; no client-side quantization.
             await asyncio.sleep(min(interval, max(0, deadline - time.monotonic())))
             interval = min(.5, interval * 1.3)
         raise TimeoutError(f'Bridge job {job_id} timed out after {timeout_sec}s '
                            f'(last state: {state}; result-wait budget, not command runtime)')
+
+
+# Server-side result wait per poll. Short preparation operations otherwise end
+# up to one client sleep (.05 s growing to .5 s) after they finish.
+RESULT_WAIT_HEADER = 'X-Bridge-Result-Wait'
+RESULT_WAIT = .5
 
 
 def start_wait_limit():

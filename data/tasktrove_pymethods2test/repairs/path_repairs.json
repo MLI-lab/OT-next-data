@@ -1,0 +1,185 @@
+{
+  "pymethods2test-0099": {
+    "instruction_sha256": "efdaa9040be74fde8a5945799281d6c64a9d0c6410d80754dbf0e3a4c19a453a",
+    "edits": [
+      {
+        "start": 1522,
+        "end": 1533,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-0406": {
+    "instruction_sha256": "85361801600625eaf5ef96025dddcc151643bff63f0a56b564c1e62f464718bd",
+    "edits": [
+      {
+        "start": 787,
+        "end": 798,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-0456": {
+    "instruction_sha256": "2b6ece08bb8fcea3e72eb923967a59dec2bcc648fed5dca484619565f37c1b57",
+    "edits": [
+      {
+        "start": 1309,
+        "end": 1320,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-0605": {
+    "instruction_sha256": "4dee057eb87ec7390c2fd6a9ee879f83ff06971f1d782e73f80bcaa6a88a50ec",
+    "edits": [
+      {
+        "start": 1063,
+        "end": 1074,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-1056": {
+    "instruction_sha256": "89e6942a19331437337b1a2847a27ac84af9ecb71d305da304ecdb315ec28e0c",
+    "edits": [
+      {
+        "start": 926,
+        "end": 937,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      },
+      {
+        "start": 984,
+        "end": 995,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-1204": {
+    "instruction_sha256": "5ddf376bd699a86106cf33000fcf73db80647d804f96959a94c68a7201afd650",
+    "edits": [
+      {
+        "start": 874,
+        "end": 885,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-1205": {
+    "instruction_sha256": "93460b2371ab9b99651d0c6b389891806fdf4309f77b8195c47144ee73a5a0af",
+    "edits": [
+      {
+        "start": 1393,
+        "end": 1404,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-1285": {
+    "instruction_sha256": "5f51df5578011f3797e776d9daf655f302c74cc3fe8701237a7695a0e13549ef",
+    "edits": [
+      {
+        "start": 922,
+        "end": 933,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-2255": {
+    "instruction_sha256": "1c233e6d2e5e0c2df1078e7354e27166749b9c5029be2096426d4127f3c54f6f",
+    "edits": [
+      {
+        "start": 755,
+        "end": 766,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-2708": {
+    "instruction_sha256": "a7566ba2dc34a197884274695ac6849cf743b7a8882bcaf4f5d25cd5b45ec49e",
+    "edits": [
+      {
+        "start": 1207,
+        "end": 1218,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-3059": {
+    "instruction_sha256": "f0e0a024dc111c47073cde867392b8722d2d0ca4f67e2a47fb2a9b13ad3f17b1",
+    "edits": [
+      {
+        "start": 1289,
+        "end": 1300,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      },
+      {
+        "start": 1368,
+        "end": 1379,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-3255": {
+    "instruction_sha256": "aeca764d345685d5b864026166b2eba942d13add5ef63f5a6eb2b7a80487db48",
+    "edits": [
+      {
+        "start": 823,
+        "end": 834,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-3422": {
+    "instruction_sha256": "a4a3d42e35303410f895f656820ed3fedc12654542127178c622d0490ece9dd8",
+    "edits": [
+      {
+        "start": 739,
+        "end": 750,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-3659": {
+    "instruction_sha256": "76adbb52a28552741d555d8ea433eaaa6bfd2a4f4c448029d3d0bc5d19e0da91",
+    "edits": [
+      {
+        "start": 715,
+        "end": 726,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      },
+      {
+        "start": 771,
+        "end": 782,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  },
+  "pymethods2test-4209": {
+    "instruction_sha256": "576b3f1cb2b009767869e5ce2d5ed554e5b40273e492f17d67cd25ac801b04e4",
+    "edits": [
+      {
+        "start": 1188,
+        "end": 1199,
+        "old": "solution.py",
+        "new": "/app/solution.py"
+      }
+    ]
+  }
+}

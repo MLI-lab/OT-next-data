@@ -171,7 +171,7 @@ def instruction_spans(lines):
     return spans
 
 
-# R2: hpc/image_cache.py runs every RUN as `/bin/sh -ec`, Docker as `/bin/sh -c`.
+# R2: hpc/offline_prep/image_cache.py runs every RUN as `/bin/sh -ec`, Docker as `/bin/sh -c`.
 # In a RUN with a command list (`a; b`, loop or if bodies) a failing non-final
 # command, such as `chmod +x /build_scripts/*.sh 2>/dev/null` without any .sh
 # file, then stops the Apptainer build where Docker continues. A leading
@@ -1570,13 +1570,41 @@ def patch_directory(tasks):
         print(task.name, *change_report(task.name, facts)[0], facts["split"] or "")
 
 
+def prepare_runtime(files, image, probe, binding, bundle, catalog):
+    """Adapt an already-patched, image-bound task using measured FACET evidence.
+
+    Called separately from source conversion because its image identity must be
+    verified after the original patcher's image and setup transformations.
+    """
+    from data.facet import verifier_runtime
+    planned = verifier_runtime.plan(files, image, probe, binding, bundle)
+    return verifier_runtime.apply(files, planned, catalog), planned
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("tasks", type=Path, nargs="?")
     parser.add_argument("--source-parquet", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--source-revision", default=SOURCE["revision"])
+    parser.add_argument("--published-input", type=Path)
+    parser.add_argument("--published-revision")
+    parser.add_argument("--published-subset", choices=['facet_v1', 'facet_v2', 'facet_v3'])
+    parser.add_argument("--runtime-image-inventory", type=Path)
+    parser.add_argument("--runtime-probe", type=Path)
+    parser.add_argument("--runtime-cache", type=Path)
     args = parser.parse_args()
+    runtime_options = (args.published_input, args.published_revision, args.published_subset,
+                       args.runtime_image_inventory, args.runtime_probe, args.runtime_cache)
+    if any(runtime_options):
+        if not all(runtime_options) or not args.output or args.tasks or args.source_parquet:
+            parser.error('Published runtime migration requires all --published-* and --runtime-* options plus --output')
+        from data.facet.verifier_runtime import migrate_published
+        result = migrate_published(args.published_input, args.output, revision=args.published_revision,
+            subset=args.published_subset, image=json.loads(args.runtime_image_inventory.read_text()),
+            probe=json.loads(args.runtime_probe.read_text()), cache=args.runtime_cache)
+        print(json.dumps(result['counts'], indent=2))
+        return
     if args.source_parquet or args.output:
         if args.tasks or not args.source_parquet or not args.output:
             parser.error("--source-parquet and --output are required together")

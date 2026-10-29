@@ -17,7 +17,7 @@ the displayed text.
 | --- | --- |
 | Validation workflow, contracts, publishing | `validation/README.md` |
 | Validation stages and checks | `validation/PROTOCOL.md` |
-| Runtime, staging, bridge behavior | `validation/docs/runtime.md` |
+| Runtime, staging, bridge behavior | `validation/RUNTIME.md` |
 | Cluster launchers | `hpc/README.md`, `hpc/zih/README.md` |
 | SSH access to CLAIX, LRZ and ZIH; agent and Mac VPN tunnel | [Cluster access](cluster-access.md) |
 | Patch outputs and publication | `data/INVENTORY.md#reporting-patches-in-the-datasource-pr` |
@@ -26,7 +26,7 @@ the displayed text.
 | ZIH storage and job-local staging | `hpc/zih/README.md` |
 
 Skills in `.agents/skills/`: `patch-dataset` (repair a dataset), `verify-dataset`
-(stages 1, 3, 4, 5), `run-teachers` (stages 6 and 7, plotting),
+(stages 1, 2, 3, 4), `run-teachers` (stages 6 and 7, plotting),
 [`v1_readme`](skills/v1_readme/SKILL.md) (v1 dataset README and HF PR wording), and
 [`v2_readme`](skills/v2_readme/SKILL.md) (v2 evaluation results and trajectory statistics),
 and [`readme-v3`](skills/readme-v3/SKILL.md) (v3 READMEs focused on new results,
@@ -232,7 +232,7 @@ the cached ext3 overlay. Keep dependencies inside the resulting image; do not
 replace them with a runtime cache-restore step. Avoid installing many small files
 directly into a writable ext3 image when the native-directory path is available.
 
-`hpc/image_cache.py` enables this path by default for both Helma and ZIH validation
+`hpc/offline_prep/image_cache.py` enables this path by default for both Helma and ZIH validation
 launchers. `OT_IMAGE_DIRECTORY_BUILD=0` explicitly selects the old deferred-build
 path for compatibility diagnosis. Use the shared builder rather than adding
 dataset-specific build launchers. Its image output directory must be on node-local

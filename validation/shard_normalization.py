@@ -10,7 +10,7 @@ import subprocess
 
 def plan_preparation(contract_path, contract, out, code_root, config, *, count, time,
                      cpus, memory, partition, array_concurrency, submit, exclusive,
-                     cluster, gpus):
+                     cluster, gpus, nodelist=None):
     from validation.stages.runner import save
     folder = out / 'normalization'
     folder.mkdir()  # Existing requests must be reconciled, never blindly resubmitted.
@@ -20,7 +20,7 @@ def plan_preparation(contract_path, contract, out, code_root, config, *, count, 
                    gpus=gpus, cpus=cpus, time=time, memory=memory)
     followup = dict(count=count, out=str(out / 'array'), time=time, cpus=cpus,
                     memory=memory, partition=partition, array_concurrency=array_concurrency,
-                    submit=True, exclusive=exclusive, cluster=cluster)
+                    submit=True, exclusive=exclusive, cluster=cluster, nodelist=nodelist)
     save(folder / 'request.json', {'args': payload, 'stages': contract['stages'],
          'shard_plan': {'parent_contract': str(Path(contract_path).resolve()),
                         'folder': str(folder), 'source_code': str(code_root), 'plan': followup}})
@@ -30,7 +30,8 @@ def plan_preparation(contract_path, contract, out, code_root, config, *, count, 
         shlex.quote(str(folder / 'request.json')) + '\n')
     command = ['sbatch', '--parsable', f'--partition={partition}', '--nodes=1', '--ntasks=1',
                f'--cpus-per-task={cpus}', f'--time={time}', '--signal=B:USR1@120',
-               *(['--exclusive'] if exclusive else []), *([f'--mem={memory}'] if memory else []),
+               *(['--exclusive'] if exclusive else []), *([f'--nodelist={nodelist}'] if nodelist else []),
+               *([f'--mem={memory}'] if memory else []),
                *([f'--account={config.account}'] if config.account else []),
                *(['--gres=' + config.gpu_gres.format(partition=partition, n=gpus)] if gpus else []),
                f'--output={folder}/slurm-%j.out',
@@ -52,7 +53,7 @@ def prepare_and_submit(args, stages, request):
     import pyarrow.parquet as pq
     from validation.contract import create, read, task_records, verify_materialized
     from validation.data.selection import discover_tasks
-    from validation.checks.path_cache import KEY, read as read_cache
+    from validation.rules.static.task_absolute_path.path_cache import KEY, read as read_cache
     from validation.publishing.publish import pack_task
     from validation.stages import normalize_paths
     from validation.stages.runner import save

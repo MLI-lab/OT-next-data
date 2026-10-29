@@ -53,19 +53,19 @@ EVIDENCE_FINDINGS = ('verifier execution evidence is missing', 'verifier invocat
 
 @lru_cache(maxsize=1)
 def reviewed_tmax_zeros():
-    registry = Path(__file__).parents[1] / 'checks/reviewed_tmax_nop_zeros.json'
+    registry = Path(__file__).parents[1] / 'rules/dynamic/nop_baseline/reviewed_tmax_nop_zeros.json'
     return json.loads(registry.read_text()) if registry.exists() else {}
 
 
 @lru_cache(maxsize=1)
 def reviewed_multiswe_zeros():
-    registry = Path(__file__).parents[1] / 'checks/reviewed_multiswe_nop_zeros.json'
+    registry = Path(__file__).parents[1] / 'rules/dynamic/nop_baseline/reviewed_multiswe_nop_zeros.json'
     return json.loads(registry.read_text()) if registry.exists() else {}
 
 
 @lru_cache(maxsize=1)
 def reviewed_multiswe_negatives():
-    registry = Path(__file__).parents[1] / 'checks/reviewed_multiswe_negative_baselines.json'
+    registry = Path(__file__).parents[1] / 'rules/dynamic/nop_baseline/reviewed_multiswe_negative_baselines.json'
     return json.loads(registry.read_text()) if registry.exists() else {}
 
 
@@ -81,7 +81,7 @@ def reviewed_pass(item, review):
 
 @lru_cache(maxsize=1)
 def reviewed_multiswe_references():
-    registry = Path(__file__).parents[1] / 'checks/reviewed_multiswe_reference_results.json'
+    registry = Path(__file__).parents[1] / 'rules/dynamic/nop_baseline/reviewed_multiswe_reference_results.json'
     return json.loads(registry.read_text()) if registry.exists() else {}
 
 
@@ -99,7 +99,7 @@ def manually_reviewed_reference(item):
     result = reviewed_pass(item, {
         'previous_status': item['status'], 'previous_findings': item.get('findings'),
         'previous_rewards': item['rewards'],
-        'source': 'validation/checks/reviewed_multiswe_reference_results.json', **review})
+        'source': 'validation/rules/dynamic/nop_baseline/reviewed_multiswe_reference_results.json', **review})
     result['observed_rewards'] = list(item['rewards'])
     result['rewards'] = list(review['replayed_rewards'])
     return result
@@ -111,7 +111,7 @@ def manually_reviewed_nop(item):
     Explicit MultiSWE negative-baseline exceptions may have no numeric reward;
     they never synthesize a zero or accept an observed nonzero reward.
     """
-    from validation.checks.reviewed_nop_zeros import REVIEWED
+    from validation.rules.dynamic.nop_baseline.reviewed_nop_zeros import REVIEWED
     negative = reviewed_multiswe_negatives().get(Path(item.get('task', '')).name)
     if negative:
         fingerprint = hashlib.sha256(json.dumps(item, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -124,7 +124,7 @@ def manually_reviewed_nop(item):
         return reviewed_pass(item, {
             'previous_status': item.get('status'), 'previous_findings': item.get('findings'),
             'previous_rewards': item['rewards'],
-            'source': 'validation/checks/reviewed_multiswe_negative_baselines.json', **negative})
+            'source': 'validation/rules/dynamic/nop_baseline/reviewed_multiswe_negative_baselines.json', **negative})
     # MultiSWE reviews compare the saved baseline with its passing reference
     # and patch. They apply to one exact result, never to future invocations.
     exact = reviewed_multiswe_zeros().get(Path(item.get('task', '')).name)
@@ -136,11 +136,11 @@ def manually_reviewed_nop(item):
             return item
         return reviewed_pass(item, {
             'previous_status': item.get('status'), 'previous_findings': item.get('findings'),
-            'source': 'validation/checks/reviewed_multiswe_nop_zeros.json', **exact})
+            'source': 'validation/rules/dynamic/nop_baseline/reviewed_multiswe_nop_zeros.json', **exact})
     # These MiMo acceptances apply only to the exact inspected report item,
     # including all retry outcomes. In particular, an unfinished invocation in
     # another run must not inherit the reviewed legacy-Jest reporting exception.
-    registry = Path(__file__).parents[1] / 'checks/reviewed_mimo_nop_zeros.json'
+    registry = Path(__file__).parents[1] / 'rules/dynamic/nop_baseline/reviewed_mimo_nop_zeros.json'
     exact = json.loads(registry.read_text()).get(Path(item.get('task', '')).name) if registry.exists() else None
     if exact:
         fingerprint = hashlib.sha256(json.dumps(item, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -148,7 +148,7 @@ def manually_reviewed_nop(item):
             return item
         return reviewed_pass(item, {
             'previous_status': item.get('status'), 'previous_findings': item.get('findings'),
-            'source': 'validation/checks/reviewed_mimo_nop_zeros.json', **exact})
+            'source': 'validation/rules/dynamic/nop_baseline/reviewed_mimo_nop_zeros.json', **exact})
     review = REVIEWED.get(Path(item.get('task', '')).name)
     # TMAX fixture rejections were reviewed against exact saved report items.
     # A later retry or changed finding must not inherit an earlier acceptance.
@@ -162,8 +162,8 @@ def manually_reviewed_nop(item):
         return item
     return reviewed_pass(item, {'previous_status': item.get('status'), 'previous_findings': findings,
                                'reviewed': review['reviewed'], 'output_line': review['output_line'],
-                               'source': ('validation/checks/reviewed_tmax_nop_zeros.json' if review.get('publication_only')
-                                          else 'validation/checks/reviewed_nop_zeros.py')})
+                               'source': ('validation/rules/dynamic/nop_baseline/reviewed_tmax_nop_zeros.json' if review.get('publication_only')
+                                          else 'validation/rules/dynamic/nop_baseline/reviewed_nop_zeros.py')})
 
 
 def combine(runs, tasks, out):

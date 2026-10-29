@@ -103,7 +103,14 @@ def test_changed_grader_does_not_receive_execution_evidence(tmp_path):
     grader = task / 'tests/grader.py'
     grader.write_bytes(grader.read_bytes() + b'\n# unknown variant\n')
     trial = run_verifier(tmp_path, task, 'hello')
-    assert assess_trials([trial], 1, 1, task_path=task)['status'] == 'failed'
+    evidence = trial[0] / 'verifier/ot-execution.txt'
+    assert 'OT_VERIFIER_EXECUTION:' not in (evidence.read_text() if evidence.exists() else '')
+    # Reference acceptance uses numeric reward and trial errors; its recorder
+    # is diagnostic (validation/PROTOCOL.md). No-op zero still needs evidence.
+    assert assess_trials([trial], 1, 1, task_path=task)['status'] == 'completed'
+    nop = run_verifier(tmp_path, task, 'wrong')
+    assert nop[1]['verifier_result']['rewards']['reward'] == 0
+    assert assess_trials([nop], 1, 0, task_path=task, oracle_passed=True)['status'] == 'failed'
 
 
 def test_unknown_reward_schema_is_rejected():

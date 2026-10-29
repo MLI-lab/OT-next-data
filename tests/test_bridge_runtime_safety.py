@@ -93,14 +93,57 @@ def test_nested_trial_reserves_its_own_cpus_without_overlap(patch, monkeypatch):
     assert patch.trial_step_prefix({}, 'env-x') == []
 
 
-def test_network_fallback_warns_and_records_effective_host(patch, monkeypatch, tmp_path, capsys):
+def test_network_isolation_failure_stops_run_and_records_unavailable(patch, monkeypatch, tmp_path):
     import json
     monkeypatch.setenv('OT_NET_ISOLATION', '1')
+    monkeypatch.setenv('OT_REQUIRE_NETWORK_ISOLATION', '0')
+    monkeypatch.setenv('OT_CLUSTER', 'claix')
+    status = tmp_path / 'network.json'
+    monkeypatch.setenv('OT_NETWORK_STATUS_PATH', str(status))
+    with pytest.raises(RuntimeError, match='Required offline network isolation'):
+        patch.network_isolation_available(str(tmp_path))
+    assert json.loads(status.read_text())['effective'] == 'unavailable'
+
+
+def test_network_isolation_failure_on_helma_warns_and_uses_host(patch, monkeypatch, tmp_path, capsys):
+    import json
+    monkeypatch.setenv('OT_NET_ISOLATION', '1')
+    monkeypatch.setenv('OT_CLUSTER', 'helma')
     status = tmp_path / 'network.json'
     monkeypatch.setenv('OT_NETWORK_STATUS_PATH', str(status))
     assert patch.network_isolation_available(str(tmp_path)) is False
-    assert 'WARNING' in capsys.readouterr().err
-    assert json.loads(status.read_text())['effective'] == 'host'
+    recorded = json.loads(status.read_text())
+    assert recorded['effective'] == 'host' and 'Helma host-network fallback' in recorded['warning']
+    assert 'NOT certified offline' in capsys.readouterr().err
+
+
+def test_network_explicit_online_does_not_require_namespace(patch, monkeypatch, tmp_path):
+    monkeypatch.setenv('OT_NET_ISOLATION', '0')
+    monkeypatch.delenv('OT_NETWORK_STATUS_PATH', raising=False)
+    assert patch.network_isolation_available(str(tmp_path)) is False
+
+
+@pytest.mark.parametrize('returncode', [0, 1])
+def test_namespace_probe_result_is_enforced(patch, monkeypatch, tmp_path, returncode):
+    import json
+    from types import SimpleNamespace
+    monkeypatch.setenv('OT_NET_ISOLATION', '1')
+    status = tmp_path / 'status.json'
+    monkeypatch.setenv('OT_NETWORK_STATUS_PATH', str(status))
+    (tmp_path / 'image.sif').touch()
+    monkeypatch.setattr(patch.worker, 'APPTAINER', '/usr/bin/apptainer')
+    calls = []
+    def probe(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=returncode, stderr='ERROR: namespace unavailable' if returncode else '')
+    monkeypatch.setattr(patch.subprocess, 'run', probe)
+    if returncode:
+        with pytest.raises(RuntimeError, match='namespace unavailable'):
+            patch.network_isolation_available(str(tmp_path))
+    else:
+        assert patch.network_isolation_available(str(tmp_path)) is True
+    assert calls[0][2:5] == patch.NET_FLAGS
+    assert json.loads(status.read_text())['effective'] == ('unavailable' if returncode else 'network-none')
 
 
 def test_explicit_host_mode_supplies_dns_and_proxy(patch, monkeypatch):

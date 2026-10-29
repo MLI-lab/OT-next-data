@@ -1434,5 +1434,6 @@ def prepare_release_cli():
 
 if __name__ == '__main__':
     from data.utils.cli import dispatch
-    dispatch({'prepare-release': prepare_release_cli, 'prepare': prepare_cli, 'warmup': warmup_cli, 'rewards': rewards_cli})
+    from data.crosscodeeval.runtime import cli as runtime_cli
+    dispatch({'prepare-runtime': runtime_cli, 'prepare-release': prepare_release_cli, 'prepare': prepare_cli, 'warmup': warmup_cli, 'rewards': rewards_cli})
     main()

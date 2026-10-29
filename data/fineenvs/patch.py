@@ -1,6 +1,6 @@
 """Expose FineEnvs preparation while retaining one inspected upstream image.
 
-First run data/utils/fineenvs/prepare_inputs.py on the pinned source. Then run this patcher with
+First run data/fineenvs/inputs/prepare_inputs.py on the pinned source. Then run this patcher with
 --source PINNED.parquet --inputs-cache SNAPSHOT --output NEW_DIRECTORY.
 Every retained task includes its input bytes under setup_files/inputs. This
 patcher does not access the network, build images, or execute task verifiers.
@@ -39,7 +39,7 @@ python3 /setup_files/pull_bucket.py
 '''
 # All source tasks passed validation with packaged inputs.
 EXCLUDED = {}
-SUPPORT_DIR = Path(__file__).resolve().parents[1] / "utils" / "fineenvs"
+SUPPORT_DIR = Path(__file__).resolve().parent / "inputs"
 if Path(__file__).with_name("preparation.json").is_file():
     SUPPORT_DIR = Path(__file__).resolve().parent
 LOCK_PATH = SUPPORT_DIR / "preparation.json"
@@ -167,6 +167,20 @@ def normalize_rewards(script, grader):
     return script, grader.replace(b'"correctness":', b'"reward":')
 
 
+def drop_hf_token(toml):
+    """Remove the HF_TOKEN declaration; packaged inputs need no Hugging Face access.
+
+    Harbor refuses to start a trial when a declared ${HF_TOKEN} is absent from
+    the host environment, so the unused declaration blocks token-less runs.
+    """
+    text, count = re.subn(r'(?m)^HF_TOKEN = "\$\{HF_TOKEN\}"\n', '', toml.decode(), count=1)
+    expected = tomllib.loads(toml.decode())
+    del expected["environment"]["env"]["HF_TOKEN"]
+    if count != 1 or tomllib.loads(text) != expected:
+        raise ValueError("unexpected HF_TOKEN declaration")
+    return text.encode()
+
+
 def transform(blob, lock, snapshot=None, packaged=None):
     files = read_members(blob)
     config = tomllib.loads(files["task.toml"].decode())
@@ -235,6 +249,7 @@ def transform(blob, lock, snapshot=None, packaged=None):
                 not n or Path(n).is_absolute() or '..' in Path(n).parts or Path(n).as_posix() != n or n == '.' for n in names):
             raise ValueError('invalid or colliding input paths')
         del additions['setup_files/pull_bucket.py']
+        replacements['task.toml'] = drop_hf_token(replacements['task.toml'])
         additions.update({
             'setup_files/setup.sh': (TASK_SETUP.replace(b'pull_bucket.py', b'stage_inputs.py'), 0o755),
             'setup_files/stage_inputs.py': ((SUPPORT_DIR / 'stage_inputs.py').read_bytes(), 0o644),
@@ -322,7 +337,8 @@ def transform(blob, lock, snapshot=None, packaged=None):
         reason += (f" Package {len(manifest['files'])} input files ({sum(f['size'] for f in manifest['files'])} bytes) "
                    "under setup_files/inputs with remote Xet identities and SHA-256 checksums in input-manifest.json. "
                    "Remove the setup downloader invocation and copy the packaged files locally during setup, verifying "
-                   "their checksums with bounded-memory copying. No input download occurs at setup or image build time.")
+                   "their checksums with bounded-memory copying. No input download occurs at setup or image build time. "
+                   "Drop the unused HF_TOKEN environment declaration, which Harbor otherwise requires on the host.")
         if any('/' in f['name'] for f in manifest['files']):
             reason += (' Preserve content-pinned input variants under distinct source-relative paths instead of '
                        'the upstream downloader overwriting equal basenames nondeterministically. '
@@ -360,16 +376,163 @@ def packaged_inputs(cache, source):
     return index, result
 
 
+def prepare_verifier_runtime(blob, observed, catalog=None):
+    """Protect answer-grading dependencies without changing packaged task inputs.
+
+    This adapter applies to the already-published definitions. The grader reads
+    the submitted answer file, not agent Python modules, so its isolated Python
+    must not expose agent site-packages or startup hooks.
+    """
+    from data.utils.verifier_runtime import (
+        runtime_spec, runtime_reference, preparation_command, python_install_or_prepared,
+    )
+    lock = json.loads(LOCK_PATH.read_text())
+    with tarfile.open(fileobj=io.BytesIO(blob), mode='r:*') as archive:
+        docker = archive.extractfile('environment/Dockerfile').read()
+        setup = archive.extractfile('tests/setup.sh').read()
+        test = archive.extractfile('tests/test.sh').read()
+    if hashlib.sha256(docker).hexdigest() != observed['dockerfile_sha256']:
+        raise ValueError('Interpreter evidence belongs to a different FineEnvs image recipe')
+    if setup != verifier_setup(lock):
+        raise ValueError('Unexpected FineEnvs verifier setup; preserve and review its initialization')
+    normalized = {re.sub(r'[-_.]+', '-', k).lower(): v for k, v in observed['distributions'].items()}
+    for name, version in lock['verifier_distributions'].items():
+        if normalized.get(re.sub(r'[-_.]+', '-', name).lower()) != version:
+            raise ValueError('Observed FineEnvs verifier dependency differs: ' + name)
+    spec = runtime_spec(python=observed['python'],
+        requirements=[f'{k}=={v}' for k, v in lock['verifier_distributions'].items()],
+        image_python={'image_sha256': observed['image_sha256'], 'executable': observed['executable']})
+    old = b'python3 /tests/grader.py'
+    if test.count(old) != 1:
+        raise ValueError('Unexpected FineEnvs grader invocation')
+    updates = runtime_reference(spec, catalog)
+    updates['tests/test.sh'] = test.replace(old,
+        b'"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I /tests/grader.py')
+    updates['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n'
+        + preparation_command(spec, phase='verifier') + '\n'
+        + python_install_or_prepared(spec['requirements'], phase='verifier') + '\n').encode()
+    # Stream unchanged input members rather than duplicating their bytes in a
+    # second in-memory dictionary. Preserve original member modes and metadata.
+    output = io.BytesIO()
+    with gzip.GzipFile(fileobj=output, mode='wb', filename='', mtime=0, compresslevel=1) as compressed:
+        with tarfile.open(fileobj=io.BytesIO(blob), mode='r:*') as original, \
+                tarfile.open(fileobj=compressed, mode='w') as patched:
+            for member in original:
+                info = copy.copy(member)
+                if member.name in updates:
+                    body = updates.pop(member.name)
+                    info.size = len(body)
+                    patched.addfile(info, io.BytesIO(body))
+                else:
+                    patched.addfile(info, original.extractfile(member) if member.isfile() else None)
+            for name, body in updates.items():
+                info = tarfile.TarInfo(name); info.mode = 0o644; info.size = len(body)
+                patched.addfile(info, io.BytesIO(body))
+    return output.getvalue(), spec
+
+
+def export_published_runtime(source, output, observed, catalog, *, revision, subset):
+    """Migrate this datasource's published rows without reapplying input repairs."""
+    import base64
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from harbor_patches.verifier_bundle import spec_id
+    from validation.contract import files_digest
+
+    if not re.fullmatch(r'[0-9a-f]{40}', revision or '') or subset not in (
+            'fineenvs_v1', 'fineenvs_v2', 'fineenvs_v3'):
+        raise ValueError('Published runtime migration requires an immutable revision and FineEnvs subset')
+    source, output = Path(source), Path(output)
+    destination = output / 'tasks.parquet'
+    if output.exists() and any(output.iterdir()):
+        raise ValueError('Use a new empty runtime migration output directory')
+    parquet = pq.ParquetFile(source)
+    metadata = dict(parquet.schema_arrow.metadata or {})
+    historical_metadata = {k.decode(): base64.b64encode(v).decode() for k, v in metadata.items()}
+    images = json.loads(metadata[b'ot.images.v1'])
+    for key in (b'ot.environment_reliable.v1', b'ot.full_release.v1', b'ot.release.v2', b'ot.release.v3'):
+        metadata.pop(key, None)
+    metadata[b'ot.runtime_migration.v1'] = json.dumps({
+        'source_revision': revision, 'source_subset': subset, 'validation': 'pending',
+        'effective_network': 'unverified', 'existing_scores': 'historical, before runtime migration',
+        'historical_evidence': 'historical-evidence.json',
+        'historical_schema_metadata': 'historical-schema-metadata.json',
+    }).encode()
+    output.mkdir(parents=True, exist_ok=True)
+    labels, reasons, specs, historical = {}, {}, {}, []
+    with pq.ParquetWriter(destination, parquet.schema_arrow.with_metadata(metadata)) as writer:
+        for batch in parquet.iter_batches(batch_size=1):
+            rows = batch.to_pylist()
+            for row in rows:
+                name = row['path']
+                if name in labels:
+                    raise ValueError('Duplicate published task: ' + name)
+                environments = images['tasks'][name]['environments']
+                if len(environments) != 1:
+                    raise ValueError('Expected one FineEnvs image per task')
+                bundle = images['bundles'][environments[0]['bundle']]
+                if bundle['files'][bundle['name']]['sha256'] != observed['image_sha256']:
+                    raise ValueError('Interpreter evidence does not match the task image: ' + name)
+                historical.append({k: v for k, v in row.items() if k != 'task_binary'})
+                row['task_binary'], spec = prepare_verifier_runtime(row['task_binary'], observed, catalog)
+                specs[spec_id(spec)] = spec
+                digest = files_digest(read_members(row['task_binary']).items())
+                row['content_sha256'] = digest
+                row['stages_passed'] = ''
+                images['tasks'][name]['content_sha256'] = digest
+                labels[name] = ['verifier-runtime-preparation']
+                reasons[name] = ('Replace version-only checks of shared grading packages with a fresh '
+                    'image-bound verifier runtime using the observed Python version and exact grading '
+                    'dependency pins. Preserve packaged inputs, task setup, grader code, reference and '
+                    'reward handling. Existing scores are historical; fresh validation remains required.')
+            writer.write_table(pa.Table.from_pylist(rows, schema=parquet.schema_arrow))
+            if len(labels) % 100 == 0:
+                print(f'Migrated {len(labels)} published FineEnvs tasks', flush=True)
+        metadata[b'ot.images.v1'] = json.dumps(images).encode()
+        writer.add_key_value_metadata({**metadata, b'ARROW:schema': base64.b64encode(
+            parquet.schema_arrow.with_metadata(metadata).serialize())})
+    (output / 'historical-evidence.json').write_text(json.dumps({
+        'revision': revision, 'subset': subset, 'status': 'historical, not migrated-task validation',
+        'tasks': historical}, indent=2) + '\n')
+    (output / 'historical-schema-metadata.json').write_text(json.dumps(historical_metadata, indent=2) + '\n')
+    (output / 'verifier-bundle-specs.json').write_text(json.dumps(list(specs.values()), indent=2) + '\n')
+    report = write_patch_report(source, destination, source={
+        'dataset': 'FWeindel/validated-tasks', 'revision': revision, 'subset': subset,
+        'url': f'https://huggingface.co/datasets/FWeindel/validated-tasks/tree/{revision}/{subset}'},
+        dropped={}, change_labels=labels, change_reasons=reasons, patcher=__file__)
+    return {'tasks': len(labels), 'runtime_count': len(specs), 'validation': 'pending',
+            'output': str(destination), 'manifest': report['manifest'] if 'manifest' in report else None}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument('--inputs-cache', type=Path, required=True,
+    parser.add_argument('--inputs-cache', type=Path,
                         help='complete checksum-verified snapshot produced by prepare_inputs.py')
+    parser.add_argument('--published-input', action='store_true',
+                        help='only add clean verifier preparation to already-published tasks')
+    parser.add_argument('--published-revision')
+    parser.add_argument('--published-subset', choices=('fineenvs_v1', 'fineenvs_v2', 'fineenvs_v3'))
+    parser.add_argument('--interpreter-evidence', type=Path)
+    parser.add_argument('--runtime-catalog', type=Path)
     parser.add_argument('--workers', type=int, default=4, help='bounded parallel task compression workers')
     parser.add_argument('--include-archived', action='store_true',
                         help='include any explicitly excluded tasks for revalidation')
     args = parser.parse_args()
+    if args.published_input:
+        if not args.interpreter_evidence or args.inputs_cache or args.include_archived:
+            parser.error('--published-input requires --interpreter-evidence and preserves the existing task membership and inputs')
+        result = export_published_runtime(args.source, args.output,
+            json.loads(args.interpreter_evidence.read_text()),
+            json.loads(args.runtime_catalog.read_text()) if args.runtime_catalog else None,
+            revision=args.published_revision, subset=args.published_subset)
+        print(json.dumps(result))
+        return
+    if not args.inputs_cache:
+        parser.error('--inputs-cache is required unless --published-input is selected')
+    if args.interpreter_evidence or args.runtime_catalog or args.published_revision or args.published_subset:
+        parser.error('Runtime migration options require --published-input')
     if not 1 <= args.workers <= 8:
         parser.error('--workers must be between 1 and 8')
     import pyarrow as pa

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from hpc.image_cache import publish, restore, prepare_images, use_image_certificate_store
+from hpc.offline_prep.image_cache import publish, restore, prepare_images, use_image_certificate_store
 
 
 def test_image_build_removes_host_ca_overrides_but_keeps_other_binds():
@@ -64,7 +64,8 @@ def test_corrupt_bundle_not_exposed_locally(tmp_path):
 
 def test_preparation_builds_once_and_next_run_stages_cache(tmp_path, monkeypatch):
     pytest.importorskip('harbor')
-    from hpc import image_cache, local_assets
+    from hpc.offline_prep import image_cache
+    from hpc import local_assets
     task = tmp_path / 'task'
     (task / "environment").mkdir(parents=True)
     (task / 'environment/Dockerfile').write_text('FROM test\n')
@@ -101,7 +102,7 @@ def test_preparation_builds_once_and_next_run_stages_cache(tmp_path, monkeypatch
 @pytest.mark.parametrize('directory_setting', [None, '0', '1'])
 def test_builder_initializes_apptainer(tmp_path, monkeypatch, directory_setting):
     pytest.importorskip('harbor')
-    from hpc import image_cache
+    from hpc.offline_prep import image_cache
     from harbor_patches import bridge_worker as patch
     from harbor_patches import image_build
     directory_adapters = []
@@ -153,7 +154,7 @@ def test_builder_initializes_apptainer(tmp_path, monkeypatch, directory_setting)
 
 @pytest.mark.parametrize('returncode', [0, 1])
 def test_image_runtime_gate_checks_readonly_overlay_and_rejects_failure(tmp_path, monkeypatch, returncode):
-    from hpc import image_cache
+    from hpc.offline_prep import image_cache
     image = tmp_path / 'image.sif'
     image.with_suffix('.deferred.json').write_text('{}')
     def run(command, **kwargs):
@@ -172,7 +173,7 @@ def test_image_runtime_gate_checks_readonly_overlay_and_rejects_failure(tmp_path
 
 def test_failed_slurm_build_keeps_separate_limits_and_is_not_published(tmp_path, monkeypatch):
     pytest.importorskip('harbor')
-    from hpc import image_cache
+    from hpc.offline_prep import image_cache
     task = tmp_path / 'task'
     (task / "environment").mkdir(parents=True)
     (task / 'environment/Dockerfile').write_text('FROM test\n')
@@ -221,7 +222,8 @@ def test_packed_sparse_bundle_roundtrip_and_concurrent_publish(tmp_path):
 
 @pytest.mark.parametrize('failed', [False, True])
 def test_prebuild_streams_each_image_and_releases_all_scratch(tmp_path, monkeypatch, failed):
-    from hpc import image_cache, local_assets
+    from hpc.offline_prep import image_cache
+    from hpc import local_assets
     from harbor.utils.container_cache import environment_dir_hash_truncated
     task = tmp_path / 'task'
     for name in ('environment', 'tests'):

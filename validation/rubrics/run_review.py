@@ -3,10 +3,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
-import sys
-import time
-import urllib.request
 from pathlib import Path
 import shutil
 import tomllib
@@ -105,78 +101,6 @@ def merge(original, additional, names):
     return {'checks':{**kept,**added}}, {k:'original' if k in kept else 'retry' for k in kept.keys()|added.keys()}
 
 
-def run_local(model, config, prompt):
-    server = config['mcpServers']['image']
-    output = (Path(server['args'][server['args'].index('--log') + 1]).parent
-              if '--log' in server['args'] else Path.cwd())
-    process = subprocess.Popen([server['command'], *server['args']], stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE, text=True,
-                               env={**os.environ, **server.get('env', {})})
-    request_id = 0
-    usage = {'input_tokens': 0, 'output_tokens': 0}
-    started = time.monotonic()
-    def rpc(method, params):
-        nonlocal request_id
-        request_id += 1
-        process.stdin.write(json.dumps({'jsonrpc': '2.0', 'id': request_id,
-                                       'method': method, 'params': params}) + '\n')
-        process.stdin.flush()
-        response = json.loads(process.stdout.readline())
-        if response.get('id') != request_id or 'error' in response:
-            raise RuntimeError(str(response))
-        return response['result']
-    messages = [{'role': 'user', 'content': prompt}]
-    # No provider credentials or external API fallback. Bypass HTTP proxies for localhost.
-    endpoint = os.environ['LOCAL_JUDGE_URL'].rstrip('/')
-    http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    try:
-        rpc('initialize', {'protocolVersion': '2024-11-05', 'capabilities': {},
-                           'clientInfo': {'name': 'local-rubric-judge', 'version': '1'}})
-        definitions = rpc('tools/list', {})['tools']
-        tools = [{'type': 'function', 'function': {'name': t['name'],
-                  'description': t['description'], 'parameters': t['inputSchema']}} for t in definitions]
-        for turn in range(42):
-            payload = {'model': model, 'messages': messages, 'tools': tools,
-                       'temperature': 1.0, 'top_p': 0.95, 'max_tokens': 16384,
-                       'seed': int(os.environ.get('LOCAL_JUDGE_SEED', '42')),
-                       'chat_template_kwargs': {'reasoning_effort': 'max', 'clear_thinking': False}}
-            request = urllib.request.Request(endpoint + '/chat/completions',
-                        data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json'})
-            with http.open(request, timeout=max(1, 1750 - (time.monotonic() - started))) as response:
-                answer = json.load(response)
-            with (output / 'local-events.jsonl').open('a') as stream:
-                stream.write(json.dumps(answer) + '\n')
-            usage['input_tokens'] += answer.get('usage', {}).get('prompt_tokens', 0)
-            usage['output_tokens'] += answer.get('usage', {}).get('completion_tokens', 0)
-            choice = answer['choices'][0]
-            if choice['finish_reason'] == 'length':
-                raise ValueError('Model response exceeded the recorded output budget')
-            message = choice['message']
-            messages.append({k: v for k, v in message.items() if k in
-                             ('role', 'content', 'reasoning_content', 'reasoning', 'tool_calls') and v is not None})
-            calls = message.get('tool_calls') or []
-            if not calls:
-                return {'is_error': False, 'result': message.get('content') or '',
-                        'modelUsage': {model: usage}, 'total_cost_usd': None,
-                        'elapsed_seconds': time.monotonic() - started,
-                        'cost_basis': 'Local inference; no API charge. GPU compute cost not priced.'}
-            for call in calls:
-                function = call['function']
-                if function['name'] != 'inspect':
-                    raise ValueError('Unexpected tool: ' + function['name'])
-                result = rpc('tools/call', {'name': 'inspect', 'arguments': json.loads(function['arguments'])})
-                messages.append({'role': 'tool', 'tool_call_id': call['id'],
-                                 'content': json.dumps(result)})
-        raise ValueError('Review turn limit reached')
-    finally:
-        process.stdin.close()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.terminate()
-            process.wait(timeout=5)
-
-
 def codex_envelope(output, model):
     events = [json.loads(line) for line in output.splitlines() if line.strip()]
     usage = {}
@@ -202,9 +126,6 @@ def codex_envelope(output, model):
 
 
 def judge_command(provider, model, reasoning_effort, mcp, max_budget_usd):
-    if provider == 'local':
-        return [sys.executable, str(Path(__file__).resolve()),
-                '--local', '--model', model, '--mcp-config', json.dumps(mcp)]
     if provider == 'claude':
         return ['claude', '--print', '--no-session-persistence', '--model', model,
                 '--output-format', 'json', '--tools', '',
@@ -365,8 +286,8 @@ async def review_files(staged, source, out, args, agent, model):
     import copy
     from uuid import uuid4
     from validation.stages import harbor as runtime
-    from validation.reporting.review_usage import collect, summarize_rows
-    from validation.reporting.review_pricing import for_stage
+    from validation.publishing.review_usage import collect, summarize_rows
+    from validation.publishing.review_pricing import for_stage
     runtime.check_runtime_task(staged, args.backend)
     if args.dry_run:
         return {'status': 'previewed', 'evidence_mode': 'files'}
@@ -433,18 +354,7 @@ async def review_files(staged, source, out, args, agent, model):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument('--validate', nargs=2, metavar=('VERDICT_JSON', 'RUBRIC_TOML'))
-    mode.add_argument('--local', action='store_true')
-    parser.add_argument('--model')
-    parser.add_argument('--mcp-config')
+    parser.add_argument('--validate', nargs=2, metavar=('VERDICT_JSON', 'RUBRIC_TOML'), required=True)
     args = parser.parse_args()
-    if args.local:
-        try:
-            result = run_local(args.model, json.loads(args.mcp_config), sys.stdin.read())
-        except Exception as exc:
-            result = {'is_error': True, 'result': str(exc), 'total_cost_usd': None}
-        print(json.dumps(result))
-    else:
-        verdict_path, rubric_path = args.validate
-        read_output(verdict_path, tomllib.loads(Path(rubric_path).read_text()))
+    verdict_path, rubric_path = args.validate
+    read_output(verdict_path, tomllib.loads(Path(rubric_path).read_text()))

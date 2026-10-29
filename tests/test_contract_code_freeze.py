@@ -5,7 +5,7 @@ from hpc import validation_submit
 def test_implementation_covers_only_what_a_job_runs():
     files = contract.implementation(stages=[1, 2, 3, 4])
     assert 'harbor_patches/bridge_worker.py' in files and 'validation/contract.py' in files
-    assert not any(name.startswith('validation/patch_repair_loop/') for name in files)
+    assert not any(name.startswith('data/patch_repair_loop/') for name in files)
     assert not any({'results', 'runs'} & set(name.split('/')) for name in files)
     # rubric data and the model list belong to the review and model stages
     assert not any(name.startswith('validation/rubrics/') and not name.endswith('.py') for name in files)

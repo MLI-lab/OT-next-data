@@ -13,7 +13,7 @@ import shutil
 import tomllib
 
 REVIEW_FILES = 'review_files'
-TIMEOUT_SEC = 3600.0
+TIMEOUT_SEC = 1800.0  # every judge session: 30 minutes
 NOTE = ('\n\nReview environment: you are working inside the task\'s own agent environment, after its '
         'declared setup, as the user a solver would have. The review files are copies placed for you '
         'only; a solver does not see them. A separate verifier environment, if the task has one, is '

@@ -1,6 +1,7 @@
 """Repair Terminal-Lego build inputs and share images.
 
-Repairs absent empty build directories and archived bullseye security sources. Tasks that
+Repairs absent empty build directories, archived bullseye security sources and tmux installs
+that fail without root. Tasks that
 only install unpinned apt/pip packages before their task-specific steps share one superset
 image per base, ENV/ARG lines and WORKDIR, and replay those steps from setup_files/setup.sh
 (see shared_plan); all other tasks share images only when their contexts are identical.
@@ -126,7 +127,7 @@ def repair_empty_copy(entries):
 # index but every package file returns 404 (checked 2026-10-18; failed task_09628 and
 # task_12604 in the generation-7 pilot). The main and updates suites are unaffected.
 BULLSEYE_BASES = {b"mcr.microsoft.com/dotnet/sdk:6.0", b"debian:bullseye-slim",
-                  b"debian:11-slim", b"ruby:2.7-slim-bullseye"}
+                  b"debian:11-slim", b"ruby:2.7-slim-bullseye", b"php:7.4-cli"}
 BULLSEYE_SECURITY = (
     b"RUN if grep -qs '^VERSION_CODENAME=bullseye$' /etc/os-release; then "
     b"for f in $(grep -rlE 'https?://(deb|security)\\.debian\\.org/debian-security' "
@@ -165,6 +166,50 @@ def repair_bullseye_security(entries):
     return repaired, True
 
 
+# Installing tmux without root leaves dpkg broken on these images: libutempter0 hands its
+# utempter helper to the utmp group, which a single-UID build namespace cannot chown, so
+# tmux and libevent stay unconfigured and the image check refuses the image. Image IDs
+# from the failed rebuild; evidence: terminallego-rootless-retry-20261021/
+# image-representatives-prebuild-run/failed-1093393 and shards of arrays 1095742 and 1096445.
+TMUX_TASKS = frozenset({"task_02428", "task_03811", "task_05663", "task_05702", "task_05905",
+                        "task_07235", "task_07514", "task_07534", "task_07610", "task_08374",
+                        "task_08537", "task_10443", "task_10638", "task_10692", "task_13066",
+                        "task_13145"})
+TMUX_INSTALL = (
+    b"RUN (dpkg-statoverride --list /usr/lib/x86_64-linux-gnu/utempter/utempter >/dev/null "
+    b"|| dpkg-statoverride --add root root 2755 /usr/lib/x86_64-linux-gnu/utempter/utempter) "
+    b"&& apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tmux "
+    b"&& rm -rf /var/lib/apt/lists/*\n")
+
+
+def with_tmux(content):
+    """Install tmux right after FROM (and the bullseye source fix), while the build is still root."""
+    lines = content.splitlines(keepends=True)
+    froms = [i for i, line in enumerate(lines) if line.split()[:1] == [b"FROM"]]
+    if len(froms) != 1:
+        raise ValueError("tmux repair needs exactly one FROM")
+    i = froms[0] + 1
+    if lines[i:i + 1] == [BULLSEYE_SECURITY]:
+        i += 1
+    return b"".join(lines[:i] + [TMUX_INSTALL] + lines[i:])
+
+
+def repair_tmux(entries):
+    repaired = []
+    for info, content in entries:
+        if PurePosixPath(info.name).as_posix() == DOCKERFILE:
+            info = copy.deepcopy(info)
+            content = with_tmux(content)
+            info.size = len(content)
+            info.pax_headers.pop("size", None)
+        repaired.append((info, content))
+    return repaired
+
+
+MINICONDA_BEFORE_CHANNEL_GUIDE = (b"FROM continuumio/miniconda3@sha256:"
+                                  b"a297bed7a4be5d57720fc7b99d700131048ced4205a8e590d514d8d5d000bd6b")  # 26.3.2-2
+
+
 def repair_build_dependencies(entries):
     """Evidence-backed build repairs; retain all task, solution and verifier files."""
     original = dockerfile(entries)
@@ -179,10 +224,55 @@ def repair_build_dependencies(entries):
             b"rm -f /usr/local/bin/pip3 && cp /usr/local/bin/pip /usr/local/bin/pip3",
             "Remove the existing pip3 alias before copying the intentionally broken pip entry point; both commands retain the task's broken state."))
     if b"FROM continuumio/miniconda3:latest\n" in content:
+        # Do not downgrade the moving base environment: its channel-guide
+        # package now requires Python 3.14. Keep this task's Python 3.11 and
+        # requested pip/conda package mix in a separate default environment.
+        old_environment = (b"RUN conda install -y python=3.11 pip && \\\n"
+                           b"    conda install -y numpy pandas requests && \\\n"
+                           b"    pip install flask pytest beautifulsoup4 && \\\n"
+                           b"    conda clean -a -y")
+        new_environment = (b"RUN conda create --override-channels -c conda-forge -y -p /opt/terminallego-env python=3.11 pip numpy pandas requests && \\\n"
+                           b"    conda run -p /opt/terminallego-env pip install flask pytest beautifulsoup4 && \\\n"
+                           b"    conda clean -a -y\n"
+                           b"ENV PATH=\"/opt/terminallego-env/bin:${PATH}\"\n"
+                           b"ENV CONDA_PREFIX=/opt/terminallego-env\n"
+                           b"ENV CONDA_DEFAULT_ENV=/opt/terminallego-env")
+        replacements.append((old_environment, new_environment,
+            "Keep Python 3.11 and the requested conda/pip packages in a separate default environment; the moving Miniconda base now contains a Python-3.14-only package that prevents downgrading its base environment."))
+        if b"conda install -y python=3.11 numpy pandas requests flask" in content:
+            # task_05484 installs python=3.11 into the base environment. Since 26.5.3 the
+            # base environment contains anaconda-channel-guide, which requires Python 3.14,
+            # so that install is unsatisfiable (checked 2026-10-22 on 26.5.3-1 and 26.7.1,
+            # LibMambaUnsatisfiableError). 26.3.2-2 is the last tag without it (Python 3.13);
+            # the same install solves there.
+            replacements.append((b"FROM continuumio/miniconda3:latest\n", MINICONDA_BEFORE_CHANNEL_GUIDE + b"\n",
+                "Pin the moving Miniconda base to 26.3.2-2 (by digest), the last release whose base environment does not contain the Python-3.14-only anaconda-channel-guide package, so the requested Python 3.11 install into the base environment remains satisfiable; all commands are unchanged."))
         replacements.append((b"conda install -y ", b"conda install --override-channels -c conda-forge -y ",
             "Install the same requested conda dependencies from conda-forge; the default Anaconda channels now require interactive terms acceptance."))
+    if b"RUN gem install capistrano --no-document\n" in content:
+        # net-ssh 8.0.0 (2026-10-21) requires the openssl gem >= 3.2, which compiles a native
+        # extension; Ubuntu 22.04's Ruby 3.0 ships an older one and the image has no libssl-dev,
+        # so the unpinned install fails (image 255fe5695a6c, task_02473, array 1100675).
+        replacements.append((b"RUN gem install capistrano --no-document\n",
+            b"RUN gem install net-ssh -v '< 8' --no-document && gem install capistrano --conservative --no-document\n",
+            "Install capistrano with net-ssh 7.x, the newest series before net-ssh 8.0.0 (2026-10-21) began requiring a natively compiled openssl gem that the image cannot build; capistrano itself stays unpinned."))
+    # The driver URL appended ".0" to Chrome's first three version components, a version that
+    # Chrome for Testing never publishes (156.0.8078.0 returns 404, 156.0.8078.47 exists), so
+    # wget failed with exit status 8 (image 6ba5a5fd1aae, task_14891, array 1100675).
+    replacements.append((b"CHROME_VERSION=$(google-chrome --version | grep -oP '\\d+\\.\\d+\\.\\d+') \\\n"
+                         b"    && DRIVER_URL=\"https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}.0/linux64/",
+                         b"CHROME_VERSION=$(google-chrome --version | grep -oP '\\d+\\.\\d+\\.\\d+\\.\\d+') \\\n"
+                         b"    && DRIVER_URL=\"https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/",
+        "Download the ChromeDriver for the installed Chrome's full four-part version; the original URL replaced the build's patch number with .0, which Chrome for Testing does not publish."))
     replacements.append((b"https://repo1.maven.org/maven2/", b"https://repo.maven.apache.org/maven2/",
         "Fetch the same Maven artifact coordinates from the canonical Maven Central host after repo1 returned HTTP 429."))
+    replacements.append((b"https://downloads.lightbend.com/scala/2.11.8/scala-2.11.8.tgz",
+        b"https://github.com/scala/scala/releases/download/v2.11.8/scala-2.11.8.tgz",
+        "Fetch Scala 2.11.8 from the official Scala GitHub release after the Lightbend download host returned HTTP 403; retain the requested version."))
+    if b"libghc-hslogger-dev" in content and b"repository hackage-current" not in content:
+        replacements.append((b'    && cabal update \\\n',
+            b"    && mkdir -p /root/.cabal && printf 'repository hackage-current\\n  url: https://hackage.haskell.org/\\n  secure: True\\n  root-keys: fe331502606802feac15e514d9b9ea83fee8b6ffef71335479a2e68d84adc6b0,1ea9ba32c526d1cc91ab5e5bd364ec5e9e8cb67179a471872f6e26f0ae773d42,0a5c7ea47cd1b15f01f5f51a33adda7e655bc0f0b0615baa8e271f4c3351e21d,51f0161b906011b52c6613376b1ae937670da69322113a246a09f807c62f6921,c7de58fc6a224b92b5b513f26fbb8b370f2d97c7cfe0075a951314a55734be93,d26e46f3b631aae1433b89379a6c68bd417eb5d1c408f0643dcc07757fece522\\n  key-threshold: 3\\n' > /root/.cabal/config \\\n    && cabal update \\\n",
+            "Configure Cabal with the current Hackage root signing keys (haskell-infra/hackage-root-keys 68ed020253c23517e3b10b54876d8aba93d4c15c), HTTPS and the original three-signature threshold; keep GHC, Cabal and package versions unchanged."))
     for old, new, reason in replacements:
         if old in content:
             content = content.replace(old, new)
@@ -198,6 +288,42 @@ def repair_build_dependencies(entries):
             info.pax_headers.pop("size", None)
         repaired.append((info, payload))
     return repaired, reasons
+
+
+def repair_redundant_pip_docker_compose(entries):
+    """Keep apt's docker-compose when a shared image also unions that pip package.
+
+    Ubuntu already supplies the requested CLI through apt. The redundant PyPI
+    package pins PyYAML 5.4.1, whose source build fails on Python 3.10 with the
+    current isolated build tooling. Remove only that duplicate pip token.
+    """
+    original = dockerfile(entries)
+    lines = original.splitlines(keepends=True)
+    has_apt_compose = any(
+        re.search(rb"(?i)^\s*RUN\s+.*\b(?:apt-get|apt)\s+install\b.*(?<![\w.-])docker-compose(?![\w.-])", line)
+        for line in lines)
+    if not has_apt_compose:
+        return entries, False
+    changed = False
+    repaired = []
+    for info, content in entries:
+        name = PurePosixPath(info.name).as_posix()
+        if name == DOCKERFILE:
+            result = []
+            for line in content.splitlines(keepends=True):
+                if re.match(rb"(?i)^\s*RUN\s+pip3?\s+install\b", line):
+                    updated = re.sub(rb"(?<![\w.-])docker-compose(?![\w.-])", b"", line)
+                    updated = re.sub(rb" {2,}", b" ", updated)
+                    changed |= updated != line
+                    line = updated
+                result.append(line)
+            content = b"".join(result)
+            if changed:
+                info = copy.deepcopy(info)
+                info.size = len(content)
+                info.pax_headers.pop("size", None)
+        repaired.append((info, content))
+    return repaired, changed
 
 
 def pack(entries):
@@ -277,6 +403,8 @@ def cache_key(entries, scratch):
 # setup_files/setup.sh when the container starts. Everything else keeps its own image.
 
 from data.tmax.patch import install_line  # noqa: E402  (canonical apt/pip install lines)
+from data.utils.verifier_runtime import (  # noqa: E402
+    cran_offline_or_online, http_replay_or_online, offline_recipe, offline_request)
 
 EMPTY_APT_INSTALL = re.compile(r"(?:DEBIAN_FRONTEND=noninteractive\s+)?apt(?:-get)?\s+install(?:\s+-\S+)*\s*(?=&&|;|$)")
 SETUP_ROOT = "setup_files/context"
@@ -296,6 +424,63 @@ HEAVY_STEP = re.compile(_AT + r"(?:\S*/)?(?:"
     r"gem\s+install\b|bundle\s+install\b|composer\s+(?:install|require|update)\b|"
     r"dotnet\s+(?:restore|new|add|tool|build|publish)\b|cargo\s|rustup\s|go\s+(?:mod|get|build|install)\b|"
     r"mvn\s|gradle\s|make\b|cmake\s|docker-php-ext-\S+|pecl\s|cpanm?\s|luarocks\s|swift\s+build\b)")
+
+
+# Replayed steps that still download at container start (setup-call audit of
+# 2026-10-28: R install.packages, SDKMAN, cabal update). They keep their exact text
+# and position; setup only selects prepared download inputs when staged
+# (setup_files/ot-task-offline.json), otherwise the original online command runs.
+CRAN_INSTALL = re.compile(
+    r"install\.packages\(\s*(?:c\((?P<list>[^()]*)\)|(?P<one>['\"][A-Za-z0-9.]+['\"]))\s*,\s*"
+    r"repos\s*=\s*(?P<q>['\"])(?P<repos>https://[^'\"]+)(?P=q)\s*"
+    r"(?:,\s*type\s*=\s*['\"](?P<type>source)['\"]\s*)?\)")
+R_REMOTE = re.compile(r"install\.packages|remotes::|devtools::|BiocManager|install_github|download\.file")
+HTTP_DOWNLOAD = re.compile(r"\bcurl\b[^|;&]*https?://|\bsdk\s+install\b|\bcabal\s+(?:v[12]-)?update\b")
+OTHER_DOWNLOAD = re.compile(r"\bwget\b|\bgit\s+clone\s+\S*://|\bpip3?\s+install\b|\bnpm\s+(?:install|i|ci)\b")
+
+
+# Ubuntu 22.04's cabal-install 3.0 ships Hackage root keys that no longer meet the
+# signature threshold: `cabal update` fails online with "<repo>/root.json does not have
+# enough signatures" (task_12598 image d6291ecc14ab, preparation job 1164455 and a
+# direct online run on 2026-10-28). Same repair as the hslogger image build above.
+HACKAGE_ROOT_CONFIG = (
+    "mkdir -p /root/.cabal && printf 'repository hackage-current\\n  url: https://hackage.haskell.org/\\n"
+    "  secure: True\\n  root-keys: fe331502606802feac15e514d9b9ea83fee8b6ffef71335479a2e68d84adc6b0,"
+    "1ea9ba32c526d1cc91ab5e5bd364ec5e9e8cb67179a471872f6e26f0ae773d42,"
+    "0a5c7ea47cd1b15f01f5f51a33adda7e655bc0f0b0615baa8e271f4c3351e21d,"
+    "51f0161b906011b52c6613376b1ae937670da69322113a246a09f807c62f6921,"
+    "c7de58fc6a224b92b5b513f26fbb8b370f2d97c7cfe0075a951314a55734be93,"
+    "d26e46f3b631aae1433b89379a6c68bd417eb5d1c408f0643dcc07757fece522\\n  key-threshold: 3\\n' "
+    "> /root/.cabal/config")
+SETUP_REPAIRS = {
+    "cabal update": (HACKAGE_ROOT_CONFIG + " && cabal update",
+                     "Configure Cabal with the current Hackage root signing keys (haskell-infra/hackage-root-keys "
+                     "68ed020253c23517e3b10b54876d8aba93d4c15c), HTTPS and the original three-signature threshold "
+                     "before the setup step's cabal update, which otherwise fails online because the image's "
+                     "cabal-install 3.0 trusts retired root keys; GHC, Cabal and package versions are unchanged."),
+}
+
+
+def startup_download(command):
+    """('cran', request) or ('http', None) for supported literal startup downloads, else None.
+
+    Unrecognized variants of these download families raise, so a new form is
+    reviewed instead of silently left to need the network.
+    """
+    if R_REMOTE.search(command):
+        matches = list(CRAN_INSTALL.finditer(command))
+        if len(matches) != len(R_REMOTE.findall(command)) or len({m["repos"] for m in matches}) != 1:
+            raise ValueError(f"unsupported R download command: {command}")
+        packages = set()
+        for m in matches:
+            packages |= set(re.findall(r"['\"]([A-Za-z0-9.]+)['\"]", m["list"] or m["one"]))
+        types = {m["type"] or "source" for m in matches}
+        return "cran", {"packages": sorted(packages), "repos": matches[0]["repos"], "type": types.pop()}
+    if HTTP_DOWNLOAD.search(command):
+        if OTHER_DOWNLOAD.search(command):
+            raise ValueError(f"unsupported mixed download command: {command}")
+        return "http", None
+    return None
 
 
 HEREDOC = re.compile(r"(?<!<)<<(-?)\s*(?:'([^']+)'|\"([^\"]+)\"|\\?([A-Za-z_][A-Za-z0-9_]*))")
@@ -417,7 +602,15 @@ def shared_plan(entries):
     lines = instructions(executable_dockerfile(dockerfile(entries)).decode())
     if lines is None:
         return None
+    # Hoisting a task's later proxy ENV before its prerequisite installation
+    # changes Docker semantics. Preserve the original Dockerfile and its
+    # intentional runtime proxy instead of combining it into a shared image.
+    if any(re.match(r"(?i)^ENV\s+.*\b(?:https?|all|no)_proxy(?:=|\s)", line)
+           for line in lines):
+        return None
     base, before, after, image_steps, steps = None, [], [], [], []
+    cran = http = None
+    repairs = []
     apt, pip, flags = set(), set(), set()
     workdir, task_started, args = "/", False, []
     for line in lines:
@@ -454,7 +647,24 @@ def shared_plan(entries):
                     return None
                 task_started = True
                 steps.append(f"mkdir -p {shlex.quote(workdir)} && cd {shlex.quote(workdir)}")
-                steps.append(f"/bin/sh -c {shlex.quote(rest)}")
+                if rest in SETUP_REPAIRS:
+                    rest, reason = SETUP_REPAIRS[rest]
+                    repairs.append(reason)
+                download = startup_download(rest)
+                if download is None:
+                    steps.append(f"/bin/sh -c {shlex.quote(rest)}")
+                elif download[0] == "cran":
+                    if cran is not None and cran["repos"] != download[1]["repos"]:
+                        raise ValueError("several CRAN repositories in one task")
+                    cran = download[1] if cran is None else {
+                        **cran, "packages": sorted(set(cran["packages"]) | set(download[1]["packages"]))}
+                    steps.append(cran_offline_or_online(rest, download[1]["repos"]))
+                else:
+                    if http and http["workdir"] != workdir:
+                        raise ValueError("recorded downloads from several working directories")
+                    http = http or {"commands": [], "home": "/root", "workdir": workdir}
+                    http["commands"].append(rest)
+                    steps.append(http_replay_or_online(rest))
             elif task_started:
                 return None
             else:
@@ -470,8 +680,9 @@ def shared_plan(entries):
                  "mysql-client", "mysql-server"}
     compatibility = tuple(sorted(apt)) if apt & sensitive else ()
     key = (base, tuple(before), tuple(image_steps), tuple(after), workdir, compatibility)
+    offline = offline_request(cran=cran, http=http) if cran or http else None
     return {"key": key, "apt": apt, "pip": pip, "pip_flags": flags, "steps": steps,
-            "args": args, "workdir": workdir}
+            "args": args, "workdir": workdir, "offline": offline, "setup_repairs": repairs}
 
 
 def superset_dockerfile(key, apt, pip, flags):
@@ -481,6 +692,14 @@ def superset_dockerfile(key, apt, pip, flags):
     if apt:
         lines.append("RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "
                      + " ".join(sorted(apt)) + " && rm -rf /var/lib/apt/lists/*\n")
+    # The Terminal-Lego superset installs docker-compose from Ubuntu and also
+    # unions pip requirements. Reinstalling the same legacy CLI from PyPI pulls
+    # PyYAML 5.4.1, which has no Python 3.10 wheel and fails its isolated build
+    # with current Cython/setuptools. Ubuntu's package already provides the
+    # requested docker-compose command, so keep that implementation and avoid
+    # the redundant incompatible pip build.
+    if "docker-compose" in apt:
+        pip.discard("docker-compose")
     if pip:
         # pip cannot uninstall Debian-installed Python packages it would upgrade (seen in TMax).
         extra = {"--ignore-installed"} if any(p.startswith("python3-") for p in apt) else set()
@@ -496,8 +715,12 @@ def setup_script(plan):
         if eq:
             exports.append(f"export {name}={value}")
     body = "\n".join([*exports, *(f"{step}" for step in plan["steps"])])
+    # The recipe lets a missing or corrupt download artifact fall back to the
+    # original online commands; it is not executed.
+    recipe = offline_recipe(plan["offline"]) + "\n" if plan.get("offline") else ""
     return ("#!/bin/bash\n"
             "# Replays the task-specific Dockerfile steps in their original order at container start.\n"
+            + recipe +
             "marker=/var/lib/terminal-lego-setup.done\n"
             '[ -e "$marker" ] && exit 0\n'
             "set -e\n"
@@ -550,7 +773,27 @@ def rows(source):
         yield from batch.to_pylist()
 
 
-def patch(source, output):
+def bind_task_offline(entries, request, record):
+    """Add setup_files/ot-task-offline.json for a ready build of this task's download request."""
+    from data.utils.verifier_runtime import task_offline_reference
+    (name, data), = task_offline_reference(request, record).items()
+    assert name not in {PurePosixPath(info.name).as_posix() for info, _ in entries}
+    info = tarfile.TarInfo(name)
+    info.size, info.mode = len(data), 0o644
+    return [*entries, (info, data)]
+
+
+def patch(source, output, *, archive_decisions=None, prepare_verifier=False, verifier_bundle_catalog=None,
+          verifier_offline_catalog=None, task_offline_catalog=None, isolate_verifier_pytest=False):
+    """task_offline_catalog: hpc/offline_prep/verifier_offline.py catalog (task -> build) for the
+    setup download requests written to task-offline-requests.json by a first pass.
+    isolate_verifier_pytest: outer pytest ignores agent-planted conftest/configuration."""
+    bundle_specs, offline_requests, verifier_report = {}, {}, {}
+    task_offline_requests, task_offline_status = {}, {}
+    dropped = dict(archive_decisions or {})
+    for task_id, decision in dropped.items():
+        if not decision.get("category") or not decision.get("reason"):
+            raise ValueError(f"Archive decision needs category and reason: {task_id}")
     source, output = Path(source), Path(output)
     if source.is_dir():
         sources = sorted(source.glob("*.parquet"))
@@ -562,47 +805,63 @@ def patch(source, output):
     if destination.resolve() == source.resolve() or destination.exists():
         raise ValueError("use a new output directory distinct from upstream")
     groups, seen, before_contexts, supersets = {}, set(), set(), {}
+    tmux_supersets, tmux_groups = set(), set()
     for row in rows(source):
         task_id = row["path"]
         if task_id in seen:
             raise ValueError(f"duplicate task ID: {task_id}")
         seen.add(task_id)
+        if task_id in dropped:
+            continue
         entries = members(row["task_binary"])
         before_contexts.add(context_signature(entries))
         entries, _ = repair_empty_copy(entries)
         entries, _ = repair_bullseye_security(entries)
         entries, _ = repair_build_dependencies(entries)
+        entries, _ = repair_redundant_pip_docker_compose(entries)
         plan = shared_plan(entries)
         if plan is not None:
             superset = supersets.setdefault(plan["key"], {"ids": [], "apt": set(), "pip": set(), "flags": set()})
             superset["ids"].append(task_id)
             superset["apt"] |= plan["apt"]; superset["pip"] |= plan["pip"]; superset["flags"] |= plan["pip_flags"]
         signature = context_signature(entries, normalize=True)
+        if task_id in TMUX_TASKS:
+            # Repair the whole image, so every task sharing it keeps sharing it.
+            (tmux_supersets.add(plan["key"]) if plan is not None else tmux_groups.add(signature))
         group = groups.setdefault(signature, {"ids": [], "representative": task_id,
                                               "dockerfile": dockerfile(entries)})
         group["ids"].append(task_id)
         if task_id < group["representative"]:
             group.update(representative=task_id, dockerfile=dockerfile(entries))
 
+    if set(dropped) - seen:
+        raise ValueError("Archive decisions contain unknown task IDs")
+
     for key, superset in supersets.items():
         superset["dockerfile"] = superset_dockerfile(key, superset["apt"], superset["pip"], superset["flags"])
+        if key in tmux_supersets:
+            superset["dockerfile"] = with_tmux(superset["dockerfile"])
     labels, reasons, after_contexts = {}, {}, set()
-    empty_repairs = bullseye_repairs = shared_tasks = 0
+    empty_repairs = bullseye_repairs = redundant_compose_repairs = shared_tasks = tmux_repairs = 0
     temporary = destination.with_suffix(".parquet.tmp")
     schema = pq.ParquetFile(source).schema_arrow
     try:
         with pq.ParquetWriter(temporary, schema, compression="zstd") as writer:
             batch = []
             for row in rows(source):
+                if row["path"] in dropped:
+                    continue
                 original_entries = members(row["task_binary"])
                 entries, empty_repaired = repair_empty_copy(original_entries)
                 entries, bullseye_repaired = repair_bullseye_security(entries)
                 entries, build_repairs = repair_build_dependencies(entries)
-                if empty_repaired or bullseye_repaired or build_repairs:
+                entries, redundant_compose_repaired = repair_redundant_pip_docker_compose(entries)
+                if empty_repaired or bullseye_repaired or build_repairs or redundant_compose_repaired:
                     row["task_binary"] = pack(entries)
                     assert_preserved(entries, members(row["task_binary"]))
                 empty_repairs += empty_repaired
                 bullseye_repairs += bullseye_repaired
+                redundant_compose_repairs += redundant_compose_repaired
                 plan = shared_plan(entries)
                 if plan is not None:
                     superset = supersets[plan["key"]]
@@ -611,6 +870,17 @@ def patch(source, output):
                     assert_moved(entries, members(row["task_binary"]))
                     shared_tasks += 1
                     labels.setdefault(row["path"], []).extend(["superset-image", "task-setup-at-runtime"])
+                    if plan["setup_repairs"]:
+                        labels[row["path"]].append("build-dependency-repair")
+                    if plan["offline"] is not None:
+                        task_offline_requests[row["path"]] = plan["offline"]
+                        built = (task_offline_catalog or {}).get(row["path"])
+                        if built is not None and built.get("status") == "ready":
+                            row["task_binary"] = pack(bind_task_offline(members(row["task_binary"]), plan["offline"], built))
+                            task_offline_status[row["path"]] = "prepared"
+                        else:
+                            task_offline_status[row["path"]] = "requested" if built is None else "failed"
+                        labels[row["path"]].append("prepared-setup-downloads")
                     reasons[row["path"]] = (
                         f"Package installation is replaced by a superset image shared by {len(superset['ids'])} "
                         f"tasks with base {plan['key'][0]}, the same ENV/ARG lines and WORKDIR {plan['workdir']}, with conflicting systemctl, "
@@ -619,7 +889,13 @@ def patch(source, output):
                         "task's image also contains packages it did not ask for. The task-specific Dockerfile "
                         "steps (copying environment files, which move to setup_files/context, and all other "
                         "RUN/WORKDIR steps) run unchanged and in order from setup_files/setup.sh at container "
-                        "start. Instructions, tests and solution are unchanged.")
+                        "start. Instructions, tests and solution are unchanged."
+                        + (" Setup steps that download at container start (R install.packages, SDKMAN or "
+                           "cabal update) keep their text and order; when a checksummed download set "
+                           "prepared for this image is staged, the R repository URL points to its local "
+                           "CRAN copy or curl serves the recorded responses, otherwise the original "
+                           "online command runs." if plan["offline"] is not None else "")
+                        + "".join(" " + r for r in plan["setup_repairs"]))
                     entries = members(row["task_binary"])
                 signature = context_signature(entries, normalize=True)
                 group = groups.get(signature) if plan is None else None
@@ -666,6 +942,51 @@ def patch(source, output):
                 if build_repairs:
                     labels.setdefault(row["path"], []).append("build-dependency-repair")
                     reasons[row["path"]] = " ".join(build_repairs) + " " + reasons.get(row["path"], "")
+                if redundant_compose_repaired:
+                    labels.setdefault(row["path"], []).append("duplicate-apt-pip-docker-compose")
+                    reasons[row["path"]] = (
+                        "Keep Ubuntu's already-installed docker-compose CLI and remove only the redundant "
+                        "PyPI docker-compose install, which forces an incompatible PyYAML 5.4.1 source build. "
+                        + reasons.get(row["path"], "")).strip()
+                if (plan["key"] in tmux_supersets) if plan is not None else (signature in tmux_groups):
+                    if plan is None:
+                        entries = repair_tmux(entries)
+                        row["task_binary"] = pack(entries)
+                    tmux_repairs += 1
+                    labels.setdefault(row["path"], []).append("tmux-install-override")
+                    reasons[row["path"]] = (
+                        "Install tmux right after FROM with a dpkg ownership override for the utempter "
+                        "helper (root instead of the utmp group). Without root, libutempter0 cannot set "
+                        "that group, so the agent's tmux stayed half-installed and the image was refused; "
+                        f"same failure for {', '.join(sorted(TMUX_TASKS))}. "
+                        + reasons.get(row["path"], "")).strip()
+                if prepare_verifier:
+                    from data.terminallego.verifier_runtime import patch_entries
+                    from harbor_patches.verifier_bundle import spec_id
+                    built = None if verifier_offline_catalog is None else verifier_offline_catalog.get(row["path"], {})
+                    entries, bundle_spec, info = patch_entries(
+                        entries, verifier_bundle_catalog, None if built is None else ({} if not built else {built["request_id"]: built}),
+                        isolate_pytest=isolate_verifier_pytest)
+                    bundle_specs[spec_id(bundle_spec)] = bundle_spec
+                    if info["request"] is not None:
+                        offline_requests[row["path"]] = info["request"]
+                    verifier_report[row["path"]] = {"packages": info["status"], "unprepared": info["unprepared"]}
+                    row["task_binary"] = pack(entries)
+                    labels.setdefault(row["path"], []).append("prepared-verifier-runtime")
+                    reasons[row["path"]] = (
+                        "Replace verifier Python downloads with a shared, checksummed standalone runtime "
+                        "staged after the agent"
+                        + ("; verifier apt/pip installs read a checksummed verifier-only package set staged "
+                           "after the agent (task image unchanged)" if info["status"] == "prepared" else "")
+                        + ("; unprepared verifier downloads stay unchanged: "
+                           + "; ".join(sorted({u["reason"] for u in info["unprepared"]})) if info["unprepared"] else "")
+                        + ". " + reasons.get(row["path"], ""))
+                    if isolate_verifier_pytest:
+                        labels[row["path"]].append("verifier-pytest-isolation")
+                        reasons[row["path"]] = (
+                            "Grading pytest ignores conftest.py and pytest configuration files the agent "
+                            "could plant in /tests or an ancestor directory (no task ships either). "
+                            + reasons[row["path"]])
                 after_contexts.add(context_signature(entries))
                 batch.append(row)
                 if len(batch) == 32:
@@ -676,8 +997,14 @@ def patch(source, output):
         temporary.replace(destination)
     finally:
         temporary.unlink(missing_ok=True)
+    if prepare_verifier:
+        (output / 'verifier-bundle-specs.json').write_text(json.dumps(bundle_specs, indent=2) + '\n')
+        (output / 'verifier-offline-requests.json').write_text(json.dumps(offline_requests, indent=2) + '\n')
+        (output / 'verifier-preparation-report.json').write_text(json.dumps(verifier_report, indent=2) + '\n')
+    (output / 'task-offline-requests.json').write_text(json.dumps(task_offline_requests, indent=2) + '\n')
+    (output / 'task-offline-status.json').write_text(json.dumps(task_offline_status, indent=2) + '\n')
     report = write_patch_report(
-        source, destination, source=SOURCE, dropped={}, change_labels=labels,
+        source, destination, source=SOURCE, dropped=dropped, change_labels=labels,
         change_reasons=reasons, patcher=__file__, patches=[{
             "label": "build-dependency-repair",
             "reason": "Repair evidenced package-version, download-host, channel and duplicate entry-point build failures while preserving task payloads.",
@@ -697,21 +1024,43 @@ def patch(source, output):
             "reason": "Rewrite only the archived bullseye-security apt source to archive.debian.org "
             "directly after FROM, guarded by /etc/os-release; nothing else changes.",
         }, {
+            "label": "prepared-setup-downloads",
+            "reason": "Startup downloads in replayed setup steps read a checksummed download set "
+            "prepared for the task image when staged (local CRAN repository or recorded curl "
+            "responses); the original online command remains the fallback.",
+        }, {
+            "label": "tmux-install-override",
+            "reason": "Install tmux after FROM with the utempter helper owned by root, so the "
+            "package installs without root; nothing else changes.",
+        }, {
             "label": "empty-build-directory",
             "reason": "Create the absent empty task_file directory at the original COPY position; "
             "retain all supplied files and later build instructions.",
-        }],
+        }, *([{
+            "label": "prepared-verifier-runtime",
+            "reason": "Run grading with a shared, checksummed standalone verifier runtime staged after "
+            "the agent instead of downloading uv/Python/pytest; verifier-only apt/pip installs read "
+            "a checksummed package set when prepared, otherwise stay unchanged.",
+        }] if prepare_verifier else []), *([{
+            "label": "verifier-pytest-isolation",
+            "reason": "Grading pytest ignores conftest.py and pytest configuration files the agent "
+            "could plant in /tests or an ancestor directory; no task ships either.",
+        }] if prepare_verifier and isolate_verifier_pytest else [])],
     )
     assert len(report["tasks"]) == len(seen)
     assert sum(t["action"] == "changed" for t in report["tasks"]) == len(labels)
-    summary = {"tasks": len(seen), "changed_tasks": len(labels),
+    summary = {"tasks": len(seen) - len(dropped), "changed_tasks": len(labels),
                "empty_build_directory_repairs": empty_repairs,
                "bullseye_security_repairs": bullseye_repairs,
+               "duplicate_apt_pip_docker_compose_repairs": redundant_compose_repairs,
+               "tmux_install_repairs": tmux_repairs,
                "superset_tasks": shared_tasks, "superset_images": len(supersets),
+               "setup_download_tasks": len(task_offline_requests),
+               "setup_download_prepared": sum(v == "prepared" for v in task_offline_status.values()),
                "shared_groups": sum(len(g["ids"]) > 1 for g in groups.values()),
                "tasks_in_shared_groups": sum(len(g["ids"]) for g in groups.values() if len(g["ids"]) > 1),
                "unique_contexts_before": len(before_contexts),
-               "unique_contexts_after": len(after_contexts), "exclusions": 0}
+               "unique_contexts_after": len(after_contexts), "exclusions": len(dropped)}
     print(json.dumps(summary, sort_keys=True))
     return summary
 
@@ -720,5 +1069,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--archive-decisions", type=Path, help="Explicit task IDs with archive category and evidence-backed reason")
+    parser.add_argument("--prepare-verifier", action="store_true")
+    parser.add_argument("--verifier-bundle-catalog", type=Path, help="Prepared bundle manifests keyed by specification hash")
+    parser.add_argument("--verifier-offline-catalog", type=Path,
+                        help="Built verifier package sets keyed by task ID (hpc/offline_prep/verifier_offline.py catalog)")
+    parser.add_argument("--task-offline-catalog", type=Path,
+                        help="Built setup download sets keyed by task ID (hpc/offline_prep/verifier_offline.py catalog "
+                        "of task-offline-requests.json)")
+    parser.add_argument("--isolate-verifier-pytest", action="store_true",
+                        help="Outer pytest ignores agent-planted conftest.py and pytest configuration")
     arguments = parser.parse_args()
-    patch(arguments.source, arguments.output)
+    decisions = json.loads(arguments.archive_decisions.read_text()) if arguments.archive_decisions else None
+    catalog = json.loads(arguments.verifier_bundle_catalog.read_text()) if arguments.verifier_bundle_catalog else None
+    offline = json.loads(arguments.verifier_offline_catalog.read_text()) if arguments.verifier_offline_catalog else None
+    patch(arguments.source, arguments.output, archive_decisions=decisions,
+          prepare_verifier=arguments.prepare_verifier, verifier_bundle_catalog=catalog,
+          verifier_offline_catalog=offline,
+          task_offline_catalog=json.loads(arguments.task_offline_catalog.read_text())
+          if arguments.task_offline_catalog else None,
+          isolate_verifier_pytest=arguments.isolate_verifier_pytest)

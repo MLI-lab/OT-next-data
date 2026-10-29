@@ -1,12 +1,12 @@
 ---
 name: run-teachers
-description: Generate teacher trajectories through validation stages 6 and 7 on Slurm (model serving, task isolation, saved run evidence) and plot pass@k from the stage-6 reports.
+description: Generate teacher trajectories and pass@k through validation stages 6 and 7 on Slurm, running offline first with prepared runtimes and retrying unsolved tasks online, with separate evidence for each phase.
 ---
 
 # Generate teacher trajectories
 
 Use `validation/run.py`, stages 6 and 7, after the task validation pilot.
-See `validation/README.md` and `validation/contracts/README.md` for contract creation.
+See `validation/README.md` and the contract section of `validation/README.md` for contract creation.
 There is no OpenThoughts-Agent dependency or separate teacher runtime image.
 
 Source `env.sh`. Python dependencies are pinned in `requirements.txt`; cluster
@@ -36,10 +36,49 @@ Preserve these execution constraints:
   stage the same environment on every node.
 - Never cancel another RUNNING job without explicit operator permission.
 
+## Run offline first, then retry unsolved tasks online
+
+Unless the user specifies another protocol, use this policy for new runs when
+prepared task and verifier runtimes are available. Apply it before launch, not
+by changing the settings of an active or resumable run.
+
+1. Verify the declared runtimes and required images in the target cluster's
+   cache. Follow `prepare-task-runtimes` for missing preparation support or
+   offline compatibility checks. A saved archive alone does not prove that the
+   setup and verifier use it. Keep `OT_REQUIRE_PREBUILT_IMAGES=1`; prepare missing
+   images separately before validation submission.
+2. Run the requested attempts offline first, using the supported network
+   restriction for task execution. Keep the model-serving connection available
+   through the intended harness path. Record the effective network policy for
+   setup, agent and verifier; do not call a run offline merely because pip uses
+   `--no-index`. If the runner cannot enforce this policy, report the missing
+   support rather than claiming an offline run.
+3. After the offline phase completes, select only tasks with no verified success
+   across its attempts. Save the selection with task IDs, task hashes and reasons.
+   Keep setup/infrastructure failures distinct from completed attempts that scored
+   zero, and resume unfinished attempts before treating the phase as complete.
+4. Retry that unsolved subset online from fresh task environments, using the
+   same task version, model, sampling and per-attempt limits. By default use the
+   same per-task attempt count as the offline phase. An explicitly fixed total
+   attempt or cost budget takes precedence: do not silently double it. Use a
+   separate contract/output directory and preserve the offline evidence. Do not
+   retry tasks already solved offline or reuse agent-modified runtimes.
+5. Report offline pass@k on the original cohort, online recovery on the selected
+   subset, and combined solved-task coverage with both attempt budgets. This
+   adaptive two-phase procedure is not a single homogeneous pass@k run. Never
+   pool its attempts into an ordinary pass@k estimate or replace offline failures
+   with online successes. Online recovery alone does not prove the offline
+   failure was caused by networking.
+
+If runtimes or other required assets are unavailable, record those tasks as
+offline-unprepared and use the online path when allowed by the requested run.
+Account for them separately from an offline-tested subset. Preserve dataset-
+specific protocols, including the fixed v3 attempt budget, and state deviations.
+
 ## Plot pass rates
 
 ```bash
-python -m validation.reporting.plot_results "Teacher=/path/to/stage-6-report.json" --k 1 4 16 -o pass_rates.png
+python -m validation.publishing.plot_results "Teacher=/path/to/stage-6-report.json" --k 1 4 16 -o pass_rates.png
 ```
 
 The plot uses recorded attempt and success counts. It omits a group's pass@k bar

@@ -3,8 +3,8 @@ import subprocess
 import sys
 
 import pytest
-from validation.reporting.plot_results import rates
-from validation.checks.reward_metrics import pass_at_k
+from validation.publishing.plot_results import rates
+from validation.metrics.reward_metrics import pass_at_k
 
 
 def test_current_metrics_include_unsolved_attempts_and_omit_unavailable_k(tmp_path):
@@ -15,7 +15,7 @@ def test_current_metrics_include_unsolved_attempts_and_omit_unavailable_k(tmp_pa
     assert rates(path, [1, 4]) == {'code': {1: .25}, 'All tasks': {1: .25}}
     assert pass_at_k(4, 2, 2) == pytest.approx(5/6)
     out = tmp_path / 'plot.png'
-    subprocess.run([sys.executable, '-m', 'validation.reporting.plot_results', f'Teacher={path}', '-o', str(out)], check=True)
+    subprocess.run([sys.executable, '-m', 'validation.publishing.plot_results', f'Teacher={path}', '-o', str(out)], check=True)
     assert out.read_bytes().startswith(b'\x89PNG')
 
 
@@ -27,7 +27,7 @@ def test_missing_task_metrics_are_not_silently_dropped(tmp_path):
 
 
 def test_solved_count_distribution_keeps_attempt_budgets_separate(tmp_path):
-    from validation.reporting.plot_results import solved_counts
+    from validation.publishing.plot_results import solved_counts
     path = tmp_path / 'stage6.json'
     path.write_text(json.dumps({'stage_layout': 'environment-first-v2', 'stage': 6, 'complete': True, 'items': [
         {'task': 'a', 'metrics': {'attempts': 4, 'solved': 0}},
@@ -51,7 +51,7 @@ def archived_teacher_report(tmp_path, items):
 
 
 def test_report_automatically_writes_both_teacher_plots(tmp_path):
-    from validation.reporting.report import write_report
+    from validation.publishing.report import write_report
     archive = archived_teacher_report(tmp_path, [
         {'task': 'source-code-1', 'status': 'completed', 'metrics': {'attempts': 4, 'solved': 2}},
         {'task': 'source-code-2', 'status': 'completed', 'metrics': {'attempts': 4, 'solved': 0}}])
@@ -66,7 +66,7 @@ def test_report_automatically_writes_both_teacher_plots(tmp_path):
 
 
 def test_report_preserves_results_and_records_plot_failure(tmp_path):
-    from validation.reporting.report import write_report
+    from validation.publishing.report import write_report
     archive = archived_teacher_report(tmp_path, [{'task': 'missing', 'status': 'error'}])
     out = tmp_path / 'report'
     summary = write_report(archive, out)
@@ -80,7 +80,7 @@ def test_report_automatically_plots_trace_metrics_without_filling_missing_values
     import io
     import tarfile
     from matplotlib.axes import Axes
-    from validation.reporting.report import write_report
+    from validation.publishing.report import write_report
 
     observed = []
     original = Axes.hist
@@ -114,14 +114,14 @@ def test_report_automatically_plots_trace_metrics_without_filling_missing_values
 
 
 def test_histogram_zoom_reports_outliers_without_changing_small_samples():
-    from validation.reporting.plot_results import histogram_upper
+    from validation.publishing.plot_results import histogram_upper
     assert histogram_upper([10] * 99 + [10000]) == (10, 1)
     assert histogram_upper([1, 10000]) == (10000, 0)
     assert histogram_upper([0] * 100) == (1, 0)
 
 
 def test_command_plot_uses_recorded_profiles(tmp_path):
-    from validation.reporting.plot_results import write_trace_plots
+    from validation.publishing.plot_results import write_trace_plots
     p = tmp_path / 'traces.json'
     p.write_text(json.dumps({'trace_metrics': {'trajectories': [
         {'termination': 'task_complete', 'command_profile': {'counts': {'cat': 3, 'python': 1, '[unknown]': 7}}},

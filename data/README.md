@@ -4,6 +4,18 @@ Keep datasource-specific patches in that datasource's `patch.py`. If a patch
 could also help other datasources, move it into `data/utils/` and import it
 from there.
 
+Layout:
+
+- `<dataset>/`: one patcher per datasource (`patch.py`), with its README and helpers.
+- `utils/`: helpers shared by several patchers: patch reports (`patch_reporting.py`),
+  reading and packing task archives (`task_archive.py`, `harbor_parquet.py`), verifier
+  runtime declarations (`verifier_runtime.py`), restoring historical instructions
+  (`historical_release.py`), the Prime-format SWE converters (`prime_conversion/`) and
+  the instruction loop.
+- `patch_repair_loop/`: the agent loop that repairs a datasource's `patch.py` from
+  validation failures.
+- `annotate_dataset/`: taxonomies and prompt for generated dataset cards.
+
 Currently available repairs that can be reused across datasources:
 
 - **[Instruction review/rewrite loop](utils/instruction_loop.py):** reviews task

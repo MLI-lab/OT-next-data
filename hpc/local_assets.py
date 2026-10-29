@@ -78,7 +78,7 @@ def stage_images(tasks, source, target, *, selected_keys=None):
                     records.append(record)
         elif (target / image.name) != copied[real]:
             (target / image.name).symlink_to(copied[real].name)
-    from hpc.image_cache import restore
+    from hpc.offline_prep.image_cache import restore
     for bundle in sorted(bundles):
         local = restore(bundle, target)
         records.append({'source': str(bundle), 'local': str(local), 'verified_bundle': True})

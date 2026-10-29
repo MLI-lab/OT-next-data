@@ -105,13 +105,15 @@ def test_execution_failure_never_becomes_reward_failure(stage, finding, label):
     assert labels(stage, item) == [label]
 
 
-def test_real_reward_failures_and_reference_verifier_execution(tmp_path):
+def test_real_reward_failures_use_declared_reference_reward_policy(tmp_path):
     assert labels(2, {'status': 'failed', 'rewards': [0]}) == ['reference-solution-reward-zero']
     assert labels(3, {'status': 'failed', 'rewards': [1]}) == ['no-op-reward-one']
     result = assess_trials([(tmp_path, {'verifier_result': {
         'rewards': {'reward': 0}, 'stdout': '/usr/bin/python3: No module named pytest\n'}})], 1, 1)
-    assert labels(2, result) == ['verifier-execution-error']
-    assert publish.judge(2, result)[0] == 'not_run'
+    # PROTOCOL reference policy uses numeric reward and trial errors; recorder
+    # diagnostics alone do not change reference classification. No-op is separate.
+    assert labels(2, result) == ['reference-solution-reward-zero']
+    assert publish.judge(2, result)[0] == 'archive'
 
 
 def test_patch_columns_and_labels_survive_publishing(tmp_path):
@@ -317,3 +319,25 @@ def test_change_table_uses_label_specific_reasons():
     assert text.count('Rebuilt from native source.') == 1
     assert text.count('Added the anti-cheat sentence.') == 1
     assert '| anti-cheat-instruction | 1 | Added the anti-cheat sentence. |' in text
+
+
+def test_large_members_are_hashed_in_bounded_chunks(monkeypatch):
+    import hashlib
+    import io
+    import tarfile
+    from data.utils.patch_reporting import _files
+    body=b'large member\x00' * 200000
+    blob=io.BytesIO()
+    with tarfile.open(fileobj=blob,mode='w') as archive:
+        item=tarfile.TarInfo('environment/large.bin');item.size=len(body);item.mode=0o640
+        archive.addfile(item,io.BytesIO(body))
+    original=tarfile.ExFileObject.read
+    sizes=[]
+    def bounded(stream,size=-1):
+        assert 0<size<=1024*1024
+        sizes.append(size)
+        return original(stream,size)
+    monkeypatch.setattr(tarfile.ExFileObject,'read',bounded)
+    result=_files(blob.getvalue())
+    assert len(sizes)>2
+    assert result['environment/large.bin']==('0',0o640,hashlib.sha256(body).hexdigest())

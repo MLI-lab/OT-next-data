@@ -162,17 +162,25 @@ def test_terminus_review_runs_in_task_environment(tmp_path, monkeypatch):
     assert environment_dir_hash(seen['task'] / 'environment') == environment_dir_hash(source / 'environment')
 
 
-def test_local_inspector_review_uses_stage_five(tmp_path, monkeypatch):
+def test_local_image_review_runs_terminus_in_task_environment(tmp_path, monkeypatch):
+    """Served and API judges without their own CLI use Terminus 2, never the host inspector."""
     from validation.stages import image_review
     options = SimpleNamespace(review_agent='claude-code', review_model='remote',
                               review_local=True, model='hosted_vllm/judge',
-                              review_evidence='image')
+                              review_evidence='image', dry_run=True)
+    staged = tmp_path / 'staged'
+    staged.mkdir()
+    (staged / 'rubric-skips.json').write_text('{}')
     monkeypatch.setattr(runner, 'resolve_review_defaults', lambda *a: None)
-    monkeypatch.setattr(prepare_review_tasks, 'stage_review', lambda *a: tmp_path / 'staged')
-    async def review(source, staged, out, args, agent, model):
-        assert staged == tmp_path / 'staged'
-        assert args.review_local and model == 'hosted_vllm/judge'
-        return {'status': 'passed', 'evidence_mode': 'image'}
-    monkeypatch.setattr(image_review, 'review', review)
+    monkeypatch.setattr(prepare_review_tasks, 'stage_review', lambda *a: staged)
+    monkeypatch.setattr(env_review, 'stage', lambda *a: tmp_path / 'review-task')
+    seen = {}
+    async def run(task, out, args, model):
+        seen['model'] = model
+        return None, []
+    async def inspector(*a, **k):
+        raise AssertionError('local judges must not use the host inspector')
+    monkeypatch.setattr(env_review, 'run', run)
+    monkeypatch.setattr(image_review, 'review', inspector)
     result = asyncio.run(runner.review_once(5, tmp_path / 'source', tmp_path / 'out', options, tmp_path))
-    assert result['evidence_mode'] == 'image'
+    assert result['status'] == 'previewed' and seen['model'] == 'hosted_vllm/judge'

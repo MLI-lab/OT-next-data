@@ -31,7 +31,7 @@ import tarfile
 
 import pyarrow.parquet as pq
 
-from data.utils.full_source.harbor_parquet import pack_task, write_tasks
+from data.utils.harbor_parquet import pack_task, write_tasks
 from data.utils.patch_reporting import write_conversion_report
 
 

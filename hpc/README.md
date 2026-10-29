@@ -16,6 +16,8 @@ The shared execution path is `validation_submit.py` → a cluster's
 | `validation_worker.py` | Stage inputs, manage services, run stages and save evidence |
 | `local_runtime.py` | Build and relocate the Python runtime; bootstrap uses only the standard library |
 | `local_assets.py` | Stage images, weights, dependency archives and TLS certificates |
+| `offline_prep/` | Preparation jobs that build images, Python, toolchains and verifier packages before validation, so runs never download or build |
+| `helma/`, `rwth/`, `zih/` | One folder per cluster: its job scripts and site setup |
 
 Keep runtime bootstrapping separate from asset staging: it runs before the
 prepared Python environment is available. Submission and execution also run in
@@ -59,7 +61,7 @@ weights under node-local `$TMPDIR`. Model weights must fit locally; insufficient
 space fails preparation. Runtime caches and task logs are local too. Bootstrap
 reads, version checks, shared batch logs, and final result/archive writes still
 access cluster storage; system executables and CUDA come from site modules.
-See [runtime details](../validation/docs/runtime.md).
+See [runtime details](../validation/RUNTIME.md).
 
 ## ZIH
 
@@ -107,7 +109,7 @@ each job. These names identify locations; they do not automatically route files.
 | Runtime caches | Under `$TMPDIR`; temporary and disposable |
 
 Slurm validation prepares missing task images before starting timed trials. The
-shared helper `hpc/image_cache.py` logs cache misses and runs each build in its
+shared helper `hpc/offline_prep/image_cache.py` logs cache misses and runs each build in its
 own step. Defaults: `--image-build-memory-mb 8192 --image-build-cpus 4
 --image-build-concurrency 2 --image-build-timeout-sec 3600`. Concurrent builds are
 capped to fit allocated CPUs and memory; preparation runs before model serving
@@ -140,4 +142,4 @@ back after execution. Temporary storage is not a permanent copy of the results.
 Helma workspaces normally live on `/hnvme`; ZIH workspaces on an available
 `/data/horse`, `/data/ws` or `/data/cat` filesystem. Choose the actual workspace
 path when running setup. The detailed staging behavior is in the
-[runtime reference](../validation/docs/runtime.md#local-storage).
+[runtime reference](../validation/RUNTIME.md#local-storage).

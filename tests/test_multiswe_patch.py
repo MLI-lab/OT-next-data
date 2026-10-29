@@ -41,7 +41,7 @@ def test_baked_gradle_caches_are_readable_without_changing_contents(tmp_path, re
 
 
 def original_files():
-    from data.utils.full_source import multiswe_grade
+    from data.utils.prime_conversion import multiswe_grade
     return {
         'environment/Dockerfile': b'FROM mswebench/example:pr-1\nWORKDIR /home/repo\n',
         'tests/test.sh': b'''#!/bin/bash
@@ -153,6 +153,34 @@ def test_shared_setup_is_idempotent_after_agent_edits(tmp_path):
     setup = setup.replace(marker, str(local_marker))
     result = subprocess.run(['bash'], input=setup, text=True, capture_output=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_verifier_reinstalls_upstream_harness_from_tests():
+    # The verifier runs in the agent's container; /home copies are agent-writable.
+    from data.multiswe.patch import share_image
+    recipe = shared_recipe()
+    files = share_image(patch_files(original_files()), recipe, {recipe['base']: 'mswebench/example@sha256:'+'b'*64})
+    test = files['tests/test.sh'].decode()
+    for name in recipe['files']:
+        assert files['tests/upstream/' + name] == files['setup_files/upstream/' + name]
+        assert test.index('install -m 0644 /tests/upstream/' + name + ' /home/' + name) < test.index('bash /home/fix-run.sh')
+
+
+def test_release_repair_reinstalls_harness_and_adds_suffix():
+    # Published v1 tasks: same reinstall as share_image, plus the timeout sentence; idempotent.
+    from data.multiswe.patch import share_image, release_repair_files
+    recipe = shared_recipe()
+    files = share_image(patch_files(original_files()), recipe, {recipe['base']: 'mswebench/example@sha256:'+'b'*64})
+    published = {k: v for k, v in files.items() if not k.startswith('tests/upstream/')}
+    published['tests/test.sh'] = b'\n'.join(l for l in files['tests/test.sh'].split(b'\n')
+                                           if not l.startswith(b'install -m 0644 /tests/upstream/'))
+    published['task.toml'] = b'version = "1.0"\n[agent]\ntimeout_sec = 1200\n'
+    repaired = release_repair_files(published)
+    assert repaired['tests/test.sh'] == files['tests/test.sh']
+    assert all(repaired['tests/upstream/' + n] == files['tests/upstream/' + n] for n in recipe['files'])
+    assert repaired['instruction.md'].decode().endswith('You have 1200 seconds to complete this task. '
+                                                        'Do not cheat by using online solutions or hints specific to this task.\n')
+    assert release_repair_files(repaired) == repaired
 
 
 @pytest.mark.parametrize('problem', ['unpinned', 'wrong_image', 'answer_file'])
@@ -562,3 +590,44 @@ def test_junit_collection_repair_preserves_verifier_and_other_baselines():
     for line in repaired['environment/Dockerfile'].splitlines():
         if line.startswith(b'RUN '):
             subprocess.run(['sh', '-n'], input=line[4:], check=True)
+
+
+def test_prepared_grader_keeps_repository_toolchains_and_harness_repairs():
+    import hashlib
+    from data.multiswe.patch import prepare_verifier_runtime, rewrite_blob, blob_files
+    files = {
+        'environment/Dockerfile': b'FROM original\n',
+        'tests/test.sh': b'#!/bin/bash\nset -euo pipefail\nexport PATH=/repo/tools:/usr/bin\ninstall -m 0644 /tests/upstream/fix-run.sh /home/fix-run.sh\nbash /home/fix-run.sh > /logs/verifier/test_output.txt 2>&1 || true\n/opt/multiswe-python/bin/python3 -I /tests/grade.py /tests/row.json /logs/verifier/test_output.txt /logs/verifier/reward.json\n',
+        'tests/extract_fix_patch.sh': b'#!/bin/bash\nexec /opt/multiswe-python/bin/python3 /tests/extract_fix_patch.py "$@"\n',
+        'tests/extract_fix_patch.py': b'import subprocess\nsubprocess.run(["git", "diff"], check=True)\n',
+        'tests/grade.py': b'from multi_swe_bench.harness.dataset import Dataset\n',
+        'tests/upstream/fix-run.sh': b'node repo-test.js\n',
+        'setup_files/setup.sh': b'bash /home/prepare.sh\n',
+        'solution/solve.sh': b'git apply /solution/fix.patch\n',
+    }
+    distributions = {line.split('==')[0]: line.split('==')[1]
+                     for line in EMBEDDED_FILES['grader-requirements.txt'].splitlines() if '==' in line}
+    distributions['multi-swe-bench'] = '1.1.2'
+    observed = {'verified_bundle': True, 'probe_returncode': 0, 'python': '3.11.13',
+                'executable': '/opt/multiswe-python/bin/python3', 'image_sha256': 'a' * 64,
+                'dockerfile_sha256': hashlib.sha256(files['environment/Dockerfile']).hexdigest(),
+                'distributions': distributions}
+    blob = rewrite_blob([], files)
+    result, spec = prepare_verifier_runtime(blob, observed, observed)
+    patched = blob_files(result)
+    for name in files:
+        if name not in ('tests/test.sh', 'tests/extract_fix_patch.sh'):
+            assert patched[name] == files[name]
+    assert b'export PATH=/repo/tools:/usr/bin' in patched['tests/test.sh']
+    assert b'install -m 0644 /tests/upstream/fix-run.sh /home/fix-run.sh' in patched['tests/test.sh']
+    assert b'bash /home/fix-run.sh > /logs/verifier/test_output.txt 2>&1 || true' in patched['tests/test.sh']
+    assert b'OT_VERIFIER_PYTHON' in patched['tests/extract_fix_patch.sh']
+    assert b'= "--prepare" ]' in patched['tests/setup.sh']
+    assert spec['python'] == '3.11.13'
+    assert any('multi_swe_bench-1.1.2.tar.gz#sha256=' in p for p in spec['requirements'])
+    with pytest.raises(ValueError, match='exact observed Python'):
+        prepare_verifier_runtime(blob, observed, {**observed, 'python': '3.11.14'})
+    with pytest.raises(ValueError, match='dependencies differ'):
+        prepare_verifier_runtime(blob, {**observed, 'distributions': {}}, observed)
+    with pytest.raises(ValueError, match='existing MultiSWE verifier setup'):
+        prepare_verifier_runtime(result, observed, observed)

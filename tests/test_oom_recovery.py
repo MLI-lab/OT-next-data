@@ -83,7 +83,7 @@ def test_original_timeout_cancels_terminal_recovery(terminal, monkeypatch):
 
 
 def test_report_distinguishes_recovered_events_from_terminal_memory_limit(tmp_path):
-    from validation.checks.trace_metrics import trial_metrics, aggregate
+    from validation.metrics.trace_metrics import trial_metrics, aggregate
     result = {'agent_result': {'metadata': {'oom_recoveries': 2, 'stop_reason': 'task_complete'}},
               'verifier_result': {'rewards': {'reward': 1}}}
     row = trial_metrics(tmp_path, result)

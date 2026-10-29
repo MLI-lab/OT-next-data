@@ -66,13 +66,20 @@ def capture(contract_path, summary_path, code, destination):
     (destination / 'summary.json').write_bytes(raw)
     journal = summary_path.parent / 'outcomes.jsonl'
     if journal.is_file():
-        from validation.checks.check_terminal_bench import rebuild_summary
+        from validation.rules.static.terminal_bench import rebuild_summary
         shutil.copyfile(journal, destination / journal.name)
         summary = rebuild_summary(destination)
     shutil.copyfile(contract_path, destination / 'contract.json')
     manifest = contract['task_manifest']['path']
     shutil.copyfile(contract_path.parent / manifest, destination / manifest)
     shutil.copyfile(code / checker_source(contract), destination / 'checker.py')
+    from validation.rules.static.terminal_bench import SOURCE_FILES
+    patches = []
+    for path in SOURCE_FILES[1:]:
+        name = str(path.relative_to(Path(__file__).resolve().parents[2]))
+        if name in contract['implementation']:
+            patches.append('checker-' + name.replace('/', '--'))
+            shutil.copyfile(code / name, destination / patches[-1])
     print(f"Preserving {len(summary['tasks'])} checkpointed tasks", flush=True)
     # Preserve the already normalized inputs; original scratch may be deleted on exit.
     source = Path(contract['arguments']['tasks'])
@@ -87,7 +94,7 @@ def capture(contract_path, summary_path, code, destination):
             raise ValueError(f"task hash mismatch: {item['task_id']}")
     print('Task hashes verified; packing checkpoint logs', flush=True)
     pack_logs(summary['tasks'], destination / 'logs.tar.gz')
-    files = ['summary.json', 'contract.json', manifest, 'checker.py', 'logs.tar.gz']
+    files = ['summary.json', 'contract.json', manifest, 'checker.py', *patches, 'logs.tar.gz']
     if journal.is_file():
         files.append('outcomes.jsonl')
     meta = {'source_contract_sha256': contract['sha256'], 'checkpoint_tasks': len(summary['tasks']),

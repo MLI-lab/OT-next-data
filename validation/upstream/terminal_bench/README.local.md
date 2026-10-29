@@ -8,7 +8,7 @@ Terminal-Bench 2.0 release**. Its policies include newer separate-verifier rules
 `UPSTREAM.json` records SHA-256 hashes. `LICENSE` is the upstream Apache-2.0
 license. The 26 `scripts/checks/check-*.sh` files, `check_ai_detection.py`, static-checks workflow, and
 automation documentation are unmodified. The wrapper checks hashes before use.
-Keep local selection/reporting logic in `validation/checks/check_terminal_bench.py`.
+Keep local selection/reporting logic in `validation/rules/static/terminal_bench.py` (our patches: `validation/rules/static/`).
 
 To update, choose a reviewed commit, download these same upstream paths from
 that commit, update hashes and commit in `UPSTREAM.json`, compare the workflow's

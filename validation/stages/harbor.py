@@ -42,8 +42,6 @@ def install_runtime_patches():
     install_oom_recovery()
     from harbor_patches.resource_usage import install as install_resource_usage
     install_resource_usage()
-    from validation.stages.container_reuse import install
-    install()
     # The pinned bridge keys images only by Dockerfile text. Include COPY
     # payloads as well, or distinct review tasks can reuse stale baked evidence.
     from harbor.environments.apptainer import apptainer as bridge
@@ -133,7 +131,7 @@ async def execute_job(config, *, path_search_roots=(), pip_pin_capture=None):
     diagnostic_token = observations.set(
         {'roots': list(path_search_roots)}
         if path_search_roots and diagnostic_agents == {'oracle'} else None)
-    from data.utils.resolve_pip_pins import install_capture, _capture
+    from validation.rules.static.pip_pinning.repair import install_capture, _capture
     if pip_pin_capture and diagnostic_agents == {'oracle'}:
         install_capture()
     pip_token = _capture.set(pip_pin_capture if diagnostic_agents == {'oracle'} else None)
@@ -374,9 +372,9 @@ NUMBERED_SCRIPT_CHECK = re.compile(r'^FAIL: F\d+\b', re.M)
 
 
 def reviewed_nop_zero(output, task_path):
-    """validation/checks/reviewed_nop_zeros.py: a manually inspected verifier without a test
+    """validation/rules/dynamic/nop_baseline/reviewed_nop_zeros.py: a manually inspected verifier without a test
     runner whose no-op zero is a check failure. Only the exact reviewed line counts."""
-    from validation.checks.reviewed_nop_zeros import REVIEWED
+    from validation.rules.dynamic.nop_baseline.reviewed_nop_zeros import REVIEWED
     review = REVIEWED.get(Path(task_path).name) if task_path is not None else None
     return bool(review) and review['output_line'] in (line.strip() for line in output.splitlines())
 
@@ -466,6 +464,31 @@ def missing_api_explains_build_errors(invocation, task_path):
             and all(MISSING_API_ERRORS.search(m) for m in messages))
 
 
+MISSING_MODULE = re.compile(r"ModuleNotFoundError: No module named '([A-Za-z_]\w*)'")
+
+
+def reference_supplies_missing_module(invocation, task_path):
+    """No-op runs only: every collection error is an import of a top-level module
+    the reference solution ships as a file (pymethods2test copies
+    solution/solution.py to /app). Without the solution the tests cannot import
+    it, so the zero is the missing solution's; any other error leaves it
+    unexplained. Callers also require a passing reference run."""
+    messages = invocation.get('collection_error_messages') or []
+    if not messages or invocation.get('executed') or invocation.get('setup_errors'):
+        return False
+    if task_path is None or not (Path(task_path) / 'solution').is_dir():
+        return False
+    solution = Path(task_path) / 'solution'
+    for message in messages:
+        match = MISSING_MODULE.fullmatch(message.strip())
+        if not match:
+            return False
+        name = match[1]
+        if not ((solution / f'{name}.py').is_file() or (solution / name / '__init__.py').is_file()):
+            return False
+    return True
+
+
 def unrelated_build_errors(invocation, task_path):
     """Reference runs only: every file that failed to build lies outside the task.
 
@@ -499,6 +522,15 @@ BASELINE_RESOURCE_OR_INFRA_ERROR = re.compile(
     r'timed? out|timeout|segmentation fault|permission denied|no space left|'
     r'connection refused|network is unreachable|temporary failure in name resolution|'
     r'command not found|cannot connect to.*docker|file format not recognized', re.I)
+# Text that matches the pattern above without reporting a failure: the Docker images'
+# apt hook (apt.conf.d/docker-clean: rm -f /var/cache/apt/... || true) under rootless
+# fakeroot, and timeout= keyword arguments quoted from test source in tracebacks.
+BENIGN_BASELINE_TEXT = re.compile(
+    r"^rm: cannot remove '/var/cache/apt/[^'\n]*': Permission denied$|\btimeout\s*=", re.I | re.M)
+
+
+def baseline_infra_error(output):
+    return BASELINE_RESOURCE_OR_INFRA_ERROR.search(BENIGN_BASELINE_TEXT.sub('', output))
 
 
 def reference_explains_build_errors(invocation, task_path):
@@ -536,7 +568,7 @@ def expected_baseline_failure(path, result, task_path, oracle_passed, reward_key
     if reward is not None and (isinstance(reward, bool) or reward != 0):
         return None
     output = verifier_output(path, verifier)
-    if BASELINE_RESOURCE_OR_INFRA_ERROR.search(output):
+    if baseline_infra_error(output):
         return None
     # This validates the current token and every invocation, including mixed
     # successful/failing packages; incomplete execution never qualifies.
@@ -574,7 +606,7 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
     except (ValueError, KeyError, TypeError):
         return 'invalid verifier execution context'
     output = verifier_output(path, verifier)
-    if expected_reward == 0 and BASELINE_RESOURCE_OR_INFRA_ERROR.search(output):
+    if expected_reward == 0 and baseline_infra_error(output):
         return 'verifier invocation failed: baseline resource or infrastructure failure requires review or retry'
     _, invocations, problem = scope_output(output, token)
     if problem:
@@ -584,7 +616,7 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
         return problem
     if not invocations:
         if expected_reward == 0:
-            from validation.checks.fineenvs_verifier import missing_answer_checked
+            from validation.rules.dynamic.nop_baseline.fineenvs_verifier import missing_answer_checked
             if missing_answer_checked(output, task_path, oracle_passed):
                 return None
         if expected_reward == 0 and reference_removes_rejected_option(output, task_path):
@@ -593,7 +625,7 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
             return None
         if expected_reward == 0 and reviewed_nop_zero(output, task_path):
             # A person read this script and its no-op output; the reviewed line is the
-            # script's own check failing (validation/checks/reviewed_nop_zeros.py).
+            # script's own check failing (validation/rules/dynamic/nop_baseline/reviewed_nop_zeros.py).
             return None
         if expected_reward == 0 and numbered_script_check_failed(output, task_path):
             # A shell verifier without a test runner (MiMo's usecase.sh) got past its
@@ -615,6 +647,11 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
                 continue
             if expected_reward == 0 and oracle_passed and reference_explains_build_errors(invocation, task_path):
                 continue
+            if (expected_reward == 0 and oracle_passed and invocation['collection_errors']
+                    and reference_supplies_missing_module(invocation, task_path)):
+                # The tests import a module that only the reference solution
+                # provides, and that reference passed in this job.
+                continue
             if expected_reward == 0 and missing_api_explains_build_errors(invocation, task_path):
                 # No reference to compare with: the zero is the task's new tests
                 # failing to build against the code the agent must still write.
@@ -625,7 +662,7 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
                 continue
             if expected_reward == 0 and reviewed_nop_zero(output, task_path):
                 # A person read the no-op output: the failing call is the missing feature
-                # (validation/checks/reviewed_nop_zeros.py, exact line).
+                # (validation/rules/dynamic/nop_baseline/reviewed_nop_zeros.py, exact line).
                 continue
             return 'verifier invocation failed during collection or execution'
         if not invocation['executed']:
@@ -694,7 +731,12 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
             if expected_reward is not None or result['exception_info'].get('exception_type') != 'AgentTimeoutError':
                 continue
         verifier = result.get('verifier_result') or {}
-        if require_execution and expected_reward in (0, 1):
+        # Reference acceptance uses the actual numeric reward and trial errors,
+        # not recorder coverage. Verifiers can launch a fresh uvx interpreter
+        # that misses our hooks, or record an auxiliary command with no tests.
+        # Keep execution artifacts for diagnostics; no-op assessment has its
+        # own checks and still rejects an unconditional reward of one.
+        if require_execution and expected_reward == 0:
             problem = nop_execution_problem(path, verifier, task_path, expected_reward, oracle_passed)
             if problem:
                 findings.append(f'{path.name}: {problem}')
@@ -794,12 +836,14 @@ async def build_task(task_path, out, args):
                         (out / label / 'setup-timing.json').write_text(timing.stdout)
                     except (ValueError, OSError) as exc:
                         entry['timing_evidence_error'] = str(exc)
-            from validation.checks.environment import inspect_environment
+            from validation.rules.dynamic.environment.check import inspect_environment
             inspection = await inspect_environment(environment, task, context, label)
             entry.update(inspection)
             if label == 'agent':
                 from validation.stages.normalize_paths import capture_build_paths
                 await capture_build_paths(environment, task_path, args, entry)
+                if entry.get('protected_paths'):
+                    (out / label / 'protected-paths.json').write_text(json.dumps(entry['protected_paths'], indent=2) + '\n')
         except Exception as exc:
             # A bare timeout has no text; the publisher needs the cause to classify it.
             entry.update(status='error', error=str(exc) or f'{type(exc).__name__} during {phase}')

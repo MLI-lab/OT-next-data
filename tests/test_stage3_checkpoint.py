@@ -111,8 +111,6 @@ def test_runner_imports_without_executing_builds(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail('reused stage 1 must not launch builds')
     monkeypatch.setattr(build_retries, 'run_builds', forbidden)
-    monkeypatch.setattr('validation.stages.environment_preflight.preflight',
-                        lambda sources, out, args: [{'task': str(p), 'status': 'passed', 'checks': []} for p in sources])
     args = SimpleNamespace(tasks=tmp_path / 'tasks', out=tmp_path / 'out', backend='apptainer',
                            dry_run=False, concurrency=2)
     _, report = runner.run_stage(1, args)

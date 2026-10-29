@@ -34,10 +34,12 @@ def install_transport(server):
     class ReliableHandler(original):
         def _handle_env_upload(self, data):
             super()._handle_env_upload(data)
-            if 'upload_chunk' in data and self._captured[1] == 200:
+            if self._captured[1] == 200:
                 # Dispatch runs under the queue lock, so metadata is attached
                 # before any worker can claim the job.
-                server._jobs[self._captured[0]['job_id']]['payload']['upload_chunk'] = data['upload_chunk']
+                for key in ('upload_chunk', 'runtime_cache_upload'):
+                    if key in data:
+                        server._jobs[self._captured[0]['job_id']]['payload'][key] = data[key]
 
         def _handle_env_cancel(self, data):
             env_id = data.get('env_id')
@@ -64,7 +66,8 @@ def install_transport(server):
                 self._captured = (data, status)
                 return
             if self.path == '/status' and status == 200:
-                data = dict(data, retry_protocol=1, bridge_epoch=server._bridge_epoch)
+                data = dict(data, retry_protocol=1, bridge_epoch=server._bridge_epoch,
+                            runtime_cache_upload_protocol=1)
             super()._json(data, status)
 
         def do_POST(self):
@@ -156,22 +159,38 @@ def install_transport(server):
             # Receipt exists before writing: a dropped response is safe to retry.
             self._json(*response)
 
-        def _handle_job_result_poll(self, job_id):
+        def _job_result(self, job_id):
             with server._lock:
                 job = server._jobs.get(job_id)
                 if not job:
-                    response = ({'error': 'Unknown job'}, 404)
-                elif job['state'] in ('done', 'error'):
+                    return ({'error': 'Unknown job'}, 404), True
+                if job['state'] in ('done', 'error'):
                     job.setdefault('result_polled_at', time.time())
                     result = ({'state': 'done', **(job['result'] or {})} if job['state'] == 'done'
                               else {'state': 'error', 'error': job.get('error_msg', 'Unknown error')})
-                    response = (result, 200)
-                else:
-                    response = ({'state': job['state']}, 200)
-                    env = server._envs.get(job.get('env_id'))
-                    if job.get('type') == server.JOB_START and (job['state'] == 'pending' or (env and 'wait_since' in env)):
-                        # Waiting for a worker or a Slurm step: not start time (start_wait).
-                        response[0]['waiting'] = True
+                    return (result, 200), True
+                response = ({'state': job['state']}, 200)
+                env = server._envs.get(job.get('env_id'))
+                if job.get('type') == server.JOB_START and (job['state'] == 'pending' or (env and 'wait_since' in env)):
+                    # Waiting for a worker or a Slurm step: not start time (start_wait).
+                    response[0]['waiting'] = True
+                return response, False
+
+        def _handle_job_result_poll(self, job_id):
+            # Optional bounded long poll (bridge_client.RESULT_WAIT_HEADER): reply as
+            # soon as the job finishes instead of after the client's next sleep.
+            try:
+                headers = getattr(self, 'headers', None) or {}
+                wait = min(RESULT_WAIT_MAX, max(0.0, float(headers.get('X-Bridge-Result-Wait') or 0)))
+            except ValueError:
+                wait = 0.0
+            until = time.monotonic() + wait
+            response, final = self._job_result(job_id)
+            while not final and time.monotonic() < until:
+                time.sleep(RESULT_WAIT_STEP)
+                response, final = self._job_result(job_id)
+            if wait and not final:
+                response[0]['result_waited'] = True
             self._json(*response)
 
         def _handle_env_status(self, env_id):
@@ -197,6 +216,7 @@ def install_transport(server):
     server.BridgeHandler = ReliableHandler
 
 
+RESULT_WAIT_MAX, RESULT_WAIT_STEP = 1.0, .005
 TIMING_SLOW_QUEUE, TIMING_SLOW_RUN = 5.0, 60.0
 
 

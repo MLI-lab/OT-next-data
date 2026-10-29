@@ -305,3 +305,48 @@ def deferred_baker(bake, worker):
             temporary.unlink(missing_ok=True)
         return bake(sif)
     return execute
+
+
+CONTEXT_MOUNT = '/.ot-build-context'
+
+
+def deferred_copies_first(bake, worker, context):
+    """Copy the build context in before the deferred RUN steps, as %files does in a normal build.
+
+    The fallback imports only the base image and replays COPY at container start,
+    so RUN steps that use copied task files (cd /app/task_file, dotnet build) fail.
+    The start-time replay stays; it rewrites the same files.
+    """
+    def execute(sif):
+        sidecar = Path(worker._deferred_sidecar(sif))
+        if not sidecar.is_file() or Path(worker._deferred_overlay(sif)).exists():
+            return bake(sif)
+        original = sidecar.read_text()
+        spec = json.loads(original)
+        workdir = spec.get('workdir') or '/'
+        steps = []
+        for entry in spec.get('copy') or []:
+            *sources, destination = shlex.split(entry)
+            destination = posixpath.join(workdir, destination)
+            parent = destination if destination.endswith('/') else posixpath.dirname(destination)
+            for source in sources:
+                if not (Path(context) / source).resolve().is_relative_to(Path(context).resolve()):
+                    raise ValueError('COPY source outside the build context: ' + source)
+                steps.append('mkdir -p ' + shlex.quote(parent) + ' && cp -a '
+                             + shlex.quote(posixpath.join(CONTEXT_MOUNT, source)) + ' '
+                             + shlex.quote(destination))
+        if not steps:
+            return bake(sif)
+        spec['run'] = steps + list(spec.get('run') or [])
+        binds = os.environ.get('APPTAINER_BIND')
+        sidecar.write_text(json.dumps(spec))
+        os.environ['APPTAINER_BIND'] = ','.join(filter(None, [binds, f'{context}:{CONTEXT_MOUNT}:ro']))
+        try:
+            return bake(sif)
+        finally:
+            sidecar.write_text(original)
+            if binds is None:
+                os.environ.pop('APPTAINER_BIND', None)
+            else:
+                os.environ['APPTAINER_BIND'] = binds
+    return execute

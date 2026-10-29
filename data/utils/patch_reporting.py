@@ -12,7 +12,26 @@ import json
 from pathlib import Path, PurePosixPath
 import tarfile
 
-from data.utils.environment_counts import fingerprints, summarize
+
+
+# Distinct image build contexts, counted without building or downloading images.
+def fingerprints(files):
+    """Use patch-report file signatures, including contents, modes and links."""
+    roots = {PurePosixPath(name).parent for name in files
+             if PurePosixPath(name).name == 'Dockerfile'}
+    result = set()
+    for root in roots:
+        context = sorted((PurePosixPath(name).relative_to(root).as_posix(), signature)
+                         for name, signature in files.items()
+                         if PurePosixPath(name).is_relative_to(root))
+        result.add(hashlib.sha256(json.dumps(context).encode()).hexdigest())
+    return sorted(result)
+
+
+def summarize(groups):
+    groups = list(groups)
+    return {'unique': len({value for group in groups for value in group}),
+            'tasks': len(groups), 'tasks_with_build_context': sum(bool(group) for group in groups)}
 
 
 def _files(blob):
@@ -28,14 +47,23 @@ def _files(blob):
             key = name.as_posix()
             if key in result:
                 raise ValueError('duplicate task archive path')
-            content = hashlib.sha256(archive.extractfile(member).read()).hexdigest() if member.isfile() else member.linkname
+            if member.isfile():
+                checksum = hashlib.sha256()
+                with archive.extractfile(member) as stream:
+                    for block in iter(lambda: stream.read(1024 * 1024), b''):
+                        checksum.update(block)
+                content = checksum.hexdigest()
+            else:
+                content = member.linkname
             result[key] = (member.type.decode('ascii'), member.mode, content)
     return result
 
 
 def _rows(path):
     import pyarrow.parquet as pq
-    for batch in pq.ParquetFile(path).iter_batches(batch_size=32):
+    # A single task can exceed a GiB. Avoid retaining 32 decoded payloads
+    # plus their Python copies; Arrow may still need a whole encoded page.
+    for batch in pq.ParquetFile(path, pre_buffer=False).iter_batches(batch_size=1, use_threads=False):
         yield from batch.to_pylist()
 
 
@@ -133,7 +161,7 @@ def write_patch_report(original, patched, *, source, dropped, archive=None, mani
             category = exclusion['category']
             batch.append({'path': row['path'], 'task_binary': row['task_binary'],
                           'archive_category': category, 'archive_reason': category + ': ' + exclusion['reason']})
-            if len(batch) == 32:
+            if len(batch) == 1:
                 writer.write_table(pa.Table.from_pylist(batch, schema=schema))
                 batch = []
         if batch:

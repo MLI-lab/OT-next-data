@@ -5,7 +5,7 @@ import tarfile
 import pytest
 
 from data.swelego.patch import exclusion_stage, restore_payload
-from validation.checks.instruction_suffix import normalize_archive
+from validation.rules.static.instruction_suffix import normalize_archive
 from validation.contract import files_digest
 
 

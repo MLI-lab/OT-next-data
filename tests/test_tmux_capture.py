@@ -22,7 +22,8 @@ def bridge(tmp_path, monkeypatch):
     monkeypatch.setattr(worker.ApptainerInstance, 'exec', worker.ApptainerInstance.exec)
     monkeypatch.setattr(worker.ApptainerInstance, '_ot_bounded_batch_captures', False, raising=False)
     original_run = subprocess.run
-    full, visible, sent = [tmp_path / name for name in ('full', 'visible', 'sent')]
+    full, visible, sent, probe = [tmp_path / name for name in ('full', 'visible', 'sent', 'probe')]
+    probe.write_text('')
     full.write_text('history\nrecent\n')
     visible.write_text('recent\n')
     state = {'capture_rc': 0, 'absent': False, 'calls': 0, 'end_after_send': False,
@@ -41,6 +42,7 @@ tmux() {{
       fi;;
     send-keys)
       if [ "$session_ended" = yes ]; then return 1; fi
+      if [ -n "$OT_PROBE_PATTERN" ]; then pgrep -f "$OT_PROBE_PATTERN" >> {shlex.quote(str(probe))}; fi
       if [ {state['send_rc']} -ne 0 ]; then return {state['send_rc']}; fi
       printf '%s\\n' "$*" >> {shlex.quote(str(sent))}
       if {'true' if state['end_after_send'] else 'false'}; then session_ended=yes; fi;;
@@ -52,6 +54,7 @@ tmux() {{
       esac;;
   esac
 }}
+export -f tmux
 '''
         return original_run(['/bin/bash', '-c', fake_tmux + cmd[-1]], **kwargs)
 
@@ -73,6 +76,7 @@ tmux() {{
             return ExecResult(**response)
 
     env = LocalBridge()
+    env.probe = probe
     return tmux, worker, instance, env, state, full, visible, sent
 
 
@@ -157,3 +161,23 @@ def test_failed_send_with_live_session_remains_error(bridge):
         asyncio.run(tmux.TmuxSession('test', env).send_keys_and_capture(
             [tmux.TmuxKeystrokeBatch('echo once\n', 0)]))
     assert state['calls'] == 1
+
+
+def test_typed_keys_are_not_in_process_command_lines(bridge, monkeypatch):
+    # A task's `pkill -f ingest` killed the batch shell whose argv held the typed
+    # `cd /app/ingest`. The probe runs the real pgrep while the batch is live.
+    tmux, worker, _, env, _, _, _, sent = bridge
+    pattern = 'ot-probe-' + 'ingest'
+    monkeypatch.setenv('OT_PROBE_PATTERN', pattern)
+    actions = [tmux.TmuxKeystrokeBatch(f'cd /app/{pattern} && uv pip install x\n', 0)]
+    asyncio.run(tmux.TmuxSession('test', env).send_keys_and_capture(actions))
+    assert env.probe.read_text().strip()  # unpatched: the batch shell matches
+    env.probe.write_text('')
+    patch.install()
+    patch.install_worker(worker)
+    output, alive = asyncio.run(tmux.TmuxSession('test', env).send_keys_and_capture(actions))
+    assert alive and output
+    assert env.probe.read_text() == ''
+    # Keys arrive as before, including Harbor's own uv rewrite.
+    text = sent.read_text()
+    assert text[:len(text) // 2] == text[len(text) // 2:] and 'uv pip' not in text

@@ -900,6 +900,17 @@ def share_image(files, recipe, locks):
               'git ls-files --others --exclude-standard -z > "$(git rev-parse --git-path multiswe-setup-untracked)"',
               'touch ' + marker]
     updated['setup_files/setup.sh'] = ('\n'.join(lines) + '\n').encode()
+    # Harbor verifies in the agent's container and only /tests is uploaded fresh, so the
+    # /home copies above are agent-writable. Reinstall them from /tests before grading.
+    test = updated['tests/test.sh'].decode()
+    entry = 'bash /home/fix-run.sh'
+    if test.count(entry) != 1:
+        raise ValueError('Unexpected Multi-SWE test entrypoint')
+    for name, content in recipe['files'].items():
+        updated['tests/upstream/' + name] = content.encode()
+    restore = ['install -m 0644 ' + shlex.quote('/tests/upstream/' + name) + ' ' + shlex.quote('/home/' + name)
+               for name in sorted(recipe['files'])]
+    updated['tests/test.sh'] = test.replace(entry, '\n'.join(restore) + '\n' + entry, 1).encode()
     solve = updated['solution/solve.sh'].decode()
     updated['solution/solve.sh'] = solve.replace('set -e\n', 'set -e\nbash /setup_files/setup.sh\n', 1).encode()
     if b'bash /setup_files/setup.sh\n' not in updated['solution/solve.sh']:
@@ -1058,6 +1069,40 @@ def patch_blob(blob, recipe=None, locks=None, task_id=None):
     updated = repair_hugo_result_lines(updated, task_id)
     if updated == files:
         return blob
+    return rewrite_blob(members, updated)
+
+
+def release_repair_files(files):
+    """Repairs for already published tasks: reinstall the upstream harness from /tests before
+    grading (the /home and /setup_files copies are agent-writable) and add the timeout suffix."""
+    from validation.rules.static.instruction_suffix import suffix
+    updated = dict(files)
+    upstream = {name[len('setup_files/upstream/'):]: data for name, data in files.items()
+                if name.startswith('setup_files/upstream/')}
+    test = updated['tests/test.sh'].decode()
+    entry = 'bash /home/fix-run.sh'
+    if test.count(entry) != 1 or 'fix-run.sh' not in upstream:
+        raise ValueError('Unexpected Multi-SWE test entrypoint')
+    if '/tests/upstream/' not in test:
+        for name, content in upstream.items():
+            updated['tests/upstream/' + name] = content
+        restore = ['install -m 0644 ' + shlex.quote('/tests/upstream/' + name) + ' ' + shlex.quote('/home/' + name)
+                   for name in sorted(upstream)]
+        updated['tests/test.sh'] = test.replace(entry, '\n'.join(restore) + '\n' + entry, 1).encode()
+    updated['instruction.md'] = suffix(files['instruction.md'], files['task.toml'])
+    return updated
+
+
+def release_repair_blob(blob):
+    with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
+        members = archive.getmembers()
+        files = {m.name: archive.extractfile(m).read() for m in members if m.isfile()}
+    updated = release_repair_files(files)
+    return blob if updated == files else rewrite_blob(members, updated)
+
+
+def rewrite_blob(members, updated):
+    updated = dict(updated)
     output = io.BytesIO()
     with tarfile.open(fileobj=output, mode='w') as archive:
         for member in members:
@@ -1076,6 +1121,148 @@ def patch_blob(blob, recipe=None, locks=None, task_id=None):
     return output.getvalue()
 
 
+def prepare_verifier_runtime(blob, observed, runtime_source, catalog=None):
+    """Protect published grading tools while preserving repository test toolchains.
+
+    Image observations must be bound to the published task by the caller. The
+    recipe source is explicit so compatible images can reuse a checked artifact.
+    Repository commands, PATH, submitted files and harness repairs are untouched.
+    """
+    from data.utils.task_archive import read_members
+    from data.utils.verifier_runtime import (
+        runtime_spec, runtime_reference, preparation_command,
+    )
+    files = read_members(blob)
+    if hashlib.sha256(files['environment/Dockerfile']).hexdigest() != observed['dockerfile_sha256']:
+        raise ValueError('MultiSWE interpreter evidence does not match the task Dockerfile')
+    requirements = EMBEDDED_FILES['grader-requirements.txt'].splitlines()
+    normalize = lambda name: re.sub(r'[-_.]+', '-', name).lower()
+    expected = {normalize(line.split('==')[0]): line.split('==')[1]
+                for line in requirements if '==' in line}
+    expected['multi-swe-bench'] = '1.1.2'
+    for evidence in (observed, runtime_source):
+        if (not evidence.get('verified_bundle') or evidence.get('probe_returncode') != 0
+                or evidence.get('executable') != '/opt/multiswe-python/bin/python3'):
+            raise ValueError('MultiSWE requires a verified original grader interpreter probe')
+        actual = {normalize(k): v for k, v in evidence['distributions'].items()}
+        if any(actual.get(k) != v for k, v in expected.items()):
+            raise ValueError('MultiSWE observed grading dependencies differ from the original lock')
+    if observed['python'] != runtime_source['python']:
+        raise ValueError('MultiSWE runtime source must preserve the exact observed Python version')
+    if 'tests/setup.sh' in files or 'tests/ot-verifier-runtime.json' in files:
+        raise ValueError('Review existing MultiSWE verifier setup before adapting it')
+    if b'sys.executable' in files['tests/grade.py'] or b'sys.executable' in files['tests/extract_fix_patch.py']:
+        raise ValueError('Review task-interpreter subprocess semantics before adapting this grader')
+    spec = runtime_spec(python=observed['python'], requirements=requirements,
+        image_python={'image_sha256': runtime_source['image_sha256'],
+                      'executable': runtime_source['executable']})
+    updates = runtime_reference(spec, catalog)
+    for name, old in (
+            ('tests/test.sh', b'/opt/multiswe-python/bin/python3 -I /tests/grade.py'),
+            ('tests/extract_fix_patch.sh', b'/opt/multiswe-python/bin/python3 /tests/extract_fix_patch.py')):
+        if files[name].count(old) != 1:
+            raise ValueError('Unexpected MultiSWE verifier invocation: ' + name)
+        target = old.split(b' /tests/', 1)[1]
+        updates[name] = files[name].replace(old,
+            b'"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I /tests/' + target)
+    # Missing/corrupt/incomplete archives are rebuilt by the trusted controller
+    # from the canonical source-pinned recipe before this script executes. Never
+    # repair the source requirement by substituting the index package here.
+    check = ('from importlib.metadata import version; import sys; expected = ' + repr(expected)
+             + '; bad = [(name, want, version(name)) for name, want in expected.items()'
+             + ' if version(name) != want]; sys.exit(repr(bad) if bad else 0)')
+    updates['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n'
+        + preparation_command(spec, phase='verifier') + '\n'
+        + '"${OT_VERIFIER_PYTHON:?trusted prepared verifier runtime required}" -I -c '
+        + shlex.quote(check) + '\n').encode()
+    with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
+        members = archive.getmembers()
+    return rewrite_blob(members, {**files, **updates}), spec
+
+
+def export_published_runtime(source, output, evidence, runtime_source, catalog, revision):
+    """Export the pinned published membership, retaining historical score evidence."""
+    import base64
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from data.utils.patch_reporting import write_patch_report
+    from data.utils.task_archive import read_members
+    from harbor_patches.verifier_bundle import spec_id
+    from validation.contract import files_digest
+    if not re.fullmatch(r'[0-9a-f]{40}', revision or ''):
+        raise ValueError('An immutable source revision is required')
+    source, output = Path(source), Path(output)
+    if output.exists() and any(output.iterdir()):
+        raise ValueError('Use a new empty MultiSWE runtime output directory')
+    output.mkdir(parents=True, exist_ok=True)
+    parquet = pq.ParquetFile(source)
+    schema = parquet.schema_arrow
+    for name in ('content_sha256', 'stages_passed'):
+        if name not in schema.names:
+            schema = schema.append(pa.field(name, pa.string()))
+    metadata = dict(parquet.schema_arrow.metadata or {})
+    historical_schema = {k.decode(): base64.b64encode(v).decode() for k, v in metadata.items()}
+    images = json.loads(metadata[b'ot.images.v1'])
+    observed = {row['bundle']: row for row in evidence['bundles']}
+    for key in (b'ot.environment_reliable.v1', b'ot.full_release.v1', b'ot.release.v2', b'ot.release.v3'):
+        metadata.pop(key, None)
+    metadata[b'ot.runtime_migration.v1'] = json.dumps({
+        'source_revision': revision, 'source_subset': 'multiswe_v1', 'validation': 'pending',
+        'effective_network': 'unverified', 'existing_scores': 'historical, before runtime migration',
+        'historical_evidence': 'historical-evidence.json',
+    }).encode()
+    history, specs, labels, reasons = [], {}, {}, {}
+    destination = output / 'tasks.parquet'
+    with pq.ParquetWriter(destination, schema.with_metadata(metadata), compression='zstd') as writer:
+        for batch in parquet.iter_batches(batch_size=1):
+            rows = batch.to_pylist()
+            for row in rows:
+                name = row['path']
+                if name in labels:
+                    raise ValueError('Duplicate published task: ' + name)
+                bindings = images['tasks'][name]['environments']
+                if len(bindings) != 1:
+                    raise ValueError('Expected one MultiSWE task image')
+                binding = bindings[0]; bundle = images['bundles'][binding['bundle']]
+                probe = dict(observed[binding['bundle']])
+                if (probe['image_sha256'] != bundle['files'][bundle['name']]['sha256']
+                        or probe['environment_sha256'] != binding['environment_sha256']):
+                    raise ValueError('Image probe differs from published task binding')
+                files = read_members(row['task_binary'])
+                if files_digest(files.items()) != images['tasks'][name]['content_sha256']:
+                    raise ValueError('Source task content digest mismatch')
+                probe['dockerfile_sha256'] = hashlib.sha256(files['environment/Dockerfile']).hexdigest()
+                history.append({k: v for k, v in row.items() if k != 'task_binary'})
+                # Keep the existing release repair in this published-input path:
+                # grading must restore the trusted harness rather than execute
+                # an agent-replaced /home/fix-run.sh or test.patch.
+                repaired = release_repair_blob(row['task_binary'])
+                row['task_binary'], spec = prepare_verifier_runtime(repaired, probe, runtime_source, catalog)
+                digest = files_digest(read_members(row['task_binary']).items())
+                row['content_sha256'] = digest; row['stages_passed'] = ''
+                images['tasks'][name]['content_sha256'] = digest
+                specs[spec_id(spec)] = spec
+                labels[name] = ['verifier-runtime-preparation']
+                reasons[name] = ('Run grading and patch extraction with fresh exact-image Python and the original '
+                    'checksum-pinned grading dependencies. Preserve repository test commands, interpreter '
+                    'selection, submitted files and task setup. Reinstall the original upstream harness '
+                    'from protected tests and retain the existing instruction timeout-suffix repair. Existing scores '
+                    'are historical; fresh validation remains required.')
+            writer.write_table(pa.Table.from_pylist(rows, schema=schema))
+        metadata[b'ot.images.v1'] = json.dumps(images).encode()
+        writer.add_key_value_metadata({**metadata, b'ARROW:schema': base64.b64encode(
+            schema.with_metadata(metadata).serialize())})
+    (output/'historical-evidence.json').write_text(json.dumps({'revision': revision, 'subset': 'multiswe_v1',
+        'status': 'historical, not migrated-task validation', 'tasks': history}, indent=2)+'\n')
+    (output/'historical-schema-metadata.json').write_text(json.dumps(historical_schema, indent=2)+'\n')
+    (output/'verifier-bundle-specs.json').write_text(json.dumps(list(specs.values()), indent=2)+'\n')
+    write_patch_report(source, destination, source={'dataset': 'FWeindel/validated-tasks',
+        'revision': revision, 'subset': 'multiswe_v1',
+        'url': f'https://huggingface.co/datasets/FWeindel/validated-tasks/tree/{revision}/multiswe_v1'},
+        dropped={}, change_labels=labels, change_reasons=reasons, patcher=__file__)
+    return {'rows': len(labels), 'runtimes': len(specs), 'validation': 'pending'}
+
+
 def main():
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -1086,7 +1273,44 @@ def main():
     parser.add_argument('--share-images', action='store_true', help='experimental: move audited upstream PR preparation into setup_files')
     parser.add_argument('--base-image-lock', type=Path, help='Override the embedded digest-pinned base-image mapping with a JSON file')
     parser.add_argument('--recipe-python', default=sys.executable, help='Python with multi-swe-bench==1.1.2 installed')
+    parser.add_argument('--release-repair', action='store_true',
+                        help='--source is the published multiswe_v1 tasks.parquet; apply only release_repair_files')
+    parser.add_argument('--source-revision', help='validated-tasks commit of --source (with --release-repair)')
+    parser.add_argument('--prepare-runtime', action='store_true', help='Migrate published MultiSWE grader tools only')
+    parser.add_argument('--interpreter-evidence', type=Path)
+    parser.add_argument('--runtime-source-evidence', type=Path)
+    parser.add_argument('--runtime-catalog', type=Path)
     args = parser.parse_args()
+    if args.prepare_runtime:
+        if args.release_repair or args.share_images or not all((args.interpreter_evidence, args.runtime_source_evidence, args.runtime_catalog, args.source_revision)):
+            parser.error('--prepare-runtime needs image evidence, runtime source evidence/catalog and source revision; cannot combine conversion modes')
+        print(json.dumps(export_published_runtime(args.source, args.output,
+            json.loads(args.interpreter_evidence.read_text()), json.loads(args.runtime_source_evidence.read_text()),
+            json.loads(args.runtime_catalog.read_text()), args.source_revision), indent=2))
+        return
+    if args.release_repair:
+        if args.output.exists():
+            raise ValueError('Use a new output directory')
+        args.output.mkdir(parents=True)
+        table = pq.read_table(args.source)
+        rows = table.to_pylist()
+        labels = {}
+        for row in rows:
+            patched = release_repair_blob(row['task_binary'])
+            if patched != row['task_binary']:
+                labels[row['path']] = ['verifier-harness-reinstall', 'instruction-suffix']
+            row['task_binary'] = patched
+        output = args.output / 'tasks.parquet'
+        pq.write_table(pa.Table.from_pylist(rows, schema=table.schema), output, compression='zstd')
+        write_patch_report(args.source, output, patcher=__file__, source={
+            'dataset': 'FWeindel/validated-tasks multiswe_v1', 'revision': args.source_revision,
+            'url': f'https://huggingface.co/datasets/FWeindel/validated-tasks/tree/{args.source_revision}/multiswe_v1'},
+            dropped={}, change_labels=labels,
+            change_reasons={t: 'Reinstall the upstream test harness from /tests before grading, because the /home copies are '
+                               'agent-writable; append the timeout sentence.' for t in labels},
+            unresolved={}, patches=[{'version': 'multiswe-release-repair-v1'}])
+        print(f'{output}: {len(rows)} tasks, {len(labels)} repaired')
+        return
     locks = json.loads(args.base_image_lock.read_text() if args.base_image_lock
                        else EMBEDDED_FILES['base-images.lock.json']) if args.share_images else {}
     sources = [args.source] if args.source.is_file() else sorted(args.source.glob('*.parquet'))

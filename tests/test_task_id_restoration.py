@@ -1,7 +1,7 @@
 import copy
 import json
 import pytest
-from validation.patch_repair_loop import controller as c
+from data.patch_repair_loop import controller as c
 
 
 def setup_case(monkeypatch):

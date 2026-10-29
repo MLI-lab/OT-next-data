@@ -4,7 +4,7 @@ import tarfile
 
 import pytest
 
-from data.utils.resolve_absolute_paths import apply_reviewed_replacements
+from validation.rules.static.task_absolute_path.repair import apply_reviewed_replacements
 from data.scaleswe.patch import patch_blob
 from validation.contract import files_digest
 

@@ -13,7 +13,11 @@ def source_binaries(contract):
     the timeout and anti-cheat sentence (recorded as an automation change). Reading the
     contract's original source lets the manifest still be checked against the exact payload.
     """
-    original = ((contract or {}).get('dataset', {}).get('normalization') or {}).get('original_path')
+    contract = contract or {}
+    normalization = contract.get('dataset', {}).get('normalization')
+    # Without normalization at preparation the contract's own tasks are the patcher output.
+    original = (normalization.get('original_path') if normalization
+                else contract.get('arguments', {}).get('tasks'))
     if not original or not Path(original).exists():
         return {}
     import pyarrow.parquet as pq
@@ -97,7 +101,7 @@ def attach(record, tables, specifications, source_hashes=None):
         }
         record.setdefault('patch_provenance', {})[folder] = summary
         from data.utils.patch_reporting import _files
-        from data.utils.environment_counts import fingerprints, summarize
+        from data.utils.patch_reporting import fingerprints, summarize
         summary['environment_comparison'] = {
             'upstream': manifest.get('source_environments'),
             'kept': summarize(fingerprints(_files(row['task_binary'])) for row in kept),
@@ -207,5 +211,27 @@ def stage_patchers(record, specifications, out):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content)
             record.setdefault('patcher_scripts', {}).setdefault(folder, []).append({'path': relative, 'sha256': digest})
+            files.append(relative)
+        # Runtime migration entrypoints may import a datasource-specific helper.
+        # Only explicitly recorded, checksum-bound snapshots are retained.
+        names = set()
+        for dependency in manifest.get('patcher_dependencies', []):
+            name = dependency['path']
+            if (Path(name).name != name or name in ('', '.', '..', 'patch.py')
+                    or not name.endswith('.py') or name in names):
+                raise ValueError('invalid or duplicate patcher dependency snapshot')
+            names.add(name)
+            content = (manifest_path.parent / name).read_bytes()
+            digest = hashlib.sha256(content).hexdigest()
+            if digest != dependency['sha256']:
+                raise ValueError('patcher dependency snapshot hash mismatch')
+            relative = f'evidence/{record["run"]}/{folder}/patchers/{digest}/{name}'
+            target = out / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.exists() and target.read_bytes() != content:
+                raise ValueError('conflicting staged patcher dependency bytes')
+            target.write_bytes(content)
+            record.setdefault('patcher_dependencies', {}).setdefault(folder, []).append(
+                {'path': relative, 'name': name, 'sha256': digest})
             files.append(relative)
     return files

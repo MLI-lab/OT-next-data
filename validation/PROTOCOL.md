@@ -7,21 +7,23 @@ publishing instructions.
 
 | Runner stage | Operation |
 | --- | --- |
-| 1 | Environment static preflight, build, setup and runtime checks |
-| 2 | No-op baseline (expected reward 0) |
-| 3 | Reference solution (expected reward 1) |
-| 4 | Task-quality static checks |
+| 1 | Build, setup and runtime checks |
+| 2 | Reference solution (expected reward 1) |
+| 3 | No-op baseline (expected reward 0) |
+| 4 | All static checks |
 | 5 | LLM task-quality review |
 | 6 through 10 | Existing trajectory generation, measurement, review and adversarial stages |
 
-New contracts use schema version 3 and stage layout `environment-first-v1`.
+New contracts use schema version 3 and stage layout `environment-first-v2`
+(until 2026-10-17, `environment-first-v1` had 2 = no-op and 3 = reference; old
+records are translated by stage name).
 Reports record the same layout. Existing contracts, reports, and submitted jobs
 retain their original stage meanings and must be inspected or resumed with their
 frozen code. The current runner rejects legacy contracts instead of reinterpreting
 stage numbers. Prepare a new contract to use this layout; do not edit old contracts.
 Expected-outcome files now use `ot-expected-outcomes-v2` for the same reason.
-The optional `--reuse-validation-containers` optimization runs no-op before the
-reference solution, so reference changes cannot contaminate the no-op baseline.
+Stages 2 and 3 run each task 3 times by default (`--reference-runs`, `--nop-runs`), each run
+in a fresh container. Stage 1 builds each task once and retries a failed build up to 3 times.
 The `--reuse-build` option reuses compatible stage-1 build evidence; the old
 `--reuse-stage3` spelling remains an alias, not a way to import legacy evidence.
 
@@ -75,23 +77,20 @@ These release numbers are separate from the protocol stages and runner IDs.
 Produces dataset version A: reliable environments with validated reference and
 no-op rewards.
 
-### Stage 1: environment static preflight, build and runtime checks
+### Stage 1: build and runtime checks
 
-#### Configuration and static preflight
+#### Build and runtime
 
-Run static preflight before building, then validate runtime behavior:
+Every task is built, whatever the static checks find; all static checks, including the
+environment checks listed below, run together in stage 4.
 
-1. **Configuration and static preflight:** check required files, configuration,
-   build/setup reliability and compatibility using the checks listed below.
-   Definite failures stop execution; advisory findings remain recorded and do
-   not automatically exclude a task.
-2. **Build and setup:** build missing images, start containers and run task setup.
-3. **Runtime validation:** check the working directory and declared internet
+1. **Build and setup:** build missing images, start containers and run task setup.
+2. **Runtime validation:** check the working directory and declared internet
    access as described below.
 
 Dependency-pin repair can require building and running the reference solution
-and verifier. Detect missing pins during preflight, perform runtime-assisted
-repair when necessary, then recheck and validate the exact repaired payload.
+and verifier. It finds missing pins itself, performs runtime-assisted repair when
+necessary, and stage 4 then checks the exact repaired payload.
 Disable automatic pip-pin repair with `--no-fix-pip-pins`. Preserve the same
 prepared dependencies across A, B and C.
 
@@ -131,7 +130,7 @@ Checks used from the pinned [Terminal-Bench static checks](https://github.com/ha
   and SHA-256-pinned download URLs. Recognizes quoted requirements and ignores
   shell output redirections such as `> install.log 2>&1`. Installer scripts that
   receive package arguments when invoked are exempt.
-  For flagged tasks, `data/utils/resolve_pip_pins.py` builds the environment and
+  For flagged tasks, `validation/rules/static/pip_pinning/repair.py` builds the environment and
   runs the reference solution and verifier. If the reward is 1, it freezes the
   environment and replaces unpinned requirements with the observed versions.
   Patched tasks continue through normal validation. In the training profile,
@@ -195,13 +194,19 @@ Runner stage 1 starts containers and runs task setup within
   With `true`, at least one request must succeed; with `false`, all must fail.
   Without a setting, results are recorded only. We try a few public addresses,
   so this does not prove that every internet connection is blocked or allowed.
+  An explicitly isolated run requires every probe to fail, even when the task
+  permits internet access. Evidence retains the original declaration and records
+  the run override separately. Reachable host fallback fails this isolated check;
+  missing probe clients are an error, not evidence of isolation.
 
-Outside setup review, a failed task gets three retries in fresh containers,
-reusing cached images.
-This gives tasks a chance to recover from temporary infrastructure errors.
-All three must pass; otherwise the task is labeled `unstable-build-under-our-infra`
-and archived when publishing. Runner stages 2 and 3 skip it in that run because reference
-and no-op checks require a working environment.
+Each task builds once. When the task's own image build or container start fails, the task
+is archived; if that failure came only after earlier infrastructure failures, it is labeled
+`build-not-robust`. A failure of our infrastructure (node, bridge, disk) or one without a
+verdict is retried up to three times in fresh containers, reusing cached images. A task that
+then builds passes, labeled `infra-recovered`; one that never gets past the infrastructure is
+reported as not run, not archived. Every attempt records its node, duration and cause, and the
+stage-1 report counts recovered and unstable builds by cause. Runner stages 2 and 3 skip
+a task whose build did not pass, because reference and no-op checks need a working environment.
 
 When you publish the dataset to Hugging Face, the publishing script automatically
 includes available cached container images for kept tasks that passed runner stage 1 and only includes
@@ -233,6 +238,18 @@ after task setup, because they need the running container.
   group is the bulk. A task is flagged when at least one and at most 20 % of
   these files fall in groups after the bulk, because `find -newermt` would then
   show which files the fix changes.
+
+**Empty mock repositories:** when Git history inspection fails, a read-only
+filesystem probe can establish that a malformed `.git` is only empty object
+scaffolding. This passes the history check only when `objects/` exists and
+contains directories alone, with no symlinks anywhere under `.git`, no shared
+Git directory, index, shallow boundary, or Git object/index environment override.
+Any object-store file (including packs, alternates, malformed or zero-byte
+objects), indirection, or traversal error preserves the error. Probe evidence
+and the original Git diagnostics are recorded. With neither objects nor an
+index, there are no clean tracked files to compare, so the timestamp check
+passes for that repository too. This is not a general answer-leak certification
+of arbitrary fixture text. Other repositories still undergo their usual checks.
 
 **Automatic repair** (`--fix-repository-leaks`, on by default; disable with
 `--no-fix-repository-leaks`): first records what both checks would flag, then
@@ -298,11 +315,45 @@ Put verifier preparation in `tests/setup.sh` and the actual verification in
 runs it first, then `test.sh`. If setup fails, verification stops. Omit `setup.sh`
 when no preparation is needed. Some existing `test.sh` scripts mix setup and
 verification; **separate them first** so the review measures all preparation.
-See [setup review details](docs/runtime.md#setup-review) for timing and options.
+See [setup review details](RUNTIME.md#setup-review) for timing and options.
 
-### Stage 2: no-op baseline
+### Stage 2: reference solution
 
 Runner stage: `2`.
+
+Runs `solution/solve.sh`, then the task's verifier. Every attempt must return
+reward **1** without execution errors. Tasks without a reference solution are skipped.
+
+Reference acceptance uses the verifier's parsed numeric reward, not text in logs.
+Missing, malformed or non-finite rewards, a reward other than 1, missing attempts,
+and recorded trial exceptions (including timeouts) still fail. Execution-recorder
+artifacts remain diagnostic: missing or malformed invocation records, or a recorded
+invocation with zero executed tests, do not independently reject a reference reward
+of 1. The no-op baseline is assessed independently and rejects a verifier that
+always returns 1. This reference policy does not relax no-op acceptance or the
+content-matching fingerprint evidence required by reference-solution leak checking.
+
+#### Retries after the run
+
+After all stages have run once, every task of runner stages 1, 2 and 3 is classified as
+the publisher classifies it: passed, archived, or not run (crash, node failure,
+missing reward, missing runner evidence). Tasks that are not run are rerun in
+those stages up to three more times, runner stage 1 first so a recovered build lets its
+trials run in the same round. A wrong reward or a failed build is a result and is
+not retried. A task still without a result after the last attempt is archived as
+not robust under this infrastructure, so every run ends in a decision for every
+task.
+
+When an earlier audit of the same tasks is supplied with `--expected-outcomes`
+(e.g. from a previous manual audit), results that differ from it are rerun
+instead of applying the classifier, and a task that never reproduces the audit
+is archived as not robust. The pull request reports, per stage, how many tasks
+matched on the first attempt, after one, two or three retries, or were archived,
+and where the expected outcomes came from.
+
+### Stage 3: no-op baseline
+
+Runner stage: `3`.
 
 Runs task setup and the verifier without a solving agent. Every attempt must
 return reward **0**; verifier crashes or missing rewards do not count as a pass,
@@ -313,7 +364,7 @@ that the agent was supposed to create. To handle this expected missing file,
 change the verifier to assert that the file exists before opening it. The test
 then fails normally and returns reward **0**, which passes the no-op check.
 
-**UPDATE:** Runner stage 2 now automatically counts `FileNotFoundError` for a path
+**UPDATE:** Runner stage 3 now automatically counts `FileNotFoundError` for a path
 mentioned in `instruction.md` as a valid no-op (reward **0**), even if no reward
 was written.
 
@@ -354,38 +405,14 @@ a zero can also pass when only the task's new test files fail to build because
 the APIs they call do not exist yet. Unrecognized diagnostics remain failures
 for review rather than being accepted by a generic crash rule.
 
-### Stage 3: reference solution
-
-Runner stage: `3`.
-
-Runs `solution/solve.sh`, then the task's verifier. Every attempt must return
-reward **1** without execution errors. Tasks without a reference solution are skipped.
-
-#### Retries after the run
-
-After all stages have run once, every task of runner stages 1, 2 and 3 is classified as
-the publisher classifies it: passed, archived, or not run (crash, node failure,
-missing reward, missing runner evidence). Tasks that are not run are rerun in
-those stages up to three more times, runner stage 1 first so a recovered build lets its
-trials run in the same round. A wrong reward or a failed build is a result and is
-not retried. A task still without a result after the last attempt is archived as
-not robust under this infrastructure, so every run ends in a decision for every
-task.
-
-When an earlier audit of the same tasks is supplied with `--expected-outcomes`
-(e.g. from a previous manual audit), results that differ from it are rerun
-instead of applying the classifier, and a task that never reproduces the audit
-is archived as not robust. The pull request reports, per stage, how many tasks
-matched on the first attempt, after one, two or three retries, or were archived,
-and where the expected outcomes came from.
-
 ## Task quality (runner stages 4 and 5)
 
 Produces dataset version B from A using rules and LLM review.
 
 ### Stage 4: static task-quality checks
 
-Runner stage: `4`. Environment static checks run separately in runner stage `1`.
+Runner stage: `4`. All static checks run here together, those about the environment included,
+after the automatic repairs; `python -m validation.rules TASKS --rules static` runs them without a job.
 
 Checks instruction clarity, discoverable requirements and evaluation integrity.
 Automatic instruction repairs are task-quality interventions, including the
@@ -506,10 +533,9 @@ The environment and task-quality lists partition the current default `training` 
 An enabled check can be advisory or apply only to certain task configurations.
 Results include each check's status and logs. Use `--exclude NAME=reason` to skip
 another check, or `--static-profile terminal-bench` for stricter benchmark rules
-(the changelog check remains excluded). Runner stage `1` executes only environment static checks before building and setup.
-Runner stage `4` executes only task-quality static checks. Definite preflight
-failures prevent that task from building; warnings remain advisory. Instruction
-suffix and path repair belong to stage `4`; pip-pin repair belongs to stage `1`.
+(the changelog check remains excluded). Runner stage `4` executes all static checks,
+environment and task-quality alike; warnings remain advisory. Instruction suffix and path
+repair run before stage `4`; pip-pin repair uses the reference run of stage `2`.
 
 LLM rubric review belongs to runner stage 5. GPTZero's AI-detection check runs only when
 `GPTZERO_API_KEY` is set.
@@ -670,7 +696,7 @@ attempts. The exported `report/summary.json` includes combined `review_usage`;
 preserves the full stage report. Shard merges recompute totals from task records.
 
 By default, review pricing uses the small audited Together price table in
-`validation/reporting/review_pricing.py`. Local model keys resolve to their HF
+`validation/publishing/review_pricing.py`. Local model keys resolve to their HF
 model IDs; API model IDs must match a verified entry. The initial table covers
 GLM-5.3 and gpt-oss-120b, checked on 2026-10-11. Other models remain unpriced
 (`null`, not zero). Each stage freezes its own resolved rates, source URL, model
@@ -711,7 +737,7 @@ to estimate equivalent API spend.
 Reprice a saved stage report without another model call:
 
 ```bash
-python -m validation.reporting.review_usage report/stage-5-ID.json \
+python -m validation.publishing.review_usage report/stage-5-ID.json \
   --pricing '{"input": 1, "output": 4, "cache_read": 0.1}' \
   --out report/repriced-stage-5.json
 ```
@@ -749,7 +775,7 @@ No replacement attempt is generated. Reports expose the verifier-error rate;
 these scored failures do not contribute to the no-reward rate. Missing, duplicate, unfinished
 or unaccounted-for attempts keep collection incomplete. Reference and no-op
 validation retain their strict execution and reward requirements. In particular,
-runner stage 2 (NOP) still requires a measured zero reward and valid test execution,
+runner stage 3 (NOP) still requires a measured zero reward and valid test execution,
 subject to its documented missing-file exception. The pass@k completion checker
 does not relax NOP validation.
 

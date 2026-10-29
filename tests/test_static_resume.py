@@ -8,11 +8,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from validation import contract
 from validation.checkpoints import static_resume
-from validation.checks import check_terminal_bench as checker
+from validation.rules.static import terminal_bench as checker
 
 
 @pytest.fixture(params=['validation/verify/check_terminal_bench.py',
-                       'validation/checks/check_terminal_bench.py'])
+                       'validation/checks/check_terminal_bench.py',
+                       'validation/rules/static/terminal_bench.py'])
 def checkpoint(tmp_path, request):
     task = tmp_path / 'tasks' / 'sample'
     (task / 'environment').mkdir(parents=True)
@@ -24,6 +25,12 @@ def checkpoint(tmp_path, request):
     root = tmp_path / 'checkpoint'
     root.mkdir()
     shutil.copyfile(checker.__file__, root / 'checker.py')
+    # Patches live next to their rules; checkpoints keep one copy of each (recover_checkpoint.py).
+    patches = {}
+    for path in checker.SOURCE_FILES[1:]:
+        name = str(path.relative_to(Path(checker.__file__).parents[3]))
+        patches[name] = 'checker-' + name.replace('/', '--')
+        shutil.copyfile(path, root / patches[name])
     manifest, checks, excluded = checker.load_checks('portable')
     report = {'commit': manifest['commit'], 'profile': 'portable', 'checks': checks,
               'adaptations': dict(checker.ADAPTATIONS), 'tasks': [{'task': task.name, 'status': 'passed',
@@ -33,14 +40,15 @@ def checkpoint(tmp_path, request):
     old = {'schema_version': 3, 'stage_layout': 'environment-first-v2', 'task_manifest': {'path': manifest_path.name,
            'sha256': static_resume.sha(manifest_path), 'count': 1},
            'success_criteria': {'static_checks': checks},
-           'implementation': {request.param: static_resume.sha(root / 'checker.py')}}
+           'implementation': {request.param: static_resume.sha(root / 'checker.py'),
+                              **{name: static_resume.sha(root / copy) for name, copy in patches.items()}}}
     old['sha256'] = contract.digest(old)
     (root / 'contract.json').write_text(json.dumps(old))
     (root / 'summary.json').write_text(json.dumps(report))
     (root / 'logs.tar.gz').write_bytes(b'test logs')
     def seal():
         meta = {'source_contract_sha256': old['sha256'], 'checkpoint_tasks': 1,
-                'files': {name: static_resume.sha(root / name) for name in ('contract.json', 'contract.tasks.json', 'summary.json', 'checker.py', 'logs.tar.gz')}}
+                'files': {name: static_resume.sha(root / name) for name in ('contract.json', 'contract.tasks.json', 'summary.json', 'checker.py', *patches.values(), 'logs.tar.gz')}}
         (root / 'checkpoint.json').write_text(json.dumps(meta))
     seal()
     return root, task, manifest, checks, report, seal
@@ -84,17 +92,19 @@ def test_checker_executes_only_missing_checks(checkpoint, tmp_path, monkeypatch)
     calls = []
     from types import SimpleNamespace
     def execute(command, **kwargs):
-        calls.append(Path(command[1]).name)
+        script = Path(command[1])  # two local rules share the file name check.py
+        calls.append(str(script) if script in set(checker.LOCAL_CHECKS.values()) else script.name)
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(checker.subprocess, 'run', execute)
-    monkeypatch.delenv('GPTZERO_API_KEY', raising=False)
+    # The portable profile's AI check is incomplete without a key; this fake one lets the
+    # (stubbed) missing check run so only resume behavior is under test.
+    monkeypatch.setenv('GPTZERO_API_KEY', 'test-only-not-a-real-key')
     out = tmp_path / 'out'
     assert checker.run_checks([task], out, profile='portable', resume=root) == 0
     final = json.loads((out / 'summary.json').read_text())
     assert final['complete'] and len(final['tasks']) == 1
-    expected = {p.name for name, p in checker.LOCAL_CHECKS.items() if name in checks}
-    if checks[-1] != checker.AI_CHECK:
-        expected.add(checker.LOCAL_CHECKS[checks[-1]].name if checks[-1] in checker.LOCAL_CHECKS else checks[-1])
+    expected = {str(p) for name, p in checker.LOCAL_CHECKS.items() if name in checks}
+    expected.add(str(checker.LOCAL_CHECKS[checks[-1]]) if checks[-1] in checker.LOCAL_CHECKS else checks[-1])
     assert set(calls) == expected and len(calls) == len(expected)
     assert len(final['tasks'][0]['checks']) == len(checks)
 

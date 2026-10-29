@@ -367,7 +367,7 @@ does not expose the host's hosts file or change network namespace policy.
 Live reproduction and repair evidence:
 `/hnvme/workspace/y500bb12-optiagent/runs/scaleswe-972-path-resolution-20261007/reference-review/loopback-probe.json`.
 
-Slurm validation prepares missing images with `hpc/image_cache.py` before task
+Slurm validation prepares missing images with `hpc/offline_prep/image_cache.py` before task
 timers and containers start. Each build has separate memory, CPU and timeout
 settings; defaults are 8192 MB, four CPUs, two simultaneous builds, and 3600
 seconds per image. Configure these with `--image-build-memory-mb`,

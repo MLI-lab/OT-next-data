@@ -2,8 +2,8 @@
 
 Writes the `trace_stats/` folder: README.md, data/{summary.json, provenance.json,
 per_attempt.parquet, per_task.parquet} and plots/. Metrics come from stage 7
-(validation.checks.trace_metrics) and plots from the report exporter
-(validation.reporting.plot_results); this module only feeds them the stored
+(validation.metrics.trace_metrics) and plots from the report exporter
+(validation.publishing.plot_results); this module only feeds them the stored
 trajectories, one attempt at a time.
 
     python -m validation.publishing.trace_stats V2_FOLDER OUT_DIR
@@ -13,14 +13,16 @@ from datetime import datetime, timezone
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import shutil
 import tempfile
 
-from validation.checks.trace_metrics import aggregate, distribution, trial_metrics
-from validation.checks import trace_metrics, trace_outcomes
-from validation.reporting import plot_results
+from validation.metrics.trace_metrics import aggregate, distribution, trial_metrics
+from validation.metrics import trace_outcomes
+from validation.metrics import trace_metrics
+from validation.publishing import plot_results
 
 OUTCOME_POLICY = 'exclusive-outcomes-v1'
 # Nested metrics are stored as JSON strings in the per-attempt table.
@@ -118,7 +120,7 @@ def readme(summary, plots, dataset):
     lines = ['# Trajectory statistics', '',
              f"{summary['unique_attempts']:,} attempts across {summary['unique_tasks']:,} tasks of {dataset}, "
              'kept and excluded, each counted once. Task success counts are in the [dataset overview](../README.md).', '',
-             '| Metric | ' + ' | '.join(models) + ' |', '| --- |' + ' ---: |' * len(models),
+             '| Metric | ' + ' | '.join(summary.get('model_ids', {}).get(m, m) for m in models) + ' |', '| --- |' + ' ---: |' * len(models),
              '| Recorded attempts | ' + ' | '.join(f"{m['trajectories']:,}" for m in models.values()) + ' |']
     for label, keys in (('Median agent turns', ('turns',)), ('Median input tokens per attempt', ('input_tokens',)),
                         ('Median output tokens per attempt', ('output_tokens',)),
@@ -132,7 +134,8 @@ def readme(summary, plots, dataset):
     if 'trace_commands' in overall:
         lines += [f"![Most frequent commands]({overall['trace_commands']})", '',
                   'Commands are counted as submitted, not as successful executions.', '']
-    per_model = [f"[{name}]({path})" for name, files in plots.items() if name != 'all-models'
+    per_model = [f"[{summary.get('model_ids', {}).get(name, name)} {kind.removeprefix('trace_')}]({path})"
+                 for name, files in plots.items() if name != 'all-models'
                  for kind, path in sorted(files.items())]
     lines += ['Per-model plots: ' + ', '.join(per_model) + '.', '', '## Data', '',
               '- [Summary](data/summary.json): overall and per-model statistics.',
@@ -141,6 +144,13 @@ def readme(summary, plots, dataset):
               '- [Provenance](data/provenance.json): source files and deduplication.', '',
               f"Attempts without a saved conversation: {summary['missing_trajectories']:,}; without a verifier reward: "
               f"{summary['null_verifier_rewards']:,}. Their missing measurements stay empty.", '']
+    settings = summary.get('evaluation_settings')
+    if settings:
+        from validation.publishing.evaluation_settings import markdown
+        lines += ['', markdown(settings)]
+    else:
+        lines += ['', 'Evaluation budgets: see the [dataset evaluation setup](../README.md). '
+                  'Per-call context and output-limit enforcement are not established by token-usage statistics.', '']
     return '\n'.join(lines)
 
 
@@ -153,8 +163,14 @@ def export(folder, out):
     data.mkdir(parents=True, exist_ok=True)
     plots.mkdir(exist_ok=True)
     sources = []
+    from validation.publishing.trace_outcome_stats import OutcomeStats, readme_section
+    from validation.publishing.evaluation_settings import model_id
+    outcome_stats = OutcomeStats()
     with tempfile.TemporaryDirectory(prefix='trace-stats-') as scratch:
-        rows = [metrics(row, scratch) for row in attempts(trace_files, sources)]
+        rows = []
+        for row in attempts(trace_files, sources):
+            outcome_stats.add(row)
+            rows.append(metrics(row, scratch))
         groups = defaultdict(list)
         for row in rows:
             groups[slug(row['model'])].append(row)
@@ -169,8 +185,21 @@ def export(folder, out):
         'null_verifier_rewards': sum(r['verifier_reward'] is None for r in rows),
         'all_attempts': aggregate(rows),
         'models': {name: aggregate(group) for name, group in groups.items() if name != 'all-models'},
+        'model_ids': {name: model_id({'model': group[0]['model']}) for name, group in groups.items() if name != 'all-models'},
+        'by_outcome': {
+            model: {outcome: aggregate([
+                row for row in group
+                if ('No verifier score' if row['verifier_reward'] is None or not math.isfinite(row['verifier_reward'])
+                    else 'Successful' if row['verifier_reward'] >= 1 else 'Unsuccessful (graded)') == outcome
+            ]) for outcome in ('Successful', 'Unsuccessful (graded)', 'No verifier score')}
+            for model, group in groups.items()
+        },
         'outcome_policy': OUTCOME_POLICY,
     }
+    settings_path = folder / 'metadata' / 'evaluation-settings-audit.json'
+    if settings_path.is_file():
+        settings = json.loads(settings_path.read_text())
+        summary['evaluation_settings'] = settings['evaluation_settings']
     (data / 'summary.json').write_text(json.dumps(summary, indent=1) + '\n')
     (data / 'provenance.json').write_text(json.dumps({
         'deduplication_key': ['model', 'task_id', 'attempt_id'], 'sources': sources, 'figures': figures,
@@ -179,7 +208,8 @@ def export(folder, out):
         'plotting': {'implementation_sha256': sha256(plot_results.__file__)}, 'outcome_policy': OUTCOME_POLICY,
     }, indent=1) + '\n')
     write_tables(rows, data)
-    (out / 'README.md').write_text(readme(summary, figures, folder.name))
+    outcome_stats.write(out)
+    (out / 'README.md').write_text(readme(summary, figures, folder.name) + '\n\n' + readme_section())
     return summary
 
 

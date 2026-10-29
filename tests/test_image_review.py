@@ -16,7 +16,8 @@ def test_default_and_explicit_file_mode():
     assert parser().parse_args(['--review-evidence', 'files']).review_evidence == 'files'
     with pytest.raises(ValueError, match='finite and positive'):
         check_args(parser().parse_args(['--review-max-budget-usd', 'nan']))
-    assert review.provider_for('terminus-2', True) == 'local'
+    with pytest.raises(ValueError, match='Terminus 2'):
+        review.provider_for('terminus-2')
 
 
 class Environment:
@@ -73,7 +74,7 @@ def test_review_evidence_and_cleanup(tmp_path, monkeypatch, mode):
     (staged / 'rubric-skips.json').write_text('{}')
     (staged / 'rubric.toml').write_text('[[criteria]]\nname="anti_cheat_robustness"\n')
     env = Environment()
-    async def create(*args):
+    async def create(*args, **kwargs):
         return {'agent': env}
     monkeypatch.setattr(review, 'create_environments', create)
     monkeypatch.setattr(review.shutil, 'which', lambda command: '/bin/' + command)

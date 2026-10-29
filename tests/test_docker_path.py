@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -117,3 +118,33 @@ def test_resolved_env_reaches_generated_definition(tmp_path):
     result = subprocess.run(['/bin/sh', '-c', rendered + '\nprintf "%s" "$PATH"'],
                             env={'PATH': '/usr/bin'}, capture_output=True, text=True, check=True)
     assert result.stdout == '/usr/lib/jvm/java-17/bin:/usr/bin'
+
+
+def test_deferred_build_copies_context_before_run_steps(tmp_path, monkeypatch):
+    from harbor_patches.docker_path import CONTEXT_MOUNT, deferred_copies_first
+    context = tmp_path / 'context'
+    (context / 'task_file').mkdir(parents=True)
+    (context / 'task_file' / 'App.csproj').write_text('project')
+    sidecar = tmp_path / 'image.deferred.json'
+    spec = {'run': ['cd /app/task_file && dotnet build'], 'workdir': '/app',
+            'copy': ['task_file/App.csproj /app/task_file/', 'run.sh bin/run.sh']}
+    sidecar.write_text(json.dumps(spec))
+    monkeypatch.setenv('APPTAINER_BIND', '/etc/hosts:/etc/hosts:ro')
+    seen = {}
+
+    def bake(sif):
+        seen.update(spec=json.loads(sidecar.read_text()), bind=os.environ['APPTAINER_BIND'])
+        return 'overlay'
+    worker = SimpleNamespace(_deferred_sidecar=lambda _: str(sidecar),
+                             _deferred_overlay=lambda _: str(tmp_path / 'missing.img'))
+    assert deferred_copies_first(bake, worker, context)('image.sif') == 'overlay'
+    assert seen['spec']['run'] == [
+        f'mkdir -p /app/task_file/ && cp -a {CONTEXT_MOUNT}/task_file/App.csproj /app/task_file/',
+        f'mkdir -p /app/bin && cp -a {CONTEXT_MOUNT}/run.sh /app/bin/run.sh',
+        'cd /app/task_file && dotnet build']
+    assert seen['bind'] == f'/etc/hosts:/etc/hosts:ro,{context}:{CONTEXT_MOUNT}:ro'
+    assert json.loads(sidecar.read_text()) == spec
+    assert os.environ['APPTAINER_BIND'] == '/etc/hosts:/etc/hosts:ro'
+    sidecar.write_text(json.dumps({**spec, 'copy': ['../secret /app/']}))
+    with pytest.raises(ValueError):
+        deferred_copies_first(bake, worker, context)('image.sif')

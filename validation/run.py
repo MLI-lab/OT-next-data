@@ -36,7 +36,7 @@ def run_selected(args, numbers):
     if getattr(args, 'prebuild_only', False):
         raise ValueError('--prebuild-only must run through the Slurm image preparation worker')
     from validation.stages.normalize_paths import prepare as normalize_paths
-    from data.utils.resolve_pip_pins import prepare as normalize_pip_pins
+    from validation.rules.static.pip_pinning.repair import prepare as normalize_pip_pins
     normalize_pip_pins(args, numbers)
     defer_paths = (1 in numbers and 4 in numbers
                    and all(numbers.index(n) < numbers.index(4) for n in (1, 2, 3) if n in numbers)
@@ -53,10 +53,6 @@ def run_selected(args, numbers):
     save(summary, report)
     args._build_failures = {}
     stage_runs = {}
-    bundled = {n for n in numbers if n in (2, 3)} if getattr(args, 'reuse_validation_containers', False) else set()
-    if len(bundled) < 2:
-        bundled = set()  # Standalone stages retain ordinary fresh-start behavior.
-    bundle_finished = False
     retried, retried_before_paths = None, False
     for number in numbers:
         if number == 4 and defer_paths:
@@ -68,19 +64,6 @@ def run_selected(args, numbers):
             if getattr(args, 'contract', None):
                 from validation.contract import read
                 report['contract_sha256'] = read(args.contract)['sha256']
-        if number in bundled:
-            if not bundle_finished:
-                from validation.stages.run_reused_containers import run_validation_bundle
-                try:
-                    for stage, path, result in run_validation_bundle(args, bundled):
-                        report['stages'].append({'stage': stage, 'report': str(path),
-                                                'status': 'findings' if result['has_findings'] else 'completed'})
-                except Exception as exc:
-                    for stage in sorted(bundled):
-                        report['stages'].append({'stage': stage, 'status': 'error', 'reason': str(exc)})
-                bundle_finished = True
-                save(summary, report)
-            continue
         # With all, review both ordinary and adversarial trajectories. An explicit
         # --trials remains authoritative for a standalone analysis selection.
         jobs = analysis_jobs if number in (7, 8) and not given_trials else [given_trials]

@@ -10,8 +10,9 @@ from types import SimpleNamespace
 import pytest
 
 from validation import contract
-from validation.checks import environment, repository_repair
-from validation.checks.instruction_suffix import normalize_archive
+from validation.rules.dynamic.environment import repair as repository_repair
+from validation.rules.dynamic.environment import check as environment
+from validation.rules.static.instruction_suffix import normalize_archive
 
 
 class Local:
@@ -23,8 +24,9 @@ class Local:
         return SimpleNamespace(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
 
 
+# Empty home root: the host's /home holds unrelated repositories.
 ENV = {**os.environ, 'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@t',
-       'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@t'}
+       'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@t', 'OT_REPOSITORY_HOME_ROOT': ''}
 
 
 def git(repo, *args, when=None):
@@ -33,7 +35,7 @@ def git(repo, *args, when=None):
 
 
 def history(repo):
-    report = asyncio.run(environment.inspect_leaks(Local(repo), roots=()))
+    report = asyncio.run(environment.inspect_leaks(Local(repo), roots=(), home=None))
     return {c['check']: c for c in report['checks']}
 
 
@@ -107,21 +109,11 @@ def test_repair_is_a_no_op_without_repository_or_git(tmp_path):
     assert run_repair(work, tmp_path / 'none.json') == ''
     assert json.loads((tmp_path / 'none.json').read_text()) == {'version': 1, 'git': True, 'repositories': []}
     result = subprocess.run(['/bin/sh', '-c', 'PATH=/nonexistent; ' + repository_repair.SCRIPT], cwd=work,
-                            env={'PATH': '/usr/bin:/bin', 'OT_REPOSITORY_REPAIR_REPORT': str(tmp_path / 'nogit.json')},
+                            env={'PATH': '/usr/bin:/bin', 'OT_REPOSITORY_REPAIR_REPORT': str(tmp_path / 'nogit.json'),
+                                 'OT_REPOSITORY_HOME_ROOT': ''},
                             capture_output=True, text=True)
     assert result.returncode == 0 and 'no git' in result.stdout
     assert json.loads((tmp_path / 'nogit.json').read_text())['git'] is False
-
-
-def test_dockerfile_gets_exactly_one_final_step_and_keeps_the_user():
-    text = 'FROM base AS build\nUSER builder\nFROM example\nWORKDIR /testbed\nUSER app\nCMD ["x"]\n'
-    once = repository_repair.repair(text)
-    assert once.startswith(text)
-    assert once.endswith('USER root\nRUN ' + repository_repair.SCRIPT + '\nUSER app\n')
-    assert repository_repair.repair(once) == once
-    assert once.count(repository_repair.MARKER) == 1
-    plain = repository_repair.repair('FROM example')
-    assert plain == 'FROM example\n' + repository_repair.MARKER + '\nRUN ' + repository_repair.SCRIPT + '\n'
 
 
 def archive(files):
@@ -139,17 +131,23 @@ def members(blob):
         return {m.name: tar.extractfile(m).read() for m in tar.getmembers() if m.isfile()}
 
 
-def test_archive_repair_is_idempotent_and_image_only_tasks_are_recorded():
+def test_task_without_setup_gets_the_repair_at_start_and_keeps_its_image():
     files = {'instruction.md': b'Fix it.\n', 'task.toml': b'[agent]\ntimeout_sec = 60\n',
              'environment/Dockerfile': b'FROM example\n'}
     repair = lambda f: repository_repair.repair_files(f)[0]
     once = normalize_archive(archive(files), lambda i, c: i, repair)
     assert normalize_archive(once, lambda i, c: i, repair) == once
-    assert members(once)['environment/Dockerfile'].decode().count(repository_repair.MARKER) == 1
+    copy = members(once)
+    assert copy['environment/Dockerfile'] == files['environment/Dockerfile']
+    assert copy[repository_repair.SETUP] == repository_repair.cleanup_setup().encode()
+    with tarfile.open(fileobj=io.BytesIO(once)) as tar:
+        assert tar.getmember(repository_repair.SETUP).mode == 0o755
+    # A build-step repair of earlier versions is removed, so the image is the task's own again.
+    stale = {**files, 'environment/Dockerfile': b'FROM example\n' + repository_repair.MARKER.encode() + b'\nRUN true\n'}
+    assert repair(stale)['environment/Dockerfile'] == files['environment/Dockerfile']
     image_only = {k: v for k, v in files.items() if k != 'environment/Dockerfile'}
-    unchanged, record = repository_repair.repair_files(image_only)
-    assert unchanged == image_only and record['status'] == 'not_applied'
-    assert 'no environment/Dockerfile' in record['reason']
+    repaired, record = repository_repair.repair_files(image_only)
+    assert record['status'] == 'applied' and repository_repair.SETUP in repaired
 
 
 @pytest.mark.parametrize('enabled', [True, False])
@@ -175,12 +173,12 @@ def test_flag_controls_the_validation_copy(tmp_path, monkeypatch, enabled):
     copy = captured[0]
     assert copy != source and contract.task_digest(source / 'with-image') == original
     assert (copy / 'with-image/instruction.md').read_text() == 'Print hello.\n'  # stage 4 not selected
-    assert repository_repair.MARKER in (copy / 'with-image/environment/Dockerfile').read_text()
+    assert (copy / 'with-image/environment/Dockerfile').read_text() == 'FROM example\n'
+    assert (copy / 'with-image' / repository_repair.SETUP).read_text() == repository_repair.cleanup_setup()
     import json
     record = json.loads((copy / 'source.json').read_text())['normalization']['repository_leak_repair']
-    assert record['enabled'] and record['applied'] == 1
-    assert 'image-only' in record['not_applied']
-    assert record['dockerfile_step'].endswith(repository_repair.SCRIPT)
+    assert record['enabled'] and record['applied'] == record['applied_after_setup'] == 2
+    assert record['not_applied'] == {}
 
 
 def test_leak_that_survives_the_repair_is_labelled_after_repair():
@@ -198,21 +196,6 @@ def test_leak_that_survives_the_repair_is_labelled_after_repair():
     assert publish.judge(1, item)[0] == 'archive'
 
 
-def test_repaired_dockerfile_passes_upstream_dockerfile_sanity(tmp_path):
-    """The 20 lines after a `RUN ... apt` line are grepped for NAME=1.2 as a pinned
-    apt package (MiMo pilot 1045430 failed every task on `m=0.2` in our step)."""
-    import subprocess
-    from validation.checks.repository_repair import repair
-    script = (Path(__file__).resolve().parents[1]
-              / 'validation/upstream/terminal_bench/scripts/checks/check-dockerfile-sanity.sh')
-    dockerfile = tmp_path / 'environment' / 'Dockerfile'
-    dockerfile.parent.mkdir()
-    dockerfile.write_text('FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*\n')
-    dockerfile.write_text(repair(dockerfile.read_text()))
-    result = subprocess.run(['bash', str(script), str(dockerfile)], capture_output=True, text=True)
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
 def test_tasks_with_setup_get_the_repair_after_setup_and_keep_their_dockerfile():
     docker = b'FROM base\nWORKDIR /home/repo\n'
     setup = b'#!/bin/bash\ngit checkout v1\n'
@@ -226,7 +209,7 @@ def test_tasks_with_setup_get_the_repair_after_setup_and_keep_their_dockerfile()
     # Re-preparing a validation copy never wraps twice.
     assert repository_repair.repair_files(repaired)[0] == repaired
     # A Dockerfile repaired by an older preparation loses its build step.
-    stale = {**files, 'environment/Dockerfile': repository_repair.repair(docker.decode()).encode()}
+    stale = {**files, 'environment/Dockerfile': docker + repository_repair.MARKER.encode() + b'\nRUN true\n'}
     assert repository_repair.repair_files(stale)[0]['environment/Dockerfile'] == docker
     clash = {**files, repository_repair.TASK_SETUP: b'x'}
     assert repository_repair.repair_files(clash)[1]['status'] == 'not_applied'
@@ -365,3 +348,58 @@ def test_stale_commit_graph_naming_pruned_commits_is_removed(tmp_path):
     assert history(repo)['repository-history-leak']['status'] == 'error'
     run_repair(repo)
     assert history(repo)['repository-history-leak']['status'] == 'passed'
+
+
+def test_repository_below_home_is_found_and_repaired(tmp_path):
+    home = tmp_path / 'home'
+    clone = home / 'user' / 'project'
+    clone.parent.mkdir(parents=True)
+    git(tmp_path, 'clone', '-q', str(upstream(tmp_path)), str(clone))
+    git(clone, 'reset', '-q', '--hard', 'HEAD~1')
+    work = tmp_path / 'work'
+    work.mkdir()
+    report = asyncio.run(environment.inspect_leaks(Local(work), roots=(), home=str(home)))
+    history = report['checks'][0]
+    assert history['status'] == 'failed' and str(clone) in history['repositories']
+    env = dict(ENV, OT_REPOSITORY_REPAIR_REPORT=str(tmp_path / 'report.json'), OT_REPOSITORY_HOME_ROOT=str(home))
+    result = subprocess.run(['sh', '-ec', repository_repair.SETUP_SCRIPT], cwd=work, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads((tmp_path / 'report.json').read_text())['repositories'][0]['path'] == str(clone)
+    report = asyncio.run(environment.inspect_leaks(Local(work), roots=(), home=str(home)))
+    assert report['checks'][0]['status'] == 'passed'
+
+
+def test_unreadable_directory_below_home_does_not_fail_the_setup(tmp_path):
+    # Apptainer fakeroot cannot read /home/ubuntu (0750, unmapped owner): find exits 1,
+    # which under sh -e ended Multi-SWE setups silently (2026-10-29).
+    home = tmp_path / 'home'
+    clone = home / 'user' / 'project'
+    clone.parent.mkdir(parents=True)
+    git(tmp_path, 'clone', '-q', str(upstream(tmp_path)), str(clone))
+    locked = home / 'ubuntu'
+    locked.mkdir(mode=0)
+    work = tmp_path / 'work'
+    work.mkdir()
+    env = dict(ENV, OT_REPOSITORY_REPAIR_REPORT=str(tmp_path / 'report.json'), OT_REPOSITORY_HOME_ROOT=str(home))
+    try:
+        result = subprocess.run(['sh', '-ec', repository_repair.SETUP_SCRIPT], cwd=work, env=env,
+                                capture_output=True, text=True)
+    finally:
+        locked.chmod(0o700)
+    assert result.returncode == 0, result.stderr
+    assert json.loads((tmp_path / 'report.json').read_text())['repositories'][0]['path'] == str(clone)
+
+
+def test_task_whose_history_is_input_is_not_repaired_and_not_passed(tmp_path):
+    files = {'task.toml': f'[metadata]\n{environment.HISTORY_INPUT_KEY} = true\n'.encode(),
+             'environment/Dockerfile': b'FROM example\n', repository_repair.SETUP: b'#!/bin/bash\ngit init\n'}
+    repaired, record = repository_repair.repair_files(files)
+    assert repaired == files and record['status'] == 'not_applied'
+    repo = tmp_path / 'repo'
+    git(tmp_path, 'clone', '-q', str(upstream(tmp_path)), str(repo))
+    git(repo, 'reset', '-q', '--hard', 'HEAD~1')
+    report = asyncio.run(environment.inspect_leaks(Local(repo), roots=(), home=None, history_is_input=True))
+    history = report['checks'][0]
+    assert report['status'] == history['status'] == 'not_checked'
+    assert history['observation'].startswith('failed: ')
+    assert environment.leak_verdict({'leaks': report}) is None

@@ -8,6 +8,7 @@ import shlex
 import signal
 import shutil
 import sys
+import time
 from uuid import uuid4
 
 from validation.rubrics.run_review import (judge_command, codex_envelope, clean_environment,
@@ -19,14 +20,12 @@ def save(path, data):
     path.write_text(json.dumps(data, indent=2) + '\n')
 
 
-def provider_for(agent, local=False):
-    if local:
-        return 'local'
+def provider_for(agent):
     if agent in ('claude-code', 'claude'):
         return 'claude'
     if agent in ('codex', 'codex-cli'):
         return 'codex'
-    raise ValueError('Image-backed stage 5 supports Claude Code, Codex CLI, and --review-local judges.')
+    raise ValueError('Host-CLI image review supports Claude Code and Codex CLI; other judges run in Terminus 2.')
 
 
 async def run_judge(command, prompt, cwd, env, timeout):
@@ -96,7 +95,7 @@ class Inspector:
         await writer.drain()
 
 
-async def create_environments(source, out, args):
+async def create_environments(source, out, args, runtime_task=None):
     from harbor.environments.factory import EnvironmentFactory
     from harbor.models.environment_type import EnvironmentType
     from harbor.models.task.task import Task
@@ -106,10 +105,11 @@ async def create_environments(source, out, args):
     from harbor_patches.start_wait import run_with_budget, status_reader
     from validation.stages.harbor import install_runtime_patches, environment_config, check_runtime_task
     from validation.stages.task_setup import detect, prepare, upload_setup
-    check_runtime_task(source, args.backend)
+    task_source = runtime_task or source
+    check_runtime_task(task_source, args.backend)
     from harbor_patches.image_context import environment_dir_hash
     install_runtime_patches()
-    task = Task(source)
+    task = Task(task_source)
     specs = [('agent', task.paths.environment_dir, task.config.environment)]
     for step in task.config.steps or [None]:
         spec = resolve_effective_verifier_env_config(task.config, step)
@@ -132,10 +132,18 @@ async def create_environments(source, out, args):
                 trial_paths=paths, task_env_config=spec, **environment_config(args)['kwargs'])
             environments[label] = env
             waited = status_reader(env)
-            command = detect(source) if label == 'agent' else None
+            command = detect(task_source) if label == 'agent' else None
             await run_with_budget(prepare(env, command=command, timeout_sec=spec.build_timeout_sec,
-                force_build=args.force_build, upload=lambda: upload_setup(env, source), waited=waited), spec.build_timeout_sec, waited)
-            await env.upload_dir(source_dir=source, target_dir=f'/app/task-under-review/{source.name}')
+                force_build=args.force_build, upload=lambda: upload_setup(env, task_source), waited=waited), spec.build_timeout_sec, waited)
+            target = f'/app/task-under-review/{source.name}'
+            if runtime_task is not None:
+                # Some neutral images contain a dangling setup-files symlink
+                # before per-review files are uploaded. Recreate the disposable
+                # evidence directory explicitly, then upload the frozen source.
+                prepared = await env.exec('rm -rf /app/task-under-review && mkdir -p ' + shlex.quote(target), timeout_sec=30)
+                if prepared.return_code:
+                    raise RuntimeError('Could not prepare the file-only review evidence directory')
+            await env.upload_dir(source_dir=source, target_dir=target)
             evidence.append({'environment': label, 'context': str(context), 'context_sha256': environment_dir_hash(context), 'config': spec.model_dump(mode='json'),
                              'agent_setup_command': command, 'verifier_setup_executed': False,
                              'review_files': f'/app/task-under-review/{source.name}', 'cache_policy': 'shared runtime cache; fresh disposable instance'})
@@ -146,7 +154,7 @@ async def create_environments(source, out, args):
         raise
 
 
-def usage_row(envelope, provider, trial, agent, model):
+def usage_row(envelope, provider, trial, agent, model, elapsed_seconds=None):
     usage = list((envelope.get('modelUsage') or {}).values())
     def total(*keys):
         values = [next((entry[k] for k in keys if k in entry), None) for entry in usage]
@@ -156,15 +164,16 @@ def usage_row(envelope, provider, trial, agent, model):
     inp = total('inputTokens', 'input_tokens')
     if provider == 'claude' and inp is not None:
         inp += (read or 0) + (write or 0)
-    return {'trial': str(trial), 'agent': agent, 'model': model, 'input_tokens': inp,
+    return {'trial': str(trial), 'agent': agent, 'model': model,
+            'elapsed_seconds': elapsed_seconds, 'input_tokens': inp,
             'output_tokens': total('outputTokens', 'output_tokens'), 'cache_read_input_tokens': read,
             'cache_write_input_tokens': write, 'reported_cost_usd': envelope.get('total_cost_usd')}
 
 
-async def review(source, staged, out, args, agent, model):
-    from validation.reporting.review_usage import price, summarize_rows
-    from validation.reporting.review_pricing import for_stage
-    provider = provider_for(agent, getattr(args, 'review_local', False))
+async def review(source, staged, out, args, agent, model, *, runtime_task=None, evidence_mode='image'):
+    from validation.publishing.review_usage import price, summarize_rows
+    from validation.publishing.review_pricing import for_stage
+    provider = provider_for(agent)
     skipped = json.loads((staged / 'rubric-skips.json').read_text())
     if args.dry_run:
         return {'status': 'previewed', 'evidence_mode': 'image', 'automatic_skips': skipped}
@@ -185,11 +194,11 @@ async def review(source, staged, out, args, agent, model):
             async def invoke(reduced, prompt, round_dir):
                 nonlocal environments, server, inspector
                 if not environments:
-                    executable = {'claude': 'claude', 'codex': 'codex', 'local': None}[provider]
-                    if executable and not shutil.which(executable):
+                    executable = provider
+                    if not shutil.which(executable):
                         raise RuntimeError(f'{executable} CLI must be installed on the review worker PATH')
                     session.mkdir(parents=True)
-                    environments = await create_environments(source, session, args)
+                    environments = await create_environments(source, session, args, runtime_task=runtime_task)
                     inspector = Inspector(environments, session / 'tool-calls.jsonl')
                     server = await asyncio.start_server(inspector.handle, '127.0.0.1', 0, limit=100000)
                 inspector.calls = 0  # A separate tool budget for each repair round.
@@ -202,19 +211,14 @@ async def review(source, staged, out, args, agent, model):
                 port = server.sockets[0].getsockname()[1]
                 env = clean_environment()
                 env['OT_REVIEW_INSPECT_TOKEN'] = inspector.token
-                env['LOCAL_JUDGE_SEED'] = str(getattr(args, 'review_seed', 42) + attempt)
-                if provider == 'local':
-                    endpoint = getattr(args, 'api_base', None) or os.environ.get('LOCAL_JUDGE_URL')
-                    if not endpoint:
-                        raise ValueError('--review-local requires --api-base or a served model endpoint')
-                    env['LOCAL_JUDGE_URL'] = endpoint
                 mcp = {'mcpServers': {'image': {'command': sys.executable, 'args': [str(Path(__file__).with_name('image_inspector.py')), str(port)],
                     'env': {'OT_REVIEW_INSPECT_TOKEN': inspector.token}}}}
                 command = judge_command(provider, model.removeprefix('anthropic/').removeprefix('openai/').removeprefix('hosted_vllm/'),
                     getattr(args, 'review_reasoning_effort', 'medium'), mcp, getattr(args, 'review_max_budget_usd', 5))
-                prompt += '\n\nUse the inspect tool to examine the task filesystem and complete review files, including tests/setup.sh and setup_files when present. Available environments: ' + ', '.join(environments) + '. The agent environment has completed task setup; separate verifier environments have not executed tests/setup.sh. The rubric for this round is at /app/rubric.toml. Review-only files are not evidence of solver access. Changes affect only this disposable instance. Distinguish solver permissions from reviewer access. Write /app/verdicts.json in the agent environment. At least one successful inspection is required for this round.\n'
+                prompt += '\n\nUse the inspect tool to examine the task files, including tests/setup.sh and setup_files when present. Available environments: ' + ', '.join(environments) + '. The agent environment has completed task setup; separate verifier environments have not executed tests/setup.sh. The rubric for this round is at /app/rubric.toml. Review-only files are not evidence of solver access. Changes affect only this disposable instance. Distinguish solver permissions from reviewer access. Write /app/verdicts.json in the agent environment. At least one successful inspection is required for this round.\n'
                 (round_dir / 'prompt.txt').write_text(prompt)
                 envelope = {}
+                started = time.monotonic()
                 try:
                     code, stdout, stderr = await run_judge(command, prompt, round_dir, env, args.timeout_minutes * 60)
                     (round_dir / 'stdout.txt').write_text(stdout)
@@ -231,7 +235,9 @@ async def review(source, staged, out, args, agent, model):
                     except (OSError, ValueError, RuntimeError):
                         raw = {}  # Malformed/missing output gets a bounded repair round.
                 finally:
-                    row = usage_row(envelope, provider, round_dir, agent, model)
+                    elapsed_seconds = time.monotonic() - started
+                    row = usage_row(envelope, provider, round_dir, agent, model,
+                                    elapsed_seconds=elapsed_seconds)
                     pricing = for_stage(args, 5)
                     price(row, pricing['rates'], pricing['source'])
                     new_usage.append(row)
@@ -262,5 +268,5 @@ async def review(source, staged, out, args, agent, model):
                 except Exception as exc:
                     errors.append(f'{attempt}: environment cleanup failed: {exc}')
     return {'status': 'error' if errors else ('findings' if any(v['outcome'] in ('fail', 'incomplete') for d in verdicts for v in d['checks'].values()) else 'passed'),
-            'findings': errors, 'verdicts': verdicts, 'automatic_skips': skipped, 'evidence_mode': 'image', 'inspection_attempts': records, 'review_checkpoint': str(cache),
+            'findings': errors, 'verdicts': verdicts, 'automatic_skips': skipped, 'evidence_mode': evidence_mode, 'inspection_attempts': records, 'review_checkpoint': str(cache),
             'usage': {'trials': usage, 'expected_trials': runs, 'summary': summarize_rows(usage, runs, 1)}}

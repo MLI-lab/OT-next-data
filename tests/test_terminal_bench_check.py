@@ -8,8 +8,8 @@ from types import SimpleNamespace
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from validation.checks.check_terminal_bench import TERMINAL_BENCH, load_checks, run_checks
-from validation.checks import dataset_checks
+from validation.rules.static.terminal_bench import TERMINAL_BENCH, load_checks, run_checks
+from validation.dataset_checks import run as dataset_checks
 
 @pytest.fixture(autouse=True)
 def no_live_gptzero(monkeypatch):
@@ -17,6 +17,8 @@ def no_live_gptzero(monkeypatch):
 
 
 pytestmark = pytest.mark.skipif(sys.version_info < (3, 11), reason='upstream requires Python 3.11+')
+# Profiles other than training select the AI check; without a key it is incomplete.
+NO_AI = ['check_ai_detection.py']
 
 
 def make_task(root, name='example'):
@@ -35,9 +37,10 @@ def test_pinned_scripts_match_upstream_workflow_and_profiles():
     workflow = (TERMINAL_BENCH / '.github/workflows/static-checks.yml').read_text()
     upstream = set(re.findall(r'\|((?:check-)[\w-]+\.sh)"', workflow))
     assert {n for n in set(checks) | set(excluded) if n.endswith('.sh')} == upstream
-    assert len(checks) == 27 and len(excluded) == 2
+    # Upstream scripts plus our local rules (validation/rules/static).
+    assert len(checks) == 31 and len(excluded) == 2
     _, portable, skipped = load_checks('portable')
-    assert len(portable) == 14
+    assert len(portable) == 18
     assert 'check-task-package-name.sh' in skipped
 
 
@@ -54,8 +57,8 @@ def test_all_profile_does_not_accept_missing_ai_prerequisite(tmp_path):
     out = tmp_path / 'all-checks'
     run_checks([task], out, 'all', exclude=[c for c in checks if c != 'check_ai_detection.py'])
     item = json.loads((out / 'summary.json').read_text())['tasks'][0]
-    assert item['status'] == 'failed'
-    assert item['checks'][0]['status'] == 'skipped'
+    assert item['status'] == 'incomplete'
+    assert item['checks'][0]['status'] == 'incomplete'
     assert item['checks'][0]['optional'] is False
 
 
@@ -64,7 +67,7 @@ def test_real_upstream_scripts_pass_and_catch_unpinned_dependency(tmp_path):
     bad = make_task(tmp_path, 'bad')
     (bad / 'environment/Dockerfile').write_text('FROM python:3.12-slim\nRUN pip install requests\n')
     out = tmp_path / 'report'
-    assert run_checks([bad, good], out, 'portable') == 1
+    assert run_checks([bad, good], out, 'portable', exclude=NO_AI) == 1
     report = json.loads((out / 'summary.json').read_text())
     assert report['complete'] and not report['passed']
     assert report['tasks'][1]['status'] == 'passed'
@@ -88,7 +91,7 @@ def test_zih_staging_preserves_verdicts_and_sources(tmp_path, monkeypatch, budge
     monkeypatch.setenv('ZIH_STATIC_MAX_BYTES', budget)
     monkeypatch.setenv('TMPDIR', str(durable))
     out = durable / 'report'
-    assert run_checks([good, bad], out, 'portable', concurrency=2) == 1
+    assert run_checks([good, bad], out, 'portable', exclude=NO_AI, concurrency=2) == 1
     rows = json.loads((out / 'summary.json').read_text())['tasks']
     assert {r['task']: r['status'] for r in rows} == {'good': 'passed', 'bad': 'failed'}
     assert all(r['path'] == str(tmp_path / r['task']) for r in rows)
@@ -160,8 +163,8 @@ def test_all_records_errors_skips_and_submissions(tmp_path, monkeypatch):
     assert report['complete']
 
 
-def test_training_defaults_and_missing_ai_key_are_non_failing(tmp_path, capsys):
-    from validation.checks.check_terminal_bench import TRAINING_EXCLUSIONS, AI_CHECK
+def test_training_defaults_exclude_ai_and_missing_ai_key_is_incomplete(tmp_path, capsys):
+    from validation.rules.static.terminal_bench import TRAINING_EXCLUSIONS, AI_CHECK
     _, checks, excluded = load_checks('training')
     assert set(TRAINING_EXCLUSIONS) <= set(excluded)
     assert 'check-task-absolute-path.sh' not in excluded
@@ -176,24 +179,27 @@ def test_training_defaults_and_missing_ai_key_are_non_failing(tmp_path, capsys):
     assert 'check-test-sh-sanity.sh' in load_checks('terminal-bench')[1]
     assert {'check-pip-pinning.sh', 'check-verifier-tooling-baked.sh'} <= set(checks)
     assert 'check-separate-verifier.sh' in load_checks('terminal-bench')[1]
-    assert AI_CHECK in checks and 'rubric_review.py' not in checks
+    # User policy (2026-10-26): training records AI detection as intentionally excluded.
+    assert AI_CHECK not in checks and 'excluded by user policy' in excluded[AI_CHECK]
+    assert 'rubric_review.py' not in checks
     task = make_task(tmp_path)
-    # Portable fixture passes its checks; missing API credentials must not fail it.
+    # Where a profile selects it, missing API credentials leave the check incomplete, not passed.
     out = tmp_path / 'no-key'
-    assert run_checks([task], out, 'portable') == 0
+    assert run_checks([task], out, 'portable') == 1
     report = json.loads((out / 'summary.json').read_text())
     check = next(c for c in report['tasks'][0]['checks'] if c['check'] == AI_CHECK)
-    assert check['status'] == 'skipped' and check['optional']
-    assert 'no GPTZERO_API_KEY configured' in capsys.readouterr().out
+    assert check['status'] == 'incomplete' and not check['optional']
+    assert report['tasks'][0]['status'] == 'incomplete' and not report['passed']
+    assert 'INCOMPLETE check_ai_detection.py: no GPTZERO_API_KEY configured' in capsys.readouterr().out
 
 
 def test_configured_ai_check_uses_python_without_real_api_calls(tmp_path, monkeypatch):
-    import validation.checks.check_terminal_bench as checker
+    import validation.rules.static.terminal_bench as checker
     # Exercise the default interpreter, independently of an HPC/local override.
     monkeypatch.delenv('ZIH_STATIC_PYTHON', raising=False)
     monkeypatch.setenv('GPTZERO_API_KEY', 'test-only-not-a-real-key')
     task = make_task(tmp_path)
-    _, checks, _ = load_checks('training')
+    _, checks, _ = load_checks('portable')
     real_run = checker.subprocess.run
     calls = []
     def fake_run(command, **kwargs):
@@ -204,7 +210,7 @@ def test_configured_ai_check_uses_python_without_real_api_calls(tmp_path, monkey
         return real_run(command, **kwargs)
     monkeypatch.setattr(checker.subprocess, 'run', fake_run)
     out = tmp_path / 'with-key'
-    run_checks([task], out, 'training', exclude=[n for n in checks if n != checker.AI_CHECK])
+    run_checks([task], out, 'portable', exclude=[n for n in checks if n != checker.AI_CHECK])
     assert len(calls) == 1 and calls[0][0] == sys.executable
     assert json.loads((out / 'summary.json').read_text())['passed']
 
@@ -274,7 +280,7 @@ def test_configured_ai_check_uses_python_without_real_api_calls(tmp_path, monkey
     ('Head each section with `## Summary` and read `src/auth.py`.', False),
 ])
 def test_absolute_path_check_only_accepts_explicit_command_and_link_bases(tmp_path, instruction, passes):
-    from validation.checks.check_terminal_bench import path_check_copy
+    from validation.rules.static.terminal_bench import path_check_copy
     task = make_task(tmp_path)
     (task / 'instruction.md').write_text(instruction)
     scratch = tmp_path / 'adapted'
@@ -287,7 +293,7 @@ def test_absolute_path_check_only_accepts_explicit_command_and_link_bases(tmp_pa
 
 @pytest.mark.parametrize("profile", [None, "portable"])
 def test_path_check_ignores_file_names_inside_source_code(tmp_path, profile):
-    from validation.checks.check_terminal_bench import without_source_code
+    from validation.rules.static.terminal_bench import without_source_code
     task = make_task(tmp_path, 'code-task')
     code = ('## Context\n\n```python\n\"\"\"Example:\n```\nrun()\n```\n\"\"\"\n## Class hierarchy\n'
             'config = json.load(open("config.json"))\n```\n\n## Your Task\n\n')
@@ -346,7 +352,7 @@ def test_unsafe_file_names_are_checked_on_a_renamed_copy(tmp_path):
     (task / 'setup_files/context').mkdir(parents=True)
     (task / 'setup_files/context/000_Clase 4__[id].ts').write_text('export const x = 1\n')
     out = tmp_path / 'report'
-    assert run_checks([task], out, 'portable') == 0
+    assert run_checks([task], out, 'portable', exclude=NO_AI) == 0
     entry = json.loads((out / 'summary.json').read_text())['tasks'][0]
     assert entry['status'] == 'passed' and entry['renamed_for_checks'] == ['setup_files/context/000_Clase 4__[id].ts']
     assert (task / 'setup_files/context/000_Clase 4__[id].ts').exists()      # the task itself is unchanged
@@ -373,12 +379,12 @@ def test_parallel_checks_share_one_log_and_preserve_failures(tmp_path):
     assert len(list(out.rglob('*.log'))) == 1
     outcomes = [json.loads(line) for line in (out / 'outcomes.jsonl').read_text().splitlines()]
     assert {entry['task'] for entry in outcomes} == {good.name, bad.name}
-    from validation.checks.check_terminal_bench import rebuild_summary
+    from validation.rules.static.terminal_bench import rebuild_summary
     assert rebuild_summary(out)['tasks'] == report['tasks']
 
 
 def test_summary_recovery_retains_completed_tasks_and_rejects_corruption(tmp_path):
-    from validation.checks.check_terminal_bench import rebuild_summary
+    from validation.rules.static.terminal_bench import rebuild_summary
     (tmp_path / 'summary.json').write_text(json.dumps({
         'selected_tasks': ['/tasks/first', '/tasks/second'], 'tasks': [],
         'complete': False, 'passed': False}))
@@ -445,7 +451,7 @@ def test_stage1_adaptations_keep_real_failures(tmp_path, check, source, expected
 @pytest.mark.parametrize('path', ['/srv/local-repo/Packages.gz', '/boot/custom.img-5.15.0-89-generic', '/project/calibration/sensor_cal.h5', '/opt/manifests/reference.sha1'])
 def test_reference_extractor_preserves_full_path(tmp_path, path):
     import subprocess
-    from validation.checks.check_terminal_bench import reference_check_script
+    from validation.rules.static.terminal_bench import reference_check_script
     source = TERMINAL_BENCH / 'scripts/checks/check-test-file-references.sh'
     script = tmp_path / 'check.sh'
     script.write_text(reference_check_script(source.read_text()))
@@ -476,7 +482,7 @@ def test_documented_numeric_filename_range(tmp_path, number, expected):
 @pytest.mark.parametrize('command', ['echo hello > report.txt', 'compiler -o report.txt input.c'])
 def test_redirection_and_output_flags_do_not_become_filenames(tmp_path, command):
     import subprocess
-    from validation.checks.check_terminal_bench import reference_check_script
+    from validation.rules.static.terminal_bench import reference_check_script
     script = tmp_path / 'check.sh'
     script.write_text(reference_check_script((TERMINAL_BENCH / 'scripts/checks/check-test-file-references.sh').read_text()))
     task = make_task(tmp_path)
@@ -521,7 +527,7 @@ def test_relative_path_is_advisory_and_does_not_archive(tmp_path):
     task = make_task(tmp_path)
     (task / 'instruction.md').write_text('Update `src/example.py` to return the answer.\n')
     out = tmp_path / 'report'
-    assert run_checks([task], out, 'portable') == 0
+    assert run_checks([task], out, 'portable', exclude=NO_AI) == 0
     item = json.loads((out / 'summary.json').read_text())['tasks'][0]
     assert item['status'] == 'passed'
     assert item['warnings'][0]['tag'] == 'relative-instruction-path'
@@ -618,14 +624,14 @@ def test_dockerfile_check_adaptations(tmp_path, check, dockerfile, expected):
 @pytest.mark.parametrize('changed', [None, 'image', 'script', 'task_id'])
 def test_calibforge_nproc_allowance_is_content_pinned(tmp_path, monkeypatch, changed):
     import hashlib
-    from validation.checks import check_terminal_bench as checker
+    from validation.rules.static import terminal_bench as checker
     task = make_task(tmp_path)
     script = task / 'tests/test.sh'
     script.write_text('make -j$(nproc)\n')
     record = {'file': 'tests/test.sh', 'sha256': {
         name: hashlib.sha256((task / name).read_bytes()).hexdigest()
         for name in ('environment/Dockerfile', 'tests/test.sh')}}
-    monkeypatch.setattr(checker, 'CALIBFORGE_REVIEWED_NPROC', {task.name: record})
+    monkeypatch.setattr(checker.nproc, 'CALIBFORGE_REVIEWED_NPROC', {task.name: record})
     if changed == 'image':
         (task / 'environment/Dockerfile').write_text('FROM other\n')
     elif changed == 'script':
@@ -641,7 +647,7 @@ def test_calibforge_nproc_allowance_is_content_pinned(tmp_path, monkeypatch, cha
 
 
 def test_dockerfile_comment_filter_preserves_heredoc_data():
-    from validation.checks.check_terminal_bench import dockerfile_without_comments
+    from validation.rules.static.terminal_bench import dockerfile_without_comments
     text = '# tests/test.sh provenance\nCOPY <<EOF /app/example\n# tests/test.sh is data here\nEOF\n'
     assert dockerfile_without_comments(text) == text.split('\n', 1)[1]
 
@@ -655,7 +661,7 @@ def test_dockerfile_comment_filter_preserves_heredoc_data():
     ('RUN sudo -n apt-get install gcc=1.2\n', True),
 ])
 def test_apt_sanity_shell_forms(text, has_pin):
-    from validation.checks.check_terminal_bench import dockerfile_sanity_text
+    from validation.rules.static.terminal_bench import dockerfile_sanity_text
     result = dockerfile_sanity_text(text)
     assert bool(re.search(r'\b[a-zA-Z0-9_-]+=[0-9]+\.[0-9]', result)) == has_pin
 
@@ -729,7 +735,7 @@ def test_reference_check_archive_members_and_env_defaults(tmp_path, source, expe
 def test_path_check_reports_unquoted_relative_file_names(tmp_path):
     """Upstream collects unquoted names in a piped while loop (a subshell) and loses them."""
     import subprocess
-    from validation.checks import check_terminal_bench as ctb
+    from validation.rules.static import terminal_bench as ctb
     task = tmp_path / 'task'
     (task / 'environment').mkdir(parents=True)
     (task / 'instruction.md').write_text('Read settings from config.yaml and write the summary.\n')

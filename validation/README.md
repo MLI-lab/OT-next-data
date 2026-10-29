@@ -4,29 +4,54 @@ Combines the [Terminal-Bench task validation protocol](https://github.com/harbor
 
 ## Workflow
 
-1. Validate a diverse 10-task pilot with stages 1, 3, 4 and 5. Collect fixes in
+1. Validate a diverse 10-task pilot with stages 1, 2, 3 and 4. Collect fixes in
    `data/<dataset>/patch.py`, then validate the full patched dataset.
 2. Pilot teacher generation with stages 6 and 7. Inspect scores, errors and
    trajectories before increasing the task count and attempts.
-3. Pilot LLM reviews with stages 2 and 8.
+3. Pilot LLM reviews with stages 5 and 8.
    `data/create_pilot.py` samples earlier results for review.
 
 | Stage | Purpose |
 | --- | --- |
-| [1](PROTOCOL.md#stage-1-static-checks) | Static task checks |
-| [2](PROTOCOL.md#stage-2-llm-rubric-review) | LLM rubric review of instructions and task implementation |
-| [3](PROTOCOL.md#stage-3-build-and-runtime-validation) | Container build and runtime checks |
-| [4](PROTOCOL.md#stage-4-reference-solution) | Reference solution: reward 1 |
-| [5](PROTOCOL.md#stage-5-no-op-baseline) | No-op agent: reward 0 |
+| [1](PROTOCOL.md#stage-1-build-and-runtime-checks) | Container build, setup and runtime checks |
+| [2](PROTOCOL.md#stage-2-reference-solution) | Reference solution: reward 1 |
+| [3](PROTOCOL.md#stage-3-no-op-baseline) | No-op agent: reward 0 |
+| [4](PROTOCOL.md#stage-4-static-task-quality-checks) | All static checks |
+| [5](PROTOCOL.md#stage-5-llm-rubric-review) | LLM rubric review of instructions and task implementation |
 | [6](PROTOCOL.md#stage-6-teacher-agent-trials) | Teacher agent attempts and reward statistics |
 | [7](PROTOCOL.md#stage-7-trace-metrics) | Trajectory statistics |
 | [8](PROTOCOL.md#stage-8-llm-trajectory-analysis) | LLM rubric review of trajectories |
 | [9](PROTOCOL.md#stage-9-adversarial-trials-optional-untested) | Adversarial agent attempts |
 | [10](PROTOCOL.md#stage-10-hackerfixer-loop-optional-untested) | Hacker/fixer task hardening |
 
+You can run any subset of stages. A task whose build fails is skipped in stages 2 and 3.
+All static rules run together in stage 4, after the automatic repairs, and dynamic rules run in
+stages 1-3; see [rules/README.md](rules/README.md). `python -m validation.rules TASKS --rules static`
+runs all static rules without a job.
+
+## Folders
+
+| Folder | Contents |
+| --- | --- |
+| `stages/` | Runs each stage (`runner.py`) |
+| `rules/` | The rules stages apply, static and dynamic, with their automatic repairs |
+| `metrics/` | Rewards, pass@k and trajectory statistics |
+| `rubrics/` | Rubrics for the LLM reviews (stages 5 and 8) |
+| `publishing/` | Reports, plots, Hugging Face PRs, dataset cards, image releases |
+| `checkpoints/` | Reusing finished work when a run is resumed |
+| `data/` | Selecting tasks and unpacking TaskTrove Parquets |
+| `dataset_checks/` | Whole-dataset checks: image counts, reproducibility, isolation |
+| `upstream/` | Downloads and hash-checks the pinned Terminal-Bench, harbor-validation and harden-v0 code |
+
 ## Quickstart
 
 ### Create a contract
+
+A contract is the plan of a run, fixed before it starts: the exact task IDs and
+their content hashes, the stages, settings and code version. This is what lets a
+run be checked, resumed or reproduced later. You do not write it by hand and never
+edit it: `--prepare-contract` creates it, and you prepare a new one when tasks,
+settings or code change.
 
 Pass your settings as command-line arguments to `--prepare-contract`. It
 generates a contract JSON that records the selected tasks, stages, and settings
@@ -35,7 +60,7 @@ you omit use their defaults.
 
 ```bash
 python validation/run.py /path/to/tasks \
-  --stages 1,3,4,5 --limit 10 \
+  --stages 1,2,3,4 --limit 10 \
   --submit helma --partition cpu --cpus 48 \
   --concurrency 4 --time 02:00:00 \
   --out "$OT_WORKSPACE/validation-pilot" \
@@ -49,14 +74,14 @@ Set the following arguments when preparing the contract:
 | Argument | Meaning |
 | --- | --- |
 | `/path/to/tasks` | Input task directory or TaskTrove Parquet. |
-| `--stages` | One stage or several separated by commas, such as `1,3,4,5`, `6,7`, or `2`. Stages 9 and 10 are optional and untested. |
+| `--stages` | One stage or several separated by commas, such as `1,2,3,4`, `6,7`, or `5`. Stages 9 and 10 are optional and untested. |
 | `--limit N` | Select at most N tasks. Omit for the full dataset. |
 | `--submit helma` or `--submit zih` | Cluster to submit to. |
 | `--partition` | Slurm partition. The default `auto` chooses according to whether local model serving needs GPUs. |
 | `--cpus`, `--memory`, `--gpus` | Resources requested for the job allocation. |
 | `--time HH:MM:SS` | Maximum Slurm job duration. |
 | `--concurrency N` | Tasks or trials running at once, default 1. Choose according to their CPU and memory needs. |
-| `--static-concurrency N` | Number of tasks checked at once in stage 1. Defaults to `--concurrency`, limited by available CPUs. |
+| `--static-concurrency N` | Number of tasks checked at once by the static rules. Defaults to `--concurrency`, limited by available CPUs. |
 | `--image-build-concurrency N` | Images built simultaneously before validation, default 2. |
 | `--out` | Directory for results and submission files. |
 | `--prepare-contract PATH` | Save the selected tasks and settings in a contract JSON without running validation. |
@@ -70,11 +95,12 @@ For teacher generation and LLM reviews:
 | `--model PROVIDER/MODEL` | Model for teacher generation (stage 6) and the optional stages 9 and 10. |
 | `--serve-model MODEL` | Start a local model configured in `config/models.py`. |
 | `--api-base URL` | Connect to an existing model endpoint. |
-| `--attempts K` | Attempts per task, default 1. In stage 6 this is `k` for solved counts and pass@k. Also sets repetitions for reference, no-op, and review trials. |
-| `--review-runs N` | Independent stage-2 judge runs per task; defaults to `--attempts`. |
+| `--attempts K` | Agent attempts per task in stage 6, default 1: `k` for solved counts and pass@k. Also the default number of LLM reviews. |
+| `--reference-runs N`, `--nop-runs N` | Runs per task in stages 2 and 3, default 3, each in a fresh container. All reference runs must score 1 and all no-op runs 0. Stage 1 builds each task once and retries a failed build up to 3 times. |
+| `--review-runs N` | Independent stage-5 judge runs per task; defaults to `--attempts`. |
 | `--review-retries N` | Repair rounds for missing/invalid judgments, default 2. |
-| `--review-resume` / `--no-review-resume` | Resume matching stage-2 checkpoints (enabled by default), or request fresh reviews. |
-| `--review-agent`, `--review-model` | Override stage 2 defaults; also apply to stage 8 unless separately overridden. |
+| `--review-resume` / `--no-review-resume` | Resume matching stage-5 checkpoints (enabled by default), or request fresh reviews. |
+| `--review-agent`, `--review-model` | Override stage 5 defaults; also apply to stage 8 unless separately overridden. |
 | `--analysis-agent`, `--analysis-model` | Override only the stage 8 judge. |
 | `--review-local` | Use the locally served model for reviews; requires `--serve-model`. |
 | `--trials JOB_DIR` | Saved trial results and trajectories for stages 7 and 8. Supplied automatically when run together with stage 6. |
@@ -120,7 +146,7 @@ login with write access is required.
 
 For each data source, it uploads retained tasks as `tasks.parquet`, excluded
 tasks with their reasons as `archive.parquet`, validation results, and eligible
-cached images. Failures in stages 1, 3, 4, and 5 can exclude tasks; other stages
+cached images. Failures in stages 1, 2, 3 and 4 can exclude tasks; other stages
 provide additional measurements and reviews.
 
 To publish an existing run, use [`publish.py`](publishing/publish.py). Add

@@ -4,7 +4,7 @@ import tarfile
 
 import pytest
 
-from validation.checks.supplied_references import discoverable_references, literal_writes
+from validation.rules.static.test_file_references.supplied_references import discoverable_references, literal_writes
 
 
 def fixture_task(root, instruction, payloads, commands=()):
@@ -205,7 +205,7 @@ def test_unknown_expansions_are_not_reconstructed(command):
 
 @pytest.mark.parametrize('named,expected', [(True, 'passed'), (False, 'failed')])
 def test_checker_only_accepts_references_reachable_from_instruction(tmp_path, named, expected):
-    from validation.checks.check_terminal_bench import load_checks, run_checks
+    from validation.rules.static.terminal_bench import load_checks, run_checks
     task_root = tmp_path / 'task'
     task_root.mkdir()
     task = fixture_task(task_root, 'Inspect `/app/config.json`.' if named else 'Create a report.', {

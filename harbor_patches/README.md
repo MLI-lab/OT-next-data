@@ -117,6 +117,16 @@ loss of the shared bridge, node, allocation or its storage.
 
 ## Images and lifecycle
 
+Verifier-only Python tooling can use [prepared runtime bundles](docs/prepared-verifier-runtimes.md).
+Shared preparation helpers support pinned `uvx` tools and direct Python commands;
+the harness stages the installed runtime after the agent and mounts it read-only
+for setup and grading. `mount_mode="writable"` selects a private disposable overlay
+when setup needs to install packages. Existing bundle references default to read-only.
+Task dependencies can also be declared in `setup_files/ot-task-runtime.json`:
+the runner supplies a private writable copy before task setup and the agent.
+Optional task offline-package bundles supply local apt packages and wheels.
+Without these declarations, setup scripts keep their normal install behavior.
+
 - Execute instance commands with `--cleanenv`, as for container startup. Otherwise
   host runtime variables such as `UV_CACHE_DIR` override image caches and break
   offline verifier dependencies. Explicit task `--env` values still apply.

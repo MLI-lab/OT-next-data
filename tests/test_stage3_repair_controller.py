@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import pytest
-from validation.patch_repair_loop import controller as c, agents
+from data.patch_repair_loop import controller as c, agents
 
 
 @pytest.mark.parametrize('consolidate,failure,pilot_sizes', [
@@ -100,7 +100,7 @@ def test_prompts_and_exclusions():
 def test_publication_uses_manifest_and_saved_report(tmp_path, monkeypatch):
     import sys
     from types import SimpleNamespace
-    from validation.patch_repair_loop import publication as p
+    from data.patch_repair_loop import publication as p
     from validation.publishing import publish as publisher
     source = tmp_path / 'source'
     source.mkdir()
@@ -145,14 +145,14 @@ def test_publication_uses_manifest_and_saved_report(tmp_path, monkeypatch):
 
 
 def test_publication_requires_explicit_destination():
-    from validation.patch_repair_loop.publication import inputs
+    from data.patch_repair_loop.publication import inputs
     with pytest.raises(c.LoopBlocked, match='publish_repo'):
         inputs({}, {})
 
 
 def retry_fixture(tmp_path, monkeypatch):
     from copy import deepcopy
-    from validation.patch_repair_loop import retries
+    from data.patch_repair_loop import retries
     contract = {'sha256': 'original', 'stages': [1, 2, 3, 4], 'execution_profile': {},
                 'runtime_dependencies': {}, 'implementation': {}, 'upstream': {},
                 'success_criteria': {'minimum_tasks': 2},
@@ -211,7 +211,7 @@ def test_retry_rejects_incompatible_evidence(tmp_path, monkeypatch, change):
 
 
 def test_reviewer_must_cover_exact_failures():
-    from validation.patch_repair_loop.retries import decisions
+    from data.patch_repair_loop.retries import decisions
     outcome = {'failures': [{'task_id': 'b'}]}
     item = {'task_id': 'b', 'action': 'retry', 'reason': 'bridge outage', 'evidence': ['/logs/worker']}
     assert decisions({'findings': [item]}, outcome)['retry'] == ['b']
@@ -222,7 +222,7 @@ def test_reviewer_must_cover_exact_failures():
 
 
 def test_dead_job_becomes_unexecuted_failures_for_review(tmp_path, monkeypatch):
-    from validation.patch_repair_loop import retries
+    from data.patch_repair_loop import retries
     monkeypatch.setattr(retries, 'read', lambda path: {'sha256': 'frozen', 'tasks': [{'task_id': 'a'}]})
     def dead(*args):
         raise RuntimeError('job ended FAILED without a complete report')
@@ -237,7 +237,7 @@ def test_dead_job_becomes_unexecuted_failures_for_review(tmp_path, monkeypatch):
 def test_controller_retries_only_selected_infrastructure_failures(tmp_path, monkeypatch):
     import hashlib
     from validation import contract
-    from validation.patch_repair_loop import retries
+    from data.patch_repair_loop import retries
     patcher = tmp_path / 'data/example/patch.py'
     patcher.parent.mkdir(parents=True)
     patcher.write_text('# original')
@@ -285,7 +285,7 @@ def test_agent_fingerprint_detects_new_dataset_helpers(tmp_path):
 
 def test_publisher_restores_archived_code(tmp_path):
     import tarfile
-    from validation.patch_repair_loop.publication import snapshot
+    from data.patch_repair_loop.publication import snapshot
     submission = tmp_path / 'submission'
     submission.mkdir()
     source = tmp_path / 'frozen-code'
@@ -383,7 +383,7 @@ def test_automated_loop_disclosure_is_scoped_to_its_prs():
 
 
 def test_loop_summary_counts_sessions_and_renders_pr(tmp_path):
-    from validation.patch_repair_loop.publication import loop_summary
+    from data.patch_repair_loop.publication import loop_summary
     from validation.publishing.publish import description
     for folder, role, model in [('proposal', 'proposer', 'model-a'),
                                 ('implementation', 'implementer', None),
@@ -647,7 +647,7 @@ def idle_fixer_state(tmp_path, config, **extra):
 
 @pytest.mark.parametrize('trigger', ['shared_revision', 'resume_after_repair'])
 def test_idle_fixer_is_superseded_by_fresh_stage3(tmp_path, monkeypatch, trigger):
-    from validation.patch_repair_loop import recovery as r
+    from data.patch_repair_loop import recovery as r
     patcher = tmp_path / 'data/example/patch.py'
     patcher.parent.mkdir(parents=True)
     patcher.write_text('# original')
@@ -676,7 +676,7 @@ def test_idle_fixer_is_superseded_by_fresh_stage3(tmp_path, monkeypatch, trigger
 
 
 def test_fixer_with_partial_edit_keeps_its_evidence(tmp_path, monkeypatch):
-    from validation.patch_repair_loop import recovery as r
+    from data.patch_repair_loop import recovery as r
     patcher = tmp_path / 'data/example/patch.py'
     patcher.parent.mkdir(parents=True)
     patcher.write_text('# original')

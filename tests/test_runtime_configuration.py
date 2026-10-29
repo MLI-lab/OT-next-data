@@ -89,7 +89,11 @@ def test_nested_reply_override_preserves_request_options():
             'llm_call_kwargs': {'max_tokens': 2048, 'max_completion_tokens': 4096}})
 
 
-def test_terminus_output_limit_reaches_http_request(tmp_path):
+@pytest.mark.parametrize('legacy_top_level_only', [False, True])
+@pytest.mark.parametrize('model_key', ['qwen38-27b', 'coder-30b', 'qwen35-122b',
+    'qwen3-coder-480b-fp8', 'glm-5.3', 'glm-5.3-flash',
+    'qwen3-30b-instruct-2507', 'qwen3-30b-thinking'])
+def test_terminus_output_limit_reaches_http_request(tmp_path, model_key, legacy_top_level_only):
     import asyncio
     import json
     import httpx
@@ -109,7 +113,10 @@ def test_terminus_output_limit_reaches_http_request(tmp_path):
             'usage': {'prompt_tokens': 1, 'completion_tokens': 1, 'total_tokens': 2}})
 
     async def run():
-        kwargs = serving_agent_kwargs(resolve('qwen38-27b')[1], 32768, {})
+        spec = resolve(model_key)[1]
+        kwargs = serving_agent_kwargs(spec, spec.context, {})
+        if legacy_top_level_only:
+            kwargs.pop('llm_call_kwargs')
         agent = Terminus2(logs_dir=tmp_path, model_name='openai/test',
                           api_base='http://test/v1', **kwargs)
         async with AsyncOpenAI(api_key='test', base_url='http://test/v1',
@@ -117,7 +124,10 @@ def test_terminus_output_limit_reaches_http_request(tmp_path):
                                    transport=httpx.MockTransport(respond))) as client:
             agent._llm._openai_client = client
             await agent._dispatch_llm_request(Chat(agent._llm), 'hello', None, None)
-        assert requests[0]['max_tokens'] == kwargs['model_info']['max_output_tokens'] == 8192
+        if legacy_top_level_only:
+            assert requests[0].get('max_tokens') is None
+        else:
+            assert requests[0]['max_tokens'] == kwargs['model_info']['max_output_tokens'] == spec.max_output_tokens
         assert requests[0]['temperature'] == kwargs['temperature']
         assert requests[0]['chat_template_kwargs'] == kwargs['extra_body']['chat_template_kwargs']
 

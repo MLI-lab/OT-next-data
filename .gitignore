@@ -28,3 +28,6 @@ external/
 # Local planning and progress notes
 /[Uu][Pp][Dd][Aa][Tt][Ee].[Mm][Dd]
 /[Gg][Oo][Aa][Ll].[Mm][Dd]
+
+# Dated reports and figures (kept locally, not part of the pipeline)
+/updates/

@@ -2,7 +2,7 @@
 from contextvars import ContextVar
 import json
 
-from data.utils.resolve_absolute_paths import resolve_in_environment
+from validation.rules.static.task_absolute_path.repair import resolve_in_environment
 
 observations = ContextVar('reference_path_observations', default=None)
 

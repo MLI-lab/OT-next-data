@@ -33,7 +33,7 @@ def test_direct_command_help_outside_repository(patch, args, tmp_path):
 
 def test_pymethods_repairs_preserve_solution_and_payload():
     from data.tasktrove_pymethods2test.patch import patch_task, SOLVE_SH
-    from data.utils.full_source.harbor_parquet import pack_task
+    from data.utils.harbor_parquet import pack_task
     from data.utils.task_archive import read_members
     original = {
         'environment/Dockerfile': b'FROM python:3.12\nRUN pip install --no-cache-dir pytest\n',

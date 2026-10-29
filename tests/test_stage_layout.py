@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from validation.checks.check_terminal_bench import load_checks
+from validation.rules.static.terminal_bench import load_checks
 from validation.stages import environment_preflight
 from validation.stages.layout import LAYOUT, NAMES, require_layout, require_stage
 from validation.stages.runner import parser, check_args
@@ -25,13 +25,8 @@ def test_static_groups_partition_the_profile(profile):
     assert 'check-no-cheat-dir.sh' in quality
 
 
-def test_environment_failures_gate_builds_and_preserve_checks(tmp_path, monkeypatch):
-    sources = [tmp_path / name for name in ('good', 'bad', 'warning')]
-    static = [{'task': str(p), 'status': 'failed' if p.name == 'bad' else 'passed',
-               'checks': [{'check': 'check-dockerfile-sanity.sh',
-                           'status': {'bad': 'failed', 'warning': 'warning'}.get(p.name, 'passed')}]}
-              for p in sources]
-    monkeypatch.setattr(environment_preflight, 'preflight', lambda *a: static)
+def test_stage1_builds_every_task_and_static_checks_all_run_in_stage4(tmp_path, monkeypatch):
+    sources = [tmp_path / name for name in ('good', 'bad')]
     called = []
 
     async def build(selected, out, args, outcomes):
@@ -40,11 +35,12 @@ def test_environment_failures_gate_builds_and_preserve_checks(tmp_path, monkeypa
 
     monkeypatch.setattr('validation.stages.build_retries.run_builds', build)
     result = environment_preflight.run_build_stage(sources, tmp_path, SimpleNamespace())
-    assert called == ['good', 'warning']
-    assert [i['status'] for i in result] == ['passed', 'failed', 'passed']
-    from validation.publishing.publish import judge
-    assert judge(1, result[1]) == ('archive', 'static checks failed: check-dockerfile-sanity.sh')
-    assert result[2]['environment_static']['checks'][0]['status'] == 'warning'
+    assert called == ['good', 'bad'] and [i['status'] for i in result] == ['passed', 'passed']
+    assert all('environment_static' not in i for i in result)
+    from validation.rules.static.terminal_bench import load_checks
+    _, every, _ = load_checks('training')
+    _, environment, _ = load_checks('training', group='environment')
+    assert environment and set(environment) < set(every)  # stage 4 runs both groups
 
 
 def test_pipeline_order_and_trial_identity(tmp_path, monkeypatch):
@@ -65,7 +61,7 @@ def test_pipeline_order_and_trial_identity(tmp_path, monkeypatch):
 
 def test_environment_only_does_not_resolve_instruction_paths():
     from validation.stages.normalize_paths import enabled as paths_enabled
-    from data.utils.resolve_pip_pins import enabled as pins_enabled
+    from validation.rules.static.pip_pinning.repair import enabled as pins_enabled
     args = parser().parse_args([])
     assert not paths_enabled(args, [1, 2, 3])
     assert paths_enabled(args, [4])

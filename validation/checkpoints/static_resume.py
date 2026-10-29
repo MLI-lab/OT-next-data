@@ -13,7 +13,8 @@ def sha(path):
 
 def checker_source(contract):
     """Locate the checker in current or historical frozen code snapshots."""
-    for name in ('validation/checks/check_terminal_bench.py',
+    for name in ('validation/rules/static/terminal_bench.py',
+                 'validation/checks/check_terminal_bench.py',
                  'validation/verify/check_terminal_bench.py'):
         if name in contract['implementation']:
             return name
@@ -33,7 +34,7 @@ def checkpoint_record(directory):
 
 def load(directory, tasks, manifest, checks, profile, expected=None, accept_previous_path_check=False):
     from validation.contract import read, task_records, task_digest
-    from validation.checks import check_terminal_bench as checker
+    from validation.rules.static import terminal_bench as checker
     directory = Path(directory)
     record = checkpoint_record(directory)
     if expected is not None and record != expected:
@@ -43,6 +44,10 @@ def load(directory, tasks, manifest, checks, profile, expected=None, accept_prev
         raise ValueError('static checkpoint source contract mismatch')
     if sha(directory / 'checker.py') != old_contract['implementation'][checker_source(old_contract)]:
         raise ValueError('static checkpoint checker differs from source contract')
+    for path in directory.glob('checker-*.py'):
+        name = path.name[len('checker-'):].replace('--', '/')
+        if sha(path) != old_contract['implementation'].get(name):
+            raise ValueError(f'static checkpoint patch {name} differs from source contract')
     old = json.loads((directory / 'summary.json').read_text())
     if len(old['tasks']) != record['checkpoint_tasks']:
         raise ValueError('static checkpoint task count mismatch')
@@ -55,8 +60,14 @@ def load(directory, tasks, manifest, checks, profile, expected=None, accept_prev
     def functions(path):
         return {n.name: ast.dump(n, include_attributes=False) for n in ast.parse(Path(path).read_text()).body
                 if isinstance(n, ast.FunctionDef)}
-    previous = functions(directory / 'checker.py')
-    current = functions(checker.__file__)
+    # Since validation/rules, the patches live next to their rules; checkpoints hold one copy of each
+    # file (checker-<name>.py) besides the runner (checker.py). Older checkpoints only have checker.py.
+    previous = {}
+    for path in [directory / 'checker.py', *sorted(directory.glob('checker-*.py'))]:
+        previous.update(functions(path))
+    current = {}
+    for path in checker.SOURCE_FILES:
+        current.update(functions(path))
     for name in ('validate_input', 'safe_copy'):
         if previous.get(name) != current.get(name):
             raise ValueError(f'static checkpoint input transformation changed: {name}')

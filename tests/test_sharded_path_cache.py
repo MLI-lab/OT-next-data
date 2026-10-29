@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from validation.checks.instruction_suffix import record_resolved_paths
-from validation.checks.path_cache import KEY, read, task_fingerprint
+from validation.rules.static.instruction_suffix import record_resolved_paths
+from validation.rules.static.task_absolute_path.path_cache import KEY, read, task_fingerprint
 from validation.data.materialize import materialize
 from validation.stages.layout import LAYOUT, REFERENCE
 

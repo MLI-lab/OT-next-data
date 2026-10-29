@@ -33,6 +33,7 @@ class Model:
     # forcing bfloat16 would fight. Its reasoning parser is per model family.
     dtype: str = 'bfloat16'
     reasoning_parser: str = ''
+    tool_call_parser: str = ''
     weights_gb: int = 0             # bf16/fp8 checkpoint size, for planning
 
     def parallelism(self, gpus_per_node: int) -> tuple[int, int]:
@@ -49,7 +50,8 @@ class Model:
 MODELS = {
     'qwen38-27b': Model(
         name='Qwen3.8-27B', hf_repo='Qwen/Qwen3.8-27B', gpus=1,
-        weights_gb=56, reasoning_parser='qwen3',
+        weights_gb=56, reasoning_parser='qwen3', tool_call_parser='qwen3_xml', thinking=True,
+        max_output_tokens=32767,
         sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20,
                   'presence_penalty': 1.5, 'repetition_penalty': 1.0},
         extra_args=['--language-model-only']),
@@ -73,11 +75,13 @@ MODELS = {
     # of Helma's nodes. Sampling is the model's own generation_config.
     'glm-5.3': Model(
         name='GLM-5.3', hf_repo='zai-org/GLM-5.3',
-        gpus=8, thinking=True, weights_gb=756, dtype='auto', reasoning_parser='glm45',
+        gpus=8, thinking=True, weights_gb=756, dtype='auto', reasoning_parser='glm45', tool_call_parser='glm45',
         # CUDA graph capture fails on the pipeline-parallel stage that spans nodes
         # (873959: cudaErrorStreamCaptureInvalidated), so capture is off. It costs
         # some throughput; drop the flag when a vLLM release fixes capture under PP.
         extra_args=['--enforce-eager'],
+        # Same judge limits as GLM-5.3-Flash: 32,768 per reply inside a 131,072 context.
+        context=131072, max_output_tokens=32768,
         sampling={'temperature': 1.0, 'top_p': 0.95}),
     # Local rubric judge. FP8, 306 GB, one Helma node, so no pipeline stage spans
     # nodes and CUDA graphs stay on (the 2026-10-15 judge runs kept GLM-5.3's
@@ -87,7 +91,7 @@ MODELS = {
     # thinking block.
     'glm-5.3-flash': Model(
         name='GLM-5.3-Flash', hf_repo='zai-org/GLM-5.3-Flash',
-        gpus=4, thinking=True, weights_gb=306, dtype='auto', reasoning_parser='glm47',
+        gpus=4, thinking=True, weights_gb=306, dtype='auto', reasoning_parser='glm47', tool_call_parser='glm47',
         context=131072, max_output_tokens=32768,
         extra_args=['--language-model-only'],
         sampling={'temperature': 1.0, 'top_p': 0.95}),

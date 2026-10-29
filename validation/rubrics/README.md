@@ -7,20 +7,101 @@ Harbor, and River. Select it with `--review-rubric custom`; use
 
 ## Ground-truth examples
 
-- [TB human labels](labeled_examples/tb_human_labeled/README.md): synthetic defects and historical submissions with human-backed criterion labels. After exclusions, 137 labels across 44 tasks (81 positive, 56 negative).
-- [TB3/TB4](labeled_examples/tb3_tb4_assumed_positive/README.md): 10 accepted tasks per release, treated as assumed positives rather than human ground truth.
-- [Charlie’s MiMo tasks](labeled_examples/charlie_hackable/README.md): 27 externally reported hackable tasks, labeled negative for `anti_cheat_robustness`.
+### TB human labels
+
+[Synthetic defects and historical submissions](labeled_examples/tb_human_labeled/README.md)
+with human-backed criterion labels. Upstream has 167 labels across 61 tasks; we keep
+**137 labels across 44 tasks** (81 pass, 56 fail) after dropping labels on criteria our
+patched TB rubric no longer has and four tasks whose labels cite PRs about different tasks.
+Each task is labeled on a few criteria only, not on the full rubric.
+
+- **Synthetic tasks (23): 0 pass, 23 fail.** Each is built to fail one criterion and carries only that fail label.
+- **Historical tasks (21): 81 pass, 33 fail.** Real Terminal-Bench submissions. 14 have only fail labels (15 fails); 7 carry all 81 pass labels plus 18 fails.
+- **Flipped later versions (9): 9 pass, not counted above.** When a PR fixed a failing task and merged the fixed version, we add that version with the previously failing criteria flipped to pass. These are assumed, not human-confirmed: `deterministic_reproducible` 4, `anti_cheat_robustness` 2, `functional_verification` 2, `reviewable` 1.
+
+No task is clean: each of the 44 has at least one failing label.
+
+**TB rubric**
+
+| Criterion | Pass | Fail |
+| --- | ---: | ---: |
+| `deterministic_reproducible` | 3 | 9 |
+| `anti_cheat_robustness` | 5 | 6 |
+| `functional_verification` | 6 | 5 |
+| `test_instruction_alignment` | 4 | 5 |
+| `reviewable` | 5 | 4 |
+| `instruction_concision` | 4 | 4 |
+| `essential_difficulty` | 6 | 2 |
+| `interesting` | 6 | 2 |
+| `outcome_verified` | 6 | 2 |
+| `solution_quality` | 6 | 2 |
+| `solvable` | 6 | 2 |
+| `typos` | 5 | 3 |
+| `structured_data_schema` | 7 | 1 |
+| `verifiable` | 7 | 1 |
+| `agentic` | 5 | 1 |
+| `artifact_efficiency`, `ctrf_reporting`, `do_not_modify_enforced`, `no_extraneous_files`, `resource_configuration`, `task_security`, `verifier_execution_isolation` | 0 | 1 each |
+| **Total** | **81** | **56** |
+
+**Custom rubric**
+
+[custom-labels.json](labeled_examples/tb_human_labeled/custom-labels.json) maps the labels
+through the custom rubric's [source criteria](rubric_custom/README.md): a custom criterion
+fails if any of its TB sources fails and passes only if all of them pass. This gives
+**38 labels across 26 tasks** (11 pass, 27 fail). 23 tasks have a failing label; 3 have
+only passing labels, but none is labeled on all four criteria. The other 51 TB labels fall
+on criteria outside the custom rubric, and the later-PR passes cover too few sources to map.
+
+| Criterion | TB sources | Pass | Fail |
+| --- | --- | ---: | ---: |
+| `test_coverage` | `test_instruction_alignment`, `do_not_modify_enforced` | 0 | 3 |
+| `instruction_verifier_alignment` | `test_instruction_alignment`, `structured_data_schema`, `outcome_verified` | 3 | 6 |
+| `task_quality` | `agentic`, `solvable`, `essential_difficulty`, `verifiable` | 4 | 6 |
+| `anti_cheat_robustness` | `anti_cheat_robustness`, `functional_verification`, `solution_quality` | 4 | 12 |
+| **Total** | | **11** | **27** |
+
+All 11 passes come from five historical tasks with human passes on every source:
+build-linux-kernel-qemu, prove-plus-comm, raman-fitting, cron-broken-network and
+sqlite-with-gcov.
+
+`test_instruction_alignment` feeds two custom criteria. We sorted its five fails by hand:
+
+| Task | Custom criterion | Reason |
+| --- | --- | --- |
+| fail-rubric-test-alignment | `test_coverage` | Tests check 2 of the 5 requested functions. |
+| extract-moves-from-video | `test_coverage` (less certain) | A hidden 90% similarity threshold passes transcripts that miss moves, though the instruction asks for all moves. |
+| install-windows-3.11 | `instruction_verifier_alignment` | Tests require the monitor socket `/tmp/qemu-monitor.sock`, which the instruction never names. |
+| mteb-retrieve | `instruction_verifier_alignment` | The expected answer depends on query/passage prompt types the instruction does not mention. |
+| raman-fitting | `instruction_verifier_alignment` | Tests expect Lorentzian peak values within tight tolerances; the peak model is unstated, so another valid fit fails. |
+
+### TB3/TB4
+
+[10 accepted tasks per release](labeled_examples/tb3_tb4_assumed_positive/README.md),
+20 tasks in total. Release acceptance makes them assumed positives, not human ground truth:
+all 20 tasks are assumed clean, with every criterion passing under both the TB rubric
+(22 criteria) and the custom rubric (4 criteria).
+
+### MiMo tasks
+
+[3 tasks archived in mimo_v1](labeled_examples/charlie_hackable/README.md) for reward-hack
+residue in the image, labeled `anti_cheat_robustness` fail under both rubrics (the
+criterion is unchanged). The hack is only visible in the image, so run them with
+`--review-evidence image`. Reduced from Charlie's 27 after MiMo re-pushed fixed images.
+
+## Judge default settings
+
+There are two ways to start the judge:
+
+- **Task files only** (`--review-evidence files`): use when the image of the task under review is not available. The judge runs in an Ubuntu 24.04 Apptainer review container; the full task directory, including tests and the reference solution, is copied to `/setup_files/task-under-review`.
+- **Task files + image** (`--review-evidence image`, default): the judge starts in the environment the task-solving agent sees and additionally receives the tests and reference solution.
+
+Each judge session is limited to 30 minutes. Claude Code and Codex judges run in their own harness. All other judges, local (Qwen, GLM) or API models, run in Terminus 2 with up to 32,768 output tokens per step; when the context window fills, Terminus 2 summarizes the conversation and continues.
+
 
 ## Judge calibration
 
-Calibration used **our adjusted Terminal-Bench rubric**, not the original or
-our new custom rubric. The human-label and TB3/TB4 runs used the full adjusted
-rubric with task files and shell tools, without inspecting task images.
+Calibration used **our adjusted Terminal-Bench rubric**. We did not use our custom rubric because the TB human labels have gt for only the TB criterias. 
 Charlie’s experiment used only the unchanged `anti_cheat_robustness` criterion.
-In the image-backed reviews, the judge ran commands inside the task image,
-with a copy of the complete task files available for review. A file-only
-baseline used a separate review container. See the
-[Terminal-Bench adjustments and Harbor comparison](rubric_terminal_bench/README.md).
 
 | Judge | Human labels correct | Mean cost per task (USD) | Status |
 | --- | ---: | ---: | --- |
@@ -32,6 +113,8 @@ baseline used a separate review container. See the
 | GLM-5.3 | — | — | No completed reviews |
 
 Claude costs are CLI-reported, and Astra’s are API-equivalent estimates.
+
+
 
 ## Run and compare
 

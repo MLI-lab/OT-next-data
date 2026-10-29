@@ -59,7 +59,7 @@ def snapshot_matches(contract_path, code_root):
                           env={**__import__('os').environ, 'PYTHONPATH': str(code_root)}).returncode == 0
 
 
-def plan(contract_path, count, out, *, time, cpus, memory, partition, array_concurrency, submit, exclusive=False, cluster=None, _paths_prepared=False):
+def plan(contract_path, count, out, *, time, cpus, memory, partition, array_concurrency, submit, exclusive=False, cluster=None, nodelist=None, _paths_prepared=False):
     from validation.contract import read, task_records
     from hpc.validation_submit import snapshot_code, choose_allocation, selected_cluster
     from config.models import placement, resolve
@@ -111,7 +111,7 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
         return plan_preparation(contract_path, contract, out, code_root, config,
             count=count, time=time, cpus=cpus, memory=memory, partition=partition,
             array_concurrency=array_concurrency, submit=submit, exclusive=exclusive,
-            cluster=config.name, gpus=gpus)
+            cluster=config.name, gpus=gpus, nodelist=nodelist)
     for index in range(count):
         folder = out / 'shards' / f'{index:04d}'
         folder.mkdir(parents=True)
@@ -120,21 +120,29 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
                        out=str(folder), shard=f'{index}/{count}', partition=partition, gpus=gpus, cpus=cpus,
                        time=time, memory=memory)
         save(folder / 'request.json', {'args': payload, 'stages': contract['stages']})
+    # Keep one packed snapshot on shared storage instead of ~1,000 files; every
+    # shard (and any retry) unpacks it on node-local disk at job start.
+    from hpc.validation_submit import archive_code_snapshot
+    archive = archive_code_snapshot(out)
     script = out / 'array.sbatch'
     script.write_text('#!/bin/bash\n#SBATCH --job-name=validation-shards\nset -euo pipefail\n'
                       'shard=$(printf \'%04d\' "${SLURM_ARRAY_TASK_ID:?}")\n'
-                      f'exec bash {shlex.quote(str(code_root / "hpc" / config.name / "validation.sbatch"))} '
+                      'code="${TMPDIR:-/tmp}/ot-code-${SLURM_JOB_ID:?}"\n'
+                      f'mkdir -p "$code" && tar -xzf {shlex.quote(str(archive))} -C "$code"\n'
+                      'export VALIDATION_REPO="$code/code"\n'
+                      f'exec bash "$VALIDATION_REPO/hpc/{config.name}/validation.sbatch" '
                       f'{shlex.quote(str(out / "shards"))}/"$shard"/request.json\n')
     command = ['sbatch', '--parsable', f'--partition={partition}', '--nodes=1', '--ntasks=1', f'--cpus-per-task={cpus}',
-               *(['--exclusive'] if exclusive else []), *([f'--mem={memory}'] if memory else []), f'--time={time}',
+               *(['--exclusive'] if exclusive else []), *([f'--nodelist={nodelist}'] if nodelist else []),
+               *([f'--mem={memory}'] if memory else []), f'--time={time}',
                *([f'--account={config.account}'] if config.account else []),
                *(['--gres=' + config.gpu_gres.format(partition=partition, n=gpus)] if gpus else []),
                '--signal=B:USR1@120', f'--output={out}/slurm-%A_%a.out',
                f'--array=0-{count - 1}%{array_concurrency}',
-               f'--export=ALL,VALIDATION_REPO={code_root},OT_CLUSTER={config.name}', str(script)]
+               f'--export=ALL,OT_CLUSTER={config.name}', str(script)]
     save(out / 'plan.json', {'contract': str(Path(contract_path).resolve()), 'contract_sha256': contract['sha256'], 'count': count,
                              'stages': contract['stages'], 'tasks': total, 'command': command,
-                             'allocation': {'cluster': config.name, 'partition': partition, 'gpus': gpus, 'cpus': cpus}})
+                             'allocation': {'cluster': config.name, 'partition': partition, 'gpus': gpus, 'cpus': cpus, 'nodelist': nodelist}})
     if submit:
         job = subprocess.check_output(command, text=True).strip()
         (out / 'array-job-id.txt').write_text(job + '\n')
@@ -228,13 +236,13 @@ def merge(contract_path, root, out):
         if summaries:
             merged['outcome_retries'] = merge_summaries(summaries)
         if any('reward_metrics' in r for _, r in reports):
-            from validation.checks.reward_metrics import summarize
+            from validation.metrics.reward_metrics import summarize
             merged['reward_metrics'] = summarize(merged['items'])
         if stage in (5, 8):
-            from validation.reporting.review_usage import summarize_items
+            from validation.publishing.review_usage import summarize_items
             merged['usage'] = summarize_items(merged['items'], merged.get('review_attempts', 1))
         if stage == 5:
-            from validation.checks.review_results import group_reviews
+            from validation.metrics.review_results import group_reviews
             merged['implementation_review_groups'] = group_reviews(merged['items'])
         target = out / f'stage-{stage}-merged.json'
         target.write_text(json.dumps(merged, indent=2, default=str) + '\n')
@@ -268,6 +276,7 @@ def main(argv=None):
     p.add_argument('--cluster', choices=['helma', 'zih', 'rwth'], help='default: contract submission site or OT_CLUSTER')
     p.add_argument('--partition', default='cpu')
     p.add_argument('--array-concurrency', type=int, default=16)
+    p.add_argument('--nodelist', help='Slurm node list for preparation and every array shard')
     p.add_argument('--exclusive', action='store_true', help='one whole node per shard')
     p.add_argument('--submit', action='store_true')
     m = sub.add_parser('merge', help='merge the shard reports under ROOT into one results directory')
@@ -277,7 +286,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.mode == 'plan':
         job = plan(a.contract, a.count, a.out, time=a.time, cpus=a.cpus, memory=a.memory, partition=a.partition,
-                   array_concurrency=a.array_concurrency, submit=a.submit, exclusive=a.exclusive, cluster=a.cluster)
+                   array_concurrency=a.array_concurrency, submit=a.submit, exclusive=a.exclusive, cluster=a.cluster, nodelist=a.nodelist)
         print(json.dumps({'planned': a.count, 'out': str(a.out), 'job': job}))
     else:
         print(json.dumps(merge(a.contract, a.root, a.out), indent=1))

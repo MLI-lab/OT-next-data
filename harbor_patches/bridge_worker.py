@@ -579,7 +579,7 @@ NET_FLAGS = ['--net', '--network', 'none']
 
 
 def network_isolation_available(sif_cache):
-    """Probe isolation and visibly record any fallback; host access is not offline."""
+    """Require isolation when requested; on Helma, visibly fall back to host networking."""
     requested = os.environ.get('OT_NET_ISOLATION', '1') != '0'
     available, reason = False, 'host networking explicitly requested'
     if requested:
@@ -596,17 +596,28 @@ def network_isolation_available(sif_cache):
                     (l for l in lines if 'ERROR' in l), next((l for l in reversed(lines) if l), 'namespace probe failed'))
             except (OSError, subprocess.TimeoutExpired) as exc:
                 reason = str(exc)
+    # Helma sets max_net_namespaces=0 on every node, so isolation cannot exist there.
+    fallback = requested and not available and helma_host_network_fallback()
     status = {'requested': 'isolated' if requested else 'host',
-              'effective': 'network-none' if available else 'host', 'reason': reason}
+              'effective': 'network-none' if available else ('host' if fallback or not requested else 'unavailable'),
+              'reason': reason}
+    if fallback:
+        status['warning'] = 'Helma host-network fallback: containers can reach the network; run is not offline'
     print('[worker] network status: ' + json.dumps(status), flush=True)
-    if requested and not available:
-        print('WARNING: could not enable a separate network namespace; falling back to the HOST network. '
+    if fallback:
+        print('WARNING: could not enable a separate network namespace on Helma; falling back to the HOST network. '
               'Containers share host loopback and may access the internet. This run is NOT certified offline. '
               'Reason: ' + reason, file=sys.stderr, flush=True)
     path = os.environ.get('OT_NETWORK_STATUS_PATH')
     if path:
         Path(path).write_text(json.dumps(status, indent=2) + '\n')
+    if requested and not available and not fallback:
+        raise RuntimeError('Required offline network isolation is unavailable: ' + reason)
     return available
+
+
+def helma_host_network_fallback():
+    return os.environ.get('OT_CLUSTER') == 'helma'
 
 
 def configure_loopback_hosts(staging_base):
@@ -725,12 +736,14 @@ def configure_worker(staging_base, sif_cache, child=False):
         sweep_partial_archives()
     if child:
         net_flags = json.loads(os.environ.get('OT_TRIAL_NET_FLAGS', '[]'))
+        if (os.environ.get('OT_NET_ISOLATION', '1') != '0' and net_flags != NET_FLAGS
+                and not helma_host_network_fallback()):
+            raise RuntimeError('Isolated trial requires verified network namespace flags')
     else:
         net_flags = NET_FLAGS if network_isolation_available(sif_cache) else []
         os.environ['OT_TRIAL_NET_FLAGS'] = json.dumps(net_flags)
     if not net_flags:
-        # A failed namespace probe uses host networking even when isolation
-        # was requested. It needs the same DNS bind and proxy forwarding.
+        # Explicitly online trials and the warned Helma fallback reach this branch.
         configure_explicit_host_network(force=True)
     if not child and os.environ.get('SLURM_JOB_ID') and os.environ.get('OT_TRIAL_SRUN', '1') != '0':
         from harbor_patches.trial_step import REGISTRY

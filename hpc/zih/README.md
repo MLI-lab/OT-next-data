@@ -7,7 +7,7 @@ Helma. The only site-specific launcher is `validation.sbatch`.
 ./setup.sh /path/to/workspace --cluster zih --python /path/to/python3.12
 source env.sh
 python -m validation.upstream setup
-python validation/run.py /path/to/tasks --stages 1,3,4,5 \
+python validation/run.py /path/to/tasks --stages 1,2,3,4 \
   --submit zih --partition barnard --cpus 32 --time 02:00:00 \
   --prepare-contract /path/to/contracts/check.json
 python validation/run.py --contract /path/to/contracts/check.json

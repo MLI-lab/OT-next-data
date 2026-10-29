@@ -1,0 +1,440 @@
+{
+  "description": "Map the TB human labels onto our custom rubric (writes custom-labels.json).",
+  "sources": {
+    "test_coverage": [
+      "test_instruction_alignment",
+      "do_not_modify_enforced"
+    ],
+    "instruction_verifier_alignment": [
+      "test_instruction_alignment",
+      "structured_data_schema",
+      "outcome_verified"
+    ],
+    "task_quality": [
+      "agentic",
+      "solvable",
+      "essential_difficulty",
+      "verifiable"
+    ],
+    "anti_cheat_robustness": [
+      "anti_cheat_robustness",
+      "functional_verification",
+      "solution_quality"
+    ]
+  },
+  "counts": {
+    "anti_cheat_robustness:fail": 12,
+    "anti_cheat_robustness:pass": 4,
+    "instruction_verifier_alignment:fail": 6,
+    "instruction_verifier_alignment:pass": 3,
+    "task_quality:fail": 6,
+    "task_quality:pass": 4,
+    "test_coverage:fail": 3
+  },
+  "tasks": {
+    "fail-rubric-agentic": {
+      "directory": "task-0001",
+      "labels": {
+        "task_quality": {
+          "label": "fail",
+          "sources": {
+            "agentic": "fail"
+          }
+        }
+      }
+    },
+    "fail-rubric-anti-cheat": {
+      "directory": "task-0002",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "anti_cheat_robustness": "fail"
+          }
+        }
+      }
+    },
+    "fail-rubric-essential-difficulty": {
+      "directory": "task-0005",
+      "labels": {
+        "task_quality": {
+          "label": "fail",
+          "sources": {
+            "essential_difficulty": "fail"
+          }
+        }
+      }
+    },
+    "fail-rubric-functional-verification": {
+      "directory": "task-0006",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "functional_verification": "fail"
+          }
+        }
+      }
+    },
+    "fail-rubric-outcome-verified": {
+      "directory": "task-0011",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "fail",
+          "sources": {
+            "outcome_verified": "fail"
+          }
+        }
+      }
+    },
+    "fail-rubric-solution-quality": {
+      "directory": "task-0013",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "solution_quality": "fail"
+          }
+        }
+      }
+    },
+    "fail-rubric-solvable": {
+      "directory": "task-0014",
+      "labels": {
+        "task_quality": {
+          "label": "fail",
+          "sources": {
+            "solvable": "fail"
+          }
+        }
+      }
+    },
+    "fail-rubric-structured-schema": {
+      "directory": "task-0015",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "fail",
+          "sources": {
+            "structured_data_schema": "fail"
+          }
+        }
+      }
+    },
+    "fail-rubric-test-alignment": {
+      "directory": "task-0016",
+      "labels": {
+        "test_coverage": {
+          "label": "fail",
+          "sources": {
+            "test_instruction_alignment": "fail"
+          }
+        }
+      },
+      "manual": "Tests check 2 of the 5 requested functions."
+    },
+    "fail-rubric-verifiable": {
+      "directory": "task-0018",
+      "labels": {
+        "task_quality": {
+          "label": "fail",
+          "sources": {
+            "verifiable": "fail"
+          }
+        }
+      }
+    },
+    "build-stp": {
+      "directory": "task-0022",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "anti_cheat_robustness": "fail"
+          }
+        }
+      }
+    },
+    "query-optimize": {
+      "directory": "task-0023",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "anti_cheat_robustness": "fail"
+          }
+        }
+      }
+    },
+    "install-windows-3.11": {
+      "directory": "task-0025",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "fail",
+          "sources": {
+            "test_instruction_alignment": "fail"
+          }
+        }
+      },
+      "manual": "Tests require the monitor socket /tmp/qemu-monitor.sock, which the instruction never names."
+    },
+    "cartpole-rl-training": {
+      "directory": "task-0029",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "anti_cheat_robustness": "fail"
+          }
+        }
+      }
+    },
+    "causal-inference-r": {
+      "directory": "task-0030",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "anti_cheat_robustness": "fail",
+            "functional_verification": "fail"
+          }
+        }
+      }
+    },
+    "modernize-scientific-stack": {
+      "directory": "task-0031",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "functional_verification": "fail"
+          }
+        }
+      }
+    },
+    "form-filling": {
+      "directory": "task-0032",
+      "labels": {
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "functional_verification": "fail"
+          }
+        }
+      }
+    },
+    "mteb-retrieve": {
+      "directory": "task-0039",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "fail",
+          "sources": {
+            "test_instruction_alignment": "fail"
+          }
+        }
+      },
+      "manual": "Expected line depends on query/passage prompt types the instruction does not mention."
+    },
+    "build-linux-kernel-qemu": {
+      "directory": "task-0040",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "pass",
+          "sources": {
+            "test_instruction_alignment": "pass",
+            "structured_data_schema": "pass",
+            "outcome_verified": "pass"
+          }
+        },
+        "task_quality": {
+          "label": "pass",
+          "sources": {
+            "agentic": "pass",
+            "solvable": "pass",
+            "essential_difficulty": "pass",
+            "verifiable": "pass"
+          }
+        },
+        "anti_cheat_robustness": {
+          "label": "pass",
+          "sources": {
+            "anti_cheat_robustness": "pass",
+            "functional_verification": "pass",
+            "solution_quality": "pass"
+          }
+        }
+      }
+    },
+    "prove-plus-comm": {
+      "directory": "task-0041",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "pass",
+          "sources": {
+            "test_instruction_alignment": "pass",
+            "structured_data_schema": "pass",
+            "outcome_verified": "pass"
+          }
+        },
+        "anti_cheat_robustness": {
+          "label": "pass",
+          "sources": {
+            "anti_cheat_robustness": "pass",
+            "functional_verification": "pass",
+            "solution_quality": "pass"
+          }
+        }
+      }
+    },
+    "raman-fitting": {
+      "directory": "task-0042",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "fail",
+          "sources": {
+            "test_instruction_alignment": "fail",
+            "structured_data_schema": "pass",
+            "outcome_verified": "pass"
+          }
+        },
+        "task_quality": {
+          "label": "pass",
+          "sources": {
+            "agentic": "pass",
+            "solvable": "pass",
+            "essential_difficulty": "pass",
+            "verifiable": "pass"
+          }
+        },
+        "anti_cheat_robustness": {
+          "label": "pass",
+          "sources": {
+            "anti_cheat_robustness": "pass",
+            "functional_verification": "pass",
+            "solution_quality": "pass"
+          }
+        }
+      },
+      "manual": "Tests expect Lorentzian parameters within tight tolerances; the peak model is unstated, so another valid fit fails."
+    },
+    "cron-broken-network": {
+      "directory": "task-0043",
+      "labels": {
+        "task_quality": {
+          "label": "pass",
+          "sources": {
+            "agentic": "pass",
+            "solvable": "pass",
+            "essential_difficulty": "pass",
+            "verifiable": "pass"
+          }
+        },
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "anti_cheat_robustness": "fail",
+            "functional_verification": "pass",
+            "solution_quality": "pass"
+          }
+        }
+      }
+    },
+    "extract-moves-from-video": {
+      "directory": "task-0044",
+      "labels": {
+        "test_coverage": {
+          "label": "fail",
+          "sources": {
+            "test_instruction_alignment": "fail"
+          }
+        },
+        "task_quality": {
+          "label": "fail",
+          "sources": {
+            "agentic": "pass",
+            "solvable": "fail",
+            "essential_difficulty": "pass",
+            "verifiable": "pass"
+          }
+        },
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "functional_verification": "pass",
+            "solution_quality": "fail"
+          }
+        }
+      },
+      "manual": "A hidden 90% Levenshtein threshold accepts transcripts that miss moves although \"all the moves\" are requested. Less certain."
+    },
+    "nginx-request-logging": {
+      "directory": "task-0045",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "fail",
+          "sources": {
+            "test_instruction_alignment": "pass",
+            "structured_data_schema": "pass",
+            "outcome_verified": "fail"
+          }
+        },
+        "task_quality": {
+          "label": "fail",
+          "sources": {
+            "solvable": "pass",
+            "essential_difficulty": "fail",
+            "verifiable": "pass"
+          }
+        },
+        "anti_cheat_robustness": {
+          "label": "fail",
+          "sources": {
+            "anti_cheat_robustness": "pass",
+            "functional_verification": "fail",
+            "solution_quality": "pass"
+          }
+        }
+      }
+    },
+    "sqlite-with-gcov": {
+      "directory": "task-0046",
+      "labels": {
+        "instruction_verifier_alignment": {
+          "label": "pass",
+          "sources": {
+            "test_instruction_alignment": "pass",
+            "structured_data_schema": "pass",
+            "outcome_verified": "pass"
+          }
+        },
+        "task_quality": {
+          "label": "pass",
+          "sources": {
+            "agentic": "pass",
+            "solvable": "pass",
+            "essential_difficulty": "pass",
+            "verifiable": "pass"
+          }
+        },
+        "anti_cheat_robustness": {
+          "label": "pass",
+          "sources": {
+            "anti_cheat_robustness": "pass",
+            "functional_verification": "pass",
+            "solution_quality": "pass"
+          }
+        }
+      }
+    },
+    "fail-rubric-do-not-modify": {
+      "directory": "task-0047",
+      "labels": {
+        "test_coverage": {
+          "label": "fail",
+          "sources": {
+            "do_not_modify_enforced": "fail"
+          }
+        }
+      }
+    }
+  }
+}

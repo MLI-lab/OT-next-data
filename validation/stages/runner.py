@@ -28,7 +28,8 @@ from validation.stages.layout import LAYOUT, NAMES, NOP, REFERENCE
 def parser():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('tasks', type=Path, nargs='?', help='single task, tasks directory, or dataset/tasks')
-    ap.add_argument('--contract', type=Path, help='required frozen validation contract')
+    ap.add_argument('--contract', type=Path,
+                    help='frozen validation contract; optional for a single stage-5 judge run')
     ap.add_argument('--prepare-contract', type=Path, help='write a contract and protocol, then exit without running')
     ap.add_argument('--pack-image-cache', action='store_true', help='save new complete image bundles as sparse tar archives to reduce shared-cache file count')
     ap.add_argument('--fix-instruction-paths', action=argparse.BooleanOptionalAction, default=True,
@@ -66,11 +67,18 @@ def parser():
                     help='custom rubric output mode; River always uses classification')
     ap.add_argument('--review-criteria', nargs='+', metavar='CRITERION',
                     help='Stage 5: review only these criterion names from the chosen rubric; default all')
-    ap.add_argument('--review-local', action='store_true', help='use a local OpenAI-compatible judge; image reviews use the inspector, file/trajectory reviews use Terminus-2')
+    ap.add_argument('--review-local', action='store_true', help='judge with the served model or --api-base model in Terminus 2 (all evidence modes)')
     ap.add_argument('--analysis-agent', help='override only the trajectory-analysis agent')
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
-    ap.add_argument('--attempts', type=int, default=1)
+    ap.add_argument('--attempts', type=int, default=1, help='agent attempts per task in stages 6 and 9 (k of pass@k)')
+    ap.add_argument('--reference-runs', type=int, default=3,
+                    help='stage 2: reference-solution runs per task, each in a fresh container; all must score 1')
+    ap.add_argument('--nop-runs', type=int, default=3,
+                    help='stage 3: no-op runs per task, each in a fresh container; all must score 0')
+    ap.add_argument('--dynamic-do-not-modify', action=argparse.BooleanOptionalAction, default=True,
+                    help='stage 2: check protected files in the container and mutate them after the reference '
+                         '(validation/rules/dynamic/do_not_modify; default: enabled)')
     ap.add_argument('--review-runs', type=int, help='independent stage-5 reviews per task; defaults to --attempts')
     ap.add_argument('--review-retries', type=int, default=2, help='repair rounds for incomplete/invalid stage-5 judgments (default: 2)')
     ap.add_argument('--review-resume', action=argparse.BooleanOptionalAction, default=True, help='reuse matching completed/partial stage-5 review checkpoints (default: enabled)')
@@ -95,8 +103,6 @@ def parser():
     ap.add_argument('--static-resume', help='preserved static checkpoint directory; import unchanged successful checks')
     ap.add_argument('--static-resume-accept-previous-path-check', action='store_true',
                     help='explicitly retain successful path checks under the checkpoint adaptation; record mixed provenance')
-    ap.add_argument('--reuse-validation-containers', action='store_true',
-                    help='reuse a task container for no-op followed by reference validation')
     ap.add_argument('--container-start-concurrency', type=int, default=8,
                     help='simultaneous Apptainer starts; independent of active trial concurrency')
     ap.add_argument('--image-build-memory-mb', type=int, default=8192,
@@ -149,7 +155,8 @@ def parser():
     ap.add_argument('--reward-key', default='reward')
     ap.add_argument('--trials', type=Path, help='Harbor job directory for stages 7 and 8; one level of trial dirs')
     ap.add_argument('--max-iterations', type=int, default=10)
-    ap.add_argument('--timeout-minutes', type=float, default=120)
+    ap.add_argument('--timeout-minutes', type=float, default=30,
+                    help='maximum wall time for each judge response in minutes (default: 30)')
     ap.add_argument('--publish-repo', help='open a pull request on this Hugging Face dataset when the Helma job ends, e.g. FWeindel/validated-tasks')
     ap.add_argument('--publish-require-complete', action='store_true', help='publish only after all tasks have outcomes for stages 1,2,3,4')
     ap.add_argument('--publish-folder', action='append', default=[], metavar='PREFIX=FOLDER', help='data source folder for task IDs starting with PREFIX, or *=FOLDER for every task (see publish.py)')
@@ -175,7 +182,7 @@ def resolve_review_defaults(args, numbers):
         return
     fields = ('review_agent', 'review_model', 'analysis_agent', 'analysis_model')
     if all(getattr(args, key, None) for key in fields):
-        from validation.reporting.review_pricing import freeze
+        from validation.publishing.review_pricing import freeze
         freeze(args, numbers)
         return
     import hashlib
@@ -192,7 +199,7 @@ def resolve_review_defaults(args, numbers):
         raise ValueError('upstream review defaults must contain nonempty agent/model names')
     args.review_defaults_source = {'commit': PINS['terminal-bench']['commit'],
         'file': '.github/harbor-run-defaults.yml', 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
-    from validation.reporting.review_pricing import freeze
+    from validation.publishing.review_pricing import freeze
     freeze(args, numbers)
 
 
@@ -234,6 +241,8 @@ def dependency_archive_spec(a):
 
 def check_args(a):
     import math
+    if getattr(a, 'reference_runs', 3) < 1 or getattr(a, 'nop_runs', 3) < 1:
+        raise ValueError('--reference-runs and --nop-runs must be at least 1')
     budget = getattr(a, "review_max_budget_usd", 5)
     if not math.isfinite(budget) or budget <= 0:
         raise ValueError("--review-max-budget-usd must be finite and positive")
@@ -257,27 +266,22 @@ def check_args(a):
     from validation.stages.build_retries import configure_preparation_review
     configure_preparation_review(a)
     if getattr(a, 'resolve_path_root', None):
-        from data.utils.resolve_absolute_paths import validate_roots
+        from validation.rules.static.task_absolute_path.repair import validate_roots
         validate_roots(a.resolve_path_root)
     dependency_archive_spec(a)
-    if getattr(a, 'dependency_archives', None) and getattr(a, 'reuse_validation_containers', False):
-        raise ValueError('--dependency-archives needs a fresh container per stage; drop --reuse-validation-containers')
     if getattr(a, 'publish_readme', False) and getattr(a, 'network_mode', 'isolated') != 'host':
         raise ValueError('--publish-readme requires --network-mode host for Claude Code')
     if getattr(a, 'publish_readme_force', False) and not getattr(a, 'publish_readme', False):
         raise ValueError('--publish-readme-force requires --publish-readme')
     if getattr(a, 'static_resume_accept_previous_path_check', False) and not getattr(a, 'static_resume', None):
         raise ValueError('--static-resume-accept-previous-path-check requires --static-resume')
-    if getattr(a, 'reuse_validation_containers', False):
-        if a.backend != 'apptainer' or a.attempts != 1 or a.force_build:
-            raise ValueError('--reuse-validation-containers requires Apptainer, --attempts 1, and no --force-build')
     if getattr(a, 'review_local', False) and not (a.serve_model or a.api_base):
         raise ValueError('--review-local requires --serve-model or --api-base')
     if getattr(a, 'review_runs', None) is not None and a.review_runs <= 0:
         raise ValueError('--review-runs must be positive')
     if getattr(a, 'review_retries', 2) < 0:
         raise ValueError('--review-retries cannot be negative')
-    from validation.reporting.review_usage import validate_pricing
+    from validation.publishing.review_usage import validate_pricing
     validate_pricing(getattr(a, 'review_pricing', None))
     if getattr(a, 'serve_context', None) is None:
         # The limit is the model's own (config/models.py); 32768 keeps contracts without a served model unchanged.
@@ -316,6 +320,11 @@ def check_args(a):
         raise ValueError('--limit must be positive')
     if not isinstance(a.environment_kwargs, dict) or not isinstance(a.agent_kwargs, dict):
         raise ValueError('environment/agent kwargs must be JSON objects')
+    if getattr(a, 'review_local', False) and not a.serve_model:
+        # API judges get the served judges' per-step reply limit unless one is given.
+        calls = dict(a.agent_kwargs.get('llm_call_kwargs') or {})
+        if not {'max_tokens', 'max_completion_tokens'} & (calls.keys() | a.agent_kwargs.keys()):
+            a.agent_kwargs = {**a.agent_kwargs, 'llm_call_kwargs': {**calls, 'max_tokens': 32768}}
 
 
 def save(path, value):
@@ -379,7 +388,7 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
     if not model:
         raise ValueError('provide --review-model for review stages, --model for solver/cheat stages')
     image = getattr(args, 'review_evidence', 'image') == 'image'
-    if number == 5 and image and (agent != 'terminus-2' or getattr(args, 'review_local', False)):
+    if number == 5 and image and agent != 'terminus-2':
         # Host CLIs (Claude Code, Codex) reach the task environments through the inspect tool.
         from validation.stages.image_review import review
         return await review(source, task, item_dir, args, agent, model)
@@ -418,8 +427,8 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
         # verdict schema below; pytest invocation evidence applies to task tests.
         result = runtime.assess_trials(results, args.attempts, 1, 'reward', task_path=task,
                                        require_execution=False)
-    from validation.reporting.review_usage import collect
-    from validation.reporting.review_pricing import for_stage
+    from validation.publishing.review_usage import collect
+    from validation.publishing.review_pricing import for_stage
     pricing = for_stage(args, number)
     result['usage'] = collect(results, agent, model, pricing['rates'], args.attempts, pricing['source'])
     result['job_dir'] = str(job_dir)
@@ -432,7 +441,7 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
 
 
 async def repair_criteria(result, partial, source, item_dir, args, upstream, references, suffixes):
-    from validation.reporting.review_usage import summarize_rows
+    from validation.publishing.review_usage import summarize_rows
     skipped = result.get('automatic_skips') or {}
     for index, part in enumerate(partial):
         checks = dict(part['checks'])
@@ -495,7 +504,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
     config['tasks'] = [{'path': str(task.resolve())} for task, _ in selected]
     save(out / 'job.json', config)
     if number in (6, 9) and report is not None:
-        from validation.checks.agent_run import record
+        from validation.metrics.agent_run import record
         report['agent_run'] = record(args, config, [task for task, _ in selected], contract)
         save(out / 'agent-run.json', report['agent_run'])
     if args.dry_run:
@@ -506,7 +515,16 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
                          if number == REFERENCE and getattr(args, 'resolve_path_root', None) else {})
     if number == REFERENCE and getattr(args, '_pip_pin_findings', None):
         diagnostic_kwargs['pip_pin_capture'] = {'tasks': args._pip_pin_findings, 'reward_key': args.reward_key}
-    job_dir = asyncio.run(runtime.execute_job(config, **diagnostic_kwargs))
+    dynamic_do_not_modify = number == REFERENCE and getattr(args, 'dynamic_do_not_modify', True)
+    if dynamic_do_not_modify:
+        from validation.rules.dynamic.do_not_modify import stage as do_not_modify
+        do_not_modify.install()
+        observing = do_not_modify.observing.set(True)
+    try:
+        job_dir = asyncio.run(runtime.execute_job(config, **diagnostic_kwargs))
+    finally:
+        if dynamic_do_not_modify:
+            do_not_modify.observing.reset(observing)
     results = runtime.trial_results(job_dir)
     expected = 1 if number == REFERENCE else None
     groups, unmatched = runtime.group_trial_results(results, [task for task, _ in selected])
@@ -519,7 +537,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
                 else {'status': 'incomplete', 'reason': 'Reference fingerprints were not captured'}
                 for trial, _ in groups[task.name]]
         if number == 6:
-            from validation.checks.passk_completion import assess
+            from validation.metrics.passk_completion import assess
             item.update(assess(groups[task.name], args.attempts, args.reward_key))
         if 'path_search_roots' in diagnostic_kwargs:
             item['instruction_path_diagnostics'] = [
@@ -530,7 +548,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
         if job_dir is not None:
             item['job_dir'] = str(job_dir)
         if number == 6:
-            from validation.checks.reward_metrics import task_metrics
+            from validation.metrics.reward_metrics import task_metrics
             item['metrics'] = task_metrics(groups[task.name], args.attempts, args.reward_key)
         if unmatched:
             item['status'] = 'error'
@@ -539,6 +557,9 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
             item['status'] = 'passed'
         if number == 9:
             item['note'] = 'Reward 1 alone does not prove cheating; review trajectories in stage 8.'
+    if dynamic_do_not_modify:
+        do_not_modify.evaluate_all([(task, item) for task, item in selected if item.get('status') != 'error'],
+                                   groups, out, args)
     return items
 
 
@@ -599,10 +620,23 @@ def run_nop(selected, out, args):
             for _, item in pairs:
                 item.update(status='previewed', config=str(config_path))
             continue
+        # Tasks without a reference solution get do_not_modify steps 1-3 in their no-op trials.
+        without_reference = [(task, item) for task, item in pairs if not (task / 'solution/solve.sh').is_file()]
+        dynamic_do_not_modify = bool(without_reference) and getattr(args, 'dynamic_do_not_modify', True)
         try:
-            job_dir = asyncio.run(runtime.execute_job(config))
+            if dynamic_do_not_modify:
+                from validation.rules.dynamic.do_not_modify import stage as do_not_modify
+                do_not_modify.install()
+                observing = do_not_modify.observing.set(True)
+            try:
+                job_dir = asyncio.run(runtime.execute_job(config))
+            finally:
+                if dynamic_do_not_modify:
+                    do_not_modify.observing.reset(observing)
             groups, unmatched = runtime.group_trial_results(
                 runtime.trial_results(job_dir), [task for task, _ in pairs])
+            if dynamic_do_not_modify:
+                do_not_modify.evaluate_all(without_reference, groups, out, args, reference=False)
             for task, item in pairs:
                 prepared = runtime.assess_trials(groups[task.name], args.attempts, 0, args.reward_key, task_path=task,
                                                  oracle_passed=task.name in oracle_passed)
@@ -666,7 +700,22 @@ def run_fortify(source, item_dir, args, upstream):
     return {'status': status, 'upstream_summary': summary, 'exit_code': rc}
 
 
+def stage_runs(number, args):
+    """Trials per task for a stage: stage 1 runs once (it retries failed builds itself)."""
+    return {1: 1, REFERENCE: getattr(args, 'reference_runs', 3), NOP: getattr(args, 'nop_runs', 3)}.get(
+        number, getattr(args, 'attempts', 1))
+
+
 def run_stage(number, args):
+    attempts = getattr(args, 'attempts', 1)
+    args.attempts = stage_runs(number, args)
+    try:
+        return _run_stage(number, args)
+    finally:
+        args.attempts = attempts
+
+
+def _run_stage(number, args):
     check_args(args)
     from validation.contract import verify_materialized
     contract = verify_materialized(args)
@@ -709,7 +758,7 @@ def run_stage(number, args):
         report['instruction_suffixes'] = suffixes
         report['review_rubric'] = getattr(args, 'review_rubric', 'terminal-bench')
         report['review_format'] = getattr(args, 'review_format', None)
-        report['review_agent'] = ('local-inspector' if getattr(args, 'review_evidence', 'image') == 'image' else 'terminus-2') if getattr(args, 'review_local', False) else args.review_agent
+        report['review_agent'] = 'terminus-2' if getattr(args, 'review_local', False) else args.review_agent
         report['review_model'] = args.model if getattr(args, 'review_local', False) else args.review_model
         report['review_retries'] = getattr(args, 'review_retries', 2)
         report['review_criteria'] = getattr(args, 'review_criteria', None)
@@ -717,11 +766,11 @@ def run_stage(number, args):
     save(report_path, report)
     clock = stage_clock()
     if number == 4:
-        from validation.checks.check_terminal_bench import run_checks, load_checks
-        _, selected, excluded = load_checks(args.static_profile, upstream, args.exclude, group='task-quality')
+        from validation.rules.static.terminal_bench import run_checks, load_checks
+        _, selected, excluded = load_checks(args.static_profile, upstream, args.exclude)
         if not selected:
             raise ValueError('no static checks selected')
-        from validation.checks.check_terminal_bench import ADAPTATIONS
+        from validation.rules.static.terminal_bench import ADAPTATIONS
         report.update(checks=selected, excluded_checks=excluded,
                       adaptations={name: text for name, text in ADAPTATIONS.items() if name in selected})
         from validation.stages.reference_leaks import CHECK, run_checks as run_reference_leak_checks
@@ -736,7 +785,7 @@ def run_stage(number, args):
                                   'resume_record': contract.get('static_checkpoint') if contract else None,
                                   'accept_previous_path_check': args.static_resume_accept_previous_path_check}
             run_checks(sources, out / 'static', profile=args.static_profile, upstream=upstream, exclude=args.exclude,
-                       concurrency=report['static_concurrency'], group='task-quality', **resume_options)
+                       concurrency=report['static_concurrency'], **resume_options)
             static = json.loads((out / 'static/summary.json').read_text())
             report['items'] = static['tasks']
             asyncio.run(run_reference_leak_checks(sources, report['items'], out / 'reference-leaks', args))
@@ -746,6 +795,8 @@ def run_stage(number, args):
         from validation.stages.environment_preflight import run_build_stage
         checkpoint = contract.get('stage3_checkpoint') if contract else None
         report['items'] = run_build_stage(sources, out, args, checkpoint)
+        from validation.stages.build_retries import summarize_retries
+        report['build_retries'] = summarize_retries(report['items'])
         if checkpoint:
             report['reused_from'] = {k: v for k, v in checkpoint.items() if k != 'items'}
     elif number in (REFERENCE, NOP, 6, 9):
@@ -753,7 +804,7 @@ def run_stage(number, args):
         selected, skipped = partition_builds(sources, args) if number in (REFERENCE, NOP) else (sources, [])
         report['items'] = skipped + run_trial_batch(number, selected, out, args, upstream, report, contract)
         if number == 6:
-            from validation.checks.reward_metrics import summarize
+            from validation.metrics.reward_metrics import summarize
             report['reward_metrics'] = summarize(report['items'])
     elif number == 5 and not args.dry_run:
         async def reviews():
@@ -769,7 +820,7 @@ def run_stage(number, args):
                         result = {'status': 'error', 'reason': f'{type(exc).__name__}: {exc}'}
                     result.update(task=str(source), output=str(item_dir))
                     report['items'].append(result)
-                    from validation.reporting.review_usage import summarize_items
+                    from validation.publishing.review_usage import summarize_items
                     report['usage'] = summarize_items(report['items'], args.attempts)
                     save(report_path, report)
                     print(f"stage 5 {source.name}: {result['status']}", flush=True)
@@ -793,7 +844,7 @@ def run_stage(number, args):
                 else:
                     work.append((matches[0], trial))
         if number == 7:
-            from validation.checks.trace_metrics import summarize as trace_summary
+            from validation.metrics.trace_metrics import summarize as trace_summary
             names = {str(trial): source.name for source, trial in work}
             run_record = args.trials.resolve().parents[1] / 'agent-run.json'
             limit = json.loads(run_record.read_text())['limits']['context_tokens'] if run_record.is_file() else None
@@ -829,7 +880,7 @@ def run_stage(number, args):
                 result['source_trial'] = str(trial)
             report['items'].append(result)
             if number in (5, 8):
-                from validation.reporting.review_usage import summarize_items
+                from validation.publishing.review_usage import summarize_items
                 report['usage'] = summarize_items(report['items'], args.attempts)
             save(report_path, report)
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
@@ -842,13 +893,14 @@ def run_stage(number, args):
                                         args.concurrency if number in (5, 1, 2, 3, 6, 9) else 1,
                                         getattr(args, '_serving_gpu_count', None))
     if number == 5:
-        from validation.checks.review_results import group_reviews
+        from validation.metrics.review_results import group_reviews
         report['implementation_review_groups'] = group_reviews(report['items'])
     if number in (5, 8):
-        from validation.reporting.review_usage import summarize_items
+        from validation.publishing.review_usage import summarize_items
         report['usage'] = summarize_items(report['items'], args.attempts)
         report['resolved_review_pricing'] = getattr(args, 'resolved_review_pricing', {}).get(str(number))
-    report['has_findings'] = any(i['status'] in ('failed', 'findings', 'error') for i in report['items'])
+    report['has_findings'] = any(i['status'] in ('failed', 'findings', 'error', 'incomplete')
+                                 for i in report['items'])
     from validation.contract import assess_stage
     assess_stage(contract, number, report)
     save(report_path, report)

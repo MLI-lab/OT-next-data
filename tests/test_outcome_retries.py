@@ -220,10 +220,10 @@ def test_pipeline_runs_the_round_once_after_all_stages(tmp_path, monkeypatch):
     monkeypatch.setattr('validation.stages.outcome_retries.retry_round', fake_round)
     monkeypatch.setattr('validation.stages.runner.checkout', lambda name: tmp_path)
     options = SimpleNamespace(out=tmp_path, dry_run=False, trials=None, contract=None, outcome_retries=3,
-                              expected_outcomes=None, reuse_validation_containers=False, prebuild_only=False,
+                              expected_outcomes=None, prebuild_only=False,
                               fix_instruction_paths=False, fix_pip_pins=False, tasks=tmp_path)
     monkeypatch.setattr('validation.stages.normalize_paths.prepare', lambda a, n: None)
-    monkeypatch.setattr('data.utils.resolve_pip_pins.prepare', lambda a, n: None)
+    monkeypatch.setattr('validation.rules.static.pip_pinning.repair.prepare', lambda a, n: None)
     assert run.run_selected(options, [1, 2, 3]) == 1
     assert order == [('stage', 1), ('stage', 2), ('stage', 3), ('retry', [1, 2, 3])]
     pipeline = json.loads(next(tmp_path.glob('pipeline-*.json')).read_text())

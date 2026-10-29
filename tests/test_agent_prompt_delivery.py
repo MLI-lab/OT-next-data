@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from validation.patch_repair_loop import agents
+from data.patch_repair_loop import agents
 
 
 @pytest.mark.parametrize('role', sorted(agents.ROLES))

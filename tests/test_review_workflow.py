@@ -134,7 +134,7 @@ class RepairWorkflow(IsolatedAsyncioTestCase):
             async def stop(self, **kwargs):
                 pass
         environment = Environment()
-        async def create(*args):
+        async def create(*args, **kwargs):
             return {'agent': environment}
         calls = 0
         async def judge(command, prompt, cwd, env, timeout):
@@ -158,7 +158,7 @@ class RepairWorkflow(IsolatedAsyncioTestCase):
                  mock.patch.object(image_review, 'run_judge', judge), \
                  mock.patch.object(image_review, 'Inspector', FakeInspector), \
                  mock.patch.object(image_review.shutil, 'which', return_value='/fake/claude'), \
-                 mock.patch('validation.reporting.review_pricing.for_stage', return_value={'rates': None, 'source': {}}):
+                 mock.patch('validation.publishing.review_pricing.for_stage', return_value={'rates': None, 'source': {}}):
                 result = await image_review.review(source, staged, root, args, 'claude-code', 'test')
                 self.assertEqual(result['status'], 'passed', result)
                 self.assertEqual(len(result['verdicts']), 2)
@@ -195,7 +195,7 @@ class RepairWorkflow(IsolatedAsyncioTestCase):
                  mock.patch.object(runtime, 'job_config', side_effect=lambda task, *a: {'task': str(task)}), \
                  mock.patch.object(runtime, 'execute_job', execute), \
                  mock.patch.object(runtime, 'trial_results', side_effect=lambda job: [(job / 'trial', {})]), \
-                 mock.patch('validation.reporting.review_pricing.for_stage', return_value={'rates': None, 'source': {}}):
+                 mock.patch('validation.publishing.review_pricing.for_stage', return_value={'rates': None, 'source': {}}):
                 result = await review.review_files(staged, source, root, args, 'terminus-2', 'test')
                 self.assertEqual(result['status'], 'passed', result)
                 self.assertEqual([len(names) for names in selected], [4, 3])

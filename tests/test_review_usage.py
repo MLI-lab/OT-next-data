@@ -5,8 +5,8 @@ import tarfile
 
 import pytest
 
-from validation.reporting import review_usage as usage
-from validation.reporting.report import write_report
+from validation.publishing import review_usage as usage
+from validation.publishing.report import write_report
 
 
 def result(cost=None, inp=1000, cache=300, out=200):
@@ -58,6 +58,14 @@ def test_average_uses_unique_tasks_and_all_attempts(tmp_path):
     summary = usage.summarize_items(items)
     assert summary['task_count'] == 1 and summary['trial_count'] == 4
     assert summary['metrics']['cost_usd']['average_per_task'] == 0.08
+
+
+def test_elapsed_time_average_is_reported_for_complete_review_timings():
+    rows = [{'elapsed_seconds': 30.0}, {'elapsed_seconds': 90.0}]
+    summary = usage.summarize_rows(rows, expected=2, tasks=2)
+    metric = summary['metrics']['elapsed_seconds']
+    assert metric['total'] == 120.0
+    assert metric['average_per_task'] == 60.0
 
 
 def test_zero_local_api_estimate_and_unknown_cache(tmp_path):
@@ -148,7 +156,7 @@ def test_stage_review_keeps_spend_when_verdict_is_missing(tmp_path, monkeypatch)
 
 
 def test_together_defaults_match_exact_models_and_freeze_rates():
-    from validation.reporting import review_pricing
+    from validation.publishing import review_pricing
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-local', '--serve-model', 'glm-5.3'])
     first = review_pricing.for_stage(options, 5)
@@ -165,7 +173,7 @@ def test_together_defaults_match_exact_models_and_freeze_rates():
 
 
 def test_unknown_local_model_is_unpriced_and_manual_zero_wins():
-    from validation.reporting.review_pricing import for_stage
+    from validation.publishing.review_pricing import for_stage
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-local', '--serve-model', 'coder-30b'])
     assert for_stage(options, 5)['rates'] is None
@@ -176,7 +184,7 @@ def test_unknown_local_model_is_unpriced_and_manual_zero_wins():
 
 
 def test_analysis_gets_its_own_price_and_repricing_updates_provenance(tmp_path):
-    from validation.reporting.review_pricing import for_stage
+    from validation.publishing.review_pricing import for_stage
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-model', 'together_ai/zai-org/GLM-5.3',
                                   '--analysis-model', 'together_ai/openai/gpt-oss-120b'])

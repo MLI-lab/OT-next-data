@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from data.utils import resolve_absolute_paths as resolver
+from validation.rules.static.task_absolute_path import repair as resolver
 
 
 def test_actual_search_preserves_suffix_and_reports_duplicates(tmp_path):
@@ -149,7 +149,7 @@ def test_automatic_roots_use_existing_projects_not_filesystem_root(tmp_path, mon
 
 @pytest.mark.parametrize('duplicate', [False, True])
 def test_instruction_directory_is_searched_and_duplicates_prevent_edits(tmp_path, monkeypatch, duplicate):
-    from validation.checks.instruction_paths import automatic
+    from validation.rules.static.task_absolute_path.instruction_paths import automatic
     task = tmp_path / 'task'
     task.mkdir()
     data = tmp_path / 'data'

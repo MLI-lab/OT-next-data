@@ -1483,7 +1483,6 @@ PY
 """
     return f"""#!/bin/bash
 set -euo pipefail
-bash /setup_files/setup.sh
 mkdir -p /logs/verifier
 echo '{test_hash}  /tests/fixed-tests.tar.gz' | sha256sum -c -
 tar -xzf /tests/fixed-tests.tar.gz -C /app
@@ -2562,6 +2561,494 @@ def prepare_environment(tasks: Path, archive: Path, run_record: Path, assembly_r
     return summary
 
 
+PANDAS_BUILD_PINS = 'numpy==1.18.4 cython==0.29.19 setuptools==59.8.0 wheel==0.37.1'
+PANDAS_TASK_INSTALL = (
+    'python3 -m pip install --no-deps --target /app/.deps ' + PANDAS_BUILD_PINS + '\n'
+    'python3 -m pip install --upgrade --no-build-isolation --no-deps --target /app/.deps -r /setup_files/requirements.lock')
+PANDAS_VERIFIER_INSTALL = (
+    'python3 -m venv /tests/.venv\n'
+    'env -u PYTHONPATH /tests/.venv/bin/python -m pip install --no-deps ' + PANDAS_BUILD_PINS + '\n'
+    'env -u PYTHONPATH /tests/.venv/bin/python -m pip install --no-build-isolation --no-deps -r /tests/requirements.lock\n')
+
+
+# Installed into the fresh verifier venv only; the venv is recreated after the
+# agent finished, from the clean runtime, so the agent cannot alter either file.
+PROJECT_PATHS_INSTALL = (
+    'ot_site=$(/tests/.venv/bin/python -I -c \'import sysconfig; print(sysconfig.get_path("purelib"))\')\n'
+    'cp /tests/ot_project_paths.py "$ot_site/ot_project_paths.py"\n'
+    'printf \'import ot_project_paths\\n\' > "$ot_site/ot_project_paths.pth"\n')
+
+
+def project_paths_module(paths):
+    """Expose declared project paths only after stdlib and clean dependencies.
+
+    The finder runs last on sys.meta_path, so it is consulted only for a
+    top-level module that no trusted path provides. It then appends the
+    declared paths once, giving the same order as the earlier wrapper while the
+    grader stays a plain `python -I -m pytest|unittest` the recorder sees.
+    """
+    return ('"""Expose declared BugsInPy project paths after trusted paths."""\n'
+            'import sys\n'
+            '\n'
+            'PATHS = ' + repr(paths) + '\n'
+            '\n'
+            '\n'
+            'class ProjectPaths(object):\n'
+            '    @staticmethod\n'
+            '    def find_spec(name, path=None, target=None):\n'
+            '        if path is not None:\n'
+            '            return None\n'
+            '        if ProjectPaths in sys.meta_path:\n'
+            '            sys.meta_path.remove(ProjectPaths)\n'
+            '        for entry in PATHS:\n'
+            '            if entry not in sys.path:\n'
+            '                sys.path.append(entry)\n'
+            '        from importlib.machinery import PathFinder\n'
+            '        return PathFinder.find_spec(name, PATHS)\n'
+            '\n'
+            '    @staticmethod\n'
+            '    def invalidate_caches():\n'
+            '        pass\n'
+            '\n'
+            '\n'
+            'sys.meta_path.append(ProjectPaths)\n')
+
+
+def _two_phase_pandas(files):
+    setup = files['setup_files/setup.sh'].decode()
+    lock = set(files['setup_files/requirements.lock'].decode().splitlines())
+    return (setup.count(PANDAS_TASK_INSTALL + '\n') == 1
+            and set(PANDAS_BUILD_PINS.split()) <= lock
+            and re.search(r'^(?:pytest|/tests/\.venv/bin/python -I (?:/tests/ot_run_tests\.py pytest|-m pytest)) pandas/tests/',
+                          files['tests/run_test.sh'].decode(), re.M))
+
+
+def verifier_build_requirements(files):
+    """Build tools observed outside the published lock, scoped to reviewed bytes."""
+    if (sha256(files.get('tests/requirements.lock', b'')) in (
+            'bbcc6ff87a534b991491ecb152adb3c18a9245e00adc30409d989217652b5b1f',
+            '85299522e1941c1081435984e48048c9fb46fdb8c65494beb588e25663d8412b',
+            '62f88d5dc48f4a79c941e3ef7e2f64f2c29c4ac40279933f27ec0a0485a55d2e',
+            '38ea7e0d8987c9f57d56b34f80085fe32a0f72d179890a513c4188cd9e991440',
+            '669c7712a2c62b2ee06b257df630702ee551a86a678d2b4ad5d2ec7d0ffaa102')
+            and b'python3 setup.py build_ext --inplace > /logs/verifier/build.txt 2>&1\n'
+            in files.get('tests/test.sh', b'')
+            and b'cd /app && python3 setup.py build_ext --inplace\n'
+            in files.get('setup_files/setup.sh', b'')):
+        return ['wheel==0.42.0']
+    return []
+
+
+# /setup_files stays in the agent's container and is writable there, so grading must
+# not execute it: an agent edit would run during grading (reward 1 without a fix,
+# shown on pandas-1, Helma job 1176357). Setup already ran before the agent.
+GRADING_SETUP_CALL = 'bash /setup_files/setup.sh\n'
+
+
+def without_grading_setup_call(files):
+    test = files['tests/test.sh'].decode()
+    if test.count(GRADING_SETUP_CALL) > 1:
+        raise ValueError('Unexpected repeated setup call in test.sh')
+    return {**files, 'tests/test.sh': test.replace(GRADING_SETUP_CALL, '', 1).encode()}
+
+
+def prepared_verifier_files(files, spec, catalog=None):
+    """Bind reviewed BugsInPy grading commands to clean exact-image dependencies.
+
+    Task setup and submitted project files retain their original environment. The
+    verifier keeps its original /tests/.venv path and declared project import paths.
+    """
+    from data.utils.verifier_runtime import preparation_command, runtime_reference, runtime_spec
+    canonical = runtime_spec(**{k: v for k, v in spec.items() if k != 'runtime_layout'})
+    if canonical != spec or 'image_python' not in spec:
+        raise ValueError('BugsInPy requires a canonical image-inspected runtime spec')
+    requirements = sorted(set(line.strip() for line in files['tests/requirements.lock'].decode().splitlines()
+                              if line.strip() and not line.lstrip().startswith('#')))
+    # A content checksum may strengthen an existing immutable source URL, but
+    # may not change its package name, URL, commit, or any ordinary pin.
+    original_requirements = set(requirements)
+    compared_requirements = []
+    for requirement in spec['requirements']:
+        unhashed = re.sub(r'#sha256=[0-9a-f]{64}$', '', requirement)
+        compared_requirements.append(unhashed if unhashed in original_requirements else requirement)
+    build_requirements = verifier_build_requirements(files)
+    expected = requirements
+    if build_requirements and any(item not in requirements for item in compared_requirements):
+        if (spec['python'] != '3.7.17' or spec['image_python']['image_sha256'] !=
+                'aec7ee5b48fa77973fcda22bc798da6c0707e5517a29f1b26b0d7cb180f3bba1'):
+            raise ValueError('Unreviewed build-tool interpreter or image')
+        expected = sorted(set(requirements + build_requirements))
+    if expected != sorted(compared_requirements):
+        raise ValueError('Runtime dependencies differ from original verifier lock')
+    if 'tests/setup.sh' in files or 'tests/ot-verifier-runtime.json' in files:
+        raise ValueError('Existing verifier setup requires composition review')
+    original = files['tests/test.sh'].decode()
+    install = ('python3 -m venv /tests/.venv\n'
+               'env -u PYTHONPATH /tests/.venv/bin/python -m pip install --no-deps -r /tests/requirements.lock\n')
+    if (original.count(PANDAS_VERIFIER_INSTALL) == 1 and spec['python'] == '3.8.20'
+            and _two_phase_pandas(files)):
+        install = PANDAS_VERIFIER_INSTALL
+    if original.count(install) != 1:
+        raise ValueError('Unreviewed verifier installer or bootstrap order')
+    ordinary_boundary = 'export PATH=/tests/.venv/bin:$PATH\nset +e\n'
+    pandas_build = ('python3 setup.py build_ext --inplace -j 2 || '
+                    'python3 setup.py build_ext --inplace -j 1\n')
+    pandas_boundary = 'export PATH=/tests/.venv/bin:$PATH\n' + pandas_build + 'set +e\n'
+    tornado_boundary = ('export PATH=/tests/.venv/bin:$PATH\n'
+                        'unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy\nset +e\n')
+    recorded_tornado = (original.count(tornado_boundary) == 1 and spec['python'] == '3.7.17'
+                        and 'tests/run_unittest.py' in files
+                        and re.search(r'^python3 /tests/run_unittest.py -q tornado\.test\.',
+                                      files['tests/run_test.sh'].decode(), re.M))
+    junit_boundary = ('export PATH=/tests/.venv/bin:$PATH\n'
+                      'unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy\n'
+                      'rm -f /logs/verifier/junit.xml\n'
+                      'export PYTEST_ADDOPTS=--junitxml=/logs/verifier/junit.xml\nset +e\n')
+    recorded_sanic = (original.count(junit_boundary) == 1 and spec['python'] == '3.8.20'
+                      and 'cd /app && python3 setup.py build' in files['setup_files/setup.sh'].decode().splitlines()
+                      and re.search(r'^pytest tests/', files['tests/run_test.sh'].decode(), re.M))
+    spacy_build = 'python3 setup.py build_ext --inplace > /logs/verifier/build.txt 2>&1\n'
+    spacy_boundary = junit_boundary.replace('export PATH=/tests/.venv/bin:$PATH\n',
+                                           'export PATH=/tests/.venv/bin:$PATH\n' + spacy_build)
+    recorded_spacy = (original.count(spacy_boundary) == 1 and spec['python'] == '3.7.17'
+                      and 'cd /app && python3 setup.py build_ext --inplace' in files['setup_files/setup.sh'].decode().splitlines()
+                      and re.search(r'^py\.test spacy/tests/', files['tests/run_test.sh'].decode(), re.M))
+    if ordinary_boundary not in original and not recorded_tornado and not recorded_sanic and not recorded_spacy:
+        # Preserve the original post-agent extension rebuild, including its
+        # exact interpreter, fallback, working directory and submitted sources.
+        pandas_setup = ('cd /app && python3 setup.py build_ext --inplace --force -j 2 || '
+                        '( cd /app && python3 setup.py build_ext --inplace --force -j 1 )')
+        if (original.count(pandas_boundary) != 1 or spec['python'] != '3.8.20'
+                or not any(command in files['setup_files/setup.sh'].decode().splitlines()
+                           for command in (pandas_setup, pandas_setup.replace(' --force', '')))
+                or not re.search(r'^pytest pandas/tests/', files['tests/run_test.sh'].decode(), re.M)):
+            raise ValueError('Verifier project build commands require separate review')
+    matches = re.findall(r'^export PYTHONPATH=(.+)$', original, re.M)
+    if len(matches) != 1:
+        raise ValueError('Expected one explicit verifier project import path')
+    paths = list(dict.fromkeys(matches[0].split(':')))
+    if any(not re.fullmatch(r'/app(?:/[A-Za-z0-9_.-]+)*', path) or '..' in path.split('/') for path in paths):
+        raise ValueError('Unreviewed verifier project import path')
+    run = files['tests/run_test.sh'].decode()
+    replacements = 0
+    def command_replace(match):
+        nonlocal replacements
+        module, script, pytest_command, arguments = match.groups()
+        if script:
+            if 'tests/run_unittest.py' not in files:
+                raise ValueError('Missing recorded unittest runner')
+            mode = 'recorded-unittest'
+        else:
+            mode = module or ('pytest' if pytest_command else None)
+        # Preserve selectors/options as literal shell arguments; decline shell
+        # expansions or pipelines rather than approximating their semantics.
+        args = shlex.split(arguments or '')
+        if any(re.search(r'[;$`|&<>\n*?#]', arg) for arg in args):
+            raise ValueError('Unreviewed grading command shell expansion')
+        replacements += 1
+        # Forms the stage-3 execution recorder recognizes: `-m pytest`,
+        # `-m unittest` and the reviewed recorded-unittest reporter itself.
+        runner = {'pytest': '-m pytest', 'unittest': '-m unittest',
+                  'recorded-unittest': '/tests/run_unittest.py'}[mode]
+        return '/tests/.venv/bin/python -I ' + runner + (
+            ' ' + shlex.join(args) if args else '')
+    pattern = r'^(?:python3? -m (unittest|pytest)|python3? (/tests/run_unittest.py)|(pytest|py\.test))([^\n]*)$'
+    if re.search(r'\b(?:python3?|pytest|pip3?)\b', re.sub(pattern, '', run, flags=re.M)):
+        raise ValueError('Unreviewed grading command; no partial rewrite allowed')
+    run = re.sub(pattern, command_replace, run, flags=re.M)
+    if not replacements or re.search(r'^(?:python3?|pytest|pip3?)\s', run, re.M):
+        raise ValueError('Unreviewed grading command; no partial rewrite allowed')
+    result = dict(files)
+    result.update(runtime_reference(spec, catalog))
+    result['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n' +
+        preparation_command(spec, phase='verifier') + '\n').encode()
+    online = ''.join('  ' + line + '\n' for line in install.splitlines())
+    result['tests/test.sh'] = original.replace(GRADING_SETUP_CALL, '', 1).replace(install,
+        'if [ -n "${OT_VERIFIER_PYTHON:-}" ]; then\n'
+        '  "$OT_VERIFIER_PYTHON" -I -m venv --without-pip --system-site-packages /tests/.venv\n'
+        'else\n' + online + 'fi\n' + PROJECT_PATHS_INSTALL).encode()
+    result['tests/run_test.sh'] = run.encode()
+    result['tests/ot_project_paths.py'] = project_paths_module(paths).encode()
+    return result
+
+
+
+FREETYPE_BUILD = 'cd /app && MPLLOCALFREETYPE=1 python3 setup.py build_ext --inplace'
+FREETYPE_SOURCE = {
+    'url': 'https://downloads.sourceforge.net/project/freetype/freetype2/2.6.1/freetype-2.6.1.tar.gz',
+    'sha256': '0a3c7dfbda6da1e8fce29232e8e96d987ababbbf71ebc8c75659e4132c367014',
+    'filename': 'freetype-2.6.1.tar.gz',
+}
+
+
+# Immutable source dependencies observed in the original BugsInPy task locks.
+TASK_SOURCE_REQUIREMENTS = {
+    'requests-async @ https://github.com/encode/requests-async/archive/23c21e05721d1bc6fbd270727782a495ae4ca228.tar.gz': {
+        'url': 'https://github.com/encode/requests-async/archive/23c21e05721d1bc6fbd270727782a495ae4ca228.tar.gz',
+        'sha256': '6fa36db13a57016b271876e87b969c0bbe7bee94e29c63d4e6a3a1a5cc14a94b',
+        'filename': 'requests-async-23c21e05721d1bc6fbd270727782a495ae4ca228.tar.gz'},
+    'twisted @ https://github.com/twisted/twisted/archive/121c98e006a31750661107d390ec2dc4ffe28e8a.tar.gz': {
+        'url': 'https://github.com/twisted/twisted/archive/121c98e006a31750661107d390ec2dc4ffe28e8a.tar.gz',
+        'sha256': '64372fac8a6c96f64ab01c4cf4f4d45ebc9bca13fbbebc7058a0ab53ca329015',
+        'filename': 'twisted-121c98e006a31750661107d390ec2dc4ffe28e8a.tar.gz'},
+}
+
+
+# Observed in both original Scrapy1 setup trials on Python 3.8.20.
+# These are isolated source-build inputs, not extra task install requirements.
+TWISTED_BUILD_REQUIREMENTS = [
+    'incremental==24.11.0', 'packaging==26.2', 'setuptools==75.3.4',
+    'tomli==2.5.0', 'wheel==0.45.1',
+]
+
+
+def task_dependency_request(files, *, no_deps=False):
+    """Original wheel pins plus reviewed source inputs at their build point."""
+    requirements = sorted(set(line.strip() for line in files['setup_files/requirements.lock'].decode().splitlines()
+                              if line.strip() and not line.lstrip().startswith('#')))
+    source_requirements = [r for r in requirements if ' @ ' in r]
+    if (any(r not in TASK_SOURCE_REQUIREMENTS for r in source_requirements)
+            or any(files['setup_files/requirements.lock'].decode().splitlines().count(r) != 1
+                   for r in source_requirements)):
+        raise ValueError('Unreviewed task source dependency')
+    request = {'apt': [], 'python': [{'tool': 'pip3', 'requirements': [
+        r for r in requirements if r not in source_requirements]}], 'uv': False}
+    if source_requirements:
+        request['sources'] = [dict(TASK_SOURCE_REQUIREMENTS[r]) for r in source_requirements]
+        if any(r.startswith('twisted @ ') for r in source_requirements):
+            request['python'].append({'tool': 'pip3', 'requirements': list(TWISTED_BUILD_REQUIREMENTS),
+                                      'no_deps': True})
+    build_requirements = verifier_build_requirements(files)
+    if build_requirements:
+        request['python'].append({'tool': 'pip3', 'requirements': build_requirements, 'no_deps': True})
+    setup = files['setup_files/setup.sh'].decode()
+    if no_deps or source_requirements:
+        command = 'python3 -m pip install --no-deps --target /app/.deps -r /setup_files/requirements.lock'
+        if setup.count(command + '\n') != 1 and not _two_phase_pandas(files):
+            raise ValueError('Unreviewed no-deps task installation')
+        request['python'][0]['no_deps'] = True
+    if 'MPLLOCALFREETYPE' in setup:
+        if setup.count(FREETYPE_BUILD) != 1:
+            raise ValueError('Unreviewed Matplotlib source build')
+        import ast
+        with tarfile.open(fileobj=io.BytesIO(files['setup_files/project.tar.gz'])) as archive:
+            source = archive.extractfile('setupext.py').read().decode()
+        constants = {}
+        for node in ast.parse(source).body:
+            if isinstance(node, ast.Assign):
+                for name in node.targets:
+                    if isinstance(name, ast.Name) and name.id in ('LOCAL_FREETYPE_VERSION', '_freetype_hashes'):
+                        constants[name.id] = ast.literal_eval(node.value)
+        if (constants.get('LOCAL_FREETYPE_VERSION') != '2.6.1'
+                or constants.get('_freetype_hashes', {}).get('2.6.1') != FREETYPE_SOURCE['sha256']):
+            raise ValueError('Matplotlib source dependency changed')
+        request.setdefault('sources', []).append(dict(FREETYPE_SOURCE))
+    return request
+
+
+def prepared_task_setup(files, record):
+    """Keep the original task interpreter/install point, using staged inputs."""
+    from data.utils.verifier_runtime import offline_preparation_command, task_offline_reference
+    no_deps = any(item.get('no_deps') is True for item in record['spec'].get('python', []))
+    request = task_dependency_request(files, no_deps=no_deps)
+    result = dict(files)
+    result.update(task_offline_reference(request, record))
+    command = 'python3 -m pip install --no-deps --target /app/.deps -r /setup_files/requirements.lock'
+    original = files['setup_files/setup.sh'].decode()
+    if _two_phase_pandas(files):
+        command = PANDAS_TASK_INSTALL
+    if (original.count(command + '\n') != 1 or '# OT_OFFLINE_RECIPE:' in original
+            or original.count('set -euo pipefail\n') != 1):
+        raise ValueError('Unreviewed task dependency installation')
+    branch = ('if [ -n "${OT_TASK_OFFLINE:-}" ]; then\n'
+              '  ' + '\n  '.join('PIP_NO_INDEX=1 PIP_FIND_LINKS="$OT_TASK_OFFLINE/wheels" ' + line
+                                for line in command.splitlines()) + '\n'
+              'else\n  ' + command + '\nfi')
+    source_requirements = {r: TASK_SOURCE_REQUIREMENTS[r] for r in
+        files['setup_files/requirements.lock'].decode().splitlines() if r in TASK_SOURCE_REQUIREMENTS}
+    if source_requirements:
+        # Keep the published lock untouched. Only its URL locations change in a
+        # private install-time copy, after checking the original source bytes.
+        script = ('import hashlib, os, pathlib, sys\n'
+            'mapping = ' + repr(source_requirements) + '\n'
+            'lines = pathlib.Path("/setup_files/requirements.lock").read_text().splitlines()\n'
+            'for requirement, source in mapping.items():\n'
+            '    assert lines.count(requirement) == 1\n'
+            '    path = pathlib.Path(os.environ["OT_TASK_OFFLINE"]) / "sources" / source["filename"]\n'
+            '    assert hashlib.sha256(path.read_bytes()).hexdigest() == source["sha256"]\n'
+            '    lines[lines.index(requirement)] = requirement.split(" @ ", 1)[0] + " @ " + path.resolve().as_uri()\n'
+            'pathlib.Path(sys.argv[1]).write_text("\\n".join(lines) + "\\n")\n')
+        local_command = command.replace('/setup_files/requirements.lock', '"$offline_requirements"')
+        branch = ('if [ -n "${OT_TASK_OFFLINE:-}" ]; then\n'
+                  '  offline_requirements=$(mktemp)\n'
+                  '  python3 - "$offline_requirements" <<\'OT_LOCAL_SOURCE_LOCK\'\n' + script +
+                  'OT_LOCAL_SOURCE_LOCK\n'
+                  '  PIP_NO_INDEX=1 PIP_FIND_LINKS="$OT_TASK_OFFLINE/wheels" ' + local_command + '\n'
+                  'else\n  ' + command + '\nfi')
+    if FREETYPE_SOURCE in request.get('sources', []):
+        source = FREETYPE_SOURCE
+        cached = ('if [ -n "${OT_TASK_OFFLINE:-}" ]; then\n'
+                  '  freetype_archive="$OT_TASK_OFFLINE/sources/' + source['filename'] + '"\n'
+                  '  printf \'%s  %s\\n\' ' + source['sha256'] + ' "$freetype_archive" | sha256sum -c -\n'
+                  '  if [ ! -d /app/build/freetype-2.6.1 ]; then\n'
+                  '    mkdir -p /app/build\n'
+                  '    tar -xzf "$freetype_archive" -C /app/build\n'
+                  '  fi\nfi\n')
+        original = original.replace(FREETYPE_BUILD, cached + FREETYPE_BUILD)
+    preparation = offline_preparation_command(request, image_sha256=record['spec']['image_sha256'])
+    result['setup_files/setup.sh'] = original.replace(command, branch).replace(
+        'set -euo pipefail\n', 'set -euo pipefail\n' + preparation + '\n', 1).encode()
+    return result
+
+
+def prepare_runtime_candidates(source, output, recipes, catalog, task_ids, source_revision, offline_catalog=None):
+    """Adapt selected published tasks; keep membership and historical evidence."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from validation.contract import files_digest
+    from data.utils.patch_reporting import write_patch_report
+    from harbor_patches.verifier_bundle import digest
+    source = Path(source); output = Path(output)
+    original = pq.ParquetFile(source)
+    metadata = dict(original.schema_arrow.metadata or {})
+    images = json.loads(metadata.get(b'ot.images.v1', b'{}'))
+    selected = set(task_ids)
+    known = {row['path'] for batch in original.iter_batches(batch_size=64, columns=['path'])
+             for row in batch.to_pylist()}
+    if not selected or not selected.issubset(known):
+        raise ValueError('Runtime selection must name existing source tasks')
+    # Validate immutable image bytes once per image, before writing candidates.
+    verified_images = set()
+    for task in selected:
+        recipe = recipes[task]; record = catalog[recipe['runtime_id']]
+        spec = record['spec']; image_sha = recipe['image_sha256']
+        if (spec.get('image_python', {}).get('image_sha256') != image_sha
+                or recipe['python'] != spec['python']):
+            raise ValueError(task + ': runtime and observed image identity differ')
+        bindings = images.get('tasks', {}).get(task, {}).get('environments', [])
+        if len(bindings) != 1:
+            raise ValueError(task + ': expected one published image binding')
+        bundle = images['bundles'][bindings[0]['bundle']]
+        sifs = [value for name, value in bundle['files'].items() if name.endswith('.sif')]
+        if len(sifs) != 1 or sifs[0]['sha256'] != image_sha:
+            raise ValueError(task + ': observed image differs from task image')
+        image = Path(recipe['image_path'])
+        if (str(image), image_sha) not in verified_images:
+            if image.stat().st_size != sifs[0]['bytes'] or digest(image) != image_sha:
+                raise ValueError(task + ': observed image bytes changed')
+            verified_images.add((str(image), image_sha))
+    output.mkdir(parents=True, exist_ok=False)
+    evidence, labels, reasons = {}, {}, {}
+    temporary = output / 'tasks-unbound-metadata.parquet'
+    with pq.ParquetWriter(temporary, original.schema_arrow, compression='zstd') as writer:
+        for batch in original.iter_batches(batch_size=1):
+            row = batch.to_pylist()[0]; task = row['path']; labels[task] = []
+            if task in selected:
+                recipe = recipes[task]
+                if recipe['source_content_sha256'] != row['content_sha256']:
+                    raise ValueError(task + ': source task changed since image/lock review')
+                files = {}
+                with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
+                    for member in archive:
+                        path = PurePosixPath(member.name)
+                        if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+                            raise ValueError('Unsafe task archive member')
+                        if member.isfile():
+                            if member.name in files or member.mode != (0o755 if member.name.endswith('.sh') else 0o644):
+                                raise ValueError('Unexpected task member mode or duplicate')
+                            files[member.name] = archive.extractfile(member).read()
+                if files_digest(files.items()) != row['content_sha256']:
+                    raise ValueError(task + ': source payload digest mismatch')
+                if sha256(files['tests/requirements.lock']) != recipe['requirements_sha256']:
+                    raise ValueError(task + ': source verifier lock changed')
+                spec = catalog[recipe['runtime_id']]['spec']
+                updated = prepared_verifier_files(files, spec, catalog)
+                if offline_catalog is not None:
+                    from harbor_patches.verifier_bundle import OFFLINE_REQUEST_KEYS
+                    matches = []
+                    # Prefer explicit original no-deps preparation when available;
+                    # retain compatibility with existing verified wheel archives.
+                    for no_deps in (True, False):
+                        request = task_dependency_request(files, no_deps=no_deps)
+                        matches = [r for r in offline_catalog.values()
+                                   if r['spec'].get('image_sha256') == recipe['image_sha256']
+                                   and {k: v for k, v in r['spec'].items() if k in OFFLINE_REQUEST_KEYS} == request]
+                        if matches:
+                            break
+                    if len(matches) != 1:
+                        raise ValueError(task + ': expected one matching task wheel bundle')
+                    updated = prepared_task_setup(updated, matches[0])
+                evidence[task] = {'historical_row': {k: v for k, v in row.items() if k != 'task_binary'},
+                    'source_content_sha256': row['content_sha256'], 'runtime_id': recipe['runtime_id'],
+                    'image_sha256': recipe['image_sha256'], 'python': recipe['python'],
+                    'changed_files': sorted(k for k,v in updated.items() if files.get(k) != v),
+                    'historical_score_status': 'historical, evaluated on the original payload',
+                    'effective_network': 'unverified', 'validation': 'incomplete'}
+                row['task_binary'] = task_tar(updated)
+                row['content_sha256'] = files_digest(updated.items())
+                evidence[task]['content_sha256'] = row['content_sha256']
+                images['tasks'][task]['content_sha256'] = row['content_sha256']
+                row['stages_passed'] = ''; row['run'] = ''
+                if 'validation_labels' in row: row['validation_labels'] = []
+                labels[task] = ['prepared-verifier-runtime']
+                reasons[task] = ('Create the verifier venv from the prepared runtime when staged, else install the locked '
+                    'dependencies online as before. test.sh no longer runs the agent-writable /setup_files/setup.sh. '
+                    'Preserve declared project imports and grading assertions; exclude task paths from trusted tool resolution. '
+                    'Earlier scores describe the original payload. New training validation remains incomplete.')
+            else:
+                files = {}
+                with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
+                    for member in archive:
+                        if member.isfile():
+                            files[member.name] = archive.extractfile(member).read()
+                updated = without_grading_setup_call(files)
+                if updated != files:
+                    row['task_binary'] = task_tar(updated)
+                    row['content_sha256'] = files_digest(updated.items())
+                    images['tasks'][task]['content_sha256'] = row['content_sha256']
+                    row['stages_passed'] = ''; row['run'] = ''
+                    if 'validation_labels' in row: row['validation_labels'] = []
+                    labels[task] = ['grading-setup-call-removed']
+                    reasons[task] = ('test.sh no longer runs /setup_files/setup.sh, which the agent can edit. '
+                        'Earlier scores describe the original payload.')
+            writer.write_table(pa.Table.from_pylist([row], schema=original.schema_arrow))
+    metadata[b'ot.images.v1'] = json.dumps(images).encode()
+    metadata[b'ot.runtime_migration.v1'] = json.dumps({'source_revision': source_revision,
+        'changed_tasks': sorted(selected), 'historical_evidence': 'runtime-migration.json',
+        'historical_scores': 'changed tasks retain scores evaluated on previous payloads',
+        'effective_network': 'unverified', 'validation': 'incomplete'}).encode()
+    schema = original.schema_arrow.with_metadata(metadata)
+    target = output / 'tasks.parquet'
+    with pq.ParquetWriter(target, schema, compression='zstd') as writer:
+        for batch in pq.ParquetFile(temporary).iter_batches(batch_size=1):
+            writer.write_table(pa.Table.from_batches([batch]).replace_schema_metadata(metadata))
+    report = {'source_revision': source_revision, 'tasks': evidence,
+              'tasks_without_runtime': original.metadata.num_rows - len(selected),
+              'ai_detection': 'intentionally excluded by user policy',
+              'effective_network': 'unverified', 'validation': 'incomplete'}
+    (output / 'runtime-migration.json').write_text(json.dumps(report, indent=2) + '\n')
+    write_patch_report(source, target, source={'dataset': 'FWeindel/validated-tasks',
+        'url': 'https://huggingface.co/datasets/FWeindel/validated-tasks', 'revision': source_revision},
+        dropped={}, change_labels=labels, change_reasons=reasons, patcher=__file__)
+    return {'tasks': original.metadata.num_rows, 'changed': len(selected), 'validation': 'incomplete'}
+
+
+def runtime_cli():
+    parser = argparse.ArgumentParser(description='Prepare selected published BugsInPy verifier runtimes')
+    parser.add_argument('--source', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--runtime-recipes', type=Path, required=True)
+    parser.add_argument('--runtime-catalog', type=Path, required=True)
+    parser.add_argument('--offline-catalog', type=Path)
+    parser.add_argument('--task-ids', type=Path, required=True, help='JSON array of reviewed task IDs to adapt')
+    parser.add_argument('--source-revision', required=True)
+    args = parser.parse_args()
+    print(json.dumps(prepare_runtime_candidates(args.source, args.output,
+        json.loads(args.runtime_recipes.read_text()), json.loads(args.runtime_catalog.read_text()),
+        json.loads(args.task_ids.read_text()), args.source_revision,
+        json.loads(args.offline_catalog.read_text()) if args.offline_catalog else None), indent=2))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True,
@@ -2671,5 +3158,5 @@ def instruction_loop_cli():
 
 if __name__ == "__main__":
     from data.utils.cli import dispatch
-    dispatch({'instruction-loop': instruction_loop_cli})
+    dispatch({'instruction-loop': instruction_loop_cli, 'prepare-runtimes': runtime_cli})
     main()

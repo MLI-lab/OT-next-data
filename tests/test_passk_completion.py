@@ -1,8 +1,8 @@
 from copy import deepcopy
 from pathlib import Path
 import pytest
-from validation.checks.passk_completion import assess, check_reports
-from validation.checks.reward_metrics import task_metrics, summarize
+from validation.metrics.passk_completion import assess, check_reports
+from validation.metrics.reward_metrics import task_metrics, summarize
 
 
 def trial(index, reward=None, error=None, finished=True):
@@ -78,7 +78,7 @@ def test_report_gate_rejects_incomplete_evidence(mutation):
 
 
 def test_older_reports_receive_zero_with_original_errors_and_provenance():
-    from validation.checks.passk_rewards import normalize
+    from validation.metrics.passk_rewards import normalize
     six, seven = reports()
     item = six['items'][0]
     item['attempt_outcomes'][1]['reward'] = None
@@ -100,7 +100,7 @@ def test_older_reports_receive_zero_with_original_errors_and_provenance():
 
 
 def test_unfinished_error_does_not_receive_zero():
-    from validation.checks.reward_metrics import passk_reward
+    from validation.metrics.reward_metrics import passk_reward
     result = trial(1, error='VerifierRuntimeError', finished=False)[1]
     assert passk_reward(result) is None
     assert assess([(Path('/trials/1'), result)], 1)['status'] == 'failed'

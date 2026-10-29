@@ -5,7 +5,7 @@ import tarfile
 import pytest
 
 from data.calibforge import patch
-from validation.checks.check_terminal_bench import dockerfile_sanity_text
+from validation.rules.static.terminal_bench import dockerfile_sanity_text
 
 
 DOCKERFILE = r"""FROM ubuntu:24.04

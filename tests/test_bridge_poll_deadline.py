@@ -10,7 +10,7 @@ def test_result_deadline_during_http_poll_retains_timeout_context(monkeypatch, e
     client = bridge_client.BridgeClient()
     clock = [0.0]
     monkeypatch.setattr(bridge_client.time, 'monotonic', lambda: clock[0])
-    async def get(*args):
+    async def get(*args, **kwargs):
         clock[0] = 10 if expire else 1
         raise TimeoutError('transport timeout')
     monkeypatch.setattr(client, 'get', get)

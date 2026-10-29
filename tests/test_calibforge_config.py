@@ -3,7 +3,7 @@ import tomllib
 import pytest
 
 from data.calibforge import patch
-from validation.checks.task_toml_schema import check
+from validation.rules.static.task_toml_schema import check
 
 
 @pytest.mark.parametrize('task', sorted(patch.REDUNDANT_AGENT_RESOURCE_TASKS))

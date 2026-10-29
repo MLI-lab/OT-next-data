@@ -102,8 +102,9 @@ def build_budget_commands(run, seconds, clock=time.monotonic):
         inner = command[2:] if command[:2] == ['unshare', '-r'] else command
         tool = Path(inner[0]).name if inner else ''
         build = tool in ('apptainer', 'singularity') and inner[1:2] == ['build']
-        deferred = command[:2] == ['unshare', '-r'] and (
-            tool == 'mkfs.ext3' or (tool in ('apptainer', 'singularity') and '--overlay' in inner))
+        deferred = (command[:2] == ['unshare', '-r'] and tool == 'mkfs.ext3') or (
+            tool in ('apptainer', 'singularity') and '--overlay' in inner
+            and (command[:2] == ['unshare', '-r'] or '--fakeroot' in inner))
         if not (build or deferred):
             return run(command, *args, **kwargs)
         remaining = deadline - clock() if deadline is not None else None
@@ -280,6 +281,40 @@ def file_backed_build_scripts(run_unshared, apptainer):
     return run
 
 
+def account_ownership_builds(run_unshared, apptainer):
+    """Copy up unmapped account databases before rootless package installation.
+
+    Only deferred build overlays are eligible. Keep bytes and access modes;
+    root owns the replacement so shadow tools can atomically update it. This
+    avoids flattening ownership of task inputs or the whole base filesystem.
+    """
+    prelude = '''(
+set -eu
+for account_file in /etc/shadow /etc/gshadow; do
+    [ -f "$account_file" ] && [ ! -L "$account_file" ] || continue
+    case "$(env -u LD_PRELOAD -u FAKEROOTKEY stat -c '%u:%g' "$account_file")" in
+        65534:*|*:65534)
+            account_copy=$(mktemp "${account_file}.ot-build.XXXXXX") || exit $?
+            cp --no-preserve=ownership --preserve=mode,timestamps "$account_file" "$account_copy" || exit $?
+            cmp -s "$account_file" "$account_copy" || exit $?
+            # Renaming over an unmapped lower-layer inode can fail with
+            # EOVERFLOW. White it out first, then install the verified copy.
+            rm -f "$account_file" || exit $?
+            mv "$account_copy" "$account_file" || exit $?
+            printf '[build] copied up unmapped account database: %s\\n' "$account_file"
+            ;;
+    esac
+done
+) || exit $?
+'''
+    def run(command, timeout=3600):
+        if (command[:2] == [apptainer, 'exec'] and '--overlay' in command
+                and command[-3:-1] == ['bash', '-lc']):
+            command = [*command[:-1], prelude + command[-1]]
+        return run_unshared(command, timeout=timeout)
+    return run
+
+
 def directory_overlay_builds(run_unshared, apptainer):
     """Adapt the upstream two-step overlay builder without changing cache format.
 
@@ -303,14 +338,42 @@ def directory_overlay_builds(run_unshared, apptainer):
         if size is None:
             return run_unshared(command, timeout=timeout)
         tree = path.with_name(path.name + '.tree')
+        # Image directories such as Fedora's /usr/bin lack owner write.
+        from harbor_patches.protected_step import remove_tree
         try:
             print('[build] using native directory scratch for deferred RUN steps', flush=True)
+            if os.environ.get('OT_IMAGE_REPAIR_ACCOUNT_OWNERSHIP') == '1':
+                if command[-3:-1] != ['bash', '-lc']:
+                    raise ValueError('Account preparation requires a deferred bash build script')
+                # Kernel overlayfs cannot copy up or white out a lower inode
+                # whose gid is unmapped. Seed only the account databases in
+                # the upper layer before mounting the overlay instead.
+                accounts = path / 'upper' / 'etc'
+                accounts.mkdir(parents=True)
+                seed = '''set -eu
+for account_file in /etc/shadow /etc/gshadow; do
+    [ -f "$account_file" ] && [ ! -L "$account_file" ] || continue
+    case "$(stat -c '%u:%g' "$account_file")" in
+        65534:*|*:65534)
+            target="/run/ot-account-copy/${account_file##*/}"
+            cp --no-preserve=ownership --preserve=mode,timestamps "$account_file" "$target"
+            cmp -s "$account_file" "$target"
+            printf '[build] seeded unmapped account database: %s\\n' "$account_file"
+            ;;
+    esac
+done
+'''
+                run_unshared([apptainer, 'exec', '--userns', '--containall', '--no-home',
+                    '--no-mount', 'hostfs,bind-paths,cwd,tmp', '--cleanenv',
+                    '--bind', f'{accounts}:/run/ot-account-copy:rw',
+                    command[-4], 'bash', '-lc', seed], timeout=timeout)
             # Build against the image filesystem, not site-wide host /home or
             # working-directory mounts. Explicit DNS/certificate binds remain.
             # Containment's empty /tmp and /var/tmp would hide COPY inputs and
             # discard RUN outputs there. Use the image's overlaid directories.
-            result = run_unshared(command[:2] + ['--userns', '--containall', '--no-home',
-                '--no-mount', 'hostfs,bind-paths,cwd,tmp'] + command[2:], timeout=timeout)
+            root_mode = '--fakeroot' if os.environ.get('OT_IMAGE_BUILD_FAKEROOT') == '1' else '--userns'
+            result = run_unshared(command[:2] + [root_mode, '--containall', '--no-home',
+                '--no-mount', 'hostfs,bind-paths,cwd,tmp,sys'] + command[2:], timeout=timeout)
             path.rename(tree)
             path.touch(mode=0o600, exist_ok=False)
             with path.open('wb') as stream:
@@ -320,15 +383,16 @@ def directory_overlay_builds(run_unshared, apptainer):
         except BaseException:
             # Upstream expects a file or a nonexistent path when cleaning up.
             if path.is_dir():
-                shutil.rmtree(path)
+                remove_tree(path)
             else:
                 path.unlink(missing_ok=True)
             raise
         finally:
             if tree.exists():
-                shutil.rmtree(tree)
+                remove_tree(tree)
 
     return run
+
 
 
 def logged_build_commands(run):
@@ -338,5 +402,10 @@ def logged_build_commands(run):
     dpkg's dependent-package summary. This runner is installed only for builds.
     """
     def execute(command, timeout=3600):
+        # Apptainer must start as the real user to select its root mapping
+        # plus fakeroot helper. An outer unshare -r hides that identity.
+        if (len(command) > 2 and command[1] == 'exec'
+                and '--fakeroot' in command and '--overlay' in command):
+            return run(command, check=True, timeout=timeout)
         return run(['unshare', '-r', *command], check=True, timeout=timeout)
     return execute

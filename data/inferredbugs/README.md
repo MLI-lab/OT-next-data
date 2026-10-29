@@ -13,7 +13,7 @@ original tasks, and `<output>.manifest.json` recording source provenance and
 changes. See [patch reporting](../INVENTORY.md#reporting-patches-in-the-datasource-pr).
 
 Validate the resulting tasks through the shared [validation pipeline](../../validation/README.md),
-starting with stages 1, 3, 4 and 5 on a small pilot.
+starting with stages 1, 2, 3 and 4 on a small pilot.
 
 Each task image contains its pinned source snapshot with the buggy target and a
 synthetic Git baseline containing no fixing history. `tests/Dockerfile` matches

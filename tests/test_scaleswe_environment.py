@@ -5,7 +5,7 @@ import pytest
 from data.scaleswe.patch import (
     archive_files, environment_archive_stage, environment_repair_stage, restore_source_instruction,
 )
-from data.utils.full_source.harbor_parquet import pack_task
+from data.utils.harbor_parquet import pack_task
 
 
 def test_restore_instruction_preserves_runtime_repairs_and_file_modes():

@@ -12,8 +12,8 @@ from validation.stages import runner
 
 def run_worker(tmp_path, monkeypatch, prepare):
     import config.runtime
-    import data.utils.resolve_pip_pins
-    import hpc.image_cache
+    import validation.rules.static.pip_pinning.repair
+    import hpc.offline_prep.image_cache
     import hpc.local_assets
     import hpc.validation_submit
     import validation.stages.normalize_paths
@@ -34,7 +34,7 @@ def run_worker(tmp_path, monkeypatch, prepare):
     monkeypatch.setattr(hpc.local_assets, 'stage_certificates', lambda *a: {})
     monkeypatch.setattr(hpc.validation_submit, 'archive_code_snapshot', lambda *a: None)
     monkeypatch.setattr(validation.stages.normalize_paths, 'enabled', lambda *a: False)
-    monkeypatch.setattr(data.utils.resolve_pip_pins, 'enabled', lambda *a: False)
+    monkeypatch.setattr(validation.rules.static.pip_pinning.repair, 'enabled', lambda *a: False)
     monkeypatch.setattr(worker, 'trial_capacity', lambda tasks, args, **kwargs: {
         'requested_concurrency': args.concurrency, 'max_concurrency': 1,
         'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 4})
@@ -43,7 +43,7 @@ def run_worker(tmp_path, monkeypatch, prepare):
         Path(target).mkdir()
         return Path(target)
     monkeypatch.setattr(hpc.local_assets, 'stage_images', stage_images)
-    monkeypatch.setattr(hpc.image_cache, 'prepare_images', prepare)
+    monkeypatch.setattr(hpc.offline_prep.image_cache, 'prepare_images', prepare)
 
     def no_services(*a, **kw):
         raise RuntimeError('stop before services')

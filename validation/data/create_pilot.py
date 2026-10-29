@@ -16,8 +16,8 @@ import tempfile
 import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from validation.checks.command_metrics import mean_distribution, sampling_distribution
-from validation.checks.reward_metrics import trial_reward, reward_group as classify_rewards
+from validation.metrics.command_metrics import mean_distribution, sampling_distribution
+from validation.metrics.reward_metrics import trial_reward, reward_group as classify_rewards
 from validation.data.selection import discover_tasks
 from validation.stages.harbor import trial_results
 
@@ -256,7 +256,7 @@ def create(args):
         warnings.append('reward groups exclude missing rewards; ungraded_attempts is retained on each selection')
     manifest = {'schema_version': 2, 'stage_layout': LAYOUT, 'stage': args.stage, 'seed': args.seed,
         'implementation_sha256': {name: hashlib.sha256((Path(__file__).resolve().parents[1] / name).read_bytes()).hexdigest()
-                                  for name in ('data/create_pilot.py', 'checks/command_metrics.py')},
+                                  for name in ('data/create_pilot.py', 'metrics/command_metrics.py')},
         'requested_size': args.size, 'selected_size': len(selected), 'population_size': len(candidates),
         'size_unit': 'tasks' if args.stage == 5 else 'trajectories',
         'inputs': {'tasks': str(args.tasks.resolve()), 'trace_metrics': str(args.trace_metrics.resolve()),

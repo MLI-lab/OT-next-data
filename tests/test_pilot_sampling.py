@@ -8,9 +8,9 @@ import sys
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from validation.checks.command_metrics import mean_distribution, profile, sampling_distribution
-from validation.checks.command_metrics import split_commands
-from validation.checks.trace_metrics import summarize
+from validation.metrics.command_metrics import mean_distribution, profile, sampling_distribution
+from validation.metrics.command_metrics import split_commands
+from validation.metrics.trace_metrics import summarize
 from validation.data.create_pilot import (build_candidates, create, equal_quotas, js_distance,
                                      length_labels, parser, sample)
 from validation.data.selection import discover_tasks

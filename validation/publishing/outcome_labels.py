@@ -34,7 +34,8 @@ def _labels(stage, item, not_required=()):
     if stage == 4:
         warning_labels = {'check-task-absolute-path.sh': 'warning:relative-instruction-path',
                           'reference-solution-leak': 'warning:reference-solution-leak',
-                          'check-pip-pinning.sh': 'warning:unpinned-dependency'}
+                          'check-pip-pinning.sh': 'warning:unpinned-dependency',
+                          'check-artifact-efficiency.py': 'warning:large-artifact'}
         warnings = {warning_labels[c['check']] for c in item.get('checks', [])
                     if c['status'] == 'warning' and c['check'] in warning_labels}
         return sorted(warnings | {'static:' + c['check'].removeprefix('check-').removesuffix('.sh')
@@ -49,7 +50,9 @@ def _labels(stage, item, not_required=()):
         if item.get('environment_leak') in ('error', 'not_run'):
             return ['validation-not-run']
         if item.get('build_stability') == 'unstable_build':
-            return ['unstable-build-under-our-infra']
+            return ['build-not-robust']
+        if item.get('build_stability') == 'infrastructure_failure':
+            return ['infrastructure-error']
         if item.get('build_stability') == 'recovered':
             # Recovery alone does not establish that infrastructure caused the failure.
             attempts = item.get('build_attempts', [])
@@ -67,6 +70,8 @@ def _labels(stage, item, not_required=()):
     if stage == REFERENCE and any(r != 1 for r in rewards):
         return ['reference-solution-reward-zero' if all(r == 0 for r in rewards)
                 else 'reference-solution-unexpected-reward']
+    if (item.get('do_not_modify') or {}).get('status') == 'fail':
+        return ['dynamic:do-not-modify']
     if stage == NOP and any(r != 0 for r in rewards):
         return ['no-op-reward-one' if any(r == 1 for r in rewards) else 'no-op-unexpected-reward']
     return []

@@ -122,7 +122,7 @@ def test_generated_runners_have_valid_shell_and_wrapper_transport(tmp_path):
 
 def test_cluster_settings_repair_and_proxy_injection(tmp_path,monkeypatch):
     import xml.etree.ElementTree as ET
-    path=Path(__file__).resolve().parents[1]/'data/utils/maven_proxy.py'
+    path=Path(__file__).resolve().parents[1]/'data/inferredbugs/maven_proxy.py'
     spec=importlib.util.spec_from_file_location('ib_proxy_test',path)
     helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(helper)
     settings=tmp_path/'settings.xml'

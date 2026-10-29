@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare task runtimes"
+  short_description: "Offline setup and verifier dependency audits"
+  default_prompt: "Use $prepare-task-runtimes to audit and adapt integrated v1 datasource patches for offline execution and clean verifier dependencies, sharing compatible runtime artifacts."

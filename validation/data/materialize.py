@@ -23,7 +23,7 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
     for path in parquet_files(source):
         metadata = pq.read_schema(path).metadata or {}
         image_manifest = json.loads(metadata[b'ot.images.v1']) if b'ot.images.v1' in metadata else None
-        from validation.checks.path_cache import KEY
+        from validation.rules.static.task_absolute_path.path_cache import KEY
         cached_paths = json.loads(metadata.get(KEY, b'{}'))
         selected = 0
         for batch in pq.ParquetFile(path).iter_batches(batch_size=1):
@@ -63,7 +63,7 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
         raise ValueError('materialization did not find all selected task IDs')
     if not records:
         raise ValueError('no tasks materialized from Parquet inputs')
-    from validation.checks.path_cache import NAME
+    from validation.rules.static.task_absolute_path.path_cache import NAME
     (destination / NAME).write_text(json.dumps(path_cache))
     from validation.publishing.image_release import reference_path
     reference_path(destination).write_text(json.dumps(image_sources))

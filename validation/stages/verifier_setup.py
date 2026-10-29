@@ -21,9 +21,11 @@ async def review_task(task_path, out, args):
     from harbor.trial.trial import ArtifactHandler
     from harbor.verifier.verifier import EnvironmentPaths, resolve_env_vars
     from harbor_patches.verifier_setup import SETUP_COMMAND, build_context
+    from harbor_patches.verifier_bundle import stage as stage_bundle, stage_offline
+    from harbor_patches.verifier_mount import command as mount_command, release
     from validation.stages import harbor as runtime
-    from validation.stages.task_setup import detect, prepare, upload_setup
-    from validation.checks.environment import inspect_environment
+    from validation.stages.task_setup import detect, prepare, upload_setup, capture_setup_command, collect_setup_output
+    from validation.rules.dynamic.environment.check import inspect_environment
 
     task = Task(task_path)
     config = runtime.environment_config(args)
@@ -96,12 +98,16 @@ async def review_task(task_path, out, args):
     try:
         started = time.monotonic()
         preparation_started = None
+        setup_capture = None
         try:
             agent = create('agent', task.paths.environment_dir, task.config.environment)
             await start_container(agent, task.config.environment, agent_entry)
             preparation_started = time.monotonic()
             agent_entry['failure_phase'] = 'preparation'
             command = detect(task_path)
+            if command:
+                setup_capture = '/setup_files/.ot-setup-output-' + uuid4().hex
+                command = capture_setup_command(command, setup_capture)
             task_budget = min(task.config.environment.build_timeout_sec,
                               getattr(args, 'preparation_max_seconds', None) or 60.0)
             await asyncio.wait_for(prepare(agent, command=command,
@@ -116,6 +122,10 @@ async def review_task(task_path, out, args):
             agent_entry['timings_seconds']['start'] = time.monotonic() - started
             if preparation_started is not None:
                 agent_entry['timings_seconds']['preparation'] = time.monotonic() - preparation_started
+
+        if setup_capture is not None:
+            agent_entry['setup_output'] = await collect_setup_output(
+                agent, setup_capture, out / 'agent' / 'setup-output.txt')
 
         # Preparation is measured before inspection: inspection must not warm or
         # otherwise change the state the verifier preparation is intended to test.
@@ -148,7 +158,7 @@ async def review_task(task_path, out, args):
                                       min(timeout, hook.timeout_sec), user=hook.user)
                     if spec is not None:
                         if task.paths.setup_files_dir.is_dir():
-                            await measured(record, 'setup_files_upload', lambda: upload_setup(target, task_path))
+                            await measured(record, 'setup_files_upload', lambda: upload_setup(target, task_path, task_runtime=False))
                         # Use Harbor's existing artifact rules rather than inventing
                         # another transfer declaration for setup review.
                         handler = ArtifactHandler(artifacts=artifacts, logger=logging.getLogger(__name__))
@@ -162,13 +172,28 @@ async def review_task(task_path, out, args):
                             target_artifacts_dir=target_paths.artifacts_dir))
                     await execute(target, 'rm -f /tests/setup.sh', record, 'clear_stale_setup', timeout)
                     for index, source in enumerate(sources):
-                        await measured(record, f'tests_upload_{index}', lambda: target.upload_dir(
+                        transfer = await measured(record, f'tests_upload_{index}', lambda: target.upload_dir(
                             source_dir=source, target_dir='/tests'))
+                        if isinstance(transfer, dict):
+                            record.setdefault('tests_uploads', {})[str(index)] = transfer
                     # The same optional script is invoked by normal verification.
                     # All work in verifier setup belongs to this timer.
-                    variables = resolve_env_vars(dict(task.config.verifier.env, **verifier.env))
-                    await execute(target, SETUP_COMMAND, record, 'setup_execution', timeout,
-                                  user=verifier.user if verifier.user is not None else task.config.verifier.user, variables=variables)
+                    bundle = None
+                    try:
+                        user = verifier.user if verifier.user is not None else task.config.verifier.user
+                        bundle = await measured(record, 'runtime_staging', lambda: stage_bundle(
+                            target, context, out / name, user=user))
+                        offline = await measured(record, 'offline_staging', lambda: stage_offline(
+                            target, context, out / name))
+                        variables = resolve_env_vars(dict(task.config.verifier.env, **verifier.env))
+                        if bundle:
+                            variables.update(OT_VERIFIER_PYTHON=bundle['python'], OT_VERIFIER_BIN=bundle['bin'])
+                        if offline:
+                            variables['OT_VERIFIER_OFFLINE'] = offline['directory']
+                        await execute(target, mount_command(bundle, SETUP_COMMAND), record, 'setup_execution', timeout,
+                                      user=user, variables=variables)
+                    finally:
+                        await measured(record, 'runtime_release', lambda: release(target, bundle))
                     record['status'] = 'passed'
 
                 # A slow run is rejected at the individual-run limit, even if

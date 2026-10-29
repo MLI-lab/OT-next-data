@@ -22,11 +22,12 @@ def contract_files(directory, name, tasks, parent=None, original=None, task_sour
     return contract
 
 
-def setup(tmp_path, instruction='Edit /testbed/a.py.\n'):
+def setup(tmp_path, instruction='Edit /testbed/a.py.\n', original='/patched', task_source=None):
     from validation.contract import read
     prepared_dir = tmp_path / 'prepared'
     prepared_dir.mkdir()
-    prepared = contract_files(prepared_dir, 'contract', [{'task_id': 't1', 'sha256': 'before-edit'}], original='/patched')
+    prepared = contract_files(prepared_dir, 'contract', [{'task_id': 't1', 'sha256': 'before-edit'}],
+                              original=original, task_source=task_source)
     node = tmp_path / 'node'
     (node / 'tasks/t1').mkdir(parents=True)
     (node / 'tasks/t1/instruction.md').write_text(instruction)
@@ -51,6 +52,13 @@ def test_reports_of_a_derived_contract_publish_its_edited_tasks(tmp_path):
     assert contract['dataset']['normalization']['original_path'] == '/patched'
     # Reports of the prepared contract itself need nothing from the evidence.
     assert validated_contract(submission / 'report', prepared, {1: {'contract_sha256': prepared['sha256']}}, tmp_path / 'w2') is prepared
+
+
+def test_an_unnormalized_prepared_contract_is_its_own_source(tmp_path):
+    # The job, not preparation, added the suffix; the patcher output is the prepared tasks.
+    prepared, derived, submission = setup(tmp_path, original=None, task_source='/patched.parquet')
+    contract = validated_contract(submission / 'report', prepared, {1: {'contract_sha256': derived['sha256']}}, tmp_path / 'work')
+    assert contract['dataset']['normalization']['original_path'] == '/patched.parquet'
 
 
 def test_unrelated_or_changed_derived_contracts_are_refused(tmp_path):

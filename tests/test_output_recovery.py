@@ -111,7 +111,7 @@ def test_verifier_still_runs_after_output_stop(monkeypatch):
 
 
 def test_report_classifies_new_stop_and_budget_failure(tmp_path):
-    from validation.checks.trace_metrics import trial_metrics
+    from validation.metrics.trace_metrics import trial_metrics
     for kind, expected in [('RepeatedOutputTruncationError', 'repeated_output_truncation'),
                            ('ContextBudgetExceededError', 'harness_error')]:
         r = trial_metrics(tmp_path, {'exception_info': {'exception_type': kind},

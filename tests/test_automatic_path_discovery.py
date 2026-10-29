@@ -4,7 +4,7 @@ import json
 import pytest
 from pathlib import Path
 
-from validation.checks.path_cache import NAME, task_fingerprint
+from validation.rules.static.task_absolute_path.path_cache import NAME, task_fingerprint
 from validation.stages import normalize_paths
 from validation.stages.runner import parser
 
@@ -27,10 +27,10 @@ def test_cache_skips_unchanged_tasks_even_with_suffix(tmp_path, monkeypatch):
     task = make_task(tmp_path)
     args = parser().parse_args([str(task.parent)])
     (task.parent / NAME).write_text(json.dumps({task.name: task_fingerprint(task)}))
-    from validation.checks.instruction_suffix import suffix
+    from validation.rules.static.instruction_suffix import suffix
     instruction = task / 'instruction.md'
     instruction.write_bytes(suffix(instruction.read_bytes(), (task / 'task.toml').read_bytes()))
-    monkeypatch.setattr('data.utils.resolve_absolute_paths.flagged_paths', lambda _: (_ for _ in ()).throw(AssertionError('must use cache')))
+    monkeypatch.setattr('validation.rules.static.task_absolute_path.repair.flagged_paths', lambda _: (_ for _ in ()).throw(AssertionError('must use cache')))
     assert normalize_paths.candidates(args, [task]) == []
 
 
@@ -41,7 +41,7 @@ def test_old_cache_does_not_skip_expanded_directory_discovery(tmp_path, monkeypa
                                    if p.name == 'instruction.md' else p.read_bytes())
                                   for p in task.rglob('*') if p.is_file())
     (task.parent / NAME).write_text(json.dumps({task.name: old_fingerprint}))
-    monkeypatch.setattr('data.utils.resolve_absolute_paths.flagged_paths', lambda _: (['src/new.py'], {}))
+    monkeypatch.setattr('validation.rules.static.task_absolute_path.repair.flagged_paths', lambda _: (['src/new.py'], {}))
     args = parser().parse_args([str(task.parent)])
     assert normalize_paths.candidates(args, [task]) == [task]
 
@@ -54,7 +54,7 @@ def test_discovery_freezes_patched_copy_and_preserves_input(tmp_path, monkeypatc
     args.contract = tmp_path / 'original.json'
     original_contract = args.contract.read_bytes()
     original_instruction = (task / 'instruction.md').read_text()
-    monkeypatch.setattr('data.utils.resolve_absolute_paths.flagged_paths', lambda _: (['src/new.py'], {}))
+    monkeypatch.setattr('validation.rules.static.task_absolute_path.repair.flagged_paths', lambda _: (['src/new.py'], {}))
     monkeypatch.setattr('validation.upstream.checkout', lambda _: tmp_path)
     calls = []
     def discover(tasks, out, discovery):
@@ -106,10 +106,10 @@ def test_stage1_capture_does_not_turn_discovery_error_into_build_failure(tmp_pat
     task = make_task(tmp_path)
     args = parser().parse_args([str(task.parent)])
     args._collect_stage1_paths = True
-    monkeypatch.setattr('data.utils.resolve_absolute_paths.flagged_paths', lambda _: (['src/new.py'], {}))
+    monkeypatch.setattr('validation.rules.static.task_absolute_path.repair.flagged_paths', lambda _: (['src/new.py'], {}))
     async def broken(*args):
         raise RuntimeError('discovery unavailable')
-    monkeypatch.setattr('data.utils.resolve_absolute_paths.resolve_in_environment', broken)
+    monkeypatch.setattr('validation.rules.static.task_absolute_path.repair.resolve_in_environment', broken)
     entry = {'status': 'passed'}
     asyncio.run(normalize_paths.capture_build_paths(object(), task, args, entry))
     assert entry['status'] == 'passed'
@@ -137,7 +137,7 @@ def test_stage1_report_reuses_matching_evidence_and_rediscovers_stale_tasks(tmp_
         {'task': str(task), 'status': 'passed', 'environments': [
             {'environment': 'agent', 'instruction_paths': baseline}]}]}))
     args._stage1_path_reports = [report]
-    monkeypatch.setattr('data.utils.resolve_absolute_paths.flagged_paths', lambda _: (['src/new.py'], {}))
+    monkeypatch.setattr('validation.rules.static.task_absolute_path.repair.flagged_paths', lambda _: (['src/new.py'], {}))
     builds = []
     async def build(source, out, discovery):
         builds.append(source)

@@ -184,9 +184,13 @@ retain the separate approval rule in `.agents/AGENTS.md`.
 
 ## Datasource folder review
 
-Inspect `data/<datasource>/` before finishing. It should contain only `patch.py`
+Inspect `data/<datasource>/` before finishing. It should contain `patch.py`
 and `README.md`, plus at most one supporting folder if the patcher genuinely
-needs it. Move reusable helpers to the shared utilities location and generated
+needs it. An optional `pass@k.md` is also accepted in this folder for pass@k
+evaluation and filtering notes, including task-specific verifier defects and
+links to supporting run evidence. Distinguish observed zero-pass results from
+confirmed exclusions; zero passes alone do not establish a broken verifier.
+Move reusable helpers to the shared utilities location and generated
 artifacts to run storage; preserve required dependencies and update references
 when moving files. Do not delete evidence or unrelated work just to tidy the
 folder.

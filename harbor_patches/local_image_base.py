@@ -7,7 +7,7 @@ import tempfile
 
 
 def local_base_builds(run, manifest_path):
-    from hpc.image_cache import copy_image, digest
+    from hpc.offline_prep.image_cache import copy_image, digest
     manifest = json.loads(Path(manifest_path).read_text())
     verified = {}
 

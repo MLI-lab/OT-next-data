@@ -2,9 +2,12 @@
 import asyncio
 import json
 import math
+import socket
 import statistics
 import tarfile
+import time
 
+from validation.publishing.outcome_labels import execution_label
 from validation.stages import harbor as runtime
 
 
@@ -57,6 +60,38 @@ def save_preparation_review(sources, items, out):
     }, indent=2) + '\n')
 
 
+def task_caused(result):
+    """A failure of the task's own image build or container start, not of our infrastructure."""
+    return result['status'] != 'passed' and result.get('cause') == 'build-execution-error'
+
+
+def retry_summary(history):
+    """How a retried build went: whether failures look like our infrastructure or the task."""
+    failed = [r for r in history if r['status'] != 'passed']
+    causes = sorted({r.get('cause', 'build-execution-error') for r in failed})
+    return {'builds': len(history), 'passed': len(history) - len(failed), 'failed': len(failed),
+            'failure_causes': causes, 'nodes': sorted({r.get('node') for r in history if r.get('node')}),
+            'likely_cause': ('infrastructure' if causes == ['infrastructure-error'] else
+                             'task build' if causes == ['build-execution-error'] else
+                             'unclear' if not causes or causes == ['validation-not-run'] else 'mixed')}
+
+
+def summarize_retries(items):
+    """Stage-1 report table: tasks that only built on retry or never built, by likely cause."""
+    table = {}
+    for item in items:
+        summary = item.get('build_retry_summary')
+        if summary:
+            key = f"{item['build_stability']}:{summary['likely_cause']}"
+            table[key] = table.get(key, 0) + 1
+    retried = [i for i in items if i.get('build_retry_summary')]
+    return {'tasks_built_first_try': sum(1 for i in items if i.get('status') == 'passed' and not i.get('build_retry_summary')),
+            'tasks_retried': len(retried),
+            'recovered': sum(1 for i in retried if i['build_stability'] == 'recovered'),
+            'unstable': sum(1 for i in retried if i['build_stability'] == 'unstable_build'),
+            'by_stability_and_cause': dict(sorted(table.items()))}
+
+
 def partition_builds(sources, args):
     failures = getattr(args, '_build_failures', {})
     selected, skipped = [], []
@@ -88,12 +123,17 @@ async def run_builds(sources, out, args, outcomes):
             item_dir = item_dir / f'retry-{attempt}'
         item_dir.mkdir(parents=True, exist_ok=True)
         async with semaphore:
+            started = time.monotonic()
             try:
                 runtime.check_runtime_task(source, args.backend)
                 result = await runtime.build_task(source, item_dir, args)
             except Exception as exc:
                 result = {'status': 'error', 'reason': f'{type(exc).__name__}: {exc}'}
-        result.update(task=str(source), output=str(item_dir), build_attempt=attempt)
+        result.update(task=str(source), output=str(item_dir), build_attempt=attempt,
+                      node=socket.gethostname(), seconds=round(time.monotonic() - started, 1))
+        if result['status'] != 'passed':
+            # Infrastructure (node, bridge, disk) or the task's own build/start.
+            result['cause'] = execution_label(result) or 'build-execution-error'
         histories[index].append(result)
         outcomes.write(json.dumps(result) + '\n')
         outcomes.flush()
@@ -157,22 +197,29 @@ async def run_builds(sources, out, args, outcomes):
         if getattr(args, 'review_setup', None) is not None:
             save_preparation_review(sources, items, out)
         return items
-    if int(getattr(args, 'outcome_retries', 0) or 0):
-        # The run-level retry rule (outcome_retries) reruns tasks without a result
-        # after all stages; stage 1 is not treated differently from stages 3 and 5.
-        return [dict(history[0]) for history in histories]
-    failed = [index for index, history in enumerate(histories) if history[0]['status'] != 'passed']
-    # Keep the original failed cohort for every round, including recovered tasks.
+    # Each task builds once. A failure of the task's own build or start settles it: the build is
+    # not robust, and it is not retried. Failures of our infrastructure (node, bridge, disk) or
+    # without a verdict are retried up to 3 times; if they never clear, the task was not judged.
     for attempt in range(1, 4):
+        failed = [index for index, history in enumerate(histories)
+                  if history[-1]['status'] != 'passed' and not task_caused(history[-1])]
+        if not failed:
+            break
         await asyncio.gather(*(one(index, attempt) for index in failed))
     items = []
     for history in histories:
         item = dict(history[0])
         if len(history) > 1:
-            passed = sum(result['status'] == 'passed' for result in history[1:])
-            item.update(build_attempts=history, status='passed' if passed == 3 else 'failed',
-                        build_stability='recovered' if passed == 3 else 'unstable_build',
-                        reason=f'build retry check: {passed}/3 additional attempts passed; all 3 required')
+            last = history[-1]
+            stability = ('recovered' if last['status'] == 'passed' else
+                         'unstable_build' if task_caused(last) else 'infrastructure_failure')
+            item.update(build_attempts=history, build_stability=stability, build_retry_summary=retry_summary(history),
+                        status={'recovered': 'passed', 'unstable_build': 'failed'}.get(stability, 'error'),
+                        reason={'recovered': f'infrastructure failure, then the build passed on retry {len(history) - 1}',
+                                'unstable_build': f'the task\'s own build or start failed on attempt {len(history)} '
+                                                  'after earlier infrastructure failures; not robust',
+                                'infrastructure_failure': 'infrastructure failure on the first attempt and all 3 retries; '
+                                                          'no verdict on the task'}[stability])
             # Preserve the authoritative aggregate in the streaming journal too.
             outcomes.write(json.dumps(item) + '\n')
             outcomes.flush()

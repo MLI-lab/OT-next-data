@@ -162,13 +162,20 @@ def test_chunked_upload_roundtrip_and_bounded_requests(tmp_path, monkeypatch, di
     patch.install_client(bridge)
     env = Environment()
     if directory:
-        asyncio.run(env.upload_dir(source, str(target)))
+        measured = asyncio.run(env.upload_dir(source, str(target)))
         assert (target / 'input.bin').read_bytes() == contents
+        assert measured['directory_timings_seconds']['archive'] >= 0
+        assert measured['directory_timings_seconds']['total'] >= measured['timings_seconds']['total']
         assert (target / 'input.bin').stat().st_mode & 0o777 == 0o755
         assert os.readlink(target / 'dangling') == 'absent'
     else:
-        asyncio.run(env.upload_file(source / 'input.bin', str(target)))
+        measured = asyncio.run(env.upload_file(source / 'input.bin', str(target)))
         assert target.read_bytes() == contents
+    assert measured['bytes'] == sum(sizes)
+    assert measured['requests'] == measured['worker_timing_reports'] == len(sizes)
+    assert measured['chunk_bytes'] == 4096
+    assert measured['timings_seconds']['worker_install'] > 0
+    assert all(value >= 0 for value in measured['timings_seconds'].values())
     assert len(sizes) > 3 and max(sizes) <= 4096 and sizes[-1] == 0
     assert not list(staging.glob('incoming-*'))
     assert not list((staging / 'workspace').iterdir())
@@ -222,7 +229,8 @@ with archive.open('rb') as stream:
     asyncio.run(patch.send_stream(bridge, Client(), stream, '/input', True))
 assert result['upload_offset'] == archive.stat().st_size
 assert not list(staging.glob('incoming-*'))
-print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+# ru_maxrss survives exec from a large forked parent (a long pytest run); VmHWM is per process image.
+print(next(int(line.split()[1]) for line in open('/proc/self/status') if line.startswith('VmHWM:')))
 '''
     result = subprocess.run([sys.executable, '-c', script, str(tmp_path)], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -242,6 +250,103 @@ def test_small_upload_keeps_single_request():
     instance = SimpleNamespace(_bridge_url='http://bridge', _env_id='env',
                                _check_transfer_result=lambda *args: None)
     bridge = SimpleNamespace(_async_http_post=post, _poll_job=poll)
-    asyncio.run(patch.send_stream(bridge, instance, io.BytesIO(b'small'), '/input', False))
+    measured = asyncio.run(patch.send_stream(bridge, instance, io.BytesIO(b'small'), '/input', False))
+    assert measured['bytes'] == 5 and measured['requests'] == 1
+    assert measured['worker_timing_reports'] == 0  # Older/single-request workers omit timings.
     assert len(calls) == 1 and 'upload_chunk' not in calls[0]
     assert base64.b64decode(calls[0]['file_b64']) == b'small'
+
+
+def test_small_worker_timing_preserves_response_and_reports_combined_time(monkeypatch):
+    import asyncio
+    import io
+    clock = [0.0]
+    monkeypatch.setattr(patch, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
+    original_result = {'return_code': 0, 'stdout': 'installed', 'stderr': ''}
+    class Instance:
+        def upload(self, payload):
+            clock[0] += 2.5
+            return original_result
+    patch.install_worker(SimpleNamespace(ApptainerInstance=Instance))
+    results = []
+    async def post(url, payload):
+        results.append(Instance().upload(payload))
+        return {'job_id': 'one'}
+    async def poll(*args, **kwargs):
+        return results[0]
+    bridge = SimpleNamespace(_async_http_post=post, _poll_job=poll)
+    instance = SimpleNamespace(_bridge_url='http://bridge', _env_id='env',
+                               _check_transfer_result=lambda *args: None)
+    measured = asyncio.run(patch.send_stream(bridge, instance, io.BytesIO(b'small'), '/input', False))
+    assert original_result == {'return_code': 0, 'stdout': 'installed', 'stderr': ''}
+    assert measured['worker_timing_reports'] == 1
+    assert measured['timings_seconds']['worker_total'] == 2.5
+    assert measured['timings_seconds']['worker_receive'] == 0
+    assert measured['timings_seconds']['worker_install'] == 0
+    assert results[0]['stdout'] == 'installed'
+    assert patch._upload.get() is False
+
+@pytest.mark.parametrize('case', ['ordinary', 'tests', 'missing-test', 'invalid-tar', 'mkdir-failure'])
+def test_small_directory_single_container_install(tmp_path, case):
+    import base64
+    from pathlib import Path
+    source = tmp_path / 'source'
+    source.mkdir()
+    (source / 'test.sh').write_text('#!/bin/sh\nexit 0\n')
+    (source / 'test.sh').chmod(0o755)
+    (source / 'dangling').symlink_to('absent')
+    if case == 'missing-test':
+        (source / 'test.sh').rename(source / 'other')
+    staging = tmp_path / 'staging'
+    (staging / 'workspace').mkdir(parents=True)
+    destination = tmp_path / "target ' $(never-executed)"
+    if case == 'mkdir-failure':
+        destination.write_text('not a directory')
+    calls = []
+    class Instance:
+        staging_dir = str(staging)
+        instance_name = 'test'
+        def upload(self, payload):
+            raise AssertionError('legacy three-command path')
+    def run(command, **kwargs):
+        calls.append(command)
+        command = patch.upload_command(command)
+        script = command[-1].replace('/workspace/', str(staging / 'workspace') + '/')
+        script = script.replace('/tests', str(tmp_path / 'tests'))
+        return subprocess.run(['/bin/bash', '--noprofile', '--norc', '-c', script], **kwargs)
+    worker = SimpleNamespace(ApptainerInstance=Instance, APPTAINER='apptainer',
+                             subprocess=SimpleNamespace(run=run))
+    patch.install_worker(worker)
+    target = '/tests' if case in ('tests', 'missing-test') else str(destination)
+    payload = patch.directory_payload(source) if case != 'invalid-tar' else base64.b64encode(b'not tar').decode()
+    result = Instance().upload({'is_dir': True, 'file_b64': payload, 'target_path': target})
+    assert len(calls) == 1
+    assert patch._upload.get() is False
+    assert not list((staging / 'workspace').iterdir())
+    if case in ('ordinary', 'tests'):
+        assert result['return_code'] == 0, result
+        output = tmp_path / 'tests' if case == 'tests' else destination
+        assert (output / 'test.sh').read_bytes() == (source / 'test.sh').read_bytes()
+        assert (output / 'test.sh').stat().st_mode & 0o777 == 0o755
+        assert (output / 'dangling').is_symlink()
+        assert os.readlink(output / 'dangling') == 'absent'
+        if case == 'tests': assert '__BRIDGE_UPLOAD_OK__' in result['stdout']
+    elif case == 'missing-test':
+        assert result['return_code'] == 97
+        assert '__BRIDGE_UPLOAD_MISSING__' in result['stdout']
+    else:
+        assert result['return_code'] != 0
+    assert result['upload_timings_seconds']['install'] > 0
+    assert result['upload_timings_seconds']['total'] >= result['upload_timings_seconds']['install']
+
+
+def test_small_directory_invalid_base64_never_executes(tmp_path):
+    class Instance:
+        staging_dir = str(tmp_path)
+        def upload(self, payload):
+            raise AssertionError('legacy path')
+    patch.install_worker(SimpleNamespace(ApptainerInstance=Instance))
+    with pytest.raises(ValueError):
+        Instance().upload({'is_dir': True, 'file_b64': '!!', 'target_path': '/tests'})
+    assert patch._upload.get() is False
+    assert not list(tmp_path.iterdir())

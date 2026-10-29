@@ -1108,7 +1108,7 @@ SERVER_STEP_FAILURES_999745 = {
     "multi_solver-system-administration_20260421_155939_001": ("0001", "111da0e9a7a6", "initdb: error: cannot be run as root"),
 }
 # Not built in job 995600 (Docker Hub pull limit, node scratch) or stopped there before the server step.
-# Each patched task was built with the shared builder (python -m hpc.image_cache --build) on the Helma
+# Each patched task was built with the shared builder (python -m hpc.offline_prep.image_cache --build) on the Helma
 # login node on 2026-10-13; the step that starts or initializes the server ended with the quoted message.
 # Logs: generation-0007/image-prebuild/agent-attempt-0006/agents/fixer/local-builds.tar.gz, member
 # <task>/build.log.
@@ -1731,7 +1731,32 @@ def prepare_pilot_cli():
     prepare_pilot_main()
 
 
+def prepare_runtime(files, image, probe, binding, bundle, catalog):
+    """Protect a measured published verifier while preserving task initialization."""
+    from data.calibforge import verifier_runtime
+    planned = verifier_runtime.plan(files, image, probe, binding, bundle)
+    return verifier_runtime.apply(files, planned, catalog), planned
+
+
+def runtime_cli():
+    """Migrate only measured published verifier families, preserving task setup."""
+    ap = argparse.ArgumentParser(description='Prepare reviewed published CalibForge verifier runtimes')
+    ap.add_argument('--published-input',type=Path,required=True)
+    ap.add_argument('--published-revision',required=True)
+    ap.add_argument('--published-subset',choices=['calibforge_v1','calibforge_v2','calibforge_v3'],required=True)
+    ap.add_argument('--runtime-image-inventory',type=Path,required=True)
+    ap.add_argument('--runtime-probe',type=Path,required=True)
+    ap.add_argument('--runtime-cache',type=Path,required=True)
+    ap.add_argument('--output',type=Path,required=True)
+    args=ap.parse_args()
+    from data.calibforge.verifier_runtime import migrate_published
+    report=migrate_published(args.published_input,args.output,revision=args.published_revision,
+        subset=args.published_subset,image=json.loads(args.runtime_image_inventory.read_text()),
+        probe=json.loads(args.runtime_probe.read_text()),cache=args.runtime_cache)
+    print(json.dumps(report['counts'],indent=2))
+
+
 if __name__ == "__main__":
     from data.utils.cli import dispatch
-    dispatch({'prepare-pilot': prepare_pilot_cli})
+    dispatch({'prepare-pilot': prepare_pilot_cli, 'prepare-runtime': runtime_cli})
     main()

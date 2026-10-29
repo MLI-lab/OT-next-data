@@ -345,3 +345,59 @@ def test_chunk_metadata_survives_queue_and_retry(live_bridge):
         assert job['payload']['upload_chunk'] == metadata
         assert request(base, '/worker/get_job?worker_id=node-0')['job_id'] is None
     asyncio.run(scenario())
+
+
+def test_runtime_cache_metadata_survives_queue_and_retry(live_bridge):
+    server, base, dropped, counts = live_bridge
+    assert request(base, '/status')['runtime_cache_upload_protocol'] == 1
+    transport = client.BridgeClient()
+    async def scenario():
+        created = await transport.post(base + '/env/create', {'task_name': 'example'})
+        finish_one(base, {})
+        metadata = {'id': 'a' * 64, 'archive_sha256': 'b' * 64}
+        dropped.append('/env/upload')
+        response = await transport.post(base + '/env/upload', {
+            'env_id': created['env_id'], 'target_path': '/tests/.ot-verifier-runtime-Ab12/runtime.tar.gz',
+            'is_dir': False, 'file_b64': 'AA==', 'runtime_cache_upload': metadata})
+        job = finish_one(base, {})
+        assert job['job_id'] == response['job_id']
+        assert job['payload']['runtime_cache_upload'] == metadata
+        assert request(base, '/worker/get_job?worker_id=node-0')['job_id'] is None
+    asyncio.run(scenario())
+
+
+def test_result_long_poll_returns_when_the_job_finishes(live_bridge):
+    server, base, _, counts = live_bridge
+    transport = client.BridgeClient()
+    async def scenario():
+        created = await transport.post(base + '/env/create', {'task_name': 'example'})
+        finish_one(base, {})
+        job = await transport.post(base + '/env/exec', {'env_id': created['env_id'], 'command': 'short'})
+        path = '/job/result/' + job['job_id']
+        # Without the header the server answers immediately, as before.
+        assert 'result_waited' not in request(base, path)
+        timer = threading.Timer(.3, finish_one, (base, {}))
+        timer.start()
+        started = time.monotonic()
+        result = await transport.poll_job(base, job['job_id'], timeout_sec=10)
+        elapsed = time.monotonic() - started
+        timer.join()
+        assert result == {'state': 'done', 'return_code': 0}
+        # Answered within milliseconds of completion, with one held request instead of a sleep ladder.
+        assert .3 <= elapsed < .45 and counts[path] <= 2
+    asyncio.run(scenario())
+
+
+def test_old_bridge_without_result_wait_keeps_client_sleeps(monkeypatch):
+    transport = client.BridgeClient()
+    replies = [{'state': 'running'}, {'state': 'running'}, {'state': 'done', 'return_code': 0}]
+    sleeps, seen = [], []
+    async def get(url, timeout, headers=None):
+        seen.append(headers)
+        return replies.pop(0)
+    async def sleep(seconds):
+        sleeps.append(seconds)
+    monkeypatch.setattr(transport, 'get', get)
+    monkeypatch.setattr(client.asyncio, 'sleep', sleep)
+    assert asyncio.run(transport.poll_job('http://bridge', 'job', timeout_sec=10))['state'] == 'done'
+    assert len(sleeps) == 2 and all(h == {client.RESULT_WAIT_HEADER: '0.500'} for h in seen)

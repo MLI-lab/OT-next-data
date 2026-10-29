@@ -3,7 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import pytest
-from validation.patch_repair_loop import incremental as inc, controller as core
+from data.patch_repair_loop import incremental as inc, controller as core
 from validation import contract as contracts
 
 

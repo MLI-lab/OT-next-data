@@ -164,7 +164,8 @@ def free_port(start, attempts=200):
     raise RuntimeError(f'no free port pair found from {start}')
 
 
-def review_runtime_tasks(tasks, stages, scratch, evidence="files"):
+def review_runtime_tasks(tasks, stages, scratch, evidence="files", rubric="terminal-bench",
+                         review_format=None, criteria=None):
     """File-only review uses a neutral image; image review uses actual task images."""
     if set(stages) != {5} or evidence == "image":
         return tasks
@@ -172,7 +173,9 @@ def review_runtime_tasks(tasks, stages, scratch, evidence="files"):
     from validation.upstream import checkout
     # Every implementation review uses the same container and resource config.
     # Keep original tasks untouched, including legacy or intentionally bad ones.
-    return [stage_review(tasks[0], scratch / 'review-environment', checkout('terminal-bench'))]
+    return [stage_review(tasks[0], scratch / 'review-environment', checkout('terminal-bench'),
+                         rubric_kind=rubric, criteria=criteria,
+                         review_format=review_format, evidence_mode=evidence)]
 
 
 def trial_capacity(tasks, args, image_review=False):
@@ -299,23 +302,29 @@ def main(request):
                 shutil.copytree(task, args.tasks / task.name)
             from validation.publishing.image_release import copy_references
             copy_references(tasks, args.tasks)
-            from validation.checks.path_cache import copy_cache
+            from validation.rules.static.task_absolute_path.path_cache import copy_cache
             copy_cache(source, args.tasks)
             tasks = discover_tasks(args.tasks)
+        if not prebuild_only:
+            from harbor_patches.verifier_bundle import preflight as bundle_preflight
+            save(request.parent / 'verifier-bundles.json', bundle_preflight(tasks))
         # Static checks do not reserve separate agent/verifier containers.
         from validation.stages.runner import static_concurrency
         args.static_concurrency = static_concurrency(args)
         from validation.stages.normalize_paths import enabled as path_normalization_enabled, candidates as path_candidates
         if not prebuild_only and path_normalization_enabled(args, data['stages']):
             args._path_candidates = path_candidates(args, tasks)
-        from data.utils.resolve_pip_pins import enabled as pip_enabled, check as pip_check
+        from validation.rules.static.pip_pinning.repair import enabled as pip_enabled, check as pip_check
         if not prebuild_only and pip_enabled(args, data['stages']):
             args._pip_findings = pip_check(tasks, args, scratch / 'pip-precheck')
         preparation_tasks = [task for task in tasks if task in getattr(args, '_path_candidates', [])
                              or getattr(args, '_pip_findings', {}).get(task.name)
                              or (4 in data['stages'] and (task / 'solution/solve.sh').is_file())]
         static_only = not prebuild_only and set(data['stages']) == {4} and not preparation_tasks
-        runtime_tasks = tasks if prebuild_only else review_runtime_tasks(tasks, data['stages'], scratch, getattr(args, 'review_evidence', 'files'))
+        runtime_tasks = tasks if prebuild_only else review_runtime_tasks(
+            tasks, data['stages'], scratch, getattr(args, 'review_evidence', 'files'),
+            getattr(args, 'review_rubric', 'terminal-bench'),
+            getattr(args, 'review_format', None), getattr(args, 'review_criteria', None))
         budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
                    'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
                   if static_only or prebuild_only else trial_capacity(runtime_tasks, args, image_review=5 in data['stages'] and getattr(args, 'review_evidence', 'files') == 'image'))
@@ -368,15 +377,11 @@ def main(request):
         save(request.parent / 'execution.json', status)
         Path(os.environ['APPTAINER_TMPDIR']).mkdir()
         if not static_only:
-            from hpc.image_cache import prepare_images
+            from hpc.offline_prep.image_cache import prepare_images
             for name, default in [('memory_mb', 8192), ('cpus', 4), ('concurrency', 2), ('timeout_sec', 3600)]:
                 if not hasattr(args, 'image_build_' + name):
                     setattr(args, 'image_build_' + name, default)
             image_tasks = preparation_tasks if set(data['stages']) == {4} and not prebuild_only else runtime_tasks
-            if 1 in data['stages'] and not prebuild_only:
-                from validation.stages.environment_preflight import preflight, passing_sources
-                environment_checks = preflight(image_tasks, scratch / 'environment-preflight', args)
-                image_tasks = passing_sources(image_tasks, environment_checks, allow_pin_repair=args.fix_pip_pins)
             try:
                 preparation = prepare_images(image_tasks, images, base / 'images', args)
             finally:
@@ -447,9 +452,11 @@ def main(request):
                 '--port', str(serving_port), '--tensor-parallel-size', str(tp), '--pipeline-parallel-size', str(pp),
                 '--max-model-len', str(args.serve_context), '--max-num-seqs', str(args.max_num_seqs or 2 * args.concurrency),
                 '--gpu-memory-utilization', '0.9', '--dtype', spec.dtype, '--generation-config', 'vllm',
-                '--enable-prefix-caching', *spec.extra_args]
+                '--enable-prefix-caching', '--enable-prompt-tokens-details', *spec.extra_args]
             if spec.reasoning_parser:
                 command += ['--reasoning-parser', spec.reasoning_parser]
+            if spec.tool_call_parser:
+                command += ['--enable-auto-tool-choice', '--tool-call-parser', spec.tool_call_parser]
             if plan['nodes'] == 1:
                 # Copies of the model behind the one address; vLLM balances requests between them.
                 model_commands = [('vllm', single + command +
@@ -569,7 +576,7 @@ def main(request):
             save(output / 'execution.json', status)
             if not prebuild_only and not data.get('shard_plan'):
                 try:
-                    from validation.reporting.report import write_report
+                    from validation.publishing.report import write_report
                     write_report(archive, output / 'report')
                 except Exception as exc:
                     save(output / 'report-error.json', {'error': str(exc), 'archive': str(archive)})

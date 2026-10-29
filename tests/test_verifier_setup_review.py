@@ -16,7 +16,7 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
     from harbor.environments.factory import EnvironmentFactory
     from harbor.models.task.config import TaskConfig
     from harbor.trial.trial import ArtifactHandler
-    from validation.checks import environment as checks
+    from validation.rules.dynamic.environment import check as checks
     task = tmp_path/'task'
     for name in ('environment', 'tests', 'solution', 'setup_files'):
         (task/name).mkdir(parents=True)
@@ -62,7 +62,9 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
         async def empty_dirs(self, paths, **kw): events.append((self.label, 'clear'))
         async def upload_dir(self, source_dir, target_dir):
             events.append((self.label, 'upload', target_dir)); clock[0] += 1
-            if target_dir == '/tests': self.setup = (source_dir/'setup.sh').exists()
+            if target_dir == '/tests':
+                self.setup = (source_dir/'setup.sh').exists()
+                return {'bytes': 9133, 'requests': 1, 'timings_seconds': {'worker_total': 0.5}}
         async def exec(self, command, **kw):
             assert 'test.sh' not in command and 'GRADING' not in command
             events.append((self.label, command)); clock[0] += 2
@@ -115,9 +117,14 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
     assert events.index(('agent', 'capture-submission')) < next(i for i, e in enumerate(events) if e[1] == SETUP_COMMAND)
     if separate:
         assert events.index(('agent', 'capture-submission')) < events.index(('agent', 'artifact-download'))
-    assert events.index(('agent', 'bash /setup_files/setup.sh')) < next(i for i, e in enumerate(events) if e[1] == SETUP_COMMAND)
+    setup_index = next(i for i,e in enumerate(events) if e[0] == 'agent' and 'if ( bash /setup_files/setup.sh )' in e[1])
+    assert setup_index < next(i for i,e in enumerate(events) if e[1] == SETUP_COMMAND)
+    assert result['environments'][0]['setup_output']['return_code'] == 0
+    assert (tmp_path/'out/agent/setup-output.txt').read_text() == 'prepared'
     assert sum(e[1] == 'stop' for e in events) == len(created)
     if success:
+        assert verifier['tests_uploads']['0']['bytes'] == 9133
+        assert verifier['tests_uploads']['0']['timings_seconds']['worker_total'] == 0.5
         assert verifier['timings_seconds']['preparation'] == (17 if separate else 7)
         assert verifier['mean_target_seconds'] == 5
         assert len(created) == (2 if separate else 1)

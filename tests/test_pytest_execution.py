@@ -74,7 +74,10 @@ def test_each_sequential_outer_invocation_is_checked(tmp_path):
 
 def test_runner_diagnostics_are_not_inferred_from_prose(tmp_path):
     result = run_pytest(tmp_path, {'test_ok.py': 'def test_ok(): pass\n'})
-    assert assessed(tmp_path, result.stdout + '\napplication message: pytest: command not found\n')['status'] == 'completed'
+    # Passing (reference) run: execution records decide; prose is not reinterpreted. A zero
+    # no-op baseline with infrastructure-like text instead requires review (harbor.baseline_infra_error).
+    assert assessed(tmp_path, result.stdout + '\napplication message: pytest: command not found\n',
+                    reward=1, expected=1)['status'] == 'completed'
 
 
 def test_stale_context_cannot_hide_failures(tmp_path):

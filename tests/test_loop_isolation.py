@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from validation.patch_repair_loop import controller as core, isolation
+from data.patch_repair_loop import controller as core, isolation
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def test_isolation_keeps_repairs_and_jobs_but_separates_code(loop, monkeypatch):
     (private / 'validation/runner.py').write_text('# isolated repair\n')
     assert (source / 'validation/runner.py').read_text() == '# runner v1\n'
     # Another loop can retain a shared lock while this loop repairs its copy.
-    from validation.patch_repair_loop import recovery
+    from data.patch_repair_loop import recovery
     with recovery.infrastructure_lock():
         monkeypatch.setattr(core, 'ROOT', private)
         with recovery.infrastructure_lock(exclusive=True):
