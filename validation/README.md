@@ -113,6 +113,10 @@ Set the following arguments when preparing the contract:
 | `--out` | Directory for results and submission files. |
 | `--prepare-contract PATH` | Save the selected tasks and settings in a contract JSON without running validation. |
 | `--contract PATH` | Load a previously prepared contract and run validation with its saved settings. |
+| `--exclude NAME=reason` | Skip another stage-4 static check, with the reason recorded. |
+| `--static-profile terminal-bench` | Use the stricter benchmark checks instead of the default `training` profile. |
+| `--nop-shuffled-runs N`, `--listing-order-check warn\|fail` | Extra stage-3 no-op runs with shuffled directory listings (default 1, `0` disables), and whether a finding only warns (default) or fails the task. |
+| `--path-resolution-report PATH` | Stage-1 report whose path observations stage 4 reuses, when stages 1 and 4 run separately. |
 
 For teacher generation and LLM reviews:
 

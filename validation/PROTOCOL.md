@@ -48,7 +48,7 @@ that did not build.
 
 Rules that need a running container (dynamic rules, such as the repository leak
 checks) also run here; static rules run in stage 4. Both are described in
-[validation rules](rules/README.md#static-and-dynamic-rules).
+[validation rules](rules/README.md).
 
 To do: change setup scripts to use a cached runtime, and upload a runtime for each
 task, so tasks can run offline. Many setup scripts now install packages and need
@@ -86,7 +86,7 @@ suffix, instruction paths, pip pins). This includes the Terminal-Bench default c
 with our patches, our own rules, and the reference-solution leak check, which uses
 file fingerprints recorded in stage 2. Benchmark-only Terminal-Bench checks are
 excluded. Rules, repairs and exclusions are described in
-[validation rules](rules/README.md#static-and-dynamic-rules).
+[validation rules](rules/README.md).
 
 ### Stage 5: LLM task-quality review
 
