@@ -1,10 +1,32 @@
 import io
+import base64
 import json
 import tarfile
 
 import pytest
 
 from validation.rules.static.test_file_references.supplied_references import discoverable_references, literal_writes
+
+
+@pytest.mark.parametrize('trailing', ['', '/'])
+def test_encoded_initial_inputs_require_named_directory_and_exact_wrapper(tmp_path, trailing):
+    (tmp_path / 'environment').mkdir()
+    (tmp_path / 'instruction.md').write_text('Inspect `/home/user/inputs' + trailing + '`.')
+    command = "cat > /home/user/inputs/source.csv <<'EOF'\na,b\n1,2\nEOF\n"
+    encoded = base64.b64encode(command.encode()).decode()
+    (tmp_path / 'environment/Dockerfile').write_text(
+        '# et-apptainer-build-v6\nFROM ubuntu:22.04\n'
+        "RUN /usr/bin/printf 'ET_RUN source-line=%s\\n' 10 >&2 && cd / && "
+        '/usr/bin/env HOME=/root /bin/sh -c "$(/usr/bin/printf %s ' + encoded + ' | /usr/bin/base64 -d)"\n')
+    evidence = discoverable_references(tmp_path)
+    assert '/home/user/inputs/source.csv' in evidence
+    assert evidence['/home/user/inputs/source.csv']['source'].startswith('environment/Dockerfile:source-line 10')
+    (tmp_path / 'instruction.md').write_text('Inspect `/home/user/output/`.')
+    assert discoverable_references(tmp_path) == {}
+    dockerfile = tmp_path / 'environment/Dockerfile'
+    dockerfile.write_text(dockerfile.read_text().replace('/usr/bin/base64 -d', '/usr/bin/base64 -d; arbitrary'))
+    (tmp_path / 'instruction.md').write_text('Inspect `/home/user/inputs/`.')
+    assert discoverable_references(tmp_path) == {}
 
 
 def fixture_task(root, instruction, payloads, commands=()):

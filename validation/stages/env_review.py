@@ -53,7 +53,12 @@ def stage(source, staged, destination, files, artifact):
         if (source / part).is_dir():
             shutil.copytree(source / part, destination / part, symlinks=True)
     for name, path in files.items():
-        shutil.copytree(path, destination / REVIEW_FILES / name, symlinks=True)
+        target = destination / REVIEW_FILES / name
+        if path.is_dir():
+            shutil.copytree(path, target, symlinks=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
     (destination / 'instruction.md').write_text((staged / 'instruction.md').read_text() + NOTE)
     text = (f'artifacts = [{{source = "{artifact}", destination = "{Path(artifact).name}"}}]\n'
             + agent_timeout(text, TIMEOUT_SEC))

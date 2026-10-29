@@ -25,6 +25,11 @@ def review_finding_reason(item):
             parts.append(str(item['reason']))
     if failed:
         parts.append('failed criteria: ' + ', '.join(failed))
+    pending = sorted({name for trial in item.get('verdicts', [])
+                      for name, check in trial.get('checks', {}).items()
+                      if check.get('outcome') == 'incomplete'})
+    if pending:
+        parts.append('incomplete criteria: ' + ', '.join(pending))
     if decision:
         parts.append('proposal: ' + decision)
     if not parts:
@@ -40,7 +45,8 @@ def review_task(item):
         'status': item.get('status'),
         'implementation': {
             'attempts': [{'criteria': trial.get('checks', {}),
-                          **{key: trial[key] for key in ('category', 'explanation', 'sample_id', 'resumed', 'criterion_origin') if key in trial}}
+                          **{key: trial[key] for key in ('category', 'explanation', 'task_interpretation', 'verifier_mode',
+                                                        'results', 'sample_id', 'resumed', 'criterion_origin') if key in trial}}
                          for trial in item.get('verdicts', [])],
         },
         'proposal': {

@@ -197,7 +197,10 @@ async def upload_review_files(environment, task_path):
         return
     await environment.exec('rm -f /app/verdicts.json /app/analysis.json', user='root')
     for part in parts:
-        await environment.upload_dir(source_dir=part, target_dir=f'/app/{part.name}')
+        if part.is_dir():
+            await environment.upload_dir(source_dir=part, target_dir=f'/app/{part.name}')
+        else:
+            await environment.upload_file(source_path=part, target_path=f'/app/{part.name}')
     targets = ' '.join(shlex.quote(f'/app/{part.name}') for part in parts)
     await environment.exec(f'chmod -R a+rX {targets}', user='root')
 

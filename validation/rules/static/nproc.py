@@ -9,7 +9,8 @@ ADAPTATION = (
     'four content-pinned SETA solutions tested with 1/2 CPUs (Helma probe 948213); other worker '
     'selection remains checked; not a Docker quota-only portability guarantee Also permits five '
     'content-pinned CalibForge image/script pairs measured at 2/4 CPUs in Helma job 1017578; nproc --all '
-    'still saw 384 node CPUs.')
+    'still saw 384 node CPUs.'
+    '; training ignores command -v nproc availability probes while retaining subsequent bare calls')
 
 
 # Content-pinned CPU-affinity audit: Helma job 1017578, all five images at 2/4 CPUs.
@@ -44,6 +45,8 @@ def nproc_check_text(text, *, dockerfile=False):
     Also recognize the exact Python 2 build audited under Slurm CPU affinity.
     Other build flags and unknown uses retain the original check.
     """
+    # Checking for the executable does not invoke it. Keep later bare calls.
+    text = re.sub(r'\bcommand\s+-v\s+nproc\b', 'command -v CPU_COUNT_TOOL', text)
     if dockerfile and re.search(r'^FROM maven:3\.9-eclipse-temurin-(?:8|11|17)$', text, re.M):
         # Match the build context and complete command, not make/nproc generally.
         # Mask only on the check's scratch copy; the actual task is unchanged.

@@ -1069,3 +1069,35 @@ def test_exhausted_start_budget_does_not_launch_another_command(patch, monkeypat
         lambda *a, **kw: pytest.fail('launched after deadline'), clock=lambda: now[0])
     with pytest.raises(TimeoutExpired):
         wrapped(['apptainer', 'instance', 'start', 'image.sif', 'name'], timeout=100)
+
+
+def test_binary_exec_decoding_reaches_protected_executor(patch, tmp_path):
+    import subprocess
+    import sys
+    from types import SimpleNamespace
+
+    from harbor_patches import protected_step
+
+    emit = 'import os; os.write(1, b"PDF \\xe2\\xe3"); os.write(2, b"ZIP \\x81"); raise SystemExit(7)'
+    seen = []
+
+    def remote_run(command, kwargs):
+        seen.append(kwargs)
+        result = protected_step.retained_run([sys.executable, '-c', emit], kwargs, tmp_path)
+        return subprocess.CompletedProcess(command, result['returncode'],
+                                           result['stdout'], result['stderr'])
+
+    def unexpected_local_run(*args, **kwargs):
+        raise AssertionError('Protected execution was bypassed')
+
+    token = protected_step.ACTIVE.set(SimpleNamespace(remote_run=remote_run))
+    try:
+        run = patch.run_container_commands(unexpected_local_run, [])
+        result = run(['apptainer', 'exec', 'instance://test', 'sh', '-c', 'display binary'],
+                     capture_output=True, text=True, timeout=5)
+    finally:
+        protected_step.ACTIVE.reset(token)
+    assert result.stdout == 'PDF \ufffd\ufffd'
+    assert result.stderr == 'ZIP \ufffd'
+    assert result.returncode == 7
+    assert seen[0]['errors'] == 'replace'

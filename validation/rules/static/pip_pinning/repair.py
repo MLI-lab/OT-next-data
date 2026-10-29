@@ -20,9 +20,9 @@ CHECK = 'check-pip-pinning.sh'
 FILES = ('environment/Dockerfile', 'tests/Dockerfile', 'tests/test.sh', 'solution/solve.sh')
 _capture = ContextVar('pip_pin_capture', default=None)
 _TOKEN = re.compile(r'''(?:[^\s'"\\]+|'[^']*'|"[^"]*")+''')
-_COMMAND = re.compile(r'(?m)^[ \t]*(?:RUN[ \t]+)?(?P<pip>(?:/[\w./-]+/)?pip[0-9.]*|(?:/[\w./-]+/)?python[0-9.]*[ \t]+-m[ \t]+pip)[ \t]+install[ \t]+(?P<args>[^\n]*)')
+_COMMAND = re.compile(r'(?m)(?:^[ \t]*(?:RUN[ \t]+)?|(?<=[;&| \t])(?=/)|(?<=\|\|)[ \t]*(?=python[0-9.]+\s+-m\s+pip\b))(?P<pip>(?:/[\w./-]+/)?pip[0-9.]*|(?:/[\w./-]+/)?python[0-9.]*[ \t]+-m[ \t]+pip)[ \t]+install[ \t]+(?P<args>[^\n]*)')
 _VALUE_OPTIONS = {'-i', '--index-url', '--extra-index-url', '-f', '--find-links', '--trusted-host', '--timeout', '--retries', '--cache-dir'}
-_BOOL_OPTIONS = {'--no-cache-dir', '--no-deps', '--upgrade', '-U', '--pre', '--prefer-binary', '--disable-pip-version-check', '--quiet', '-q', '--verbose', '-v'}
+_BOOL_OPTIONS = {'--no-cache-dir', '--no-deps', '--upgrade', '-U', '--pre', '--prefer-binary', '--disable-pip-version-check', '--quiet', '-q', '--verbose', '-v', '--user', '--no-input'}
 
 
 def commands(task):

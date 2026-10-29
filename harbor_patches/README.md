@@ -30,6 +30,16 @@ still consume part of the task memory budget.
 
 ### Terminal output and uploads
 
+`exec_environment.py` applies UTF-8 replacement decoding to text stdout/stderr
+from running container instances. Binary output (PDF headers, ZIP filenames,
+NumPy/packet data) must not abort a trial with `UnicodeDecodeError`. The worker
+module patch leaves binary transfers, unrelated subprocess calls, explicit
+encoding/error policies, exit codes and timeouts intact. `bridge_worker.py`
+also supplies these options before protected-executor dispatch. Consumers that
+only need this fix can call `install_output_decoding(worker)` without enabling
+the other OT runtime patches. Keep source hashes with run provenance.
+
+
 Marin [PR 136](https://github.com/marin-community/harbor/pull/136) retains the last
 500,000 characters of an exec stream; [PR 137](https://github.com/marin-community/harbor/pull/137)
 adds batched terminal status markers. Ben Feuer introduced both in `c52e5d30`

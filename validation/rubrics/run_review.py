@@ -13,7 +13,13 @@ ROOT = Path(__file__).parent
 def load(kind, output_format=None):
     if kind == 'river' and output_format not in (None, 'classification'):
         raise ValueError('River uses classification; --review-format criteria is not supported')
+    if kind == 'custom_severity' and output_format not in (None, 'severity'):
+        raise ValueError('custom_severity uses --review-format severity')
+    if kind == 'custom' and output_format not in (None, 'criteria', 'classification'):
+        raise ValueError('custom uses --review-format criteria or classification')
     text = (ROOT / f'rubric_{kind}' / 'rubric.toml').read_text()
+    if kind == 'custom_severity':
+        text = '[review]\nformat = "severity"\n\n' + text
     if kind == 'custom':
         if output_format == 'classification':
             text = (ROOT / 'rubric_custom/classification.toml').read_text()
@@ -24,14 +30,17 @@ def load(kind, output_format=None):
 
 def prompt(rubric, task_name, evidence_mode="image"):
     config = tomllib.loads(rubric)
-    classification = config['review']['format'] == 'classification'
     templates = ROOT / 'prompt_templates/modified'
-    template = 'classification.txt' if classification else 'labeling.txt'
+    template = {'classification': 'classification.txt', 'criteria': 'labeling.txt',
+                'severity': 'custom_severity.txt'}[config['review']['format']]
     text = (templates / template).read_text()
     if evidence_mode == 'files':
         text = text.replace(
             'You see the same starting environment as the task-solving agent, with an additional copy of the complete task under `/app/task-under-review/`, including tests and reference solutions that are not provided to the task-solving agent.',
             'You are reviewing a copy of the complete task under `/app/task-under-review/` in a separate review environment.')
+        text = text.replace(
+            "You have access to the solving agent's starting environment, the complete task folder at `/app/task-under-review/<task>/` (including instructions, configuration, tests, and reference solutions), and shell execution in a disposable environment.",
+            'You have access to the complete task folder at `/app/task-under-review/<task>/` (including instructions, configuration, tests, and reference solutions), and shell execution in a separate review environment. The actual task and verifier environments are not running here; do not treat execution in this review environment as evidence of their behavior.')
     return text
 
 
@@ -52,9 +61,87 @@ printf '1' > /logs/verifier/reward.txt
 ''')
 
 
+def severity_context(data):
+    """Validate context separately so partial repairs can retain it."""
+    interpretation = data.get('task_interpretation')
+    if not isinstance(interpretation, str) or not interpretation.strip():
+        raise ValueError('Severity review requires a nonempty task_interpretation')
+    if data.get('verifier_mode') not in ('shared', 'separate', 'unknown'):
+        raise ValueError('Expected verifier_mode shared, separate or unknown')
+    return {key: data[key] for key in ('task_interpretation', 'verifier_mode')}
+
+
+def validate_severity_entry(value, definition):
+    fields = {'severity', 'subcategory', 'finding', 'evidence', 'not_assessed_reason'}
+    if not isinstance(value, dict) or set(value) != fields:
+        raise ValueError(f"Expected severity fields for {definition['id']}")
+    severity = value['severity']
+    if not isinstance(severity, str) or severity not in definition['allowed_severities']:
+        raise ValueError(f"Invalid severity for {definition['id']}")
+    defect = severity in ('minor', 'major')
+    subcategories = {entry['id'] for entry in definition.get('subcategories', [])}
+    if defect and subcategories:
+        if not isinstance(value['subcategory'], str) or value['subcategory'] not in subcategories:
+            raise ValueError(f"Expected one subcategory for {definition['id']}")
+    elif value['subcategory'] is not None:
+        raise ValueError('subcategory must be null without a subcategory defect')
+    if defect:
+        if not isinstance(value['finding'], str) or not value['finding'].strip():
+            raise ValueError('A minor or major finding requires an explanation')
+    elif value['finding'] is not None:
+        raise ValueError('finding must be null when no defect was established')
+    evidence = value['evidence']
+    if (not isinstance(evidence, list)
+            or any(not isinstance(entry, (str, dict)) or not entry for entry in evidence)
+            or (defect and not evidence)):
+        raise ValueError('Findings require a nonempty evidence list; evidence entries must be observations')
+    reason = value['not_assessed_reason']
+    if severity == 'not_assessed':
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError('not_assessed requires a reason')
+    elif reason is not None:
+        raise ValueError('not_assessed_reason must be null for assessed rubrics')
+    return value
+
+
+def valid_severity_results(data, rubric, names):
+    """Keep valid requested entries without trusting derived compatibility checks."""
+    results = data.get('results', {}) if isinstance(data, dict) else {}
+    if not isinstance(results, dict):
+        return {}
+    retained = {}
+    for definition in rubric['rubrics']:
+        name = definition['id']
+        if name in names and name in results:
+            try:
+                retained[name] = validate_severity_entry(results[name], definition)
+            except ValueError:
+                pass
+    return retained
+
+
+def validate_severity(data, rubric):
+    context = severity_context(data)
+    definitions = {entry['id']: entry for entry in rubric['rubrics']}
+    results = data.get('results')
+    if not isinstance(results, dict) or set(results) != definitions.keys():
+        raise ValueError('Missing or unexpected severity rubric IDs')
+    checks = {}
+    for name, value in results.items():
+        validate_severity_entry(value, definitions[name])
+        level = value['severity']
+        checks[name] = {
+            'outcome': {'none': 'pass', 'minor': 'fail', 'major': 'fail', 'not_assessed': 'incomplete'}[level],
+            'explanation': value['finding'] or value['not_assessed_reason'] or 'No defect identified through the completed assessment.',
+        }
+    return {**context, 'results': results, 'checks': checks}
+
+
 def validate(data, rubric):
     if not isinstance(data, dict):
         raise ValueError('Verdict must be a JSON object')
+    if rubric.get('review', {}).get('format') == 'severity':
+        return validate_severity(data, rubric)
     if rubric.get('review', {}).get('format') == 'classification':
         category = data.get('category')
         allowed = {entry['name'] for entry in rubric['categories']}
@@ -176,11 +263,13 @@ def save(path, data):
 
 def subset_rubric(text, names):
     """Keep exact criterion wording and any rubric-level metadata."""
-    blocks = re.findall(r'(?ms)^\[\[criteria\]\][ \t]*\n.*?(?=^\[\[criteria\]\]|\Z)', text)
-    prefix = text[:text.index('[[criteria]]')]
+    severity = tomllib.loads(text).get('review', {}).get('format') == 'severity'
+    section, key = ('rubrics', 'id') if severity else ('criteria', 'name')
+    blocks = re.findall(rf'(?ms)^\[\[{section}\]\][ \t]*\n.*?(?=^\[\[{section}\]\]|\Z)', text)
+    prefix = text[:text.index(f'[[{section}]]')]
     result = prefix + ''.join(block for block in blocks
-        if tomllib.loads(block)['criteria'][0]['name'] in names)
-    if {c['name'] for c in tomllib.loads(result).get('criteria', [])} != set(names):
+        if tomllib.loads(block)[section][0][key] in names)
+    if {c[key] for c in tomllib.loads(result).get(section, [])} != set(names):
         raise ValueError('Retry rubric does not cover the requested criteria')
     return result
 
@@ -203,7 +292,7 @@ def checkpoint_dir(source, staged, args, agent, model):
     digest.update(json.dumps(settings, sort_keys=True, default=str).encode())
     # Code changes that affect review execution must invalidate resumable samples.
     code_paths = [Path(__file__), *(ROOT.parent / 'stages' / name for name in (
-        'image_review.py', 'image_inspector.py', 'harbor.py', 'task_setup.py', 'prepare_review_tasks.py')),
+        'image_review.py', 'image_inspector.py', 'harbor.py', 'task_setup.py', 'prepare_review_tasks.py', 'env_review.py')),
         ROOT.parents[1] / 'requirements.txt', ROOT.parents[1] / 'config/runtime.py',
         *(ROOT.parents[1] / 'harbor_patches').glob('*.py')]
     for path in sorted(code_paths):
@@ -228,19 +317,23 @@ async def complete_review(rubric_text, base_prompt, folder, invoke, retries=2, r
     folder.mkdir(parents=True, exist_ok=True)
     rubric = tomllib.loads(rubric_text)
     classification = rubric.get('review', {}).get('format') == 'classification'
-    names = {c['name'] for c in rubric['criteria']}
+    severity = rubric.get('review', {}).get('format') == 'severity'
+    names = {c['id'] for c in rubric['rubrics']} if severity else {c['name'] for c in rubric['criteria']}
     state_path = folder / 'state.json'
     state = json.loads(state_path.read_text()) if resume and state_path.exists() else {
         'checks': {}, 'rounds': [], 'criterion_origin': {}}
     if state.get('complete'):
         validate_complete(state['verdict'], rubric)
         return {**state, 'resumed': True}
-    retained = valid_checks({'checks': state.get('checks', {})}, names)
+    retained = (valid_severity_results(state, rubric, names) if severity
+                else valid_checks({'checks': state.get('checks', {})}, names))
     for _ in range(retries + 1):
         missing = names - retained.keys()
-        reduced = rubric_text if classification or not retained else subset_rubric(rubric_text, missing)
+        reduced = rubric_text if classification or not retained or not missing else subset_rubric(rubric_text, missing)
         review_prompt = base_prompt.replace(rubric_text, reduced) if rubric_text in base_prompt else base_prompt
-        if not classification and (retained or state['rounds']):
+        if severity and (retained or state['rounds']):
+            review_prompt += '\nFor this repair round, include only these rubric IDs in results: ' + (', '.join(sorted(missing)) or '(none; return an empty results object)') + '. This replaces the full results example; keep task_interpretation and verifier_mode. Previously accepted results are retained by the runner.\n'
+        elif not classification and (retained or state['rounds']):
             review_prompt += '\nReview only these criteria: ' + ', '.join(sorted(missing)) + '. Return their exact names; do not add other criteria.\n'
         index = len(state['rounds'])
         round_dir = folder / f'round-{index:03d}'
@@ -263,6 +356,23 @@ async def complete_review(rubric_text, base_prompt, folder, invoke, retries=2, r
                 state['complete'] = True
             except ValueError as exc:
                 state['last_error'] = str(exc)
+        elif severity:
+            raw = raw if isinstance(raw, dict) else {}
+            try:
+                state.update(severity_context(raw))
+            except ValueError:
+                pass
+            added = valid_severity_results(raw, rubric, missing)
+            retained.update(added)
+            state['criterion_origin'].update({name: index for name in added})
+            state['results'] = retained
+            state['last_error'] = 'Missing or invalid severity rubrics: ' + ', '.join(sorted(names - retained.keys()))
+            if set(retained) == names:
+                try:
+                    state['verdict'] = validate_complete(state, rubric)
+                    state['complete'] = True
+                except ValueError as exc:
+                    state['last_error'] = str(exc)
         else:
             added = valid_checks(raw if isinstance(raw, dict) else {}, missing)
             retained.update(added)
@@ -281,16 +391,17 @@ async def complete_review(rubric_text, base_prompt, folder, invoke, retries=2, r
 
 
 
-async def review_files(staged, source, out, args, agent, model):
-    """Use Harbor's existing agent/job runtime for explicit file-only reviews."""
+async def review_files(staged, source, out, args, agent, model, task_environment=False):
+    """Use Harbor's agent/job runtime with shared validation and repair handling."""
     import copy
     from uuid import uuid4
     from validation.stages import harbor as runtime
     from validation.publishing.review_usage import collect, summarize_rows
     from validation.publishing.review_pricing import for_stage
-    runtime.check_runtime_task(staged, args.backend)
+    runtime.check_runtime_task(source if task_environment else staged, args.backend)
+    evidence_mode = 'task-environment' if task_environment else 'files'
     if args.dry_run:
-        return {'status': 'previewed', 'evidence_mode': 'files'}
+        return {'status': 'previewed', 'evidence_mode': evidence_mode}
     rubric = (staged / 'rubric.toml').read_text()
     skipped = json.loads((staged / 'rubric-skips.json').read_text())
     resume = getattr(args, 'review_resume', True)
@@ -317,7 +428,14 @@ async def review_files(staged, source, out, args, agent, model):
                     dockerfile.write_text(dockerfile.read_text() + 'RUN ln -s /setup_files/rubric.toml /app/rubric.toml\n')
                 attempt_args = copy.copy(args)
                 attempt_args.attempts = 1
+                if task_environment:
+                    from validation.stages import env_review
+                    task = env_review.stage(source, task, round_dir / 'task-environment' / source.name,
+                        {f'task-under-review/{source.name}': source, 'rubric.toml': task / 'rubric.toml'},
+                        '/app/verdicts.json')
                 config = runtime.job_config(task, round_dir / 'jobs', attempt_args, agent, model)
+                if task_environment:
+                    config['verifier'] = {'disable': True}
                 save(round_dir / 'job.json', config)
                 job = await runtime.execute_job(config)
                 results = runtime.trial_results(job)
@@ -347,7 +465,7 @@ async def review_files(staged, source, out, args, agent, model):
             rows.extend(new_rows)
     return {'status': 'error' if errors else ('findings' if any(
         value['outcome'] in ('fail', 'incomplete') for trial in verdicts for value in trial['checks'].values()) else 'passed'),
-        'findings': errors, 'verdicts': verdicts, 'automatic_skips': skipped, 'evidence_mode': 'files', 'review_checkpoint': str(cache),
+        'findings': errors, 'verdicts': verdicts, 'automatic_skips': skipped, 'evidence_mode': evidence_mode, 'review_checkpoint': str(cache),
         'usage': {'trials': rows, 'expected_trials': runs, 'summary': summarize_rows(rows, runs, 1)}}
 
 

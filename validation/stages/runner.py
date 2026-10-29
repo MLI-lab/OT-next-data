@@ -61,10 +61,10 @@ def parser():
     ap.add_argument('--review-model', help='override pinned upstream rubric/trajectory judge model')
     ap.add_argument('--review-pricing', type=json.loads,
                     help='review token rates in USD per million: JSON with input/output and optional cache_read/cache_write; reported cost is retained separately')
-    ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor', 'custom', 'river'], default='terminal-bench',
-                    help='Stage 5 rubric: terminal-bench (default), harbor, custom, or river')
-    ap.add_argument('--review-format', choices=['criteria', 'classification'],
-                    help='custom rubric output mode; River always uses classification')
+    ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor', 'custom', 'river', 'custom_severity'], default='terminal-bench',
+                    help='Stage 5 rubric: terminal-bench (default), harbor, custom, river, or custom_severity')
+    ap.add_argument('--review-format', choices=['criteria', 'classification', 'severity'],
+                    help='custom: criteria/classification; River: classification; custom_severity: severity')
     ap.add_argument('--review-criteria', nargs='+', metavar='CRITERION',
                     help='Stage 5: review only these criterion names from the chosen rubric; default all')
     ap.add_argument('--review-local', action='store_true', help='judge with the served model or --api-base model in Terminus 2 (all evidence modes)')
@@ -253,10 +253,20 @@ def check_args(a):
         name = a.submit if getattr(a, 'submit', None) not in (None, 'auto', 'never') else os.environ.get('OT_CLUSTER')
         cluster = cluster_config(name) if name else detect_cluster()
         a.network_mode = cluster.network_mode if cluster else 'isolated'
+    kind = getattr(a, 'review_rubric', 'terminal-bench')
+    output_format = getattr(a, 'review_format', None)
+    if kind in ('custom', 'river', 'custom_severity'):
+        from validation.rubrics.run_review import load
+        rubric, skipped = load(kind, output_format)
+        if kind == 'custom_severity':
+            a.review_format = 'severity'
+    elif output_format is not None:
+        raise ValueError('--review-format is supported only for custom, river and custom_severity rubrics')
     if getattr(a, 'review_criteria', None) is not None:
         from validation.rubrics import ROOT as RUBRICS, harbor_rubric, implementation_rubric, select_criteria
-        rubric, skipped = (harbor_rubric() if getattr(a, 'review_rubric', 'terminal-bench') == 'harbor'
-                           else implementation_rubric(RUBRICS / 'rubric_terminal_bench/upstream/task-implementation.toml'))
+        if kind not in ('custom', 'river', 'custom_severity'):
+            rubric, skipped = (harbor_rubric() if kind == 'harbor'
+                               else implementation_rubric(RUBRICS / 'rubric_terminal_bench/upstream/task-implementation.toml'))
         select_criteria(rubric, skipped, a.review_criteria)
     if getattr(a, 'prebuild_only', False):
         if a.submit not in ('helma', 'zih', 'rwth'):
@@ -395,6 +405,10 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
     if number == 5 and not image:
         from validation.rubrics.run_review import review_files
         return await review_files(task, source, item_dir, args, agent, model)
+    if number == 5 and getattr(args, 'review_rubric', None) == 'custom_severity':
+        # Terminus-2 shares the severity repair/checkpoint path, inside the task environment.
+        from validation.rubrics.run_review import review_files
+        return await review_files(task, source, item_dir, args, agent, model, task_environment=True)
     skipped = json.loads((task / 'rubric-skips.json').read_text()) if number == 5 else {}
     rubric = task / 'rubric.toml' if number == 5 else upstream / 'docs/prompts' / rubric_name
     if agent == 'terminus-2' and (image or number == 8):

@@ -1,5 +1,6 @@
 """Our patch to Terminal-Bench check-test-file-references.sh: fix the upstream extractor and
 filter references that are not files the instruction must name."""
+import ast
 import re
 from validation.rules.static.task_absolute_path.check import without_urls
 
@@ -10,7 +11,8 @@ ADAPTATION = (
     'boot artifacts, explicit numeric X filename ranges, explicit label filename templates resolved from '
     'supplied label:glob configurations, and references discovered through named supplied '
     'files/directories; reads literal writes and copies/moves in explicitly invoked local setup shell '
-    'scripts without executing them, with source evidence')
+    'scripts without executing them, with source evidence'
+    '; renders escaped Markdown underscores in prose, rejects whitespace/escape-containing report strings as single paths, ignores unused top-level literal sets in Python without reflective namespace access, and follows literal initial writes in the exact ET v6 encoded RUN wrapper; a named directory with proven supplied children need not end in a slash')
 
 
 # Specific conventional interfaces, not an exemption for everything under /boot.
@@ -85,6 +87,9 @@ def reference_check_script(source):
     if source.count(old) != 1 or source.count('/[a-zA-Z0-9_./]+\\.') != 1:
         raise ValueError('upstream file-reference extractor changed')
     source = source.replace(old, "grep -E '^/'")
+    # Quoted report text is not one filename. Stop at whitespace or a shell/
+    # Python escape instead of splitting the entire string into path fragments.
+    source = source.replace('[^"\'"\'"\']*', '[^"\'"\'"\'[:space:]\\\\]*')
     # A quoted basename supplies no working directory. Keep it as a basename.
     source = source.replace("sed 's|^|/app/|'", 'cat')
     # Upstream uses optional quote markers (?) with basic sed regex syntax.
@@ -110,6 +115,9 @@ def reference_check_script(source):
 
 def reference_check_text(text):
     text = without_urls(text)
+    # A path printed with only a trailing newline is still a file reference.
+    # Embedded report fields and escaped content remain excluded as whole paths.
+    text = re.sub(r'''(["'])(/[^\s"'\\]+)(?:\\[nr])+\1''', r'\1\2\1', text)
     text = re.sub(r'file://(?=/)', '', text)
     text = re.sub(r'<host>[^<\n]+</host>', '<host>[hostname]</host>', text)
     # Upstream deliberately excludes these system roots, but its second regex
@@ -118,6 +126,42 @@ def reference_check_text(text):
     for path in CONVENTIONAL_REFERENCE_PATHS:
         text = re.sub(r'(?<![\w/])' + path + r'(?![\w./+-])', '[conventional boot artifact]', text)
     return text
+
+
+def markdown_reference_text(text):
+    """Render Markdown punctuation escapes in prose, preserving code literals."""
+    fenced = False
+    result = []
+    for line in text.splitlines(keepends=True):
+        if re.match(r'^\s*(```|~~~)', line):
+            fenced = not fenced
+        if not fenced:
+            parts = re.split(r'(`+[^`\n]*`+)', line)
+            for i in range(0, len(parts), 2):
+                parts[i] = re.sub(r'\\([_*])', r'\1', parts[i])
+            line = ''.join(parts)
+        result.append(line)
+    return ''.join(result)
+
+
+def without_unused_reference_sets(text):
+    """Unused literal sets are not graded outputs (e.g. stale forbidden lists)."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text
+    if any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+           and n.func.id in ('globals', 'locals', 'eval', 'exec') for n in ast.walk(tree)):
+        return text
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    lines = text.splitlines(keepends=True)
+    for node in tree.body:
+        if (isinstance(node, ast.Assign) and all(isinstance(t, ast.Name) and t.id not in used for t in node.targets)
+                and isinstance(node.value, ast.Set)
+                and all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in node.value.elts)):
+            for i in range(node.lineno - 1, node.end_lineno):
+                lines[i] = '# unused literal reference set\n'
+    return ''.join(lines)
 
 
 def numeric_reference_patterns(instruction, sources):

@@ -34,8 +34,8 @@ from validation.rules.static.task_absolute_path.check import (
     path_check_text, without_fenced_blocks, without_source_code, without_urls)
 from validation.rules.static.test_file_references import check as test_file_references
 from validation.rules.static.test_file_references.check import (
-    CONVENTIONAL_REFERENCE_PATHS, REFERENCE_FILTER, numeric_reference_patterns, reference_check_script,
-    reference_check_text)
+    CONVENTIONAL_REFERENCE_PATHS, REFERENCE_FILTER, markdown_reference_text, numeric_reference_patterns,
+    reference_check_script, reference_check_text, without_unused_reference_sets)
 from validation.rules.static.test_file_references.supplied_references import discoverable_references
 
 TERMINAL_BENCH = Path(__file__).resolve().parents[2] / 'upstream/terminal_bench'
@@ -208,6 +208,8 @@ def adapted_check_copy(task, scratch, name, profile):
             target = copy / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             text = source.read_text(errors='replace')
+            if name == 'check-test-file-references.sh' and relative == 'instruction.md':
+                text = markdown_reference_text(text)
             if name == 'check-nproc.sh' and relative not in ('instruction.md', 'task.toml'):
                 if profile == 'training' and relative == 'solution/solve.sh':
                     from data.seta.patch import reviewed_nproc_text
@@ -218,6 +220,8 @@ def adapted_check_copy(task, scratch, name, profile):
                 text = nproc_check_text(text, dockerfile=relative == 'environment/Dockerfile')
             elif relative not in ('instruction.md', 'task.toml'):
                 text = transforms[name](text)
+                if name == 'check-test-file-references.sh' and relative.startswith('tests/') and relative.endswith('.py'):
+                    text = without_unused_reference_sets(text)
             target.write_text(text)
     if name == 'check-test-file-references.sh':
         evidence = discoverable_references(task)

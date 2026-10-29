@@ -6,6 +6,8 @@
 
 Originals are in `upstream/`. Our prompts for the two output modes, labeling and classification, are in `modified/`.
 
+The custom severity rubric uses `modified/custom_severity.txt` for severity judgments, evidence and alignment subcategories. Like the other prompts, it writes `/app/verdicts.json`.
+
 `modified/labeling.txt` uses Terminal-Bench's prompt with the task-name instruction removed. We give the reviewer access to the same starting task environment as the solving agent. The prompt clarifies this with:
 
 > You see the same starting environment as the task-solving agent, with an additional copy of the complete task under `/app/task-under-review/`, including tests and reference solutions that are not provided to the task-solving agent.

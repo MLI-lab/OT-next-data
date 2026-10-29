@@ -136,6 +136,17 @@ def select_criteria(rubric, skipped, criteria=None):
         return rubric, skipped
     if not criteria or len(criteria) != len(set(criteria)):
         raise ValueError('--review-criteria requires distinct criterion names')
+    config = tomllib.loads(rubric)
+    if config.get('review', {}).get('format') == 'classification':
+        raise ValueError('--review-criteria cannot restrict a single-category classification')
+    if config.get('review', {}).get('format') == 'severity':
+        names = {entry['id'] for entry in config['rubrics']}
+        unknown = set(criteria) - names
+        if unknown:
+            raise ValueError('Unknown review criteria: ' + ', '.join(sorted(unknown))
+                             + '; available: ' + ', '.join(sorted(names)))
+        from validation.rubrics.run_review import subset_rubric
+        return subset_rubric(rubric, set(criteria)), {}
     blocks = re.findall(r'(?ms)^\[\[criteria\]\][ \t]*\n.*?(?=^\[\[criteria\]\]|\Z)', rubric)
     named = {tomllib.loads(block)['criteria'][0]['name']: block for block in blocks}
     unknown = set(criteria) - (named.keys() | skipped.keys())
