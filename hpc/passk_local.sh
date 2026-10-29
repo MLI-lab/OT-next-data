@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# pass@k on ONE machine with GPUs and Docker, without Slurm (e.g. a server with 2 H100s).
-# Models: instruct = Qwen/Qwen3-30B-A3B-Instruct-2507 (GPU 0), thinking = Qwen/Qwen3-30B-A3B, thinking on (GPU 1).
+# pass@k on ONE machine with a GPU and Docker, without Slurm (e.g. a shared server with H100s).
+# Models: instruct = Qwen/Qwen3-30B-A3B-Instruct-2507, thinking = Qwen/Qwen3-30B-A3B with thinking on. They take
+# turns on one GPU (GPU 0; GPU=<n> for another): serve one, run its datasets, unserve it, serve the other.
 # Each model runs as a vLLM server started like the cluster jobs start it (hpc/validation_worker.py) with the
 # sampling settings of config/models.py. Tasks run in Docker through the repo's own pipeline
 # (validation/run.py stages 6+7, --backend docker --submit never), one shard after another in the
@@ -9,15 +10,15 @@
 #
 #   export WS=/mnt/sda4T/$USER/ot-next          # big disk: Python env, models (~120 GB), runs
 #   ./hpc/passk_local.sh setup                  # once (~30 min)
-#   ./hpc/passk_local.sh serve                  # start both models in the background (a few minutes)
+#   ./hpc/passk_local.sh serve instruct         # start the model in the background (a few minutes)
 #   ./hpc/passk_local.sh pilot nl2bash_v1 instruct    # 10 tasks x 2 attempts
 #   ./hpc/passk_local.sh status nl2bash_v1 instruct pilot
-#   ./hpc/passk_local.sh run nl2bash_v1 instruct      # full pass@16 in the background
-#   ./hpc/passk_local.sh run nl2bash_v1 thinking      # at the same time, on the other GPU
+#   ./hpc/passk_local.sh run nl2bash_v1 instruct      # full pass@4 in the background (ATTEMPTS=16 for pass@16)
 #   ./hpc/passk_local.sh status nl2bash_v1 instruct
 #   ./hpc/passk_local.sh merge nl2bash_v1 instruct    # when status says all shards are complete
 #   ./hpc/passk_local.sh stop nl2bash_v1 instruct     # stop a run (start it again with run: it continues)
-#   ./hpc/passk_local.sh unserve                      # stop both models
+#   ./hpc/passk_local.sh unserve instruct             # stop the model (refused while its runs still go)
+#   ./hpc/passk_local.sh serve thinking               # then the other model, on the same GPU
 #   ./hpc/passk_local.sh check multiswe_v1            # reference solution = 1 and do-nothing = 0 here? (no GPU needed)
 set -euo pipefail
 shopt -s inherit_errexit
@@ -26,12 +27,12 @@ WS=${WS:?export WS=<a folder on a big disk> first}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=${REPO_DIR:-$(cd "$HERE/.." && pwd)}
 ENV_DIR=${ENV_DIR:-$WS/env}
-ATTEMPTS=${ATTEMPTS:-16}
-TASKS_PER_SHARD=${TASKS_PER_SHARD:-20}
-INSTRUCT_GPU=${INSTRUCT_GPU:-0}; THINKING_GPU=${THINKING_GPU:-1}
+ATTEMPTS=${ATTEMPTS:-4}
+TASKS_PER_SHARD=${TASKS_PER_SHARD:-$(( (200 + ATTEMPTS - 1) / ATTEMPTS ))}   # about 200 attempts per shard
+GPU=${GPU:-0}   # the one GPU both models use, one after the other
 INSTRUCT_PORT=${INSTRUCT_PORT:-8101}; THINKING_PORT=${THINKING_PORT:-8102}
 HF_REPO=FWeindel/validated-tasks
-MAX_TRIALS=${MAX_TRIALS:-28}   # attempts at once over all runs: each uses a Docker network, Docker has ~30 by default
+MAX_TRIALS=${MAX_TRIALS:-64}   # attempts at once over all runs (CPU-bound: agents mostly wait for the model)
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -43,14 +44,18 @@ model_key() {
     esac
 }
 port_of() { if [ "$1" = instruct ]; then echo "$INSTRUCT_PORT"; else echo "$THINKING_PORT"; fi; }
-gpu_of() { if [ "$1" = instruct ]; then echo "$INSTRUCT_GPU"; else echo "$THINKING_GPU"; fi; }
+other_model() { if [ "$1" = instruct ]; then echo thinking; else echo instruct; fi; }
+# Is the process group whose leader's pid is in file $1 still alive?
+group_alive() { [ -s "$1" ] && kill -0 -- "-$(cat "$1")" 2>/dev/null; }
 
-# Trials at once per model. Two runs (instruct + thinking) must fit MAX_TRIALS together, because every
-# attempt needs its own Docker network; 4-CPU tasks also leave room for both models' tasks on 128 CPUs.
+# Trials at once per run; two runs at once (two datasets on one model, or both models) must fit MAX_TRIALS
+# together. 4-CPU tasks: 2 x 24 trials ask for 192 CPUs on 128 cores, which works because agents mostly
+# wait for the model;
+# if status shows verifier timeouts, lower CONCURRENCY.
 default_concurrency() {
     case "$1" in
-        multiswe_v1|mimo_v1) echo 12 ;;
-        *) echo 14 ;;
+        multiswe_v1|mimo_v1) echo 24 ;;
+        *) echo 28 ;;
     esac
 }
 
@@ -81,7 +86,7 @@ EOF
     python config/models.py --download "$(model_key thinking)"
     docker info >/dev/null || die "Docker does not work for this user"
     docker_space
-    echo "Setup done. Next: ./hpc/passk_local.sh serve"
+    echo "Setup done. Next: ./hpc/passk_local.sh serve instruct"
 }
 
 docker_space() {
@@ -112,49 +117,82 @@ EOF
 healthy() { curl -sf "http://127.0.0.1:$1/health" >/dev/null; }
 
 serve() {
+    local model=${1:-} other port pidf mem cmd driver compat="$HOME/cuda-compat/usr/local/cuda-13.0/compat"
+    [ -n "$model" ] || die "usage: ./hpc/passk_local.sh serve {instruct|thinking} (one model at a time, on GPU $GPU)"
+    model_key "$model" >/dev/null
     mkdir -p "$WS/serve"
-    local model port cmd driver compat="$HOME/cuda-compat/usr/local/cuda-13.0/compat"
-    # The pinned vLLM is built for CUDA 13, which needs driver >= 580. On older drivers of data-center GPUs,
-    # NVIDIA's forward-compatibility libraries (unpacked without admin rights into ~/cuda-compat) fill the gap.
-    driver=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 | cut -d. -f1) || driver=
-    [ -n "$driver" ] || echo "WARNING: nvidia-smi gives no driver version; is this a GPU machine?" >&2
-    if [ -n "$driver" ] && [ "$driver" -lt 580 ] && [[ ":${LD_LIBRARY_PATH:-}:" != *":$compat:"* ]]; then
-        [ -d "$compat" ] || die "GPU driver $driver is older than 580 (CUDA 13). Unpack NVIDIA's cuda-compat-13-0 package into ~/cuda-compat (wget .../cuda-compat-13-0_580.159.04-1ubuntu1_amd64.deb; dpkg -x <deb> ~/cuda-compat) or ask your admin for driver 580+"
-        export LD_LIBRARY_PATH="$compat${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    port=$(port_of "$model"); pidf="$WS/serve/$model.pid"; other=$(other_model "$model")
+    # One model, so one GPU, at a time.
+    if healthy "$(port_of "$other")" || group_alive "$WS/serve/$other.pid"; then
+        die "$other is still running (port $(port_of "$other")). When its runs are done: ./hpc/passk_local.sh unserve $other"
     fi
-    # Without nvcc, FlashInfer cannot compile its sampling kernels; vLLM's PyTorch sampler draws from the
-    # same distribution with the same temperature/top-p/top-k/min-p.
-    command -v nvcc >/dev/null || export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
-    for model in instruct thinking; do
-        port=$(port_of $model)
-        if healthy "$port"; then echo "$model is already running on port $port"; continue; fi
-        cmd=$(serve_command "$(model_key $model)" "$port")
-        echo "Starting $model on GPU $(gpu_of $model), port $port"
-        CUDA_VISIBLE_DEVICES=$(gpu_of $model) setsid nohup bash -c "exec $cmd" > "$WS/serve/$model.log" 2>&1 < /dev/null &
-        echo $! > "$WS/serve/$model.pid"
+    if healthy "$port"; then echo "$model is already running on port $port"; return 0; fi
+    if group_alive "$pidf"; then
+        echo "$model is still starting (pid $(cat "$pidf")); waiting for it"
+    else
+        # The pinned vLLM is built for CUDA 13, which needs driver >= 580. On older drivers of data-center
+        # GPUs, NVIDIA's forward-compatibility libraries (unpacked without admin rights into ~/cuda-compat)
+        # fill the gap.
+        driver=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 | cut -d. -f1) || driver=
+        [ -n "$driver" ] || echo "WARNING: nvidia-smi gives no driver version; is this a GPU machine?" >&2
+        if [ -n "$driver" ] && [ "$driver" -lt 580 ] && [[ ":${LD_LIBRARY_PATH:-}:" != *":$compat:"* ]]; then
+            [ -d "$compat" ] || die "GPU driver $driver is older than 580 (CUDA 13). Unpack NVIDIA's cuda-compat-13-0 package into ~/cuda-compat (wget .../cuda-compat-13-0_580.159.04-1ubuntu1_amd64.deb; dpkg -x <deb> ~/cuda-compat) or ask your admin for driver 580+"
+            export LD_LIBRARY_PATH="$compat${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        fi
+        # Without nvcc, FlashInfer cannot compile its sampling kernels; vLLM's PyTorch sampler draws from the
+        # same distribution with the same temperature/top-p/top-k/min-p.
+        command -v nvcc >/dev/null || export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
+        # vLLM takes 90% of the GPU's memory, so the GPU must be (nearly) empty.
+        mem=$(nvidia-smi -i "$GPU" --query-gpu=memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null | tr -d ' ') || mem=
+        if [[ $mem =~ ^[0-9]+,[0-9]+$ ]] && [ $(( ${mem%,*} * 10 )) -gt "${mem#*,}" ]; then
+            die "GPU $GPU is busy (${mem%,*} of ${mem#*,} MiB used by someone else; see nvidia-smi). Wait, or use a free GPU: GPU=<n> ./hpc/passk_local.sh serve $model"
+        fi
+        cmd=$(serve_command "$(model_key "$model")" "$port")
+        echo "Starting $model on GPU $GPU, port $port"
+        CUDA_VISIBLE_DEVICES=$GPU setsid nohup bash -c "exec $cmd" > "$WS/serve/$model.log" 2>&1 < /dev/null &
+        echo $! > "$pidf"
+    fi
+    for _ in $(seq 1 180); do
+        healthy "$port" && break
+        kill -0 "$(cat "$pidf")" 2>/dev/null || die "$model stopped while starting; see the end of $WS/serve/$model.log"
+        sleep 5
     done
-    for model in instruct thinking; do
-        port=$(port_of $model)
-        for _ in $(seq 1 180); do
-            healthy "$port" && break
-            [ ! -f "$WS/serve/$model.pid" ] || kill -0 "$(cat "$WS/serve/$model.pid")" 2>/dev/null \
-                || die "$model stopped while starting; see the end of $WS/serve/$model.log"
-            sleep 5
-        done
-        healthy "$port" || die "$model did not start; see $WS/serve/$model.log"
-        echo "$model ready on port $port"
-    done
+    healthy "$port" || die "$model is not up after 15 minutes (see $WS/serve/$model.log). Run serve again to keep waiting, or unserve $model to stop it."
+    echo "$model ready on port $port"
 }
 
 unserve() {
-    local model pid
-    for model in instruct thinking; do
-        [ -f "$WS/serve/$model.pid" ] || continue
+    local models model port pid r busy failed=
+    if [ -n "${1:-}" ]; then model_key "$1" >/dev/null; models=$1; else models="instruct thinking"; fi
+    for model in $models; do
+        port=$(port_of "$model")
+        if [ ! -f "$WS/serve/$model.pid" ]; then
+            if healthy "$port"; then
+                echo "WARNING: something this script did not start answers on port $port (see: ss -ltnp | grep $port)" >&2; failed=1
+            fi
+            continue
+        fi
+        # Runs still using the model would get no answers, and their attempts would count as failed.
+        busy=
+        for r in "$WS"/runs/*-"$model"-pilot/loop.pid "$WS"/runs/*-"$model"-pass*/loop.pid; do
+            if [ -f "$r" ] && kill -0 "$(cat "$r")" 2>/dev/null; then busy="$busy $(basename "$(dirname "$r")")"; fi
+        done
+        [ -z "$busy" ] || [ -n "${FORCE:-}" ] || die "runs still use $model:$busy. Wait until their status says 'Not running' (or stop them), then unserve. FORCE=1 stops it anyway; the runs then pause after their current shard, which is redone on the next run."
         pid=$(cat "$WS/serve/$model.pid")
         kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+        # Wait until vLLM and its engine processes have exited and given the GPU memory back, so the other
+        # model can start on that GPU.
+        for _ in $(seq 1 60); do kill -0 -- "-$pid" 2>/dev/null || break; sleep 1; done
+        if kill -0 -- "-$pid" 2>/dev/null; then kill -9 -- "-$pid" 2>/dev/null || true; sleep 2; fi
+        for _ in $(seq 1 30); do healthy "$port" || break; sleep 1; done
+        if kill -0 -- "-$pid" 2>/dev/null || healthy "$port"; then
+            echo "WARNING: $model is still up (process group $pid, or something answers on port $port); see nvidia-smi and ss -ltnp" >&2
+            failed=1; continue
+        fi
         rm -f "$WS/serve/$model.pid"
         echo "Stopped $model"
     done
+    [ -z "$failed" ] || exit 1
 }
 
 # Path of <dataset>/tasks.parquet at one pinned dataset revision (downloaded once). TASKS_PARQUET overrides it.
@@ -250,14 +288,17 @@ prepare() {
 # Harbor's Docker backend does not create the folder the repo's grading wrapper uploads into
 # (harbor_patches/verifier_setup.py -> /tmp/ot-pytest-execution-<id>/); the cluster's Apptainer bridge
 # does. Without this every grading fails ("Could not find the file") and scores 0. The wrapper creates the
-# folder first and runs commands with umask 022 as Apptainer does. Repository files stay unchanged.
+# folder first and runs commands with umask 022 as Apptainer does. It also puts single-container tasks
+# with internet access on Docker's default bridge network instead of a new network per attempt (Docker
+# runs out after ~30). Repository files stay unchanged.
 write_docker_wrapper() {
     mkdir -p "$WS/bin"
+    printf 'services:\n  main:\n    network_mode: bridge\n' > "$WS/bin/compose-bridge.yaml"
     cat > "$WS/bin/run_docker.py" <<'EOF'
 """validation/run.py on Harbor's Docker backend, with the two behaviours of the cluster's Apptainer bridge."""
 import runpy
 import sys
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 repo = sys.argv.pop(1)
 sys.path.insert(0, repo)
@@ -265,6 +306,14 @@ from harbor.environments.docker import docker_unix  # noqa: E402
 from harbor.environments.docker.docker import DockerEnvironment  # noqa: E402
 
 _upload_file, _upload_dir, _exec = docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir, DockerEnvironment.exec
+_compose_paths = DockerEnvironment._docker_compose_paths
+BRIDGE = Path(__file__).with_name('compose-bridge.yaml')
+
+
+def compose_paths(self):
+    paths = _compose_paths.fget(self)
+    single = not self._environment_docker_compose_path.exists() and not self.extra_docker_compose_paths
+    return [*paths, BRIDGE] if single and self.task_env_config.allow_internet else paths
 
 
 async def _parent(self, target_path):
@@ -288,6 +337,7 @@ async def exec_with_umask(self, command, *args, **kwargs):
 
 docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir = upload_file, upload_dir
 DockerEnvironment.exec = exec_with_umask
+DockerEnvironment._docker_compose_paths = property(compose_paths)
 sys.argv = [f'{repo}/validation/run.py', *sys.argv[1:]]
 runpy.run_path(f'{repo}/validation/run.py', run_name='__main__')
 EOF
@@ -295,7 +345,7 @@ EOF
 
 # Run every shard that has no complete report yet, one after another, in the background.
 start_loop() {
-    local name=$1 count=$2 root="$WS/runs/$1"
+    local name=$1 count=$2 port=${3:-} root="$WS/runs/$1"
     if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then
         die "$name is already running (stop it with: ./hpc/passk_local.sh stop ...)"
     fi
@@ -304,7 +354,10 @@ start_loop() {
     write_docker_wrapper
     setsid nohup bash -c '
         set -u
-        contract=$1 root=$2 count=$3 wrapper=$4
+        contract=$1 root=$2 count=$3 wrapper=$4 port=$5
+        # Attempts made while the model is down would count as failed, so a shard counts only if the model
+        # answers before and after it.
+        up() { [ -z "$port" ] || curl -sf "http://127.0.0.1:$port/health" >/dev/null; }
         for ((i = 0; i < count; i++)); do
             s=$(printf %04d "$i")
             if python - "$root/shards/$s/report" <<EOF
@@ -313,10 +366,18 @@ reports = glob.glob(sys.argv[1] + "/stage-*-*.json")
 sys.exit(0 if reports and all(json.load(open(r)).get("complete") for r in reports) else 1)
 EOF
             then continue; fi
+            if ! up; then
+                echo "$(date -Is) the model (port $port) is not running; paused before shard $i/$count. Serve it and run again." >> "$root/loop.log"
+                exit 1
+            fi
             rm -rf "$root/shards/$s"; mkdir -p "$root/shards/$s/report"
             echo "$(date -Is) shard $i/$count started" >> "$root/loop.log"
             python "$wrapper" "$PWD" --contract "$contract" --shard "$i/$count" --out "$root/shards/$s" \
                 > "$root/shards/$s.log" 2>&1
+            if ! up; then
+                echo "$(date -Is) the model (port $port) stopped during shard $i/$count; shard not counted. Serve it and run again: the shard is redone." >> "$root/loop.log"
+                exit 1
+            fi
             for f in "$root"/shards/$s/stage_*_*/*/summary.json; do
                 [ -f "$f" ] || continue
                 d=$(basename "$(dirname "$(dirname "$f")")"); d=${d#stage_}
@@ -325,7 +386,7 @@ EOF
             echo "$(date -Is) shard $i/$count finished" >> "$root/loop.log"
         done
         echo "$(date -Is) all shards done" >> "$root/loop.log"
-    ' _ "$WS/contracts/$name.json" "$root" "$count" "$WS/bin/run_docker.py" > "$root/loop.out" 2>&1 < /dev/null &
+    ' _ "$WS/contracts/$name.json" "$root" "$count" "$WS/bin/run_docker.py" "$port" > "$root/loop.out" 2>&1 < /dev/null &
     echo $! > "$root/loop.pid"
     echo "Running in the background (pid $(cat "$root/loop.pid")). Progress: $root/loop.log"
 }
@@ -372,18 +433,18 @@ EOF
 cmd=${1:-}; ds=${2:-}; model=${3:-}
 case "$cmd" in
     setup) setup; exit 0 ;;
-    serve) activate; serve; exit 0 ;;
-    unserve) unserve; exit 0 ;;
+    serve) activate; serve "$ds"; exit 0 ;;
+    unserve) unserve "$ds"; exit 0 ;;
     check) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh check <dataset>"; activate; check; exit 0 ;;
 esac
-[ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh {setup|serve|unserve|pilot|run|status|stop|merge} <dataset> {instruct|thinking}"
+[ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh setup | serve {instruct|thinking} | unserve [instruct|thinking] | {pilot|run|status|stop|merge} <dataset> {instruct|thinking}"
 model_key "$model" >/dev/null
 activate
 CONCURRENCY=${CONCURRENCY:-$(default_concurrency "$ds")}
 
 case "$cmd" in
     pilot|run)
-        healthy "$(port_of "$model")" || die "the $model model is not running; start it with: ./hpc/passk_local.sh serve"
+        healthy "$(port_of "$model")" || die "the $model model is not running; start it with: ./hpc/passk_local.sh serve $model"
         if [ "$ds" = multiswe_v1 ] || [ "$ds" = mimo_v1 ]; then
             free=$(docker_space | tail -1)
             [ "${free:-0}" -ge 500 ] || [ -n "${FORCE_DOCKER_SPACE:-}" ] || die "$ds pulls hundreds of GB of Docker images; Docker's disk has ${free:-?} GB free. Ask your admin to move Docker's data-root to the big disk, or set FORCE_DOCKER_SPACE=1"
@@ -394,7 +455,7 @@ case "$cmd" in
         if [ "$cmd" = pilot ]; then
             name="$ds-$model-pilot"
             prepare "$name" "$model" "$taskdir" --limit 10 --attempts 2
-            start_loop "$name" 1
+            start_loop "$name" 1 "$(port_of "$model")"
         else
             name="$ds-$model-pass$ATTEMPTS"
             prepare "$name" "$model" "$taskdir" --attempts "$ATTEMPTS"
@@ -412,7 +473,7 @@ if seconds:
 else:
     print('No pilot results yet, so no time estimate.')
 EOF
-            start_loop "$name" "$count"
+            start_loop "$name" "$count" "$(port_of "$model")"
         fi ;;
     status|stop|merge)
         kind=${4:-run}
@@ -449,7 +510,11 @@ if attempts:
         print(f'WARNING: attempts with errors {bad_attempts}. Check before going on: grading or the environment may be broken.')
 EOF
                 if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then echo "Running. Last lines of $root/loop.log:"; tail -3 "$root/loop.log" 2>/dev/null || true
-                else echo "Not running."; fi ;;
+                else
+                    echo "Not running."
+                    last=$(tail -1 "$root/loop.log" 2>/dev/null) || last=
+                    [ -z "$last" ] || [[ $last == *"all shards done" ]] || echo "Last line of $root/loop.log: $last"
+                fi ;;
             stop)
                 [ -f "$root/loop.pid" ] || die "not running"
                 kill -- "-$(cat "$root/loop.pid")" 2>/dev/null || true
