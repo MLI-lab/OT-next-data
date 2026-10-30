@@ -39,8 +39,8 @@ def parser():
     ap.add_argument('--path-resolution-report', type=Path, action='append', default=[],
                     help='stage-1 build or stage-2 reference path evidence; repeat for shards/retries')
     ap.add_argument('--fix-repository-leaks', action=argparse.BooleanOptionalAction, default=True,
-                    help='append one final Dockerfile step to the validation copy that prunes git refs/objects '
-                         'beyond HEAD and normalizes repository mtimes; stage-1 leak checks verify it (default: enabled)')
+                    help='normalize repository timestamps after task setup in the validation copy; '
+                         'preserve Git history (default: enabled)')
     ap.add_argument('--fix-instruction-suffix', action=argparse.BooleanOptionalAction, default=True,
                     help='stage-4 fix-up: append/update timeout/anti-cheating suffix before contract hashing (default: enabled)')
     ap.add_argument('--dataset-source', help='immutable source identifier (auto-read from source.json when present)')
@@ -72,15 +72,18 @@ def parser():
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
     ap.add_argument('--attempts', type=int, default=1, help='agent attempts per task in stages 6 and 9 (k of pass@k)')
-    ap.add_argument('--reference-runs', type=int, default=3,
-                    help='stage 2: reference-solution runs per task, each in a fresh container; all must score 1')
-    ap.add_argument('--nop-runs', type=int, default=3,
-                    help='stage 3: no-op runs per task, each in a fresh container; all must score 0')
+    ap.add_argument('--reference-runs', type=int, default=1,
+                    help='stage 2: total reference-solution runs per task (default 1), each in a fresh container; all must score 1')
+    ap.add_argument('--nop-runs', type=int, default=1,
+                    help='stage 3: total no-op runs per task (default 1), each in a fresh container; all must score 0')
+    ap.add_argument('--verifier-tamper', action=argparse.BooleanOptionalAction, default=True,
+                    help='stage 3: one no-op run per task records which container tools grading ran '
+                         '(validation/rules/dynamic/verifier_tamper; default: enabled)')
     ap.add_argument('--nop-shuffled-runs', type=int, default=1,
-                    help='stage 3: extra no-op runs with shuffled Python directory listing order; a test that '
-                         'passes in every normal run but fails shuffled is reported (0 disables)')
-    ap.add_argument('--listing-order-check', choices=('warn', 'fail'), default='warn',
-                    help='stage 3: whether a listing-order finding only warns or fails the task')
+                    help='extra no-op runs with shuffled Python directory listings; final reward must remain 0 (0 disables)')
+    ap.add_argument('--reference-shuffled-runs', type=int, default=1,
+                    help='extra reference runs with shuffled Python listings during the solution and grading; '
+                         'final reward must remain 1 (0 disables)')
     ap.add_argument('--dynamic-do-not-modify', action=argparse.BooleanOptionalAction, default=True,
                     help='stage 2: check protected files in the container and mutate them after the reference '
                          '(validation/rules/dynamic/do_not_modify; default: enabled)')
@@ -246,10 +249,10 @@ def dependency_archive_spec(a):
 
 def check_args(a):
     import math
-    if getattr(a, 'reference_runs', 3) < 1 or getattr(a, 'nop_runs', 3) < 1:
+    if getattr(a, 'reference_runs', 1) < 1 or getattr(a, 'nop_runs', 1) < 1:
         raise ValueError('--reference-runs and --nop-runs must be at least 1')
-    if getattr(a, 'nop_shuffled_runs', 1) < 0:
-        raise ValueError('--nop-shuffled-runs must be nonnegative')
+    if getattr(a, 'nop_shuffled_runs', 1) < 0 or getattr(a, 'reference_shuffled_runs', 1) < 0:
+        raise ValueError('--nop-shuffled-runs and --reference-shuffled-runs must be nonnegative')
     budget = getattr(a, "review_max_budget_usd", 5)
     if not math.isfinite(budget) or budget <= 0:
         raise ValueError("--review-max-budget-usd must be finite and positive")
@@ -507,7 +510,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
         items.append(item)
         try:
             if number == REFERENCE and not (source / 'solution/solve.sh').is_file():
-                item.update(status='skipped', reason='no solution/solve.sh for oracle validation')
+                item.update(status='not_applicable', reason='no solution/solve.sh for oracle validation')
                 continue
             task = source
             if number == 9:
@@ -578,6 +581,18 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
             item['status'] = 'passed'
         if number == 9:
             item['note'] = 'Reward 1 alone does not prove cheating; review trajectories in stage 8.'
+    if number == REFERENCE:
+        passing = [(task, item) for task, item in selected if item.get('status') == 'passed']
+        if passing:
+            try:
+                shuffled = run_shuffled_reference(config, passing, out / 'reference-shuffled-jobs', args)
+                if shuffled is not None:
+                    for task, item in passing:
+                        add_listing_order(item, groups[task.name], shuffled, task, args, expected_reward=1)
+            except Exception as exc:
+                for _, item in passing:
+                    item.update(status='error', listing_order={'status': 'incomplete', 'reason': str(exc)})
+                    item.setdefault('findings', []).append('listing order: ' + str(exc))
     if dynamic_do_not_modify:
         do_not_modify.evaluate_all([(task, item) for task, item in selected if item.get('status') != 'error'],
                                    groups, out, args)
@@ -649,9 +664,24 @@ def run_nop(selected, out, args):
                 from validation.rules.dynamic.do_not_modify import stage as do_not_modify
                 do_not_modify.install()
                 observing = do_not_modify.observing.set(True)
+            tamper_token = None
+            if getattr(args, 'verifier_tamper', False):
+                from validation.rules.dynamic.verifier_tamper import stage as verifier_tamper
+                verifier_tamper.install()
+                tamper_token = verifier_tamper.active.set(set())
+            from validation.stages import reference_leaks
+            reference_leaks.install()
+            scan_requests = reference_leaks.prepare_nop_scans(
+                [task for task, _ in pairs], getattr(args, 'out', out))
+            scan_runtime_token = reference_leaks.scan_runtime.set(reference_leaks.runtime_signature(args))
+            scan_token = reference_leaks.scan_requests.set(scan_requests)
             try:
                 job_dir = asyncio.run(runtime.execute_job(config))
             finally:
+                reference_leaks.scan_requests.reset(scan_token)
+                reference_leaks.scan_runtime.reset(scan_runtime_token)
+                if tamper_token is not None:
+                    verifier_tamper.active.reset(tamper_token)
                 if dynamic_do_not_modify:
                     do_not_modify.observing.reset(observing)
             groups, unmatched = runtime.group_trial_results(
@@ -663,11 +693,17 @@ def run_nop(selected, out, args):
                 prepared = runtime.assess_trials(groups[task.name], args.attempts, 0, args.reward_key, task_path=task,
                                                  oracle_passed=task.name in oracle_passed)
                 prepared['job_dir'] = str(job_dir)
+                prepared['reference_leak_scans'] = [
+                    json.loads((trial / reference_leaks.SCAN_ARTIFACT).read_text())
+                    for trial, _ in groups[task.name]
+                    if (trial / reference_leaks.SCAN_ARTIFACT).is_file()]
                 if unmatched:
                     prepared['status'] = 'failed'
                     prepared['findings'].append(f'unmatched NOP results: {unmatched}')
                 if shuffled is not None:
                     add_listing_order(prepared, groups[task.name], shuffled, task, args)
+                if getattr(args, 'verifier_tamper', False):
+                    add_verifier_tamper(prepared, groups[task.name], task, args)
                 if prepared['status'] == 'completed':
                     prepared['status'] = 'passed'
                 item.update(prepared)
@@ -678,35 +714,62 @@ def run_nop(selected, out, args):
 
 
 def run_shuffled_nop(config, pairs, output, args):
-    """Extra no-op trials with shuffled directory listing order; None when disabled."""
-    runs = getattr(args, 'nop_shuffled_runs', 1)
+    return run_shuffled_trials(config, pairs, output, getattr(args, 'nop_shuffled_runs', 1))
+
+
+def run_shuffled_reference(config, pairs, output, args):
+    return run_shuffled_trials(config, pairs, output, getattr(args, 'reference_shuffled_runs', 1))
+
+
+def run_shuffled_trials(config, pairs, output, runs):
+    """Extra isolated trials; shuffle the reference and verifier Python processes."""
     if not runs:
         return None
     from harbor_patches.verifier_setup import SHUFFLE_LISTING
-    shuffled_config = dict(config, n_attempts=runs, jobs_dir=str(output.resolve()))
+    from harbor_patches.listing_order import install
+    install()
+    shuffled_config = dict(config, n_attempts=runs, jobs_dir=str(output.resolve()),
+                           tasks=[{'path': str(task.resolve())} for task, _ in pairs])
     save(output.parent / (output.name + '.json'), shuffled_config)
     token = SHUFFLE_LISTING.set(True)
     try:
         job_dir = asyncio.run(runtime.execute_job(shuffled_config))
     finally:
         SHUFFLE_LISTING.reset(token)
-    groups, _ = runtime.group_trial_results(runtime.trial_results(job_dir), [task for task, _ in pairs])
-    return {'job_dir': str(job_dir), 'groups': groups}
+    groups, unmatched = runtime.group_trial_results(runtime.trial_results(job_dir), [task for task, _ in pairs])
+    return {'job_dir': str(job_dir), 'groups': groups, 'expected_count': runs, 'unmatched': unmatched}
 
 
-def add_listing_order(prepared, normal, shuffled, task, args):
+def add_verifier_tamper(prepared, rows, task, args):
+    """Reported only: until a dataset is migrated nearly every task would be flagged."""
+    from validation.rules.dynamic.verifier_tamper.stage import EVIDENCE, assess
+    wrapped = [row for row in rows if (Path(row[0]) / EVIDENCE).is_file()]
+    if not wrapped:
+        prepared['verifier_tamper'] = dict(status='incomplete', reason='no run was wrapped', tools=[])
+        return
+    reward = lambda row: (runtime.assess_trials([row], 1, expected_reward=None, task_path=task).get('rewards') or [None])[0]
+    baseline = [reward(row) for row in rows if row not in wrapped] or [0]
+    prepared['verifier_tamper'] = record = assess(Path(wrapped[0][0]), reward(wrapped[0]), baseline)
+    if record['status'] == 'flagged':
+        prepared['findings'].append('warning: verifier tamper: grading ran ' + ', '.join(record['tools'][:10]))
+
+
+def add_listing_order(prepared, normal, shuffled, task, args, *, expected_reward=0):
     from validation.rules.dynamic.nop_baseline.listing_order import compare
-    record = compare(normal, shuffled['groups'][task.name], args.reward_key)
+    trials = shuffled['groups'].get(task.name, [])
+    count = shuffled.get('expected_count', 1)
+    record = compare(normal, trials, args.reward_key, expected_reward=expected_reward, expected_count=count)
+    # Require a valid final reward and no execution failures, but no per-test recorder/report.
+    assessment = runtime.assess_trials(trials, count, expected_reward=None,
+                                       reward_key=args.reward_key, task_path=task, require_execution=False)
+    if assessment['status'] != 'completed' or shuffled.get('unmatched'):
+        record.update(status='incomplete', reason='; '.join(assessment['findings']) or 'unmatched shuffled results')
     record['job_dir'] = shuffled['job_dir']
     prepared['listing_order'] = record
-    if record['status'] != 'flagged':
-        return
-    message = 'listing order: ' + record['reason'] + ': ' + ', '.join(record['tests'][:10])
-    if getattr(args, 'listing_order_check', 'warn') == 'fail':
-        prepared['status'] = 'failed'
-        prepared['findings'].append(message)
-    else:
-        prepared.setdefault('warnings', []).append(message)
+    if record['status'] in ('flagged', 'incomplete'):
+        if record['status'] == 'incomplete' or prepared.get('status') != 'error':
+            prepared['status'] = 'error' if record['status'] == 'incomplete' else 'failed'
+        prepared.setdefault('findings', []).append('listing order: ' + record['reason'])
 
 
 def run_fortify(source, item_dir, args, upstream):
@@ -758,7 +821,7 @@ def run_fortify(source, item_dir, args, upstream):
 
 def stage_runs(number, args):
     """Trials per task for a stage: stage 1 runs once (it retries failed builds itself)."""
-    return {1: 1, REFERENCE: getattr(args, 'reference_runs', 3), NOP: getattr(args, 'nop_runs', 3)}.get(
+    return {1: 1, REFERENCE: getattr(args, 'reference_runs', 1), NOP: getattr(args, 'nop_runs', 1)}.get(
         number, getattr(args, 'attempts', 1))
 
 
@@ -787,6 +850,10 @@ def _run_stage(number, args):
         sources = [path for path in sources if path.name in wanted]
         if {path.name for path in sources} != wanted:
             raise ValueError('materialized tasks do not cover this shard of the contract')
+    static_skipped = []
+    if number in (1, 2, 3, 5, 6, 9, 10):
+        from validation.stages.static_gate import partition
+        sources, static_skipped = partition(sources, args)
     references = None
     suffixes = None
     if number == 5:
@@ -844,7 +911,9 @@ def _run_stage(number, args):
                        concurrency=report['static_concurrency'], **resume_options)
             static = json.loads((out / 'static/summary.json').read_text())
             report['items'] = static['tasks']
-            asyncio.run(run_reference_leak_checks(sources, report['items'], out / 'reference-leaks', args))
+            eligible = {Path(i['task']).name for i in report['items'] if i['status'] == 'passed'}
+            asyncio.run(run_reference_leak_checks([t for t in sources if t.name in eligible],
+                                                  report['items'], out / 'reference-leaks', args))
             if 'resumed_from' in static:
                 report['resumed_from'] = static['resumed_from']
     elif number == 1 and not args.dry_run:
@@ -940,6 +1009,7 @@ def _run_stage(number, args):
                 report['usage'] = summarize_items(report['items'], args.attempts)
             save(report_path, report)
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
+    report['items'].extend(static_skipped)
     report['complete'] = True
     if number == 6 and not args.dry_run:
         report['complete'] = all(i['status'] == 'completed' for i in report['items'])

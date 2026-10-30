@@ -108,9 +108,11 @@ def prepare(args, numbers):
     from validation.rules.static.task_absolute_path.repair import collect_reports
     parent = verify_materialized(args)
     tasks = select_paths(discover_tasks(args.tasks), args)
+    tasks = [t for t in tasks if t.name not in getattr(args, '_static_blocked', {})]
     selected = getattr(args, '_path_candidates', None)
     if selected is None:
         selected = candidates(args, tasks)
+    selected = [t for t in selected if t.name not in getattr(args, '_static_blocked', {})]
     if not selected:
         return
     if getattr(args, 'shard', None):

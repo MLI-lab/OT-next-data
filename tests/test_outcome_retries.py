@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from validation.publishing.publish import judge, reproducibility_text
-from validation.stages.outcome_retries import FORMAT, load_expectations, retry_round
+from validation.publishing.publish import decide, judge, reproducibility_text
+from validation.stages.outcome_retries import FORMAT, load_expectations, mismatch, retry_round
 
 SHA = 'a' * 64
 CRASH = ['trial-1: exception: {"exception_type": "EnvironmentStartTimeoutError"}']
@@ -85,18 +85,27 @@ def test_only_not_run_tasks_are_rerun_and_wrong_rewards_stay_results(tmp_path):
     assert json.loads(stage[2][0].read_text())['outcome_retries']['history']['crash']['outcomes'] == ['not_run', 'not_run', 'passed']
 
 
-def test_task_without_a_result_after_the_last_attempt_is_archived_as_not_robust(tmp_path):
+def test_task_without_a_result_after_the_last_attempt_is_an_infrastructure_error(tmp_path):
     stage = runs(tmp_path, s3=[trial('crash', 'failed', [], CRASH)])
     batches = Scripted({3: {'crash': [trial('crash', 'failed', [], CRASH)] * 3}})
     summary = retry_round(stage, args_for(), contract_for('crash'), batches, saved)
     item = stage[3][1]['items'][0]
     assert len(batches.calls) == 3 and len(item['outcome_attempts']) == 3
-    assert item['not_robust'] == {'expected': 'result', 'observed': ['not_run'] * 4}
+    assert 'not_robust' not in item and item['infrastructure_error'] == {'observed': ['not_run'] * 4}
     outcome, reason = judge(2, item)
-    assert outcome == 'archive' and reason.startswith('not robust: no result in 4 attempts under this infrastructure; '
-                                                      'observed not_run, not_run, not_run, not_run')
+    assert outcome == 'not_run' and reason.startswith('infrastructure error: no result in 4 attempts; no verdict on the task')
     assert reason.endswith('EnvironmentStartTimeoutError"}')      # the observed cause follows
     assert summary[3]['unresolved_not_run'] == ['crash'] and stage[3][1]['has_findings'] is True
+
+
+def test_task_without_a_reference_solution_is_not_retried_or_held_against_it():
+    item = {'task': '/tasks/open', 'status': 'not_applicable', 'reason': 'no solution/solve.sh for oracle validation'}
+    assert judge(2, item) == ('not_applicable', item['reason'])
+    assert not mismatch(2, judge(2, item)[0], None)
+    build = {'stage': 1, 'complete': True, 'items': [{'task': '/tasks/open', 'status': 'passed'}]}
+    reference = {'stage': 2, 'complete': True, 'items': [item]}
+    decision = decide({1: build, 2: reference}, {'open'})['open']
+    assert decision['passed'] == [1] and decision['archive'] is None and 2 not in decision['not_run']
 
 
 def test_recovered_build_lets_blocked_trials_run_in_the_same_round(tmp_path):
@@ -114,7 +123,7 @@ def test_trials_wait_while_the_build_keeps_failing(tmp_path):
     batches = Scripted({1: {'img': [build('img', 'error', 'container start timed out after 600 s')] * 3}})
     retry_round(stage, args_for(), contract_for('img'), batches, saved)
     assert [c[0] for c in batches.calls] == [1, 1, 1]
-    assert judge(1, stage[1][1]['items'][0])[0] == 'archive' and judge(3, stage[2][1]['items'][0])[0] == 'archive'
+    assert judge(1, stage[1][1]['items'][0])[0] == 'not_run' and judge(3, stage[2][1]['items'][0])[0] == 'not_run'
     assert 'no result in 4 attempts' in stage[1][1]['items'][0]['findings'][-1]
     assert 'no result in 1 attempts' in stage[2][1]['items'][0]['findings'][-1]
 

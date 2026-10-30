@@ -157,18 +157,26 @@ def require_complete(reports_dir, contract_path, skipped_stages=None):
 
 
 def build_blocked(stage, item, reports):
-    """A deliberate downstream skip is complete only with matching build evidence."""
-    if stage not in (REFERENCE, NOP) or item.get('status') != 'skipped' or item.get('blocked_by_stage') != 1:
+    """A deliberate skip is complete only with a matching, definitive rejection."""
+    blocker = item.get('blocked_by_stage')
+    allowed = (REFERENCE, NOP) if blocker == 1 else (1, REFERENCE, NOP) if blocker == 4 else ()
+    if stage not in allowed or item.get('status') != 'skipped':
         return False
-    build = reports.get(1, {})
-    return bool(build.get('complete') and not build.get('dry_run') and any(
-        Path(previous['task']).name == Path(item['task']).name and judge(1, previous)[0] == 'archive'
-        for previous in build.get('items', [])))
+    previous_report = reports.get(blocker, {})
+    return bool(previous_report.get('complete') and not previous_report.get('dry_run') and any(
+        Path(previous['task']).name == Path(item['task']).name and judge(blocker, previous)[0] == 'archive'
+        for previous in previous_report.get('items', [])))
 
 
 def judge(stage, item, not_required=()):
-    """(outcome, reason): outcome is 'passed', 'archive' or 'not_run'."""
+    """(outcome, reason): outcome is 'passed', 'archive', 'not_run' or 'not_applicable'."""
     status = item.get('status')
+    if status == 'not_applicable':     # no reference solution: nothing to run, nothing against the task
+        return 'not_applicable', str(item.get('reason') or status)
+    if item.get('infrastructure_error'):
+        from validation.stages.outcome_retries import infrastructure_text
+        cause = next((str(f) for f in item.get('findings', []) if not str(f).startswith('infrastructure error')), '')
+        return 'not_run', infrastructure_text(item['infrastructure_error']['observed']) + ('; ' + cause[:300] if cause else '')
     if item.get('not_robust'):
         from validation.stages.outcome_retries import not_robust_text
         attempts = len(item['not_robust']['observed'])
@@ -246,7 +254,7 @@ def decide(reports, task_ids, not_required=()):
             elif outcome == 'archive':
                 archive = (stage, reason)
                 break
-            elif stage in reports:
+            elif outcome != 'not_applicable' and stage in reports:
                 not_run[stage] = reason
         decisions[task] = {'passed': passed, 'archive': archive, 'not_run': not_run}
     return decisions

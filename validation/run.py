@@ -35,6 +35,8 @@ def main():
 def run_selected(args, numbers):
     if getattr(args, 'prebuild_only', False):
         raise ValueError('--prebuild-only must run through the Slurm image preparation worker')
+    from validation.stages.static_gate import prepare as static_gate
+    static_gate(args, numbers)
     from validation.stages.normalize_paths import prepare as normalize_paths
     from validation.rules.static.pip_pinning.repair import prepare as normalize_pip_pins
     normalize_pip_pins(args, numbers)

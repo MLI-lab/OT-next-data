@@ -6,8 +6,8 @@ without a result are rerun in the stages that produced none, up to
 ``--outcome-retries`` more attempts (stage 1 first, then 2, then 3, so a build
 that recovers lets its trials run in the same round). A wrong reward is a result and
 is not retried; stage 1 itself retries a failed build up to 3 times. A task still without a result after the
-last attempt is archived as not robust under this infrastructure, so one run
-always ends in a decision for every task.
+last attempt is an infrastructure error: retrying did not help, which says nothing
+about the task, so it stays not run and is not archived.
 
 With an expected-outcomes file (``--expected-outcomes``, frozen into the
 contract) the classifier is not used for the tasks it names: the outcome of each
@@ -83,6 +83,8 @@ def retry_round(stage_runs, args, contract, batch_for, save):
     paths = {}
     for n in stages:
         for task, item in by_task(n).items():
+            if item.get('blocked_by_stage') == 4:
+                continue  # Static rejection is not a missing container result to retry.
             paths.setdefault(task, Path(item['task']))
             record = expectation(expected, task)
             history[n][task] = {'mode': 'expected' if record else 'classifier',
@@ -127,8 +129,12 @@ def retry_round(stage_runs, args, contract, batch_for, save):
             entry = history[n][task]
             item = current[task]
             item['status'] = 'failed'
-            item['not_robust'] = {'expected': entry['expected'], 'observed': entry['outcomes']}
-            item.setdefault('findings', []).append(not_robust_text(entry['expected'], entry['outcomes']))
+            if entry['expected'] == 'result':
+                item['infrastructure_error'] = {'observed': entry['outcomes']}
+                item.setdefault('findings', []).append(infrastructure_text(entry['outcomes']))
+            else:
+                item['not_robust'] = {'expected': entry['expected'], 'observed': entry['outcomes']}
+                item.setdefault('findings', []).append(not_robust_text(entry['expected'], entry['outcomes']))
         summaries[n] = summarize(history[n], expected_path, retries, n)
         if expected_file:
             summaries[n]['expected_outcomes_note'] = expected_file.get('note')
@@ -139,10 +145,12 @@ def retry_round(stage_runs, args, contract, batch_for, save):
     return summaries
 
 
+def infrastructure_text(observed):
+    return f'infrastructure error: no result in {len(observed)} attempts; no verdict on the task'
+
+
 def not_robust_text(expected, observed):
     seen = ', '.join(observed)
-    if expected == 'result':
-        return f'not robust: no result in {len(observed)} attempts under this infrastructure; observed {seen}'
     return f'not robust: the earlier audit {expected} this stage; observed {seen} over {len(observed)} attempts'
 
 

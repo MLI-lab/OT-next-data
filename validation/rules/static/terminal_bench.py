@@ -60,6 +60,8 @@ POLICY = {
 }
 PR_ONLY = {'check-task-changelog.sh': 'training tasks do not require Terminal-Bench PR changelogs'}
 TRAINING_EXCLUSIONS = {
+    'check-trial-network-fetch.sh': 'training permits prepared runtimes with installation fallback; static download patterns do not distinguish fallback branches from executed network fetches, and offline compatibility requires execution evidence',
+    'check-verifier-tooling-baked.sh': 'training permits prepared verifier runtimes and local-cache installs so tasks can share base images; tooling need not be baked into each image',
     'check_ai_detection.py': 'AI detection intentionally excluded by user policy (2026-10-26)',
     'check-test-sh-sanity.sh': 'training permits shared system Python and image-installed verifier dependencies; uv is not required, and stages 3/3 check execution',
     'check-separate-verifier.sh': 'training permits grading in the agent environment, including installed packages and changed system state; separate verification is optional',
@@ -79,7 +81,8 @@ AI_CHECK = 'check_ai_detection.py'
 # Our static rules, run as scripts on the task (validation/rules/static/script.py): exit 0 passed,
 # 1 finding, 2 the rule crashed. None are environment checks, so they run in stage 4.
 _STATIC = Path(__file__).parent
-LOCAL_CHECKS = {'check-task-toml-schema.py': _STATIC / 'task_toml_schema.py',
+LOCAL_CHECKS = {'check-agent-editable-test.py': _STATIC / 'agent_editable_test.py',
+                'check-task-toml-schema.py': _STATIC / 'task_toml_schema.py',
                 'check-do-not-modify.py': _STATIC / 'do_not_modify/check.py',
                 'check-no-behavioural-tests.py': _STATIC / 'no_behavioural_tests/check.py',
                 'check-python-missing-imports.py': _STATIC / 'python_missing_imports.py',

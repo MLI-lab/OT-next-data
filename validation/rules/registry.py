@@ -11,7 +11,7 @@ class Rule:
     severity: str  # 'fail' or 'warning'
     module: str    # our code; TB rules run from validation/upstream/terminal_bench via static/terminal_bench.py
     status: str = 'active'  # 'active' (run by the default training profile) or 'adopted' (not yet run by a stage)
-    # All static rules run together in stage 4; dynamic rules in stages 1-3.
+    # Static rules run in stage 4; dynamic rules run where their evidence is available.
     repair: str | None = None  # automatic repair applied before the check
 
 
@@ -25,8 +25,6 @@ RULES = [
     Rule('no-cheat-dir', 'static', 'TB', 'fail', TB),
     Rule('resource-sizes', 'static', 'TB', 'fail', TB),
     Rule('task-timeout', 'static', 'TB', 'fail', TB),
-    Rule('trial-network-fetch', 'static', 'TB', 'fail', TB),
-    Rule('verifier-tooling-baked', 'static', 'TB', 'fail', TB),
     # Terminal-Bench checks with our patch.
     Rule('dockerfile-references', 'static', 'TB patched', 'fail', 'validation.rules.static.dockerfile_references'),
     Rule('dockerfile-sanity', 'static', 'TB patched', 'fail', 'validation.rules.static.dockerfile_sanity'),
@@ -37,6 +35,7 @@ RULES = [
          repair='validation.rules.static.task_absolute_path.repair'),
     Rule('test-file-references', 'static', 'TB patched', 'fail', 'validation.rules.static.test_file_references.check'),
     # Our rules.
+    Rule('agent_editable_test', 'static', 'ours', 'fail', 'validation.rules.static.agent_editable_test'),
     Rule('task-toml-schema', 'static', 'ours', 'fail', 'validation.rules.static.task_toml_schema'),
     Rule('do_not_modify', 'static', 'ours', 'fail', 'validation.rules.static.do_not_modify.check'),
     Rule('no_behavioural_tests', 'static', 'ours', 'fail', 'validation.rules.static.no_behavioural_tests.check'),
@@ -44,5 +43,6 @@ RULES = [
     Rule('artifact_efficiency', 'static', 'ours', 'warning', 'validation.rules.static.artifact_efficiency'),
     Rule('do_not_modify_dynamic', 'dynamic', 'ours', 'fail', 'validation.rules.dynamic.do_not_modify.stage'),
     Rule('reference_leaks', 'dynamic', 'ours', 'fail', 'validation.rules.dynamic.reference_leaks'),
+    Rule('verifier_tamper', 'dynamic', 'ours', 'warning', 'validation.rules.dynamic.verifier_tamper.stage'),
 ]
 BY_NAME = {r.name: r for r in RULES}

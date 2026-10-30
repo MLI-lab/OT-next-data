@@ -26,7 +26,7 @@ class Local:
 
 # Empty home root: the host's /home holds unrelated repositories.
 ENV = {**os.environ, 'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@t',
-       'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@t', 'OT_REPOSITORY_HOME_ROOT': ''}
+       'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@t', 'OT_REPOSITORY_SCAN_ROOT': '.'}
 
 
 def git(repo, *args, when=None):
@@ -64,7 +64,7 @@ def run_repair(repo, report=None):
 
 
 @pytest.mark.parametrize('layout', ['detached', 'branch-reset'])
-def test_repair_removes_newer_refs_and_objects_and_keeps_ancestor_tags(tmp_path, layout):
+def test_normalization_preserves_all_git_metadata_and_normalizes_timestamps(tmp_path, layout):
     clone = tmp_path / 'clone'
     git(tmp_path, 'clone', '-q', str(upstream(tmp_path)), str(clone))
     if layout == 'detached':
@@ -73,7 +73,8 @@ def test_repair_removes_newer_refs_and_objects_and_keeps_ancestor_tags(tmp_path,
         git(clone, 'reset', '-q', '--hard', 'HEAD~1')
     git(clone, 'stash', 'list')
     before = history(clone)['repository-history-leak']
-    assert before['status'] == 'failed'
+    assert before['status'] == 'warning'
+    metadata = {str(p.relative_to(clone)): p.read_bytes() for p in (clone / '.git').rglob('*') if p.is_file()}
 
     os.utime(clone / 'm3.py', (2_000_000_000, 2_000_000_000))
     assert 'done' in run_repair(clone, tmp_path / 'report.json')
@@ -81,16 +82,18 @@ def test_repair_removes_newer_refs_and_objects_and_keeps_ancestor_tags(tmp_path,
     report = json.loads((tmp_path / 'report.json').read_text())
     repo, = report['repositories']
     assert report['git'] and repo['path'] == str(clone) and repo['status'] == 'done'
-    assert repo['refs_deleted'] == len(repo['refs_deleted_examples']) >= 3
-    assert {'refs/tags/v1.1', 'refs/remotes/origin/main'} <= set(repo['refs_deleted_examples'])
+    assert repo['refs_deleted'] == 0 and repo['refs_deleted_examples'] == []
+    assert repo['history_preserved']
+    assert metadata == {str(p.relative_to(clone)): p.read_bytes() for p in (clone / '.git').rglob('*') if p.is_file()}
+    assert int((clone / 'm3.py').stat().st_mtime) == 1_600_000_000
     assert repo['mtime_outlier'] is True and repo['mtime_examples'] == ['m3.py'] and repo['mtime_later'] == 1
-    assert set(repo['unreachable_before']) == {'commit', 'blob'}
+    assert 'unreachable_before' not in repo  # history inspection is separate from timestamp repair
     checks = history(clone)
-    assert checks['repository-history-leak']['status'] == 'passed', checks['repository-history-leak']['reason']
+    assert checks['repository-history-leak']['status'] == 'warning', checks['repository-history-leak']['reason']
     assert checks['repository-mtime-leak']['status'] == 'passed'
     refs = git(clone, 'for-each-ref', '--format=%(refname)').split()
     assert {'refs/tags/v1.0', 'refs/tags/light-1.0'} <= set(refs)
-    assert not {'refs/tags/v1.1', 'refs/remotes/origin/main', 'refs/remotes/origin/feature'} & set(refs)
+    assert {'refs/tags/v1.1', 'refs/remotes/origin/main', 'refs/remotes/origin/feature'} <= set(refs)
     if layout == 'branch-reset':
         assert git(clone, 'symbolic-ref', 'HEAD').strip() == 'refs/heads/main'
     assert git(clone, 'describe', '--tags').strip() in ('v1.0', 'light-1.0')
@@ -99,7 +102,7 @@ def test_repair_removes_newer_refs_and_objects_and_keeps_ancestor_tags(tmp_path,
     head = git(clone, 'rev-parse', 'HEAD')
     run_repair(clone)
     assert git(clone, 'rev-parse', 'HEAD') == head
-    assert history(clone)['repository-history-leak']['status'] == 'passed'
+    assert history(clone)['repository-history-leak']['status'] == 'warning'
 
 
 def test_repair_is_a_no_op_without_repository_or_git(tmp_path):
@@ -107,10 +110,10 @@ def test_repair_is_a_no_op_without_repository_or_git(tmp_path):
     work = tmp_path / 'work'
     work.mkdir()
     assert run_repair(work, tmp_path / 'none.json') == ''
-    assert json.loads((tmp_path / 'none.json').read_text()) == {'version': 1, 'git': True, 'repositories': []}
+    assert json.loads((tmp_path / 'none.json').read_text()) == {'version': 3, 'git': True, 'discovery_status': 'completed', 'repositories': []}
     result = subprocess.run(['/bin/sh', '-c', 'PATH=/nonexistent; ' + repository_repair.SCRIPT], cwd=work,
                             env={'PATH': '/usr/bin:/bin', 'OT_REPOSITORY_REPAIR_REPORT': str(tmp_path / 'nogit.json'),
-                                 'OT_REPOSITORY_HOME_ROOT': ''},
+                                 'OT_REPOSITORY_SCAN_ROOT': '.'},
                             capture_output=True, text=True)
     assert result.returncode == 0 and 'no git' in result.stdout
     assert json.loads((tmp_path / 'nogit.json').read_text())['git'] is False
@@ -183,7 +186,7 @@ def test_flag_controls_the_validation_copy(tmp_path, monkeypatch, enabled):
 
 def test_leak_that_survives_the_repair_is_labelled_after_repair():
     from validation.publishing import outcome_labels, publish
-    leaks = {'status': 'failed', 'repair': {'version': 1, 'git': True, 'repositories': []},
+    leaks = {'status': 'failed', 'repair': {'version': 3, 'git': True, 'discovery_status': 'completed', 'repositories': []},
              'checks': [{'check': 'repository-history-leak', 'status': 'failed', 'reason': '/testbed: 2 unreachable blobs'},
                         {'check': 'repository-mtime-leak', 'status': 'passed', 'reason': 'ok'}]}
     status, reason = environment.leak_verdict({'leaks': leaks})
@@ -215,7 +218,7 @@ def test_tasks_with_setup_get_the_repair_after_setup_and_keep_their_dockerfile()
     assert repository_repair.repair_files(clash)[1]['status'] == 'not_applied'
 
 
-def test_setup_checkout_of_release_branch_commit_survives_and_future_is_removed(tmp_path):
+def test_setup_checkout_and_other_branches_survive_normalization(tmp_path):
     """Shared image at main; the task commit lives only on a release branch."""
     repo = upstream(tmp_path)
     base = git(repo, 'rev-list', '--max-parents=0', 'HEAD').strip()
@@ -233,14 +236,14 @@ def test_setup_checkout_of_release_branch_commit_survives_and_future_is_removed(
     subprocess.run(['bash', '-c', wrapper], cwd=repo, env=env, check=True, capture_output=True)
     assert git(repo, 'rev-parse', 'HEAD').strip() == task
     fix = subprocess.run(['git', 'log', '--all', '--format=%s'], cwd=repo, capture_output=True, text=True).stdout
-    assert 'the fix' not in fix and 'backport' in fix
+    assert 'the fix' in fix and 'backport' in fix
     checks = history(repo)
-    assert checks['repository-history-leak']['status'] == 'passed', checks['repository-history-leak']
+    assert checks['repository-history-leak']['status'] == 'warning', checks['repository-history-leak']
     assert checks['repository-mtime-leak']['status'] == 'passed', checks['repository-mtime-leak']
 
 
 @pytest.mark.parametrize('layout', ['detached', 'branch-reset'])
-def test_setup_script_removes_the_same_refs_as_the_build_step(tmp_path, layout):
+def test_setup_and_direct_normalization_preserve_the_same_refs(tmp_path, layout):
     results = []
     for script in (repository_repair.SCRIPT, repository_repair.SETUP_SCRIPT):
         root = tmp_path / str(len(results))
@@ -317,20 +320,20 @@ def unborn_with_dangling_commit(tmp_path):
 
 
 @pytest.mark.parametrize('script', ['SCRIPT', 'SETUP_SCRIPT'])
-def test_unborn_branch_with_dangling_commit_is_found_and_repaired(tmp_path, script):
+def test_unborn_branch_with_dangling_commit_is_warned_and_preserved(tmp_path, script):
     repo = unborn_with_dangling_commit(tmp_path)
     before = history(repo)['repository-history-leak']
-    assert before['status'] == 'failed' and before['repositories'][str(repo)]['unborn'] == 'refs/heads/master'
+    assert before['status'] == 'warning' and before['repositories'][str(repo)]['unborn'] == 'refs/heads/master'
     assert history(repo)['repository-mtime-leak']['repositories'][str(repo)]['status'] == 'not_checked'
     env = dict(ENV, OT_REPOSITORY_REPAIR_REPORT=str(tmp_path / 'report.json'))
     subprocess.run(['sh', '-c', getattr(repository_repair, script)], cwd=repo, env=env, check=True, capture_output=True)
     report = json.loads((tmp_path / 'report.json').read_text())['repositories'][0]
-    assert report['unreachable_before']['commit'] == 1 and report['status'] == 'done'
-    assert history(repo)['repository-history-leak']['status'] == 'passed'
+    assert report['history_preserved'] and report['status'] == 'done'
+    assert history(repo)['repository-history-leak']['status'] == 'warning'
     assert git(repo, 'ls-files').split() == ['kept.py']
 
 
-def test_stale_commit_graph_naming_pruned_commits_is_removed(tmp_path):
+def test_stale_commit_graph_is_not_modified_and_inspection_remains_incomplete(tmp_path):
     """MiMo 000306: a read-only commit-graph lists commits whose objects are gone."""
     repo = tmp_path / 'graph'
     repo.mkdir()
@@ -346,8 +349,10 @@ def test_stale_commit_graph_naming_pruned_commits_is_removed(tmp_path):
     git(repo, '-c', 'gc.writeCommitGraph=false', 'gc', '--prune=now', '-q')
     (repo / '.git/objects/info/commit-graph').chmod(0o444)
     assert history(repo)['repository-history-leak']['status'] == 'error'
+    graph = (repo / '.git/objects/info/commit-graph').read_bytes()
     run_repair(repo)
-    assert history(repo)['repository-history-leak']['status'] == 'passed'
+    assert (repo / '.git/objects/info/commit-graph').read_bytes() == graph
+    assert history(repo)['repository-history-leak']['status'] == 'error'
 
 
 def test_repository_below_home_is_found_and_repaired(tmp_path):
@@ -360,13 +365,13 @@ def test_repository_below_home_is_found_and_repaired(tmp_path):
     work.mkdir()
     report = asyncio.run(environment.inspect_leaks(Local(work), roots=(), home=str(home)))
     history = report['checks'][0]
-    assert history['status'] == 'failed' and str(clone) in history['repositories']
-    env = dict(ENV, OT_REPOSITORY_REPAIR_REPORT=str(tmp_path / 'report.json'), OT_REPOSITORY_HOME_ROOT=str(home))
+    assert history['status'] == 'warning' and str(clone) in history['repositories']
+    env = dict(ENV, OT_REPOSITORY_REPAIR_REPORT=str(tmp_path / 'report.json'), OT_REPOSITORY_SCAN_ROOT=str(home))
     result = subprocess.run(['sh', '-ec', repository_repair.SETUP_SCRIPT], cwd=work, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert json.loads((tmp_path / 'report.json').read_text())['repositories'][0]['path'] == str(clone)
     report = asyncio.run(environment.inspect_leaks(Local(work), roots=(), home=str(home)))
-    assert report['checks'][0]['status'] == 'passed'
+    assert report['checks'][0]['status'] == 'warning'
 
 
 def test_unreadable_directory_below_home_does_not_fail_the_setup(tmp_path):
@@ -380,7 +385,7 @@ def test_unreadable_directory_below_home_does_not_fail_the_setup(tmp_path):
     locked.mkdir(mode=0)
     work = tmp_path / 'work'
     work.mkdir()
-    env = dict(ENV, OT_REPOSITORY_REPAIR_REPORT=str(tmp_path / 'report.json'), OT_REPOSITORY_HOME_ROOT=str(home))
+    env = dict(ENV, OT_REPOSITORY_REPAIR_REPORT=str(tmp_path / 'report.json'), OT_REPOSITORY_SCAN_ROOT=str(home))
     try:
         result = subprocess.run(['sh', '-ec', repository_repair.SETUP_SCRIPT], cwd=work, env=env,
                                 capture_output=True, text=True)
@@ -390,16 +395,78 @@ def test_unreadable_directory_below_home_does_not_fail_the_setup(tmp_path):
     assert json.loads((tmp_path / 'report.json').read_text())['repositories'][0]['path'] == str(clone)
 
 
-def test_task_whose_history_is_input_is_not_repaired_and_not_passed(tmp_path):
+def test_history_input_flag_preserves_warning_and_does_not_disable_timestamp_normalization(tmp_path):
     files = {'task.toml': f'[metadata]\n{environment.HISTORY_INPUT_KEY} = true\n'.encode(),
              'environment/Dockerfile': b'FROM example\n', repository_repair.SETUP: b'#!/bin/bash\ngit init\n'}
     repaired, record = repository_repair.repair_files(files)
-    assert repaired == files and record['status'] == 'not_applied'
+    assert repaired != files and record['status'] == 'applied'
+    assert repaired[repository_repair.TASK_SETUP] == files[repository_repair.SETUP]
     repo = tmp_path / 'repo'
     git(tmp_path, 'clone', '-q', str(upstream(tmp_path)), str(repo))
     git(repo, 'reset', '-q', '--hard', 'HEAD~1')
     report = asyncio.run(environment.inspect_leaks(Local(repo), roots=(), home=None, history_is_input=True))
     history = report['checks'][0]
-    assert report['status'] == history['status'] == 'not_checked'
-    assert history['observation'].startswith('failed: ')
+    assert report['status'] == history['status'] == 'warning'
+    assert history['history_is_task_input']
+    os.utime(repo / 'm3.py', (2_000_000_000, 2_000_000_000))
+    run_repair(repo)
+    assert int((repo / 'm3.py').stat().st_mtime) == 1_600_000_000
     assert environment.leak_verdict({'leaks': report}) is None
+
+
+@pytest.mark.parametrize('has_original_setup', [False, True])
+def test_previous_destructive_generated_wrapper_is_replaced(has_original_setup):
+    old = ('#!/bin/bash\n' + repository_repair.SETUP_MARKER +
+           '\nset -e\ngit reflog expire --expire=now --all\ngit gc --prune=now\n').encode()
+    files = {repository_repair.SETUP: old}
+    if has_original_setup:
+        files[repository_repair.TASK_SETUP] = b'#!/bin/bash\ngit checkout feature\n'
+    repaired, record = repository_repair.repair_files(files)
+    expected = repository_repair.setup_wrapper() if has_original_setup else repository_repair.cleanup_setup()
+    assert repaired[repository_repair.SETUP] == expected.encode()
+    assert b'git gc' not in repaired[repository_repair.SETUP]
+    assert b'reflog expire' not in repaired[repository_repair.SETUP]
+    if has_original_setup:
+        assert repaired[repository_repair.TASK_SETUP] == files[repository_repair.TASK_SETUP]
+    assert repository_repair.repair_files(repaired)[0] == repaired
+
+
+def test_advisory_history_does_not_archive_task_and_has_warning_label(tmp_path, monkeypatch):
+    from validation.stages import environment_preflight
+    from validation.publishing import outcome_labels, publish
+    repo = upstream(tmp_path)
+    git(repo, 'reset', '-q', '--hard', 'HEAD~1')
+    run_repair(repo)
+    observed = asyncio.run(environment.inspect_leaks(Local(repo), roots=(), home=None))
+    assert observed['status'] == 'warning'
+    async def build(selected, out, args, outcomes):
+        return [{'task': str(repo), 'status': 'passed', 'environments': [
+            {'environment': 'agent', 'status': 'passed', 'leaks': observed}]}]
+    monkeypatch.setattr('validation.stages.build_retries.run_builds', build)
+    item, = environment_preflight.run_build_stage([repo], tmp_path, SimpleNamespace())
+    assert item['status'] == 'passed' and 'environment_leak' not in item
+    assert outcome_labels.labels(1, item) == ['warning:repository-history-leak']
+    assert publish.judge(1, item)[0] == 'passed'
+
+
+def test_normalization_recursively_finds_repository_outside_workdir(tmp_path):
+    root = tmp_path / 'container'
+    parent = root / 'opt/custom/a/b/c/d/e/f/g'
+    parent.mkdir(parents=True)
+    repo = upstream(parent)
+    git(repo, 'reset', '-q', '--hard', 'HEAD~1')
+    work = root / 'work'
+    work.mkdir()
+    (root / 'alias').symlink_to(repo, target_is_directory=True)
+    (root / 'loop').symlink_to(root, target_is_directory=True)
+    os.utime(repo / 'm3.py', (2_000_000_000, 2_000_000_000))
+    refs = git(repo, 'show-ref')
+    target = tmp_path / 'report.json'
+    env = dict(ENV, OT_REPOSITORY_SCAN_ROOT=str(root), OT_REPOSITORY_REPAIR_REPORT=str(target))
+    subprocess.run(['sh', '-ec', repository_repair.SCRIPT], cwd=work, env=env,
+                   check=True, capture_output=True, text=True)
+    report = json.loads(target.read_text())
+    assert report['discovery_status'] == 'completed'
+    assert [r['path'] for r in report['repositories']] == [str(repo)]
+    assert int((repo / 'm3.py').stat().st_mtime) == 1_600_000_000
+    assert git(repo, 'show-ref') == refs

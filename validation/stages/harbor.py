@@ -556,35 +556,42 @@ def reference_explains_build_errors(invocation, task_path):
     return True
 
 
-def expected_baseline_failure(path, result, task_path, oracle_passed, reward_key):
-    """Accept a proven solution-related failure without inventing a reward."""
-    if not oracle_passed:
-        return None
+# Raised inside the verifier: its script ended without a usable reward.
+VERIFIER_CRASHES = ('VerifierRuntimeError', 'RewardFileNotFoundError', 'RewardFileEmptyError', 'VerifierOutputParseError')
+
+
+def tests_ran(path, verifier):
+    """The recorder or the verifier's own CTRF report shows executed tests in this trial."""
+    from validation.stages.execution_evidence import MANIFEST, ctrf_executed, scope_output
+    if ctrf_executed(path):
+        return True
+    try:
+        token = json.loads((path / 'verifier' / MANIFEST).read_text())['token']
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return any(i['executed'] for i in scope_output(verifier_output(path, verifier), token)[1])
+
+
+# In the output of a verifier that shows no executed tests: the run itself died, not the task's check.
+NOP_RESOURCE_FAILURE = re.compile(r'out of memory|memory limit|oomkill|\boom[- ]killed\b|\bkilled\b|no space left', re.I)
+
+
+def valid_nop_zero(path, result, reward_key):
+    """A no-op zero, also when the verifier crashes or writes no reward: many verifiers need
+    something the agent creates to run at all.
+
+    Container, node and timeout errors are excluded: there the tests had no chance to run.
+    """
     exception = result.get('exception_info') or {}
-    if exception.get('exception_type') not in (None, 'VerifierRuntimeError', 'RewardFileNotFoundError'):
+    if exception.get('exception_type') not in (None, *VERIFIER_CRASHES):
         return None
     verifier = result.get('verifier_result') or {}
     reward = (verifier.get('rewards') or {}).get(reward_key)
     if reward is not None and (isinstance(reward, bool) or reward != 0):
         return None
-    output = verifier_output(path, verifier)
-    if baseline_infra_error(output):
+    if NOP_RESOURCE_FAILURE.search(verifier_output(path, verifier)) and not tests_ran(path, verifier):
         return None
-    # This validates the current token and every invocation, including mixed
-    # successful/failing packages; incomplete execution never qualifies.
-    if nop_execution_problem(path, verifier, task_path, 0, oracle_passed=True):
-        return None
-    from validation.stages.execution_evidence import MANIFEST, scope_output
-    token = json.loads((path / 'verifier' / MANIFEST).read_text())['token']
-    _, invocations, _ = scope_output(output, token)
-    failures = [i for i in invocations if i['collection_errors'] or i['setup_errors']]
-    if not failures:
-        return None
-    if not all(reference_explains_build_errors(i, task_path)
-               or reference_explains_errors(output, task_path, 'collecting')
-               or reference_explains_errors(output, task_path, 'at setup of') for i in failures):
-        return None
-    return {'trial': str(path), 'reason': 'solution-related build/import failure with passing paired reference',
+    return {'trial': str(path), 'reason': 'no-op zero without a usable reward from the verifier',
             'observed_reward': reward, 'exception_info': exception or None}
 
 
@@ -594,7 +601,7 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
     Runners without evidence need an adapter or a fresh instrumented run. Do not
     silently certify a reward-zero wrapper that may never have run its tests.
     """
-    from validation.stages.execution_evidence import MANIFEST, scope_output
+    from validation.stages.execution_evidence import MANIFEST, ctrf_executed, scope_output
     context = path / 'verifier' / MANIFEST
     if not context.is_file():
         return 'verifier execution evidence is missing; rerun with an instrumented runner'
@@ -606,15 +613,19 @@ def nop_execution_problem(path, verifier, task_path=None, expected_reward=None, 
     except (ValueError, KeyError, TypeError):
         return 'invalid verifier execution context'
     output = verifier_output(path, verifier)
-    if expected_reward == 0 and baseline_infra_error(output):
-        return 'verifier invocation failed: baseline resource or infrastructure failure requires review or retry'
     _, invocations, problem = scope_output(output, token)
+    # Words like "timeout" in the failures of tests that ran are the tests' own output.
+    if expected_reward == 0 and baseline_infra_error(output) and not tests_ran(path, verifier):
+        return 'verifier invocation failed: baseline resource or infrastructure failure requires review or retry'
     if problem:
         if (problem == 'verifier invocation did not finish'
                 and 'Fatal Python error: Segmentation fault' in output):
             return 'verifier process crashed with a segmentation fault; execution evidence is incomplete'
         return problem
     if not invocations:
+        if ctrf_executed(path):
+            # pytest's own report: the recorder is not in an interpreter uvx creates during the call.
+            return None
         if expected_reward == 0:
             from validation.rules.dynamic.nop_baseline.fineenvs_verifier import missing_answer_checked
             if missing_answer_checked(output, task_path, oracle_passed):
@@ -709,19 +720,24 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
         findings.append(f'expected {expected_count} trials, found {len(results)}')
     scores = []
     for path, result in results:
-        negative = (expected_baseline_failure(path, result, task_path, oracle_passed, reward_key)
-                    if expected_reward == 0 and require_execution else None)
-        if negative:
-            expected_baseline_failures.append(negative)
-            if negative['observed_reward'] is not None:
-                scores.append(negative['observed_reward'])
-            continue
         missing = (nop_missing_instruction_files(path, result, task_path, reward_key)
                    if expected_reward == 0 else [])
         if missing:
             scores.append(0)
             missing_file_zeros.append({'trial': str(path), 'paths': missing,
                                        'reason': 'verifier FileNotFoundError for a path mentioned in instruction.md'})
+            continue
+        zero = (valid_nop_zero(path, result, reward_key)
+                if expected_reward == 0 and require_execution else None)
+        if zero:
+            if zero['observed_reward'] is None or zero['exception_info']:
+                expected_baseline_failures.append(zero)
+            # Not a verdict: lets a later audit count the zeros without proof that tests ran.
+            problem = nop_execution_problem(path, result.get('verifier_result') or {}, task_path, 0, oracle_passed)
+            if problem:
+                notes.append(f'{path.name}: accepted zero: {problem}')
+            if zero['observed_reward'] is not None:
+                scores.append(zero['observed_reward'])
             continue
         if result.get('exception_info'):
             findings.append(f'{path.name}: exception: {result["exception_info"]}')
@@ -734,16 +750,11 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
         # Reference acceptance uses the actual numeric reward and trial errors,
         # not recorder coverage. Verifiers can launch a fresh uvx interpreter
         # that misses our hooks, or record an auxiliary command with no tests.
-        # Keep execution artifacts for diagnostics; no-op assessment has its
-        # own checks and still rejects an unconditional reward of one.
-        if require_execution and expected_reward == 0:
-            problem = nop_execution_problem(path, verifier, task_path, expected_reward, oracle_passed)
-            if problem:
-                findings.append(f'{path.name}: {problem}')
-            elif oracle_passed and expected_reward == 0:
-                strict = nop_execution_problem(path, verifier, task_path, expected_reward)
-                if strict:
-                    notes.append(f'{path.name}: {strict}; accepted because the reference run of this job executed the suite')
+        # Keep execution artifacts for diagnostics; the no-op baseline
+        # rejects an unconditional reward of one.
+        rewarded = (verifier.get('rewards') or {}).get(reward_key)
+        if require_execution and expected_reward == 0 and (rewarded is None or rewarded == 0):
+            findings.append(f'{path.name}: verifier invocation failed: baseline resource or infrastructure failure requires review or retry')
         rewards = verifier.get('rewards') or {}
         score = rewards.get(reward_key)
         if not isinstance(score, (int, float)) or isinstance(score, bool) or not math.isfinite(score):

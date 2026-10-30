@@ -21,6 +21,8 @@ def execution_label(item):
 
 
 def labels(stage, item, not_required=()):
+    if item.get('infrastructure_error'):
+        return ['infrastructure-error']
     static = item.get('environment_static') if stage == 1 else None
     if static:
         found = _labels(4, static, not_required)
@@ -58,7 +60,11 @@ def _labels(stage, item, not_required=()):
             attempts = item.get('build_attempts', [])
             cause = execution_label(attempts[0]) if attempts else None
             return ['infra-recovered' if cause == 'infrastructure-error' else 'build-recovered']
-        return [] if item.get('status') == 'passed' else ['build-execution-error']
+        if item.get('status') == 'passed':
+            return sorted({'warning:' + c['check']
+                           for e in item.get('environments', []) if e.get('environment') == 'agent'
+                           for c in (e.get('leaks') or {}).get('checks', []) if c['status'] == 'warning'})
+        return ['build-execution-error']
     if stage not in (REFERENCE, NOP):
         return []
     if item.get('blocked_by_stage') == 1:

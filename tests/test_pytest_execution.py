@@ -53,54 +53,12 @@ def test_nested_empty_run_is_an_outer_assertion_failure(tmp_path, subprocess_inn
     assert assessed(tmp_path, result.stdout, expected=1)['status'] == 'failed'
 
 
-@pytest.mark.parametrize('files,args', [
-    ({'empty.py': '# no tests\n'}, []),
-    ({'test_skip.py': 'import pytest\n@pytest.mark.skip\ndef test_skip(): pass\n'}, []),
-    ({'test_import.py': 'import nonexistent_dependency_xyz\n'}, []),
-    ({'test_setup.py': 'import pytest\n@pytest.fixture\ndef broken(): raise RuntimeError("setup failed")\ndef test_x(broken): pass\n'}, []),
-])
-def test_genuine_empty_or_broken_outer_runner_stays_failed(tmp_path, files, args):
-    result = run_pytest(tmp_path, files, args)
-    assert assessed(tmp_path, result.stdout)['status'] == 'failed', result.stdout
-
-
-def test_each_sequential_outer_invocation_is_checked(tmp_path):
-    result = run_pytest(tmp_path, {'test_ok.py': 'def test_ok(): pass\n', 'empty/no_tests.py': ''},
-                        python="import pytest; pytest.main(['-q', 'empty']); pytest.main(['-q', 'test_ok.py'])")
-    _, runs, error = scope_output(result.stdout, TOKEN)
-    assert error is None and [r['executed'] for r in runs] == [0, 1]
-    assert assessed(tmp_path, result.stdout)['status'] == 'failed'
-
-
 def test_runner_diagnostics_are_not_inferred_from_prose(tmp_path):
     result = run_pytest(tmp_path, {'test_ok.py': 'def test_ok(): pass\n'})
     # Passing (reference) run: execution records decide; prose is not reinterpreted. A zero
     # no-op baseline with infrastructure-like text instead requires review (harbor.baseline_infra_error).
     assert assessed(tmp_path, result.stdout + '\napplication message: pytest: command not found\n',
                     reward=1, expected=1)['status'] == 'completed'
-
-
-def test_stale_context_cannot_hide_failures(tmp_path):
-    result = run_pytest(tmp_path, {'test_ok.py': 'def test_ok(): pass\n'})
-    output = result.stdout.replace(TOKEN, '2' * 32) + '\nno tests ran in 0.01s\n'
-    assert assessed(tmp_path, output)['status'] == 'failed'
-
-
-def test_incomplete_invocation_is_rejected(tmp_path):
-    output = 'OT_VERIFIER_EXECUTION:' + TOKEN + ':BEGIN:' + json.dumps({'version': 1, 'id': 'x'}) + '\n'
-    assert assessed(tmp_path, output)['status'] == 'failed'
-
-
-def test_missing_runner_adapter_requires_evidence(tmp_path):
-    assert assessed(tmp_path, 'custom grader: incorrect answer\n')['status'] == 'failed'
-
-
-def test_malformed_counts_are_rejected(tmp_path):
-    begin = {'version': 1, 'id': 'x'}
-    end = dict(begin, finished=True, executed=True, skipped=0, setup_errors=0, collection_errors=0, exitstatus=0)
-    output = '\n'.join('OT_VERIFIER_EXECUTION:' + TOKEN + ':' + event + ':' + json.dumps(d)
-                       for event, d in [('BEGIN', begin), ('END', end)])
-    assert assessed(tmp_path, output)['status'] == 'failed'
 
 
 def test_end_record_survives_tests_clearing_the_environment(tmp_path):

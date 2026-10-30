@@ -252,6 +252,7 @@ def prepare(args, numbers):
     from validation.stages.runner import save
     parent = verify_materialized(args)
     tasks = select_paths(discover_tasks(args.tasks), args)
+    tasks = [t for t in tasks if t.name not in getattr(args, '_static_blocked', {})]
     out = args.out.resolve() / 'pip-normalization' / uuid4().hex[:12]
     if any(out.is_relative_to(task.resolve()) for task in tasks):
         raise ValueError('--out must be outside source task directories')

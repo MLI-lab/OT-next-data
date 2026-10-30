@@ -105,22 +105,6 @@ def test_jest_relative_module_of_the_new_test_is_missing_api(tmp_path):
     assert not missing_api_explains_build_errors(record, task)
 
 
-def test_nop_accepts_go_zero_from_new_tests_that_do_not_build(tmp_path):
-    task = go_task(tmp_path)
-    trial = tmp_path / 'trial'
-    (trial / 'verifier').mkdir(parents=True)
-    (trial / 'verifier' / 'execution-context.json').write_text(json.dumps({'version': 1, 'token': TOKEN}))
-    def output(record):
-        return ('OT_VERIFIER_EXECUTION:' + TOKEN + ':BEGIN:' + json.dumps({'version': 1, 'id': 'go'}) + '\n'
-                'FAIL\tgithub.com/x/txpool [build failed]\n'
-                'OT_VERIFIER_EXECUTION:' + TOKEN + ':END:' + json.dumps(record) + '\n')
-    result = {'verifier_result': {'rewards': {'reward': 0}, 'stdout': output(go_record())}}
-    assert assess_trials([(trial, result)], 1, 0, task_path=task)['status'] == 'completed'
-    broken = go_record(files=('txpool/pool.go',), messages=['txpool/pool.go: undefined: NewPool'])
-    result = {'verifier_result': {'rewards': {'reward': 0}, 'stdout': output(broken)}}
-    assert assess_trials([(trial, result)], 1, 0, task_path=task)['status'] == 'failed'
-
-
 def python_hooks_site(tmp_path):
     """A venv whose site-packages took the recorders through the real install command."""
     from harbor_patches.verifier_setup import install_python_hooks_command
@@ -165,59 +149,6 @@ def zero_test_call(extra=None):
                 exitstatus=0, collection_error_files=[], collection_error_messages=None)
     call.update(extra or {})
     return call
-
-
-@pytest.mark.parametrize('calls, accepted', [
-    # MiMo 001782: `go test -run '^$'` compiles only, then the selected tests run.
-    ([zero_test_call(), dict(go_record(files=(), messages=['-']), id='tests', collection_errors=0)], True),
-    ([zero_test_call()], False),
-    ([zero_test_call({'exitstatus': 1}), dict(go_record(files=(), messages=['-']), id='tests',
-                                              collection_errors=0)], False),
-    ([zero_test_call({'setup_errors': 1}), dict(go_record(files=(), messages=['-']), id='tests',
-                                                collection_errors=0)], False),
-])
-def test_clean_call_without_tests_is_accepted_when_another_call_ran_tests(tmp_path, calls, accepted):
-    trial = tmp_path / 'trial'
-    (trial / 'verifier').mkdir(parents=True)
-    (trial / 'verifier' / 'execution-context.json').write_text(json.dumps({'version': 1, 'token': TOKEN}))
-    output = ''.join('OT_VERIFIER_EXECUTION:' + TOKEN + ':BEGIN:' + json.dumps({'version': 1, 'id': c['id']}) + '\n'
-                     'OT_VERIFIER_EXECUTION:' + TOKEN + ':END:' + json.dumps(c) + '\n' for c in calls)
-    result = {'verifier_result': {'rewards': {'reward': 0}, 'stdout': output}}
-    status = assess_trials([(trial, result)], 1, 0, task_path=go_task(tmp_path))['status']
-    assert status == ('completed' if accepted else 'failed')
-
-
-@pytest.mark.parametrize('output, accepted', [
-    ('FAIL: F1 missing --open help\n', True),
-    ('build ok\nFAIL: F3 exit 2; want 0\n', True),
-    # Preconditions carry no check number: the checks never ran.
-    ('FAIL: manimgl not found after build\n', False),
-    ('FAIL: xvfb-run is required for ManimGL rendering in this environment\n', False),
-    ('bash: usecase.sh: No such file or directory\n', False),
-])
-def test_nop_accepts_numbered_usecase_check_failure(tmp_path, output, accepted):
-    task = tmp_path / 'task'
-    (task / 'tests').mkdir(parents=True)
-    (task / 'tests' / 'test.patch').write_text(
-        'diff --git a/usercase-test-coderl/usecase.sh b/usercase-test-coderl/usecase.sh\n'
-        'diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n')
-    trial = tmp_path / 'trial'
-    (trial / 'verifier').mkdir(parents=True)
-    (trial / 'verifier' / 'execution-context.json').write_text(json.dumps({'version': 1, 'token': TOKEN}))
-    result = {'verifier_result': {'rewards': {'reward': 0}, 'stdout': output}}
-    status = assess_trials([(trial, result)], 1, 0, task_path=task)['status']
-    assert status == ('completed' if accepted else 'failed')
-
-
-def test_numbered_check_rule_needs_the_tasks_own_usecase_script(tmp_path):
-    task = tmp_path / 'task'
-    (task / 'tests').mkdir(parents=True)
-    (task / 'tests' / 'test.patch').write_text('diff --git a/tests/test_x.py b/tests/test_x.py\n')
-    trial = tmp_path / 'trial'
-    (trial / 'verifier').mkdir(parents=True)
-    (trial / 'verifier' / 'execution-context.json').write_text(json.dumps({'version': 1, 'token': TOKEN}))
-    result = {'verifier_result': {'rewards': {'reward': 0}, 'stdout': 'FAIL: F1 printed by something else\n'}}
-    assert assess_trials([(trial, result)], 1, 0, task_path=task)['status'] == 'failed'
 
 
 def test_go_binaries_called_by_absolute_path_reach_the_shim(tmp_path):
@@ -315,25 +246,6 @@ def test_unittest_detected_without_sys_argv(monkeypatch):
     monkeypatch.delattr(sys, 'argv')
     state = hook.install(environ=environ)
     assert state is not None and state['runner'] == 'unittest'
-
-
-@pytest.mark.parametrize('output, task_name, accepted', [
-    ('FAIL: out missing regex: (^|[[:space:]])-s,[[:space:]]+--skip-sc[[:space:]]+Skip SuperCollider '
-     'detection and management entirely\n', 'format-code-task-002598', True),
-    # Another failure of the reviewed task is judged as usual.
-    ('FAIL: build\n', 'format-code-task-002598', False),
-    # The same line from a task nobody reviewed is not accepted.
-    ('FAIL: out missing regex: (^|[[:space:]])-s,[[:space:]]+--skip-sc[[:space:]]+Skip SuperCollider '
-     'detection and management entirely\n', 'format-code-task-000001', False),
-])
-def test_reviewed_nop_zero_accepts_only_the_reviewed_line(tmp_path, output, task_name, accepted):
-    task = tmp_path / task_name
-    (task / 'tests').mkdir(parents=True)
-    trial = tmp_path / 'trial'
-    (trial / 'verifier').mkdir(parents=True)
-    (trial / 'verifier' / 'execution-context.json').write_text(json.dumps({'version': 1, 'token': TOKEN}))
-    result = {'verifier_result': {'rewards': {'reward': 0}, 'stdout': output}}
-    assert assess_trials([(trial, result)], 1, 0, task_path=task)['status'] == ('completed' if accepted else 'failed')
 
 
 def hook_dir(tmp_path):

@@ -7,10 +7,11 @@ publishing instructions.
 
 | Runner stage | Operation | Input |
 | --- | --- | --- |
-| 1 | Build, setup and runtime checks | Source tasks |
+| 0 (automatic) | Static checks | Source tasks |
+| 1 | Build, setup and runtime checks | Tasks without static failures or incomplete checks |
 | 2 | Reference solution (expected reward 1) | Stage-1 passes |
 | 3 | No-op baseline (expected reward 0) | Stage-1 passes |
-| 4 | All static checks | Stages 1-3 kept |
+| 4 | Final static checks and reference-leak results | Task files after repairs and evidence from stages 1-3 |
 | 5 | LLM task-quality review | Stage-4 kept |
 | 6 | Student pass@k, then teacher pass@2 on tasks the student never solved | Stage-4 kept, not filtered by stage 5 |
 | 7 | Trace metrics (no model calls) | Stage-6 trajectories |
@@ -18,37 +19,23 @@ publishing instructions.
 | 9 | Adversarial cheat trials (optional, untested) | TBD (e.g. overlap of stages 5 and 6) |
 | 10 | Hacker/fixer loop (optional, untested) | TBD (e.g. overlap of stages 5 and 6) |
 
-Below we describe each stage.
+### Stage 0: static checks
 
-## Environment reliability (stages 1-3)
+First, we run all rules that only need task files, without starting a container.
+This is a cheap prefilter: only tasks that pass the static filters continue to the
+more expensive checks that need containers. Warnings do not filter out tasks.
+See [validation rules](rules/README.md) for an overview of the static filters.
 
 ### Stage 1: build, setup and runtime checks
 
-Tasks run as Apptainer containers converted from their Docker images (see
-[runtime behavior](RUNTIME.md)). To keep the number of images small, task-specific
-steps such as git checkouts, task files and small configuration changes go into
-`setup_files/setup.sh`, so many tasks can share one image; only slow or unreliable
-installs go into the image. `--review-setup` times task and verifier preparation to
-find this balance.
+Starts and sets up each task in an Apptainer container, then checks that its
+working directory and internet access match the task configuration. Task-specific
+setup goes in `setup_files/setup.sh` so tasks can share images.
 
-Each task is built, started and set up, then checked for:
-
-- **Working directory:** matches the Dockerfile's `WORKDIR`.
-- **Internet access:** HTTPS probes match `allow_internet` in `task.toml`.
-
-A build that fails because of the task itself is archived. A build that fails
-because of our infrastructure is retried up to three times; if it still fails, the
-task is archived as not robust. The cause is read from the error message: a bridge
-outage, a full disk (`No space left on device`), dead workers, or a crash without a
-verdict count as infrastructure; a failed or timed-out image build (default
-limit 1 hour per image, `--image-build-timeout-sec`) or container start and task
-setup (limit `build_timeout_sec` in `task.toml`, Harbor default 600 s), and any
-other failure, count as the task's own. Stages 2 and 3 skip tasks
-that did not build.
-
-Rules that need a running container (dynamic rules, such as the repository leak
-checks) also run here; static rules run in stage 4. Both are described in
-[validation rules](rules/README.md).
+Failed builds are retried up to three times. Consistent task failures are archived
+as build failures; mixed success and failure is marked as not robust.
+Infrastructure failures remain unresolved, without archiving the task. Tasks that
+do not pass skip the reference and no-op stages.
 
 To do: change setup scripts to use a cached runtime, and upload a runtime for each
 task, so tasks can run offline. Many setup scripts now install packages and need
@@ -56,37 +43,28 @@ internet access.
 
 ### Stage 2: reference solution
 
-Runs `solution/solve.sh` and then the verifier, three times in fresh containers.
-Every run must return reward **1**. Tasks without a reference solution are skipped.
-The three runs catch reference solutions and verifiers that are not deterministic,
-e.g. depending on timing, randomness or network responses.
+Runs `solution/solve.sh` and then the verifier.
+Reward **1** passes and reward **0** fails the task. If a run ends with an error or
+writes no reward, the verifier could not finish, which says nothing about the task:
+it is retried, and if that keeps happening the task is labelled an infrastructure
+error and not archived. Tasks without a reference solution are not applicable here.
 
 ### Stage 3: no-op baseline
 
-Runs task setup and the verifier without an agent, three times in fresh containers.
+Runs task setup and the verifier without an agent.
 Every run must return reward **0**.
 
-A reward of 0 alone is not accepted as a valid no-op: there must also be evidence
-that the tests actually ran. Without it, the 0 can come from a node failure or a
-broken verifier that never executes the tests. Exceptions are verifiers that fail
-because a file the agent should create is missing, and verifiers that fail to run
-their tests on the unsolved task when the reference solution scored 1 with the same
-verifier, so the verifier has been shown to work.
+Reward **1** fails the task. A failed container, node or disk, a verifier timeout, or a
+verifier that was killed for lack of memory is retried and then labelled an infrastructure
+error, as in stage 2. Anything else counts as a valid 0, also when the verifier crashes or
+writes no reward, because many verifiers need something the agent creates to run at all.
+A 0 without a test report showing that tests ran is recorded in a note on the task.
 
-One extra no-op run shuffles the order of Python directory listings
-(`--nop-shuffled-runs`, default 1). File listing order can differ between
-filesystems and nodes, so a task whose bug depends on it can look already solved
-where the order happens to be stable.
-## Task quality (stages 4-5)
+### Stage 4: final checks
 
-### Stage 4: static checks
-
-Runs all static rules on the task files after the automatic repairs (instruction
-suffix, instruction paths, pip pins). This includes the Terminal-Bench default checks
-with our patches, our own rules, and the reference-solution leak check, which uses
-file fingerprints recorded in stage 2. Benchmark-only Terminal-Bench checks are
-excluded. Rules, repairs and exclusions are described in
-[validation rules](rules/README.md).
+See [dynamic rules](rules/README.md#dynamic-rules) for an overview of the container
+checks. They are distributed across stages 1-3 to reuse existing runs and avoid
+separate container starts where possible.
 
 ### Stage 5: LLM task-quality review
 
@@ -108,20 +86,22 @@ To do:
 For experiments, [`create_pilot.py`](data/create_pilot.py) can select a small,
 diverse task sample (see [sampling a diverse pilot](README.md#sampling-a-diverse-pilot)).
 
-## Trajectory quality (stages 6-10)
-
 ### Stage 6: pass@k
 
-Runs the student model with Terminus-2 on all stage-4 kept tasks at pass@4, or
-pass@8/16 when compute allows. Default students are
-`Qwen/Qwen3-30B-A3B-Instruct-2507` or `Qwen/Qwen3-Coder-30B-A3B-Instruct`, thinking
-off. `Qwen/Qwen3-30B-A3B` with thinking on is optional; in our runs it took longer
-and solved fewer tasks. Tasks solved at least once form v2.
+#### 6.1: Model to train with RL
 
-Tasks the student never solves get a pass@2 run with a stronger teacher (default
-`Qwen/Qwen3.8-27B`, thinking on). Tasks it solves are hard but still valid and form
-v3, which contains only these newly solved tasks; v2 and v3 together are the full
-solved set.
+Run the model intended for RL training with Terminus-2 on all stage-4 kept tasks,
+at pass@4 or pass@8/16 when compute allows. Our default is
+`Qwen/Qwen3-Coder-30B-A3B-Instruct`: in our runs,
+`Qwen/Qwen3-Coder-30B-A3B` with thinking on was slower and solved fewer tasks. Tasks solved
+at least once form v2, a training set matched to the model's starting ability.
+
+#### 6.2: Stronger model
+
+Run a stronger model on tasks the RL model never solved. Our default is
+`Qwen/Qwen3.8-27B`, with thinking on, at pass@2. Tasks it solves form v3: harder
+tasks with evidence that they are solvable. These can be introduced later as the
+RL model improves and needs harder tasks. Together, v2 and v3 form the full solved set.
 
 ### Stage 7: trace metrics
 

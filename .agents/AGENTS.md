@@ -17,7 +17,7 @@ the displayed text.
 | --- | --- |
 | Validation workflow, contracts, publishing | `validation/README.md` |
 | Validation stages and checks | `validation/PROTOCOL.md` |
-| Runtime, staging, bridge behavior | `validation/RUNTIME.md` |
+| Runtime, staging, bridge behavior | `.agents/RUNTIME.md` |
 | Cluster launchers | `hpc/README.md`, `hpc/zih/README.md` |
 | SSH access to CLAIX, LRZ and ZIH; agent and Mac VPN tunnel | [Cluster access](cluster-access.md) |
 | Patch outputs and publication | `data/INVENTORY.md#reporting-patches-in-the-datasource-pr` |

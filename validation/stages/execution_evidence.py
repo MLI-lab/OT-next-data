@@ -43,3 +43,12 @@ def scope_output(output, token):
         return output, states, 'verifier invocation did not finish'
     parts.append(output[cursor:])
     return ''.join(parts), states, None
+
+
+def ctrf_executed(path):
+    """Tests the verifier's own CTRF report of this trial says ran (0 without a report)."""
+    try:
+        tests = json.loads((path / 'verifier' / 'ctrf.json').read_text())['results']['tests']
+        return sum(test['status'] in ('passed', 'failed') for test in tests)
+    except (OSError, ValueError, KeyError, TypeError):
+        return 0

@@ -1,11 +1,11 @@
-"""Stage 3 listing-order check: shuffled listings, per-test outcomes and their comparison."""
+"""Shuffled no-op and reference runs: Python hooks and final reward checks."""
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 
-from validation.rules.dynamic.nop_baseline.listing_order import compare, test_outcomes as outcomes_of
+from validation.rules.dynamic.nop_baseline.listing_order import compare
 from validation.stages.execution_evidence import MANIFEST
 from validation.stages.runner import add_listing_order
 
@@ -84,46 +84,136 @@ def trial(tmp_path, name, output, reward=0):
     return path, {'verifier_result': {'rewards': {'reward': reward}, 'stdout': output}}
 
 
-def test_recorder_keeps_per_test_outcomes(tmp_path):
-    path, result = trial(tmp_path, 'trial', run_verifier(tmp_path, shuffle=False))
-    assert outcomes_of(path, result) == {'test_task.py::test_deterministic': 'passed',
-                                         'test_task.py::test_results_written': 'failed'}
-
-
-def test_test_passing_only_with_stable_order_is_flagged(tmp_path):
-    normal = [trial(tmp_path, f'n{i}', run_verifier(tmp_path, shuffle=False)) for i in range(3)]
-    shuffled = [trial(tmp_path, 's0', run_verifier(tmp_path, shuffle=True))]
-    record = compare(normal, shuffled)
-    assert record['status'] == 'flagged'
-    assert record['tests'] == ['test_task.py::test_deterministic']
-    assert record['shuffled_rewards'] == [0]
-
-
-def test_order_independent_tests_are_clean(tmp_path):
-    output = run_verifier(tmp_path, shuffle=False)
-    record = compare([trial(tmp_path, 'n0', output)], [trial(tmp_path, 's0', output)])
-    assert record['status'] == 'clean' and record['tests'] == []
-
-
-def test_runners_without_per_test_outcomes_are_not_assessed(tmp_path):
-    path, result = trial(tmp_path, 'n0', 'custom grader: incorrect answer\n')
-    assert compare([(path, result)], [(path, result)])['status'] == 'not_assessed'
+def test_individual_test_changes_do_not_flag_a_zero_reward(tmp_path):
+    normal = [trial(tmp_path, 'normal', run_verifier(tmp_path, shuffle=False))]
+    shuffled = [trial(tmp_path, 'shuffled', run_verifier(tmp_path, shuffle=True))]
+    result = compare(normal, shuffled)
+    assert result['status'] == 'clean'
+    assert result['shuffled_rewards'] == [0]
+    assert 'tests' not in result
 
 
 class Args:
     reward_key = 'reward'
 
-    def __init__(self, mode):
-        self.listing_order_check = mode
+
+def test_final_reward_only_needs_no_recorder_or_ctrf(tmp_path):
+    normal = [trial(tmp_path, 'normal', 'custom grader', reward=0)]
+    shuffled = [trial(tmp_path, 'shuffled', 'custom grader', reward=0)]
+    assert compare(normal, shuffled)['status'] == 'clean'
+    prepared = {'status': 'completed', 'findings': []}
+    add_listing_order(prepared, normal, {'job_dir': 'job', 'groups': {'task': shuffled}}, tmp_path / 'task', Args())
+    assert prepared['status'] == 'completed'
 
 
-def test_finding_warns_by_default_and_fails_on_request(tmp_path):
-    normal = [trial(tmp_path, 'n0', run_verifier(tmp_path, shuffle=False))]
-    shuffled = {'job_dir': 'job', 'groups': {'task': [trial(tmp_path, 's0', run_verifier(tmp_path, shuffle=True))]}}
+import pytest
+
+
+@pytest.mark.parametrize('reward', [1, 0.5])
+def test_shuffled_no_op_with_positive_reward_fails(tmp_path, reward):
+    normal = [trial(tmp_path, 'normal', '', reward=0)]
+    shuffled = [trial(tmp_path, 'shuffled', '', reward=reward)]
+    prepared = {'status': 'completed', 'findings': []}
+    add_listing_order(prepared, normal, {'job_dir': 'job', 'groups': {'task': shuffled}}, tmp_path / 'task', Args())
+    assert prepared['status'] == 'failed'
+    assert prepared['listing_order']['status'] == 'flagged'
+
+
+@pytest.mark.parametrize('reward,status', [(1, 'clean'), (0, 'flagged'), (0.5, 'flagged')])
+def test_shuffled_reference_must_keep_reward_one(tmp_path, reward, status):
+    normal = [trial(tmp_path, 'normal', '', reward=1)]
+    shuffled = [trial(tmp_path, 'shuffled', '', reward=reward)]
+    assert compare(normal, shuffled, expected_reward=1)['status'] == status
+
+
+@pytest.mark.parametrize('reward', [None, True, float('nan'), float('inf')])
+def test_missing_or_invalid_shuffled_reward_is_incomplete(tmp_path, reward):
+    normal = [trial(tmp_path, 'normal', '', reward=0)]
+    shuffled = [trial(tmp_path, 'shuffled', '', reward=reward)]
+    prepared = {'status': 'completed', 'findings': []}
+    add_listing_order(prepared, normal, {'job_dir': 'job', 'groups': {'task': shuffled}}, tmp_path / 'task', Args())
+    assert prepared['status'] == 'error'
+    assert prepared['listing_order']['status'] == 'incomplete'
+
+
+def test_missing_trials_and_execution_exceptions_are_incomplete(tmp_path):
+    normal = [trial(tmp_path, 'normal', '', reward=1)]
+    assert compare(normal, [], expected_reward=1)['status'] == 'incomplete'
+    path, result = trial(tmp_path, 'shuffled', '', reward=1)
+    assert compare(normal, [(path, result)], expected_reward=1, expected_count=2)['status'] == 'incomplete'
+    result['exception_info'] = {'exception_type': 'VerifierTimeoutError'}
+    assert compare(normal, [(path, result)], expected_reward=1)['status'] == 'incomplete'
+
+
+def test_reference_shuffle_hook_applies_only_to_extra_reference_run(tmp_path, monkeypatch):
+    import asyncio
+    import shutil
+    from types import SimpleNamespace
+    from harbor.agents.oracle import OracleAgent
+    from harbor_patches import listing_order
+    from harbor_patches.verifier_setup import SHUFFLE_LISTING
+    for i in range(30):
+        (tmp_path / str(i)).write_text('')
+    class Environment:
+        async def exec(self, command, *args, **kwargs):
+            result = subprocess.run(command, shell=True, cwd=tmp_path, capture_output=True, text=True)
+            return SimpleNamespace(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+        async def upload_file(self, source_path, target_path):
+            shutil.copyfile(source_path, target_path)
+    import shlex
+    async def original(self, instruction, environment, context):
+        code = 'import os; print(len({tuple(os.listdir(".")) for _ in range(8)}))'
+        return await environment.exec(shlex.quote(sys.executable) + ' -c ' + shlex.quote(code))
+    monkeypatch.setattr(OracleAgent, 'run', original)
+    monkeypatch.setattr(OracleAgent, '_ot_listing_shuffle', False, raising=False)
+    listing_order.install()
+    async def exercise():
+        env = Environment()
+        normal = await OracleAgent.run(None, '', env, None)
+        token = SHUFFLE_LISTING.set(True)
+        try:
+            shuffled = await OracleAgent.run(None, '', env, None)
+        finally:
+            SHUFFLE_LISTING.reset(token)
+        after = await OracleAgent.run(None, '', env, None)
+        assert normal.stdout.strip() == after.stdout.strip() == '1'
+        assert int(shuffled.stdout.strip()) > 1
+    asyncio.run(exercise())
+
+
+def test_shuffled_reference_is_run_and_assessed_by_reference_batch(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from validation.stages import runner
+    from harbor_patches.verifier_setup import SHUFFLE_LISTING
     task = tmp_path / 'task'
-    warned = {'status': 'completed', 'findings': []}
-    add_listing_order(warned, normal, shuffled, task, Args('warn'))
-    assert warned['status'] == 'completed' and warned['warnings'] and warned['listing_order']['status'] == 'flagged'
-    failed = {'status': 'completed', 'findings': []}
-    add_listing_order(failed, normal, shuffled, task, Args('fail'))
-    assert failed['status'] == 'failed' and failed['findings'][0].startswith('listing order:')
+    (task / 'solution').mkdir(parents=True)
+    (task / 'solution/solve.sh').write_text('true')
+    output = tmp_path / 'output'
+    output.mkdir()
+    args = SimpleNamespace(agent='oracle', model=None, backend='apptainer', dry_run=False,
+                           dynamic_do_not_modify=False, attempts=1, reward_key='reward', reference_shuffled_runs=1)
+    monkeypatch.setattr(runner.runtime, 'check_runtime_task', lambda *a: None)
+    monkeypatch.setattr(runner.runtime, 'job_config', lambda task, out, *a: {'jobs_dir': str(out)})
+    jobs = {}
+    async def execute(config, **kwargs):
+        out = Path(config['jobs_dir'])
+        jobs[out] = SHUFFLE_LISTING.get()
+        return out
+    monkeypatch.setattr(runner.runtime, 'execute_job', execute)
+    def results(out):
+        path = out / 'trial'
+        path.mkdir(parents=True)
+        return [(path, {'verifier_result': {'rewards': {'reward': 0 if jobs[out] else 1}}})]
+    monkeypatch.setattr(runner.runtime, 'trial_results', results)
+    monkeypatch.setattr(runner.runtime, 'group_trial_results', lambda rows, tasks: ({task.name: rows}, []))
+    assess = runner.runtime.assess_trials
+    def assess_without_recorder(*a, **kw):
+        return assess(*a, **dict(kw, require_execution=False))
+    monkeypatch.setattr(runner.runtime, 'assess_trials', assess_without_recorder)
+    item, = runner.run_trial_batch(2, [task], output, args, None)
+    assert list(jobs.values()) == [False, True]
+    assert not SHUFFLE_LISTING.get()
+    assert item['rewards'] == [1]
+    assert item['status'] == 'failed'
+    assert item['listing_order']['shuffled_rewards'] == [0]
+    assert item['listing_order']['expected_reward'] == 1

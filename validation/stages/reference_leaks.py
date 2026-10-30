@@ -2,6 +2,7 @@
 import asyncio
 from contextvars import ContextVar
 import json
+import hashlib
 import os
 from pathlib import Path
 import shlex
@@ -14,6 +15,9 @@ from validation.stages.layout import REFERENCE
 CHECK = 'reference-solution-leak'
 ARTIFACT = 'reference-file-fingerprints.json'
 enabled = ContextVar('capture_reference_files', default=False)
+scan_requests = ContextVar('reference_leak_scan_requests', default=None)
+scan_runtime = ContextVar('reference_leak_scan_runtime', default=None)
+SCAN_ARTIFACT = 'reference-leak-scan.json'
 # Shell words are fixed checker configuration, not task-controlled input. The
 # /opt glob covers image-baked runtimes that are intentionally absent from PATH.
 PROBE_PYTHONS = 'python3 python /usr/bin/python3 /usr/local/bin/python3 /opt/*/bin/python3 /opt/*/bin/python'
@@ -63,6 +67,24 @@ def install():
     original = Trial._run_agent_phase
 
     async def agent(self, *args, **kwargs):
+        requests = scan_requests.get()
+        task = self.task.paths.task_dir
+        evidence = requests.pop(task.name, None) if requests is not None else None
+        if evidence is not None:
+            record = {'evidence_sha256': evidence_signature(evidence), 'runtime_sha256': scan_runtime.get()}
+            try:
+                if evidence_digest(task) != evidence['task_sha256']:
+                    raise ValueError('Task changed since reference fingerprint capture')
+                if getattr(self.task.config, 'steps', None):
+                    raise ValueError('Multi-step leak scan is not supported')
+                with self.agent_environment.with_default_user(kwargs.get('user')):
+                    observation = await probe(self.agent_environment,
+                                              {'mode': 'scan', 'root': '/', 'files': evidence['files']})
+                record['result'] = verdict(evidence, observation)
+            except Exception as exc:
+                record['result'] = {'check': CHECK, 'status': 'error',
+                                    'scan_status': 'incomplete', 'reason': str(exc)}
+            (self.paths.trial_dir / SCAN_ARTIFACT).write_text(json.dumps(record, indent=2) + '\n')
         if not enabled.get():
             return await original(self, *args, **kwargs)
         task = self.task.paths.task_dir
@@ -152,6 +174,7 @@ def verdict(evidence, observation):
             'files': files,
             'stats': observation.get('stats', {}), 'errors': observation.get('errors', []),
             'scope': evidence.get('scope'), 'workspace': evidence['workspace'],
+            'scan_scope': 'Agent-readable regular files and local Git blobs across the filesystem, excluding /proc, /sys and /dev.',
             'reason': ('Reference only deletes files; no added or modified file contents to check' if deletion_only else
                        'Incomplete scan or no captured added or modified file contents' if not complete else
                        f'{count}/{total} changed files ({100 * fraction:.2f}%) already readable before solving; '
@@ -207,6 +230,7 @@ async def scan_task(task_path, out, args, evidence):
 async def run_checks(sources, items, out, args):
     by_name = {Path(i['task']).name: i for i in items}
     records = read_evidence(args.out)
+    cached = read_scans(args.out, runtime_signature(args))
     semaphore = asyncio.Semaphore(args.concurrency)
     async def one(task):
         async with semaphore:
@@ -220,7 +244,9 @@ async def run_checks(sources, items, out, args):
                     elif not evidence['files']:
                         raise ValueError('Reference produced no changed regular files in the captured workspace')
                     else:
-                        result = await scan_task(task, out / task.name, args, evidence)
+                        result = cached.get(evidence_signature(evidence))
+                        if result is None:
+                            result = await scan_task(task, out / task.name, args, evidence)
                 except Exception as exc:
                     result = {'check': CHECK, 'status': 'error', 'scan_status': 'incomplete', 'reason': str(exc)}
             item = by_name[task.name]
@@ -230,3 +256,41 @@ async def run_checks(sources, items, out, args):
             if result['status'] in ('failed', 'error'):
                 item['status'] = 'failed' if result['status'] == 'failed' and item['status'] != 'error' else 'error'
     await asyncio.gather(*(one(task) for task in sources))
+
+
+def evidence_signature(evidence):
+    return hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+
+
+def runtime_signature(args):
+    settings = {key: getattr(args, key, None) for key in
+                ('backend', 'environment_kwargs', 'trial_cpus', 'trial_memory_mb', 'network_mode')}
+    return hashlib.sha256(json.dumps(settings, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def read_scans(output, runtime_sha256=None):
+    cached = {}
+    for path in Path(output).glob('stage_3_*/*/summary.json'):
+        report = json.loads(path.read_text())
+        for item in report.get('items', []):
+            for scan in item.get('reference_leak_scans', []):
+                result = scan.get('result', {})
+                if (result.get('scan_status') == 'completed' and
+                        (runtime_sha256 is None or scan.get('runtime_sha256') == runtime_sha256)):
+                    cached[scan['evidence_sha256']] = result
+    return cached
+
+
+def prepare_nop_scans(tasks, output):
+    records = read_evidence(output)
+    requests = {}
+    for task in tasks:
+        if not (task / 'solution/solve.sh').is_file():
+            continue
+        try:
+            evidence = collect(task, output, records)
+            if evidence['files']:
+                requests[task.name] = evidence
+        except (ValueError, OSError):
+            pass  # Stage 4 reports missing evidence; do not interfere with NOP grading.
+    return requests

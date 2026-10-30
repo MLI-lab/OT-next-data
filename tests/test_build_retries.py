@@ -12,8 +12,8 @@ from validation.publishing import publish
 @pytest.mark.parametrize('retries, expected, stability, builds', [
     ([{'status': 'passed'}], 'passed', 'recovered', 2),
     ([{'status': 'error', 'reason': 'BridgeOutage'}, {'status': 'passed'}], 'passed', 'recovered', 3),
-    # The task's own build failing settles it: not robust, no further retries.
-    ([{'status': 'failed', 'reason': 'image build failed: apt error'}], 'failed', 'unstable_build', 2),
+    # Infrastructure first and then the task's own failure: the result changed, not robust.
+    ([{'status': 'failed', 'reason': 'image build failed: apt error'}] * 3, 'failed', 'unstable_build', 4),
     ([{'status': 'error', 'reason': 'BridgeOutage'}] * 3, 'error', 'infrastructure_failure', 4),
 ])
 def test_only_infrastructure_failures_are_retried(tmp_path, monkeypatch, retries, expected, stability, builds):
@@ -40,17 +40,22 @@ def test_only_infrastructure_failures_are_retried(tmp_path, monkeypatch, retries
     assert table['tasks_built_first_try'] == 1 and table['tasks_retried'] == 1
 
 
-def test_first_task_caused_failure_is_not_retried(tmp_path, monkeypatch):
+@pytest.mark.parametrize('results, status, stability, outcome', [
+    (['failed', 'failed', 'failed', 'failed'], 'failed', 'task_failure', 'archive'),
+    (['failed', 'passed'], 'failed', 'unstable_build', 'archive'),
+])
+def test_own_build_failures_are_retried(tmp_path, monkeypatch, results, status, stability, outcome):
     calls = []
     async def build(task, out, args):
+        result = results[len(calls)]
         calls.append(task.name)
-        return {'status': 'failed', 'reason': 'image build failed'}
+        return {'status': result, **({'reason': 'image build failed'} if result == 'failed' else {})}
     monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
     monkeypatch.setattr(build_retries.runtime, 'build_task', build)
     args = SimpleNamespace(concurrency=1, backend='apptainer', outcome_retries=3)
-    results = asyncio.run(build_retries.run_builds([tmp_path / 'bad'], tmp_path / 'out', args, StringIO()))
-    assert calls == ['bad'] and results[0]['status'] == 'failed' and results[0]['cause'] == 'build-execution-error'
-    assert publish.judge(1, results[0])[0] == 'archive'
+    item = asyncio.run(build_retries.run_builds([tmp_path / 'bad'], tmp_path / 'out', args, StringIO()))[0]
+    assert len(calls) == len(results) and (item['status'], item['build_stability']) == (status, stability)
+    assert publish.judge(1, item)[0] == outcome
 
 
 def test_pipeline_skips_failed_builds_in_both_trial_stages(tmp_path, monkeypatch):

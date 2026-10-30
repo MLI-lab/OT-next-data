@@ -314,8 +314,8 @@ def shuffle_listing(environ=None):
     """Randomize directory listing order in this interpreter (OT_SHUFFLE_LISTING=1).
 
     Filesystems list entries in different orders, so code that processes files in
-    listing order can behave differently between nodes. The shuffled no-op baseline
-    sets the variable for its verifier call. A private Random leaves the task's own
+    listing order can behave differently between nodes. Shuffled no-op and reference
+    runs set the variable during grading and reference execution. A private Random leaves the task's own
     random state untouched. Only Python listings are covered (os.listdir and
     os.scandir, which glob, os.walk and pathlib use); other programs are not.
     """

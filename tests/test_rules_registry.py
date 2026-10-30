@@ -53,3 +53,24 @@ def test_stage4_runs_our_rules_as_scripts(tmp_path, monkeypatch):
     entry = json.loads((out / 'summary.json').read_text())['tasks'][0]
     assert {c['check']: c['status'] for c in entry['checks']}['check-do-not-modify.py'] == 'error'
     assert entry['status'] == 'failed'
+
+
+def test_editable_test_runs_in_stage4_as_failure(tmp_path):
+    import json
+    exposed = make_task(tmp_path, 'exposed', {'tests/test.sh': 'bash /app/run_tests.sh\n'})
+    separate = make_task(tmp_path, 'separate', {
+        'tests/test.sh': 'bash /app/run_tests.sh\n',
+        'task.toml': '[verifier]\nenvironment_mode = "separate"\n'})
+    invalid = make_task(tmp_path, 'invalid', {'task.toml': '[broken'})
+    _, checks, _ = terminal_bench.load_checks('training')
+    name = 'check-agent-editable-test.py'
+    excluded = [n for n in checks if n != name]
+    out = tmp_path / 'editable-report'
+    terminal_bench.run_checks([exposed, separate], out, 'training', exclude=excluded)
+    entries = json.loads((out / 'summary.json').read_text())['tasks']
+    states = {e['task']: e['checks'][0]['status'] for e in entries}
+    assert states == {'exposed': 'failed', 'separate': 'passed'}
+    from validation.rules.static.agent_editable_test import check
+    import pytest
+    with pytest.raises(ValueError, match='verifier mode'):
+        check(invalid)

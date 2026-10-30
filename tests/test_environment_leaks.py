@@ -52,7 +52,7 @@ def leaks(repo):
     return report, {c['check']: c for c in report['checks']}
 
 
-def test_reverted_fix_left_as_unreachable_objects_fails(tmp_path):
+def test_reverted_fix_left_as_unreachable_objects_warns(tmp_path):
     repo = repository(tmp_path)
     (repo / 'pkg/m1.py').write_text('fixed\n')
     git(repo, 'commit', '-qam', 'the fix', when=1_600_001_000)
@@ -60,11 +60,11 @@ def test_reverted_fix_left_as_unreachable_objects_fails(tmp_path):
     uniform(repo)
     report, checks = leaks(repo)
     history = checks['repository-history-leak']
-    assert report['status'] == history['status'] == 'failed'
+    assert report['status'] == history['status'] == 'warning'
     assert 'unreachable commits (1 newer than HEAD)' in history['reason']
     found = history['repositories'][str(repo)]
     assert found['unreachable_commits'][0]['subject'] == 'the fix'
-    assert environment.leak_verdict({'leaks': report})[0] == 'failed'
+    assert environment.leak_verdict({'leaks': report}) is None
 
     # Pruned the way the blog asks for: nothing left to read.
     git(repo, 'reflog', 'expire', '--expire=now', '--all')
@@ -76,7 +76,7 @@ def test_reverted_fix_left_as_unreachable_objects_fails(tmp_path):
     assert environment.leak_verdict({'leaks': report}) is None
 
 
-def test_clone_checked_out_at_an_older_commit_fails_on_the_remote_branch(tmp_path):
+def test_clone_checked_out_at_an_older_commit_warns_on_the_remote_branch(tmp_path):
     upstream = repository(tmp_path)
     (upstream / 'pkg/m1.py').write_text('fixed\n')
     git(upstream, 'commit', '-qam', 'the fix', when=1_600_001_000)
@@ -86,7 +86,7 @@ def test_clone_checked_out_at_an_older_commit_fails_on_the_remote_branch(tmp_pat
     uniform(clone)
     _, checks = leaks(clone)
     history = checks['repository-history-leak']
-    assert history['status'] == 'failed'
+    assert history['status'] == 'warning'
     assert history['repositories'][str(clone)]['non_ancestor_commits_newer_than_head'] >= 1
     assert 'commits on other refs newer than HEAD' in history['reason']
 
@@ -288,7 +288,7 @@ def test_empty_fixture_does_not_hide_another_repository_leak(tmp_path):
     git(real, 'commit', '-qam', 'fix', when=1_600_001_000)
     git(real, 'reset', '-q', '--hard', 'HEAD~1')
     report = asyncio.run(environment.inspect_leaks(Local(fixture), roots=(str(real),), home=None))
-    assert report['status'] == 'failed', report
+    assert report['status'] == 'warning', report
 
 
 def test_empty_store_traversal_failure_is_not_a_pass(tmp_path):
@@ -327,3 +327,46 @@ def test_empty_store_probe_requires_local_object_directory(tmp_path, kind):
         (repo / '.git').mkdir()
     probe = asyncio.run(environment.inspect_empty_object_store(Local(repo), str(repo)))
     assert probe['status'] == 'not_proven'
+
+
+def test_recursive_discovery_finds_deep_repositories_bare_and_worktrees(tmp_path):
+    root = tmp_path / 'container'
+    root.mkdir()
+    # Neither a known workspace name nor within the former /home depth limit.
+    parent = root / 'opt/custom storage/a/b/c/d/e/f/g'
+    parent.mkdir(parents=True)
+    repo = repository(parent)
+    (repo / 'pkg/m1.py').write_text('fix\n')
+    git(repo, 'commit', '-qam', 'fix', when=1_600_001_000)
+    git(repo, 'reset', '-q', '--hard', 'HEAD~1')
+    linked = root / 'var/nested worktree'
+    linked.parent.mkdir()
+    git(repo, 'worktree', 'add', '--detach', str(linked))
+    bare = root / 'srv/storage.git'
+    bare.parent.mkdir()
+    git(repo, 'clone', '--bare', '-q', str(repo), str(bare))
+    (root / 'alias').symlink_to(repo, target_is_directory=True)
+    (root / 'loop').symlink_to(root, target_is_directory=True)
+    (root / 'proc-alias').symlink_to('/proc', target_is_directory=True)
+    (root / 'proc-subdirectory').symlink_to('/proc/self', target_is_directory=True)
+    observation = asyncio.run(environment.inspect_leaks(Local(root), roots=(str(root),), home=None))
+    history, mtimes = observation['checks']
+    assert observation['status'] == 'warning', observation
+    assert set(history['repositories']) == {str(repo), str(linked), str(bare)}
+    assert mtimes['repositories'][str(bare)]['status'] == 'not_checked'
+    assert environment.REPOSITORY_ROOTS == ('/',)
+    command = environment.repositories_command()
+    assert 'find -L / ' in command and '-maxdepth' not in command
+
+
+def test_discovery_io_errors_remain_incomplete(tmp_path, monkeypatch):
+    bin_dir = tmp_path / 'bin'
+    bin_dir.mkdir()
+    fake_find = bin_dir / 'find'
+    fake_find.write_text('#!/bin/sh\necho "find: input/output error" >&2\nexit 1\n')
+    fake_find.chmod(0o755)
+    monkeypatch.setenv('PATH', str(bin_dir) + ':' + os.environ['PATH'])
+    observation = asyncio.run(environment.inspect_leaks(Local(tmp_path), roots=(str(tmp_path),), home=None))
+    assert observation['status'] == 'error'
+    assert all(c['status'] == 'error' for c in observation['checks'])
+    assert 'input/output error' in observation['checks'][0]['reason']

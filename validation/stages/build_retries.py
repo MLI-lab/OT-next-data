@@ -65,6 +65,17 @@ def task_caused(result):
     return result['status'] != 'passed' and result.get('cause') == 'build-execution-error'
 
 
+def build_stability(history):
+    """What a retried build shows: 'recovered', 'task_failure', 'unstable_build' or 'infrastructure_failure'."""
+    failed = [r for r in history if r['status'] != 'passed']
+    own = [r for r in failed if task_caused(r)]
+    if len(own) == len(history):
+        return 'task_failure'
+    if own:
+        return 'unstable_build'
+    return 'recovered' if history[-1]['status'] == 'passed' else 'infrastructure_failure'
+
+
 def retry_summary(history):
     """How a retried build went: whether failures look like our infrastructure or the task."""
     failed = [r for r in history if r['status'] != 'passed']
@@ -197,12 +208,12 @@ async def run_builds(sources, out, args, outcomes):
         if getattr(args, 'review_setup', None) is not None:
             save_preparation_review(sources, items, out)
         return items
-    # Each task builds once. A failure of the task's own build or start settles it: the build is
-    # not robust, and it is not retried. Failures of our infrastructure (node, bridge, disk) or
-    # without a verdict are retried up to 3 times; if they never clear, the task was not judged.
+    # A failed build is retried up to 3 times, whatever its cause. A failure of the task's own build
+    # or start on every attempt is a plain build failure. A task that fails on its own and then
+    # builds, or the other way round, is not robust. Failures of our infrastructure (node, bridge,
+    # disk) or without a verdict that never clear say nothing about the task: it was not judged.
     for attempt in range(1, 4):
-        failed = [index for index, history in enumerate(histories)
-                  if history[-1]['status'] != 'passed' and not task_caused(history[-1])]
+        failed = [index for index, history in enumerate(histories) if history[-1]['status'] != 'passed']
         if not failed:
             break
         await asyncio.gather(*(one(index, attempt) for index in failed))
@@ -210,16 +221,15 @@ async def run_builds(sources, out, args, outcomes):
     for history in histories:
         item = dict(history[0])
         if len(history) > 1:
-            last = history[-1]
-            stability = ('recovered' if last['status'] == 'passed' else
-                         'unstable_build' if task_caused(last) else 'infrastructure_failure')
-            item.update(build_attempts=history, build_stability=stability, build_retry_summary=retry_summary(history),
-                        status={'recovered': 'passed', 'unstable_build': 'failed'}.get(stability, 'error'),
-                        reason={'recovered': f'infrastructure failure, then the build passed on retry {len(history) - 1}',
-                                'unstable_build': f'the task\'s own build or start failed on attempt {len(history)} '
-                                                  'after earlier infrastructure failures; not robust',
-                                'infrastructure_failure': 'infrastructure failure on the first attempt and all 3 retries; '
-                                                          'no verdict on the task'}[stability])
+            stability = build_stability(history)
+            item.update(build_attempts=history, build_stability=stability, build_retry_summary=retry_summary(history))
+            if stability != 'task_failure':  # keeps the first attempt's status and reason
+                item.update(status={'recovered': 'passed', 'unstable_build': 'failed'}.get(stability, 'error'),
+                            reason={'recovered': f'infrastructure failure, then the build passed on retry {len(history) - 1}',
+                                    'unstable_build': 'the task\'s own build or start failed on some attempts but not on '
+                                                      'all of them; not robust',
+                                    'infrastructure_failure': 'infrastructure failure on the first attempt and all 3 retries; '
+                                                              'no verdict on the task'}[stability])
             # Preserve the authoritative aggregate in the streaming journal too.
             outcomes.write(json.dumps(item) + '\n')
             outcomes.flush()

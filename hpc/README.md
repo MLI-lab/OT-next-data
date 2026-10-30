@@ -61,7 +61,7 @@ weights under node-local `$TMPDIR`. Model weights must fit locally; insufficient
 space fails preparation. Runtime caches and task logs are local too. Bootstrap
 reads, version checks, shared batch logs, and final result/archive writes still
 access cluster storage; system executables and CUDA come from site modules.
-See [runtime details](../validation/RUNTIME.md).
+See [runtime details](../.agents/RUNTIME.md).
 
 ## ZIH
 
@@ -142,4 +142,4 @@ back after execution. Temporary storage is not a permanent copy of the results.
 Helma workspaces normally live on `/hnvme`; ZIH workspaces on an available
 `/data/horse`, `/data/ws` or `/data/cat` filesystem. Choose the actual workspace
 path when running setup. The detailed staging behavior is in the
-[runtime reference](../validation/RUNTIME.md#local-storage).
+[runtime reference](../.agents/RUNTIME.md#local-storage).

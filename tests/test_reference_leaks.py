@@ -330,3 +330,137 @@ def test_nop_stage_is_not_reference_evidence(tmp_path):
         {'task': '/tasks/example', 'status': 'passed',
          'reference_file_fingerprints': [{'status': 'completed'}]}]}))
     assert leaks.read_evidence(tmp_path) == {}
+
+
+@pytest.mark.parametrize('layout', ['normal', 'bare', 'worktree', 'alternate'])
+def test_scan_finds_packed_and_unreachable_git_blobs(tmp_path, layout):
+    import subprocess
+    repo = tmp_path / 'unusual-location' / 'project'
+    repo.mkdir(parents=True)
+    def git(*args, cwd=repo, data=None):
+        return subprocess.run(['git', *args], cwd=cwd, input=data, capture_output=True,
+                              check=True).stdout.decode().strip()
+    git('init', '--bare' if layout == 'bare' else '--quiet')
+    gitdir = repo if layout == 'bare' else repo / '.git'
+    content = b'the exact reference solution\n'
+    oid = git('hash-object', '-w', '--stdin', data=content)
+    # Put the solution into a pack without a branch or working-tree copy.
+    git('pack-objects', str(gitdir / 'objects/pack/pack'), data=(oid + '\n').encode())
+    (gitdir / 'objects' / oid[:2] / oid[2:]).unlink()
+    loose = git('hash-object', '-w', '--stdin', data=b'another hidden solution')
+    scan_root = repo.parent
+    if layout == 'worktree':
+        linked = tmp_path / 'linked'
+        linked.mkdir()
+        (linked / '.git').write_text('gitdir: ' + str(gitdir) + '\n')
+        scan_root = linked
+    elif layout == 'alternate':
+        other = tmp_path / 'alternate'
+        other.mkdir()
+        git('init', '--quiet', cwd=other)
+        (other / '.git/objects/info/alternates').write_text(str(gitdir / 'objects') + '\n')
+        scan_root = other
+    refs = [reference(tmp_path / 'reference', content),
+            reference(tmp_path / 'reference2', b'another hidden solution')]
+    result = files.scan(str(scan_root), refs)
+    assert result['status'] == 'completed', result['errors']
+    for entry, object_id in zip(result['files'], [oid, loose]):
+        assert any(m.startswith('git-blob:') and m.endswith(':' + object_id) for m in entry['matches'])
+    assert leaks.verdict({'workspace': '/repo'}, result)['status'] == 'failed'
+
+
+def test_git_scan_missing_git_or_failed_command_is_incomplete(tmp_path, monkeypatch):
+    import subprocess
+    subprocess.run(['git', 'init', '--quiet', str(tmp_path)], check=True)
+    ref = reference(tmp_path / 'reference', b'solution')
+    monkeypatch.setattr(files.shutil, 'which', lambda name: None)
+    result = files.scan(str(tmp_path), [ref])
+    assert result['status'] == 'incomplete'
+    assert 'git is unavailable' in result['errors'][0]
+    monkeypatch.setattr(files.shutil, 'which', lambda name: '/bin/false')
+    result = files.scan(str(tmp_path), [ref])
+    assert result['status'] == 'incomplete'
+    assert 'cannot enumerate' in result['errors'][0]
+
+
+def test_git_blob_scan_timeout_is_incomplete(tmp_path, monkeypatch):
+    import subprocess
+    subprocess.run(['git', 'init', '--quiet', str(tmp_path)], check=True)
+    ref = reference(tmp_path / 'reference', b'solution')
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], 120)
+    monkeypatch.setattr(files.subprocess, 'run', timeout)
+    result = files.scan(str(tmp_path), [ref])
+    assert result['status'] == 'incomplete'
+    assert 'timed out' in result['errors'][0]
+
+
+def test_real_linked_worktree_reads_common_object_store(tmp_path):
+    import subprocess
+    repo, linked = tmp_path / 'repo', tmp_path / 'linked'
+    repo.mkdir()
+    def git(*args):
+        return subprocess.run(['git', '-C', str(repo), *args], check=True,
+                              capture_output=True).stdout.decode().strip()
+    git('init', '--quiet')
+    (repo / 'file').write_bytes(b'solved content')
+    git('add', 'file')
+    git('-c', 'user.name=Test', '-c', 'user.email=test@example.org', 'commit', '-qm', 'solution')
+    oid = git('rev-parse', 'HEAD:file')
+    git('worktree', 'add', '--detach', str(linked))
+    (linked / 'file').unlink()
+    ref = reference(tmp_path / 'reference', b'solved content')
+    result = files.scan(str(linked), [ref])
+    assert result['status'] == 'completed', result['errors']
+    assert result['files'][0]['matches'] == [
+        'git-blob:' + git('rev-parse', '--absolute-git-dir') + '/worktrees/linked:' + oid]
+
+
+def test_nop_scans_once_before_agent_and_stage4_reuses_it(tmp_path, monkeypatch):
+    from harbor.trial.trial import Trial
+    events = []
+    task = tmp_path / 'task'
+    (task / 'solution').mkdir(parents=True)
+    (task / 'solution/solve.sh').write_text('true')
+    evidence = {'version': files.VERSION, 'status': 'completed',
+                'task_sha256': leaks.evidence_digest(task), 'workspace': '/app',
+                'files': [{'path': '/app/fix', 'size': 3, 'sha256': 'hash'}], 'deleted_files': []}
+    async def original(self, *args, **kwargs):
+        events.append('agent')
+    async def probe(env, request):
+        events.append('scan')
+        return {'status': 'completed', 'files': [{'matches': []}]}
+    monkeypatch.setattr(Trial, '_reference_files_installed', False, raising=False)
+    monkeypatch.setattr(Trial, '_run_agent_phase', original)
+    monkeypatch.setattr(leaks, 'probe', probe)
+    leaks.install()
+    trial = tmp_path / 'trial'
+    trial.mkdir()
+    fake = SimpleNamespace(task=SimpleNamespace(paths=SimpleNamespace(task_dir=task),
+                                               config=SimpleNamespace(steps=None)),
+                           paths=SimpleNamespace(trial_dir=trial),
+                           agent_environment=SimpleNamespace(with_default_user=lambda user: nullcontext()))
+    args = SimpleNamespace(out=tmp_path, concurrency=1)
+    runtime_token = leaks.scan_runtime.set(leaks.runtime_signature(args))
+    token = leaks.scan_requests.set({task.name: evidence})
+    try:
+        asyncio.run(Trial._run_agent_phase(fake))
+        asyncio.run(Trial._run_agent_phase(fake))
+    finally:
+        leaks.scan_requests.reset(token)
+        leaks.scan_runtime.reset(runtime_token)
+    assert events == ['scan', 'agent', 'agent']
+    scan = json.loads((trial / leaks.SCAN_ARTIFACT).read_text())
+    summary = tmp_path / 'stage_3_nop_validation/run/summary.json'
+    summary.parent.mkdir(parents=True)
+    summary.write_text(json.dumps({'items': [{'reference_leak_scans': [scan]}]}))
+    monkeypatch.setattr(leaks, 'read_evidence', lambda out: {task.name: [evidence]})
+    async def forbidden(*args):
+        raise AssertionError('Matching NOP scan should avoid another container')
+    monkeypatch.setattr(leaks, 'scan_task', forbidden)
+    items = [{'task': str(task), 'status': 'passed'}]
+    asyncio.run(leaks.run_checks([task], items, tmp_path / 'scan', args))
+    assert items[0]['checks'][0]['status'] == 'passed'
+    assert leaks.read_scans(tmp_path, 'different-runtime') == {}
+    evidence['files'][0]['sha256'] = 'different'
+    assert leaks.evidence_signature(evidence) not in leaks.read_scans(tmp_path)

@@ -11,7 +11,7 @@ PROFILE_HOOK = '/etc/profile.d/zzzz-ot-verifier-execution.sh'
 # it is copied here, downloaded with the verifier directory and read by
 # validation.stages.harbor.verifier_output like the call's other logs.
 EXECUTION_LOG = '/logs/verifier/ot-execution.txt'
-# Set by the shuffled no-op baseline: Python directory listings in the verifier call
+# Set by shuffled no-op and reference runs: Python directory listings in the verifier call
 # come back in random order (sitecustomize.shuffle_listing).
 SHUFFLE_LISTING = contextvars.ContextVar('ot_shuffle_listing', default=False)
 # The Python recorders go into each interpreter's own site-packages, loaded by a .pth
@@ -276,7 +276,10 @@ class SetupEnvironment:
             prefix = (
                 'export OT_VERIFIER_EXECUTION_TOKEN=' + shlex.quote(token) + '; '
                 'unset OT_PYTEST_EXECUTION_ACTIVE; '
-                + ('export PYTHONPATH=' + shlex.quote(target) + '${PYTHONPATH:+:$PYTHONPATH}; ' if fallback else '')
+                # A shuffled run must reach every interpreter, also one a verifier creates during
+                # this call (uvx) after the site-packages hooks went in.
+                + ('export PYTHONPATH=' + shlex.quote(target) + '${PYTHONPATH:+:$PYTHONPATH}; '
+                   if fallback or SHUFFLE_LISTING.get() else '')
                 # No global PYTEST_PLUGINS: the hook names the plugin inside each pytest process
                 # of an interpreter that has it, so no other pytest aborts on a missing plugin.
                 + 'export OT_VERIFIER_EXECUTION_BIN=' + shlex.quote(shims + '/bin') + '; '

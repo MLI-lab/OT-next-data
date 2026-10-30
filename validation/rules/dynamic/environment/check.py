@@ -55,16 +55,15 @@ async def inspect_environment(environment, task, context, label):
               'checks': checks}
     if label == 'agent':
         # Kept apart from the runtime checks: a leak is a task verdict, not a build to retry.
-        result['leaks'] = await inspect_leaks(environment, history_is_input=history_is_task_input(task))
+        with environment.with_default_user(task.config.agent.user):
+            result['leaks'] = await inspect_leaks(environment, history_is_input=history_is_task_input(task))
     return result
 
 
 # Repository leaks the agent can read (Vals AI, "MiMo reward hacking", 2026-10-07): the
 # fix as git objects or refs beyond HEAD, and the fix's files told apart by their mtimes.
-REPOSITORY_ROOTS = ('/testbed', '/workspace/repo', '/workspace', '/app', '/repo', '/code')
-# Repositories below home directories (TMax: /home/user/<project>), found by name, not by root.
-HOME_ROOT = '/home'
-HOME_DEPTH = 5
+# Discover repositories throughout the container, without a directory allowlist.
+REPOSITORY_ROOTS = ('/',)
 # task.toml [metadata] key: the task is about the repository's history (recover a lost
 # commit, read the reflog, compare branches), so that history is task input, not a leak.
 HISTORY_INPUT_KEY = 'git_history_is_task_input'
@@ -76,7 +75,7 @@ MTIME_GAP_SECONDS = 600
 MTIME_MINORITY = 0.2
 EXAMPLES = 20
 MTIME_EXAMPLES = 50
-# Written by the automatic repair step (validation.rules.dynamic.environment.repair) at build time.
+# Written by timestamp normalization after task setup.
 REPAIR_REPORT = '/var/lib/ot-repository-repair.json'
 AFTER_REPAIR = 'leak still present after automatic repair'
 GIT = "git -c safe.directory='*'"
@@ -87,24 +86,54 @@ def history_is_task_input(task):
     return raw.get('metadata', {}).get(HISTORY_INPUT_KEY) is True
 
 
-def home_repositories_command(home=HOME_ROOT):
-    """Directories holding a .git below home, one per line; nothing without home."""
-    if not home:
-        return 'true'
-    q = shlex.quote(home)
-    return f'[ -d {q} ] && find {q} -maxdepth {HOME_DEPTH} -name .git -prune -exec dirname {{}} \\; 2>/dev/null; true'
+def repositories_command(roots=REPOSITORY_ROOTS, home=None, *, root_expression=None):
+    """Discover normal, linked-worktree and bare repositories recursively.
 
-
-def repositories_command(roots=REPOSITORY_ROOTS, home=HOME_ROOT):
-    return ('have=0; command -v git >/dev/null 2>&1 && have=1; echo "git $have"; '
-            '{ printf "%s\\n" "$(pwd -P)" ' + ' '.join(shlex.quote(r) for r in roots) + '; '
-            + home_repositories_command(home) + '; } | while IFS= read -r d; do '
-            '[ -d "$d" ] || continue; '
-            # Resolved like show-toplevel: MiMo's /testbed is a symlink to /workspace/repo.
-            'if [ -e "$d/.git" ]; then echo "gitdir $(cd "$d" && pwd -P)"; fi; '
-            'if [ $have = 1 ]; then t=$(cd "$d" && ' + GIT + ' rev-parse --show-toplevel 2>/dev/null) && echo "repo $t"; fi; '
-            'done; true')
-
+    roots/home permit bounded test fixtures. Production searches /; root_expression
+    is an internal shell expression used by the generated normalization script.
+    Permission-denied paths are outside this user's accessible scope. Other find
+    errors are incomplete discovery; symlink cycles are safely skipped by find.
+    """
+    roots = (*roots, *((home,) if home else ()))
+    root_words = root_expression or ' '.join(shlex.quote(r) for r in roots)
+    virtual_link = shlex.quote('case "$(readlink -f -- "$1")" in '
+                              '/proc|/proc/*|/sys|/sys/*|/dev|/dev/*) exit 0;; *) exit 1;; esac')
+    scan = (
+        'find -L ' + root_words +
+        r' \( -samefile /proc -o -samefile /sys -o -samefile /dev \) -prune -o '
+        r'\( -type d -xtype l -exec sh -c ' + virtual_link + r' sh {} \; \) -prune -o '
+        r'\( -name .git -print -prune \) -o \( -type f -name HEAD -print \) '
+        '> "$ot_discovery/candidates" 2> "$ot_discovery/errors"; ot_find_status=$?; '
+    ) if root_words else 'ot_find_status=0; : > "$ot_discovery/candidates"; : > "$ot_discovery/errors"; '
+    return (
+        '( export LC_ALL=C; '
+        'ot_discovery=$(mktemp -d) || exit 2; '
+        'trap \'rm -rf -- "$ot_discovery"\' EXIT; '
+        'have=0; command -v git >/dev/null 2>&1 && have=1; echo "git $have"; '
+        + scan +
+        'ot_discovery_status=0; '
+        'if [ "$ot_find_status" != 0 ]; then '
+        'grep -v -E "Permission denied|File system loop detected" "$ot_discovery/errors" '
+        '> "$ot_discovery/fatal" || true; '
+        'if [ -s "$ot_discovery/fatal" ] || [ ! -s "$ot_discovery/errors" ]; then '
+        'cat "$ot_discovery/fatal" >&2; ot_discovery_status=1; fi; fi; '
+        '{ pwd -P; while IFS= read -r candidate; do '
+        'case "$candidate" in */.git) dirname -- "$candidate";; '
+        '*/HEAD) d=$(dirname -- "$candidate"); '
+        'if [ -d "$d/objects" ] || [ -f "$d/commondir" ]; then printf "%s\\n" "$d"; fi;; '
+        'esac; done < "$ot_discovery/candidates"; } | sort -u > "$ot_discovery/roots"; '
+        'while IFS= read -r d; do '
+        '[ -d "$d" ] || continue; '
+        'd=$(cd "$d" && pwd -P) || continue; '
+        'if [ -e "$d/.git" ]; then printf "gitdir %s\\n" "$d"; fi; '
+        'if [ "$have" = 1 ]; then '
+        't=$(cd "$d" && ' + GIT + ' rev-parse --show-toplevel 2>/dev/null) && '
+        '{ printf "repo %s\\n" "$t"; continue; }; '
+        'if [ "$(cd "$d" && ' + GIT + ' rev-parse --is-bare-repository 2>/dev/null)" = true ]; '
+        'then printf "bare %s\\n" "$d"; '
+        'elif [ -f "$d/HEAD" ] && [ -d "$d/objects" ]; then printf "gitdir %s\\n" "$d"; fi; '
+        'fi; done < "$ot_discovery/roots" | sort -u; '
+        'exit "$ot_discovery_status" )')
 
 
 def empty_object_store_command(repository):
@@ -178,13 +207,19 @@ def mtime_command(repository):
         'shown=0; for (i=end+1; i<=c[k] && shown<MAX; i++) { print "L", k, tm[k,i], nm[k,i]; shown++ } } }\''
         % (MTIME_GAP_SECONDS, MTIME_EXAMPLES))
     return (
-        f'cd {q} || exit 3; GIT_OPTIONAL_LOCKS=0; export GIT_OPTIONAL_LOCKS; '
-        f'{{ {GIT} diff --name-only -z HEAD -- 2>/dev/null | tr "\\0" "\\n" | sed "s/^/D /"; '
+        f'( cd {q} || exit 3; '
+        'ot_mtime_index=$(mktemp) || exit 4; '
+        'trap \'rm -f -- "$ot_mtime_index" "$ot_mtime_index.lock"\' EXIT; '
+        f'ot_source_index=$({GIT} rev-parse --git-path index) || exit 4; '
+        'if [ -f "$ot_source_index" ]; then cp -- "$ot_source_index" "$ot_mtime_index" || exit 4; '
+        'else rm -f -- "$ot_mtime_index"; fi; '
+        'GIT_INDEX_FILE=$ot_mtime_index; export GIT_INDEX_FILE; '
+        f'{{ {GIT} diff --no-ext-diff --no-textconv --name-only -z HEAD -- 2>/dev/null | tr "\\0" "\\n" | sed "s/^/D /"; '
         f'{GIT} ls-files -z | xargs -0 stat -c "F %Y %n" 2>/dev/null; '
         f'{GIT} ls-tree -r -d -z --name-only HEAD | xargs -0 stat -c "R %Y %n" 2>/dev/null; }} | '
         "awk '$1==\"D\"{d[substr($0,3)]=1; next} "
         '{n=substr($0, length($1)+length($2)+3)} $1=="F" && (n in d){dirty++; next} {print} '
-        "END{print \"N\", dirty+0}' | sort -k2,2n | " + analyze)
+        "END{print \"N\", dirty+0}' | sort -k2,2n | " + analyze + ")")
 
 
 def parse_history(output):
@@ -252,11 +287,11 @@ def mtime_leak(files):
     return 0 < files.get('later', 0) <= MTIME_MINORITY * files['count']
 
 
-async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=HOME_ROOT, history_is_input=False):
+async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=None, history_is_input=False):
     """Look for the fix where the agent can read it; reading only, nothing is changed.
 
-    history_is_input (task.toml metadata): the checks still run, but what they find is
-    recorded as an observation and the checks are not_checked, never passed.
+    History findings are advisory for every task. history_is_input is retained as
+    explanatory metadata and never disables timestamp checking or normalization.
     """
     import json
     repair = None
@@ -267,12 +302,13 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=HOME_ROOT, his
         except ValueError:
             repair = {'unreadable': (report.stdout or '')[:1000]}
     repaired = bool((repair or {}).get('version'))
-    found = await environment.exec(repositories_command(roots, home), timeout_sec=30)
+    found = await environment.exec(repositories_command(roots, home), timeout_sec=LEAK_TIMEOUT_SEC)
     lines = [line.split(' ', 1) for line in (found.stdout or '').splitlines() if ' ' in line]
     have_git = ['git', '1'] in lines
-    repositories = sorted({value for kind, value in lines if kind == 'repo' and value.startswith('/')})
+    bare = {value for kind, value in lines if kind == 'bare' and value.startswith('/')}
+    repositories = sorted({value for kind, value in lines if kind == 'repo' and value.startswith('/')} | bare)
     gitdirs = sorted({value for kind, value in lines if kind == 'gitdir'})
-    uncovered = [d for d in gitdirs if not any(d == r or d.startswith(r.rstrip('/') + '/') for r in repositories)]
+    uncovered = sorted(set(gitdirs) - set(repositories))
     history = {'check': 'repository-history-leak', 'repositories': {}}
     mtimes = {'check': 'repository-mtime-leak', 'repositories': {},
               'gap_seconds': MTIME_GAP_SECONDS, 'minority_fraction': MTIME_MINORITY}
@@ -285,7 +321,7 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=HOME_ROOT, his
         history.update(status='not_checked', reason='no git binary in the image', gitdirs=gitdirs)
         mtimes.update(status='not_checked', reason='no git binary in the image', gitdirs=gitdirs)
     elif not repositories and not uncovered:
-        history.update(status='not_checked', reason='no git repository at the working directory or the usual roots')
+        history.update(status='not_checked', reason='no Git repositories found in the scanned filesystem')
         mtimes.update(status='not_checked', reason=history['reason'])
     else:
         repositories = sorted(set(repositories) | set(uncovered))
@@ -317,16 +353,19 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=HOME_ROOT, his
                 found_here.append(f"{repo['non_ancestor_commits_newer_than_head']} commits on other refs newer than HEAD")
             if found_here:
                 problems.append(f'{repository}: ' + ', '.join(found_here))
-            elif repo.get('fsck_exit'):
+            if repo.get('fsck_exit'):
                 errors.append(f"{repository}: git fsck exited {repo['fsck_exit']}")
         history.update(
-            status='failed' if problems else 'error' if errors else 'passed',
+            status='error' if errors else 'warning' if problems else 'passed',
             reason=('; '.join(problems) if problems else '; '.join(errors) if errors else
                     'no unreachable commits or blobs and no newer commits outside HEAD; '
                     'any broken repositories have verified empty object stores'),
             **({'errors': errors} if errors and problems else {}))
         problems, errors = [], []
         for repository in repositories:
+            if repository in bare:
+                mtimes['repositories'][repository] = {'status': 'not_checked', 'reason': 'bare repository has no working files'}
+                continue
             if history['repositories'][repository].get('empty_object_store', {}).get('status') == 'passed':
                 mtimes['repositories'][repository] = {
                     'status': 'passed', 'reason': 'verified empty object store and no index; no clean tracked files to compare'}
@@ -349,24 +388,23 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=HOME_ROOT, his
                 problems.append(f"{repository}: {repo['files']['later']} of {repo['files']['count']} clean tracked "
                                 f"files are more than {MTIME_GAP_SECONDS} s newer than the rest")
         mtimes.update(
-            status='failed' if problems else 'error' if errors else 'passed',
+            status='error' if errors else 'failed' if problems else 'passed',
             reason=('; '.join(problems) if problems else '; '.join(errors) if errors else
                     'clean tracked files share one modification-time group'),
             **({'errors': errors} if errors and problems else {}))
-        if repaired and mtimes['status'] != 'passed':
+        if repaired and mtimes['status'] == 'failed':
             # Decided 2026-10-17: the repair always normalizes mtimes and its report holds the
             # flagged-and-fixed count; afterwards this is an observation, never a verdict.
-            mtimes.update(status='passed' if problems else 'not_checked', observation=mtimes['reason'],
-                          reason='observation only after the automatic repair (mtimes normalized at build time): '
+            mtimes.update(status='passed', observation=mtimes['reason'],
+                          reason='observation only after the automatic repair (mtimes normalized during setup): '
                                  + mtimes['reason'])
     checks = [history, mtimes]
     if history_is_input:
-        for c in checks:
-            c.update(observation=f"{c['status']}: {c['reason']}", status='not_checked',
-                     reason=f'git history is task input (task.toml metadata.{HISTORY_INPUT_KEY}); '
-                            'not repaired, findings recorded as an observation')
+        history['history_is_task_input'] = True
+    history['advisory'] = True
     status = ('failed' if any(c['status'] == 'failed' for c in checks) else
               'error' if any(c['status'] == 'error' for c in checks) else
+              'warning' if any(c['status'] == 'warning' for c in checks) else
               'not_checked' if all(c['status'] == 'not_checked' for c in checks) else 'passed')
     result = {'status': status, 'checks': checks}
     if repair is not None:

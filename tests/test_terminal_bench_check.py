@@ -38,9 +38,9 @@ def test_pinned_scripts_match_upstream_workflow_and_profiles():
     upstream = set(re.findall(r'\|((?:check-)[\w-]+\.sh)"', workflow))
     assert {n for n in set(checks) | set(excluded) if n.endswith('.sh')} == upstream
     # Upstream scripts plus our local rules (validation/rules/static).
-    assert len(checks) == 31 and len(excluded) == 2
+    assert len(checks) == 32 and len(excluded) == 2
     _, portable, skipped = load_checks('portable')
-    assert len(portable) == 18
+    assert len(portable) == 19
     assert 'check-task-package-name.sh' in skipped
 
 
@@ -177,7 +177,11 @@ def test_training_defaults_exclude_ai_and_missing_ai_key_is_incomplete(tmp_path,
     assert 'check-separate-verifier.sh' not in checks
     assert 'check-test-sh-sanity.sh' not in checks
     assert 'check-test-sh-sanity.sh' in load_checks('terminal-bench')[1]
-    assert {'check-pip-pinning.sh', 'check-verifier-tooling-baked.sh'} <= set(checks)
+    assert 'check-pip-pinning.sh' in checks
+    assert 'check-trial-network-fetch.sh' in excluded
+    assert 'check-trial-network-fetch.sh' not in checks
+    assert 'check-verifier-tooling-baked.sh' in excluded
+    assert 'check-verifier-tooling-baked.sh' not in checks
     assert 'check-separate-verifier.sh' in load_checks('terminal-bench')[1]
     # User policy (2026-10-26): training records AI detection as intentionally excluded.
     assert AI_CHECK not in checks and 'excluded by user policy' in excluded[AI_CHECK]
@@ -806,3 +810,18 @@ def test_unused_reference_set_is_not_a_graded_requirement(tmp_path, usage, expec
     out = tmp_path / 'report'
     run_checks([task], out, exclude=[c for c in checks if c != 'check-test-file-references.sh'])
     assert json.loads((out / 'summary.json').read_text())['tasks'][0]['checks'][0]['status'] == expected
+
+
+def test_training_excludes_image_baking_and_network_patterns_for_prepared_runtimes():
+    from validation.rules.__main__ import selection
+    _, checks, excluded = load_checks('training')
+    assert 'check-verifier-tooling-baked.sh' not in checks
+    assert 'prepared verifier runtimes' in excluded['check-verifier-tooling-baked.sh']
+    assert 'check-trial-network-fetch.sh' not in checks
+    assert 'fallback branches' in excluded['check-trial-network-fetch.sh']
+    assert 'check-trial-network-fetch.sh' in load_checks('terminal-bench')[1]
+    assert 'check-verifier-tooling-baked.sh' in load_checks('terminal-bench')[1]
+    selected, _ = selection('static')
+    names = {rule.name for rule in selected}
+    assert 'verifier-tooling-baked' not in names
+    assert 'trial-network-fetch' not in names

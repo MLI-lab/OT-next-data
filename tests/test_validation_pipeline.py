@@ -207,7 +207,7 @@ def test_batch_schedules_all_tasks_and_accounts_per_task(
     a.dry_run = False
     a.outcome_retries = 0      # reruns of not-run tasks are covered by test_outcome_retries
     a.reference_runs = a.nop_runs = 1  # one fake trial per task; repetitions are tested separately
-    a.nop_shuffled_runs = 0  # the shuffled no-op is tested in test_listing_order.py
+    a.reference_shuffled_runs = a.nop_shuffled_runs = 0  # shuffling is tested in test_listing_order.py
     monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
     captured = []
     async def execute(config):
@@ -663,6 +663,9 @@ def test_runtime_workdir_mismatch_fails_even_after_successful_start(source, tmp_
     from harbor.models.task.task import Task
     from validation.rules.dynamic.environment.check import inspect_environment
     class Environment:
+        def with_default_user(self, user):
+            from contextlib import nullcontext
+            return nullcontext()
         async def exec(self, command, **kwargs):
             wrong = command.startswith('actual=$(pwd')
             return SimpleNamespace(return_code=1 if wrong else 0,
@@ -1473,9 +1476,33 @@ def test_stage2_runs_reviews_with_bounded_concurrency(source, tmp_path, upstream
     assert report['complete']
 
 
-def test_reference_and_nop_run_three_times_by_default(source, tmp_path):
+def test_reference_and_nop_run_once_plus_one_shuffled_by_default(source, tmp_path):
     a = args(source.parent, tmp_path)
-    assert (a.reference_runs, a.nop_runs, a.attempts) == (3, 3, 1)
-    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 3, 3, 1]
+    assert (a.reference_runs, a.nop_runs, a.attempts) == (1, 1, 1)
+    assert (a.reference_shuffled_runs, a.nop_shuffled_runs) == (1, 1)
+    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 1, 1, 1]
     a = stages.parser().parse_args([str(source.parent), '--reference-runs', '5', '--nop-runs', '2', '--attempts', '8'])
     assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 5, 2, 8]
+
+
+@pytest.mark.parametrize('number', [1, 2, 3])
+def test_static_rejection_skips_container_stages_with_coverage(source, tmp_path, monkeypatch, number):
+    from validation.stages import environment_preflight
+    options = args(source.parent, tmp_path)
+    options.dry_run = False
+    options._static_blocked = {source.name: {'report': '/static/summary.json', 'status': 'failed'}}
+    calls = []
+    def build(sources, *a):
+        calls.extend(sources)
+        return []
+    def trials(stage, sources, *a):
+        calls.extend(sources)
+        return []
+    monkeypatch.setattr(environment_preflight, 'run_build_stage', build)
+    monkeypatch.setattr(stages, 'run_trial_batch', trials)
+    _, report = stages.run_stage(number, options)
+    assert calls == []
+    item, = report['items']
+    assert item['task'] == str(source)
+    assert item['status'] == 'skipped'
+    assert item['blocked_by_stage'] == 4
