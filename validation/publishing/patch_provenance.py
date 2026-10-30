@@ -21,7 +21,7 @@ def source_binaries(contract):
     if not original or not Path(original).exists():
         return {}
     import pyarrow.parquet as pq
-    from validation.data.materialize import parquet_files
+    from validation.task_inputs.materialize import parquet_files
     found = {}
     for path in parquet_files(Path(original)):
         for batch in pq.ParquetFile(path).iter_batches(batch_size=64, columns=['path', 'task_binary']):

@@ -1,4 +1,4 @@
-"""The run-level retry rule: not-run tasks without expectations, mismatches with them."""
+"""The run-level retry rule: retry missing results, never wrong rewards."""
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from validation.publishing.publish import decide, judge, reproducibility_text
-from validation.stages.outcome_retries import FORMAT, load_expectations, mismatch, retry_round
+from validation.stages.outcome_retries import retry_round
 
 SHA = 'a' * 64
 CRASH = ['trial-1: exception: {"exception_type": "EnvironmentStartTimeoutError"}']
@@ -60,15 +60,8 @@ def contract_for(*tasks):
     return {'tasks': [{'task_id': t, 'sha256': SHA} for t in tasks]}
 
 
-def args_for(expected=None, retries=3):
-    return SimpleNamespace(outcome_retries=retries, expected_outcomes=expected, dry_run=False)
-
-
-def expectations(tmp_path, **tasks):
-    path = tmp_path / 'expected.json'
-    path.write_text(json.dumps({'format': FORMAT, 'note': 'audit note', 'tasks': {
-        name: {'sha256': sha, 'stages_passed': stages} for name, (sha, stages) in tasks.items()}}))
-    return path
+def args_for(retries=3):
+    return SimpleNamespace(outcome_retries=retries, dry_run=False)
 
 
 def test_only_not_run_tasks_are_rerun_and_wrong_rewards_stay_results(tmp_path):
@@ -81,7 +74,7 @@ def test_only_not_run_tasks_are_rerun_and_wrong_rewards_stay_results(tmp_path):
     assert items['crash']['outcome_attempts'][0]['findings'] == CRASH
     assert 'outcome_attempts' not in items['wrong'] and judge(3, items['wrong'])[0] == 'archive'
     assert summary[2]['retried_not_run'] == 1 and summary[2]['recovered_not_run'] == 1
-    assert summary[2]['tasks_with_expectation'] == 0 and stage[2][1]['outcome_retries'] == summary[2]
+    assert stage[2][1]['outcome_retries'] == summary[2]
     assert json.loads(stage[2][0].read_text())['outcome_retries']['history']['crash']['outcomes'] == ['not_run', 'not_run', 'passed']
 
 
@@ -101,7 +94,6 @@ def test_task_without_a_result_after_the_last_attempt_is_an_infrastructure_error
 def test_task_without_a_reference_solution_is_not_retried_or_held_against_it():
     item = {'task': '/tasks/open', 'status': 'not_applicable', 'reason': 'no solution/solve.sh for oracle validation'}
     assert judge(2, item) == ('not_applicable', item['reason'])
-    assert not mismatch(2, judge(2, item)[0], None)
     build = {'stage': 1, 'complete': True, 'items': [{'task': '/tasks/open', 'status': 'passed'}]}
     reference = {'stage': 2, 'complete': True, 'items': [item]}
     decision = decide({1: build, 2: reference}, {'open'})['open']
@@ -128,50 +120,6 @@ def test_trials_wait_while_the_build_keeps_failing(tmp_path):
     assert 'no result in 1 attempts' in stage[2][1]['items'][0]['findings'][-1]
 
 
-def test_expectation_mismatch_is_rerun_whatever_the_finding_text(tmp_path):
-    expected = expectations(tmp_path, flaky=(SHA, [1, 2, 3, 4]), steady=(SHA, [1, 2, 3, 4]))
-    stage = runs(tmp_path, s2=[trial('steady'), trial('flaky', 'failed', [0.0], WRONG)])
-    batches = Scripted({2: {'flaky': [trial('flaky', 'failed', [0.0], WRONG), trial('flaky')]}})
-    summary = retry_round(stage, args_for(expected), contract_for('steady', 'flaky'), batches, saved)
-    assert [c[1] for c in batches.calls] == [['flaky'], ['flaky']]
-    flaky = stage[2][1]['items'][1]
-    assert flaky['status'] == 'passed' and len(flaky['outcome_attempts']) == 2
-    assert summary[2]['mode'] == 'expected' and summary[2]['tasks_with_expectation'] == 2
-    assert summary[2]['matched_first_attempt'] == 1 and summary[2]['matched_after_retries'] == {'2': 1}
-    assert summary[2]['not_robust'] == [] and summary[2]['expected_outcomes_note'] == 'audit note'
-
-
-def test_never_matching_task_is_archived_as_not_robust(tmp_path):
-    expected = expectations(tmp_path, broken=(SHA, [1, 2, 3, 4]))
-    stage = runs(tmp_path, s1=[build('broken', 'error', 'ImageBuildError: index unreachable')])
-    assert judge(1, stage[1][1]['items'][0])[0] == 'archive'     # a result without an expectation
-    batches = Scripted({1: {'broken': [build('broken', 'error', 'ImageBuildError: again')] * 3}})
-    summary = retry_round(stage, args_for(expected), contract_for('broken'), batches, saved)
-    item = stage[1][1]['items'][0]
-    assert len(batches.calls) == 3
-    assert item['not_robust'] == {'expected': 'passed', 'observed': ['archive'] * 4}
-    outcome, reason = judge(1, item)
-    assert outcome == 'archive' and reason == 'not robust: the earlier audit passed this stage; observed archive, archive, archive, archive over 4 attempts'
-    assert summary[1]['not_robust'] == ['broken'] and summary[1]['matched_first_attempt'] == 0
-
-
-def test_expectations_are_found_by_task_id_and_unknown_tasks_use_the_classifier(tmp_path):
-    # 'rebuilt' has other content than in the audit (its file entry even carries an old hash): still found by ID.
-    expected = expectations(tmp_path, rebuilt=('b' * 64, [1, 2, 3, 4]))
-    stage = runs(tmp_path, s2=[trial('rebuilt', 'failed', [0.0], WRONG), trial('unknown', 'failed', [0.0], WRONG)])
-    batches = Scripted({2: {'rebuilt': [trial('rebuilt')]}})
-    summary = retry_round(stage, args_for(expected), contract_for('rebuilt', 'unknown'), batches, saved)
-    assert [c[1] for c in batches.calls] == [['rebuilt']] and summary[2]['tasks_with_expectation'] == 1
-    assert summary[2]['history']['rebuilt']['mode'] == 'expected' and summary[2]['history']['unknown']['mode'] == 'classifier'
-
-
-def test_expected_not_passed_is_a_match_when_the_stage_fails_again(tmp_path):
-    expected = expectations(tmp_path, dropped=(SHA, [1, 3]))
-    stage = runs(tmp_path, s2=[trial('dropped', 'failed', [0.0], WRONG)])
-    summary = retry_round(stage, args_for(expected), contract_for('dropped'), Scripted({}), saved)
-    assert summary[2]['matched_first_attempt'] == 1 and 'not_robust' not in stage[2][1]['items'][0]
-
-
 def test_retries_are_skipped_for_dry_runs_zero_and_ungated_stages(tmp_path):
     stage = runs(tmp_path, s2=[trial('crash', 'failed', [], CRASH)])
     assert retry_round(stage, args_for(retries=0), contract_for('crash'), Scripted({}), saved) is None
@@ -181,33 +129,6 @@ def test_retries_are_skipped_for_dry_runs_zero_and_ungated_stages(tmp_path):
     assert retry_round(runs(tmp_path / 'other', s4=[{'task': 'x', 'status': 'error'}]), args_for(),
                        contract_for('x'), Scripted({}), saved) is None
     assert stage[2][1]['items'][0]['findings'] == CRASH
-
-
-def test_expected_outcomes_file_is_validated():
-    with pytest.raises(ValueError):
-        load_expectations(Path(__file__))
-
-
-def test_description_reports_reproducibility():
-    retries = {'2': {
-        'mode': 'expected', 'tasks_with_expectation': 10, 'matched_first_attempt': 7,
-        'matched_after_retries': {'1': 1, '3': 1}, 'not_robust': ['t-9'],
-        'retried_not_run': 0, 'recovered_not_run': 0, 'unresolved_not_run': []}}
-    text = '\n'.join(reproducibility_text(retries))
-    assert '### Reproducibility and retries' in text
-    assert '| 2 | expected | 10 | 7 | 1 / 0 / 1 | 1 | 0 | 0 | 0 |' in text
-    assert 'Archived as not robust: stage 2: t-9' in text
-    retries['2']['expected_outcomes_note'] = 'manual audit 2026-10-10'
-    assert 'Expected outcomes: manual audit 2026-10-10' in '\n'.join(reproducibility_text(retries))
-    assert reproducibility_text(None) == [] and reproducibility_text({}) == []
-
-
-def test_builder_writes_the_format_from_a_source(tmp_path, monkeypatch):
-    from validation import expected_outcomes as builder
-    monkeypatch.setattr(builder, 'inventory', lambda source: ([{'task_id': 'a', 'sha256': SHA}], []))
-    out = tmp_path / 'expected.json'
-    builder.main(['audited', str(tmp_path), '--stages', '1,2,3,4', '--note', 'test', '--out', str(out)])
-    assert load_expectations(out) == {'a': {'stages_passed': [1, 2, 3, 4]}}
 
 
 def test_pipeline_runs_the_round_once_after_all_stages(tmp_path, monkeypatch):
@@ -229,7 +150,7 @@ def test_pipeline_runs_the_round_once_after_all_stages(tmp_path, monkeypatch):
     monkeypatch.setattr('validation.stages.outcome_retries.retry_round', fake_round)
     monkeypatch.setattr('validation.stages.runner.checkout', lambda name: tmp_path)
     options = SimpleNamespace(out=tmp_path, dry_run=False, trials=None, contract=None, outcome_retries=3,
-                              expected_outcomes=None, prebuild_only=False,
+                              prebuild_only=False,
                               fix_instruction_paths=False, fix_pip_pins=False, tasks=tmp_path)
     monkeypatch.setattr('validation.stages.normalize_paths.prepare', lambda a, n: None)
     monkeypatch.setattr('validation.rules.static.pip_pinning.repair.prepare', lambda a, n: None)
@@ -246,3 +167,25 @@ def test_reviewed_cause_replaces_the_generic_not_robust_text():
             'not_robust': {'expected': 'passed', 'observed': ['archive'] * 4},
             'archive_cause': 'the source repository is no longer available'}
     assert judge(1, item) == ('archive', 'the source repository is no longer available (same result in all 4 attempts)')
+
+
+def test_description_reports_infrastructure_retries():
+    text = '\n'.join(reproducibility_text({'2': {
+        'retried_not_run': 3, 'recovered_not_run': 2, 'unresolved_not_run': ['a']}}))
+    assert '| 2 | 3 | 2 | 1 |' in text
+    assert 'are not archived' in text
+    assert reproducibility_text(None) == []
+
+
+def test_retired_option_is_not_accepted():
+    from validation.stages.runner import parser
+    with pytest.raises(SystemExit):
+        parser().parse_args(['tasks', '--expected-outcomes', 'audit.json'])
+
+
+def test_old_audit_contract_is_not_silently_reinterpreted():
+    from validation.contract import verify_source
+    for contract in ({'expected_outcomes_sha256': 'old-audit-hash'},
+                     {'arguments': {'expected_outcomes': '/old/audit.json'}}):
+        with pytest.raises(ValueError, match='retired expected-outcomes'):
+            verify_source(SimpleNamespace(), contract)

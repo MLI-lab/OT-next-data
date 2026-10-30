@@ -52,7 +52,7 @@ def prepare_and_submit(args, stages, request):
     import pyarrow as pa
     import pyarrow.parquet as pq
     from validation.contract import create, read, task_records, verify_materialized
-    from validation.data.selection import discover_tasks
+    from validation.task_inputs.selection import discover_tasks
     from validation.rules.static.task_absolute_path.path_cache import KEY, read as read_cache
     from validation.publishing.publish import pack_task
     from validation.stages import normalize_paths
@@ -134,7 +134,7 @@ def resolve_prepared(parent, pointer):
 def launch_array(request):
     # Plan from persistent frozen code, not node-local ROOT: the array snapshot's
     # external symlink must still exist after this allocation exits.
-    subprocess.run([sys.executable, '-m', 'validation.shard_normalization',
+    subprocess.run([sys.executable, '-m', 'hpc.shard_normalization',
                     str(Path(request['folder']) / 'request.json')],
                    cwd=request['source_code'],
                    env={**os.environ, 'PYTHONPATH': request['source_code']}, check=True)
@@ -142,7 +142,7 @@ def launch_array(request):
 
 def resume(request_path):
     from validation.contract import read
-    from validation.shards import plan
+    from hpc.shards import plan
     from validation.stages.runner import save
     request = json.loads(Path(request_path).read_text())['shard_plan']
     folder = Path(request['folder'])

@@ -53,6 +53,7 @@ def test_pipeline_order_and_trial_identity(tmp_path, monkeypatch):
         seen.append(NAMES[number])
         return tmp_path / f'{number}.json', {'items': [], 'has_findings': False}
 
+    monkeypatch.setattr('validation.stages.static_gate.prepare', lambda args, stages: None)
     monkeypatch.setattr(run, 'run_stage', stage)
     assert run.run_selected(args, [1, 2, 3, 4, 5]) == 0
     assert seen == ['build_validation', 'oracle_validation', 'nop_validation',
@@ -100,11 +101,3 @@ def test_v1_record_is_translated_to_current_numbers():
 def test_v1_nop_file_read_as_stage_2_is_rejected():
     with pytest.raises(ValueError):
         require_stage({'stage_layout': 'environment-first-v1', 'stage': 2, 'name': 'nop_validation'}, 2)
-
-
-def test_old_expected_outcomes_are_not_reinterpreted(tmp_path):
-    from validation.stages.outcome_retries import load_expectations
-    path = tmp_path / 'old.json'
-    path.write_text(json.dumps({'format': 'ot-expected-outcomes-v1', 'tasks': {'a': {'stages_passed': [3]}}}))
-    with pytest.raises(ValueError, match='ot-expected-outcomes-v2'):
-        load_expectations(path)

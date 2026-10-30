@@ -96,7 +96,7 @@ def summarize(archive):
                            'tasks': len(items), 'counts': dict(counts), 'report': str(path),
                            'contract_sha256': report.get('contract_sha256'), 'timing': report.get('timing')})
             if number in (5, 8):
-                from validation.publishing.review_usage import summarize_items
+                from validation.rubrics.review_usage import summarize_items
                 stages[-1]['usage'] = summarize_items(items, report.get('review_attempts', 1))
                 stages[-1]['review_pricing'] = report.get('review_pricing')
                 stages[-1]['resolved_review_pricing'] = report.get('resolved_review_pricing')
@@ -146,7 +146,7 @@ def summarize(archive):
     stage_two = next((stage for stage in stages if stage['stage'] == 5), None)
     review_groups = ({'implementation': stage_two['implementation_review_groups'],
                       'proposal': stage_two['proposal_review_groups']} if stage_two else None)
-    from validation.publishing.review_usage import summarize_items
+    from validation.rubrics.review_usage import summarize_items
     return {'archive': str(archive.resolve()), 'contract_sha256': contract_hash, 'network_status': network_status,
             'review_usage': summarize_items(review_items),
             'instruction_fixup': instruction_fixup,
@@ -189,6 +189,13 @@ def write_report(archive, out):
     with tarfile.open(archive, mode='r|gz') as tar:
         for member in tar:
             path = Path(member.name)
+            if member.name == 'results/results.parquet' and member.isfile():
+                import shutil
+                temporary = out / 'results.parquet.tmp'
+                with temporary.open('wb') as stream:
+                    shutil.copyfileobj(tar.extractfile(member), stream)
+                temporary.replace(out / 'results.parquet')
+                continue
             if len(path.parts) != 4 or path.parts[0] != 'results' or path.name != 'summary.json' or not member.isfile():
                 continue
             content = tar.extractfile(member).read()

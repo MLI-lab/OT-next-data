@@ -275,7 +275,7 @@ def test_harbor_execution_repairs_and_resumes(tmp_path, monkeypatch, task_enviro
     monkeypatch.setattr(runtime, 'job_config', lambda task, *args: {'task': str(task)})
     monkeypatch.setattr(runtime, 'execute_job', execute)
     monkeypatch.setattr(runtime, 'trial_results', lambda job: [(job / 'trial', {})])
-    monkeypatch.setattr('validation.publishing.review_pricing.for_stage', lambda *args: {'rates': None, 'source': {}})
+    monkeypatch.setattr('validation.rubrics.review_pricing.for_stage', lambda *args: {'rates': None, 'source': {}})
     args = SimpleNamespace(out=tmp_path / 'out', attempts=1, review_runs=1, review_resume=True,
                            backend='docker', dry_run=False)
     async def run():
@@ -330,7 +330,7 @@ def test_image_inspection_keeps_severity_and_repairs(tmp_path, monkeypatch):
     monkeypatch.setattr(image_review, 'create_environments', create)
     monkeypatch.setattr(image_review, 'run_judge', judge)
     monkeypatch.setattr(image_review.shutil, 'which', lambda *args: '/fake/claude')
-    monkeypatch.setattr('validation.publishing.review_pricing.for_stage', lambda *args: {'rates': None, 'source': {}})
+    monkeypatch.setattr('validation.rubrics.review_pricing.for_stage', lambda *args: {'rates': None, 'source': {}})
     args = SimpleNamespace(out=tmp_path / 'out', attempts=1, review_runs=1, review_resume=True,
         review_retries=2, review_seed=42, review_local=False, dry_run=False, timeout_minutes=1)
     result = asyncio.run(image_review.review(source, staged, tmp_path, args, 'claude-code', 'test'))

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Cross-container isolation check, submitted by validation/dataset_checks/run.py.
+# Cross-container isolation check, submitted by validation/publishing/dataset_checks/run.py.
 #SBATCH --job-name=task-isolation
 #SBATCH --partition=cpu
 #SBATCH --cpus-per-task=48
@@ -65,7 +65,7 @@ echo "bridge ready on $APPTAINER_BRIDGE_URL" | tee "$out/phases.log"
 
 rc=0
 echo "== check_isolation.py" | tee -a "$out/phases.log"
-python "$here/validation/dataset_checks/isolation.py" "$(ls -d "$tasks"/tasks/* | head -1)" "$out/isolation" \
+python "$here/validation/publishing/dataset_checks/isolation.py" "$(ls -d "$tasks"/tasks/* | head -1)" "$out/isolation" \
     2>&1 | tee "$out/check_isolation.log" || rc=1
 echo "exit $rc" | tee -a "$out/phases.log"
 exit "$rc"

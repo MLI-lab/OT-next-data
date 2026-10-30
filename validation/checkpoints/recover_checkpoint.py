@@ -83,7 +83,7 @@ def capture(contract_path, summary_path, code, destination):
     print(f"Preserving {len(summary['tasks'])} checkpointed tasks", flush=True)
     # Preserve the already normalized inputs; original scratch may be deleted on exit.
     source = Path(contract['arguments']['tasks'])
-    from validation.data.materialize import parquet_files, materialize
+    from validation.task_inputs.materialize import parquet_files, materialize
     if parquet_files(source):
         materialize(source, destination / 'tasks', selected_ids={r['task_id'] for r in task_records(contract)})
     else:

@@ -16,11 +16,11 @@ the displayed text.
 | Topic | Where |
 | --- | --- |
 | Validation workflow, contracts, publishing | `validation/README.md` |
-| Validation stages and checks | `validation/PROTOCOL.md` |
+| Validation stages and checks | `validation/README.md` |
 | Runtime, staging, bridge behavior | `.agents/RUNTIME.md` |
 | Cluster launchers | `hpc/README.md`, `hpc/zih/README.md` |
 | SSH access to CLAIX, LRZ and ZIH; agent and Mac VPN tunnel | [Cluster access](cluster-access.md) |
-| Patch outputs and publication | `data/INVENTORY.md#reporting-patches-in-the-datasource-pr` |
+| Patch outputs and publication | `data/README.md#reporting-patches-in-the-datasource-pr` |
 | Helma mounts and quotas | `config/clusters.py`, `hpc/README.md#storage-locations` |
 | Helma performance measurements | [Helma measurements](#helma-measurements) below |
 | ZIH storage and job-local staging | `hpc/zih/README.md` |
@@ -44,7 +44,7 @@ results into existing totals and reason summaries instead of appending rerun
 history. Describe manual approvals plainly, while distinguishing an inspected
 result from an automatic pass and avoiding claims unsupported by its evidence.
 
-Follow [`validation/README.md`, Automatic PR text](../validation/README.md#automatic-pr-text).
+Follow [the publishing guide](../validation/publishing/README.md).
 Put explanations in the patcher's reporting inputs, not in a custom PR template
 or renderer field. `write_patch_report` accepts `change_labels` and
 `change_reasons` keyed by task ID; these become manifest `labels` and `reason`.
@@ -82,12 +82,14 @@ Prepare Harbor task directories or TaskTrove Parquets with the patcher under
 Results and code snapshots belong in the run output directory, not in new
 launch scripts.
 
-Keep generated datasource READMEs focused on the source, task content, domains,
-capabilities and likely benchmark transfer. Put validation results, exclusions,
-patch statistics, retries and runtime limitations in the Hugging Face PR and its
-run JSON, not in the datasource README. Preserve detailed per-task evidence there.
-Generate the datasource README with `data/annotate_dataset/prompt_template.txt`
-and the existing renderer. Do not manually rewrite it or append validation notes.
+Generate release READMEs with `validation/publishing/readme.py` from
+`results.parquet`, measured run metadata and the saved datasource classification.
+Use the v1/v2/v3 views described in `validation/publishing/README.md`. The user
+requested per-rule validation tables for v1 and evaluation distributions for v2/v3.
+Keep detailed per-task evidence in the result files. Reuse the classification
+from `data/annotate_dataset/prompt_template.txt`; rendering must not invent labels,
+measurements or successful checks. This replaces the older description-only and
+per-stage README formats in the README skills.
 
 ## Pass@k execution concurrency
 
@@ -209,7 +211,7 @@ This was a scratch-capacity precaution, not a dataset validation requirement.
 On 2026-10-11, the Scale SWE session removed exclusivity after estimating that
 five 24-task shards would use about 70 GB together on a node whose disk had
 filled at roughly 400 GB. These are historical estimates, not guarantees for
-other datasets. `validation/shards.py` now makes `--exclusive` opt-in, but
+other datasets. `hpc/shards.py` now makes `--exclusive` opt-in, but
 already-submitted jobs retain their original request. CalibForge array
 `978995` inherited the old exclusive default.
 

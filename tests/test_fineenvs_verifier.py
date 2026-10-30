@@ -108,7 +108,7 @@ def test_changed_grader_does_not_receive_execution_evidence(tmp_path):
     evidence = trial[0] / 'verifier/ot-execution.txt'
     assert 'OT_VERIFIER_EXECUTION:' not in (evidence.read_text() if evidence.exists() else '')
     # Reference acceptance uses numeric reward and trial errors; its recorder
-    # is diagnostic (validation/PROTOCOL.md). So is a no-op's: a zero without it leaves a note.
+    # is diagnostic (validation/README.md). So is a no-op's: a zero without it leaves a note.
     assert assess_trials([trial], 1, 1, task_path=task)['status'] == 'completed'
     nop = run_verifier(tmp_path, task, 'wrong')
     assert nop[1]['verifier_result']['rewards']['reward'] == 0

@@ -42,7 +42,7 @@ def completed(diagnostic):
 
 
 def read(source):
-    from validation.data.materialize import parquet_files
+    from validation.task_inputs.materialize import parquet_files
     files = parquet_files(source)
     if files:
         import pyarrow.parquet as pq

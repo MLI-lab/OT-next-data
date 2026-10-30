@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from validation.checkpoints import stage3
+from validation.checkpoints import build as build_checkpoint
 from validation import contract as contracts
 
 
@@ -33,10 +33,10 @@ def checkpoint(tmp_path, monkeypatch):
 
 def test_freeze_subset_and_restore_paths(tmp_path, monkeypatch):
     record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
-    frozen = stage3.freeze(record, current, tasks[:1])
+    frozen = build_checkpoint.freeze(record, current, tasks[:1])
     assert frozen['source_contract_sha256'] == 'old-contract'
     assert len(frozen['source_report_sha256']) == 64
-    restored = stage3.restore(frozen, [Path('/new/a')])
+    restored = build_checkpoint.restore(frozen, [Path('/new/a')])
     assert [{k: v for k, v in i.items() if k != 'environments'} for i in restored] == [
         {'task': '/new/a', 'status': 'passed', 'output': '/old/logs/a'}]
     assert frozen['items'][0]['task'] == '/old/a'
@@ -47,7 +47,7 @@ def test_json_package_pairs_and_python_tuples_are_equivalent(tmp_path, monkeypat
     old = contracts.read(record)
     old['runtime_dependencies'] = {'python': '3.12.14', 'packages': [['harbor', '0.8.1']]}
     current['runtime_dependencies'] = {'python': '3.12.14', 'packages': [('harbor', '0.8.1')]}
-    assert len(stage3.freeze(record, current, tasks)['items']) == 2
+    assert len(build_checkpoint.freeze(record, current, tasks)['items']) == 2
 
 
 @pytest.mark.parametrize('key', ['execution_profile', 'runtime_dependencies', 'upstream'])
@@ -55,14 +55,14 @@ def test_reject_changed_runtime(tmp_path, monkeypatch, key):
     record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
     current[key] = {'changed': True}
     with pytest.raises(ValueError, match='rerun stage 1'):
-        stage3.freeze(record, current, tasks)
+        build_checkpoint.freeze(record, current, tasks)
 
 
 def test_code_change_rejects_stale_evidence(tmp_path, monkeypatch):
     record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
     current['implementation'] = {'validation/runner.py': 'updated'}
     with pytest.raises(ValueError, match='changed validation implementation'):
-        stage3.freeze(record, current, tasks)
+        build_checkpoint.freeze(record, current, tasks)
 
 
 def test_unfrozen_contract_compares_current_code(tmp_path, monkeypatch):
@@ -70,14 +70,14 @@ def test_unfrozen_contract_compares_current_code(tmp_path, monkeypatch):
     expected = current['implementation']
     current['implementation'] = None
     monkeypatch.setattr(contracts, 'implementation', lambda **kwargs: expected)
-    assert stage3.freeze(record, current, tasks)['items']
+    assert build_checkpoint.freeze(record, current, tasks)['items']
 
 
 
 def test_reject_changed_tasks(tmp_path, monkeypatch):
     record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
     with pytest.raises(ValueError, match='task content'):
-        stage3.freeze(record, current, [{'task_id': 'a', 'sha256': 'changed'}])
+        build_checkpoint.freeze(record, current, [{'task_id': 'a', 'sha256': 'changed'}])
 
 
 @pytest.mark.parametrize('change', ['failed', 'wrong-contract', 'incomplete', 'duplicate'])
@@ -94,13 +94,13 @@ def test_reject_invalid_source_evidence(tmp_path, monkeypatch, change):
         report['items'].append(report['items'][0])
     path.write_text(json.dumps(report))
     with pytest.raises(ValueError):
-        stage3.freeze(record, current, tasks)
+        build_checkpoint.freeze(record, current, tasks)
 
 
 def test_runner_imports_without_executing_builds(tmp_path, monkeypatch):
     from validation.stages import runner, build_retries
     record, current, tasks, _ = checkpoint(tmp_path, monkeypatch)
-    current['stage3_checkpoint'] = stage3.freeze(record, current, tasks)
+    current['stage3_checkpoint'] = build_checkpoint.freeze(record, current, tasks)
     current['sha256'] = 'final-contract'
     current['success_criteria'] = {'minimum_tasks': 2}
     monkeypatch.setattr(contracts, 'verify_materialized', lambda _: current)

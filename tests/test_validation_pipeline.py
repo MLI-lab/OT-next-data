@@ -435,7 +435,7 @@ def test_parquet_materializer_rejects_escape(tmp_path):
     import tarfile
     pq = pytest.importorskip('pyarrow.parquet')
     import pyarrow as pa
-    from validation.data.materialize import materialize
+    from validation.task_inputs.materialize import materialize
     blob = io.BytesIO()
     with tarfile.open(fileobj=blob, mode='w:gz') as tar:
         member = tarfile.TarInfo('../escape')
@@ -562,7 +562,7 @@ def test_parquet_contract_matches_materialized_task_bytes(source, tmp_path):
     import pyarrow as pa
     import pyarrow.parquet as pq
     from validation import contract
-    from validation.data.materialize import materialize
+    from validation.task_inputs.materialize import materialize
     blob = io.BytesIO()
     with tarfile.open(fileobj=blob, mode='w:gz') as tar:
         for p in source.rglob('*'):
@@ -643,7 +643,7 @@ def test_analysis_reuses_image_context_but_uploads_fresh_evidence(source, tmp_pa
 def test_id_range_contract_and_stage_selection(source, tmp_path):
     import shutil
     from validation import contract
-    from validation.data.selection import select_paths
+    from validation.task_inputs.selection import select_paths
     for name in ['task-0001', 'task-0002', 'task-0003']:
         shutil.copytree(source, source.parent / name)
     a = args(source.parent, tmp_path)
@@ -1017,7 +1017,7 @@ def test_local_server_generated_endpoint_is_valid(source, tmp_path):
 
 
 def test_task_discovery_layouts_and_incomplete_tasks(tmp_path):
-    from validation.data.selection import discover_tasks
+    from validation.task_inputs.selection import discover_tasks
     tasks = tmp_path / 'tasks'
     for name, marker in [('a', 'task.toml'), ('broken', 'instruction.md')]:
         task = tasks / name
@@ -1178,12 +1178,16 @@ def test_publish_function_dry_run_writes_files_and_description(tmp_path, monkeyp
     reports_dir.mkdir()
     for stage, report in reports.items():
         (reports_dir / f'stage-{stage}-x.json').write_text(_json.dumps(report))
+    from validation.publishing import revisions
+    history = revisions.History()
+    monkeypatch.setattr(revisions, 'History', lambda repo: history)
     result = publish.publish(reports_dir, tmp_path / 'contract.json', 'x/y', ['set-python=set-python-v1'], run_id='r', dry_run=True)
     assert 'pull_request' not in result
     # The run record and image manifest stay local; only dataset folders are uploaded.
     assert not any(name.startswith(publish.LOCAL_ONLY) for name in result['files'])
     assert (tmp_path / 'report/publish/runs/r.json').is_file()
-    assert (tmp_path / 'report/publish/set-python-v1/tasks.parquet').is_file()
+    assert (tmp_path / 'report/publish/set-python-v1/tasks/r1.parquet').is_file()
+    assert (tmp_path / 'report/publish/set-python-v1/results.parquet').is_file()
     assert '## set-python-v1' in result['description']
     assert 'Keeps **2 tasks** and archives **1** from' in result['description']
 

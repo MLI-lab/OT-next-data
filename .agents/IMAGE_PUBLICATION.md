@@ -73,7 +73,7 @@ fetches its referenced images; a subset run fetches only that subset's images.
 No other datasource's images need to be downloaded.
 
 Preserve the original Parquet file. Run it through the existing cluster validation launcher.
-`validation.data.materialize` preserves image references in a small sidecar
+`validation.task_inputs.materialize` preserves image references in a small sidecar
 outside the extracted task directories, so task content hashes stay unchanged.
 Directory staging also carries this sidecar forward.
 

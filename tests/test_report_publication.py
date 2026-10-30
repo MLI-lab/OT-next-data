@@ -67,3 +67,16 @@ def test_terminal_missing_report_has_bounded_grace_and_remains_missing(tmp_path,
     with pytest.raises(RuntimeError, match='without a complete report'):
         core.wait_for_job(job, 5)
     assert clock[0] == 60
+
+
+def test_report_extracts_shared_results_table(tmp_path, monkeypatch):
+    from validation import run as results
+    source = tmp_path / 'results.parquet'
+    results.update(source, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'x', 'nproc': 'pass'}])
+    archive = tmp_path / 'evidence.tar.gz'
+    with tarfile.open(archive, 'w:gz') as tar:
+        tar.add(source, arcname='results/results.parquet')
+    monkeypatch.setattr(report, 'summarize', lambda p: {'complete': True, 'review_groups': None})
+    report.write_report(archive, tmp_path / 'report')
+    row, = results.read(tmp_path / 'report/results.parquet')
+    assert row['nproc'] == 'pass'

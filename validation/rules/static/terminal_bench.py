@@ -21,7 +21,7 @@ import time
 import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from validation.data.selection import discover_tasks
+from validation.task_inputs.selection import discover_tasks
 from validation.rules.static import dockerfile_references, dockerfile_sanity, nproc
 from validation.rules.static.dockerfile_references import dockerfile_without_comments
 from validation.rules.static.dockerfile_sanity import dockerfile_sanity_text

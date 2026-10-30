@@ -171,8 +171,8 @@ def usage_row(envelope, provider, trial, agent, model, elapsed_seconds=None):
 
 
 async def review(source, staged, out, args, agent, model, *, runtime_task=None, evidence_mode='image'):
-    from validation.publishing.review_usage import price, summarize_rows
-    from validation.publishing.review_pricing import for_stage
+    from validation.rubrics.review_usage import price, summarize_rows
+    from validation.rubrics.review_pricing import for_stage
     provider = provider_for(agent)
     skipped = json.loads((staged / 'rubric-skips.json').read_text())
     if args.dry_run:

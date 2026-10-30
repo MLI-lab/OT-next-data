@@ -47,8 +47,8 @@ def selection(value):
 
 
 def run_static(tasks, rules, out, profile):
-    from validation.data.materialize import materialize, parquet_files
-    from validation.data.selection import discover_tasks
+    from validation.task_inputs.materialize import materialize, parquet_files
+    from validation.task_inputs.selection import discover_tasks
     from validation.rules.static.terminal_bench import load_checks, run_checks
     _, selected, _ = load_checks(profile)
     wanted = {check_name(r) for r in rules}
@@ -57,7 +57,16 @@ def run_static(tasks, rules, out, profile):
         if parquet_files(tasks):
             materialize(tasks, Path(scratch) / 'tasks')
             tasks = Path(scratch)
-        return run_checks(discover_tasks(tasks), out / 'static', profile=profile, exclude=exclude)
+        selected_tasks = discover_tasks(tasks)
+        from uuid import uuid4
+        report_dir = out / 'static' / uuid4().hex[:12]
+        code = run_checks(selected_tasks, report_dir, profile=profile, exclude=exclude)
+        import json
+        from validation.contract import task_digest
+        from validation.run import export_report
+        export_report(out / 'results.parquet', json.loads((report_dir / 'summary.json').read_text()),
+                      {t.name: task_digest(t) for t in selected_tasks})
+        return code
 
 
 def main():
@@ -72,18 +81,28 @@ def main():
     a = ap.parse_args(argv[:argv.index('--')] if '--' in argv else argv)
     static, dynamic = selection(a.rules)
     code = 0
-    if static:
+    if static and not dynamic:
         print(f'Static rules: {", ".join(r.name for r in static)}', flush=True)
         code = run_static(a.tasks, static, a.out, a.static_profile)
     if dynamic:
         from validation.stages.layout import NOP, REFERENCE
-        stages = ','.join(str(n) for n in sorted({1, REFERENCE, NOP}))
-        extra = list(run_args)
+        stages = ','.join(str(n) for n in sorted({1, REFERENCE, NOP, 4}))
+        extra = ['--static-profile', a.static_profile, *run_args]
         names = {r.name for r in dynamic}
         if 'do_not_modify_dynamic' not in names:
             extra.append('--no-dynamic-do-not-modify')
+        if 'verifier_tamper' not in names:
+            extra.append('--no-verifier-tamper')
+        if 'reference_leaks' not in names:
+            extra.append('--no-reference-leaks')
+        if static and a.rules != 'all':
+            from validation.rules.static.terminal_bench import load_checks
+            wanted = {check_name(r) for r in static}
+            for check in load_checks(a.static_profile)[1]:
+                if check not in wanted:
+                    extra.extend(['--exclude', check + '=not selected with --rules'])
         command = [sys.executable, str(ROOT / 'validation/run.py'), str(a.tasks), '--stages', stages,
-                   '--out', str(a.out / 'dynamic'), *extra]
+                   '--out', str(a.out), *extra]
         print('Dynamic rules: ' + ', '.join(sorted(names)) + '\n' + ' '.join(command), flush=True)
         code = subprocess.call(command) or code
     return code

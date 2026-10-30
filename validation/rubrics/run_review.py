@@ -396,8 +396,8 @@ async def review_files(staged, source, out, args, agent, model, task_environment
     import copy
     from uuid import uuid4
     from validation.stages import harbor as runtime
-    from validation.publishing.review_usage import collect, summarize_rows
-    from validation.publishing.review_pricing import for_stage
+    from validation.rubrics.review_usage import collect, summarize_rows
+    from validation.rubrics.review_pricing import for_stage
     runtime.check_runtime_task(source if task_environment else staged, args.backend)
     evidence_mode = 'task-environment' if task_environment else 'files'
     if args.dry_run:

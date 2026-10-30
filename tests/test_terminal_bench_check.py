@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from validation.rules.static.terminal_bench import TERMINAL_BENCH, load_checks, run_checks
-from validation.dataset_checks import run as dataset_checks
+from validation.publishing.dataset_checks import run as dataset_checks
 
 @pytest.fixture(autouse=True)
 def no_live_gptzero(monkeypatch):

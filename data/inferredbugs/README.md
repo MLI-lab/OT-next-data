@@ -10,7 +10,7 @@ python data/inferredbugs/patch.py --help
 
 The patcher writes the task Parquet, `<output>.archive.parquet` containing dropped
 original tasks, and `<output>.manifest.json` recording source provenance and
-changes. See [patch reporting](../INVENTORY.md#reporting-patches-in-the-datasource-pr).
+changes. See [patch reporting](../README.md#reporting-patches-in-the-datasource-pr).
 
 Validate the resulting tasks through the shared [validation pipeline](../../validation/README.md),
 starting with stages 1, 2, 3 and 4 on a small pilot.

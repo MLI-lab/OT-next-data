@@ -14,8 +14,8 @@ import tarfile
 from datetime import datetime, timezone
 
 from validation.upstream import ROOT, PINS
-from validation.data.materialize import parquet_files
-from validation.data.selection import discover_tasks, select, select_paths
+from validation.task_inputs.materialize import parquet_files
+from validation.task_inputs.selection import discover_tasks, select, select_paths
 
 
 class FrozenContract(dict):
@@ -45,16 +45,6 @@ def comparable(value):
     return str(Path(value).resolve()) if isinstance(value, Path) else value
 
 
-def expected_outcomes_digest(args):
-    """Content hash of the earlier audit's expected-outcomes file, validated on the way."""
-    path = getattr(args, 'expected_outcomes', None)
-    if not path:
-        return None
-    from validation.stages.outcome_retries import load_expectations
-    load_expectations(path)
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
 def task_digest(path):
     return files_digest((p.relative_to(path).as_posix(), p.read_bytes())
                         for p in path.rglob('*') if p.is_file())
@@ -69,11 +59,15 @@ def inventory(source, limit=None, task_id_range=None, references=None, suffixes=
     if suffixes is not None:
         suffixes.update(task_count=0, **{'Terminal-Bench tasks': 0, 'this task': 0}, complete=True)
     if parquets:
+        from validation.task_inputs.revisions import selection as revision_selection, accepts
+        revisions = revision_selection(source)
         import pyarrow.parquet as pq
         for path in parquets:
             files.append({'path': str(path.resolve()), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
             for batch in pq.ParquetFile(path).iter_batches(batch_size=32):
                 for row in batch.to_pylist():
+                    if not accepts(revisions, path, row):
+                        continue
                     if PurePosixPath(row['path']).name != row['path'] or row['path'] in ('', '.', '..'):
                         raise ValueError('unsafe task ID in Parquet')
                     with tarfile.open(fileobj=io.BytesIO(row['task_binary']), mode='r:*') as tar:
@@ -84,7 +78,10 @@ def inventory(source, limit=None, task_id_range=None, references=None, suffixes=
                                 raise ValueError(f'unsafe task archive member: {member.name}')
                             if member.isfile():
                                 contents.append((str(name), tar.extractfile(member).read()))
-                    records.append({'task_id': row['path'], 'sha256': files_digest(contents)})
+                    content_hash = files_digest(contents)
+                    if revisions is not None and content_hash != row.get('content_sha256'):
+                        raise ValueError('Task revision content hash does not match its payload')
+                    records.append({'task_id': row['path'], 'sha256': content_hash})
                     if references is not None:
                         references['task_count'] += 1
                         references['solution_count'] += any(PurePosixPath(name).as_posix() == 'solution/solve.sh'
@@ -105,6 +102,10 @@ def inventory(source, limit=None, task_id_range=None, references=None, suffixes=
         if suffixes is not None:
             from validation.rubrics import suffix_inventory
             suffixes.update(suffix_inventory(discovered))
+    if parquets and revisions is not None:
+        expected = {name for values in revisions.values() for name in values}
+        if {r['task_id'] for r in records} != expected:
+            raise ValueError('Missing latest task payloads from revision files')
     if references is not None or suffixes is not None:
         from validation.rubrics import complete_source
         for counts in (references, suffixes):
@@ -320,14 +321,6 @@ def create(args, numbers, destination):
         raise ValueError(f'selected {len(tasks)} tasks, below minimum {minimum}')
     source_meta_path = (args.tasks if args.tasks.is_dir() else args.tasks.parent) / 'source.json'
     meta = json.loads(source_meta_path.read_text()) if source_meta_path.exists() else {}
-    if getattr(args, 'expected_outcomes', None):
-        # Expectations are found by task ID. A file naming none of the selected tasks would silently disable them.
-        from validation.stages.outcome_retries import load_expectations_file
-        known = load_expectations_file(args.expected_outcomes)['tasks']
-        matched = sum(1 for t in tasks if t['task_id'] in known)
-        if not matched:
-            raise ValueError('the expected-outcomes file names none of the selected tasks')
-        print(f'Expected outcomes: {matched} of {len(tasks)} selected tasks have an expectation', flush=True)
     checks_by_stage = {}
     if 4 in numbers:
         # All static checks run together in stage 4.
@@ -337,7 +330,7 @@ def create(args, numbers, destination):
     _, _, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
     checks = sorted({check for selected in checks_by_stage.values() for check in selected})
     frozen = vars(args).copy()
-    for key in ('tasks', 'out', 'trials', 'serve_weights', 'dependency_archives', 'dependency_layout', 'expected_outcomes'):
+    for key in ('tasks', 'out', 'trials', 'serve_weights', 'dependency_archives', 'dependency_layout'):
         if frozen.get(key) is not None:
             frozen[key] = str(Path(frozen[key]).resolve())
     for key in ('prepare_contract', 'contract', 'stages', 'shard'):
@@ -360,16 +353,16 @@ def create(args, numbers, destination):
             'reference_shuffled_runs': getattr(args, 'reference_shuffled_runs', 1),
             'nop_shuffled_runs': getattr(args, 'nop_shuffled_runs', 1),
             'verifier_tamper': getattr(args, 'verifier_tamper', True),
+            'reference_leaks': getattr(args, 'reference_leaks', True),
             'reference_runs': getattr(args, 'reference_runs', 1), 'nop_runs': getattr(args, 'nop_runs', 1), 'static_checks': checks, 'static_checks_by_stage': checks_by_stage,
             'static_exclusions': exclusions, 'conditional_checks': {'check_ai_detection.py': 'requires GPTZERO_API_KEY; unavailable checks are incomplete and fail acceptance' if getattr(args, 'static_profile', None) == 'all' else 'only with GPTZERO_API_KEY; missing key or upstream API-unavailable skip is non-failing'}, 'failure_policy': 'collect all findings; fail acceptance on any selected failure/error/skip or insufficient coverage'},
         'execution_profile': profile(args), 'runtime_dependencies': dependencies(),
         'trajectory_input_sha256': task_digest(args.trials) if args.trials else None,
-        'expected_outcomes_sha256': expected_outcomes_digest(args),
         'upstream': PINS, 'implementation': None,
         'arguments': frozen,
     }
     if getattr(args, 'reuse_stage3', None):
-        from validation.checkpoints.stage3 import freeze
+        from validation.checkpoints.build import freeze
         contract['stage3_checkpoint'] = freeze(args.reuse_stage3, contract, tasks)
     if getattr(args, 'static_resume', None):
         from validation.checkpoints.static_resume import checkpoint_record
@@ -427,6 +420,8 @@ def read(path):
 
 
 def verify_source(args, contract):
+    if contract.get('expected_outcomes_sha256') or contract.get('arguments', {}).get('expected_outcomes'):
+        raise ValueError('This contract uses retired expected-outcomes behavior; prepare a new contract')
     expected_references = contract['dataset'].get('reference_solutions')
     references = {} if expected_references is not None else None
     expected_suffixes = contract['dataset'].get('instruction_suffixes')
@@ -446,8 +441,6 @@ def verify_source(args, contract):
         raise ValueError('upstream pins differ from the frozen contract')
     if args.trials and task_digest(Path(args.trials)) != contract['trajectory_input_sha256']:
         raise ValueError('trajectory evidence differs from the frozen contract')
-    if expected_outcomes_digest(args) != contract.get('expected_outcomes_sha256'):
-        raise ValueError('expected-outcomes file differs from the frozen contract')
     if implementation(stages=contract['stages']) != contract['implementation']:
         # A job to be submitted runs the copy frozen with the contract, whatever the checkout
         # looks like now. Code that executes here, or inside the job, must be that implementation.
@@ -518,7 +511,7 @@ def verify_materialized(args):
     if implementation(stages=contract['stages']) != contract['implementation']:
         print('WARNING: validation implementation differs from the frozen contract; continuing.', file=sys.stderr, flush=True)
     paths, expected = select_paths(discover_tasks(args.tasks), args), task_records(contract)
-    from validation.shards import parse_shard, slice_ids
+    from hpc.shards import parse_shard, slice_ids
     shard = parse_shard(getattr(args, 'shard', None))
     if shard:
         # A shard job holds and verifies only its slice; the source files were verified whole at job start.
@@ -540,7 +533,7 @@ def assess_stage(contract, number, report):
     expected_ids = {t['task_id'] for t in task_records(contract)}
     shard = report.get('shard')
     if shard:
-        from validation.shards import slice_ids
+        from hpc.shards import slice_ids
         expected_ids = set(slice_ids(contract, (shard['index'], shard['count'])))
     actual_ids = {Path(i.get('task', '')).name for i in report['items'] if i.get('task')}
     if actual_ids != expected_ids:

@@ -112,7 +112,7 @@ def collect(config, job, selected, stages, directory):
     contract = read(job['contract'])
     expected = {task['task_id'] for task in task_records(contract)}
     if job.get('shard'):
-        from validation.shards import slice_ids
+        from hpc.shards import slice_ids
         expected = set(slice_ids(contract, job['shard']))
     if set(selected) != expected:
         raise ValueError('Incomplete job does not match its frozen selection')

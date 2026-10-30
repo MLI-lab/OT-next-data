@@ -1657,7 +1657,7 @@ async def probe_main(args):
     from validation.stages import harbor as runtime
     from validation.stages.runner import parser
     from validation.rules.dynamic.environment import check as inspection
-    from validation.data.materialize import materialize
+    from validation.task_inputs.materialize import materialize
     args.output.mkdir(parents=True, exist_ok=False)
     tasks = materialize(args.source, args.output / 'tasks')
     records = {r['task_id']: r for r in map(json.loads, args.manifest.read_text().splitlines())}

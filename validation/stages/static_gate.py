@@ -7,9 +7,9 @@ from uuid import uuid4
 def prepare(args, numbers):
     if 4 not in numbers or not set(numbers) & {1, 2, 3, 5, 6, 9, 10} or args.dry_run:
         return
-    from validation.data.selection import discover_tasks, select_paths
+    from validation.task_inputs.selection import discover_tasks, select_paths
     from validation.contract import verify_materialized
-    from validation.shards import parse_shard, slice_ids
+    from hpc.shards import parse_shard, slice_ids
     from validation.rules.static.terminal_bench import run_checks
     from validation.stages.runner import static_concurrency, checkout
     contract = verify_materialized(args)
@@ -24,6 +24,12 @@ def prepare(args, numbers):
     run_checks(tasks, out, profile=args.static_profile, upstream=checkout('terminal-bench'),
                exclude=args.exclude, concurrency=static_concurrency(args))
     report = json.loads((out / 'summary.json').read_text())
+    from validation.run import export_report
+    from validation.contract import task_digest, task_records
+    verified = {t['task_id']: t['sha256'] for t in task_records(contract)} if contract else {}
+    export_report(args.out / 'results.parquet', report,
+                  {t.name: verified[t.name] if t.name in verified else task_digest(t) for t in tasks},
+                  settings=vars(args))
     args._static_blocked = {
         Path(item['task']).name: {'report': str(out / 'summary.json'),
                                  'status': item['status']}

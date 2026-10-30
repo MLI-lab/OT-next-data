@@ -200,7 +200,7 @@ def test_build_stage_fails_a_leaking_task_without_rebuilding_it(tmp_path, monkey
 def test_reused_stage1_result_without_leak_checks_is_not_run(tmp_path, monkeypatch):
     from validation.stages import environment_preflight
     source = tmp_path / 'task'
-    monkeypatch.setattr('validation.checkpoints.stage3.restore', lambda checkpoint, selected: [
+    monkeypatch.setattr('validation.checkpoints.build.restore', lambda checkpoint, selected: [
         {'task': str(source), 'status': 'passed', 'environments': [{'environment': 'agent', 'status': 'passed'}]}])
     item, = environment_preflight.run_build_stage([source], tmp_path, SimpleNamespace(), {'items': []})
     assert item['environment_leak'] == 'not_run' and item['status'] == 'error'

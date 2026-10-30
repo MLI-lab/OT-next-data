@@ -217,7 +217,7 @@ Use `--no-fix-instruction-paths`, `--no-fix-pip-pins` and
 `--no-fix-instruction-suffix` to prevent additional task edits. Keep every ET Slurm
 job within one hour. `patch.py probe --help` adds direct and interactive-terminal
 state observations using the shared environment lifecycle in an active allocation.
-Current runner stage numbers follow [the validation protocol](../../validation/PROTOCOL.md).
+Current runner stage numbers follow [the validation protocol](../../validation/README.md).
 Historical reports retain their original stage meanings and frozen code; prepare
 new contracts for the current layout rather than reusing legacy contracts.
 

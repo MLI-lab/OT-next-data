@@ -5,7 +5,7 @@ import tarfile
 
 import pytest
 
-from validation.publishing import review_usage as usage
+from validation.rubrics import review_usage as usage
 from validation.publishing.report import write_report
 
 
@@ -108,7 +108,7 @@ def test_archive_exports_usage_and_repriceable_stage_report(tmp_path):
 
 def test_shard_merge_recomputes_usage_from_all_tasks(tmp_path, monkeypatch):
     from tests.test_shards import fake_contract, report_for, write_shards
-    from validation import shards
+    from hpc import shards
     fake_contract(monkeypatch, stages=(5,))
     def make(index):
         report = report_for(5, index, 2)
@@ -156,7 +156,7 @@ def test_stage_review_keeps_spend_when_verdict_is_missing(tmp_path, monkeypatch)
 
 
 def test_together_defaults_match_exact_models_and_freeze_rates():
-    from validation.publishing import review_pricing
+    from validation.rubrics import review_pricing
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-local', '--serve-model', 'glm-5.3'])
     first = review_pricing.for_stage(options, 5)
@@ -173,7 +173,7 @@ def test_together_defaults_match_exact_models_and_freeze_rates():
 
 
 def test_unknown_local_model_is_unpriced_and_manual_zero_wins():
-    from validation.publishing.review_pricing import for_stage
+    from validation.rubrics.review_pricing import for_stage
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-local', '--serve-model', 'coder-30b'])
     assert for_stage(options, 5)['rates'] is None
@@ -184,7 +184,7 @@ def test_unknown_local_model_is_unpriced_and_manual_zero_wins():
 
 
 def test_analysis_gets_its_own_price_and_repricing_updates_provenance(tmp_path):
-    from validation.publishing.review_pricing import for_stage
+    from validation.rubrics.review_pricing import for_stage
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-model', 'together_ai/zai-org/GLM-5.3',
                                   '--analysis-model', 'together_ai/openai/gpt-oss-120b'])

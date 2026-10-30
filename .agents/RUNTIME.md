@@ -566,7 +566,7 @@ after scheduler completion for older workers. A missing report remains an
 infrastructure failure; it is never converted into a pass.
 
 When constraining a validation shard array to nodes with verified scratch or
-images, pass `--nodelist` to `python -m validation.shards plan`. The planner puts
+images, pass `--nodelist` to `python -m hpc.shards plan`. The planner puts
 this constraint on the actual `sbatch` command, including the path normalization
 job and its subsequent array. Slurm directives in a launcher invoked through
 `bash` do not constrain its parent allocation. Check the recorded command in

@@ -9,6 +9,10 @@ import tarfile
 
 def parquet_files(source):
     source = Path(source)
+    from validation.task_inputs.revisions import selection
+    revisions = selection(source)
+    if revisions is not None:
+        return sorted(revisions)
     return [source] if source.is_file() and source.suffix == '.parquet' else sorted(source.glob('*.parquet'))
 
 
@@ -16,6 +20,8 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
     import pyarrow.parquet as pq
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
+    from validation.task_inputs.revisions import selection, accepts
+    revisions = selection(source)
     records = []
     seen = set()
     image_sources = {}
@@ -28,6 +34,8 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
         selected = 0
         for batch in pq.ParquetFile(path).iter_batches(batch_size=1):
             for row in batch.to_pylist():
+                if not accepts(revisions, path, row):
+                    continue
                 if limit is not None and (selected if per_file else len(records)) >= limit:
                     break
                 name = row['path']
@@ -46,6 +54,10 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
                             raise ValueError(f'unsafe archive member: {member.name}')
                     # data filter additionally rejects link/permission tricks.
                     tar.extractall(destination / name, members=members, filter='data')
+                if revisions is not None:
+                    from validation.contract import task_digest
+                    if task_digest(destination / name) != row['content_sha256']:
+                        raise ValueError('Task revision content hash does not match its payload')
                 if image_manifest and name in image_manifest['tasks']:
                     entry = image_manifest['tasks'][name]
                     image_sources[name] = {k: image_manifest[k] for k in ('version', 'repo_id', 'revision')}
@@ -59,6 +71,9 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
                                 'sha256': hashlib.sha256(blob).hexdigest()})
             if limit is not None and (selected if per_file else len(records)) >= limit:
                 break
+    if revisions is not None and limit is None and selected_ids is None:
+        if seen != {name for values in revisions.values() for name in values}:
+            raise ValueError('Missing latest task payloads from revision files')
     if selected_ids is not None and seen != set(selected_ids):
         raise ValueError('materialization did not find all selected task IDs')
     if not records:

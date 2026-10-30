@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tarfile
 
-from validation import shards
+from hpc import shards
 from validation.contract import read
 from data.patch_repair_loop import controller as core
 

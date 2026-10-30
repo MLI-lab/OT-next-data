@@ -109,7 +109,7 @@ Each converted project now also gets `tasks.archive.parquet` and
 The common manifest identifies its native BugsInPy source and marks retained
 packages as `changed` with one `upstream-to-harbor` label. Dropped payloads are generated Harbor packages because this source has
 no original Harbor Parquet. Conversion errors leave the manifest incomplete.
-See [patch reporting](../INVENTORY.md#reporting-patches-in-the-datasource-pr) for the datasource PR integration.
+See [patch reporting](../README.md#reporting-patches-in-the-datasource-pr) for the datasource PR integration.
 
 ## Original benchmark
 

@@ -1,4 +1,4 @@
-from validation.publishing.trace_budget_subset import attempt_metrics
+from validation.metrics.trace_budget_subset import attempt_metrics
 
 
 def row(prompt=100, output=200, summaries=0, reward=1):

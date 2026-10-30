@@ -22,7 +22,7 @@ a task. Run the patcher on the pinned upstream source; see its `--help`.
 4. **Report, don't silently drop.** The patcher calls
    `data.utils.patch_reporting.write_patch_report`, which writes the archive Parquet
    (original payloads of dropped tasks with category and reason) and the
-   manifest beside the patched Parquet. See `data/INVENTORY.md#reporting-patches-in-the-datasource-pr`.
+   manifest beside the patched Parquet. See `data/README.md#reporting-patches-in-the-datasource-pr`.
 5. **Keep task IDs stable** across versions, with gaps where tasks were dropped;
    the report helper rejects additions and renames.
 
@@ -30,7 +30,7 @@ a task. Run the patcher on the pinned upstream source; see its `--help`.
 
 ```bash
 python -m pytest tests -q
-python validation/dataset_checks/run.py reproduce --parquet NEW.parquet --reference PUBLISHED.parquet
+python validation/publishing/dataset_checks/run.py reproduce --parquet NEW.parquet --reference PUBLISHED.parquet
 ```
 
 Check the pytest output for `failed`, not only for `passed`. The reproduce check

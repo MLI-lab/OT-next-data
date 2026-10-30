@@ -1,4 +1,4 @@
-from validation.publishing.trace_outcome_stats import OutcomeStats, OUTCOMES
+from validation.metrics.trace_outcome_stats import OutcomeStats, OUTCOMES
 
 
 def test_outcomes_missing_and_step_weighting():

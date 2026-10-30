@@ -42,7 +42,7 @@ async def containers(tasks, scratch, bridge, images):
 def main(source, out, model):
     from hpc.local_assets import stage_certificates, stage_images, copy_asset
     from hpc.validation_worker import free_port, wait_ready
-    from validation.data.materialize import materialize
+    from validation.task_inputs.materialize import materialize
     import certifi
     import httpx
     import harbor

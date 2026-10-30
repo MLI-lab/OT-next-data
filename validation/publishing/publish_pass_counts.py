@@ -39,7 +39,7 @@ def load(submission):
 
 def build(submissions, mapping, run_id=None):
     """Rows per data source and the run record."""
-    from validation.publishing.evaluation_settings import from_contract
+    from validation.metrics.evaluation_settings import from_contract
     loaded = [load(s) for s in submissions]
     name = run_name(folder_of(t['task_id'], mapping) for c, _, _ in loaded for t in task_records(c))
     digest = hashlib.sha256('\n'.join(sorted(c['sha256'] for c, _, _ in loaded)).encode()).hexdigest()
@@ -115,7 +115,7 @@ def description(record):
             g = c['groups']
             lines.append(f"| {folder} | {model} | {c['tasks']} | {c['attempts'] // c['tasks']} | {c['pass@1']:.3f} | "
                          f"{c[k]:.3f} ({k}) | {g.get('all_zero', 0)} | {g.get('varying', 0)} | {g.get('all_solved', 0)} | {c['ungraded_attempts']} |")
-    from validation.publishing.evaluation_settings import markdown
+    from validation.metrics.evaluation_settings import markdown
     settings = [s for m in record['models'].values() for s in m.get('evaluation_settings', [])]
     if settings:
         lines += ['', markdown(settings)]

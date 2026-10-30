@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
-from validation import shard_normalization, shards
+from hpc import shard_normalization, shards
 from validation.stages import normalize_paths
 from validation.stages.runner import parser
 from validation.contract import create, read, task_digest, task_records
@@ -53,7 +53,7 @@ def fixture(tmp_path):
 
 
 def test_normalization_exports_one_portable_contract_and_merge_checks_lineage(tmp_path, monkeypatch):
-    from validation.data.materialize import materialize
+    from validation.task_inputs.materialize import materialize
     args, parent, folder, request = fixture(tmp_path)
     original = parent.read_bytes()
     monkeypatch.setattr('validation.rules.static.task_absolute_path.repair.flagged_paths', lambda _: (['src/data.txt'], {}))

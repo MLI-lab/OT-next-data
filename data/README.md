@@ -1,58 +1,68 @@
-# Shared datasource repairs
+# Datasources
 
-Keep datasource-specific patches in that datasource's `patch.py`. If a patch
-could also help other datasources, move it into `data/utils/` and import it
-from there.
+Datasource patchers and shared preparation tools. Keep source-specific changes in
+that source's `patch.py`; put reusable helpers in `utils/`.
 
-Layout:
+## Dataset code
 
-- `<dataset>/`: one patcher per datasource (`patch.py`), with its README and helpers.
-- `utils/`: helpers shared by several patchers: patch reports (`patch_reporting.py`),
-  reading and packing task archives (`task_archive.py`, `harbor_parquet.py`), verifier
-  runtime declarations (`verifier_runtime.py`), restoring historical instructions
-  (`historical_release.py`), the Prime-format SWE converters (`prime_conversion/`) and
-  the instruction loop.
-- `patch_repair_loop/`: the agent loop that repairs a datasource's `patch.py` from
-  validation failures.
-- `annotate_dataset/`: taxonomies and prompt for generated dataset cards.
+This lists the code present on 2026-10-30. Having a patcher does not mean a dataset
+has passed validation or finished its runtime migration. Use each run's
+`results.parquet` for validation outcomes.
 
-Currently available repairs that can be reused across datasources:
+| Datasource | Documentation | Patcher |
+| --- | --- | --- |
+| BugsInPy | [README](tasktrove_bugsinpy/README.md) | [patch.py](tasktrove_bugsinpy/patch.py) |
+| CalibForge | [README](calibforge/README.md) | [patch.py](calibforge/patch.py) |
+| CrossCodeEval | [README](crosscodeeval/README.md) | [patch.py](crosscodeeval/patch.py) |
+| Endless Terminals | [README](endless_terminals/README.md) | [patch.py](endless_terminals/patch.py), [Apptainer adaptation](endless/patch.py) |
+| FACET | [README](facet/README.md) | [patch.py](facet/patch.py) |
+| FineEnvs | [README](fineenvs/README.md) | [patch.py](fineenvs/patch.py) |
+| InferredBugs | [README](inferredbugs/README.md) | [patch.py](inferredbugs/patch.py) |
+| MiMo | [README](mimo/README.md) | [patch.py](mimo/patch.py) |
+| Multi-SWE | [README](multiswe/README.md) | [patch.py](multiswe/patch.py) |
+| NL2Bash | [README](tasktrove_nl2bash/README.md) | [patch.py](tasktrove_nl2bash/patch.py) |
+| PyMethods2Test | [README](tasktrove_pymethods2test/README.md) | [patch.py](tasktrove_pymethods2test/patch.py) |
+| Scale-SWE | [README](scaleswe/README.md) | [patch.py](scaleswe/patch.py) |
+| SETA | [README](seta/README.md) | [patch.py](seta/patch.py) |
+| SWE-Lego | [README](swelego/README.md) | [patch.py](swelego/patch.py) |
+| TermiGen | [README](termigen/README.md) | [patch.py](termigen/patch.py) |
+| Terminal-Lego | [README](terminallego/README.md) | [patch.py](terminallego/patch.py) |
+| TMAX | [README](tmax/README.md) | [patch.py](tmax/patch.py) |
 
-- **[Instruction review/rewrite loop](utils/instruction_loop.py):** reviews task
-  instructions against the tests and reference solution, rewrites them using
-  review feedback, and generates missing instructions. Run from the repository
-  root on a compute node with the environment and Apptainer runtime configured:
+Each patcher has its own arguments; run `python data/<source>/patch.py --help`.
+[Conversion pilots](conversion-pilots/README.md) and the
+[historical inventory](../.agents/dataset-inventory-history.md) preserve earlier
+experiments and candidate sources.
 
-  ```bash
-  python -m data.utils.instruction_loop \
-    --tasks /path/to/tasks.parquet \
-    --out /path/to/results \
-    --work-dir "$TMPDIR/instruction-loop"
-  ```
+## Shared tools
 
-  Defaults: Claude Code with Opus 5.5, medium effort, four concurrent sessions,
-  and up to five reviews per task. Datasource patchers can also import the loop,
-  as [BugsInPy does](tasktrove_bugsinpy/patch.py). The
-  [shared prompts](utils/instruction_prompts/) currently assume `/app`; use
-  `--prompts-dir` for alternatives. See `--help` for all options.
+- [utils/](utils/): task archives, patch reports, runtime declarations and converters.
+- [Instruction review loop](utils/instruction_loop.py): review, rewrite or generate
+  instructions; run `python -m data.utils.instruction_loop --help`.
+- [Patch repair loop](patch_repair_loop/README.md): repair a datasource's patcher
+  using validation findings.
+- [annotate_dataset/](annotate_dataset/): dataset descriptions and taxonomy tools.
 
-## What belongs in image vs setup
+## Images, setup and runtimes
 
-Keep git clones/checkouts, initial files and small configuration changes in
-**setup** when fast, so tasks can share images. Put slow or unreliable dependency
-installation in the **image**.
+Keep fast task-specific setup outside the image so tasks can share base images.
+Cache extra dependencies for offline use, and give the verifier a clean runtime.
+Follow the agreed [offline compatibility](../README.md#offline-compatibility) and
+[verifier execution](../README.md#verifier-execution) design. Runtime migration is
+still in progress; a patcher's presence is not evidence of offline compatibility.
 
-Move a repository snapshot into the image only when setup review shows that
-fetching it is too slow or unreliable. Setup then copies the pinned checkout
-from the image. Keep fast checkouts in setup to avoid unnecessary image variants.
+Keep conversion, image-sharing/setup changes and task repairs separately recorded.
+Use the [validation protocol](../validation/README.md) for checks and the
+[setup review rule](../validation/rules/README.md#setup-speed-and-reliability-optional)
+for preparation timing.
 
-Dependencies the agent may use belong in the **task image**, even if verification
-also needs them. Use a **separate verifier container with the same task image**
-when verification needs original tools that the agent might have changed. This
-adds no unique image: start fresh, repeat task setup, then transfer only the
-submitted files. Configure separate verification and artifacts in `task.toml`.
-Build a **different verifier image** when it needs dependencies the agent must
-not access. Put verifier preparation in `tests/setup.sh` and grading in
-`tests/test.sh`.
+## Reporting patches in the datasource PR
 
-Iterate with [stage 1’s](../validation/PROTOCOL.md#stage-1-build-setup-and-runtime-checks) `--review-setup`: all **five fresh runs** must succeed, **task preparation has a mean ≤30 seconds**, **verifier preparation averages ≤5% of its timeout**, and **no preparation run exceeds 60 seconds**. Container startup is timed separately and excluded from these limits. Uploads, submission transfers and setup scripts count toward preparation. Startup failures still fail validation.
+Use [write_patch_report](utils/patch_reporting.py) to record changes against the
+original source, including the original payload and reason for each dropped task.
+Native-source conversions use `write_conversion_report` from the same module.
+Keep task IDs stable and record repair reasons by task. Conversion exclusions
+remain separate from infrastructure errors and validation failures.
+
+The validation publisher stores task revisions and `results.parquet`; see
+[results and publication](../validation/rules/README.md#running-rules-on-a-dataset).

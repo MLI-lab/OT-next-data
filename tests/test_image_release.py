@@ -8,7 +8,7 @@ import pytest
 from hpc.offline_prep.image_cache import publish as cache_publish
 from validation.publishing import image_release as release
 from validation.contract import task_digest
-from validation.data.materialize import materialize
+from validation.task_inputs.materialize import materialize
 from validation.publishing.publish import pack_task, write
 from harbor.utils.container_cache import environment_dir_hash
 
@@ -163,25 +163,30 @@ def test_publisher_pins_artifact_commit_in_same_pr(tmp_path, monkeypatch):
     monkeypatch.setattr(publish, 'build', lambda *a: (tables, {'run': 'test'}, 'runs/test.json'))
     monkeypatch.setattr(publish.patch_provenance, 'attach', lambda *a: None)
     monkeypatch.setattr(publish, 'description', lambda *a: 'Image release')
+    from validation.publishing import revisions
+    history = revisions.History()
+    history.revision = 'c' * 40
+    monkeypatch.setattr(revisions, 'History', lambda repo: history)
     commits = []
     class Api:
         def create_commit(self, **kwargs):
             commits.append(kwargs)
             if len(commits) == 1:
                 assert kwargs['create_pr'] is True
+                assert kwargs['parent_commit'] == 'c' * 40
                 assert all(op.path_in_repo.startswith('example/cached_images/bundles-v1/') for op in kwargs['operations'])
                 return SimpleNamespace(oid='a' * 40, pr_revision='refs/pr/7', pr_url='https://example/pr/7')
             assert kwargs['create_pr'] is False
             assert kwargs['revision'] == 'refs/pr/7'
             assert kwargs['parent_commit'] == 'a' * 40
-            parquet = next(op for op in kwargs['operations'] if op.path_in_repo == 'example/tasks.parquet')
+            parquet = next(op for op in kwargs['operations'] if op.path_in_repo == 'example/tasks/r1.parquet')
             metadata = pq.read_schema(parquet.path_or_fileobj).metadata
             assert json.loads(metadata[b'ot.images.v1'])['revision'] == 'a' * 40
             return SimpleNamespace(oid='b' * 40, pr_url=None, pr_revision=None)
     monkeypatch.setattr(huggingface_hub, 'HfApi', Api)
     result = publish.publish(tmp_path, tmp_path / 'contract', 'org/tasks', out=tmp_path / 'release', image_cache=cache)
     assert len(commits) == 2 and result['pull_request'] == 'https://example/pr/7'
-    tasks = materialize(tmp_path / 'release/example/tasks.parquet', tmp_path / 'fresh/tasks')
+    tasks = materialize(tmp_path / 'release/example', tmp_path / 'fresh/tasks')
     artifact_paths = {op.path_in_repo: op.path_or_fileobj for op in commits[0]['operations']}
     monkeypatch.setattr(huggingface_hub, 'hf_hub_download', lambda **kw: artifact_paths[kw['filename']])
     from hpc.local_assets import stage_images

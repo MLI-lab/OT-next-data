@@ -160,6 +160,6 @@ requires a fresh run to produce corrected measurements.
 Preserve machine-readable settings and their evidence in metadata without adding
 README links. Missing historical evidence must be explicit. Keep mixed settings
 separate instead of assigning a single model-default row to every attempt. Use
-`validation.publishing.evaluation_settings` for the evidence schema; render the
+`validation.metrics.evaluation_settings` for the evidence schema; render the
 agreed table above rather than reusing an older presentation unchanged. Preserve all scores, traces and dataset membership when
 correcting documentation.

@@ -10,9 +10,9 @@ import shutil
 import tarfile
 import tomllib
 
-from validation.data.materialize import parquet_files
-from validation.data.selection import select_paths
-from validation.data.selection import discover_tasks
+from validation.task_inputs.materialize import parquet_files
+from validation.task_inputs.selection import select_paths
+from validation.task_inputs.selection import discover_tasks
 
 
 def suffix(instruction, config):

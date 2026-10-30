@@ -248,7 +248,7 @@ def prepare(args, numbers):
     if not enabled(args, numbers):
         return
     from validation.contract import verify_materialized, create, task_digest
-    from validation.data.selection import discover_tasks, select_paths
+    from validation.task_inputs.selection import discover_tasks, select_paths
     from validation.stages.runner import save
     parent = verify_materialized(args)
     tasks = select_paths(discover_tasks(args.tasks), args)

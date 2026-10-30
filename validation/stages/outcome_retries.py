@@ -9,54 +9,17 @@ is not retried; stage 1 itself retries a failed build up to 3 times. A task stil
 last attempt is an infrastructure error: retrying did not help, which says nothing
 about the task, so it stays not run and is not archived.
 
-With an expected-outcomes file (``--expected-outcomes``, frozen into the
-contract) the classifier is not used for the tasks it names: the outcome of each
-stage is compared with the stages the earlier audit passed for the task of the
-same ID, any difference is rerun the same way, and a task that never reproduces
-the audit is archived as not robust with every observed outcome. Tasks absent
-from the file follow the classifier rule.
-
 Stage 4 is left out: its checks are deterministic and the pipeline rewrites some
 task files itself before running them.
 """
-from collections import Counter
-import json
 from pathlib import Path
 
-FORMAT = 'ot-expected-outcomes-v2'
 STAGES = (1, 2, 3)
-
-
-def load_expectations_file(path):
-    data = json.loads(Path(path).read_text())
-    load_expectations(path)
-    return data
-
-
-def load_expectations(path):
-    data = json.loads(Path(path).read_text())
-    if data.get('format') != FORMAT or not isinstance(data.get('tasks'), dict):
-        raise ValueError(f'{path} is not an expected-outcomes file ({FORMAT})')
-    for task, record in data['tasks'].items():
-        if not isinstance(record.get('stages_passed'), list):
-            raise ValueError(f'expected outcome of {task} needs stages_passed')
-    return data['tasks']
-
-
-def expectation(expected, task):
-    """The earlier audit's record for this task, found by task ID, else None."""
-    return None if expected is None else expected.get(task)
 
 
 def outcome_of(stage, item):
     from validation.publishing.publish import judge
     return judge(stage, item)[0]
-
-
-def mismatch(stage, outcome, record):
-    if record is None:
-        return outcome == 'not_run'
-    return (outcome == 'passed') != (stage in record['stages_passed'])
 
 
 def retry_round(stage_runs, args, contract, batch_for, save):
@@ -72,10 +35,6 @@ def retry_round(stage_runs, args, contract, batch_for, save):
     stages = [n for n in STAGES if n in stage_runs]
     if retries <= 0 or getattr(args, 'dry_run', False) or not stages:
         return None
-    expected_path = getattr(args, 'expected_outcomes', None)
-    expected_file = load_expectations_file(expected_path) if expected_path else None
-    expected = expected_file['tasks'] if expected_file else None
-
     def by_task(number):
         return {Path(i['task']).name: i for i in stage_runs[number][1]['items'] if i.get('task')}
 
@@ -86,15 +45,11 @@ def retry_round(stage_runs, args, contract, batch_for, save):
             if item.get('blocked_by_stage') == 4:
                 continue  # Static rejection is not a missing container result to retry.
             paths.setdefault(task, Path(item['task']))
-            record = expectation(expected, task)
-            history[n][task] = {'mode': 'expected' if record else 'classifier',
-                                'expected': (('passed' if n in record['stages_passed'] else 'not passed')
-                                             if record else 'result'),
-                                'outcomes': [outcome_of(n, item)]}
+            history[n][task] = {'mode': 'classifier', 'outcomes': [outcome_of(n, item)]}
 
     def pending(n):
         return sorted(task for task, entry in history[n].items()
-                      if mismatch(n, entry['outcomes'][-1], expectation(expected, task)))
+                      if entry['outcomes'][-1] == 'not_run')
 
     for attempt in range(1, retries + 1):
         if not any(pending(n) for n in stages):
@@ -129,15 +84,9 @@ def retry_round(stage_runs, args, contract, batch_for, save):
             entry = history[n][task]
             item = current[task]
             item['status'] = 'failed'
-            if entry['expected'] == 'result':
-                item['infrastructure_error'] = {'observed': entry['outcomes']}
-                item.setdefault('findings', []).append(infrastructure_text(entry['outcomes']))
-            else:
-                item['not_robust'] = {'expected': entry['expected'], 'observed': entry['outcomes']}
-                item.setdefault('findings', []).append(not_robust_text(entry['expected'], entry['outcomes']))
-        summaries[n] = summarize(history[n], expected_path, retries, n)
-        if expected_file:
-            summaries[n]['expected_outcomes_note'] = expected_file.get('note')
+            item['infrastructure_error'] = {'observed': entry['outcomes']}
+            item.setdefault('findings', []).append(infrastructure_text(entry['outcomes']))
+        summaries[n] = summarize(history[n], retries, n)
         report_path, report = stage_runs[n]
         report['outcome_retries'] = summaries[n]
         report['has_findings'] = any(i['status'] in ('failed', 'findings', 'error') for i in report['items'])
@@ -149,35 +98,16 @@ def infrastructure_text(observed):
     return f'infrastructure error: no result in {len(observed)} attempts; no verdict on the task'
 
 
-def not_robust_text(expected, observed):
-    seen = ', '.join(observed)
-    return f'not robust: the earlier audit {expected} this stage; observed {seen} over {len(observed)} attempts'
-
-
-def summarize(history, expected_path, retries, number):
-    matched_after = Counter()
-    summary = {'mode': 'expected' if expected_path else 'classifier',
-               'expected_outcomes': str(expected_path) if expected_path else None,
-               'max_retries': retries, 'stage': number,
-               'tasks_with_expectation': 0, 'matched_first_attempt': 0, 'matched_after_retries': {},
-               'not_robust': [], 'retried_not_run': 0, 'recovered_not_run': 0, 'unresolved_not_run': [],
+def summarize(history, retries, number):
+    summary = {'mode': 'classifier', 'max_retries': retries, 'stage': number,
+               'retried_not_run': 0, 'recovered_not_run': 0, 'unresolved_not_run': [],
                'history': history}
     for task, entry in history.items():
         outcomes = entry['outcomes']
-        if entry['mode'] == 'expected':
-            summary['tasks_with_expectation'] += 1
-            final_matches = (outcomes[-1] == 'passed') == (entry['expected'] == 'passed')
-            if len(outcomes) == 1:
-                summary['matched_first_attempt'] += 1
-            elif final_matches:
-                matched_after[len(outcomes) - 1] += 1
-            else:
-                summary['not_robust'].append(task)
-        elif len(outcomes) > 1:
+        if len(outcomes) > 1:
             summary['retried_not_run'] += 1
             if outcomes[-1] != 'not_run':
                 summary['recovered_not_run'] += 1
-            else:
-                summary['unresolved_not_run'].append(task)
-    summary['matched_after_retries'] = {str(k): v for k, v in sorted(matched_after.items())}
+        if outcomes[-1] == 'not_run':
+            summary['unresolved_not_run'].append(task)
     return summary

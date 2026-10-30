@@ -9,7 +9,7 @@ def run_build_stage(sources, out, args, checkpoint=None):
     including those about the environment, run together in stage 4."""
     from validation.stages.build_retries import run_builds
     if checkpoint:
-        from validation.checkpoints.stage3 import restore
+        from validation.checkpoints.build import restore
         names = {p.name for p in sources}
         builds = restore({**checkpoint, 'items': [i for i in checkpoint['items'] if Path(i['task']).name in names]},
                          sources)

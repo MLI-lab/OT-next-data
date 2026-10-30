@@ -1,7 +1,7 @@
 """Preserve review usage and summarize complete totals separately from known subtotals.
 
 Reprice an exported stage report without running a judge again:
-python -m validation.publishing.review_usage stage-5-ID.json --pricing '{"input": 1, "output": 4}' --out repriced.json
+python -m validation.rubrics.review_usage stage-5-ID.json --pricing '{"input": 1, "output": 4}' --out repriced.json
 Rates are USD per million tokens. Input counts include cache reads and writes.
 """
 import argparse

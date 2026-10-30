@@ -164,8 +164,8 @@ def prior_findings(report, contract, tasks):
 
 
 def prepare(args):
-    from validation.data.materialize import materialize
-    from validation.data.selection import discover_tasks
+    from validation.task_inputs.materialize import materialize
+    from validation.task_inputs.selection import discover_tasks
     from validation.contract import task_digest, read
     from validation.rubrics import implementation_rubric
     from validation.upstream import checkout

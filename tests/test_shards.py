@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from validation import shards
+from hpc import shards
 from validation.contract import assess_stage
 
 TASKS = [f'task-{i:02d}' for i in range(7)]
@@ -176,14 +176,14 @@ def test_shard_job_verifies_only_its_slice_of_the_materialized_tasks(tmp_path, m
 def test_a_shard_refuses_to_derive_its_own_path_contract(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from validation.stages import normalize_paths
-    import validation.contract, validation.data.selection
+    import validation.contract, validation.task_inputs.selection
     # Import first: a module first imported while the names below are patched would keep the patched functions.
     import validation.stages.runner, validation.rules.static.instruction_suffix, validation.rules.static.task_absolute_path.repair  # noqa: F401
     task = tmp_path / 'task-a'
     task.mkdir()
     monkeypatch.setattr(validation.contract, 'verify_materialized', lambda args: None)
-    monkeypatch.setattr(validation.data.selection, 'discover_tasks', lambda tasks: [task])
-    monkeypatch.setattr(validation.data.selection, 'select_paths', lambda tasks, args: tasks)
+    monkeypatch.setattr(validation.task_inputs.selection, 'discover_tasks', lambda tasks: [task])
+    monkeypatch.setattr(validation.task_inputs.selection, 'select_paths', lambda tasks, args: tasks)
     args = SimpleNamespace(fix_instruction_paths=True, dry_run=False, tasks=tmp_path, out=tmp_path / 'out',
                            shard='0/2', _path_candidates=[task])
     with pytest.raises(ValueError, match='resolve paths before preparing the contract of a sharded run'):

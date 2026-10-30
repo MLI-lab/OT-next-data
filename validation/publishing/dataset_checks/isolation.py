@@ -6,7 +6,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from harbor.environments.apptainer.apptainer import ApptainerEnvironment
 from harbor.models.task.config import EnvironmentConfig
 from harbor.models.trial.paths import TrialPaths

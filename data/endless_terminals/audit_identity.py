@@ -463,7 +463,7 @@ def require_images(task, images, environment_sha256):
 
 async def run(args):
     from validation.rules.dynamic.environment import check as inspection
-    from validation.data.materialize import materialize
+    from validation.task_inputs.materialize import materialize
     from validation.stages import harbor as runtime
     from validation.stages.runner import parser as runtime_parser
     from hpc.local_assets import stage_images
@@ -478,7 +478,7 @@ async def run(args):
     if not selected or selected - plan['tasks'].keys():
         raise ValueError('Empty selection or unknown task ID')
     if args.shard:
-        from validation.shards import parse_shard, slice_of
+        from hpc.shards import parse_shard, slice_of
         selected = set(slice_of(selected, parse_shard(args.shard), key=lambda name: name))
         if not selected:
             raise ValueError('Selected shard is empty')

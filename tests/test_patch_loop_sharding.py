@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 
 from data.patch_repair_loop import controller as c, recovery, resources, sharding, retries
-from validation import contract as contracts, shards
+from validation import contract as contracts
+from hpc import shards
 
 
 @pytest.fixture

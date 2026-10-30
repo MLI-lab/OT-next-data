@@ -873,5 +873,16 @@ python -m validation.rules TASKS --out DIR --rules nproc,no_behavioural_tests
 python -m validation.rules TASKS --out DIR --rules dynamic -- --submit helma --cpus 48
 ```
 
-Rule names are those in `registry.py`. Dynamic rules run as a normal validation run of the
-container stages; arguments after `--` go to `validation/run.py`.
+Rule names are those in `registry.py`. Dynamic runs use stages 1-4, including the
+static prefilter and final reference-leak results. Static failures skip container
+work; warnings continue. Arguments after `--` go to `validation/run.py`.
+
+Both this command and the full pipeline write `DIR/results.parquet`: one row per
+task revision, with a status and optional details for each check. Rerunning selected
+checks updates their columns; changed task content gets a new revision with other
+checks set to `not_run`. Detailed JSON evidence is kept alongside the table.
+
+The publisher writes `<dataset>/results.parquet` and `tasks/r1.parquet`, followed
+by task files containing only new or changed tasks. Use `latest = true` to select
+current revisions. Existing payload files are preserved; `--layout legacy`
+retains the older `tasks.parquet` / `archive.parquet` publication format.

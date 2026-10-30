@@ -278,13 +278,13 @@ def main(request):
             (scratch / 'protocol.md').write_text(protocol(frozen))
             status['contract_sha256'] = frozen['sha256']
             save(request.parent / 'execution.json', status)
-        from validation.shards import parse_shard, slice_ids
+        from hpc.shards import parse_shard, slice_ids
         shard = parse_shard(getattr(args, 'shard', None))
         if shard and not getattr(args, 'contract', None):
             raise ValueError('--shard requires a frozen contract')
         shard_ids = set(slice_ids(frozen, shard)) if shard else None
-        from validation.data.selection import discover_tasks
-        from validation.data.materialize import parquet_files, materialize
+        from validation.task_inputs.selection import discover_tasks
+        from validation.task_inputs.materialize import parquet_files, materialize
         source = Path(args.tasks)
         args.tasks = scratch / 'tasks'
         if parquet_files(source):
@@ -293,7 +293,7 @@ def main(request):
                 selected_ids = shard_ids  # this job holds, stages and validates only its slice
             tasks = materialize(source, args.tasks, args.limit, selected_ids=selected_ids)
         else:
-            from validation.data.selection import select_paths
+            from validation.task_inputs.selection import select_paths
             tasks = select_paths(discover_tasks(source), args)
             if shard_ids is not None:
                 tasks = [task for task in tasks if task.name in shard_ids]
@@ -502,7 +502,7 @@ def main(request):
             from config.models import serving_agent_kwargs
             args.agent_kwargs = serving_agent_kwargs(spec, args.serve_context, args.agent_kwargs)
         if data.get('shard_plan'):
-            from validation.shard_normalization import prepare_and_submit
+            from hpc.shard_normalization import prepare_and_submit
             code = prepare_and_submit(args, data['stages'], data['shard_plan'])
         else:
             from validation.run import run_selected

@@ -1,4 +1,4 @@
-from validation.publishing.evaluation_settings import from_contract, with_trial, markdown
+from validation.metrics.evaluation_settings import from_contract, with_trial, markdown
 
 
 def test_frozen_settings_override_current_registry_and_preserve_overrides():

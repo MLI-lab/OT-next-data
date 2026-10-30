@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parents[2]
+HERE = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(HERE))
 from config.clusters import detect_cluster  # noqa: E402
 PY = sys.executable
@@ -29,14 +29,14 @@ def needs_tasks(a):
 
 
 def check_images(a):
-    return run([PY, HERE / 'validation/dataset_checks/images.py', a.tasks,
+    return run([PY, HERE / 'validation/publishing/dataset_checks/images.py', a.tasks,
                 *(['--max-images', a.max_images] if a.max_images else [])])
 
 
 def check_reproduce(a):
     if not (a.parquet and a.reference):
         return SKIP, 'needs --parquet (what you patched) and --reference (the published parquets)'
-    return run([PY, HERE / 'validation/dataset_checks/reproducible.py', *a.parquet, '--reference', *a.reference])
+    return run([PY, HERE / 'validation/publishing/dataset_checks/reproducible.py', *a.parquet, '--reference', *a.reference])
 
 
 def submit_checks(a):
@@ -65,7 +65,7 @@ def check_isolation(a):
     if 'APPTAINER_BRIDGE_URL' not in os.environ:      # not inside a job: submit one
         return submit_checks(a)
     task = sorted((a.tasks / 'tasks').iterdir())[0]
-    return run([PY, HERE / 'validation/dataset_checks/isolation.py', task, a.out / 'isolation'])
+    return run([PY, HERE / 'validation/publishing/dataset_checks/isolation.py', task, a.out / 'isolation'])
 
 
 # name -> (function, precondition)

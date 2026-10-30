@@ -107,7 +107,7 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
     if not snapshot_matches(Path(contract_path).resolve(), code_root):
         raise ValueError('the checkout changed since the contract was prepared; prepare a new contract, then plan again')
     if 4 in contract['stages'] and arguments.get('fix_instruction_paths', False) and not _paths_prepared:
-        from validation.shard_normalization import plan_preparation
+        from hpc.shard_normalization import plan_preparation
         return plan_preparation(contract_path, contract, out, code_root, config,
             count=count, time=time, cpus=cpus, memory=memory, partition=partition,
             array_concurrency=array_concurrency, submit=submit, exclusive=exclusive,
@@ -182,7 +182,7 @@ def merge(contract_path, root, out):
     contract = read(contract_path)
     continuation = Path(root) / 'normalization' / 'prepared.json'
     if continuation.exists():
-        from validation.shard_normalization import resolve_prepared
+        from hpc.shard_normalization import resolve_prepared
         contract_path, root = resolve_prepared(contract, continuation)
         contract = read(contract_path)
     expected = sorted(t['task_id'] for t in task_records(contract))
@@ -228,6 +228,9 @@ def merge(contract_path, root, out):
         merged = {k: v for k, v in first.items() if k not in ('items', 'shard', 'timing', 'outcome_retries', 'complete', 'has_findings',
                                                                 'contract_findings', 'reward_metrics', 'implementation_review_groups')}
         merged['items'] = sorted(items, key=lambda i: Path(i.get('task', '')).name)
+        merged['task_content_sha256'] = {
+            name: digest for _, report in reports
+            for name, digest in report.get('task_content_sha256', {}).items()}
         merged['complete'] = not incomplete
         merged['has_findings'] = any(i['status'] in ('failed', 'findings', 'error') for i in items)
         merged['contract_findings'] = sorted({f for _, r in reports for f in r.get('contract_findings', [])})
@@ -239,13 +242,19 @@ def merge(contract_path, root, out):
             from validation.metrics.reward_metrics import summarize
             merged['reward_metrics'] = summarize(merged['items'])
         if stage in (5, 8):
-            from validation.publishing.review_usage import summarize_items
+            from validation.rubrics.review_usage import summarize_items
             merged['usage'] = summarize_items(merged['items'], merged.get('review_attempts', 1))
         if stage == 5:
             from validation.metrics.review_results import group_reviews
             merged['implementation_review_groups'] = group_reviews(merged['items'])
         target = out / f'stage-{stage}-merged.json'
         target.write_text(json.dumps(merged, indent=2, default=str) + '\n')
+        if not merged.get('dry_run'):
+            from validation.run import export_report
+            from validation.contract import task_records
+            export_report(out / 'results.parquet', merged,
+                          {t['task_id']: t['sha256'] for t in task_records(contract)},
+                          settings=contract.get('arguments', {}))
         written[stage] = str(target)
     executions = [json.loads(p.read_text()) for p in sorted(Path(root).glob('shards/*/execution.json'))]
     first = executions[0] if executions else {}

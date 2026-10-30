@@ -185,7 +185,7 @@ attempts. The exported `report/summary.json` includes combined `review_usage`;
 preserves the full stage report. Shard merges recompute totals from task records.
 
 By default, review pricing uses the small audited Together price table in
-`validation/publishing/review_pricing.py`. Local model keys resolve to their HF
+`validation/rubrics/review_pricing.py`. Local model keys resolve to their HF
 model IDs; API model IDs must match a verified entry. The initial table covers
 GLM-5.3 and gpt-oss-120b, checked on 2026-10-11. Other models remain unpriced
 (`null`, not zero). Each stage freezes its own resolved rates, source URL, model
@@ -226,7 +226,7 @@ to estimate equivalent API spend.
 Reprice a saved stage report without another model call:
 
 ```bash
-python -m validation.publishing.review_usage report/stage-5-ID.json \
+python -m validation.rubrics.review_usage report/stage-5-ID.json \
   --pricing '{"input": 1, "output": 4, "cache_read": 0.1}' \
   --out report/repriced-stage-5.json
 ```

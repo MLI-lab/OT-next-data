@@ -146,7 +146,7 @@ def readme(summary, plots, dataset):
               f"{summary['null_verifier_rewards']:,}. Their missing measurements stay empty.", '']
     settings = summary.get('evaluation_settings')
     if settings:
-        from validation.publishing.evaluation_settings import markdown
+        from validation.metrics.evaluation_settings import markdown
         lines += ['', markdown(settings)]
     else:
         lines += ['', 'Evaluation budgets: see the [dataset evaluation setup](../README.md). '
@@ -163,8 +163,8 @@ def export(folder, out):
     data.mkdir(parents=True, exist_ok=True)
     plots.mkdir(exist_ok=True)
     sources = []
-    from validation.publishing.trace_outcome_stats import OutcomeStats, readme_section
-    from validation.publishing.evaluation_settings import model_id
+    from validation.metrics.trace_outcome_stats import OutcomeStats, readme_section
+    from validation.metrics.evaluation_settings import model_id
     outcome_stats = OutcomeStats()
     with tempfile.TemporaryDirectory(prefix='trace-stats-') as scratch:
         rows = []

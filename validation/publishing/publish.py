@@ -16,8 +16,8 @@ from urllib.parse import quote
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from validation.contract import read, task_digest, task_records
 from validation.stages.layout import LAYOUT, NOP, REFERENCE
-from validation.data.materialize import parquet_files
-from validation.data.selection import discover_tasks
+from validation.task_inputs.materialize import parquet_files
+from validation.task_inputs.selection import discover_tasks
 from validation.publishing.outcome_labels import execution_label, labels as outcome_labels
 from validation.publishing import patch_provenance
 from validation.publishing.pr_tables import cell, primary_label, label_table
@@ -178,12 +178,12 @@ def judge(stage, item, not_required=()):
         cause = next((str(f) for f in item.get('findings', []) if not str(f).startswith('infrastructure error')), '')
         return 'not_run', infrastructure_text(item['infrastructure_error']['observed']) + ('; ' + cause[:300] if cause else '')
     if item.get('not_robust'):
-        from validation.stages.outcome_retries import not_robust_text
         attempts = len(item['not_robust']['observed'])
         if item.get('archive_cause'):
             # A reviewed cause speaks for itself; the expectation it missed adds nothing.
             return 'archive', f"{item['archive_cause']} (same result in all {attempts} attempts)"
-        reason = not_robust_text(item['not_robust']['expected'], item['not_robust']['observed'])
+        # Preserve historical decisions without enabling the retired retry policy.
+        reason = f'not robust: recorded outcomes {item["not_robust"]["observed"]}'
         # Say what was observed, not only that it never matched.
         cause = next((str(f) for f in item.get('findings', []) if not str(f).startswith('not robust')), '')
         return 'archive', reason + ('; ' + cause[:300] if cause else '')
@@ -349,11 +349,14 @@ def task_rows(source):
     """(task_id, task_binary) from Parquets, or from a directory of task directories."""
     import pyarrow.parquet as pq
     parquets = parquet_files(source)
+    from validation.task_inputs.revisions import selection as revision_selection, accepts
+    revisions = revision_selection(source)
     if parquets:
         for path in parquets:
             for batch in pq.ParquetFile(path).iter_batches(batch_size=64):
                 for row in batch.to_pylist():
-                    yield row['path'], row['task_binary']
+                    if accepts(revisions, path, row):
+                        yield row['path'], row['task_binary']
     else:
         from collections import deque
         from concurrent.futures import ThreadPoolExecutor
@@ -579,28 +582,17 @@ def analysis_text(analysis):
 
 
 def reproducibility_text(retries):
-    """Stage 1 through 3 reruns: how often a single run reproduced the earlier audit, or recovered a crash."""
+    """Report infrastructure retries without treating missing results as rejection."""
     if not retries:
         return []
-    lines = ['### Reproducibility and retries', '',
-             '| Stage | Mode | Tasks with expectation | Matched first attempt | Matched after 1 / 2 / 3+ retries | Archived as not robust | Not-run retried | Recovered | Unresolved |',
-             '| --- | --- | --- | --- | --- | --- | --- | --- | --- |']
-    not_robust = []
+    lines = ['### Infrastructure retries', '',
+             '| Stage | Retried | Recovered | Unresolved |',
+             '| --- | --- | --- | --- |']
     for stage, summary in sorted(retries.items()):
-        after = summary.get('matched_after_retries', {})
-        later = sum(v for k, v in after.items() if int(k) >= 3)
-        lines.append(f"| {stage} | {summary['mode']} | {summary['tasks_with_expectation']} | {summary['matched_first_attempt']} "
-                     f"| {after.get('1', 0)} / {after.get('2', 0)} / {later} | {len(summary['not_robust'])} "
-                     f"| {summary['retried_not_run']} | {summary['recovered_not_run']} | {len(summary['unresolved_not_run'])} |")
-        not_robust += [f'stage {stage}: {cell(task)}' for task in summary['not_robust']]
-    lines += ['', 'Expected outcomes come from an earlier audit of the same tasks (matched by task ID). '
-              'A task whose result differs from that audit is rerun up to the retry limit; a task that never matches is archived as not robust. '
-              'Without an expectation only tasks with no result (crash, node failure, missing reward or missing runner evidence) are rerun, and a task still without a result after the last attempt is archived as not robust. Stages 1, 2 and 3 are covered; the retries run after the whole pipeline.', '']
-    notes = {s.get('expected_outcomes_note') for s in retries.values() if s.get('expected_outcomes_note')}
-    for note in sorted(notes):
-        lines += ['Expected outcomes: ' + cell(note), '']
-    if not_robust:
-        lines += ['Archived as not robust: ' + '; '.join(not_robust), '']
+        lines.append(f"| {stage} | {summary.get('retried_not_run', 0)} | {summary.get('recovered_not_run', 0)} | {len(summary.get('unresolved_not_run', []))} |")
+        if summary.get('mode') == 'expected':
+            lines += ['', 'This historical run used the retired audit-comparison policy; its full outcomes remain in the run metadata.', '']
+    lines += ['', 'Only tasks without a result are retried. Unresolved infrastructure errors remain incomplete and are not archived.', '']
     return lines
 
 
@@ -701,8 +693,13 @@ def description(record, repo=None, revision=None):
         lines += ['', '</details>']
     links = {}
     for folder in record['data_sources']:
-        links[f'{folder}/tasks.parquet'] = f'{folder}: dataset'
-        links[f'{folder}/archive.parquet'] = f'{folder}: archived tasks'
+        if record.get('publication_layout') == 'task-revisions-v1':
+            links[record['result_files'][folder]] = f'{folder}: results'
+            for path in record['task_revision_files'][folder]:
+                links[path] = f'{folder}: task revision'
+        else:
+            links[f'{folder}/tasks.parquet'] = f'{folder}: dataset'
+            links[f'{folder}/archive.parquet'] = f'{folder}: archived tasks'
     for folder in record.get('patcher_scripts', {}):
         links[f'{folder}/patch.py'] = f'{folder}: patch script'
     links.update(record.get('evidence_links', {}))
@@ -840,6 +837,8 @@ def main():
                     help='a later run to combine with the first; repeat in order, needs --tasks')
     ap.add_argument('--tasks', type=Path, help='final task Parquet when combining runs')
     ap.add_argument('--repo', default='FWeindel/validated-tasks')
+    ap.add_argument('--layout', choices=['revisions', 'legacy'], default='revisions',
+                    help='publish results.parquet and task revision deltas (default), or legacy task/archive files')
     ap.add_argument('--folder', action='append', default=[], metavar='PREFIX=FOLDER',
                     help='data source folder for task IDs starting with PREFIX; default is the ID without its number')
     ap.add_argument('--not-required', action='append', default=[], metavar='CHECK',
@@ -856,6 +855,7 @@ def main():
     ap.add_argument('--dry-run', action='store_true', help='write the files and the description, open no pull request')
     ap.add_argument('--analysis', action='store_true', help='let a model group the archived tasks and suggest actions (Claude Code login); skipped on any failure')
     ap.add_argument('--analysis-model', default='sonnet')
+    ap.add_argument('--release-spec', type=Path, help='JSON mapping output folders to release README inputs (see publishing/README.md)')
     ap.add_argument('--readme', action='store_true', help='generate dataset cards through Claude Code in Harbor/Apptainer before publishing')
     ap.add_argument('--readme-force', action='store_true', help='regenerate existing cards in the PR instead of preserving them')
     ap.add_argument('--readme-model', default='claude-fable-5-1')
@@ -874,7 +874,7 @@ def main():
                      conversion_archives=a.conversion_archive, patch_manifests=a.patch_manifest, image_cache=a.image_cache,
                      trajectories=not a.no_trajectories, note=a.note,
                      runs=[tuple(Path(p) for p in r.split('=', 1)) for r in a.run], tasks=a.tasks,
-                     runtimes=a.publish_runtimes)
+                     runtimes=a.publish_runtimes, layout=a.layout, release_spec=a.release_spec)
     print(result['description'])
     print(f"Dry run: {len(result['files'])} files written to {result['out']}; no pull request opened."
           if a.dry_run else f"Pull request: {result['pull_request']}")
@@ -894,12 +894,14 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
             readme_seed=0, readme_work_dir=None, annotation_runner=None, readme_force=False,
             conversion_archives=(), patch_manifests=(), image_cache=None, agent_patch_repair_loop=False,
             patch_repair_summary=None, skipped_stages=None, trajectories=True, note=None,
-            runs=(), tasks=None, runtimes=False):
+            runs=(), tasks=None, runtimes=False, layout='revisions', release_spec=None):
     """Build the files for one run and open the pull request; returns what was done.
 
     `runs` adds later (reports_dir, contract_path) runs; `tasks` is then the final task
     Parquet and each task takes its latest result over the same content (see combine).
     """
+    if release_spec and layout != 'revisions':
+        raise ValueError('release-spec requires the revisions layout')
     if runs:
         if not tasks or skipped_stages:
             raise ValueError('combining runs needs the final task Parquet and no skipped stages')
@@ -919,7 +921,12 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
         if folder not in cache:
             cache[folder] = {} if dry_run and not repo else previous_rows(repo, folder)
         return cache[folder]
-    tables, record, run_file = build(contract, reports, mapping, checks, previous, run_id)
+    if layout not in ('revisions', 'legacy'):
+        raise ValueError('Unknown publication layout')
+    from validation.publishing.revisions import History
+    history = History(repo) if layout == 'revisions' else None
+    tables, record, run_file = build(contract, reports, mapping, checks,
+                                     previous if layout == 'legacy' else None, run_id)
     if note:
         record['note'] = str(note)
     if agent_patch_repair_loop:
@@ -994,13 +1001,15 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
                                        'uploaded': sum(r['uploaded'] for r in runtime_manifest['artifacts'].values()),
                                        'bytes': sum(r['bytes'] for r in runtime_manifest['artifacts'].values()),
                                        'tasks': len(runtime_manifest['tasks'])}
+    if history and runtime_manifest and runtime_manifest.get('source_revision') != history.revision:
+        raise ValueError('Remote dataset changed while preparing publication; retry against a fresh snapshot')
     artifact_commit = None
     if artifacts and not dry_run:
         from huggingface_hub import CommitOperationAdd, HfApi
         artifact_commit = HfApi().create_commit(
             repo_id=repo, repo_type='dataset', create_pr=True,
             **({'parent_commit': runtime_manifest['source_revision']}
-               if runtime_manifest and runtime_manifest.get('source_revision') else {}),
+               if runtime_manifest and runtime_manifest.get('source_revision') else {'parent_commit': history.revision} if history and history.revision else {}),
             operations=[CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(path))
                         for name, path in artifacts.items()],
             commit_message=commit_title(record['run'], 'environment images for'),
@@ -1017,7 +1026,13 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
     manifest_path = record['environment_images']['manifest']
     (out / manifest_path).parent.mkdir(parents=True, exist_ok=True)
     (out / manifest_path).write_text(json.dumps(manifest, indent=2) + '\n')
-    files = write(tables, record, run_file, out, cards, manifest if manifest['tasks'] else None)
+    if layout == 'revisions':
+        from validation.publishing.revisions import write as write_revisions
+        files = write_revisions(tables, record, run_file, out, reports, contract, history,
+                                cards, manifest if manifest['tasks'] else None,
+                                release_specs=read(release_spec) if release_spec else None)
+    else:
+        files = write(tables, record, run_file, out, cards, manifest if manifest['tasks'] else None)
     files.extend(repository_patchers(record, out))
     if runtime_manifest is not None:
         files.append(record['prepared_runtimes']['manifest'])
@@ -1043,7 +1058,8 @@ def publish(reports_dir, contract_path, repo, folders=(), not_required=(), out=N
         repo_id=repo, repo_type='dataset', create_pr=artifact_commit is None,
         **({'revision': artifact_commit.pr_revision, 'parent_commit': artifact_commit.oid} if artifact_commit else
            {'parent_commit': runtime_manifest['source_revision']}
-           if runtime_manifest and runtime_manifest.get('source_revision') else {}),
+           if runtime_manifest and runtime_manifest.get('source_revision') else
+           {'parent_commit': history.revision} if history and history.revision else {}),
         operations=[CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(out / name)) for name in files],
         commit_message=commit_title(record['run']), commit_description=description(record))
     result['pull_request'] = artifact_commit.pr_url if artifact_commit else commit.pr_url

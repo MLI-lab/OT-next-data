@@ -15,8 +15,8 @@ import re
 import tarfile
 from collections import defaultdict
 
-from validation.data.materialize import parquet_files
-from validation.data.selection import discover_tasks
+from validation.task_inputs.materialize import parquet_files
+from validation.task_inputs.selection import discover_tasks
 
 
 FROM = re.compile(rb"^\s*FROM\s+([^\r\n#]+)", re.IGNORECASE | re.MULTILINE)

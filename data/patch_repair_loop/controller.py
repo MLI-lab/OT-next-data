@@ -17,8 +17,8 @@ import shutil
 import subprocess
 import time
 
-from validation.data.materialize import parquet_files
-from validation.data.selection import discover_tasks
+from validation.task_inputs.materialize import parquet_files
+from validation.task_inputs.selection import discover_tasks
 from data.patch_repair_loop.agents import ROLES, invoke, parse_json_answer
 from data.patch_repair_loop.reports import STAGES, summarize
 
@@ -651,7 +651,7 @@ def context(config, state):
             'evidence_dir': config['work_root'],
             'previous_attempts': state['history'],
             'recovery_instructions': state.get('recovery_handoff'),
-            'protocol': str(ROOT / 'validation/PROTOCOL.md'),
+            'protocol': str(ROOT / 'validation/README.md'),
             'image_audit_tool': 'python -m data.patch_repair_loop.image_audit SOURCE'}
 
 

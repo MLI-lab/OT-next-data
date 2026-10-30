@@ -97,7 +97,7 @@ estimates, which may be incomplete.
 
 Set `shard_size` to the maximum tasks per Slurm job and `shard_concurrency` to
 the number of simultaneous array jobs. Selections larger than `shard_size` use
-`validation.shards` with one frozen contract. This applies to image prebuilding,
+`hpc.shards` with one frozen contract. This applies to image prebuilding,
 full stage 3, final validation and large retry selections. Completed shards are
 read again on controller restart; existing arrays are never blindly resubmitted.
 Reports are merged only after checking task coverage and contract identity.
@@ -116,4 +116,4 @@ Dataset identity, validation success criteria and retry limits remain outside th
 resource-change interface. Active or uncertain jobs and unresolved publication
 prevent a fresh restart.
 
-See the [validation protocol](../PROTOCOL.md) for stage definitions.
+See the [validation protocol](../../validation/README.md#validation-protocol) for stage definitions.

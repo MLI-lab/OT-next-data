@@ -7,7 +7,7 @@ from validation.stages import static_gate
 
 def test_preflight_blocks_failures_and_errors_but_not_warnings(tmp_path, monkeypatch):
     from validation import contract
-    from validation.data import selection
+    from validation.task_inputs import selection
     from validation.rules.static import terminal_bench
     from validation.stages import runner
     tasks = [tmp_path / name for name in ('good', 'warn', 'bad', 'error')]
