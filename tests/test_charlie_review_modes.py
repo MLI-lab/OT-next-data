@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-PATH = Path(__file__).resolve().parents[1] / 'validation/rubrics/labeled_examples/charlie_hackable/run_reviews.py'
+PATH = Path(__file__).resolve().parents[1] / 'validation/rubrics/old/labeled_examples/charlie_hackable/run_reviews.py'
 spec = importlib.util.spec_from_file_location('charlie_reviews', PATH)
 runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)

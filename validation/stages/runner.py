@@ -190,7 +190,7 @@ def resolve_review_defaults(args, numbers):
         return
     fields = ('review_agent', 'review_model', 'analysis_agent', 'analysis_model')
     if all(getattr(args, key, None) for key in fields):
-        from validation.rubrics.review_pricing import freeze
+        from validation.rubrics.utils.pricing import freeze
         freeze(args, numbers)
         return
     import hashlib
@@ -207,7 +207,7 @@ def resolve_review_defaults(args, numbers):
         raise ValueError('upstream review defaults must contain nonempty agent/model names')
     args.review_defaults_source = {'commit': PINS['terminal-bench']['commit'],
         'file': '.github/harbor-run-defaults.yml', 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
-    from validation.rubrics.review_pricing import freeze
+    from validation.rubrics.utils.pricing import freeze
     freeze(args, numbers)
 
 
@@ -266,7 +266,7 @@ def check_args(a):
     kind = getattr(a, 'review_rubric', 'terminal-bench')
     output_format = getattr(a, 'review_format', None)
     if kind in ('custom', 'river', 'custom_severity'):
-        from validation.rubrics.run_review import load
+        from validation.rubrics.utils.review import load
         rubric, skipped = load(kind, output_format)
         if kind == 'custom_severity':
             a.review_format = 'severity'
@@ -301,7 +301,7 @@ def check_args(a):
         raise ValueError('--review-runs must be positive')
     if getattr(a, 'review_retries', 2) < 0:
         raise ValueError('--review-retries cannot be negative')
-    from validation.rubrics.review_usage import validate_pricing
+    from validation.rubrics.utils.usage import validate_pricing
     validate_pricing(getattr(a, 'review_pricing', None))
     if getattr(a, 'serve_context', None) is None:
         # The limit is the model's own (config/models.py); 32768 keeps contracts without a served model unchanged.
@@ -413,11 +413,11 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
         from validation.stages.image_review import review
         return await review(source, task, item_dir, args, agent, model)
     if number == 5 and not image:
-        from validation.rubrics.run_review import review_files
+        from validation.rubrics.utils.review import review_files
         return await review_files(task, source, item_dir, args, agent, model)
     if number == 5 and getattr(args, 'review_rubric', None) == 'custom_severity':
         # Terminus-2 shares the severity repair/checkpoint path, inside the task environment.
-        from validation.rubrics.run_review import review_files
+        from validation.rubrics.utils.review import review_files
         return await review_files(task, source, item_dir, args, agent, model, task_environment=True)
     skipped = json.loads((task / 'rubric-skips.json').read_text()) if number == 5 else {}
     rubric = task / 'rubric.toml' if number == 5 else upstream / 'docs/prompts' / rubric_name
@@ -451,8 +451,8 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
         # verdict schema below; pytest invocation evidence applies to task tests.
         result = runtime.assess_trials(results, args.attempts, 1, 'reward', task_path=task,
                                        require_execution=False)
-    from validation.rubrics.review_usage import collect
-    from validation.rubrics.review_pricing import for_stage
+    from validation.rubrics.utils.usage import collect
+    from validation.rubrics.utils.pricing import for_stage
     pricing = for_stage(args, number)
     result['usage'] = collect(results, agent, model, pricing['rates'], args.attempts, pricing['source'])
     result['job_dir'] = str(job_dir)
@@ -465,7 +465,7 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
 
 
 async def repair_criteria(result, partial, source, item_dir, args, upstream, references, suffixes):
-    from validation.rubrics.review_usage import summarize_rows
+    from validation.rubrics.utils.usage import summarize_rows
     skipped = result.get('automatic_skips') or {}
     for index, part in enumerate(partial):
         checks = dict(part['checks'])
@@ -954,7 +954,7 @@ def _run_stage(number, args):
                         result = {'status': 'error', 'reason': f'{type(exc).__name__}: {exc}'}
                     result.update(task=str(source), output=str(item_dir))
                     report['items'].append(result)
-                    from validation.rubrics.review_usage import summarize_items
+                    from validation.rubrics.utils.usage import summarize_items
                     report['usage'] = summarize_items(report['items'], args.attempts)
                     save(report_path, report)
                     print(f"stage 5 {source.name}: {result['status']}", flush=True)
@@ -1014,7 +1014,7 @@ def _run_stage(number, args):
                 result['source_trial'] = str(trial)
             report['items'].append(result)
             if number in (5, 8):
-                from validation.rubrics.review_usage import summarize_items
+                from validation.rubrics.utils.usage import summarize_items
                 report['usage'] = summarize_items(report['items'], args.attempts)
             save(report_path, report)
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
@@ -1031,7 +1031,7 @@ def _run_stage(number, args):
         from validation.metrics.review_results import group_reviews
         report['implementation_review_groups'] = group_reviews(report['items'])
     if number in (5, 8):
-        from validation.rubrics.review_usage import summarize_items
+        from validation.rubrics.utils.usage import summarize_items
         report['usage'] = summarize_items(report['items'], args.attempts)
         report['resolved_review_pricing'] = getattr(args, 'resolved_review_pricing', {}).get(str(number))
     report['has_findings'] = any(i['status'] in ('failed', 'findings', 'error', 'incomplete')

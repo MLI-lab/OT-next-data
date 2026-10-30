@@ -74,6 +74,6 @@ These compatibility labels support existing pipeline consumers without replacing
 The shared agreement analysis compares actual severity labels and subcategories, preserving the distinction between `minor` and `major`. It also reports severity counts and per-rubric subcategory agreement:
 
 ```bash
-python -m validation.rubrics.analysis /path/to/stage-5-report.json \
+python -m validation.rubrics.run_review analyze /path/to/stage-5-report.json \
   --out /path/to/agreement.log --json-out /path/to/agreement.json
 ```

@@ -22,7 +22,7 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     elif rubric_kind == 'harbor':
         rubric, skipped = harbor_rubric()
     elif rubric_kind in ('custom', 'river', 'custom_severity'):
-        from validation.rubrics.run_review import load
+        from validation.rubrics.utils.review import load
         rubric, skipped = load(rubric_kind, review_format)
     else:
         raise ValueError(f'unknown implementation rubric: {rubric_kind}')
@@ -40,7 +40,7 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
         raise ValueError('expected exactly one embedded upstream rubric')
     text = text.replace(original_rubric, rubric)
     if rubric_kind in ('custom', 'river', 'custom_severity'):
-        from validation.rubrics.run_review import prompt, install_verifier
+        from validation.rubrics.utils.review import prompt, install_verifier
         text = prompt(rubric, source.name, evidence_mode)
         install_verifier(destination)
     instruction.write_text(text)
@@ -150,7 +150,7 @@ def read_verdicts(path, rubric_path, analysis=False):
     data = json.loads(path.read_text())
     config = tomllib.loads(rubric_path.read_text())
     if config.get('review'):
-        from validation.rubrics.run_review import read_output
+        from validation.rubrics.utils.review import read_output
         return read_output(path, config)
     criteria = {c['name'] for c in config['criteria']}
     checks = data.get('checks')

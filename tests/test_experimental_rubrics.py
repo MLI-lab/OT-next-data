@@ -6,7 +6,7 @@ from unittest import TestCase, mock
 import tomllib
 
 from validation.rubrics import select_criteria
-from validation.rubrics.run_review import load
+from validation.rubrics.utils.review import load
 from validation.stages.prepare_review_tasks import stage_review, read_verdicts
 
 
@@ -39,7 +39,7 @@ class ExperimentalRubrics(TestCase):
             self.assertEqual(read_verdicts(root / 'verdicts.json', root / 'rubric.toml')['checks']['test_coverage']['outcome'], 'not_applicable')
 
     def test_classifications_validate_and_derive_status(self):
-        from validation.rubrics.run_review import validate
+        from validation.rubrics.utils.review import validate
         for kind in ('custom', 'river'):
             rubric = tomllib.loads(load(kind, 'classification')[0])
             self.assertEqual(len(rubric['categories']), 7 if kind == 'custom' else 8)

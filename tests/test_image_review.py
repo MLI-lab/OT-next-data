@@ -123,7 +123,7 @@ def test_worker_builds_actual_images_for_image_review(tmp_path):
 
 
 def test_codex_forwards_inspector_authentication():
-    from validation.rubrics.labeled_examples.charlie_hackable.run_reviews import judge_command
+    from validation.rubrics.old.labeled_examples.charlie_hackable.run_reviews import judge_command
     command = judge_command('codex', 'test', 'medium', {'mcpServers': {'image': {'command': 'python', 'args': [], 'env': {'OT_REVIEW_INSPECT_TOKEN': 'test-token'}}}}, 5)
     assert 'mcp_servers.image.env.OT_REVIEW_INSPECT_TOKEN="test-token"' in command
 

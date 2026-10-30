@@ -33,7 +33,7 @@ def together_reference(model):
 
 def freeze(args, numbers):
     """Explicit rates win. Resolve local model keys to their exact HF model ID."""
-    from validation.rubrics.review_usage import validate_pricing
+    from validation.rubrics.utils.usage import validate_pricing
     explicit = getattr(args, 'review_pricing', None)
     validate_pricing(explicit)
     resolved = getattr(args, 'resolved_review_pricing', None)

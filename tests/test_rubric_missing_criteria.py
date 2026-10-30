@@ -1,6 +1,6 @@
 from pathlib import Path
 import tomllib
-from validation.rubrics.run_review import merge, subset_rubric, valid_checks
+from validation.rubrics.utils.review import merge, subset_rubric, valid_checks
 
 
 def check(outcome):

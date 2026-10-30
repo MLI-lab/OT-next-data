@@ -1,7 +1,7 @@
 """Preserve review usage and summarize complete totals separately from known subtotals.
 
 Reprice an exported stage report without running a judge again:
-python -m validation.rubrics.review_usage stage-5-ID.json --pricing '{"input": 1, "output": 4}' --out repriced.json
+python -m validation.rubrics.run_review reprice stage-5-ID.json --pricing '{"input": 1, "output": 4}' --out repriced.json
 Rates are USD per million tokens. Input counts include cache reads and writes.
 """
 import argparse
@@ -124,12 +124,12 @@ def reprice(report, pricing):
     return report
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('report', type=Path)
     parser.add_argument('--pricing', type=json.loads, required=True)
     parser.add_argument('--out', type=Path, required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     report = reprice(json.loads(args.report.read_text()), args.pricing)
     args.out.write_text(json.dumps(report, indent=2) + '\n')
 

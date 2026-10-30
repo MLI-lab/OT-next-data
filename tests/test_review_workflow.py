@@ -11,26 +11,12 @@ from types import SimpleNamespace
 from unittest import IsolatedAsyncioTestCase, TestCase, mock
 import tomllib
 
-from validation.rubrics import run_review as review
-from validation.rubrics.analysis import analyze
+from validation.rubrics.utils import review
+from validation.rubrics.utils.agreement import analyze
 
 
 def check(outcome='pass'):
     return {'outcome': outcome, 'explanation': 'Concrete evidence.'}
-
-
-def test_stage_five_calibration_survives_legacy_script_removal():
-    from validation.rubrics.scripts.stage5_calibration import stability
-    report = {'items': [
-        {'task': '/tasks/complete', 'status': 'findings',
-         'verdicts': [{'checks': {'first': check(value)}} for value in ['pass', 'pass', 'fail']]},
-        {'task': '/tasks/incomplete', 'status': 'passed',
-         'verdicts': [{'checks': {'first': check()}}]},
-    ]}
-    result = stability(report, 3)
-    assert result['agreement']['review_pair_count'] == 3
-    assert result['agreement']['agreeing_review_pairs'] == 1
-    assert result['incomplete_tasks'] == ['incomplete']
 
 
 class RepairWorkflow(IsolatedAsyncioTestCase):
@@ -158,7 +144,7 @@ class RepairWorkflow(IsolatedAsyncioTestCase):
                  mock.patch.object(image_review, 'run_judge', judge), \
                  mock.patch.object(image_review, 'Inspector', FakeInspector), \
                  mock.patch.object(image_review.shutil, 'which', return_value='/fake/claude'), \
-                 mock.patch('validation.rubrics.review_pricing.for_stage', return_value={'rates': None, 'source': {}}):
+                 mock.patch('validation.rubrics.utils.pricing.for_stage', return_value={'rates': None, 'source': {}}):
                 result = await image_review.review(source, staged, root, args, 'claude-code', 'test')
                 self.assertEqual(result['status'], 'passed', result)
                 self.assertEqual(len(result['verdicts']), 2)
@@ -195,7 +181,7 @@ class RepairWorkflow(IsolatedAsyncioTestCase):
                  mock.patch.object(runtime, 'job_config', side_effect=lambda task, *a: {'task': str(task)}), \
                  mock.patch.object(runtime, 'execute_job', execute), \
                  mock.patch.object(runtime, 'trial_results', side_effect=lambda job: [(job / 'trial', {})]), \
-                 mock.patch('validation.rubrics.review_pricing.for_stage', return_value={'rates': None, 'source': {}}):
+                 mock.patch('validation.rubrics.utils.pricing.for_stage', return_value={'rates': None, 'source': {}}):
                 result = await review.review_files(staged, source, root, args, 'terminus-2', 'test')
                 self.assertEqual(result['status'], 'passed', result)
                 self.assertEqual([len(names) for names in selected], [4, 3])
@@ -228,7 +214,7 @@ class Analysis(TestCase):
             json.dumps(output)
             log = root / 'results.log'
             detail = root / 'analysis.json'
-            subprocess.run([sys.executable, '-m', 'validation.rubrics.analysis', str(path),
+            subprocess.run([sys.executable, '-m', 'validation.rubrics.utils.agreement', str(path),
                             '--out', str(log), '--json-out', str(detail)], check=True, capture_output=True)
             self.assertIn('Pairwise agreement:', log.read_text())
             self.assertIn('vs', log.read_text())

@@ -13,6 +13,7 @@ The shared execution path is `validation_submit.py` → a cluster's
 | --- | --- |
 | `validation_submit.py` | Choose resources, freeze code, submit jobs and archive snapshots |
 | `validation.sh` | Load the site environment and bootstrap node-local Python |
+| `judge_review.py` | Execute a frozen judge/rubric cell with verified cached images; invoked by `validation/rubrics/run_review.py` |
 | `validation_worker.py` | Stage inputs, manage services, run stages and save evidence |
 | `local_runtime.py` | Build and relocate the Python runtime; bootstrap uses only the standard library |
 | `local_assets.py` | Stage images, weights, dependency archives and TLS certificates |

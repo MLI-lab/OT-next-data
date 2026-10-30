@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-PATH = Path(__file__).resolve().parents[1] / 'validation/rubrics/labeled_examples/tb_human_labeled/scripts/resolve_tasks.py'
+PATH = Path(__file__).resolve().parents[1] / 'validation/rubrics/old/labeled_examples/tb_human_labeled/scripts/resolve_tasks.py'
 spec = importlib.util.spec_from_file_location('labeled_task_resolve', PATH)
 resolver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(resolver)

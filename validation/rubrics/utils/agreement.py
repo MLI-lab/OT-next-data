@@ -185,12 +185,12 @@ def render(result):
     return '\n'.join(lines) + '\n'
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('reports', nargs='+', type=Path, help='stage-5 summary.json or exported stage-5-*.json files')
-    parser.add_argument('--out', type=Path, default=Path(__file__).with_name('results.log'), help='readable log; default: validation/rubrics/results.log')
+    parser.add_argument('--out', type=Path, default=Path('review-agreement.log'), help='readable log in the current working directory')
     parser.add_argument('--json-out', type=Path, help='optional detailed analysis JSON with per-task label distributions')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     result = analyze(args.reports)
     text = render(result)
     args.out.parent.mkdir(parents=True, exist_ok=True)

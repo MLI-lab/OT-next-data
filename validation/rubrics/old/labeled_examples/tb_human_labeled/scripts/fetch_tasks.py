@@ -12,7 +12,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 HERE = Path(__file__).resolve().parents[1]
-ROOT = HERE.parents[3]
+ROOT = HERE.parents[4]
 
 
 def read_url(url):

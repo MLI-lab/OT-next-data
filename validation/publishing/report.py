@@ -96,7 +96,7 @@ def summarize(archive):
                            'tasks': len(items), 'counts': dict(counts), 'report': str(path),
                            'contract_sha256': report.get('contract_sha256'), 'timing': report.get('timing')})
             if number in (5, 8):
-                from validation.rubrics.review_usage import summarize_items
+                from validation.rubrics.utils.usage import summarize_items
                 stages[-1]['usage'] = summarize_items(items, report.get('review_attempts', 1))
                 stages[-1]['review_pricing'] = report.get('review_pricing')
                 stages[-1]['resolved_review_pricing'] = report.get('resolved_review_pricing')
@@ -146,7 +146,7 @@ def summarize(archive):
     stage_two = next((stage for stage in stages if stage['stage'] == 5), None)
     review_groups = ({'implementation': stage_two['implementation_review_groups'],
                       'proposal': stage_two['proposal_review_groups']} if stage_two else None)
-    from validation.rubrics.review_usage import summarize_items
+    from validation.rubrics.utils.usage import summarize_items
     return {'archive': str(archive.resolve()), 'contract_sha256': contract_hash, 'network_status': network_status,
             'review_usage': summarize_items(review_items),
             'instruction_fixup': instruction_fixup,

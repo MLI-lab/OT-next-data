@@ -5,7 +5,7 @@ import tarfile
 
 import pytest
 
-from validation.rubrics import review_usage as usage
+from validation.rubrics.utils import usage
 from validation.publishing.report import write_report
 
 
@@ -156,7 +156,7 @@ def test_stage_review_keeps_spend_when_verdict_is_missing(tmp_path, monkeypatch)
 
 
 def test_together_defaults_match_exact_models_and_freeze_rates():
-    from validation.rubrics import review_pricing
+    from validation.rubrics.utils import pricing as review_pricing
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-local', '--serve-model', 'glm-5.3'])
     first = review_pricing.for_stage(options, 5)
@@ -173,7 +173,7 @@ def test_together_defaults_match_exact_models_and_freeze_rates():
 
 
 def test_unknown_local_model_is_unpriced_and_manual_zero_wins():
-    from validation.rubrics.review_pricing import for_stage
+    from validation.rubrics.utils.pricing import for_stage
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-local', '--serve-model', 'coder-30b'])
     assert for_stage(options, 5)['rates'] is None
@@ -184,7 +184,7 @@ def test_unknown_local_model_is_unpriced_and_manual_zero_wins():
 
 
 def test_analysis_gets_its_own_price_and_repricing_updates_provenance(tmp_path):
-    from validation.rubrics.review_pricing import for_stage
+    from validation.rubrics.utils.pricing import for_stage
     from validation.stages.runner import parser
     options = parser().parse_args(['--review-model', 'together_ai/zai-org/GLM-5.3',
                                   '--analysis-model', 'together_ai/openai/gpt-oss-120b'])

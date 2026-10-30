@@ -242,7 +242,7 @@ def merge(contract_path, root, out):
             from validation.metrics.reward_metrics import summarize
             merged['reward_metrics'] = summarize(merged['items'])
         if stage in (5, 8):
-            from validation.rubrics.review_usage import summarize_items
+            from validation.rubrics.utils.usage import summarize_items
             merged['usage'] = summarize_items(merged['items'], merged.get('review_attempts', 1))
         if stage == 5:
             from validation.metrics.review_results import group_reviews
