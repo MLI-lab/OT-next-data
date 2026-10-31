@@ -5,8 +5,9 @@
 # Each model runs as a vLLM server started like the cluster jobs start it (hpc/validation_worker.py) with the
 # sampling settings of config/models.py. Tasks run in Docker through the repo's own pipeline
 # (validation/run.py stages 6+7, --backend docker --submit never), one shard after another in the
-# background, so logging out is safe and a crash loses at most one shard. Differences from the team's
-# cluster runs: Docker instead of Apptainer, and images are built here instead of downloaded.
+# background, so logging out is safe and a crash loses at most one shard; a watcher unsticks a shard whose
+# attempts hang. Differences from the team's cluster runs: Docker instead of Apptainer, images built here
+# instead of downloaded, and a few Docker-only task fixes (LOCAL_CHANGES.txt, copied into merged reports).
 #
 #   export WS=/mnt/sda4T/$USER/ot-next          # big disk: Python env, models (~120 GB), runs
 #   ./hpc/passk_local.sh setup                  # once (~30 min)
@@ -16,14 +17,21 @@
 #   ./hpc/passk_local.sh run nl2bash_v1 instruct      # full pass@4 in the background (ATTEMPTS=16 for pass@16)
 #   ./hpc/passk_local.sh status nl2bash_v1 instruct
 #   ./hpc/passk_local.sh merge nl2bash_v1 instruct    # when status says all shards are complete
-#   ./hpc/passk_local.sh stop nl2bash_v1 instruct     # stop a run (start it again with run: it continues)
+#   ./hpc/passk_local.sh stop nl2bash_v1 instruct     # stop a run and remove its containers (run again: it continues)
 #   ./hpc/passk_local.sh unserve instruct             # stop the model (refused while its runs still go)
 #   ./hpc/passk_local.sh serve thinking               # then the other model, on the same GPU
 #   ./hpc/passk_local.sh check multiswe_v1            # reference solution = 1 and do-nothing = 0 here? (no GPU needed)
+#   ./hpc/passk_local.sh prebuild multiswe_v1         # build its task images once, in the background (no GPU needed);
+#                                                     # again: progress. New runs then use them (MultiSWE requires this);
+#                                                     # 'prebuild multiswe_v1 retry' / 'stop'
+# A run keeps the task folder it was prepared from: resuming never changes its tasks.
+# 'docker image prune -a' or 'docker system prune -a' deletes prebuilt images between attempts: a run that
+# uses them then pauses until 'prebuild' has built them again.
 set -euo pipefail
 shopt -s inherit_errexit
 
 WS=${WS:?export WS=<a folder on a big disk> first}
+WS=$(realpath -m -- "$WS")   # contracts record resolved paths; compare like with like
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=${REPO_DIR:-$(cd "$HERE/.." && pwd)}
 ENV_DIR=${ENV_DIR:-$WS/env}
@@ -32,6 +40,8 @@ TASKS_PER_SHARD=${TASKS_PER_SHARD:-$(( (200 + ATTEMPTS - 1) / ATTEMPTS ))}   # a
 GPU=${GPU:-0}   # the one GPU both models use, one after the other
 INSTRUCT_PORT=${INSTRUCT_PORT:-8101}; THINKING_PORT=${THINKING_PORT:-8102}
 HF_REPO=FWeindel/validated-tasks
+PREBUILD_JOBS=${PREBUILD_JOBS:-8}; PREBUILD_HOURS=${PREBUILD_HOURS:-36}   # images built at once; time limit per image
+STUCK_HOURS=${STUCK_HOURS:-3}   # a shard with no finished attempt for this long is stuck (see write_shard_watch)
 MAX_TRIALS=${MAX_TRIALS:-64}   # attempts at once over all runs (CPU-bound: agents mostly wait for the model)
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -48,7 +58,7 @@ other_model() { if [ "$1" = instruct ]; then echo thinking; else echo instruct; 
 # Is the process group whose leader's pid is in file $1 still alive?
 group_alive() { [ -s "$1" ] && kill -0 -- "-$(cat "$1")" 2>/dev/null; }
 
-# Trials at once per run; two runs at once (two datasets on one model, or both models) must fit MAX_TRIALS
+# Trials at once per run; two runs at once (both datasets on the one model) must fit MAX_TRIALS
 # together. 4-CPU tasks: 2 x 24 trials ask for 192 CPUs on 128 cores, which works because agents mostly
 # wait for the model;
 # if status shows verifier timeouts, lower CONCURRENCY.
@@ -198,7 +208,7 @@ unserve() {
 # Path of <dataset>/tasks.parquet at one pinned dataset revision (downloaded once). TASKS_PARQUET overrides it.
 fetch() {
     local ds=$1 dir="$WS/datasets/validated-tasks" rev path
-    if [ -n "${TASKS_PARQUET:-}" ]; then echo "$TASKS_PARQUET"; return 0; fi
+    if [ -n "${TASKS_PARQUET:-}" ]; then realpath -m -- "$TASKS_PARQUET"; return 0; fi
     mkdir -p "$dir"
     if [ ! -s "$dir/$ds.revision" ]; then
         rev=$(python -c "from huggingface_hub import HfApi; print(HfApi().dataset_info('$HF_REPO').sha)")
@@ -228,7 +238,7 @@ EOF
 unpacked() {
     local parquet=$1 ds=$2 dir fixed
     dir="${parquet%.parquet}-tasks"
-    [ "$ds" = multiswe_v1 ] && dir="$dir-aptfix"
+    [ "$ds" = multiswe_v1 ] && dir="$dir-dockerfix2"
     if [ ! -d "$dir" ]; then
         rm -rf "$dir.partial"
         python -m validation.data.materialize "$parquet" "$dir.partial" >&2 || die "unpacking $parquet failed"
@@ -236,34 +246,402 @@ unpacked() {
             fixed=$(python - "$dir.partial" <<'EOF'
 import sys
 from pathlib import Path
-old = 'RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tmux'
-new = 'RUN apt-get -o Acquire::AllowReleaseInfoChange=true update && apt-get install -y --no-install-recommends curl ca-certificates tmux'
-n = 0
+# Docker-only build fixes, each one exact text per Dockerfile.
+FIXES = [('RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tmux',
+          'RUN apt-get -o Acquire::AllowReleaseInfoChange=true update && apt-get install -y --no-install-recommends curl ca-certificates tmux',
+          'apt-get update allows a changed Release Label (repos.azul.com)'),
+         ('-Djava.net.preferIPv6Addresses=true', '-Djava.net.preferIPv6Addresses=false',
+          'Maven in the dependency-cache step prefers IPv4 (the cluster nodes had only IPv6; Docker build containers have no IPv6 route)')]
+counts = [0] * len(FIXES)
 for dockerfile in Path(sys.argv[1]).glob('*/environment/Dockerfile'):
     text = dockerfile.read_text()
-    if text.count(old) == 1:
-        dockerfile.write_text(text.replace(old, new)); n += 1
-(Path(sys.argv[1]) / 'LOCAL_CHANGES.txt').write_text(f'{n} Dockerfiles: apt-get update allows a changed Release Label (repos.azul.com).\n')
-print(n)
+    for i, (old, new, _) in enumerate(FIXES):
+        if text.count(old) == 1:
+            text = text.replace(old, new); counts[i] += 1
+    dockerfile.write_text(text)
+(Path(sys.argv[1]) / 'LOCAL_CHANGES.txt').write_text(''.join(f'{n} Dockerfiles: {why}.\n' for n, (_, _, why) in zip(counts, FIXES)))
+print(f'apt fix in {counts[0]}, Maven IPv4 in {counts[1]}')
 EOF
             ) || die "MultiSWE build fix failed"
-            echo "MultiSWE: build fix applied to $fixed task images" >&2
+            echo "MultiSWE: Docker build fixes applied ($fixed Dockerfiles)" >&2
         fi
         mv "$dir.partial" "$dir"
     fi
     echo "$dir"
 }
 
-# Refuse to start more attempts at once than Docker has networks for; drop leftover unused networks
-# when nothing else runs.
+# Some images take hours to build: MultiSWE's warm a dependency cache for hundreds of commits (checkstyle
+# runs Maven on 485), which never fits a trial's 10-minute build limit; the cluster builds them ahead of
+# time, too. 'prebuild' builds each distinct task image once, a few at a time, tagged
+# passk-local/<dataset>:<hash of its build files>; new runs then use a copy of the tasks whose task.toml
+# names that image (Harbor's prebuilt-image mode), so trials build nothing.
+prebuild() {
+    local what=${1:-} root="$WS/prebuild/$ds" parquet taskdir free built need
+    if group_alive "$root/loop.pid"; then
+        if [ "$what" = stop ]; then
+            prebuild_status "$root" "" yes || true
+            kill -- "-$(cat "$root/loop.pid")" 2>/dev/null || true
+            rm -f "$root/loop.pid"
+            echo "Stopped. Images that were still building start from the beginning next time; finished ones are kept."
+            echo "Continue with: ./hpc/passk_local.sh prebuild $ds"
+        else
+            prebuild_status "$root" "" yes || true
+        fi
+        return 0
+    fi
+    [ "$what" != stop ] || die "no image builds are running for $ds"
+    parquet=$(fetch "$ds"); taskdir=$(unpacked "$parquet" "$ds")
+    if [ "$what" != retry ] && prebuild_status "$root" "$taskdir" no; then return 0; fi
+    mkdir -p "$root"
+    built=$(python - "$taskdir" "$ds" "$root/plan.json" <<'EOF'
+import hashlib, json, subprocess, sys, tomllib
+from pathlib import Path
+tasks, ds, out = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+groups = {}
+for toml in sorted(tasks.glob('*/task.toml')):
+    env = toml.parent / 'environment'
+    # Tasks that name their own image, or have nothing to build, are left as they are.
+    if tomllib.loads(toml.read_text()).get('environment', {}).get('docker_image') or not (env / 'Dockerfile').is_file():
+        continue
+    digest = hashlib.sha256()
+    for f in sorted(p for p in env.rglob('*') if p.is_file()):
+        digest.update(str(f.relative_to(env)).encode() + b'\0' + f.read_bytes() + b'\0')
+    key = digest.hexdigest()[:16]
+    groups.setdefault(key, {'key': key, 'tag': f'passk-local/{ds}:{key}', 'context': str(env),
+                            'name': toml.parent.name, 'tasks': []})['tasks'].append(toml.parent.name)
+# Images shared by the most tasks first: they are the long dependency-cache builds.
+plan = sorted(groups.values(), key=lambda g: (-len(g['tasks']), g['name']))
+out.write_text(json.dumps({'dataset': ds, 'tasks_dir': str(tasks.resolve()), 'groups': plan}, indent=1))
+have = set(subprocess.run(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'], capture_output=True, text=True).stdout.split())
+print(f"{sum(len(g['tasks']) for g in plan)} tasks use {len(plan)} distinct images", file=sys.stderr)
+print(sum(g['tag'] in have for g in plan))
+EOF
+    )
+    # A first build needs room for all images; continuing needs room for the rest.
+    need=500; [ "$built" = 0 ] || need=100
+    free=$(docker_space | tail -1)
+    [ "${free:-0}" -ge "$need" ] || [ -n "${FORCE_DOCKER_SPACE:-}" ] || die "the $ds images need hundreds of GB; Docker's disk has ${free:-?} GB free. Ask your admin to move Docker's data-root to the big disk, or set FORCE_DOCKER_SPACE=1"
+    write_prebuild_script
+    setsid nohup python "$WS/bin/prebuild.py" "$root" "$PREBUILD_JOBS" "$PREBUILD_HOURS" "${what:-continue}" > "$root/loop.out" 2>&1 < /dev/null &
+    echo $! > "$root/loop.pid"
+    echo "Building them in the background, $PREBUILD_JOBS at a time. Progress: ./hpc/passk_local.sh prebuild $ds"
+}
+
+# Progress of 'prebuild'. Exit 0: finished (summary printed); 3: some images are not built (or were removed
+# from Docker) and nothing is building; 4: no plan for these task files ($2; empty: any).
+prebuild_status() {
+    python - "$@" <<'EOF'
+import json, re, subprocess, sys, time
+from pathlib import Path
+root, tasks, running = Path(sys.argv[1]), sys.argv[2], sys.argv[3] == 'yes'
+try:
+    plan = json.loads((root / 'plan.json').read_text())
+except (OSError, ValueError):
+    sys.exit(4)
+if tasks and Path(plan['tasks_dir']).resolve() != Path(tasks).resolve():
+    sys.exit(4)
+groups, ds = plan['groups'], plan['dataset']
+have = set(subprocess.run(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'], capture_output=True, text=True).stdout.split())
+
+
+def state(group):
+    try:
+        found = json.loads((root / 'state' / (group['key'] + '.json')).read_text())
+    except (OSError, ValueError):
+        return {}
+    # An image removed from Docker since (e.g. 'docker image prune -a') has to be built again.
+    return {} if found.get('status') == 'ok' and group['tag'] not in have else found
+
+
+def log_lines(group):
+    try:
+        return open(root / 'logs' / (group['key'] + '.log'), errors='replace').read().splitlines()
+    except OSError:
+        return []
+
+
+states = {g['key']: state(g) for g in groups}
+by = lambda status: [g for g in groups if states[g['key']].get('status') == status]
+ok, failed, building = by('ok'), by('failed'), (by('building') if running else [])
+waiting = len(groups) - len(ok) - len(failed) - len(building)
+count = lambda gs: sum(len(g['tasks']) for g in gs)
+print(f'{ds} images: {len(ok)} of {len(groups)} built, {len(failed)} failed, {len(building)} building, '
+      f'{waiting} waiting ({count(ok)} of {count(groups)} tasks have their image)')
+# The dependency-cache step prints '[i/n] <commit> ok|failed|skipped <seconds>s' per commit.
+step = re.compile(r'\[(\d+)/(\d+)\] \S+ (?:ok|failed|skipped) ([\d.]+)s')
+for g in building:
+    line = f"  building {g['name']} ({len(g['tasks'])} tasks): {(time.time() - states[g['key']].get('started', time.time())) / 3600:.1f} h"
+    steps = [m for m in map(step.search, log_lines(g)) if m]
+    if steps:
+        done, total = int(steps[-1][1]), int(steps[-1][2])
+        mean = sum(float(m[3]) for m in steps) / len(steps)
+        line += f', dependency cache {done}/{total} commits, about {(total - done) * mean / 3600:.1f} h left'
+    print(line)
+# BuildKit prints the failing step's own output as '#<n> <seconds> ...' and ends with an 'ERROR: ...' line.
+output = re.compile(r'^#\d+ \d+\.\d+ ')
+for g in failed[:10]:
+    s, lines = states[g['key']], log_lines(g)
+    print(f"  FAILED {g['name']} ({len(g['tasks'])} tasks): exit {s.get('exit')} after {s.get('seconds', 0) // 60} min. "
+          f"Log: {root}/logs/{g['key']}.log")
+    for line in [l for l in lines if output.match(l)][-3:]:
+        print('      ' + line[:220])
+    errors = [l for l in lines if l.startswith('ERROR')]
+    if errors:
+        print('      ...' + errors[-1][-200:])
+if len(failed) > 10:
+    print(f'  ... and {len(failed) - 10} more failed images (all in {root}/loop.log)')
+if running:
+    print(f'Building in the background. Log: {root}/loop.log')
+    sys.exit(0)
+if waiting:
+    print(f'Not running, and {waiting} images are not built. Continue with: ./hpc/passk_local.sh prebuild {ds}')
+    sys.exit(3)
+if failed:
+    print(f'Try the failed ones again: ./hpc/passk_local.sh prebuild {ds} retry')
+else:
+    print(f'All images are built. New runs of {ds} use them.')
+EOF
+}
+
+write_prebuild_script() {
+    mkdir -p "$WS/bin"
+    cat > "$WS/bin/prebuild.py" <<'EOF'
+"""Build the distinct images of a prebuild plan, a few at a time, without a trial's time limits."""
+import concurrent.futures
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+root, jobs, hours, retry = Path(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3]), sys.argv[4] == 'retry'
+plan = json.loads((root / 'plan.json').read_text())
+(root / 'logs').mkdir(exist_ok=True)
+(root / 'state').mkdir(exist_ok=True)
+
+
+def log(message):
+    with open(root / 'loop.log', 'a') as out:
+        out.write(time.strftime('%Y-%m-%dT%H:%M:%S ') + message + '\n')
+
+
+def exists(tag):
+    return subprocess.run(['docker', 'image', 'inspect', tag], capture_output=True).returncode == 0
+
+
+def build(group):
+    state = root / 'state' / (group['key'] + '.json')
+    if exists(group['tag']):
+        state.write_text(json.dumps({'status': 'ok', 'seconds': 0}))
+        return
+    # Continuing builds only what is waiting; failed images are built again only on 'retry'.
+    try:
+        if not retry and json.loads(state.read_text()).get('status') == 'failed':
+            return
+    except (OSError, ValueError):
+        pass
+    started = time.time()
+    state.write_text(json.dumps({'status': 'building', 'started': started}))
+    log(f"started {group['name']} ({len(group['tasks'])} tasks)")
+    try:
+        with open(root / 'logs' / (group['key'] + '.log'), 'w') as out:
+            # --load: a docker-container builder would otherwise keep the image to itself.
+            code = subprocess.run(['docker', 'build', '--load', '--progress=plain', '-t', group['tag'], group['context']],
+                                  stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                  timeout=hours * 3600).returncode
+        if code == 0 and not exists(group['tag']):
+            code = 'none: the build succeeded but the image is not in Docker'
+    except subprocess.TimeoutExpired:
+        code = f'none, stopped after {hours:g} hours'
+    except Exception as error:  # noqa: BLE001 - one broken build must not stop the others
+        code = f'none, {error!r}'
+    seconds = round(time.time() - started)
+    status = 'ok' if code == 0 else 'failed'
+    state.write_text(json.dumps({'status': status, 'seconds': seconds, 'exit': code}))
+    log(f"{status} {group['name']} after {seconds // 60} min")
+
+
+with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
+    list(pool.map(build, plan['groups']))
+log('all builds finished')
+EOF
+}
+
+contract_tasks() { python -c "import json, sys; print(json.load(open(sys.argv[1]))['arguments']['tasks'])" "$1"; }
+
+# The task folder of run $1 ($2: the dataset's unpacked tasks). A run that exists keeps the folder it was
+# prepared from, so resuming never changes its tasks; a new run gets a prebuilt copy if the dataset has one.
+# Exception: MultiSWE runs made without prebuilt images built their images inside the trial time limit,
+# where most of them failed; those are moved to $WS/old/ and started again.
+tasks_for() {
+    local name=$1 taskdir=$2 contract="$WS/contracts/$1.json" used old
+    if [ -e "$contract" ]; then
+        used=$(contract_tasks "$contract")
+        if [ "$ds" != multiswe_v1 ] || [[ $used == *-prebuilt-* ]]; then
+            [ -d "$used" ] || die "$name was prepared from $used, which no longer exists"
+            [[ $used != *-prebuilt-* ]] || check_images "$used"
+            echo "$used"; return 0
+        fi
+        if [ -f "$WS/runs/$name/loop.pid" ] && kill -0 "$(cat "$WS/runs/$name/loop.pid")" 2>/dev/null; then
+            die "$name was made without prebuilt images and is still running; stop it first"
+        fi
+        old="$WS/old/$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$old/contracts" "$old/runs"
+        mv "$WS/contracts/$name".* "$old/contracts/"
+        [ ! -d "$WS/runs/$name" ] || mv "$WS/runs/$name" "$old/runs/"
+        rm -f "$old/runs/$name/loop.pid"
+        echo "$name was made without prebuilt images; moved it to $old and starting it again" >&2
+    fi
+    with_prebuilt_images "$taskdir"
+}
+
+# Every image a prebuilt task copy ($1) names must still be in Docker: 'docker image prune -a' removes
+# images no container uses, which between trials includes these. Runs check before and after each shard.
+write_check_images() {
+    mkdir -p "$WS/bin"
+    cat > "$WS/bin/check_images.py" <<'EOF'
+"""'check_images.py <tasks> [<shard>]': are the prebuilt images the task copy names still in Docker? With a
+shard folder, also fails if one of its attempts could not find its image (removed, and maybe built again since)."""
+import json
+import re
+import subprocess
+import sys
+import time
+import tomllib
+from pathlib import Path
+
+tags = set()
+for toml in Path(sys.argv[1]).glob('*/task.toml'):
+    text = toml.read_text(errors='replace')
+    if 'passk-local/' in text:   # only the copies 'prebuild' made name these (and they parse)
+        tags.add(tomllib.loads(text).get('environment', {}).get('docker_image') or '')
+tags = {t for t in tags if t.startswith('passk-local/')}
+if not tags:
+    sys.exit(0)
+ds = min(tags).split('/', 1)[1].split(':', 1)[0]
+for _ in range(3):
+    listing = subprocess.run(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'], capture_output=True, text=True)
+    if listing.returncode == 0:
+        break
+    time.sleep(30)
+else:
+    sys.exit(f'ERROR: Docker does not answer ({listing.stderr.strip()[:200]}).')
+missing = tags - set(listing.stdout.split())
+if missing:
+    sys.exit(f'ERROR: {len(missing)} prebuilt {ds} images are no longer in Docker (removed?). '
+             f'Build them again with ./hpc/passk_local.sh prebuild {ds}, then run again.')
+if len(sys.argv) > 2:
+    lost = 0
+    for pattern in ('stage_*/*/*/job/*/result.json', 'stage_*/*/retry-*/*/job/*/result.json'):
+        for result in Path(sys.argv[2]).glob(pattern):
+            try:
+                message = (json.loads(result.read_text()).get('exception_info') or {}).get('exception_message') or ''
+            except (OSError, ValueError):
+                continue
+            # What Docker says when a container's image is not there and it cannot be pulled either.
+            lost += 'passk-local/' in message and bool(re.search(
+                r'pull access denied|failed to resolve reference|no such image|manifest unknown|repository does not exist',
+                message, re.I))
+    if lost:
+        sys.exit(f'ERROR: {lost} attempts could not find their prebuilt {ds} image (removed from Docker during the shard?). '
+                 f'Make sure all are there with ./hpc/passk_local.sh prebuild {ds}, then run again.')
+EOF
+}
+check_images() { write_check_images; python "$WS/bin/check_images.py" "$1"; }
+
+# For a new run of a dataset with prebuilt images: a copy of the tasks whose task.toml names each task's
+# image. Its folder name carries a hash of which tasks it has and their images.
+with_prebuilt_images() {
+    local taskdir=$1 root="$WS/prebuild/$ds"
+    if [ ! -f "$root/plan.json" ]; then
+        [ "$ds" != multiswe_v1 ] || die "MultiSWE images take hours to build, which never fits inside a trial. Build them first: ./hpc/passk_local.sh prebuild multiswe_v1"
+        echo "$taskdir"; return 0
+    fi
+    ! group_alive "$root/loop.pid" || die "the $ds images are still being built; progress: ./hpc/passk_local.sh prebuild $ds"
+    python - "$taskdir" "$root" "${ALLOW_MISSING_IMAGES:-}" <<'EOF'
+import fcntl, hashlib, json, shutil, subprocess, sys, tomllib
+from pathlib import Path
+tasks, root, allow = Path(sys.argv[1]).resolve(), Path(sys.argv[2]), sys.argv[3]
+plan = json.loads((root / 'plan.json').read_text())
+ds, groups = plan['dataset'], plan['groups']
+if Path(plan['tasks_dir']).resolve() != tasks:
+    sys.exit(f'ERROR: the {ds} images were built for other task files; build them again: ./hpc/passk_local.sh prebuild {ds}')
+have = set(subprocess.run(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'], capture_output=True, text=True).stdout.split())
+
+
+def status(group):
+    try:
+        found = json.loads((root / 'state' / (group['key'] + '.json')).read_text()).get('status')
+    except (OSError, ValueError):
+        return None
+    return None if found == 'ok' and group['tag'] not in have else found
+
+
+if any(status(g) not in ('ok', 'failed') for g in groups):
+    sys.exit(f'ERROR: not all {ds} images are built (or some were removed from Docker); '
+             f'continue with: ./hpc/passk_local.sh prebuild {ds}')
+failed = [g for g in groups if status(g) == 'failed']
+if failed and not allow:
+    sys.exit(f"ERROR: {len(failed)} {ds} images did not build ({sum(len(g['tasks']) for g in failed)} tasks). "
+             f'Try them again: ./hpc/passk_local.sh prebuild {ds} retry. '
+             f'Or run without those tasks: ALLOW_MISSING_IMAGES=1 in front of the command.')
+image = {name: g['tag'] for g in groups if status(g) == 'ok' for name in g['tasks']}
+left_out = {name: g for g in failed for name in g['tasks']}
+key = hashlib.sha256(json.dumps([sorted(image.items()), sorted(left_out)]).encode()).hexdigest()[:8]
+dest = Path(f'{tasks}-prebuilt-{key}')
+# One command at a time makes the copy: two at once would share '<dest>.partial'.
+with open(root / 'copy.lock', 'w') as lock:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(f'Waiting for another command that is making the same {ds} task copy', file=sys.stderr)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+    if not dest.is_dir():
+        partial = Path(f'{dest}.partial')
+        shutil.rmtree(partial, ignore_errors=True)
+        partial.mkdir()
+        for path in sorted(tasks.iterdir()):
+            if path.is_file():
+                shutil.copy2(path, partial / path.name)
+            elif path.name not in left_out and (path / 'task.toml').is_file():
+                shutil.copytree(path, partial / path.name, symlinks=True)
+                if path.name in image:
+                    toml = partial / path.name / 'task.toml'
+                    lines = toml.read_text().split('\n')
+                    entry = f'docker_image = "{image[path.name]}"'
+                    at = next((i for i, line in enumerate(lines) if line.strip() == '[environment]'), None)
+                    if at is None:
+                        lines += ['', '[environment]', entry, '']
+                    else:
+                        lines.insert(at + 1, entry)
+                    text = '\n'.join(lines)
+                    assert tomllib.loads(text)['environment']['docker_image'] == image[path.name]
+                    toml.write_text(text)
+        with open(partial / 'LOCAL_CHANGES.txt', 'a') as out:
+            out.write(f"{len(image)} tasks: task.toml names the image 'prebuild' built from the task's own Dockerfile.\n")
+        if left_out:
+            (partial / 'LEFT_OUT.txt').write_text(''.join(
+                f"{name}\timage did not build here: {root}/logs/{g['key']}.log\n" for name, g in sorted(left_out.items())))
+        partial.rename(dest)
+expected = sum(1 for p in tasks.iterdir() if p.name not in left_out and (p / 'task.toml').is_file())
+found = sum(1 for p in dest.iterdir() if (p / 'task.toml').is_file())
+if found != expected:
+    sys.exit(f'ERROR: {dest} has {found} of {expected} tasks; delete it (rm -rf {dest}) and run again')
+print(f'Using the prebuilt {ds} images ({len(image)} tasks)' +
+      (f'; {len(left_out)} tasks left out, see {dest}/LEFT_OUT.txt' if left_out else ''), file=sys.stderr)
+print(dest)
+EOF
+}
+
+# Refuse to start more attempts at once than MAX_TRIALS over all runs of this workspace. Never prune Docker
+# networks here: Docker is shared, and a prune deletes other users' unused networks too.
 check_capacity() {
-    local new=$1 used=0 others=0 r
+    local new=$1 used=0 r
     for r in "$WS"/runs/*/loop.pid; do
         [ -f "$r" ] && kill -0 "$(cat "$r")" 2>/dev/null || continue
-        others=$((others + 1)); used=$((used + $(cat "$(dirname "$r")/concurrency" 2>/dev/null || echo 0)))
+        used=$((used + $(cat "$(dirname "$r")/concurrency" 2>/dev/null || echo 0)))
     done
-    [ $((used + new)) -le "$MAX_TRIALS" ] || die "$used attempts already run at once; $new more would exceed $MAX_TRIALS (Docker runs out of networks). Wait for the other run, or set CONCURRENCY lower."
-    [ "$others" -gt 0 ] || docker network prune -f >/dev/null 2>&1 || true
+    [ $((used + new)) -le "$MAX_TRIALS" ] || die "$used attempts already run at once; $new more would exceed MAX_TRIALS=$MAX_TRIALS. Wait for the other run, or set CONCURRENCY lower."
 }
 
 # prepare <name> <model> <task folder> [extra run.py arguments]: write the contract once, reuse it after.
@@ -295,7 +673,7 @@ write_docker_wrapper() {
     mkdir -p "$WS/bin"
     printf 'services:\n  main:\n    network_mode: bridge\n' > "$WS/bin/compose-bridge.yaml"
     cat > "$WS/bin/run_docker.py" <<'EOF'
-"""validation/run.py on Harbor's Docker backend, with the two behaviours of the cluster's Apptainer bridge."""
+"""validation/run.py on Harbor's Docker backend, with the cluster bridge's behaviours and prebuilt images kept."""
 import runpy
 import sys
 from pathlib import Path, PurePosixPath
@@ -306,6 +684,7 @@ from harbor.environments.docker import docker_unix  # noqa: E402
 from harbor.environments.docker.docker import DockerEnvironment  # noqa: E402
 
 _upload_file, _upload_dir, _exec = docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir, DockerEnvironment.exec
+_stop = DockerEnvironment.stop
 _compose_paths = DockerEnvironment._docker_compose_paths
 BRIDGE = Path(__file__).with_name('compose-bridge.yaml')
 
@@ -335,8 +714,15 @@ async def exec_with_umask(self, command, *args, **kwargs):
     return await _exec(self, f'umask 022; {command}', *args, **kwargs)
 
 
+async def stop_keeping_prebuilt(self, delete):
+    # Images from 'passk_local.sh prebuild' are shared by many tasks: remove the containers, keep the image.
+    image = self.task_env_config.docker_image or ''
+    return await _stop(self, delete=delete and not image.startswith('passk-local/'))
+
+
 docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir = upload_file, upload_dir
 DockerEnvironment.exec = exec_with_umask
+DockerEnvironment.stop = stop_keeping_prebuilt
 DockerEnvironment._docker_compose_paths = property(compose_paths)
 sys.argv = [f'{repo}/validation/run.py', *sys.argv[1:]]
 runpy.run_path(f'{repo}/validation/run.py', run_name='__main__')
@@ -344,38 +730,190 @@ EOF
 }
 
 # Run every shard that has no complete report yet, one after another, in the background.
+# Harbor's phase time limits do not end every stuck Docker call: a frozen 'docker compose exec' into a
+# trial's container held one MiMo attempt, and so its whole shard, for 15 hours. Attempts take at most about
+# 1.3 hours, so when no attempt of a shard has finished for STUCK_HOURS, every attempt still running is stuck:
+# the watcher kills the shard's Docker commands running for over half that time and removes the shard's
+# containers; those attempts then end as errors. If that does not help within STUCK_HOURS more, it stops the
+# shard, and the loop retries it once at the end.
+write_shard_watch() {
+    mkdir -p "$WS/bin"
+    cat > "$WS/bin/shard_watch.py" <<'EOF'
+"""Unstick a shard: see write_shard_watch in hpc/passk_local.sh. 'cleanup <folder>' removes the running
+containers of the attempts under a run or shard folder, then exits."""
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+cleanup = sys.argv[1] == 'cleanup'
+if cleanup:
+    folder = sys.argv[2]
+else:
+    shard_pid, folder, hours = int(sys.argv[1]), sys.argv[2], float(sys.argv[3])
+    shard, limit, started = Path(folder), hours * 3600, time.time()
+# Harbor mounts each attempt's own folders (resolved paths) into its containers. Never a broader prefix:
+# Docker is shared with other users and other runs.
+if not os.path.isabs(folder) or not os.path.isdir(folder) or '/runs/' not in os.path.realpath(folder):
+    sys.exit(f'shard_watch: {folder!r} is not a run or shard folder')
+prefix = os.path.realpath(folder).rstrip('/') + '/'
+
+
+def log(message):
+    print(time.strftime('%Y-%m-%dT%H:%M:%S%z ') + f'shard {shard.name}: {message}', flush=True)
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def descendants(pid):
+    """(pid, seconds running, command) of every process below pid."""
+    children, info = {}, {}
+    for line in subprocess.run(['ps', '-e', '-o', 'pid=,ppid=,etimes=,args='], capture_output=True, text=True).stdout.splitlines():
+        parts = line.split(None, 3)
+        if len(parts) >= 3:
+            child, parent, age = map(int, parts[:3])
+            children.setdefault(parent, []).append(child)
+            info[child] = (age, parts[3] if len(parts) > 3 else '')
+    found, todo = [], [pid]
+    while todo:
+        for child in children.get(todo.pop(), []):
+            found.append((child, *info[child]))
+            todo.append(child)
+    return found
+
+
+def containers():
+    """(id, name, Compose project) of the running containers of the attempts under the folder: those with
+    one of its folders mounted, and the other services of their Compose projects (one project per attempt)."""
+    ids = subprocess.run(['docker', 'ps', '-q', '--no-trunc'], capture_output=True, text=True).stdout.split()
+    if not ids:
+        return []
+    found = json.loads(subprocess.run(['docker', 'inspect', *ids], capture_output=True, text=True).stdout or '[]')
+    project = lambda c: ((c.get('Config') or {}).get('Labels') or {}).get('com.docker.compose.project')
+    mounted = lambda c: any((m.get('Source') or '').startswith(prefix) for m in c.get('Mounts') or [])
+    projects = {project(c) for c in found if mounted(c)} - {None}
+    return [(c['Id'], c['Name'].lstrip('/'), project(c)) for c in found if mounted(c) or project(c) in projects]
+
+
+def kill(pids, sig):
+    for pid in pids:
+        try:
+            os.kill(pid, sig)
+        except OSError:
+            pass
+
+
+def remove(found):
+    if found:
+        subprocess.run(['docker', 'rm', '-f', *[i for i, _, _ in found]], capture_output=True)
+    # An attempt with several containers has a network of its own (one container: the default bridge, or
+    # none): remove the networks of these attempts' Compose projects, never any other network.
+    for p in {p for _, _, p in found} - {None}:
+        nets = subprocess.run(['docker', 'network', 'ls', '-q', '--filter', f'label=com.docker.compose.project={p}'],
+                              capture_output=True, text=True).stdout.split()
+        if nets:
+            subprocess.run(['docker', 'network', 'rm', *nets], capture_output=True)
+    return found
+
+
+if cleanup:
+    left = remove(containers())
+    if left:
+        print(time.strftime('%Y-%m-%dT%H:%M:%S%z ') + f'removed {len(left)} containers of unfinished attempts', flush=True)
+    sys.exit(0)
+acted = None
+while alive(shard_pid):
+    time.sleep(min(60, limit / 4))
+    # Attempts of stage 6 (pass@k), of stages 2 and 3 (check), and their retries.
+    finished = [p.stat().st_mtime for pattern in ('stage_*/*/*/job/*/result.json', 'stage_*/*/retry-*/*/job/*/result.json')
+                for p in shard.glob(pattern)]
+    idle = time.time() - max(finished, default=started)
+    if idle < limit:
+        acted = None
+    elif acted is None:
+        acted = time.time()
+        docker = [pid for pid, age, args in descendants(shard_pid)
+                  if age > limit / 2 and os.path.basename(args.split(' ', 1)[0]) in ('docker', 'docker-compose')]
+        kill(docker, signal.SIGKILL)
+        stuck = remove(containers())
+        log(f'no attempt finished for {idle / 60:.0f} min: stopped {len(docker)} Docker commands and removed the '
+            f'{len(stuck)} containers of its attempts ({", ".join(n for _, n, _ in stuck) or "none"})')
+    elif time.time() - acted > limit:
+        log(f'still no attempt finished {limit / 60:.0f} min later: stopping the shard')
+        remove(containers())
+        kill([pid for pid, _, _ in descendants(shard_pid)] + [shard_pid], signal.SIGTERM)
+        for _ in range(60):
+            if not alive(shard_pid):
+                break
+            time.sleep(1)
+        kill([pid for pid, _, _ in descendants(shard_pid)] + [shard_pid], signal.SIGKILL)
+        break
+EOF
+}
+
 start_loop() {
-    local name=$1 count=$2 port=${3:-} root="$WS/runs/$1"
+    local name=$1 count=$2 port=${3:-} root="$WS/runs/$1" tasks
     if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then
         die "$name is already running (stop it with: ./hpc/passk_local.sh stop ...)"
     fi
     echo "$count" > "$root/count"
     echo "$CONCURRENCY" > "$root/concurrency"
+    tasks=$(contract_tasks "$WS/contracts/$name.json")
     write_docker_wrapper
+    write_shard_watch
+    write_check_images
     setsid nohup bash -c '
         set -u
-        contract=$1 root=$2 count=$3 wrapper=$4 port=$5
-        # Attempts made while the model is down would count as failed, so a shard counts only if the model
-        # answers before and after it.
+        contract=$1 root=$2 count=$3 wrapper=$4 port=$5 watch=$6 tasks=$7 stuck=$8 images=$9
+        trap "rm -f \"$root/loop.pid\"" EXIT
+        # Attempts made while the model is down, or without their prebuilt image, would count as failed, so a
+        # shard counts only if the model answers and the images are there before and after it.
         up() { [ -z "$port" ] || curl -sf "http://127.0.0.1:$port/health" >/dev/null; }
-        for ((i = 0; i < count; i++)); do
-            s=$(printf %04d "$i")
-            if python - "$root/shards/$s/report" <<EOF
+        complete() {
+            python - "$root/shards/$1/report" <<EOF
 import glob, json, sys
 reports = glob.glob(sys.argv[1] + "/stage-*-*.json")
 sys.exit(0 if reports and all(json.load(open(r)).get("complete") for r in reports) else 1)
 EOF
-            then continue; fi
+        }
+        # A second pass retries the shards the first one could not finish.
+        for pass in 1 2; do
+        for ((i = 0; i < count; i++)); do
+            s=$(printf %04d "$i")
+            if complete "$s"; then continue; fi
             if ! up; then
                 echo "$(date -Is) the model (port $port) is not running; paused before shard $i/$count. Serve it and run again." >> "$root/loop.log"
+                exit 1
+            fi
+            if ! missing=$(python "$images" "$tasks" 2>&1); then
+                echo "$(date -Is) $missing Paused before shard $i/$count." >> "$root/loop.log"
                 exit 1
             fi
             rm -rf "$root/shards/$s"; mkdir -p "$root/shards/$s/report"
             echo "$(date -Is) shard $i/$count started" >> "$root/loop.log"
             python "$wrapper" "$PWD" --contract "$contract" --shard "$i/$count" --out "$root/shards/$s" \
-                > "$root/shards/$s.log" 2>&1
+                > "$root/shards/$s.log" 2>&1 &
+            shard=$!
+            python "$watch" "$shard" "$root/shards/$s" "$stuck" >> "$root/loop.log" 2>&1 &
+            watcher=$!
+            wait "$shard"
+            kill "$watcher" 2>/dev/null
             if ! up; then
                 echo "$(date -Is) the model (port $port) stopped during shard $i/$count; shard not counted. Serve it and run again: the shard is redone." >> "$root/loop.log"
+                exit 1
+            fi
+            if ! missing=$(python "$images" "$tasks" "$root/shards/$s" 2>&1); then
+                python "$watch" cleanup "$root/shards/$s" >> "$root/loop.log" 2>&1
+                echo "$(date -Is) $missing Shard $i/$count not counted: it is redone when you run again." >> "$root/loop.log"
                 exit 1
             fi
             for f in "$root"/shards/$s/stage_*_*/*/summary.json; do
@@ -383,10 +921,21 @@ EOF
                 d=$(basename "$(dirname "$(dirname "$f")")"); d=${d#stage_}
                 cp "$f" "$root/shards/$s/report/stage-${d%%_*}-${d#*_}.json"
             done
-            echo "$(date -Is) shard $i/$count finished" >> "$root/loop.log"
+            if complete "$s"; then
+                echo "$(date -Is) shard $i/$count finished" >> "$root/loop.log"
+            else
+                python "$watch" cleanup "$root/shards/$s" >> "$root/loop.log" 2>&1
+                echo "$(date -Is) shard $i/$count did not finish$([ "$pass" = 1 ] && echo "; it is retried at the end")" >> "$root/loop.log"
+            fi
         done
-        echo "$(date -Is) all shards done" >> "$root/loop.log"
-    ' _ "$WS/contracts/$name.json" "$root" "$count" "$WS/bin/run_docker.py" "$port" > "$root/loop.out" 2>&1 < /dev/null &
+        done
+        left=0
+        for ((i = 0; i < count; i++)); do complete "$(printf %04d "$i")" || left=$((left + 1)); done
+        if [ "$left" = 0 ]; then echo "$(date -Is) all shards done" >> "$root/loop.log"
+        else echo "$(date -Is) stopped with $left shards not finished; start the run again to redo them" >> "$root/loop.log"; fi
+    ' _ "$WS/contracts/$name.json" "$root" "$count" "$WS/bin/run_docker.py" "$port" "$WS/bin/shard_watch.py" "$tasks" "$STUCK_HOURS" \
+        "$WS/bin/check_images.py" \
+        > "$root/loop.out" 2>&1 < /dev/null &
     echo $! > "$root/loop.pid"
     echo "Running in the background (pid $(cat "$root/loop.pid")). Progress: $root/loop.log"
 }
@@ -395,8 +944,9 @@ EOF
 # 10 tasks, in this machine's Docker. The team validated both on the cluster; if they fail here, the
 # local environment differs. Run it again to see the results. Needs no model.
 check() {
-    local name="$ds-check" root="$WS/runs/$ds-check" parquet taskdir
-    if [ -f "$root/count" ]; then
+    local name="$ds-check" root="$WS/runs/$ds-check" contract="$WS/contracts/$ds-check.json" parquet taskdir
+    # Results of a check that a new check would not replace (tasks_for moves an old MultiSWE one aside).
+    if [ -f "$root/count" ] && [ -e "$contract" ] && { [ "$ds" != multiswe_v1 ] || [[ $(contract_tasks "$contract") == *-prebuilt-* ]]; }; then
         if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then
             echo "Still running. Last lines of $root/loop.log:"; tail -2 "$root/loop.log" 2>/dev/null || true; return 0
         fi
@@ -418,7 +968,7 @@ EOF
     fi
     CONCURRENCY=${CONCURRENCY:-4}
     check_capacity "$CONCURRENCY"
-    parquet=$(fetch "$ds"); taskdir=$(unpacked "$parquet" "$ds")
+    parquet=$(fetch "$ds"); taskdir=$(unpacked "$parquet" "$ds"); taskdir=$(tasks_for "$name" "$taskdir")
     [ -e "$WS/contracts/$name.json" ] || {
         mkdir -p "$WS/contracts" "$root"
         python validation/run.py "$taskdir" --stages 2,3 --backend docker --submit never \
@@ -436,8 +986,9 @@ case "$cmd" in
     serve) activate; serve "$ds"; exit 0 ;;
     unserve) unserve "$ds"; exit 0 ;;
     check) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh check <dataset>"; activate; check; exit 0 ;;
+    prebuild) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh prebuild <dataset> [retry|stop]"; activate; prebuild "$model"; exit 0 ;;
 esac
-[ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh setup | serve {instruct|thinking} | unserve [instruct|thinking] | {pilot|run|status|stop|merge} <dataset> {instruct|thinking}"
+[ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh setup | serve {instruct|thinking} | unserve [instruct|thinking] | check <dataset> | prebuild <dataset> [retry|stop] | {pilot|run|status|stop|merge} <dataset> {instruct|thinking}"
 model_key "$model" >/dev/null
 activate
 CONCURRENCY=${CONCURRENCY:-$(default_concurrency "$ds")}
@@ -445,19 +996,21 @@ CONCURRENCY=${CONCURRENCY:-$(default_concurrency "$ds")}
 case "$cmd" in
     pilot|run)
         healthy "$(port_of "$model")" || die "the $model model is not running; start it with: ./hpc/passk_local.sh serve $model"
-        if [ "$ds" = multiswe_v1 ] || [ "$ds" = mimo_v1 ]; then
-            free=$(docker_space | tail -1)
-            [ "${free:-0}" -ge 500 ] || [ -n "${FORCE_DOCKER_SPACE:-}" ] || die "$ds pulls hundreds of GB of Docker images; Docker's disk has ${free:-?} GB free. Ask your admin to move Docker's data-root to the big disk, or set FORCE_DOCKER_SPACE=1"
-        fi
         check_capacity "$CONCURRENCY"
+        if [ "$cmd" = pilot ]; then name="$ds-$model-pilot"; else name="$ds-$model-pass$ATTEMPTS"; fi
         parquet=$(fetch "$ds")
         taskdir=$(unpacked "$parquet" "$ds")
+        taskdir=$(tasks_for "$name" "$taskdir")
+        if [ "$ds" = multiswe_v1 ] || [ "$ds" = mimo_v1 ]; then
+            # Trials pull or build images, except from a prebuilt copy, where they only add containers.
+            need=500; [[ $taskdir != *-prebuilt-* ]] || need=100
+            free=$(docker_space | tail -1)
+            [ "${free:-0}" -ge "$need" ] || [ -n "${FORCE_DOCKER_SPACE:-}" ] || die "$ds needs $need GB of Docker space; Docker's disk has ${free:-?} GB free. Ask your admin to move Docker's data-root to the big disk, or set FORCE_DOCKER_SPACE=1"
+        fi
         if [ "$cmd" = pilot ]; then
-            name="$ds-$model-pilot"
             prepare "$name" "$model" "$taskdir" --limit 10 --attempts 2
             start_loop "$name" 1 "$(port_of "$model")"
         else
-            name="$ds-$model-pass$ATTEMPTS"
             prepare "$name" "$model" "$taskdir" --attempts "$ATTEMPTS"
             tasks=$(python -c "import sys; from validation.contract import read, task_records; print(len(task_records(read(sys.argv[1]))))" "$WS/contracts/$name.json")
             count=$(( (tasks + TASKS_PER_SHARD - 1) / TASKS_PER_SHARD ))
@@ -516,12 +1069,25 @@ EOF
                     [ -z "$last" ] || [[ $last == *"all shards done" ]] || echo "Last line of $root/loop.log: $last"
                 fi ;;
             stop)
-                [ -f "$root/loop.pid" ] || die "not running"
-                kill -- "-$(cat "$root/loop.pid")" 2>/dev/null || true
+                pg=$(cat "$root/loop.pid" 2>/dev/null) || pg=
+                if [ -n "$pg" ] && kill -0 -- "-$pg" 2>/dev/null; then
+                    kill -- "-$pg" 2>/dev/null || true
+                    for _ in $(seq 30); do kill -0 -- "-$pg" 2>/dev/null || break; sleep 1; done
+                    kill -9 -- "-$pg" 2>/dev/null || true
+                    said=Stopped.
+                else
+                    said="It was not running."
+                fi
                 rm -f "$root/loop.pid"
-                echo "Stopped. Containers it left: docker ps. Start again with 'run' (or 'pilot'): finished shards are kept." ;;
+                # The containers of its unfinished attempts: only those with this run's folders mounted.
+                write_shard_watch
+                python "$WS/bin/shard_watch.py" cleanup "$root"
+                echo "$said Start again with 'run' (or 'pilot'): finished shards are kept." ;;
             merge)
                 python validation/shards.py merge "$root" --contract "$WS/contracts/$name.json" --out "$root/merged/report"
+                # How these results differ from the team's cluster runs: local task changes, left-out tasks.
+                tasks=$(contract_tasks "$WS/contracts/$name.json")
+                for f in LOCAL_CHANGES.txt LEFT_OUT.txt; do [ ! -f "$tasks/$f" ] || cp "$tasks/$f" "$root/merged/report/"; done
                 echo "Merged report: $root/merged/report/ (send this folder to Franziska)" ;;
         esac ;;
     *) die "unknown step '$cmd'" ;;
