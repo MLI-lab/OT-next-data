@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # pass@k on ONE machine with a GPU and Docker, without Slurm (e.g. a shared server with H100s).
 # Models: instruct = Qwen/Qwen3-30B-A3B-Instruct-2507, thinking = Qwen/Qwen3-30B-A3B with thinking on. They take
-# turns on one GPU (GPU 0; GPU=<n> for another): serve one, run its datasets, unserve it, serve the other.
+# turns on one GPU (GPU 0; GPU=<n> for another): serve one, run its datasets, unserve it, serve the other. If a
+# second GPU is free, BOTH=1 serves the other model on it at the same time.
 # Each model runs as a vLLM server started like the cluster jobs start it (hpc/validation_worker.py) with the
 # sampling settings of config/models.py. Tasks run in Docker through the repo's own pipeline
 # (validation/run.py stages 6+7, --backend docker --submit never), one shard after another in the
@@ -20,6 +21,7 @@
 #   ./hpc/passk_local.sh stop nl2bash_v1 instruct     # stop a run and remove its containers (run again: it continues)
 #   ./hpc/passk_local.sh unserve instruct             # stop the model (refused while its runs still go)
 #   ./hpc/passk_local.sh serve thinking               # then the other model, on the same GPU
+#   GPU=0 BOTH=1 ./hpc/passk_local.sh serve thinking  # or at the same time, on another free GPU (here GPU 0)
 #   ./hpc/passk_local.sh check multiswe_v1            # reference solution = 1 and do-nothing = 0 here? (no GPU needed)
 #   ./hpc/passk_local.sh prebuild multiswe_v1         # build its task images once, in the background (no GPU needed);
 #                                                     # again: progress. New runs then use them (MultiSWE requires this);
@@ -37,7 +39,7 @@ REPO_DIR=${REPO_DIR:-$(cd "$HERE/.." && pwd)}
 ENV_DIR=${ENV_DIR:-$WS/env}
 ATTEMPTS=${ATTEMPTS:-4}
 TASKS_PER_SHARD=${TASKS_PER_SHARD:-$(( (200 + ATTEMPTS - 1) / ATTEMPTS ))}   # about 200 attempts per shard
-GPU=${GPU:-0}   # the one GPU both models use, one after the other
+GPU=${GPU:-0}   # the GPU 'serve' starts a model on (one model at a time, unless BOTH=1)
 INSTRUCT_PORT=${INSTRUCT_PORT:-8101}; THINKING_PORT=${THINKING_PORT:-8102}
 HF_REPO=FWeindel/validated-tasks
 PREBUILD_JOBS=${PREBUILD_JOBS:-8}; PREBUILD_HOURS=${PREBUILD_HOURS:-36}   # images built at once; time limit per image
@@ -58,7 +60,7 @@ other_model() { if [ "$1" = instruct ]; then echo thinking; else echo instruct; 
 # Is the process group whose leader's pid is in file $1 still alive?
 group_alive() { [ -s "$1" ] && kill -0 -- "-$(cat "$1")" 2>/dev/null; }
 
-# Trials at once per run; two runs at once (both datasets on the one model) must fit MAX_TRIALS
+# Trials at once per run; all runs at once (both datasets, and with BOTH=1 both models) must fit MAX_TRIALS
 # together. 4-CPU tasks: 2 x 24 trials ask for 192 CPUs on 128 cores, which works because agents mostly
 # wait for the model;
 # if status shows verifier timeouts, lower CONCURRENCY.
@@ -128,13 +130,14 @@ healthy() { curl -sf "http://127.0.0.1:$1/health" >/dev/null; }
 
 serve() {
     local model=${1:-} other port pidf mem cmd driver compat="$HOME/cuda-compat/usr/local/cuda-13.0/compat"
-    [ -n "$model" ] || die "usage: ./hpc/passk_local.sh serve {instruct|thinking} (one model at a time, on GPU $GPU)"
+    [ -n "$model" ] || die "usage: ./hpc/passk_local.sh serve {instruct|thinking} (one model at a time, on GPU $GPU; BOTH=1: both, on two GPUs)"
     model_key "$model" >/dev/null
     mkdir -p "$WS/serve"
     port=$(port_of "$model"); pidf="$WS/serve/$model.pid"; other=$(other_model "$model")
-    # One model, so one GPU, at a time.
+    # One model, so one GPU, at a time. BOTH=1: the other model may keep running, on another GPU.
     if healthy "$(port_of "$other")" || group_alive "$WS/serve/$other.pid"; then
-        die "$other is still running (port $(port_of "$other")). When its runs are done: ./hpc/passk_local.sh unserve $other"
+        [ -n "${BOTH:-}" ] || die "$other is still running (port $(port_of "$other")). When its runs are done: ./hpc/passk_local.sh unserve $other. Or, if another GPU is free (see nvidia-smi), run both at once: GPU=<that GPU> BOTH=1 ./hpc/passk_local.sh serve $model"
+        [ "$(cat "$WS/serve/$other.gpu" 2>/dev/null)" != "$GPU" ] || die "$other runs on GPU $GPU; pick a free GPU (see nvidia-smi): GPU=<n> BOTH=1 ./hpc/passk_local.sh serve $model"
     fi
     if healthy "$port"; then echo "$model is already running on port $port"; return 0; fi
     if group_alive "$pidf"; then
@@ -154,13 +157,15 @@ serve() {
         command -v nvcc >/dev/null || export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
         # vLLM takes 90% of the GPU's memory, so the GPU must be (nearly) empty.
         mem=$(nvidia-smi -i "$GPU" --query-gpu=memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null | tr -d ' ') || mem=
-        if [[ $mem =~ ^[0-9]+,[0-9]+$ ]] && [ $(( ${mem%,*} * 10 )) -gt "${mem#*,}" ]; then
-            die "GPU $GPU is busy (${mem%,*} of ${mem#*,} MiB used by someone else; see nvidia-smi). Wait, or use a free GPU: GPU=<n> ./hpc/passk_local.sh serve $model"
+        if [[ $mem =~ ^[0-9]+,[0-9]+$ ]]; then
+            [ $(( ${mem%,*} * 10 )) -le "${mem#*,}" ] || die "GPU $GPU is busy (${mem%,*} of ${mem#*,} MiB used; see nvidia-smi). Wait, or use a free GPU: GPU=<n>${BOTH:+ BOTH=1} ./hpc/passk_local.sh serve $model"
+        elif [ -n "${BOTH:-}" ]; then
+            die "BOTH=1 needs nvidia-smi to show that GPU $GPU is free, and it does not answer for GPU $GPU"
         fi
         cmd=$(serve_command "$(model_key "$model")" "$port")
         echo "Starting $model on GPU $GPU, port $port"
         CUDA_VISIBLE_DEVICES=$GPU setsid nohup bash -c "exec $cmd" > "$WS/serve/$model.log" 2>&1 < /dev/null &
-        echo $! > "$pidf"
+        echo $! > "$pidf"; echo "$GPU" > "$WS/serve/$model.gpu"
     fi
     for _ in $(seq 1 180); do
         healthy "$port" && break
@@ -199,7 +204,7 @@ unserve() {
             echo "WARNING: $model is still up (process group $pid, or something answers on port $port); see nvidia-smi and ss -ltnp" >&2
             failed=1; continue
         fi
-        rm -f "$WS/serve/$model.pid"
+        rm -f "$WS/serve/$model.pid" "$WS/serve/$model.gpu"
         echo "Stopped $model"
     done
     [ -z "$failed" ] || exit 1
