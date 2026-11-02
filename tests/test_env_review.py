@@ -183,7 +183,7 @@ def test_local_image_review_runs_terminus_in_task_environment(tmp_path, monkeypa
     (staged / 'rubric-skips.json').write_text('{}')
     (staged / 'rubric.toml').write_text('[[criteria]]\nname = "x"\n')
     monkeypatch.setattr(runner, 'resolve_review_defaults', lambda *a: None)
-    monkeypatch.setattr(prepare_review_tasks, 'stage_review', lambda *a: staged)
+    monkeypatch.setattr(prepare_review_tasks, 'stage_review', lambda *a, **k: staged)
     monkeypatch.setattr(env_review, 'stage', lambda *a, **k: tmp_path / 'review-task')
     seen = {}
     async def run(task, out, args, model, validate=None, agent='terminus-2'):
@@ -276,3 +276,12 @@ def test_claude_time_limit_hook_fires_once(tmp_path):
     assert payload['hookSpecificOutput'] == {'hookEventName': 'PostToolUse',
                                              'additionalContext': 'The review time limit has been reached.'}
     assert second.stdout == ''
+
+
+def test_session_length_follows_timeout_minutes():
+    from validation.stages import env_review
+    args = SimpleNamespace(timeout_minutes=120, review_grace_minutes=10)
+    assert env_review.review_sec(args) == 7200
+    assert env_review.review_sec(SimpleNamespace()) == 1800
+    assert env_review.hard_timeout(env_review.grace_sec(args), env_review.review_sec(args)) == 7200 + 600 + 120
+    assert env_review.policy(args, None).review_sec == 7200

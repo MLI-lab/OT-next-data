@@ -414,7 +414,8 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
         task = prepare_review_tasks.stage_review(source, item_dir / 'input' / 'rubric-review', upstream,
                                                  references, suffixes, getattr(args, 'review_rubric', 'terminal-bench'),
                                                  getattr(args, 'review_criteria', None), getattr(args, 'review_format', None),
-                                                 getattr(args, 'review_evidence', 'image'))
+                                                 getattr(args, 'review_evidence', 'image'),
+                                                 minutes=getattr(args, 'timeout_minutes', None) or 30)
         verdict_name, rubric_name = 'verdicts.json', 'task-implementation.toml'
     else:
         task = prepare_review_tasks.stage_analysis(source, args.current_trial, item_dir / 'input' / 'trajectory-analysis', upstream)
@@ -446,7 +447,8 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
             validate = verdict_validator(rubric.read_text())
         task = env_review.stage(source, task, item_dir / 'input' / 'task-environment-review' / source.name,
                                 files, '/app/' + verdict_name,
-                                grace_sec=env_review.grace_sec(args) if validate else None)
+                                grace_sec=env_review.grace_sec(args) if validate else None,
+                                review=env_review.review_sec(args))
         job_dir, results = await env_review.run(task, item_dir, args, model, validate, agent=agent)
         if args.dry_run:
             return {'status': 'previewed', 'config': str(item_dir / 'job.json'), 'automatic_skips': skipped}

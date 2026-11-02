@@ -13,14 +13,20 @@ import shutil
 import tomllib
 
 REVIEW_FILES = 'review_files'
-TIMEOUT_SEC = 1800.0  # every judge session: 30 minutes, as the prompt says
+TIMEOUT_SEC = 1800.0  # default judge session: 30 minutes (--timeout-minutes); the prompt states it
 GRACE_SEC = 600.0  # then the final-answer window (harbor_patches/terminus_session.py)
 SLACK_SEC = 120.0  # a model turn or command still running when the window opens
 
 
-def hard_timeout(grace_sec=None):
+def review_sec(args=None):
+    """The judge session length: --timeout-minutes, 30 by default."""
+    minutes = getattr(args, 'timeout_minutes', None)
+    return float(minutes) * 60 if minutes else TIMEOUT_SEC
+
+
+def hard_timeout(grace_sec=None, review=TIMEOUT_SEC):
     """Harbor's agent limit: the review time, plus the final-answer window and slack when there is one."""
-    return TIMEOUT_SEC if grace_sec is None else TIMEOUT_SEC + grace_sec + SLACK_SEC
+    return review if grace_sec is None else review + grace_sec + SLACK_SEC
 
 
 def grace_sec(args):
@@ -90,7 +96,7 @@ async def execute(config, item_dir=None):
 def policy(args, validate):
     """Review-session policy for Terminus-2 judges; validate(text) raises ValueError."""
     from harbor_patches.terminus_session import Policy
-    return Policy(review_sec=TIMEOUT_SEC, grace_sec=grace_sec(args), validate=validate)
+    return Policy(review_sec=review_sec(args), grace_sec=grace_sec(args), validate=validate)
 
 
 def agent_timeout(text, seconds):
@@ -120,7 +126,7 @@ def without_artifacts(text):
     return text[:match.start()] + text[end:].lstrip('\n')
 
 
-def stage(source, staged, destination, files, artifact, grace_sec=None):
+def stage(source, staged, destination, files, artifact, grace_sec=None, review=TIMEOUT_SEC):
     """Review task for `source` that keeps its environment and takes `staged`'s instruction.
 
     files maps a directory name under /app to the local directory uploaded there.
@@ -143,9 +149,9 @@ def stage(source, staged, destination, files, artifact, grace_sec=None):
             shutil.copyfile(path, target)
     (destination / 'instruction.md').write_text((staged / 'instruction.md').read_text())
     text = (f'artifacts = [{{source = "{artifact}", destination = "{Path(artifact).name}"}}]\n'
-            + agent_timeout(without_artifacts(text), hard_timeout(grace_sec)))
+            + agent_timeout(without_artifacts(text), hard_timeout(grace_sec, review)))
     parsed = tomllib.loads(text)
-    if parsed['agent']['timeout_sec'] != hard_timeout(grace_sec) or len(parsed['artifacts']) != 1:
+    if parsed['agent']['timeout_sec'] != hard_timeout(grace_sec, review) or len(parsed['artifacts']) != 1:
         raise ValueError('could not set the review artifact and time limit in task.toml')
     (destination / 'task.toml').write_text(text)
     return destination

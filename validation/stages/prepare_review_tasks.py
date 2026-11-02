@@ -10,7 +10,7 @@ from validation.upstream import module
 from validation.rubrics import harbor_rubric, implementation_rubric, select_criteria
 
 
-def stage_review(source, destination, upstream, references=None, suffixes=None, rubric_kind='terminal-bench', criteria=None, review_format=None, evidence_mode='image'):
+def stage_review(source, destination, upstream, references=None, suffixes=None, rubric_kind='terminal-bench', criteria=None, review_format=None, evidence_mode='image', minutes=30):
     stager = module(upstream / 'scripts/review/stage_task.py', 'tb_stage_review')
     # Reuse upstream's production prompt and verifier, apply our rubric diffs,
     # and replace its GitHub-fetch Dockerfile with per-trial setup-file uploads.
@@ -46,6 +46,8 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     else:
         # Same closing lines as the modified prompts; the upstream template stays pinned.
         text = (text.rstrip('\n') + '\n\nYou have 30 minutes for this review.\n')
+    # The closing time line states the session length (--timeout-minutes).
+    text = text.replace('You have 30 minutes for this review.', f'You have {minutes:g} minutes for this review.')
     instruction.write_text(text)
     (destination / 'rubric.toml').write_text(rubric)
     if rubric_kind in ('custom', 'river', 'custom_severity'):

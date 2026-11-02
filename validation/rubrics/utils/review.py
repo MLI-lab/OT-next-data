@@ -455,7 +455,8 @@ async def review_files(staged, source, out, args, agent, model, task_environment
                     validate = verdict_validator(reduced)
                     task = env_review.stage(source, task, round_dir / 'task-environment' / source.name,
                         {f'task-under-review/{source.name}': source, 'rubric.toml': task / 'rubric.toml'},
-                        '/app/verdicts.json', grace_sec=env_review.grace_sec(args))
+                        '/app/verdicts.json', grace_sec=env_review.grace_sec(args),
+                        review=env_review.review_sec(args))
                     session = active(env_review.policy(args, validate))
                 config = runtime.job_config(task, round_dir / 'jobs', attempt_args, agent, model)
                 if task_environment:
