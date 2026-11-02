@@ -29,6 +29,12 @@
 # A run keeps the task folder it was prepared from: resuming never changes its tasks.
 # 'docker image prune -a' or 'docker system prune -a' deletes prebuilt images between attempts: a run that
 # uses them then pauses until 'prebuild' has built them again.
+# A full disk makes attempts fail and count as unsolved. So a shard starts only with MIN_FREE_GB (2000) free on
+# the run's disk and Docker's, and a shard during which free space fell below a tenth of that is not counted
+# (the run pauses; run again once there is space). While a run goes, Docker build cache unused for CACHE_HOURS
+# (2) is removed every 2 minutes: the image every attempt builds stays behind as cache. Docker is shared, so
+# that clears every user's old build cache (not that of images that still exist), and while a prune deletes,
+# builds and container starts wait.
 set -euo pipefail
 shopt -s inherit_errexit
 
@@ -45,6 +51,8 @@ HF_REPO=FWeindel/validated-tasks
 PREBUILD_JOBS=${PREBUILD_JOBS:-8}; PREBUILD_HOURS=${PREBUILD_HOURS:-36}   # images built at once; time limit per image
 STUCK_HOURS=${STUCK_HOURS:-3}   # a shard with no finished attempt for this long is stuck (see write_shard_watch)
 MAX_TRIALS=${MAX_TRIALS:-64}   # attempts at once over all runs (CPU-bound: agents mostly wait for the model)
+MIN_FREE_GB=${MIN_FREE_GB:-2000}   # a shard starts only with this much free on its disk and Docker's (0: no check)
+CACHE_HOURS=${CACHE_HOURS:-2}      # remove Docker build cache unused this long, every 2 minutes (0: never)
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -744,8 +752,11 @@ EOF
 write_shard_watch() {
     mkdir -p "$WS/bin"
     cat > "$WS/bin/shard_watch.py" <<'EOF'
-"""Unstick a shard: see write_shard_watch in hpc/passk_local.sh. 'cleanup <folder>' removes the running
-containers of the attempts under a run or shard folder, then exits."""
+"""Unstick a shard: see write_shard_watch in hpc/passk_local.sh. 'shard_watch.py <shard pid> <shard> <hours>
+[<floor GB> [<Docker's folder>]]' also records the least free space it sees in <shard>.space and stops the
+shard when that falls below the floor. 'cleanup <folder>' removes the running containers of the attempts under
+a run or shard folder. 'space <path>...', 'low <GB> <% of inodes> <path>...' and 'spoiled <shard> <floor GB>
+[<Docker's folder>]' measure the disk for the loop."""
 import json
 import os
 import signal
@@ -754,12 +765,52 @@ import sys
 import time
 from pathlib import Path
 
+
+def space(paths):
+    """Free space for normal users (df's Avail) on the fullest of the paths' disks: GB, % of inodes."""
+    gb = inodes = None
+    for p in paths:
+        try:
+            st = os.statvfs(p)
+        except OSError:
+            continue
+        g, i = st.f_bavail * st.f_frsize / 2**30, (100 * st.f_favail / st.f_files if st.f_files else 100.0)
+        gb, inodes = (g, i) if gb is None else (min(gb, g), min(inodes, i))
+    return gb, inodes
+
+
+def shown(gb, inodes):
+    return f'{gb:.0f} GB and {inodes:.1f}% of inodes'
+
+
+if sys.argv[1] in ('space', 'low', 'spoiled'):
+    if sys.argv[1] == 'space':
+        gb, inodes = space(sys.argv[2:])
+        sys.exit(0 if gb is None else print(shown(gb, inodes)))
+    if sys.argv[1] == 'low':   # exit 0 (and print the free space) when below either limit
+        gb, inodes = space(sys.argv[4:])
+        if gb is not None and (gb < float(sys.argv[2]) or inodes < float(sys.argv[3])):
+            sys.exit(print(shown(gb, inodes)))
+        sys.exit(1)
+    # spoiled: did free space fall below the floor during the shard (or is it below now)? Exit 0 if so.
+    gb, inodes = space(sys.argv[2:3] + sys.argv[4:5])
+    try:
+        least = [float(x) for x in Path(sys.argv[2] + '.space').read_text().split()]
+        gb, inodes = (least[0], least[1]) if gb is None else (min(gb, least[0]), min(inodes, least[1]))
+    except (OSError, ValueError, IndexError):
+        pass
+    floor = float(sys.argv[3])
+    if floor > 0 and gb is not None and (gb < floor or inodes < 1):
+        sys.exit(print(shown(gb, inodes)))
+    sys.exit(1)
 cleanup = sys.argv[1] == 'cleanup'
 if cleanup:
     folder = sys.argv[2]
 else:
     shard_pid, folder, hours = int(sys.argv[1]), sys.argv[2], float(sys.argv[3])
     shard, limit, started = Path(folder), hours * 3600, time.time()
+    floor = float(sys.argv[4]) if len(sys.argv) > 4 else 0
+    disks = [folder] + [p for p in sys.argv[5:6] if p]
 # Harbor mounts each attempt's own folders (resolved paths) into its containers. Never a broader prefix:
 # Docker is shared with other users and other runs.
 if not os.path.isabs(folder) or not os.path.isdir(folder) or '/runs/' not in os.path.realpath(folder):
@@ -768,7 +819,10 @@ prefix = os.path.realpath(folder).rstrip('/') + '/'
 
 
 def log(message):
-    print(time.strftime('%Y-%m-%dT%H:%M:%S%z ') + f'shard {shard.name}: {message}', flush=True)
+    try:   # the log is on the disk that may be full
+        print(time.strftime('%Y-%m-%dT%H:%M:%S%z ') + f'shard {shard.name}: {message}', flush=True)
+    except OSError:
+        pass
 
 
 def alive(pid):
@@ -797,8 +851,8 @@ def descendants(pid):
 
 
 def containers():
-    """(id, name, Compose project) of the running containers of the attempts under the folder: those with
-    one of its folders mounted, and the other services of their Compose projects (one project per attempt)."""
+    """(id, name, Compose project, image) of the running containers of the attempts under the folder: those
+    with one of its folders mounted, and the other services of their Compose projects (one project per attempt)."""
     ids = subprocess.run(['docker', 'ps', '-q', '--no-trunc'], capture_output=True, text=True).stdout.split()
     if not ids:
         return []
@@ -806,7 +860,8 @@ def containers():
     project = lambda c: ((c.get('Config') or {}).get('Labels') or {}).get('com.docker.compose.project')
     mounted = lambda c: any((m.get('Source') or '').startswith(prefix) for m in c.get('Mounts') or [])
     projects = {project(c) for c in found if mounted(c)} - {None}
-    return [(c['Id'], c['Name'].lstrip('/'), project(c)) for c in found if mounted(c) or project(c) in projects]
+    return [(c['Id'], c['Name'].lstrip('/'), project(c), (c.get('Config') or {}).get('Image') or '')
+            for c in found if mounted(c) or project(c) in projects]
 
 
 def kill(pids, sig):
@@ -819,14 +874,19 @@ def kill(pids, sig):
 
 def remove(found):
     if found:
-        subprocess.run(['docker', 'rm', '-f', *[i for i, _, _ in found]], capture_output=True)
+        subprocess.run(['docker', 'rm', '-f', *[i for i, _, _, _ in found]], capture_output=True)
     # An attempt with several containers has a network of its own (one container: the default bridge, or
     # none): remove the networks of these attempts' Compose projects, never any other network.
-    for p in {p for _, _, p in found} - {None}:
+    for p in {p for _, _, p, _ in found} - {None}:
         nets = subprocess.run(['docker', 'network', 'ls', '-q', '--filter', f'label=com.docker.compose.project={p}'],
                               capture_output=True, text=True).stdout.split()
         if nets:
             subprocess.run(['docker', 'network', 'rm', *nets], capture_output=True)
+    # An attempt that Harbor did not end leaves the image it built, named <project>-<service> by Compose (several
+    # GB; its build cache stays while the image does). Remove those, never another image (prebuilt ones stay).
+    own = {image for _, _, p, image in found if p and image.startswith(p + '-')}
+    if own:
+        subprocess.run(['docker', 'rmi', *own], capture_output=True)
     return found
 
 
@@ -835,8 +895,38 @@ if cleanup:
     if left:
         print(time.strftime('%Y-%m-%dT%H:%M:%S%z ') + f'removed {len(left)} containers of unfinished attempts', flush=True)
     sys.exit(0)
-acted = None
+def stop_shard():
+    remove(containers())
+    kill([pid for pid, _, _ in descendants(shard_pid)] + [shard_pid], signal.SIGTERM)
+    for _ in range(60):
+        if not alive(shard_pid):
+            break
+        time.sleep(1)
+    kill([pid for pid, _, _ in descendants(shard_pid)] + [shard_pid], signal.SIGKILL)
+
+
+def too_full():
+    """Record the least free space seen in <shard>.space; True once it is below the floor."""
+    global least
+    gb, inodes = space(disks)
+    if gb is None:
+        return False
+    least = (gb, inodes) if least is None else (min(least[0], gb), min(least[1], inodes))
+    try:
+        Path(folder + '.space').write_text(f'{least[0]:.1f} {least[1]:.2f}\n')
+    except OSError:
+        pass
+    return floor > 0 and (least[0] < floor or least[1] < 1)
+
+
+acted, least = None, None
 while alive(shard_pid):
+    # A nearly full disk breaks attempts (Harbor cannot save them, tests cannot build) and they count as
+    # unsolved: stop the shard; the loop does not count it and pauses.
+    if too_full():
+        log(f'only {shown(*least)} free on the disk: stopping the shard (not counted)')
+        stop_shard()
+        break
     time.sleep(min(60, limit / 4))
     # Attempts of stage 6 (pass@k), of stages 2 and 3 (check), and their retries.
     finished = [p.stat().st_mtime for pattern in ('stage_*/*/*/job/*/result.json', 'stage_*/*/retry-*/*/job/*/result.json')
@@ -851,25 +941,21 @@ while alive(shard_pid):
         kill(docker, signal.SIGKILL)
         stuck = remove(containers())
         log(f'no attempt finished for {idle / 60:.0f} min: stopped {len(docker)} Docker commands and removed the '
-            f'{len(stuck)} containers of its attempts ({", ".join(n for _, n, _ in stuck) or "none"})')
+            f'{len(stuck)} containers of its attempts ({", ".join(n for _, n, _, _ in stuck) or "none"})')
     elif time.time() - acted > limit:
         log(f'still no attempt finished {limit / 60:.0f} min later: stopping the shard')
-        remove(containers())
-        kill([pid for pid, _, _ in descendants(shard_pid)] + [shard_pid], signal.SIGTERM)
-        for _ in range(60):
-            if not alive(shard_pid):
-                break
-            time.sleep(1)
-        kill([pid for pid, _, _ in descendants(shard_pid)] + [shard_pid], signal.SIGKILL)
+        stop_shard()
         break
 EOF
 }
 
 start_loop() {
-    local name=$1 count=$2 port=${3:-} root="$WS/runs/$1" tasks
+    local name=$1 count=$2 port=${3:-} root="$WS/runs/$1" tasks dockerroot
     if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then
         die "$name is already running (stop it with: ./hpc/passk_local.sh stop ...)"
     fi
+    [[ $MIN_FREE_GB =~ ^[0-9]+$ && $CACHE_HOURS =~ ^[0-9]+$ ]] || die "MIN_FREE_GB and CACHE_HOURS must be whole numbers"
+    dockerroot=$(docker info -f '{{.DockerRootDir}}' 2>/dev/null) || dockerroot=
     echo "$count" > "$root/count"
     echo "$CONCURRENCY" > "$root/concurrency"
     tasks=$(contract_tasks "$WS/contracts/$name.json")
@@ -879,7 +965,28 @@ start_loop() {
     setsid nohup bash -c '
         set -u
         contract=$1 root=$2 count=$3 wrapper=$4 port=$5 watch=$6 tasks=$7 stuck=$8 images=$9
-        trap "rm -f \"$root/loop.pid\"" EXIT
+        dockerroot=${10} minfree=${11} cachehours=${12}
+        ws=${root%/runs/*} pruner=
+        # Every attempt builds its task image, and Docker keeps its layers as build cache after the image is
+        # deleted: about 8 GB per MiMo task, and docker system df counts pulled images as 0 B, so Docker never
+        # cleans that up by itself. Every 2 minutes one loop of this workspace removes the build cache unused
+        # for CACHE_HOURS (of all users: Docker is shared). Without -a, so the cache of images that still exist
+        # stays: removing it would free nothing. Small and often: while a prune deletes, Docker holds every build
+        # and container start, so one large prune could push attempts past their build time limit.
+        # $1: flock option (-n: skip if another prune runs), $2: why, for prune.log. Fails if it removed nothing.
+        prune() {
+            local before after removed
+            before=$(python "$watch" space "$root" ${dockerroot:+"$dockerroot"})
+            removed=$(flock $1 "$ws/prune.lock" timeout --foreground 3600 docker builder prune -f --filter "until=${cachehours}h" 2>/dev/null | grep -cE "^[a-z0-9]{25}[*[:space:]]")
+            [ "${removed:-0}" != 0 ] || return 1
+            after=$(python "$watch" space "$root" ${dockerroot:+"$dockerroot"})
+            echo "$(date -Is) $(basename "$root") $2: removed $removed cache entries; free ${before%% GB*} GB before, ${after%% GB*} GB after" >> "$ws/prune.log"
+        }
+        if [ "$cachehours" != 0 ]; then
+            while sleep 120; do prune -n "every 2 minutes" || :; done &
+            pruner=$!
+        fi
+        trap "kill $pruner 2>/dev/null; rm -f \"$root/loop.pid\"" EXIT
         # Attempts made while the model is down, or without their prebuilt image, would count as failed, so a
         # shard counts only if the model answers and the images are there before and after it.
         up() { [ -z "$port" ] || curl -sf "http://127.0.0.1:$port/health" >/dev/null; }
@@ -890,6 +997,9 @@ reports = glob.glob(sys.argv[1] + "/stage-*-*.json")
 sys.exit(0 if reports and all(json.load(open(r)).get("complete") for r in reports) else 1)
 EOF
         }
+        # Cache from before a pause of CACHE_HOURS or more is due all at once: remove it before this loop builds
+        # anything, so that its attempts do not wait behind one large prune.
+        if [ "$cachehours" != 0 ]; then for _ in 1 2 3 4 5 6; do prune "-w 3600" "at start" || break; done; fi
         # A second pass retries the shards the first one could not finish.
         for pass in 1 2; do
         for ((i = 0; i < count; i++)); do
@@ -903,12 +1013,22 @@ EOF
                 echo "$(date -Is) $missing Paused before shard $i/$count." >> "$root/loop.log"
                 exit 1
             fi
-            rm -rf "$root/shards/$s"; mkdir -p "$root/shards/$s/report"
+            # On a full disk Harbor cannot save attempts and tests cannot build: they count as unsolved. So a shard
+            # starts only with MIN_FREE_GB (and 2% of inodes) free, after removing old build cache if needed, and
+            # the watcher stops it if free space falls below a tenth of that.
+            if [ "$minfree" != 0 ] && python "$watch" low "$minfree" 2 "$root" ${dockerroot:+"$dockerroot"} >/dev/null; then
+                if [ "$cachehours" != 0 ]; then for _ in 1 2 3; do prune "-w 3600" "as free space was low" || break; done; fi
+                if free=$(python "$watch" low "$minfree" 2 "$root" ${dockerroot:+"$dockerroot"}); then
+                    echo "$(date -Is) only $free free on the disk (MIN_FREE_GB=$minfree); paused before shard $i/$count. Free some space, then run again." >> "$root/loop.log"
+                    exit 1
+                fi
+            fi
+            rm -rf "$root/shards/$s" "$root/shards/$s.space"; mkdir -p "$root/shards/$s/report"
             echo "$(date -Is) shard $i/$count started" >> "$root/loop.log"
             python "$wrapper" "$PWD" --contract "$contract" --shard "$i/$count" --out "$root/shards/$s" \
                 > "$root/shards/$s.log" 2>&1 &
             shard=$!
-            python "$watch" "$shard" "$root/shards/$s" "$stuck" >> "$root/loop.log" 2>&1 &
+            python "$watch" "$shard" "$root/shards/$s" "$stuck" "${minfree}e-1" "$dockerroot" >> "$root/loop.log" 2>&1 &
             watcher=$!
             wait "$shard"
             kill "$watcher" 2>/dev/null
@@ -919,6 +1039,14 @@ EOF
             if ! missing=$(python "$images" "$tasks" "$root/shards/$s" 2>&1); then
                 python "$watch" cleanup "$root/shards/$s" >> "$root/loop.log" 2>&1
                 echo "$(date -Is) $missing Shard $i/$count not counted: it is redone when you run again." >> "$root/loop.log"
+                exit 1
+            fi
+            # Not counted if an attempt reported a full disk, or free space fell below the floor at any time.
+            if grep -rqsiI --include=result.json "no space left on device" "$root/shards/$s" ||
+               grep -qsi "no space left on device" "$root/shards/$s.log" ||
+               { [ "$minfree" != 0 ] && python "$watch" spoiled "$root/shards/$s" "${minfree}e-1" ${dockerroot:+"$dockerroot"} >/dev/null; }; then
+                python "$watch" cleanup "$root/shards/$s" >> "$root/loop.log" 2>&1
+                echo "$(date -Is) the disk was (nearly) full during shard $i/$count; shard not counted. Free some space, then run again: the shard is redone." >> "$root/loop.log"
                 exit 1
             fi
             for f in "$root"/shards/$s/stage_*_*/*/summary.json; do
@@ -939,7 +1067,7 @@ EOF
         if [ "$left" = 0 ]; then echo "$(date -Is) all shards done" >> "$root/loop.log"
         else echo "$(date -Is) stopped with $left shards not finished; start the run again to redo them" >> "$root/loop.log"; fi
     ' _ "$WS/contracts/$name.json" "$root" "$count" "$WS/bin/run_docker.py" "$port" "$WS/bin/shard_watch.py" "$tasks" "$STUCK_HOURS" \
-        "$WS/bin/check_images.py" \
+        "$WS/bin/check_images.py" "$dockerroot" "$MIN_FREE_GB" "$CACHE_HOURS" \
         > "$root/loop.out" 2>&1 < /dev/null &
     echo $! > "$root/loop.pid"
     echo "Running in the background (pid $(cat "$root/loop.pid")). Progress: $root/loop.log"
@@ -1072,7 +1200,9 @@ EOF
                     echo "Not running."
                     last=$(tail -1 "$root/loop.log" 2>/dev/null) || last=
                     [ -z "$last" ] || [[ $last == *"all shards done" ]] || echo "Last line of $root/loop.log: $last"
-                fi ;;
+                fi
+                echo "Free on its disk: $(df -h --output=avail "$root" 2>/dev/null | tail -n 1 | tr -d ' ') (shards start only with MIN_FREE_GB=$MIN_FREE_GB GB)"
+                [ ! -s "$WS/prune.log" ] || echo "Last build-cache cleanup: $(tail -n 1 "$WS/prune.log")" ;;
             stop)
                 pg=$(cat "$root/loop.pid" 2>/dev/null) || pg=
                 if [ -n "$pg" ] && kill -0 -- "-$pg" 2>/dev/null; then
