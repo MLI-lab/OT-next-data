@@ -30,6 +30,7 @@ def prepare(args, numbers):
     export_report(args.out / 'results.parquet', report,
                   {t.name: verified[t.name] if t.name in verified else task_digest(t) for t in tasks},
                   settings=vars(args))
+    (out / 'summary.json').write_text(json.dumps(report, indent=2) + '\n')
     args._static_blocked = {
         Path(item['task']).name: {'report': str(out / 'summary.json'),
                                  'status': item['status']}

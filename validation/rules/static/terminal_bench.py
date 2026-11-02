@@ -366,8 +366,7 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             entry['discoverable_reference_evidence'] = evidence
                     # Buffer each check separately so parallel outputs never interleave.
                     with tempfile.TemporaryFile(mode='w+', encoding='utf-8', errors='replace', dir=scratch) as stream:
-                        # The scripts take under a second; a timeout means the node or the
-                        # file system stalled (job 916252), so one more attempt is made.
+                        # Retry once after a timeout; it does not establish its cause.
                         for attempt in (1, 2):
                             try:
                                 script = LOCAL_CHECKS.get(name) or (reference_script if name == reference_script.name
@@ -405,6 +404,9 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             combined_log.flush()
                     entry['checks'].append({'check': name, 'status': status, 'optional': False, 'exit_code': rc,
                                             'log': str(log.resolve()), 'duration_seconds': round(time.monotonic() - started, 3)})
+                    if status == 'error' and rc is None:
+                        entry['checks'][-1].update(category='timeout', reason_code='time_limit_reached',
+                                                  phase='checker', classification_version=1)
                     if status != 'passed':
                         print(f'{task.name}: {name}: {status} (see {log})', flush=True)
                 tags = {'check-pip-pinning.sh': 'unpinned-dependency', **LOCAL_WARNINGS}

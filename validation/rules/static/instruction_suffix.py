@@ -191,6 +191,8 @@ def prepare(args, destination, instructions=True):
                             (target / name).chmod(0o755)
         meta_path = (original if original.is_dir() else original.parent) / 'source.json'
         meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+        from validation.automatic_repairs import inherit_changes
+        inherit_changes(args, records, meta)
         prior = meta.get('automation_changes', {})
         meta['automation_changes'] = {task: sorted(set(prior.get(task, [])) | changes.get(task, set()))
                                       for task in sorted(ids)

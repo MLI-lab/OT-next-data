@@ -231,6 +231,11 @@ def merge(contract_path, root, out):
         merged['task_content_sha256'] = {
             name: digest for _, report in reports
             for name, digest in report.get('task_content_sha256', {}).items()}
+        if any('automatic_repairs' in report for _, report in reports):
+            merged['automatic_repairs'] = {
+                name: evidence for _, report in reports
+                for name, evidence in report.get('automatic_repairs', {}).items()
+                if evidence.get('content_sha256') == report.get('task_content_sha256', {}).get(name)}
         merged['complete'] = not incomplete
         merged['has_findings'] = any(i['status'] in ('failed', 'findings', 'error') for i in items)
         merged['contract_findings'] = sorted({f for _, r in reports for f in r.get('contract_findings', [])})

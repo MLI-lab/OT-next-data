@@ -6,8 +6,8 @@ without a result are rerun in the stages that produced none, up to
 ``--outcome-retries`` more attempts (stage 1 first, then 2, then 3, so a build
 that recovers lets its trials run in the same round). A wrong reward is a result and
 is not retried; stage 1 itself retries a failed build up to 3 times. A task still without a result after the
-last attempt is an infrastructure error: retrying did not help, which says nothing
-about the task, so it stays not run and is not archived.
+last attempt remains unresolved with its observed error category. Exhausting
+retries does not establish an infrastructure cause or a task defect.
 
 Stage 4 is left out: its checks are deterministic and the pipeline rewrites some
 task files itself before running them.
@@ -83,13 +83,17 @@ def retry_round(stage_runs, args, contract, batch_for, save):
         for task in pending(n):
             entry = history[n][task]
             item = current[task]
-            item['status'] = 'failed'
-            item['infrastructure_error'] = {'observed': entry['outcomes']}
-            item.setdefault('findings', []).append(infrastructure_text(entry['outcomes']))
+            from validation.outcomes import category
+            issue = category(item, 'not_run', {1: 'setup', 3: 'verifier'}.get(n, 'unknown'))
+            item.update(issue)
+            item['status'] = 'incomplete'
+            item['unresolved_after_retries'] = {'observed': entry['outcomes']}
+            item.setdefault('findings', []).append(
+                f'unresolved: no result in {len(entry["outcomes"])} attempts; no verdict on the task')
         summaries[n] = summarize(history[n], retries, n)
         report_path, report = stage_runs[n]
         report['outcome_retries'] = summaries[n]
-        report['has_findings'] = any(i['status'] in ('failed', 'findings', 'error') for i in report['items'])
+        report['has_findings'] = any(i['status'] in ('failed', 'findings', 'error', 'incomplete') for i in report['items'])
         save(report_path, report)
     return summaries
 

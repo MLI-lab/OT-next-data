@@ -145,6 +145,26 @@ def test_merge_rejects_missing_duplicate_foreign_and_wrong_slices(tmp_path, monk
         shards.merge('contract.json', tmp_path, tmp_path / 'm4' / 'report')
 
 
+def test_merge_preserves_repair_evidence_from_every_shard(tmp_path, monkeypatch):
+    from validation import run as results
+    fake_contract(monkeypatch, stages=(2,))
+    def make(index):
+        report = report_for(2, index, 3)
+        tasks = report['shard']['tasks']
+        report['task_content_sha256'] = {task: SHA for task in tasks}
+        report['automatic_repairs'] = {task: {'content_sha256': SHA, 'rules': {
+            'instruction-suffix': {'applied': True, 'evidence': []}}} for task in tasks}
+        return report
+    write_shards(tmp_path, 3, {2: make})
+    out = tmp_path / 'merged' / 'report'
+    summary = shards.merge('contract.json', tmp_path, out)
+    merged = json.loads(Path(summary['stages'][2]).read_text())
+    assert set(merged['automatic_repairs']) == set(TASKS)
+    rows = results.read(out / 'results.parquet')
+    assert len(rows) == len(TASKS)
+    assert all(json.loads(row['automatic_repairs'])['instruction-suffix']['applied'] for row in rows)
+
+
 def test_incomplete_shard_marks_the_merged_report_incomplete(tmp_path, monkeypatch):
     fake_contract(monkeypatch, stages=(2,))
     write_shards(tmp_path, 2, {2: lambda i: report_for(2, i, 2, complete=(i == 0))})

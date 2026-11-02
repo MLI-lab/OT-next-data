@@ -10,6 +10,37 @@
 
 All views include recorded timing and allocated resources. Unknown measurements say “not recorded”. Rule times are summed task times, separate from overall wall time and image preparation time. Do not infer these from concurrent stage durations.
 
+The v1 rule table shows total tasks, passed, failed, warnings, automatically repaired,
+unresolved, not applicable, and missing repair records. Counts and percentages use
+all latest task revisions in the dataset, including excluded tasks. Unresolved combines
+infrastructure errors, incomplete checks and checks not run. Automatic repairs are
+recorded separately from final outcomes: a repaired task can still warn or fail.
+Only deterministic pipeline repairs count, never manual datasource repairs. Timestamp
+repairs require execution evidence; installing their setup script is not sufficient.
+The same counts are saved in `v1/rule-stats.json`.
+
+`results.parquet` stores revision-bound repair evidence in `automatic_repairs` as JSON
+keyed by rule name. Partial reruns preserve that evidence without double counting;
+changed revisions do not inherit it unless the pipeline records their provenance.
+Legacy contracts can recover recorded positive repair labels during result export;
+missing history remains unknown, not zero. This does not change check verdicts or
+add a manual approval step.
+
+Check verdicts remain separate columns. Schema version 2 stores their supporting
+reports in one JSON `details` column, keyed by check name (for example,
+`details["reference"]`). The reader also accepts older `<check>_details` columns;
+writing or merging those results converts them to the shared field. Partial reruns
+replace only the selected checks' details, and new task revisions start without
+the previous revision's evidence.
+
+Unresolved check records use `category`, `reason_code`, `phase` and
+`classification_version: 1`. The six categories are `skipped`,
+`infrastructure_error`, `timeout`, `oom`, `execution_error` and `unknown`.
+The exporter, publisher and retry controller share the classification in
+`validation/outcomes.py`. Original evidence is retained; historical retry
+exhaustion alone does not establish an infrastructure failure. See the
+[category descriptions](../rules/README.md).
+
 ## Generate locally
 
 ```bash

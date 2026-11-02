@@ -139,7 +139,7 @@ def retry_unsettled(args, stage_runs, numbers):
 
 
 BASE = {'dataset', 'task_id', 'content_sha256', 'revision', 'latest', 'change_reason',
-        'task_file', 'updated_at', 'run'}
+        'task_file', 'updated_at', 'run', 'details'}
 STATUSES = {'pass', 'fail', 'warning', 'not_run', 'not_recorded'}
 USAGE = {'memory_peak_mb': 'reference_memory_peak_mb', 'memory_limit_mb': 'reference_memory_limit_mb',
          'cpu_seconds': 'reference_cpu_seconds', 'step_seconds': 'reference_step_seconds'}
@@ -175,6 +175,31 @@ def encode(value):
     return json.dumps(value, sort_keys=True, default=str)
 
 
+def details(row):
+    """Read shared evidence, accepting older per-check columns during migration."""
+    value = row.get('details')
+    shared = dict(json.loads(value) if isinstance(value, str) else value or {})
+    for key, value in row.items():
+        if key.endswith('_details') and key[:-8] in row and value is not None:
+            shared.setdefault(key[:-8], json.loads(value) if isinstance(value, str) else value)
+    return shared
+
+
+def normalize_details(row):
+    row = dict(row)
+    shared = details(row)
+    from validation.outcomes import normalize
+    for name, record in shared.items():
+        if name in row and isinstance(record, dict):
+            row[name], shared[name] = normalize(name, row[name], record)
+    for key in list(row):
+        if key.endswith('_details') and key[:-8] in row:
+            del row[key]
+    if shared or row.get('details') is not None:
+        row['details'] = encode(shared)
+    return row
+
+
 def known_rules():
     from validation.rules.registry import RULES
     return {r.name for r in RULES} | {
@@ -200,9 +225,15 @@ def observations(reports, hashes, dataset='', settings=None):
                 raise ValueError(f'Results need a content hash for task {task!r}')
             row = rows.setdefault((task, digest), {'dataset': dataset or re.sub(r'-\d+$', '', task),
                                                    'task_id': task, 'content_sha256': digest})
+            from validation.automatic_repairs import for_item
+            repairs = for_item(report, item, task, digest)
+            if repairs:
+                from validation.automatic_repairs import combine
+                row['automatic_repairs'] = combine(row.get('automatic_repairs'), encode(repairs))
             def put(name, record, value=None):
-                row[name] = value if value is not None else status(record.get('status'))
-                row[name + '_details'] = encode(record)
+                from validation.outcomes import normalize
+                row[name], record = normalize(name, value if value is not None else status(record.get('status')), record)
+                row['details'] = encode({**details(row), name: record})
             if int(stage) != 4:
                 name = {1: 'build', 2: 'reference', 3: 'nop', 5: 'llm_review',
                         7: 'trace_metrics', 8: 'trajectory_review', 9: 'adversarial',
@@ -272,7 +303,8 @@ def observations(reports, hashes, dataset='', settings=None):
 def merge(previous, incoming):
     """Keep old revisions, preserve unobserved cells, invalidate checks for new content."""
     from datetime import datetime, timezone
-    rows = [dict(r) for r in previous]
+    rows = [normalize_details(r) for r in previous]
+    incoming = [normalize_details(r) for r in incoming]
     index = {(r['dataset'], r['task_id'], r['content_sha256']): r for r in rows}
     if len(index) != len(rows):
         raise ValueError('Duplicate task revisions in results')
@@ -295,6 +327,11 @@ def merge(previous, incoming):
             index[key] = row
         for other in old:
             other['latest'] = other is row
+        if update.get('details') is not None:
+            update = dict(update, details=encode({**details(row), **details(update)}))
+        if update.get('automatic_repairs'):
+            from validation.automatic_repairs import combine
+            update = dict(update, automatic_repairs=combine(row.get('automatic_repairs'), update['automatic_repairs']))
         row.update({k: v for k, v in update.items() if k not in ('revision', 'latest')})
         row['updated_at'] = datetime.now(timezone.utc).isoformat()
     for row in rows:
@@ -306,7 +343,7 @@ def merge(previous, incoming):
 
 def read(path):
     import pyarrow.parquet as pq
-    return pq.read_table(path).to_pylist() if Path(path).is_file() else []
+    return [normalize_details(row) for row in pq.read_table(path).to_pylist()] if Path(path).is_file() else []
 
 
 def write(path, rows):
@@ -314,11 +351,12 @@ def write(path, rows):
     import pyarrow.parquet as pq
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [normalize_details(row) for row in rows]
     names = sorted(BASE | {k for r in rows for k in r})
     integers = {'revision'} | {n for n in names if n.endswith(('_solved', '_attempts'))}
     schema = pa.schema([(n, pa.bool_() if n == 'latest' else pa.int64() if n in integers
                          else pa.float64() if n in USAGE.values() else pa.string())
-                        for n in names], metadata={b'ot.results.version': b'1'})
+                        for n in names], metadata={b'ot.results.version': b'2'})
     temporary = path.with_name(path.name + '.' + uuid4().hex + '.tmp')
     try:
         pq.write_table(pa.Table.from_pylist(rows, schema=schema), temporary)
@@ -338,6 +376,8 @@ def update(path, incoming):
 
 
 def export_report(path, report, hashes, dataset='', settings=None):
+    from validation.automatic_repairs import capture
+    capture(report, settings)
     stage = report.get('stage', 4)
     return update(path, observations({stage: report}, hashes, dataset, settings))
 

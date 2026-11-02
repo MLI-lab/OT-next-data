@@ -169,14 +169,34 @@ def build_blocked(stage, item, reports):
 
 
 def judge(stage, item, not_required=()):
+    from validation.outcomes import category
+    verdict, reason = _judge(stage, item, not_required)
+    # A definitive failed static check remains a finding even if another check
+    # could not finish. Individual check cells retain their separate outcomes.
+    if stage == 4 and failed_checks(item, not_required):
+        return verdict, reason
+    issue = category(item, {'passed': 'pass', 'archive': 'fail'}.get(verdict, 'not_run'),
+                     {1: 'setup', 3: 'verifier', 4: 'checker'}.get(stage, 'unknown'))
+    if issue:
+        if item.get('unresolved_after_retries'):
+            reason = '; '.join(map(str, item.get('findings', []))) or issue['reason_code']
+        return ('not_applicable' if issue['reason_code'] == 'not_applicable' else 'not_run'), reason
+    return verdict, reason
+
+
+def _judge(stage, item, not_required=()):
     """(outcome, reason): outcome is 'passed', 'archive', 'not_run' or 'not_applicable'."""
     status = item.get('status')
     if status == 'not_applicable':     # no reference solution: nothing to run, nothing against the task
         return 'not_applicable', str(item.get('reason') or status)
     if item.get('infrastructure_error'):
-        from validation.stages.outcome_retries import infrastructure_text
-        cause = next((str(f) for f in item.get('findings', []) if not str(f).startswith('infrastructure error')), '')
-        return 'not_run', infrastructure_text(item['infrastructure_error']['observed']) + ('; ' + cause[:300] if cause else '')
+        marker = item['infrastructure_error']
+        if isinstance(marker, dict) and set(marker) == {'observed'}:
+            cause = next((str(f) for f in item.get('findings', [])
+                          if not str(f).startswith('infrastructure error')), '')
+            return 'not_run', (f'unresolved: no result in {len(marker["observed"])} attempts; '
+                               'no verdict on the task') + ('; ' + cause[:300] if cause else '')
+        return 'not_run', str(item.get('error') or item.get('reason') or 'recorded infrastructure failure')
     if item.get('not_robust'):
         attempts = len(item['not_robust']['observed'])
         if item.get('archive_cause'):

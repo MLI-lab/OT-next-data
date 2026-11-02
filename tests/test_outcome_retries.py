@@ -78,16 +78,18 @@ def test_only_not_run_tasks_are_rerun_and_wrong_rewards_stay_results(tmp_path):
     assert json.loads(stage[2][0].read_text())['outcome_retries']['history']['crash']['outcomes'] == ['not_run', 'not_run', 'passed']
 
 
-def test_task_without_a_result_after_the_last_attempt_is_an_infrastructure_error(tmp_path):
+def test_task_without_a_result_after_the_last_attempt_preserves_timeout(tmp_path):
     stage = runs(tmp_path, s3=[trial('crash', 'failed', [], CRASH)])
     batches = Scripted({3: {'crash': [trial('crash', 'failed', [], CRASH)] * 3}})
     summary = retry_round(stage, args_for(), contract_for('crash'), batches, saved)
     item = stage[3][1]['items'][0]
     assert len(batches.calls) == 3 and len(item['outcome_attempts']) == 3
-    assert 'not_robust' not in item and item['infrastructure_error'] == {'observed': ['not_run'] * 4}
+    assert 'not_robust' not in item and 'infrastructure_error' not in item
+    assert item['unresolved_after_retries'] == {'observed': ['not_run'] * 4}
+    assert item['category'] == 'timeout'
     outcome, reason = judge(2, item)
-    assert outcome == 'not_run' and reason.startswith('infrastructure error: no result in 4 attempts; no verdict on the task')
-    assert reason.endswith('EnvironmentStartTimeoutError"}')      # the observed cause follows
+    assert outcome == 'not_run' and 'unresolved: no result in 4 attempts; no verdict on the task' in reason
+    assert 'EnvironmentStartTimeoutError' in reason      # the observed cause follows
     assert summary[3]['unresolved_not_run'] == ['crash'] and stage[3][1]['has_findings'] is True
 
 

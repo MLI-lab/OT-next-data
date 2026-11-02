@@ -28,18 +28,15 @@ def document(value):
 
 def outcome(row, rule):
     value = row.get(rule)
-    detail = document(row.get(rule + '_details'))
-    original = detail.get('status')
-    if detail.get('infrastructure_error'):
-        return 'infra error'
+    detail = results.details(row).get(rule, {})
+    from validation.outcomes import category, check_phase
+    issue = category(detail, value or 'not_run', check_phase(rule))
+    if issue:
+        if issue['reason_code'] == 'not_applicable':
+            return 'not applicable'
+        return 'infra error' if issue['category'] == 'infrastructure_error' else 'incomplete' if issue['category'] in ('timeout', 'oom', 'execution_error') else 'not run'
     if value in ('pass', 'fail', 'warning'):
         return value
-    if original in ('not_applicable', 'not-applicable'):
-        return 'not applicable'
-    if original in ('infrastructure_error', 'infra_error') or detail.get('failure_kind') == 'infrastructure':
-        return 'infra error'
-    if original in ('error', 'incomplete', 'failed', 'timeout'):
-        return 'incomplete'
     return 'not run'
 
 
@@ -60,13 +57,44 @@ def baseline(rows, rules):
     return kept, failed, pending
 
 
+def rule_statistics(rows, required_rules):
+    """One task per latest revision; repair actions are independent of check verdicts."""
+    from validation.automatic_repairs import RULES as repair_rules
+    observed = {key for row in rows for key in results.details(row)
+                if isinstance(row.get(key), str) and row[key] in results.STATUSES
+                and not key.startswith('passk_')}
+    rules = list(dict.fromkeys([*required_rules, *sorted(observed - set(required_rules))]))
+    stats = []
+    for rule in rules:
+        counts = Counter(outcome(row, rule) for row in rows)
+        repairs = [document(row.get('automatic_repairs')).get(rule, {}).get('applied') for row in rows]
+        stats.append({'rule': rule, 'total': len(rows), 'passed': counts['pass'],
+                      'failed': counts['fail'], 'warning': counts['warning'],
+                      'automatically_repaired': sum(value is True for value in repairs),
+                      'unresolved': sum(counts[key] for key in ('infra error', 'incomplete', 'not run')),
+                      'not_applicable': counts['not applicable'],
+                      'repair_not_recorded': sum(value is None for value in repairs) if rule in repair_rules else 0})
+    return stats
+
+
+def rule_table(rows, required_rules):
+    fields = ['passed', 'failed', 'warning', 'automatically_repaired', 'unresolved',
+              'not_applicable', 'repair_not_recorded']
+    def share(count, total):
+        return f'{count} ({count / total:.1%})' if total else '0 (0.0%)'
+    return table(['Rule', 'Total tasks', 'Passed', 'Failed', 'Warning', 'Automatically repaired',
+                  'Unresolved', 'Not applicable', 'Repair not recorded'],
+                 [[stat['rule'], stat['total'], *[share(stat[field], stat['total']) for field in fields]]
+                  for stat in rule_statistics(rows, required_rules)])
+
+
 def evaluation(row, key, k):
     solved, attempts = row.get(key + '_solved'), row.get(key + '_attempts')
     if solved is None or attempts is None:
         return None, False
     if not (isinstance(solved, int) and isinstance(attempts, int) and 0 <= solved <= attempts <= k):
         raise ValueError(f'Invalid attempt counts for {row["task_id"]}: {key}')
-    detail = document(row.get(key + '_details')).get('result', {})
+    detail = results.details(row).get(key, {}).get('result', {})
     rewards = detail.get('rewards')
     complete = attempts == k and row.get(key) in ('pass', 'fail')
     if rewards is not None:
@@ -165,13 +193,14 @@ def render(rows, metadata, view, dataset, annotation=None, evaluation_key=None, 
     sections = [f'# {dataset} {view}', '## Dataset stats\n\n' + table(['Measure', 'Value'], stats),
                 characteristics(annotation)]
     if view == 'v1':
-        labels = ['pass', 'fail', 'warning', 'infra error', 'incomplete', 'not run', 'not applicable']
-        breakdown = []
-        for rule in rules:
-            counts = Counter(outcome(r, rule) for r in rows)
-            breakdown.append([rule, *[counts[label] for label in labels]])
-        sections += ['## Validation rules\n\n' + table(['Rule', 'Passed', 'Flagged', 'Warning', 'Infra error', 'Incomplete', 'Not run', 'Not applicable'], breakdown) +
-                     '\n\nA task can be flagged by several rules. Warnings do not remove tasks. Unresolved tasks are excluded from v1 until their required checks finish.']
+        sections += ['## Validation rules\n\n' + rule_table(rows, rules) +
+                     '\n\nCounts and percentages use all tasks with a latest result in this dataset, including excluded tasks. '
+                     'The table includes required rules and other checks with recorded outcomes. '
+                     'Failed and Warning show final check outcomes. Unresolved combines infrastructure errors, incomplete checks and checks not run. '
+                     'Automatically repaired counts tasks with a recorded automatic pipeline repair, regardless of the final outcome; '
+                     'it overlaps the other columns and does not include manual repairs. Installing a timestamp repair script alone does not count as executing a repair. '
+                     'Missing repair evidence is shown as Repair not recorded. '
+                     'A task can be flagged by several rules. Warnings do not remove tasks. Unresolved tasks are excluded from v1 until their required checks finish.']
     else:
         sections += ['## Evaluation settings\n\n' + table(['Setting', 'Value'],
                      [(key, json.dumps(value) if isinstance(value, (dict, list)) else value)
@@ -216,6 +245,9 @@ def write(results_path, metadata, out, view, dataset, annotation=None, evaluatio
     pq.write_table(pa.Table.from_pylist(selected, schema=schema), out / 'selection.parquet')
     (out / 'README.md').write_text(text)
     (out / 'run.json').write_text(json.dumps(metadata, indent=2) + '\n')
+    if view == 'v1':
+        stats = rule_statistics(latest(results.read(results_path), dataset), metadata.get('required_rules', []))
+        (out / 'rule-stats.json').write_text(json.dumps(stats, indent=2) + '\n')
     if annotation:
         (out / 'annotation.json').write_text(json.dumps(annotation, indent=2) + '\n')
     return out

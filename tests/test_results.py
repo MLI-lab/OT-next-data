@@ -45,7 +45,7 @@ def test_same_reports_have_same_cells_for_both_entrypoints(tmp_path):
     assert a == b
     assert a['agent_editable_test'] == 'fail'
     assert a['nproc'] == 'not_run'
-    assert json.loads(a['nproc_details'])['status'] == 'error'
+    assert results.details(a)['nproc']['status'] == 'error'
 
 
 def test_hash_at_execution_is_preserved_and_passk_settings_are_distinct():
@@ -88,3 +88,35 @@ def test_missing_selected_check_overwrites_old_pass(tmp_path):
         {'task': 't', 'status': 'error', 'error': 'cannot read task', 'checks': []}]}, {'t': 'hash'})
     row, = results.read(path)
     assert row['nproc'] == 'not_run'
+
+
+def test_shared_details_migrate_and_preserve_other_checks(tmp_path):
+    import pyarrow.parquet as pq
+    path = tmp_path / 'results.parquet'
+    first = {'dataset': 'd', 'task_id': 't', 'content_sha256': 'a',
+             'reference': 'pass', 'reference_details': json.dumps({'rewards': [1]}),
+             'nop': 'pass', 'nop_details': json.dumps({'rewards': [0]}),
+             'publication_details': json.dumps({'source': 'original'})}
+    results.update(path, [first])
+    results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'a',
+                          'nop': 'fail', 'details': json.dumps({'nop': {'rewards': [1]}})}])
+    row, = results.read(path)
+    assert results.details(row) == {'reference': {'rewards': [1]}, 'nop': {'rewards': [1]}}
+    schema = pq.read_schema(path)
+    assert 'details' in schema.names and 'reference_details' not in schema.names
+    assert 'nop_details' not in schema.names and 'publication_details' in schema.names
+    assert schema.metadata[b'ot.results.version'] == b'2'
+    results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'b', 'reference': 'not_run'}])
+    _, changed = results.read(path)
+    assert results.details(changed) == {}
+
+
+def test_read_legacy_parquet_migrates_details(tmp_path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    path = tmp_path / 'legacy.parquet'
+    pq.write_table(pa.Table.from_pylist([{'reference': 'pass',
+        'reference_details': json.dumps({'rewards': [1]}), 'nop': 'not_run', 'nop_details': None}]), path)
+    row, = results.read(path)
+    assert results.details(row) == {'reference': {'rewards': [1]}}
+    assert 'reference_details' not in row and 'nop_details' not in row

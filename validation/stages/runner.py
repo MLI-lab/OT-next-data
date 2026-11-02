@@ -1062,6 +1062,8 @@ def _run_stage(number, args):
                                  for i in report['items'])
     from validation.contract import assess_stage
     assess_stage(contract, number, report)
+    from validation.automatic_repairs import capture
+    capture(report, vars(args))
     save(report_path, report)
     if not args.dry_run:
         from validation.run import export_report

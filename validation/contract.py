@@ -324,6 +324,7 @@ def create(args, numbers, destination):
         raise ValueError(f'selected {len(tasks)} tasks, below minimum {minimum}')
     source_meta_path = (args.tasks if args.tasks.is_dir() else args.tasks.parent) / 'source.json'
     meta = json.loads(source_meta_path.read_text()) if source_meta_path.exists() else {}
+    from validation.automatic_repairs import contract_records
     checks_by_stage = {}
     if 4 in numbers:
         # All static checks run together in stage 4.
@@ -341,6 +342,7 @@ def create(args, numbers, destination):
     contract = {
         'schema_version': 3, 'stage_layout': LAYOUT, 'created_at': datetime.now(timezone.utc).isoformat(),
         'dataset': {'source': args.dataset_source or meta.get('repo') or str(args.tasks.resolve()),
+                    'automatic_repairs': contract_records(tasks, meta),
                     'reference_solutions': references,
                     'instruction_suffixes': suffixes,
                     'revision': args.dataset_revision or meta.get('revision') or 'sha256:' + digest(tasks),

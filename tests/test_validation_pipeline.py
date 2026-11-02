@@ -1150,7 +1150,8 @@ def test_publish_override_and_carry_over_of_published_state(tmp_path):
     assert publish.judge(4, {'task': 'x', 'status': 'error', 'error': 'whitespace in paths'})[0] == 'not_run'
     assert publish.judge(1, {'status': 'error', 'environments': [{'status': 'error', 'error': 'tmux has-session timed out after 30 seconds'}]})[0] == 'not_run'
     assert publish.judge(1, {'status': 'error', 'reason': 'FileNotFoundError: missing trial directory'})[0] == 'not_run'
-    assert publish.judge(1, {'status': 'error', 'environments': [{'status': 'error', 'error': 'build failed: no such package'}]})[0] == 'archive'
+    # Setup execution errors remain unresolved for inspection, like other execution errors.
+    assert publish.judge(1, {'status': 'error', 'environments': [{'status': 'error', 'error': 'build failed: no such package'}]})[0] == 'not_run'
     crashed = {'task': 'x', 'status': 'failed', 'checks': [{'check': 'check-a.sh', 'status': 'error'}]}
     assert publish.judge(4, crashed)[0] == 'not_run'
     crashed['checks'].append({'check': 'check-c.sh', 'status': 'failed'})
