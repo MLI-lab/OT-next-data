@@ -110,12 +110,16 @@ Compute trajectory statistics without calling a model: rewards, turns, tokens, c
 
 A judge examines trajectories for instruction problems, reward hacking, failure causes, near misses, refusals and progress at timeout.
 
-See [rubrics](rubrics/README.md) for review configuration.
+Uses Terminal-Bench’s [trajectory-review rubric](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.toml) and [prompt template](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.txt). The rubric may need adjustment for training use.
 
 ### Stage 9: adversarial trials
 
 Optional and untested. Run an agent with instructions to find ways of passing without completing the intended task.
 
+Uses Terminal-Bench’s [adversarial prompt](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/hack-trial-prompt.md), prepended to the task instruction. The resulting trajectories can be reviewed with the stage 8 rubric and prompt.
+
 ### Stage 10: hacker/fixer loop
 
 Optional and untested. A hacker searches for exploits, a fixer repairs the task, and a solver tests the result.
+
+Uses [harden-v0](https://github.com/few-sh/harden-v0/tree/342b8474e0c0cf96e4a8313fd2e26c7a11d51193), including its [hacker and fixer prompt templates and solver guidance](https://github.com/few-sh/harden-v0/blob/342b8474e0c0cf96e4a8313fd2e26c7a11d51193/harden/instructions.py) and [additional fixer guidance](https://github.com/few-sh/harden-v0/blob/342b8474e0c0cf96e4a8313fd2e26c7a11d51193/prompts/fixer_guidance.md).
