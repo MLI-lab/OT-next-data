@@ -106,11 +106,12 @@ def test_older_side_branch_is_recorded_not_failed(tmp_path):
     assert history['repositories'][str(repo)]['non_ancestor_commits_older'] == 1
 
 
-def test_files_singled_out_by_mtime_fail_but_edited_ones_do_not(tmp_path):
+@pytest.mark.parametrize('gap', [301, 443, 3600])
+def test_files_singled_out_by_mtime_fail_but_edited_ones_do_not(tmp_path, gap):
     repo = repository(tmp_path)
     uniform(repo)
     for name in ('m3.py', 'm7.py'):
-        os.utime(repo / 'pkg' / name, (1_700_003_600, 1_700_003_600))
+        os.utime(repo / 'pkg' / name, (1_700_000_000 + gap, 1_700_000_000 + gap))
     report, checks = leaks(repo)
     mtimes = checks['repository-mtime-leak']
     assert report['status'] == mtimes['status'] == 'failed'
@@ -122,7 +123,7 @@ def test_files_singled_out_by_mtime_fail_but_edited_ones_do_not(tmp_path):
     # A build step that edits tracked files changes their content: excluded, not a leak.
     for name in ('m3.py', 'm7.py'):
         (repo / 'pkg' / name).write_text('configured\n')
-        os.utime(repo / 'pkg' / name, (1_700_003_600, 1_700_003_600))
+        os.utime(repo / 'pkg' / name, (1_700_000_000 + gap, 1_700_000_000 + gap))
     _, checks = leaks(repo)
     mtimes = checks['repository-mtime-leak']
     assert mtimes['status'] == 'passed'
@@ -261,6 +262,28 @@ def test_broken_git_with_verified_empty_objects_passes(tmp_path, readable):
     assert (repo / '.git/packed-refs').read_text() == 'not-a-sha refs/heads/main\n'
 
 
+def test_uv_empty_gitfile_is_not_an_unreadable_repository(tmp_path):
+    repo = tmp_path / 'sdists-v9'
+    repo.mkdir()
+    (repo / '.git').write_bytes(b'')
+    report, checks = leaks(repo)
+    assert report['status'] == 'passed', report
+    evidence = checks['repository-history-leak']['repositories'][str(repo)]
+    assert evidence['empty_object_store']['kind'] == 'empty-gitfile'
+    assert (repo / '.git').read_bytes() == b''
+    (repo / '.git').write_text('gitdir: /elsewhere\n')
+    assert leaks(repo)[0]['status'] == 'error'
+
+
+def test_symlink_to_empty_gitfile_is_still_unproven(tmp_path):
+    target = tmp_path / 'empty'
+    target.write_bytes(b'')
+    repo = tmp_path / 'cache'
+    repo.mkdir()
+    (repo / '.git').symlink_to(target)
+    assert leaks(repo)[0]['status'] == 'error'
+
+
 @pytest.mark.parametrize('path', ['objects/ab/bad', 'objects/pack/x.pack',
                                   'objects/info/alternates', 'objects/info/commit-graph',
                                   'commondir', 'index', 'shallow'])
@@ -370,3 +393,37 @@ def test_discovery_io_errors_remain_incomplete(tmp_path, monkeypatch):
     assert observation['status'] == 'error'
     assert all(c['status'] == 'error' for c in observation['checks'])
     assert 'input/output error' in observation['checks'][0]['reason']
+
+
+def test_packaged_submodule_gitfile_proves_absent_ancestor_without_removing_marker(tmp_path):
+    repo = tmp_path / 'site-packages/archspec/vendor/cpuid'
+    repo.mkdir(parents=True)
+    pointer = 'gitdir: ../../../.git/modules/archspec/vendor/cpuid\n'
+    (repo / '.git').write_text(pointer)
+    report, checks = leaks(repo)
+    assert report['status'] == 'passed', report
+    evidence = checks['repository-history-leak']['repositories'][str(repo)]
+    assert evidence['empty_object_store']['kind'] == 'dangling-submodule-gitfile'
+    assert (repo / '.git').read_text() == pointer
+    # Any ancestor metadata, even a dangling symlink, keeps the error.
+    target = tmp_path / 'site-packages/.git'
+    target.symlink_to(tmp_path / 'missing-store')
+    assert leaks(repo)[0]['status'] == 'error'
+    target.unlink()
+    target.mkdir()
+    assert leaks(repo)[0]['status'] == 'error'
+
+
+@pytest.mark.parametrize('pointer', [
+    'gitdir: ../../../.git/modules/../hidden\n',
+    'gitdir: ../../../.git/modules/cpuid\nextra\n',
+    'gitdir: /missing-store\n',
+    'gitdir: ../../../elsewhere/cpuid\n',
+    'gitdir: ../../../.git/modules/$(touch sentinel)\n',
+])
+def test_packaged_submodule_probe_rejects_ambiguous_targets(tmp_path, pointer):
+    repo = tmp_path / 'site-packages/archspec/vendor/cpuid'
+    repo.mkdir(parents=True)
+    (repo / '.git').write_text(pointer)
+    probe = asyncio.run(environment.inspect_empty_object_store(Local(repo), str(repo)))
+    assert probe['status'] == 'not_proven'

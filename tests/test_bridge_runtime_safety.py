@@ -146,6 +146,17 @@ def test_namespace_probe_result_is_enforced(patch, monkeypatch, tmp_path, return
     assert json.loads(status.read_text())['effective'] == ('unavailable' if returncode else 'network-none')
 
 
+def test_simulated_mode_supplies_neither_dns_nor_proxy(patch, monkeypatch):
+    monkeypatch.setenv('OT_NET_ISOLATION', '0')
+    monkeypatch.setenv('OT_NET_SIMULATED', '1')
+    monkeypatch.delenv('APPTAINER_BINDPATH', raising=False)
+    monkeypatch.delenv('APPTAINERENV_https_proxy', raising=False)
+    monkeypatch.setenv('https_proxy', 'http://proxy.example:8080')
+    patch.configure_explicit_host_network(force=True)
+    import os
+    assert 'APPTAINER_BINDPATH' not in os.environ and 'APPTAINERENV_https_proxy' not in os.environ
+
+
 def test_explicit_host_mode_supplies_dns_and_proxy(patch, monkeypatch):
     monkeypatch.setenv('OT_NET_ISOLATION', '0')
     monkeypatch.delenv('APPTAINER_BINDPATH', raising=False)

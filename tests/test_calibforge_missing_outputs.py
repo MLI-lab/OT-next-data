@@ -48,7 +48,7 @@ def test_present_output_runs_original_checks_and_does_not_pass_invalid_solution(
 
 
 def test_oom_archive_is_explicit_and_does_not_claim_unsolvability(patcher):
-    entry = patcher.DROPPED['multi_solver-software-engineering_20260414_211532_024']
+    entry = patcher.CHECK_EXCLUSIONS['multi_solver-software-engineering_20260414_211532_024']
     assert entry['category'] == 'verifier-task-memory-limit'
     assert "user's request" in entry['reason'] and 'not proof' in entry['reason']
 

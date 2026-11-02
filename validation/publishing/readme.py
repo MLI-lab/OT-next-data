@@ -2,6 +2,7 @@
 import argparse
 from collections import Counter
 import json
+import math
 from pathlib import Path
 
 from validation import run as results
@@ -83,6 +84,39 @@ def characteristics(annotation):
     return text.replace(' — ', ': ').replace(' – ', ', ')
 
 
+def task_resources(rows):
+    """What the tasks ask for: internet, CPUs and memory, as task counts."""
+    internet = {'true': 'allowed', 'false': 'not allowed', 'unspecified': 'not specified'}
+    result = [('Internet', internet.get(value, 'not recorded'), count)
+              for value, count in sorted(Counter(r.get('allow_internet') for r in rows).items(), key=str)]
+    result += [('CPUs', 'not specified' if value is None else value, count)
+               for value, count in sorted(Counter(r.get('cpus') for r in rows).items(), key=str)]
+    result += [('Memory', 'not specified' if value is None else f'{value / 1024:g} GiB', count)
+               for value, count in sorted(Counter(r.get('memory_mb') for r in rows).items(), key=str)]
+    return result
+
+
+def resource_use(rows):
+    """Measured use of passing reference runs, against the limits; empty when not recorded."""
+    def summary(name, values, shown):
+        values = sorted(values)
+        p95 = values[max(0, math.ceil(0.95 * len(values)) - 1)]
+        return (name, shown(sum(values) / len(values)), shown(p95), shown(values[-1]), len(values))
+    number = lambda key: [r[key] for r in rows if r.get('reference') == 'pass' and r.get(key) is not None]
+    memory, cpu = number('reference_memory_peak_mb'), number('reference_cpu_seconds')
+    shares = [r['reference_memory_peak_mb'] / r['reference_memory_limit_mb'] for r in rows
+              if r.get('reference') == 'pass' and r.get('reference_memory_peak_mb') is not None
+              and r.get('reference_memory_limit_mb')]
+    result = []
+    if memory:
+        result.append(summary('Peak memory', memory, lambda v: f'{v / 1024:.2f} GiB'))
+    if cpu:
+        result.append(summary('CPU time', cpu, lambda v: f'{v:.0f} s'))
+    if shares:
+        result.append(summary('Peak memory / limit', shares, lambda v: f'{v:.0%}'))
+    return result
+
+
 def render(rows, metadata, view, dataset, annotation=None, evaluation_key=None, student_key=None):
     if view not in ('v1', 'v2', 'v3'):
         raise ValueError('Unknown release view')
@@ -98,12 +132,6 @@ def render(rows, metadata, view, dataset, annotation=None, evaluation_key=None, 
                  ('Flagged tasks', len(failed)), ('Unresolved tasks', len(pending)),
                  ('Original images', metadata.get('original_image_count')),
                  ('Current shared images', metadata.get('current_image_count'))]
-        network = Counter(r.get('allow_internet') for r in kept)
-        stats += [('Kept tasks with allow_internet=true', network['true']),
-                  ('Kept tasks with allow_internet=false', network['false']),
-                  ('Kept tasks with allow_internet unspecified', network['unspecified']),
-                  ('Kept tasks with internet setting not recorded',
-                   len(kept) - sum(network[value] for value in ('true', 'false', 'unspecified')))]
     else:
         evaluations = metadata.get('evaluations', {})
         if evaluation_key not in evaluations:
@@ -149,7 +177,12 @@ def render(rows, metadata, view, dataset, annotation=None, evaluation_key=None, 
                      [(key, json.dumps(value) if isinstance(value, (dict, list)) else value)
                       for key, value in config.items() if key not in ('model', 'k', 'network')]) ,
                      '## Results\n\n' + distribution + '\n\nTasks with at least one recorded success are kept. Incomplete attempts stay outside the fixed-k distribution.']
-    sections += ['## Timing and resources\n\n' + table(['Measurement', 'Value'], [
+    sections.append('## Resources\n\n' + table(['Resource', 'Per task', 'Tasks'], task_resources(selected)))
+    used = resource_use(selected)
+    if used:
+        sections.append('Measured in the reference run, including task setup:\n\n'
+                        + table(['Resource use', 'Mean', 'p95', 'Max', 'Tasks'], used))
+    sections += ['## Timing\n\n' + table(['Measurement', 'Value'], [
         ('Overall wall time (seconds)', metadata.get('wall_seconds')),
         ('Image preparation/build time (seconds)', metadata.get('image_build_seconds')),
         ('Cluster', metadata.get('resources', {}).get('cluster')),

@@ -20,17 +20,28 @@ import tarfile
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from harbor_patches.verifier_bundle import OFFLINE_FORMAT, OFFLINE_REQUEST_KEYS, OFFLINE_ROOTS, cache_root, digest, offline_setup_command, spec_id, validate_offline_archive, verify
+from harbor_patches.verifier_bundle import OFFLINE_FORMAT, OFFLINE_REQUEST_KEYS, OFFLINE_ROOTS, cache_root, digest, offline_setup_command, spec_id, validate_offline_archive, validate_http_archive, verify
 
 BUILD = r'''set -eu
 O=/ot-out; W=/ot-work
 export HOME=$W/home TMPDIR=$W/tmp PIP_CACHE_DIR=$W/pip-cache PIP_DISABLE_PIP_VERSION_CHECK=1 UV_CACHE_DIR=$W/uv-cache
 mkdir -p $O/repo $O/wheels $HOME $TMPDIR $W/lists/partial $W/archives/partial $W/cache
 : > $O/repo/Packages
+source_debs=
+if [ -f $W/apt-source-packages.tsv ]; then
+  while IFS='	' read -r filename package version; do
+    [ -n "$filename" ] || continue
+    path=$O/sources/$filename
+    [ "$(dpkg-deb -f "$path" Package)" = "$package" ]
+    [ "$(dpkg-deb -f "$path" Version)" = "$version" ]
+    source_debs="$source_debs $path"
+    cp "$path" "$O/repo/$filename"
+  done < $W/apt-source-packages.tsv
+fi
 if [ -n "${OT_APT:-}" ]; then
   A="-o Debug::NoLocking=1 -o APT::Sandbox::User=$(id -un) -o Dir::State::Lists=$W/lists -o Dir::Cache=$W/cache -o Dir::Cache::Archives=$W/archives -o Acquire::Languages=none"
   apt-get $A update
-  apt-get $A install -y --download-only $OT_APT
+  apt-get $A install -y --download-only $source_debs $OT_APT
   for f in $W/archives/*.deb; do [ -e "$f" ] || continue; cp "$f" $O/repo/; done
   ( cd $O/repo; for f in *.deb; do [ -e "$f" ] || continue
       dpkg-deb -f "$f"; printf 'Filename: ./%s\nSize: %s\nSHA256: %s\n\n' "$f" "$(stat -c %s "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"
@@ -42,13 +53,25 @@ i=0
 while IFS='	' read -r tool no_deps reqs; do
   [ -n "$tool" ] || continue
   i=$((i+1))
-  N=; if [ "$no_deps" = 1 ]; then N=--no-deps; fi
-  if [ "$tool" = uv ]; then
-    UV_PYTHON_PREFERENCE=only-system /ot-uv/uv venv --seed -p python3 $W/venv$i
-    $W/venv$i/bin/python -m pip wheel --wheel-dir $O/wheels $N $reqs
-  else
-    $tool wheel --wheel-dir $O/wheels $N $reqs
+  if [ -f $W/python-apt-prerequisites.txt ]; then
+    prerequisites=$(sed -n "${i}p" $W/python-apt-prerequisites.txt)
+    if [ -n "$prerequisites" ]; then
+      extract_apt_prerequisites $O/repo $A
+    fi
   fi
+  N=; if [ "$no_deps" = 1 ]; then N=--no-deps; fi
+  printf '%s\n' "$reqs" | tr '\t' '\n' > $W/requirements$i.txt
+  (
+  if [ -f $W/python-options$i.sh ]; then . $W/python-options$i.sh; fi
+  if [ "$tool" = uv ] || [ "${tool#uv@}" != "$tool" ]; then
+    selected_python=python3
+    if [ "$tool" != uv ]; then selected_python=${tool#uv@}; fi
+    UV_PYTHON_PREFERENCE=only-system /ot-uv/uv venv --seed -p "$selected_python" $W/venv$i
+    $W/venv$i/bin/python -m pip wheel --wheel-dir $O/wheels $N -r $W/requirements$i.txt
+  else
+    $tool wheel --wheel-dir $O/wheels $N -r $W/requirements$i.txt
+  fi
+  )
 done < $W/python-requests.tsv
 # R source packages and their Depends/Imports/LinkingTo closure, resolved by the image's R.
 if [ -n "${OT_CRAN_PACKAGES:-}" ]; then
@@ -59,10 +82,11 @@ fi
 if [ -d $W/http-commands ]; then
   real=$(command -v curl) || { echo 'curl is required to record downloads' >&2; exit 1; }
   mkdir -p $O/http/bin $O/http/responses
-  cp /ot-replay/http_replay.sh $O/http/bin/curl && chmod 755 $O/http/bin/curl
+  cp /ot-replay/http_replay.sh $O/http/bin/curl
+  chmod 755 $O/http/bin/curl
   for c in $W/http-commands/*.sh; do
     ( cd "$OT_HTTP_WORKDIR" && HOME=$OT_HTTP_HOME OT_HTTP_RECORD_DIR=$O/http/responses OT_HTTP_REAL_CURL=$real \
-        PATH=$O/http/bin:$PATH /bin/sh -c "$(cat "$c")" )
+        PATH=$O/http/bin:$PATH /bin/bash -o pipefail -c "$(cat "$c")" )
   done
 fi
 '''
@@ -112,13 +136,25 @@ i=0
 while IFS='	' read -r tool no_deps reqs; do
   [ -n "$tool" ] || continue
   i=$((i+1))
-  N=; if [ "$no_deps" = 1 ]; then N=--no-deps; fi
-  if [ "$tool" = uv ]; then
-    UV_OFFLINE=1 UV_NO_INDEX=1 UV_FIND_LINKS=$T/wheels UV_PYTHON_PREFERENCE=only-system $T/bin/uv venv -p python3 $W/check$i
-    VIRTUAL_ENV=$W/check$i UV_OFFLINE=1 UV_NO_INDEX=1 UV_FIND_LINKS=$T/wheels $T/bin/uv pip install --dry-run $N $reqs
-  else
-    PIP_NO_INDEX=1 PIP_FIND_LINKS=$T/wheels $tool download --dest $W/check$i $N $reqs
+  if [ -f $W/python-apt-prerequisites.txt ]; then
+    prerequisites=$(sed -n "${{i}}p" $W/python-apt-prerequisites.txt)
+    if [ -n "$prerequisites" ]; then
+      APT_CONFIG=$T/apt.conf extract_apt_prerequisites $T/repo -o Debug::NoLocking=1
+    fi
   fi
+  N=; if [ "$no_deps" = 1 ]; then N=--no-deps; fi
+  printf '%s\n' "$reqs" | tr '\t' '\n' > $W/requirements$i.txt
+  (
+  if [ -f $W/python-check-options$i.sh ]; then . $W/python-check-options$i.sh; fi
+  if [ "$tool" = uv ] || [ "${{tool#uv@}}" != "$tool" ]; then
+    selected_python=python3
+    if [ "$tool" != uv ]; then selected_python=${{tool#uv@}}; fi
+    UV_OFFLINE=1 UV_NO_INDEX=1 UV_FIND_LINKS=$T/wheels UV_PYTHON_PREFERENCE=only-system $T/bin/uv venv -p "$selected_python" $W/check$i
+    VIRTUAL_ENV=$W/check$i UV_OFFLINE=1 UV_NO_INDEX=1 UV_FIND_LINKS=$T/wheels $T/bin/uv pip install --dry-run $N -r $W/requirements$i.txt
+  else
+    PIP_NO_INDEX=1 PIP_FIND_LINKS=$T/wheels $tool download --no-index --find-links "$T/wheels" --dest $W/check$i $N -r $W/requirements$i.txt
+  fi
+  )
 done < $W/python-requests.tsv
 if [ -n "${{OT_CRAN_PACKAGES:-}}" ]; then
   OT_CRAN_LOCAL=$T/cran Rscript $W/cran-check.R
@@ -126,10 +162,29 @@ fi
 # Replay only: unrecorded URLs fail like an unreachable network.
 if [ -d $W/http-commands ]; then
   for c in $W/http-commands/*.sh; do
-    ( cd "$OT_HTTP_WORKDIR" && HOME=$OT_HTTP_HOME PATH=$T/http/bin:$PATH /bin/sh -c "$(cat "$c")" )
+    ( cd "$OT_HTTP_WORKDIR" && HOME=$OT_HTTP_HOME PATH=$T/http/bin:$PATH /bin/bash -o pipefail -c "$(cat "$c")" )
   done
 fi
 '''
+
+
+
+APT_WHEEL_PREREQUISITES = r"""extract_apt_prerequisites() {
+  archive_root=$1; shift
+  mkdir -p $W/selection$i/partial
+  apt-get "$@" -o Dir::Cache::Archives=$W/selection$i --print-uris -y install $prerequisites > $W/selection$i/uris
+  sed -n "s/^'[^']*' \\([^ ]*\\) .*/\\1/p" $W/selection$i/uris > $W/selection$i/archives
+  while IFS= read -r archive; do
+    case "$archive" in */*|''|*[!a-zA-Z0-9.+%_~:-]*) echo 'Unsafe apt archive filename' >&2; exit 1;; esac
+    test -f "$archive_root/$archive"
+    dpkg-deb --fsys-tarfile "$archive_root/$archive" | tar -x --no-same-owner --keep-directory-symlink --no-overwrite-dir -C /
+  done < $W/selection$i/archives
+}
+"""
+# Build tools need package files, not daemons or other maintainer-script state.
+# Actual task setup still runs apt at its original installation points.
+BUILD = APT_WHEEL_PREREQUISITES + BUILD
+CHECK = APT_WHEEL_PREREQUISITES.replace('{', '{{').replace('}', '}}') + CHECK
 
 
 def sif_for(key, inventory, scratch, slot=0):
@@ -159,6 +214,10 @@ def sif_for(key, inventory, scratch, slot=0):
 
 def _apptainer(sif, binds, env, script, timeout, writable_tmpfs=False):
     command = ['apptainer', 'exec', '--contain', '--cleanenv', '--no-home']
+    if env.get('OT_INSTALL_APT_PREREQUISITES') == '1':
+        # Installing build-essential may replace libfakeroot itself. Do not
+        # bind the host's interposer over the file dpkg needs to replace.
+        command += ['--fakeroot', '--ignore-fakeroot-command']
     if writable_tmpfs:
         command.append('--writable-tmpfs')
     if Path(sif).is_dir():
@@ -169,7 +228,8 @@ def _apptainer(sif, binds, env, script, timeout, writable_tmpfs=False):
         command += ['--bind', f'{source}:{target}:{mode}']
     for name, value in env.items():
         command += ['--env', f'{name}={value}']
-    command += [str(sif), 'sh', '-c', script]
+    command.append(str(sif))
+    command += ['sh', '-c', script]
     return subprocess.run(command, capture_output=True, text=True, timeout=timeout)
 
 
@@ -201,15 +261,82 @@ def apptainer(sif, binds, env, script, timeout, writable_tmpfs=False):
                     raise ValueError('Offline preparation source overlay changed')
 
 
-def python_requests(spec):
+def python_apt_prerequisites(spec):
+    """Keep dependency installation prerequisites bound to each wheel recipe."""
+    lines = []
+    for request in spec['python']:
+        packages = request.get('apt_prerequisites', [])
+        if (not isinstance(packages, list) or any(
+                not isinstance(p, str) or not re.fullmatch(r'[a-z0-9][a-z0-9.+:~=_-]*', p)
+                or p not in spec['apt'] for p in packages)):
+            raise ValueError('Python apt prerequisites must be literal packages in the cached apt recipe')
+        lines.append(' '.join(packages) + '\n')
+    return ''.join(lines)
+
+
+def python_requests(spec, *, source_wheels=None):
     lines = []
     for request in spec['python']:
         no_deps = request.get('no_deps', False)
         if not isinstance(no_deps, bool):
             raise ValueError('Offline python no_deps must be boolean')
-        lines.append(request['tool'] + '\t' + str(int(no_deps)) + '\t'
-                     + ' '.join(shlex.quote(q) for q in request['requirements']) + '\n')
+        tool=request['tool']
+        if 'python' in request:
+            interpreter=request['python']
+            if (tool!='uv' or not isinstance(interpreter,str)
+                    or not re.fullmatch(r'/[A-Za-z0-9_./-]+/python3?(?:\.\d+)?',interpreter)
+                    or '..' in interpreter.split('/')):
+                raise ValueError('Offline wheel Python must be an explicit pristine-image interpreter')
+            tool='uv@'+interpreter
+        requirements=request['requirements']
+        if any(not isinstance(q,str) or not q.strip() or any(c in q for c in '\t\r\n')
+               or q.lstrip().startswith('-') for q in requirements):
+            raise ValueError('Offline requirements must be individual requirement lines')
+        if source_wheels:
+            requirements = [('/ot-check/wheels/' + source_wheels[q]) if q in source_wheels else q
+                            for q in requirements]
+        if 'index_url' in request:
+            index = request['index_url']
+            if not isinstance(index, str) or not re.fullmatch(
+                    r'https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._~%+-]*)*', index):
+                raise ValueError('Offline package index must be a literal credential-free HTTPS URL')
+            # pip requirement-file directives preserve the original index for
+            # wheel preparation. CHECK's --no-index still forces local replay.
+            requirements = ['--index-url ' + index, *requirements]
+        lines.append(tool + '\t' + str(int(no_deps)) + '\t'
+                     + '\t'.join(requirements) + '\n')
     return ''.join(lines)
+
+
+def record_source_wheels(spec, output):
+    """Bind direct source requirements to the wheels actually built from them.
+
+    A direct URL bypasses pip's --no-index flag. Offline replay must name the
+    prepared wheel itself, not retry that URL or pick a same-named PyPI package.
+    """
+    direct = [text for request in spec['python'] if request.get('cache_source_wheels') is True
+              for text in request['requirements'] if ' @ ' in text]
+    if not direct:
+        return {}
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name, parse_wheel_filename
+    wheels = {}
+    for path in (output / 'wheels').glob('*.whl'):
+        name = canonicalize_name(parse_wheel_filename(path.name)[0])
+        wheels.setdefault(name, []).append(path.name)
+    mapping = {}
+    for text in direct:
+        requirement = Requirement(text)
+        if not requirement.url:
+            continue
+        matches = wheels.get(canonicalize_name(requirement.name), [])
+        if len(matches) != 1:
+            raise ValueError('Direct source requirement has no unique prepared wheel: ' + text)
+        mapping[text] = matches[0]
+    if mapping:
+        (output / 'sources').mkdir(exist_ok=True)
+        (output / 'sources' / 'ot-pip-source-wheels.json').write_text(json.dumps(mapping, sort_keys=True)+'\n')
+    return mapping
 
 
 def proxy_env():
@@ -265,7 +392,8 @@ def build(spec, sif, cache, uv, timeout=1800):
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text())
         if manifest.get('status') == 'ready':
-            verify({**manifest, 'spec': spec}, cache, OFFLINE_FORMAT)
+            archive = verify({**manifest, 'spec': spec}, cache, OFFLINE_FORMAT)
+            validate_http_archive(spec, archive)
             return manifest
     validate_source(spec, sif)
     with tempfile.TemporaryDirectory(prefix='verifier-offline-', dir=os.environ.get('TMPDIR')) as tmp:
@@ -274,23 +402,41 @@ def build(spec, sif, cache, uv, timeout=1800):
         for d in (out, work, check):
             d.mkdir()
         from hpc.offline_prep.offline_sources import prepare as prepare_sources, verify_staged
+        from hpc.offline_prep.apt_source_packages import requests as apt_source_requests
+        (work / 'apt-source-packages.tsv').write_text(apt_source_requests(spec))
         sources = prepare_sources(spec.get('sources', []), out)
+        if spec.get('git_sources'):
+            from hpc.offline_prep.git_sources import prepare as prepare_git_sources
+            sources.extend(prepare_git_sources(spec['git_sources'], out))
         (work / 'python-requests.tsv').write_text(python_requests(spec))
+        from hpc.offline_prep.python_request_options import write_options
+        write_options(spec, work)
+        prerequisites = python_apt_prerequisites(spec)
+        (work / 'python-apt-prerequisites.txt').write_text(prerequisites)
+        install_prerequisites = bool(prerequisites.strip())
         uv_dir = Path(uv).resolve().parent
         binds = [(out, '/ot-out', 'rw'), (work, '/ot-work', 'rw'), (uv_dir, '/ot-uv', 'ro')]
         wheel_binds, wheel_env, wheel_records = wheelhouse_inputs()
         binds.extend(wheel_binds)
         env = {**proxy_env(), **wheel_env, 'OT_APT': ' '.join(spec['apt'])}
+        if install_prerequisites:
+            env['OT_INSTALL_APT_PREREQUISITES'] = '1'
         extra_env = download_inputs(spec, work)
         env.update(extra_env)
         if spec.get('http'):
+            if not REPLAY.is_file():
+                raise ValueError('HTTP replay helper is missing from the preparation snapshot')
             binds.append((REPLAY.parent, '/ot-replay', 'ro'))
         result = apptainer(sif, binds + scratch_binds(spec, tmp / 'record'), env, BUILD, timeout,
-                           writable_tmpfs=bool(spec.get('http')))
+                           writable_tmpfs=bool(spec.get('http')) or install_prerequisites)
         log = result.stdout[-4000:] + '\n' + result.stderr[-4000:]
         if result.returncode:
             return {'format': OFFLINE_FORMAT, 'id': key, 'spec': spec, 'status': 'failed',
-                    'error': 'package download failed: ' + result.stderr[-1500:]}
+                    'error': 'package download failed: ' + log}
+        source_wheels = record_source_wheels(spec, out)
+        # Only the replay request changes; the identity-bearing recipe retains
+        # every original source URL/commit, and the archive records its wheel.
+        (work / 'python-requests.tsv').write_text(python_requests(spec, source_wheels=source_wheels))
         if spec.get('uv'):
             (out / 'bin').mkdir()
             shutil.copy2(uv, out / 'bin/uv')
@@ -300,14 +446,17 @@ def build(spec, sif, cache, uv, timeout=1800):
                 if (out / root).exists():
                     t.add(out / root, arcname=root)
         validate_offline_archive(staged)
+        validate_http_archive(spec, staged)
         # Offline resolution check: stage exactly as validation does, without proxies.
         subprocess.run(['tar', '--no-same-owner', '-xzf', str(staged), '-C', str(check)], check=True)
         verify_staged(sources, check)
         setup = offline_setup_command('/ot-check')
         checked = apptainer(sif, [(check, '/ot-check', 'rw'), (work, '/ot-work', 'rw')]
                             + scratch_binds(spec, tmp / 'replay'),
-                            {'OT_APT': ' '.join(spec['apt']), **extra_env}, CHECK.format(setup=setup), timeout,
-                            writable_tmpfs=bool(spec.get('http')))
+                            {'OT_APT': ' '.join(spec['apt']), **extra_env,
+                             **({'OT_INSTALL_APT_PREREQUISITES': '1'} if install_prerequisites else {})},
+                            CHECK.format(setup=setup), timeout,
+                            writable_tmpfs=bool(spec.get('http')) or install_prerequisites)
         if checked.returncode:
             return {'format': OFFLINE_FORMAT, 'id': key, 'spec': spec, 'status': 'failed',
                     'error': 'offline resolution check failed: ' + checked.stderr[-1500:]}
@@ -330,7 +479,9 @@ def build(spec, sif, cache, uv, timeout=1800):
                     'wheels': sorted(p.name for p in (out / 'wheels').glob('*.whl')),
                     **download_provenance(out),
                     'source_inputs': sources,
+                    **({'source_wheels': source_wheels} if source_wheels else {}),
                     **({'wheelhouse_inputs': wheel_records} if wheel_records else {}),
+                    **({'apt_prerequisite_preparation': 'unpacked prerequisite package files in a disposable image layer for wheel building; no maintainer scripts or task initialization'} if install_prerequisites else {}),
                     'build_log_tail': log[-2000:]}
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
         return manifest

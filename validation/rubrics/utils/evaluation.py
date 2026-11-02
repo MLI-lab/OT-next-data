@@ -19,10 +19,10 @@ CONFIGS = [
     ('custom-severity', 'custom_severity', None, 'None/minor/major per criterion'),
 ]
 JUDGES = [
-    {'id': 'gpt-5.4', 'agent': 'terminus-2', 'model': 'openai/gpt-5.4', 'needs_endpoint': True},
+    {'id': 'gpt-5.4', 'agent': 'codex', 'model': 'gpt-5.4'},
     {'id': 'sonnet-5.5', 'agent': 'claude-code', 'model': 'claude-sonnet-5-5'},
-    {'id': 'deepseek-flash', 'agent': 'terminus-2', 'model': 'openai/deepseek-flash', 'needs_endpoint': True},
     {'id': 'glm-flash', 'agent': 'terminus-2', 'model': 'hosted_vllm/zai-org/GLM-5.3-Flash', 'needs_endpoint': True},
+    {'id': 'glm-5.3', 'agent': 'terminus-2', 'model': 'hosted_vllm/zai-org/GLM-5.3', 'needs_endpoint': True},
     {'id': 'qwen', 'agent': 'terminus-2', 'model': 'hosted_vllm/Qwen/Qwen3.8-27B', 'needs_endpoint': True},
 ]
 
@@ -67,20 +67,32 @@ def freeze(selection, output, evidence_mode="image"):
     return plan
 
 
-def prediction(item, threshold='minor'):
-    """Only complete reviews count. Skipped criteria carry no decision."""
+def demonstrated(check):
+    """An anti-cheat failure counts strictly only with the reward the judge reports observing."""
+    reward = check.get('verifier_reward')
+    return isinstance(reward, (int, float)) and not isinstance(reward, bool) and reward > 0
+
+
+def prediction(item, threshold='minor', strict_exploits=False):
+    """Only complete reviews count. Not-applicable criteria pass.
+
+    strict_exploits counts an undemonstrated anti_cheat_robustness failure as a pass, for the
+    strict variant of custom-criteria. The judge's reward is self-reported, not re-verified.
+    """
     if item.get('status') not in ('passed', 'findings'):
         return None
     verdicts = item.get('verdicts', [])
     if len(verdicts) != 1:
         return None
     skipped = item.get('automatic_skips', {})
-    checks = [v for k, v in verdicts[0].get('checks', {}).items() if k not in skipped]
+    checks = [{**v, 'outcome': 'pass'} if strict_exploits and k == 'anti_cheat_robustness'
+              and v.get('outcome') == 'fail' and not demonstrated(v) else v
+              for k, v in verdicts[0].get('checks', {}).items() if k not in skipped]
     if not checks or any(v.get('outcome') not in ('pass', 'fail', 'skip', 'skipped', 'not_applicable') for v in checks):
         return None
     assessed = [v for v in checks if v.get('outcome') in ('pass', 'fail')]
     if not assessed:
-        return None
+        return 0  # Every criterion is not applicable, so nothing is wrong with the task.
     if threshold == 'major' and 'results' in verdicts[0]:
         return int(any(v.get('severity') == 'major' for v in verdicts[0]['results'].values()))
     return int(any(v.get('outcome') == 'fail' for v in assessed))
@@ -144,7 +156,7 @@ def report(folder):
         return '<pre>' + esc(json.dumps(value, indent=2, ensure_ascii=False)) + '</pre>'
     body = ['<!doctype html><meta charset="utf-8"><title>Judge ablation</title>',
             '<style>body{font:16px system-ui;margin:2em}td,th{padding:.5em;text-align:left;border-bottom:1px solid #ddd}table{border-collapse:collapse}pre{white-space:pre-wrap;overflow-wrap:anywhere}summary{cursor:pointer}details{margin:.5em}</style>',
-            '<h1>Judge filtering evaluation: 80 tasks</h1><p>30 combinations, 2,400 planned reviews. Gold: 0 clean, 1 defective. Minor or major counts as defective. Unresolved reviews are not classified as clean. Cost excludes container/GPU compute and is not subscription billing.</p>',
+            f'<h1>Judge filtering evaluation: 80 tasks</h1><p>{len(plan['cells'])} combinations, {len(plan['cells'])*len(plan['tasks']):,} planned reviews. Gold: 0 clean, 1 defective. Minor or major counts as defective. Unresolved reviews are not classified as clean. Cost excludes container/GPU compute and is not subscription billing.</p>',
             '<table><tr><th>Judge</th><th>Configuration</th><th>Correct / planned</th><th>Accuracy (completed)</th><th>False accepts / rejects</th><th>Unresolved</th><th>USD</th><th>Details</th></tr>']
     for row, detail in zip(rows, all_details):
         acc = f"{row['accuracy_completed']:.1%} ({row['completed']}/80)" if row['completed'] else 'Pending'

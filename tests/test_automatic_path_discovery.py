@@ -174,3 +174,35 @@ def test_pipeline_collects_build_report_before_path_normalization(tmp_path, monk
     monkeypatch.setattr(normalize_paths, 'prepare', normalize)
     assert run.run_selected(args, [1, 2, 3, 4]) == 0
     assert seen == [1, 2, 3, 'retries', 'paths', 4]
+
+
+def test_discovery_swaps_image_batches_without_changing_result_order(tmp_path, monkeypatch):
+    tasks = [make_task(tmp_path / str(i)).rename(tmp_path / str(i) / 'input' / str(i)) for i in range(5)]
+    tasks = [Path(t) for t in tasks]
+    args = parser().parse_args([str(tasks[0].parent)])
+    args.resolve_path_root = ['auto']
+    log, swaps = [], []
+    args._image_batch = lambda batch: swaps.append([t.name for t in batch]) or log.append('swap')
+    async def build(task, out, args):
+        log.append(task.name)
+        return {'status': 'passed', 'environments': []}
+    monkeypatch.setattr('validation.stages.harbor.build_task', build)
+    monkeypatch.setattr('hpc.local_assets.IMAGE_BATCH', 2)
+    monkeypatch.setattr('validation.upstream.checkout', lambda _: tmp_path)
+    items = normalize_paths.discover(tasks, tmp_path / 'out', args)
+    assert swaps == [['2', '3'], ['4']]
+    assert log.index('swap') == 2 and log[5] == 'swap'
+    assert [item['task'] for item in items] == [str(t) for t in tasks]
+
+
+def test_replace_images_keeps_only_next_batch(tmp_path, monkeypatch):
+    from hpc import local_assets
+    target = tmp_path / 'images'; target.mkdir()
+    for name in ('a.sif', 'a.overlay.img', 'a.deferred.json', 'preparation.json', 'x.build.log'):
+        (target / name).write_text('x')
+    calls = []
+    monkeypatch.setattr(local_assets, 'stage_images', lambda *a: calls.append('stage'))
+    monkeypatch.setattr('hpc.offline_prep.image_cache.prepare_images', lambda *a: calls.append('prepare') or [])
+    local_assets.replace_images([], tmp_path / 'shared', target, None)
+    assert calls == ['stage', 'prepare']
+    assert sorted(p.name for p in target.iterdir()) == ['preparation.json', 'x.build.log']

@@ -46,6 +46,14 @@ def test_listings_are_shuffled_only_when_requested(tmp_path):
     assert shuffled[1:4] == ['True', 'True', 'True'] and shuffled[4] == '30'
 
 
+def test_shuffled_listings_stay_unbound_as_class_attributes(tmp_path):
+    # Python 3.10's pathlib keeps both as class attributes of its accessor.
+    (tmp_path / 'f').write_text('')
+    code = ('import os\nclass Accessor:\n    listdir = os.listdir\n    scandir = os.scandir\n'
+            'print(Accessor().listdir("."), [e.name for e in Accessor().scandir(".")])')
+    assert python(code, tmp_path, shuffle=True).split() == ["['f']", "['f']"]
+
+
 def test_shuffling_leaves_the_task_random_state_and_scandir_context_intact(tmp_path):
     (tmp_path / 'a').write_text('')
     code = ('import random, os; random.seed(1); os.listdir("."); x = random.random()\n'

@@ -21,7 +21,7 @@ def validate(sources):
             raise ValueError('Offline source requires URL, filename and checksum')
         url = urlsplit(source['url'])
         if (url.scheme != 'https' or not url.hostname or url.username or url.password or url.fragment
-                or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+-]*', source['filename'])
+                or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.+-]*', source['filename'])
                 or not re.fullmatch(r'[0-9a-f]{64}', source['sha256'])
                 or source['filename'] in names):
             raise ValueError('Invalid or duplicate pinned offline source')

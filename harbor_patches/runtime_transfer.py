@@ -14,6 +14,7 @@ def identity(ref, target):
                for k in ('id', 'archive_sha256')):
         raise ValueError('Invalid runtime transfer identity')
     if not (re.fullmatch(r'/(?:tests/\.ot-verifier|setup_files/\.ot-task)-(?:runtime|offline)-[A-Za-z0-9]+/(?:runtime|packages)\.tar\.gz', target)
+            or re.fullmatch(r'/tmp/\.ot-task-offline-[A-Za-z0-9]+/packages\.tar\.gz', target)
             or re.fullmatch(r'/tests/\.ot-verifier-toolchain-[A-Za-z0-9]+/toolchain\.tar\.gz', target)):
         raise ValueError('Runtime transfer requires a private staging archive')
 

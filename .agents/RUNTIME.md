@@ -22,6 +22,11 @@ still applies, and the launcher prints a waiting message every minute. A living
 but stuck service can wait until the allocation ends when the cutoff is disabled. Task execution
 begins only after readiness. The configured startup limit and successful
 readiness wait duration are recorded under `execution.json`'s `serving` field.
+
+The limit runs before any task or judge time, so it never reduces a review. It is
+too short for the large GLM models, so set `OT_MODEL_STARTUP_TIMEOUT=3600` for
+them. GLM-5.3 (756 GB, two nodes) needs this: job 1195570 ran out at 600 seconds
+on 2026-11-01. GLM-5.3-Flash also ran out once during warmup and came up on retry.
 Existing frozen submissions retain their captured launcher and configuration.
 
 Model startup permits three retries after the initial attempt by default
@@ -214,6 +219,26 @@ Harbor's verifier names none: every verifier that needed more than ten minutes w
 `validation/stages/harbor.py` therefore sends such commands with a limit of a week, so that the
 limits that count are Harbor's own: the task's `agent.timeout_sec` and `verifier.timeout_sec`,
 which Harbor enforces around the whole agent run and the whole verifier run.
+
+### Running offline on Helma
+
+Helma cannot enforce isolation: `max_net_namespaces=0`, so `--network-mode isolated`
+only falls back to host with a warning (and `declared-network-egress` then fails).
+Since 2026-11-01 CLAIX `c23ms` and `c25ms` are the same; LRZ nodes still have
+namespaces. Check `/proc/sys/user/max_net_namespaces` on a compute node first.
+
+What works on Helma today is a simulation outside the pipeline, not isolation:
+unset all proxy variables and start the container with `--cleanenv --containall
+--no-mount hostfs,bind-paths,cwd,hosts`, without binding `/etc/resolv.conf`. Names
+then fail to resolve and pypi.org, github.com and 1.1.1.1 are unreachable, but an
+IPv6 literal may still get out, so call it simulated. Always run a probe in the
+same container and keep its output. Example with no-op 0 / reference 1 on real
+BugsInPy tasks: `/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-offline10-20261030/rerun19.py`.
+
+Seccomp is a candidate, not yet in the pipeline: a profile returning EPERM for
+every `socket` family except `AF_UNIX` passed a Helma container probe (job 1194841,
+`seccomp_probe.py`), but no task has run with it. It also blocks localhost TCP, so
+tasks with local test servers can fail because of the filter.
 
 ### Dependency archives
 

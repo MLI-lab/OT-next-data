@@ -1,0 +1,181 @@
+[
+  {
+    "task": "contrastive_solver-model-training_20260604_003113_004",
+    "image_sha256": "61bbbb5208ad8a14ff78a8f30f8248571ce796483a7829d0a6fd61f903b91099",
+    "source_sha256": "3621b3d1fffd97f128273c3d57348c0648ce974dce669f4dad6b9ae1106d2e0a",
+    "instruction_sha256": "6bf63790fd225e0795545fcbcdb39dfc6b7da3c3cbd464e02598fbf83a5e04e6",
+    "command": "apt-get update -qq && apt-get install -y -qq libgomp1 2>/dev/null || true",
+    "executables": {},
+    "debian": {
+      "sources": [
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-14/libgomp1_14.2.0-4ubuntu2%7e24.04.1_amd64.deb",
+          "sha256": "e8a95ec58125b4933597f30ff56c2ae10edf90f287262e366d4b6edea3019144",
+          "filename": "package-0.deb"
+        }
+      ],
+      "libraries": [
+        "/usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0",
+        "/usr/lib/x86_64-linux-gnu/libgomp.so.1"
+      ]
+    },
+    "provenance": "Pristine source image apt dependency resolution job5890590; exact downloaded bytes"
+  },
+  {
+    "task": "contrastive_solver-system-administration_20260615_143301_001",
+    "image_sha256": "f9bd7475220d5526353ef265353308450a7bdd54589cbba6dea167167998caf5",
+    "source_sha256": "732c61ff1e5202705e703408a9d3d2d2431570b8fd92744b207cd2b6f85d504e",
+    "instruction_sha256": "5e4f38b7a2f986c3c66f4fdc36a924442cf156f792afc60e613347585c4508af",
+    "command": "if ! command -v dig >/dev/null 2>&1; then\n    apt-get update -qq && apt-get install -y -qq dnsutils >/dev/null 2>&1 || true\nfi",
+    "executables": {
+      "dig": "/usr/bin/dig"
+    },
+    "debian": {
+      "sources": [
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/b/bind9/bind9-dnsutils_9.18.39-0ubuntu0.24.04.8_amd64.deb",
+          "sha256": "74802756c2dd1e0206fe85af0b07ca491e2ae420c35b435328855aa87bb08486",
+          "filename": "package-0.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/b/bind9/bind9-host_9.18.39-0ubuntu0.24.04.8_amd64.deb",
+          "sha256": "8d7038604df3a435523e57355ad7c5a5cd328a4a2a5ddbaca546552bc62651c9",
+          "filename": "package-1.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/b/bind9/bind9-libs_9.18.39-0ubuntu0.24.04.8_amd64.deb",
+          "sha256": "afc516f760866029713b5fe97b8a725ea83b68cba4ae4f0e3773906ce50278af",
+          "filename": "package-2.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/b/bind9/dnsutils_9.18.39-0ubuntu0.24.04.8_all.deb",
+          "sha256": "ef4f1b4b6b5bccf3a8a921f320d173e52e15ab3eea09bbbdc3cb33036eb1a496",
+          "filename": "package-3.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libb/libbsd/libbsd0_0.12.1-1build1.1_amd64.deb",
+          "sha256": "f3857b0863ac5cfd4263e9bf6cfb1d4be88d5321e4070d5bc2b62b0949e6c86f",
+          "filename": "package-4.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libe/libedit/libedit2_3.1-20230828-1build1_amd64.deb",
+          "sha256": "3afbc8ddf835049dd4d88275b9d13680e4c4cdd59e191cbd63424152cc08e00e",
+          "filename": "package-5.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/i/icu/libicu74_74.2-1ubuntu3.1_amd64.deb",
+          "sha256": "c9a70989678660eed9a1e904c74fa043da8bec8e2036856fc16e31ced79b04f8",
+          "filename": "package-6.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/j/json-c/libjson-c5_0.17-1build1_amd64.deb",
+          "sha256": "3ac608d78e9e981e14ba7ceb141a46e3dd3ae8d6dbb3a7ecafd2698fe9930584",
+          "filename": "package-7.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/lmdb/liblmdb0_0.9.31-1build1_amd64.deb",
+          "sha256": "3439a5b9fd358df1619f7dca2d611195f22a7d7d83a3a968428ac1440f713b4e",
+          "filename": "package-8.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libm/libmaxminddb/libmaxminddb0_1.9.1-1build1_amd64.deb",
+          "sha256": "7e0251548b110e498d9f695c2212b4241af611aec5f1d99c564e6abc7ec2df0b",
+          "filename": "package-9.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libu/libuv1/libuv1t64_1.48.0-1.1build1_amd64.deb",
+          "sha256": "72a1856b30af1e533494ab90742a2446f4491b15ddebcade6661a6e8d61b4359",
+          "filename": "package-10.deb"
+        },
+        {
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxml2/libxml2_2.9.14%2bdfsg-1.3ubuntu3.10_amd64.deb",
+          "sha256": "c5a065f85c1e6f605741e365e40cad71c3ceb0e85e2791400bd35b8896e12ad1",
+          "filename": "package-11.deb"
+        }
+      ],
+      "libraries": [
+        "/usr/lib/x86_64-linux-gnu/libmaxminddb.so.0.0.7",
+        "/usr/lib/x86_64-linux-gnu/libmaxminddb.so.0",
+        "/usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1",
+        "/usr/lib/x86_64-linux-gnu/libbsd.so.0",
+        "/usr/lib/x86_64-linux-gnu/libicudata.so.74.2",
+        "/usr/lib/x86_64-linux-gnu/libicui18n.so.74.2",
+        "/usr/lib/x86_64-linux-gnu/libicuio.so.74.2",
+        "/usr/lib/x86_64-linux-gnu/libicutest.so.74.2",
+        "/usr/lib/x86_64-linux-gnu/libicutu.so.74.2",
+        "/usr/lib/x86_64-linux-gnu/libicuuc.so.74.2",
+        "/usr/lib/x86_64-linux-gnu/libicudata.so.74",
+        "/usr/lib/x86_64-linux-gnu/libicui18n.so.74",
+        "/usr/lib/x86_64-linux-gnu/libicuio.so.74",
+        "/usr/lib/x86_64-linux-gnu/libicutest.so.74",
+        "/usr/lib/x86_64-linux-gnu/libicutu.so.74",
+        "/usr/lib/x86_64-linux-gnu/libicuuc.so.74",
+        "/usr/lib/x86_64-linux-gnu/libjson-c.so.5.3.0",
+        "/usr/lib/x86_64-linux-gnu/libjson-c.so.5",
+        "/usr/lib/x86_64-linux-gnu/liblmdb.so.0.0.0",
+        "/usr/lib/x86_64-linux-gnu/liblmdb.so.0",
+        "/usr/lib/x86_64-linux-gnu/libedit.so.2.0.72",
+        "/usr/lib/x86_64-linux-gnu/libedit.so.2",
+        "/usr/lib/x86_64-linux-gnu/libuv.so.1.0.0",
+        "/usr/lib/x86_64-linux-gnu/libuv.so.1",
+        "/usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14",
+        "/usr/lib/x86_64-linux-gnu/libxml2.so.2",
+        "/usr/lib/x86_64-linux-gnu/libbind9-9.18.39-0ubuntu0.24.04.8-Ubuntu.so",
+        "/usr/lib/x86_64-linux-gnu/libdns-9.18.39-0ubuntu0.24.04.8-Ubuntu.so",
+        "/usr/lib/x86_64-linux-gnu/libirs-9.18.39-0ubuntu0.24.04.8-Ubuntu.so",
+        "/usr/lib/x86_64-linux-gnu/libisc-9.18.39-0ubuntu0.24.04.8-Ubuntu.so",
+        "/usr/lib/x86_64-linux-gnu/libisccc-9.18.39-0ubuntu0.24.04.8-Ubuntu.so",
+        "/usr/lib/x86_64-linux-gnu/libisccfg-9.18.39-0ubuntu0.24.04.8-Ubuntu.so",
+        "/usr/lib/x86_64-linux-gnu/libns-9.18.39-0ubuntu0.24.04.8-Ubuntu.so"
+      ]
+    },
+    "provenance": "Pristine source image apt dependency resolution job5890590; exact downloaded bytes"
+  },
+  {
+    "task": "contrastive_solver-system-administration_20260427_204204_005",
+    "image_sha256": "a9324cb7f8dbe51b1a2e65b7dcc71f68f0b38e816cb214ebcb80f6bf8811d6bf",
+    "source_sha256": "4ba8483b7b8c915b73f40d44e147b7fdb5b89eeefaf3b823e39b3574e31528f5",
+    "instruction_sha256": "01461e3421a4ff3cc64b8e2cdd75a69e6616da89eb2cea0d6d4a7e267bcfbe86",
+    "command": "npm install -g ws 2>/dev/null || true",
+    "executables": {
+      "node": "/usr/bin/node"
+    },
+    "node_modules": {
+      "ws": {
+        "path": "/usr/local/lib/node_modules/ws",
+        "version": "8.22.0"
+      }
+    },
+    "client_source": {
+      "path": "tests/test_outputs.py",
+      "sha256": "9412df497e628752bda8c534dec9229fab036da5f6af4dd0e14ad4a3d761b385",
+      "replacements": {
+        "require('ws')": "require(process.env.OT_VERIFIER_BIN + '/../native-node/ws')",
+        "open('/app/ws_test.js', 'w')": "open(os.environ['OT_VERIFIER_BIN'] + '/../native-node/ws_test.js', 'w')",
+        "\"NODE_PATH=/usr/local/lib/node_modules node /app/ws_test.js\"": "'env -u NODE_PATH -u NODE_OPTIONS WS_NO_BUFFER_UTIL=1 WS_NO_UTF_8_VALIDATE=1 \"${OT_VERIFIER_BIN}/node\" \"${OT_VERIFIER_BIN}/../native-node/ws_test.js\"'",
+        "open('/app/ws_exchange_test.js', 'w')": "open(os.environ['OT_VERIFIER_BIN'] + '/../native-node/ws_exchange_test.js', 'w')",
+        "\"NODE_PATH=/usr/local/lib/node_modules node /app/ws_exchange_test.js\"": "'env -u NODE_PATH -u NODE_OPTIONS WS_NO_BUFFER_UTIL=1 WS_NO_UTF_8_VALIDATE=1 \"${OT_VERIFIER_BIN}/node\" \"${OT_VERIFIER_BIN}/../native-node/ws_exchange_test.js\"'"
+      }
+    },
+    "provenance": "Pristine Node18.19.1/ws8.22.0 and live npm registry ws8.22.0 matched in dependency-only job5890651. Copy original node/ws; generated grading clients and require paths use the fresh private runtime. Agent backend code remains unchanged."
+  },
+  {
+    "task": "contrastive_solver-data-querying_20260606_153537_001",
+    "source_sha256": "469644e85548551fa94c8711a95d81e1330b6a2262a7e5244a205fb7434e581c",
+    "instruction_sha256": "e68ada519224b58a509c22e875145134d4b9c945ee64b6ec3f4faaa0ad47541d",
+    "image_sha256": "ffbad196776ee5d2e3b5b047085d462f1a0790936d972fafe1146661218acc1d",
+    "command": "if ! command -v duckdb >/dev/null 2>&1; then\n  apt-get update -qq && apt-get install -y -qq curl unzip >/dev/null 2>&1\n  curl -sL -o /tmp/duckdb.zip https://github.com/duckdb/duckdb/releases/download/v1.2.2/duckdb_cli-linux-amd64.zip\n  unzip -qo /tmp/duckdb.zip -d /usr/local/bin/\n  chmod +x /usr/local/bin/duckdb\n  rm -f /tmp/duckdb.zip\nfi",
+    "executables": {
+      "duckdb": "/usr/local/bin/duckdb"
+    },
+    "reason": "Original image already contains DuckDB v1.2.2, matching the conditional installer. Copy that pristine CLI to the clean runtime; retain every SQL assertion and submitted CSV/query input.",
+    "dependency_probe": {
+      "task": "contrastive_solver-data-querying_20260606_153537_001",
+      "image": "/dss/mcmlscratch/02/di38yur/calibforge-runtimes-20261030/images/ec9d0f43b754a1356e7f3c2cc2f400d5881b46b28c6eb5073fdd9211642348ae/build_contrastive_solver-data-querying_20260606_153537_001-0b5fea592b9f.sif",
+      "image_sha256": "ffbad196776ee5d2e3b5b047085d462f1a0790936d972fafe1146661218acc1d",
+      "returncode": 0,
+      "stdout": "/usr/local/bin/duckdb\nv1.2.2 7c039464e4\n4b65241291ff0e7a0f44b2e57f6fc11656e94456706ef0b1df4394c05438ec84  /usr/local/bin/duckdb\n",
+      "stderr": ""
+    }
+  }
+]

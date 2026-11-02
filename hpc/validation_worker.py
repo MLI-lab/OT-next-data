@@ -337,7 +337,14 @@ def main(request):
             images = scratch / 'images'
             images.mkdir()
         else:
-            images = stage_images(runtime_tasks, base / 'images', scratch / 'images')
+            image_scope = runtime_tasks
+            if data.get('shard_plan'):
+                # Array preparation only starts containers for path candidates, and
+                # no node holds a whole dataset's images: discovery swaps them in batches.
+                from hpc.local_assets import IMAGE_BATCH, replace_images
+                image_scope = list(getattr(args, '_path_candidates', []))[:IMAGE_BATCH]
+                args._image_batch = lambda batch: replace_images(batch, base / 'images', scratch / 'images', args)
+            images = stage_images(image_scope, base / 'images', scratch / 'images')
         if os.environ.get('OT_LOCAL_RUNTIME'):
             shutil.copyfile(Path(os.environ['OT_LOCAL_RUNTIME']) / 'staging.json', scratch / 'runtime-staging.json')
         if args.trials:
@@ -355,8 +362,15 @@ def main(request):
             HARBOR_SIF_CACHE=str(images),
             # Per request: how long it waited for a bridge worker and how long it ran.
             OT_BRIDGE_TIMING_LOG=str(scratch / 'bridge-timing.log'))
-        os.environ['OT_NET_ISOLATION'] = '0' if getattr(args, 'network_mode', 'isolated') == 'host' else '1'
-        if getattr(args, 'network_mode', 'isolated') == 'host':
+        network_mode = getattr(args, 'network_mode', 'isolated')
+        os.environ['OT_NET_ISOLATION'] = '1' if network_mode == 'isolated' else '0'
+        if network_mode == 'simulated':
+            # Without a proxy and DNS Helma compute nodes reach nothing; localhost still works.
+            os.environ['OT_NET_SIMULATED'] = '1'
+            for name in ('http_proxy', 'https_proxy', 'all_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY'):
+                os.environ.pop(name, None)
+                os.environ.pop('APPTAINERENV_' + name, None)
+        if network_mode == 'host':
             # Disabling site bind paths also removes the site's DNS bind.
             # Restore only this explicit read-only file for networked agents.
             os.environ['APPTAINER_BINDPATH'] = '/etc/resolv.conf:/etc/resolv.conf:ro'
@@ -381,7 +395,8 @@ def main(request):
             for name, default in [('memory_mb', 8192), ('cpus', 4), ('concurrency', 2), ('timeout_sec', 3600)]:
                 if not hasattr(args, 'image_build_' + name):
                     setattr(args, 'image_build_' + name, default)
-            image_tasks = preparation_tasks if set(data['stages']) == {4} and not prebuild_only else runtime_tasks
+            image_tasks = runtime_tasks if prebuild_only else (
+                preparation_tasks if set(data['stages']) == {4} else image_scope)
             try:
                 preparation = prepare_images(image_tasks, images, base / 'images', args)
             finally:

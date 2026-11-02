@@ -3,6 +3,7 @@ import errno
 import hashlib
 import json
 import os
+import re
 import stat
 import shutil
 import subprocess
@@ -11,6 +12,23 @@ import sys
 
 VERSION = 1
 PSEUDO = ('/proc', '/sys', '/dev')
+
+
+def absent_submodule_store(directory, pointer):
+    """Prove a packaged relative submodule pointer has no ancestor Git store."""
+    match = re.fullmatch(r'gitdir: ((?:\.\./)+)\.git/modules/([A-Za-z0-9_./-]+)', pointer)
+    if not match or '..' in match[2] or '//' in match[2]:
+        return False
+    ancestor = os.path.realpath(os.path.join(directory, match[1]))
+    # An unreadable ancestor is not evidence of absence. lstat also keeps a
+    # dangling .git symlink an error, rather than following it to a missing path.
+    if not os.path.isdir(ancestor) or not os.access(ancestor, os.R_OK | os.X_OK):
+        return False
+    try:
+        os.lstat(os.path.join(ancestor, '.git'))
+    except FileNotFoundError:
+        return True
+    return False
 
 
 def fingerprint(path):
@@ -51,9 +69,13 @@ def walk(root, errors, *, snapshot=False, stats=None, repositories=None):
                 if '.git' in files:
                     try:
                         with open(os.path.join(directory, '.git')) as stream:
-                            pointer = stream.readline().strip()
+                            pointer = stream.read().strip()
                         if pointer.startswith('gitdir: '):
-                            repositories.add(os.path.realpath(os.path.join(directory, pointer[8:])))
+                            if (not os.path.islink(os.path.join(directory, '.git'))
+                                    and absent_submodule_store(directory, pointer)):
+                                stats['absent_submodule_stores'] = stats.get('absent_submodule_stores', 0) + 1
+                            else:
+                                repositories.add(os.path.realpath(os.path.join(directory, pointer[8:])))
                     except OSError as exc:
                         error(exc)
             dirs[:] = sorted(d for d in dirs if

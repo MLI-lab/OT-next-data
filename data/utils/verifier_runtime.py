@@ -5,7 +5,7 @@ import shlex
 
 from harbor_patches.verifier_bundle import FORMAT, REFERENCE, TASK_REFERENCE, spec_id
 
-NAME = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.-]*\Z')
+NAME = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.+-]*\Z')
 PIN = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*(?:\[[A-Za-z0-9_,.-]+\])?==[0-9][A-Za-z0-9_.+!-]*\Z')
 
 
@@ -25,7 +25,8 @@ def requirement_source(value):
 
 
 def runtime_spec(*, python, requirements, tools=(), architecture='x86_64', libc='gnu', image_python=None, install_no_deps=False,
-                 build_requirements=(), install_no_build_isolation=False, python_headers=False):
+                 build_requirements=(), install_no_build_isolation=False, python_headers=False, image_tools=None, auxiliary=None,
+                 image_assets=None):
     """Declare a relocatable installed runtime; identical declarations share a cache key."""
     if not re.fullmatch(r'3\.\d+\.\d+', python):
         raise ValueError('Pin Python to an exact patch version')
@@ -38,6 +39,17 @@ def runtime_spec(*, python, requirements, tools=(), architecture='x86_64', libc=
     spec = {'python': python, 'architecture': architecture, 'libc': libc,
             'requirements': sorted(set(requirements)), 'tools': sorted(set(tools)),
             'runtime_layout': 2}
+    if auxiliary is not None:
+        from hpc.offline_prep.auxiliary_verifier_runtimes import canonical
+        spec['auxiliary'] = canonical(auxiliary, architecture=architecture, libc=libc)
+    if image_assets is not None:
+        from hpc.offline_prep.image_runtime_assets import canonical
+        spec['image_assets'] = canonical(image_assets)
+    if image_tools is not None:
+        from hpc.offline_prep.image_verifier_tools import canonical
+        spec['image_tools'] = canonical(image_tools)
+        if not set(image_tools['executables']) <= set(tools):
+            raise ValueError('Image executables must be declared runtime tools')
     if not isinstance(install_no_deps, bool):
         raise ValueError('install_no_deps must be boolean')
     if install_no_deps:
@@ -63,21 +75,62 @@ def runtime_spec(*, python, requirements, tools=(), architecture='x86_64', libc=
         fields = set(image_python)
         base_fields = {'image_sha256', 'executable'}
         overlay_fields = {'overlay_sha256', 'deferred_sha256'}
-        if (fields not in (base_fields, base_fields | overlay_fields)
+        if (fields - {'packages', 'modules', 'module_resources'} not in (base_fields, base_fields | overlay_fields)
                 or not re.fullmatch(r'[0-9a-f]{64}', image_python['image_sha256'])
                 or any(not re.fullmatch(r'[0-9a-f]{64}', image_python[k]) for k in fields & overlay_fields)
                 or not re.fullmatch(r'/(?:[A-Za-z0-9_.-]+/)*python(?:3(?:\.\d+)?)?', image_python['executable'])
                 or '..' in image_python['executable'].split('/')):
             raise ValueError('Image Python requires a checksum and absolute interpreter path')
         spec['image_python'] = dict(image_python)
+        if 'packages' in image_python:
+            packages = image_python['packages']
+            if (not isinstance(packages, dict) or not packages or not install_no_deps
+                    or any(not PIN.fullmatch(pin) or '[' in pin or pin not in requirements
+                           or not isinstance(modules, list) or not modules
+                           or any(not isinstance(name, str) or not name.isidentifier() for name in modules)
+                           for pin, modules in packages.items())):
+                raise ValueError('Image packages require exact runtime pins, explicit module names and no dependency resolution')
+            spec['image_python']['packages'] = {pin: sorted(set(modules)) for pin, modules in sorted(packages.items())}
+        if 'modules' in image_python:
+            modules = image_python['modules']
+            if (not isinstance(modules, dict) or not modules or not install_no_deps
+                    or any(not isinstance(name, str) or not name.isidentifier()
+                           or not isinstance(path, str) or not path.startswith('/') or '..' in path.split('/')
+                           or not re.fullmatch(r'/[A-Za-z0-9_./-]+/(?:site|dist)-packages/'+re.escape(name)+r'(?:\.py|\.[A-Za-z0-9_.-]+\.so)?',path)
+                           for name,path in modules.items())):
+                raise ValueError('Image modules require explicit site-package paths and no dependency resolution')
+            spec['image_python']['modules'] = dict(sorted(modules.items()))
+        if 'module_resources' in image_python:
+            resources = image_python['module_resources']
+            if ('modules' not in image_python or not isinstance(resources,list) or not resources
+                    or any(not isinstance(path,str) or not re.fullmatch(r'/usr/share/[A-Za-z0-9_./-]+',path)
+                           or '..' in path.split('/') for path in resources)):
+                raise ValueError('Image module resources require explicit pristine share files')
+            spec['image_python']['module_resources'] = sorted(set(resources))
     return spec
 
 
-def runtime_reference(spec, catalog=None, *, mount_mode='writable'):
+def runtime_image_source(url):
+    """An optional immutable download location; image bytes remain SHA256-pinned."""
+    from urllib.parse import urlsplit
+    parsed = urlsplit(url)
+    if (parsed.scheme != 'https' or parsed.netloc != 'huggingface.co'
+            or parsed.query or parsed.fragment
+            or not re.fullmatch(r'/datasets/[^/]+/[^/]+/resolve/[0-9a-f]{40}/[^\s]+\.sif', parsed.path)
+            or '..' in parsed.path.split('/')):
+        raise ValueError('Runtime image source must be an immutable Hugging Face SIF URL')
+    return url
+
+
+def runtime_reference(spec, catalog=None, *, mount_mode='writable', image_source=None):
     """Return task-file updates. An unbound preparation declaration fails runtime preflight."""
     from harbor_patches.verifier_mount import mode
     mode({'mount_mode': mount_mode})
     ref = {'format': FORMAT, 'id': spec_id(spec), 'spec': spec, 'mount_mode': mount_mode}
+    if image_source is not None:
+        if 'image_python' not in spec or 'overlay_sha256' in spec['image_python']:
+            raise ValueError('Runtime image download requires a single checksum-pinned SIF')
+        ref['image_source'] = runtime_image_source(image_source)
     if catalog is not None:
         record = catalog[ref['id']]
         if (record.get('format') != FORMAT or record.get('id') != ref['id']
@@ -134,11 +187,13 @@ GO_ACTIVATION = ('export GOROOT="${OT_VERIFIER_GOROOT:?prepared verifier toolcha
                  'PATH="$OT_VERIFIER_GOROOT/bin:$PATH"')
 
 
-def offline_package_reference(spec, catalog=None, *, phase='task'):
+def offline_package_reference(spec, catalog=None, *, phase='task', task_reference=False):
     """Bind image-specific cached apt/wheel inputs built by hpc/offline_prep/verifier_offline.py."""
     from harbor_patches.verifier_bundle import OFFLINE_FORMAT, OFFLINE_REFERENCE, TASK_OFFLINE_REFERENCE
     if phase not in ('task', 'verifier'):
         raise ValueError('phase must be task or verifier')
+    if task_reference and phase != 'task':
+        raise ValueError('The task runtime reference is only valid for task inputs')
     value = {'format': OFFLINE_FORMAT, 'id': spec_id(spec), 'spec': spec}
     if catalog is not None:
         record = catalog[value['id']]
@@ -149,6 +204,8 @@ def offline_package_reference(spec, catalog=None, *, phase='task'):
         value['archive_sha256'] = record['archive_sha256']
         value.pop('spec')
     name = 'setup_files/' + TASK_OFFLINE_REFERENCE if phase == 'task' else 'tests/' + OFFLINE_REFERENCE
+    if task_reference:
+        name = 'setup_files/' + TASK_REFERENCE
     return {name: (json.dumps(value, indent=2) + '\n').encode()}
 
 
@@ -313,7 +370,7 @@ def prepare_uvx(argv, *, python, architecture='x86_64', libc='gnu'):
     return spec, tool_command(tool, args)
 
 
-def preparation_command(spec, *, phase='task', python='python3'):
+def preparation_command(spec, *, phase='task', python='python3', exit_after=True, image_source=None):
     """Setup prefix: --prepare saves dependencies then exits before initialization.
 
     Run preparation on a trusted host with this repository on PYTHONPATH and uv
@@ -322,22 +379,34 @@ def preparation_command(spec, *, phase='task', python='python3'):
     """
     if phase not in ('task', 'verifier'):
         raise ValueError('phase must be task or verifier')
+    if not isinstance(exit_after, bool):
+        raise ValueError('exit_after must be boolean')
     if runtime_spec(**{k: v for k, v in spec.items() if k != 'runtime_layout'}) != spec:
         raise ValueError('Preparation requires a canonical layout-2 runtime spec')
     name = TASK_REFERENCE if phase == 'task' else REFERENCE
     recipe = json.dumps(spec, sort_keys=True, separators=(',', ':'))
-    command = shlex.join([python, '-m', 'data.utils.verifier_runtime', '--prepare', '--phase', phase])
+    argv = [python, '-m', 'data.utils.verifier_runtime', '--prepare', '--phase', phase]
+    if image_source is not None:
+        if phase != 'verifier':
+            raise ValueError('Image source downloads currently support verifier preparation')
+        runtime_reference(spec, image_source=image_source)
+        argv += ['--image-source', image_source]
+    command = shlex.join(argv)
     return (f'# OT_RUNTIME_RECIPE: {recipe}\n'
             'if [ "${1:-}" = "--prepare" ]; then\n'
             f'  {command} --reference "$(dirname -- "$0")/{name}" <<\'OT_RUNTIME_RECIPE_JSON\'\n'
             + recipe + '\nOT_RUNTIME_RECIPE_JSON\n'
-            '  exit $?\nfi')
+            + ('  exit $?\n' if exit_after else '  OT_RUNTIME_PREPARE_STATUS=$?\n  [ "$OT_RUNTIME_PREPARE_STATUS" -eq 0 ] || exit "$OT_RUNTIME_PREPARE_STATUS"\n') + 'fi')
 
 
 def offline_preparation_command(request, *, image_sha256, image_key=None, python='python3',
-                                overlay_sha256=None, deferred_sha256=None):
+                                overlay_sha256=None, deferred_sha256=None, phase='task', task_reference=False):
     """Prepare task apt/wheel/download inputs before task initialization, on a trusted host."""
-    from harbor_patches.verifier_bundle import OFFLINE_REQUEST_KEYS, TASK_OFFLINE_REFERENCE
+    from harbor_patches.verifier_bundle import OFFLINE_REQUEST_KEYS, TASK_OFFLINE_REFERENCE, OFFLINE_REFERENCE
+    if phase not in ('task', 'verifier'):
+        raise ValueError('phase must be task or verifier')
+    if task_reference and phase != 'task':
+        raise ValueError('The task runtime reference is only valid for task inputs')
     if (not set(request).issubset(OFFLINE_REQUEST_KEYS)
             or not all(k in request for k in ('apt', 'python', 'uv'))
             or not re.fullmatch(r'[0-9a-f]{64}', image_sha256)
@@ -351,10 +420,13 @@ def offline_preparation_command(request, *, image_sha256, image_key=None, python
         payload.update(overlay_sha256=overlay_sha256, deferred_sha256=deferred_sha256)
     if image_key is not None:
         payload['image_key'] = image_key
-    command = shlex.join([python, '-m', 'data.utils.verifier_runtime', '--prepare-offline', '--phase', 'task'])
+    command = shlex.join([python, '-m', 'data.utils.verifier_runtime', '--prepare-offline', '--phase', phase])
+    reference_name = TASK_OFFLINE_REFERENCE if phase == 'task' else OFFLINE_REFERENCE
+    if task_reference:
+        reference_name = TASK_REFERENCE
     return (offline_recipe(request) + '\n'
             'if [ "${1:-}" = "--prepare" ]; then\n'
-            f'  {command} --reference "$(dirname -- "$0")/{TASK_OFFLINE_REFERENCE}" <<\'OT_OFFLINE_PREPARATION_JSON\'\n'
+            f'  {command} --reference "$(dirname -- "$0")/{reference_name}" <<\'OT_OFFLINE_PREPARATION_JSON\'\n'
             + json.dumps(payload, sort_keys=True) + '\nOT_OFFLINE_PREPARATION_JSON\n'
             '  exit $?\nfi')
 
@@ -371,17 +443,18 @@ def main():
     action.add_argument('--prepare-offline', action='store_true')
     parser.add_argument('--phase', choices=('task', 'verifier'), required=True)
     parser.add_argument('--reference', type=Path, required=True)
+    parser.add_argument('--image-source')
     args = parser.parse_args()
+    if args.image_source and (args.phase != 'verifier' or args.prepare_offline):
+        parser.error('--image-source applies to verifier runtime preparation only')
     spec = json.load(sys.stdin)
     if args.prepare_offline:
         import os
         import shutil
         from hpc.offline_prep.image_python_runtime import source_image
         from hpc.offline_prep.verifier_offline import build as build_offline
-        if args.phase != 'task':
-            parser.error('--prepare-offline currently prepares task inputs only')
         payload = spec
-        offline_preparation_command(**payload)  # Validate before using image/cache paths.
+        offline_preparation_command(**payload, phase=args.phase)  # Validate before using image/cache paths.
         spec = {**payload['request'], 'image_sha256': payload['image_sha256']}
         if payload.get('image_key') is not None:
             spec['image_key'] = payload['image_key']
@@ -399,9 +472,15 @@ def main():
         record = build_offline(spec, image, cache, uv)
         if record.get('status') != 'ready':
             raise RuntimeError('Offline input preparation failed: ' + record.get('error', 'unknown error'))
-        args.reference.write_bytes(next(iter(task_offline_reference(payload['request'], record).values())))
+        updates = (task_offline_reference(payload['request'], record) if args.phase == 'task' else
+                   offline_package_reference(record['spec'], {record['id']: record}, phase='verifier'))
+        args.reference.write_bytes(next(iter(updates.values())))
         print(json.dumps(record))
         return
+    if args.image_source is not None:
+        import os
+        runtime_reference(spec, image_source=args.image_source)
+        os.environ['OT_RUNTIME_IMAGE_SOURCE'] = args.image_source
     record = build(spec, cache_root())
     catalog = {record['id']: record}
     if args.phase == 'task':
@@ -410,7 +489,8 @@ def main():
         # Regeneration updates artifact bytes without changing the task's explicit
         # runtime mount choice. New references retain the writable default.
         previous = json.loads(args.reference.read_text()) if args.reference.is_file() else {}
-        updates = runtime_reference(spec, catalog, mount_mode=previous.get('mount_mode', 'writable'))
+        updates = runtime_reference(spec, catalog, mount_mode=previous.get('mount_mode', 'writable'),
+                                    image_source=args.image_source or previous.get('image_source'))
     args.reference.write_bytes(next(iter(updates.values())))
     print(json.dumps(record))
 

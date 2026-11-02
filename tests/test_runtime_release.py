@@ -75,6 +75,30 @@ def released(tmp_path):
     return key, checksum, manifest, remote
 
 
+def test_package_inputs_use_standard_task_runtime_reference(tmp_path):
+    from harbor_patches.verifier_bundle import TASK_REFERENCE
+    key, checksum, manifest, remote = released(tmp_path)
+    ref = json.dumps(dict(format=OFFLINE_FORMAT, id=key, archive_sha256=checksum)).encode()
+    blob = tar_bytes({'setup_files/' + TASK_REFERENCE: ref})
+    assert runtime_release.task_references(blob) == [(OFFLINE_FORMAT, key, checksum)]
+    task = tmp_path / 'task'
+    context = task / 'setup_files'
+    context.mkdir(parents=True)
+    (context / TASK_REFERENCE).write_bytes(ref)
+    cache = tmp_path / 'fetched-standard'
+    runtime_release.fetch_for_tasks([task], manifest, cache=cache, download=remote.download)
+    assert preflight([task], cache)[key]['format'] == OFFLINE_FORMAT
+
+
+def test_task_runtime_and_legacy_package_reference_cannot_conflict(tmp_path):
+    from harbor_patches.verifier_bundle import TASK_REFERENCE, task_references
+    ref = json.dumps(dict(format=OFFLINE_FORMAT, id='a'*64, archive_sha256='b'*64))
+    (tmp_path / TASK_REFERENCE).write_text(ref)
+    (tmp_path / TASK_OFFLINE_REFERENCE).write_text(ref)
+    with pytest.raises(ValueError, match='both runtime reference files'):
+        task_references(tmp_path)
+
+
 def test_release_stages_each_artifact_once_and_records_tasks(tmp_path):
     key, checksum, manifest, _ = released(tmp_path)
     assert manifest['missing'] == []

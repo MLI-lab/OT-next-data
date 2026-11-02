@@ -4,7 +4,7 @@
 - [Harbor](https://github.com/harbor-framework/harbor/blob/d5ac1be17f575852eaf4fffc4072fd18481c209b/src/harbor/analyze/prompts/check.txt) requests a pass, fail, or not_applicable label for every rubric criterion.
 - [River](https://arxiv.org/pdf/2608.22631#page=26) assigns exactly one task category, including CLEAN for tasks without defects. The paper defines the categories but does not provide a full prompt template.
 
-Originals are in `upstream/`. Our prompts for the two output modes, labeling and classification, are in `modified/`.
+Originals are in `upstream/`. `modified/terminal_bench.txt` is the exact prompt for Terminal-Bench and Harbor reviews, with `<RUBRIC>` where the selected rubric is pasted in. It differs from upstream by pasting the rubric in and adding one line: the 30-minute review limit. Terminus judges get a final-answer message after 30 minutes and up to 10 more minutes (`--review-grace-minutes`); see `harbor_patches/terminus_session.py`. Judges receive these files as written. Hosted judges also see the description of their `inspect` tool, in `validation/stages/image_inspector.py`. Our prompts for the two output modes, labeling and classification, are in `modified/`.
 
 The custom severity rubric uses `modified/custom_severity.txt` for severity judgments, evidence and alignment subcategories. Like the other prompts, it writes `/app/verdicts.json`.
 

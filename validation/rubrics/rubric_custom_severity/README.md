@@ -29,11 +29,10 @@ Choose exactly one subcategory for the most severe alignment defect when its sev
 | `none` | 0 defect identified in this category through the completed assessment. |
 | `minor` | A limited defect affecting peripheral requirements, uncommon scenarios, or a small portion of the task, without substantially undermining its main objective or reward validity. |
 | `major` | A substantial defect that undermines essential task requirements, causes materially incorrect reward assignments, or makes the task or verifier fundamentally unreliable. |
-| `not_assessed` | Insufficient information, access, or execution capability prevents a meaningful assessment of this category. |
 
 Assess severity by the finding's actual impact on essential requirements and verifier reliability. The examples in [rubric.toml](rubric.toml) illustrate typical findings; they are not exhaustive or rules for assigning severity by similarity alone.
 
-Anti-Cheating Robustness allows only `none`, `major`, or `not_assessed`. A `major` finding requires a successful executed demonstration under the solving agent's actual access constraints and verifier mode, without relying on reviewer-only knowledge of protected tests or answers. A suspected but unproven exploit does not qualify as `major`.
+Anti-Cheating Robustness allows only `none` or `major`. A `major` finding requires a successful executed demonstration under the solving agent's actual access constraints and verifier mode, without relying on reviewer-only knowledge of protected tests or answers. A suspected but unproven exploit does not qualify as `major`.
 
 ## Running the rubric
 
@@ -55,7 +54,7 @@ python validation/run.py /path/to/tasks --stages 5 \
 
 `--review-format severity` is optional for this rubric and is resolved automatically. `--review-criteria` can restrict the review to exact rubric IDs. Image-backed CLI/local judges, explicit file-only reviews, and Terminus-2 task-environment reviews use the same severity validator and repair logic. File-only reviews do not provide execution evidence from the actual task environment.
 
-Each result records the task interpretation, verifier mode, and one entry per selected rubric with severity, subcategory, finding, evidence and any assessment limitation. Instruction/verifier alignment requires exactly one subcategory for `minor` or `major`, and `null` otherwise. Anti-cheating robustness allows only `none`, `major` or `not_assessed`; its `major` findings require demonstrated execution evidence as specified in the rubric. The schema checks evidence fields, but does not independently establish that the reported evidence is correct.
+Each result records the task interpretation, verifier mode, and one entry per selected rubric with severity, subcategory, finding and evidence. Instruction/verifier alignment requires exactly one subcategory for `minor` or `major`, and `null` otherwise. Anti-cheating robustness allows only `none` or `major`; its `major` findings require demonstrated execution evidence as specified in the rubric. The schema checks evidence fields, but does not independently establish that the reported evidence is correct.
 
 The full `results` object is retained in stage reports and compact `reviews.json` exports. The runner also derives compatibility checks for existing consumers:
 
@@ -63,13 +62,12 @@ The full `results` object is retained in stage reports and compact `reviews.json
 | --- | --- | --- |
 | `none` | `pass` | `passed` if every selected rubric is `none` |
 | `minor`, `major` | `fail` | `findings` |
-| `not_assessed` | `incomplete` | `findings`, requiring inspection rather than a confirmed defect |
 
-The compatibility `outcome` belongs to each rubric's entry in `checks`; the overall task `status` summarizes its reviews. `findings` means the task needs attention because a defect was identified or an assessment could not be completed. It does not always indicate a confirmed defect. `incomplete` is a per-rubric outcome, not an overall task status. Execution failures or missing/invalid output that remains unresolved after repairs produce an `error` status.
+The compatibility `outcome` belongs to each rubric's entry in `checks`; the overall task `status` summarizes its reviews. `findings` means a defect was identified. Execution failures or missing/invalid output that remains unresolved after repairs produce an `error` status.
 
-These compatibility labels support existing pipeline consumers without replacing the original severity judgments. Read `results` for the actual severity, evidence, subcategory and assessment limitations; agreement analysis also uses those severity judgments directly.
+These compatibility labels support existing pipeline consumers without replacing the original severity judgments. Read `results` for the actual severity, evidence and subcategory; agreement analysis also uses those severity judgments directly.
 
-`not_assessed` is a valid recorded assessment and does not trigger a repair. Missing or invalid entries are retried without overwriting accepted results. Use `--review-runs N` for independent repetitions; repair rounds are part of their original review. Matching checkpoints can resume completed and partial reviews.
+Missing or invalid entries are retried without overwriting accepted results. Use `--review-runs N` for independent repetitions; repair rounds are part of their original review. Matching checkpoints can resume completed and partial reviews.
 
 The shared agreement analysis compares actual severity labels and subcategories, preserving the distinction between `minor` and `major`. It also reports severity counts and per-rubric subcategory agreement:
 

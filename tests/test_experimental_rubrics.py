@@ -42,7 +42,7 @@ class ExperimentalRubrics(TestCase):
         from validation.rubrics.utils.review import validate
         for kind in ('custom', 'river'):
             rubric = tomllib.loads(load(kind, 'classification')[0])
-            self.assertEqual(len(rubric['categories']), 7 if kind == 'custom' else 8)
+            self.assertEqual(len(rubric['categories']), 6 if kind == 'custom' else 8)
             if kind == 'custom':
                 self.assertNotIn('PASS if', load(kind, 'classification')[0])
                 self.assertNotIn('FAIL if', load(kind, 'classification')[0])
@@ -50,7 +50,7 @@ class ExperimentalRubrics(TestCase):
                 category = entry['name']
                 result = validate({'category': category, 'explanation': 'Concrete evidence.',
                                    'checks': {'task_clean': {'outcome': 'pass'}}}, rubric)
-                expected = 'pass' if category == 'CLEAN' else ('incomplete' if category == 'INCOMPLETE' else 'fail')
+                expected = 'pass' if category == 'CLEAN' else 'fail'
                 self.assertEqual(result['checks']['task_clean']['outcome'], expected)
             for bad in ({'category': ['CLEAN'], 'explanation': 'x'},
                         {'category': 'UNKNOWN', 'explanation': 'x'},

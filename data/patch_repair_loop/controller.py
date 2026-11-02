@@ -420,7 +420,8 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
     base = [config["python"], str(ROOT / "validation/run.py")]
     policy = validation_policy(config)
     save(round_dir / "validation-policy.json", policy)
-    options = ["--stages", ",".join(map(str, stages or policy["required_stages"])), "--submit", "helma",
+    numbers = stages or policy["required_stages"]
+    options = ["--stages", ",".join(map(str, [0, *numbers] if 4 in numbers else numbers)), "--submit", "helma",
                "--partition", config["partition"], "--cpus", str(config["cpus"]),
                "--memory", config["memory"], "--concurrency", str(config["concurrency"]),
                "--time", config["time"], "--network-mode", config["network_mode"],

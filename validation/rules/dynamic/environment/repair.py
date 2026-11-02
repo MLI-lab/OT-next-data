@@ -91,7 +91,9 @@ SETUP_SCRIPT = SCRIPT
 def cleanup_setup():
     """setup.sh of the validation copy for a task without its own setup: only the repair,
     at every container start, so the image stays built from the task's own files."""
-    return '#!/bin/bash\n' + SETUP_MARKER + '\nset -e\n/bin/sh -ec ' + shlex.quote(SETUP_SCRIPT) + '\n'
+    return ('#!/bin/bash\n' + SETUP_MARKER + '\nset -e\n'
+            'if [ "${1:-}" = "--prepare" ]; then exit 0; fi\n'
+            '/bin/sh -ec ' + shlex.quote(SETUP_SCRIPT) + '\n')
 
 
 def setup_wrapper():
@@ -101,6 +103,9 @@ def setup_wrapper():
     after setup so they reflect the actual starting commit; preserve all history.
     """
     return ('#!/bin/bash\n' + SETUP_MARKER + '\nset -e\n'
+            'if [ "${1:-}" = "--prepare" ]; then\n'
+            '  exec bash "$(dirname -- "$0")/ot-task-setup.sh" "$@"\n'
+            'fi\n'
             'bash /setup_files/ot-task-setup.sh "$@"\n'
             '/bin/sh -ec ' + shlex.quote(SETUP_SCRIPT) + '\n')
 

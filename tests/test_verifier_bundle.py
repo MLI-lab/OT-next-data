@@ -30,6 +30,22 @@ def test_prepared_bundle_is_verified_and_tampering_is_rejected(tmp_path):
         verify(ref, tmp_path)
 
 
+def test_incomplete_http_cache_selects_normal_installation_fallback(tmp_path):
+    from harbor_patches.verifier_bundle import OFFLINE_FORMAT, lookup, validate_offline_archive
+    spec = {'apt': [], 'python': [], 'uv': False,
+            'http': {'commands': ['curl https://example.test/input'], 'home': '/root', 'workdir': '/app'}}
+    key = spec_id(spec)
+    path = tmp_path / (key + '.tar.gz')
+    with tarfile.open(path, 'w:gz') as archive:
+        archive.addfile(tarfile.TarInfo('repo/Packages'), io.BytesIO())
+    ref = {'format': OFFLINE_FORMAT, 'id': key, 'spec': spec, 'status': 'ready', 'archive_sha256': digest(path)}
+    (tmp_path / (key + '.json')).write_text(json.dumps(ref))
+    found, reason = lookup(ref, OFFLINE_FORMAT, validate_offline_archive, tmp_path)
+    assert found is None
+    assert 'Incomplete HTTP archive' in reason
+    assert digest(path) == ref['archive_sha256']
+
+
 def test_unpinned_reference_cannot_start_validation(tmp_path):
     _, ref = prepared(tmp_path)
     del ref['archive_sha256']

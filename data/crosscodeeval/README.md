@@ -1,5 +1,7 @@
 # CrossCodeEval
 
+**Offline use:** v1 and v2 have not been tested for offline use, and no offline runtimes were prepared for them.
+
 ## Dataset stats
 
 - **Tasks:** 7,763 original → 6,710 kept, all 6,710 patched; 1,053 archived.

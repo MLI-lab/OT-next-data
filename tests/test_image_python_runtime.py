@@ -27,6 +27,43 @@ def test_image_source_changes_identity_and_requires_exact_bytes(tmp_path, monkey
         source_image(selected)
 
 
+def test_normal_workspace_image_cache_supports_runtime_rebuild(tmp_path, monkeypatch):
+    monkeypatch.delenv('OT_RUNTIME_IMAGE_CACHE', raising=False)
+    monkeypatch.setenv('OT_WORKSPACE', str(tmp_path))
+    folder = tmp_path / 'images/bundles-v1/task.sif'
+    folder.mkdir(parents=True)
+    image = folder / 'task.sif'
+    image.write_bytes(b'pristine image')
+    checksum = hashlib.sha256(image.read_bytes()).hexdigest()
+    (folder / 'manifest.json').write_text(json.dumps({'files': {'task.sif': {'sha256': checksum}}}))
+    assert source_image(spec(checksum)) == image
+    image.write_bytes(b'corrupt image')
+    with pytest.raises(ValueError, match='checksum mismatch'):
+        source_image(spec(checksum))
+    monkeypatch.setenv('OT_RUNTIME_IMAGE_CACHE', str(tmp_path / 'explicit-empty-cache'))
+    with pytest.raises(FileNotFoundError):
+        source_image(spec(checksum))
+
+
+def test_packed_workspace_image_is_verified_in_private_build_scratch(tmp_path, monkeypatch):
+    from hpc.offline_prep.image_cache import publish
+    monkeypatch.delenv('OT_RUNTIME_IMAGE_CACHE', raising=False)
+    monkeypatch.setenv('OT_WORKSPACE', str(tmp_path / 'workspace'))
+    image = tmp_path / 'task.sif'
+    image.write_bytes(b'pristine image')
+    checksum = hashlib.sha256(image.read_bytes()).hexdigest()
+    packed = publish(image, tmp_path / 'workspace/images', packed=True)
+    before = hashlib.sha256(packed.read_bytes()).hexdigest()
+    scratch = tmp_path / 'build'
+    scratch.mkdir()
+    restored = source_image(spec(checksum), scratch=scratch)
+    assert restored.is_relative_to(scratch)
+    assert restored.read_bytes() == image.read_bytes()
+    restored.write_bytes(b'private trial change')
+    assert hashlib.sha256(packed.read_bytes()).hexdigest() == before
+    assert source_image(spec(checksum), scratch=scratch).read_bytes() == image.read_bytes()
+
+
 @pytest.mark.parametrize('executable', ['python3', '/usr/../bin/python3', '/usr/bin/python3;false'])
 def test_image_source_rejects_unsafe_interpreter(executable):
     with pytest.raises(ValueError):

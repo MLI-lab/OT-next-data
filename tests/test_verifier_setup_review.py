@@ -126,5 +126,5 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
         assert verifier['tests_uploads']['0']['bytes'] == 9133
         assert verifier['tests_uploads']['0']['timings_seconds']['worker_total'] == 0.5
         assert verifier['timings_seconds']['preparation'] == (17 if separate else 7)
-        assert verifier['mean_target_seconds'] == 5
+        assert 'mean_target_seconds' not in verifier
         assert len(created) == (2 if separate else 1)

@@ -31,7 +31,14 @@ def answer():
             'expected_benchmark_transfer': [], 'no_transfer_reason': 'Insufficient overlap evidence.'}
 
 
-def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
+@pytest.fixture
+def empty_publication_history(tmp_path, monkeypatch):
+    from validation.publishing import revisions
+    history = revisions.History(root=tmp_path / 'previous-publication')
+    monkeypatch.setattr(revisions, 'History', lambda repo: history)
+
+
+def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch, empty_publication_history):
     _, contract, reports = publish_fixture(tmp_path)
     monkeypatch.setattr(publish, 'read', lambda _: contract)
     monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
@@ -57,7 +64,7 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
     result = publish.publish(tmp_path, tmp_path / 'contract', 'test/repo', dry_run=True, **kwargs)
     assert len(prompts) == 2
     assert 'set-python/README.md' in result['files']
-    assert 'set-java/annotation.json' not in result['files']
+    assert 'set-java/annotation.json' in result['files']
     text = (tmp_path / 'out/set-python/README.md').read_text()
     assert '## Expected benchmark transfer' in text and 'hypotheses, not measured' not in text
     assert 'annotation.json' not in text
@@ -88,7 +95,7 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
     assert 'https://huggingface.co/datasets/test/repo/blob/refs%2Fpr%2F3/set-python/README.md' in descriptions[0]
     assert (tmp_path / 'out/pull-request.md').read_text() == descriptions[0]
     assert 'set-python/README.md' in [op.path_in_repo for op in commits[0]['operations']]
-    assert not any(op.path_in_repo.endswith('/annotation.json') for op in commits[0]['operations'])
+    assert 'set-python/annotation.json' in [op.path_in_repo for op in commits[0]['operations']]
     def broken(*args):
         result = answer()
         result['domains'][0]['label'] = 'invented'
@@ -98,7 +105,7 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch):
     assert len(commits) == 1
 
 
-def test_existing_readme_is_preserved_without_model_call(tmp_path, monkeypatch):
+def test_existing_readme_is_preserved_without_model_call(tmp_path, monkeypatch, empty_publication_history):
     _, contract, reports = publish_fixture(tmp_path)
     monkeypatch.setattr(publish, 'read', lambda _: contract)
     monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
@@ -112,7 +119,7 @@ def test_existing_readme_is_preserved_without_model_call(tmp_path, monkeypatch):
     assert 'set-python/README.md' in result['description']
 
 
-def test_force_readme_regenerates_existing_cards_in_proposed_files(tmp_path, monkeypatch):
+def test_force_readme_regenerates_existing_cards_in_proposed_files(tmp_path, monkeypatch, empty_publication_history):
     _, contract, reports = publish_fixture(tmp_path)
     monkeypatch.setattr(publish, 'read', lambda _: contract)
     monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
@@ -331,7 +338,8 @@ def test_staged_task_and_verifier(tmp_path):
 
 def test_publish_readme_requires_networked_bridge():
     from validation.stages.runner import parser, check_args
-    args = parser().parse_args(['tasks', '--publish-readme'])
+    # Explicit: the cluster default is already host on Helma.
+    args = parser().parse_args(['tasks', '--publish-readme', '--network-mode', 'isolated'])
     with pytest.raises(ValueError, match='network-mode host'):
         check_args(args)
     args.network_mode = 'host'

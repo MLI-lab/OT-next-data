@@ -117,6 +117,30 @@ def resolve_env_lines(lines):
     return result
 
 
+def heredoc_markers(line):
+    """Find shell redirections, excluding quoted program text and escapes."""
+    pattern = re.compile(r"(?<!<)<<(-?)\s*(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z_][A-Za-z0-9_]*))")
+    markers, quote, index = [], None, 0
+    while index < len(line):
+        char = line[index]
+        if char == '\\' and quote != "'":
+            index += 2
+            continue
+        if quote:
+            if char == quote:
+                quote = None
+        elif char in "'\"`":
+            quote = char
+        elif char == '#' and (index == 0 or line[index - 1].isspace()):
+            break
+        elif match := pattern.match(line, index):
+            markers.append(match.groups())
+            index = match.end()
+            continue
+        index += 1
+    return markers
+
+
 def logical_lines(original):
     """Wrap Harbor's Dockerfile reader so its ENV parsing sees resolved values."""
     def read(dockerfile_path):
@@ -135,7 +159,7 @@ def logical_lines(original):
                 continue
             pending = ''
             if line.upper().startswith('RUN '):
-                markers = re.findall(r"(?<!<)<<(-?)\s*(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z_][A-Za-z0-9_]*))", line)
+                markers = heredoc_markers(line)
                 for dash, single, double, bare in markers:
                     end = single or double or bare
                     body = []

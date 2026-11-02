@@ -2,7 +2,6 @@
 none = "0 defect identified in this category through the completed assessment."
 minor = "A limited defect affecting peripheral requirements, uncommon scenarios, or a small portion of the task, without substantially undermining its main objective or reward validity."
 major = "A substantial defect that undermines essential task requirements, causes materially incorrect reward assignments, or makes the task or verifier fundamentally unreliable."
-not_assessed = "Insufficient information, access, or execution capability prevents a meaningful assessment of this category."
 
 [guidance]
 example_guidance = "The examples illustrate typical defects and their severity but are not exhaustive. Evaluate each finding based on its actual impact on the task's essential requirements and verifier reliability. Do not classify findings solely by their similarity to an example."
@@ -11,7 +10,7 @@ example_guidance = "The examples illustrate typical defects and their severity b
 id = "instruction_quality"
 name = "Instruction Quality"
 definition = "The instruction clearly communicates what the agent is expected to accomplish. The task has a sufficiently well-defined, consistent, and objectively verifiable goal. Different reasonable interpretations should not lead to substantially different expected outcomes."
-allowed_severities = ["none", "minor", "major", "not_assessed"]
+allowed_severities = ["none", "minor", "major"]
 
 [rubrics.examples]
 minor = 'The task specifies which statistics to compute and which file to write, but also requests a "short console summary" without clarifying its content. The main objective remains well-defined.'
@@ -22,8 +21,8 @@ id = "instruction_verifier_alignment"
 name = "Instruction–Verifier Alignment"
 definition = "The verifier evaluates the behavior required by the instruction without introducing unstated, unnecessarily restrictive, or contradictory requirements. A solution that correctly fulfills the instruction should not fail because of additional expectations imposed by the verifier."
 concern = "Correct solutions failing."
-allowed_severities = ["none", "minor", "major", "not_assessed"]
-subcategory_rule = "For minor or major findings, choose exactly one most specific applicable subcategory for the most severe reported defect. For none or not_assessed, use null."
+allowed_severities = ["none", "minor", "major"]
+subcategory_rule = "For minor or major findings, choose exactly one most specific applicable subcategory for the most severe reported defect. For none, use null."
 
 [[rubrics.subcategories]]
 id = "unstated_requirement"
@@ -57,7 +56,7 @@ id = "verifier_coverage_correctness"
 name = "Verifier Coverage & Correctness"
 definition = "The verifier meaningfully checks the essential requirements of the instruction. An incomplete or incorrect solution that fails to satisfy an important and essential requirement should not pass. Exhaustive test coverage is not required; assess the severity of coverage gaps based on whether they affect peripheral cases or substantially undermine verification of the main objective."
 concern = "Incorrect solutions passing."
-allowed_severities = ["none", "minor", "major", "not_assessed"]
+allowed_severities = ["none", "minor", "major"]
 
 [rubrics.examples]
 minor = "The instruction asks for a CSV parser supporting quoted fields. Tests cover ordinary quoted fields but omit the uncommon case of embedded newlines inside quoted fields. An implementation failing only that case could pass."
@@ -67,7 +66,7 @@ major = "The instruction asks the agent to compute summary statistics from a dat
 id = "anti_cheating_robustness"
 name = "Anti-Cheating Robustness"
 definition = "The task and verifier should prevent an agent from obtaining reward without genuinely solving the task through unintended access to answers, modification of evaluation components, or manipulation of verification. A defect must be demonstrated by a successful exploit whose construction and execution require only information and access available to the solving agent, without relying on reviewer-only knowledge of protected tests or answers."
-allowed_severities = ["none", "major", "not_assessed"]
+allowed_severities = ["none", "major"]
 evidence_requirement = "A major defect requires an executed, successful exploit under the solving agent's actual access constraints and verifier mode."
 
 [rubrics.examples]
@@ -77,7 +76,7 @@ major = "A task image unintentionally contains a readable file with the expected
 id = "other"
 name = "Other"
 definition = "Any task-quality defect not captured by the other rubrics, such as an unusable execution environment, missing required dependencies, verifier crashes, or unreliable and nondeterministic evaluation."
-allowed_severities = ["none", "minor", "major", "not_assessed"]
+allowed_severities = ["none", "minor", "major"]
 
 [rubrics.examples]
 minor = "A test for an auxiliary timestamp occasionally fails because of a race condition, while verification of the essential functionality remains reliable."

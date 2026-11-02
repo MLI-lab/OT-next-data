@@ -13,6 +13,7 @@ def fixture():
     pins = ['pytest==8.3.5', 'pytest-cov==6.0.0', 'coverage==7.8.0', 'pluggy==1.5.0',
             'iniconfig==2.1.0', 'packaging==24.2', 'exceptiongroup==1.2.2', 'tomli==2.2.1']
     files = {'setup_files/swelego.json': b'{"repo":"pynamodb/PynamoDB"}',
+             'task.toml': b'[environment]\nallow_internet = true\n',
              'setup_files/setup.sh': b'original task setup',
              'setup_files/requirements.txt': ('\n'.join(pins)+'\nbotocore==1.37.23\n').encode(),
              'tests/grade.py': GRADE, 'tests/test.patch': b'hidden test patch',
@@ -29,18 +30,132 @@ def fixture():
     return files, spec, observation, image
 
 
+@pytest.mark.parametrize('command', [b'python -m pytest', b'python3 -m pytest',
+                                   b'python -u -m pytest', b'ROS_PYTHON_VERSION=3 pytest',
+                                   b'PYTHONPATH=.${PYTHONPATH:+:$PYTHONPATH} pytest'])
+def test_original_pytest_invocation_variants_use_clean_python(command):
+    files, spec, observation, image = fixture()
+    files['tests/eval.sh'] = files['tests/eval.sh'].replace(b'pytest', command)
+    observation['source_content_sha256'] = files_digest(files.items())
+    result = prepared_verifier_files(files, spec, None, observation=observation, image_bundle=image)
+    assert b'/tests/.ot-verifier-venv/bin/python -I' in result['tests/eval.sh']
+    if b'-u' in command:
+        assert b' -I -u -m pytest ' in result['tests/eval.sh']
+    if command.startswith(b'ROS_'):
+        assert b'ROS_PYTHON_VERSION=3 /tests/' in result['tests/eval.sh']
+
+
+def test_unreviewed_extra_container_python_is_rejected():
+    files, spec, observation, image = fixture()
+    files['tests/test.sh'] += b'python /tests/new_helper.py\n'
+    observation['source_content_sha256'] = files_digest(files.items())
+    with pytest.raises(ValueError, match='container interpreter'):
+        prepared_verifier_files(files, spec, None, observation=observation, image_bundle=image)
+
+
+def test_task_libraries_remain_visible_without_autoloading_agent_added_plugins(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from data.swelego.patch import _prepared_verifier_files
+
+    files,spec,_,_=fixture()
+    prefix=tmp_path/'task-python'
+    site=prefix/'lib/python3.9/site-packages'
+    site.mkdir(parents=True)
+    (site/'submitted_library.py').write_text('answer = 42\n')
+    (site/'agent_plugin.py').write_text('raise RuntimeError("agent plugin ran during grading")\n')
+    metadata=site/'agent_plugin-1.0.dist-info'
+    metadata.mkdir()
+    (metadata/'METADATA').write_text('Metadata-Version: 2.1\nName: agent-plugin\nVersion: 1.0\n')
+    (metadata/'entry_points.txt').write_text('[pytest11]\nagent_plugin = agent_plugin\n')
+    # A clean plugin explicitly disabled by the original command must not be
+    # imported merely because it was present in the dependency observation.
+    (tmp_path/'clean_disabled.py').write_text('raise RuntimeError("disabled plugin imported")\n')
+    clean_metadata=tmp_path/'clean_disabled-1.0.dist-info';clean_metadata.mkdir()
+    (clean_metadata/'METADATA').write_text('Metadata-Version: 2.1\nName: clean-disabled\nVersion: 1.0\n')
+    (clean_metadata/'entry_points.txt').write_text('[pytest11]\ndisabled_plugin = clean_disabled\n')
+    result=_prepared_verifier_files(files,spec,None,python_version='3.9.21',prefix=str(prefix),plugins=['clean_disabled'])
+    (tmp_path/'ot_swelego_paths.py').write_bytes(result['tests/ot_swelego_paths.py'])
+    (tmp_path/'test_submitted.py').write_text('import submitted_library\ndef test_answer():\n    assert submitted_library.answer == 42\n')
+    command=('import sys; sys.path.insert(0, '+repr(str(tmp_path))+'); import pytest; '
+             'sys.exit(pytest.main(["-q", "-p", "no:disabled_plugin", "-p", "no:cacheprovider", "-p", "ot_swelego_paths", '
+             +repr(str(tmp_path/'test_submitted.py'))+']))')
+    environment={k:v for k,v in os.environ.items() if k not in ('PYTEST_PLUGINS','PYTEST_ADDOPTS','PYTEST_DISABLE_PLUGIN_AUTOLOAD')}
+    checked=subprocess.run([sys.executable,'-I','-c',command],cwd=tmp_path,env=environment,
+                           capture_output=True,text=True,timeout=30)
+    assert checked.returncode == 0, checked.stdout+checked.stderr
+    assert '1 passed' in checked.stdout
+
+
+def test_compiled_setup_preparation_requires_image_evidence_and_preserves_normal_setup():
+    from data.swelego.patch import prepared_compiled_setup
+    files={'setup_files/swelego.json': b'{"compiled_checkout":true}',
+           'setup_files/setup.sh': ('#!/bin/bash\nset -euo pipefail\n'
+                                   'if [ -f /opt/swelego-ready/'+'a'*64+' ]; then\n'
+                                   '  echo restore-original-checkout\nfi\n').encode()}
+    observation={'returncode':0,'source_bundle_unchanged':True,
+                 'source_content_sha256':files_digest(files.items()),
+                 'dependency_source':'already baked in verified compiled task image',
+                 'task_preparation':'no additional dependencies or assets needed; baked checkout archive present'}
+    result=prepared_compiled_setup(files,observation=observation)
+    assert set(result)==set(files)
+    assert b'"--prepare"' in result['setup_files/setup.sh']
+    assert result['setup_files/setup.sh'].endswith(files['setup_files/setup.sh'].split(b'set -euo pipefail\n',1)[1])
+    observation['returncode']=1
+    with pytest.raises(ValueError,match='Missing evidence'):
+        prepared_compiled_setup(files,observation=observation)
+
+
 def test_measured_runtime_preserves_task_libraries_and_reference():
     files, spec, observation, image = fixture()
     result = prepared_verifier_files(files, spec, None, observation=observation, image_bundle=image)
     for name in ['setup_files/setup.sh','setup_files/requirements.txt','tests/grade.py','tests/test.patch','solution/solve.sh']:
         assert result[name] == files[name]
-    assert b'import pytest_cov.plugin' in result['tests/ot_swelego_paths.py']
+    bootstrap = result['tests/ot_swelego_paths.py']
+    assert b'pytest_cov.plugin' in bootstrap
+    assert bootstrap.index(b'load_setuptools_entrypoints("pytest11")') < bootstrap.index(b'for path')
     assert b'/opt/miniconda3/envs/testbed/lib/python3.9/site-packages' in result['tests/ot_swelego_paths.py']
     assert b'pytest.main' not in result['tests/ot_swelego_paths.py']
     assert b'/tests/.ot-verifier-venv/bin/python -I -m pytest -p ot_swelego_paths test_project.py' in result['tests/eval.sh']
     assert b'--system-site-packages /tests/.ot-verifier-venv' in result['tests/setup.sh']
     assert 'tests/ot_run_pytest.py' not in result
     assert b' -I -S /tests/grade.py ' in result['tests/test.sh']
+
+
+def test_release_grading_does_not_execute_task_setup_or_conda_activation():
+    files, spec, observation, image = fixture()
+    files['tests/test.sh'] = (
+        b'bash /setup_files/setup.sh || exit $?\n'
+        b'cp /setup_files/setup-timing.json /logs/verifier/setup-timing.json\n'
+        + files['tests/test.sh'])
+    files['tests/eval.sh'] = (
+        b'set +u\n'
+        b'if [ -f /opt/miniconda3/bin/activate ]; then source /opt/miniconda3/bin/activate; '
+        b'elif [ -f /opt/conda/bin/activate ]; then source /opt/conda/bin/activate; fi\n'
+        b'conda activate testbed 2>/dev/null || true\nset -u\n'
+        + files['tests/eval.sh'])
+    files['instruction.md'] = (
+        b'The repository is at `/testbed`. Before working, run `bash /setup_files/setup.sh`. '
+        b'It initializes the task once; later calls preserve your changes.\n')
+    observation['source_content_sha256'] = files_digest(files.items())
+    result = prepared_verifier_files(files, spec, None, observation=observation, image_bundle=image)
+    assert b'/setup_files' not in result['tests/test.sh']
+    assert b'activate' not in result['tests/eval.sh']
+    assert b'run `bash' not in result['instruction.md']
+    assert result['setup_files/setup.sh'] == files['setup_files/setup.sh']
+
+
+@pytest.mark.parametrize('name,command', [
+    ('tests/test.sh', b'source /opt/conda/bin/activate\n'),
+    ('tests/eval.sh', b'bash /setup_files/another-script.sh\n'),
+])
+def test_unknown_agent_side_grading_bootstrap_requires_review(name, command):
+    files, spec, observation, image = fixture()
+    files[name] = command + files[name]
+    observation['source_content_sha256'] = files_digest(files.items())
+    with pytest.raises(ValueError, match='agent-side grading bootstrap'):
+        prepared_verifier_files(files, spec, None, observation=observation, image_bundle=image)
 
 
 @pytest.mark.parametrize('mutation', ['source','image','python','tools','repository'])
@@ -81,7 +196,10 @@ def test_candidate_export_preserves_membership_history_and_untouched_payload(tmp
     monkeypatch.setattr('validation.publishing.image_release.validate_bundle',
                         lambda name, bundle, directory: verified.append((name, directory)))
     reports = []
-    monkeypatch.setattr('data.utils.patch_reporting.write_patch_report', lambda *args, **kwargs: reports.append(kwargs))
+    def write_report(original, target, **kwargs):
+        reports.append(kwargs)
+        target.with_suffix('.manifest.json').write_text('{}')
+    monkeypatch.setattr('data.utils.patch_reporting.write_patch_report', write_report)
     ident = spec_id(spec)
     catalog = {ident: {'id':ident, 'format':FORMAT, 'spec':spec, 'status':'ready','archive_sha256':'d'*64}}
     selection = {'measured': {'runtime_id':ident,'observation':observation,'image_directory':str(tmp_path)}}
@@ -124,7 +242,33 @@ def test_observed_older_interpreters_keep_project_and_plugin_semantics(repo,vers
     assert result['tests/grade.py'] == files['tests/grade.py']
     bootstrap=result['tests/ot_swelego_paths.py']
     assert ('/opt/conda/envs/testbed/lib/python'+'.'.join(version.split('.')[:2])+'/site-packages').encode() in bootstrap
-    if plugin: assert bootstrap.index(plugin)<bootstrap.index(b'for path')
+    if plugin: assert plugin.removeprefix(b'import ') in bootstrap
+    assert bootstrap.index(b'load_setuptools_entrypoints("pytest11")') < bootstrap.index(b'for path')
     spec['requirements']=spec['requirements'][:-1]
     with pytest.raises(ValueError,match='grading tools'):
         prepared_verifier_files(files,spec,None,observation=observation,image_bundle=image)
+
+
+@pytest.mark.parametrize('content', [b'[environment]\nmemory_mb = 4096\n',
+    b'[environment] # original comment\nmemory_mb = 4096\n[verifier]\ntimeout_sec = 60\n',
+    b'[verifier]\ntimeout_sec = 60\n'])
+def test_unset_network_policy_is_explicitly_offline(content):
+    import tomllib
+    from data.swelego.patch import offline_default
+    changed = offline_default(content)
+    assert tomllib.loads(changed.decode())['environment']['allow_internet'] is False
+    assert offline_default(changed) == changed
+
+
+@pytest.mark.parametrize('value', ['true', 'false'])
+def test_even_explicit_upstream_online_starts_offline(value):
+    from data.swelego.patch import offline_default
+    content = ('[environment]\nallow_internet = ' + value + ' # upstream\n').encode()
+    assert offline_default(content) == content.replace(b' = true', b' = false')
+
+
+def test_converter_online_default_does_not_count_as_upstream_permission():
+    import tomllib
+    from data.swelego.patch import offline_default
+    content = b'[environment]\nallow_internet = true\n'
+    assert tomllib.loads(offline_default(content).decode())['environment']['allow_internet'] is False

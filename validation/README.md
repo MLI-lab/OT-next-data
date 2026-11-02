@@ -12,7 +12,7 @@ Before submitting validation, prepare and verify all required images in the targ
 export OT_REQUIRE_PREBUILT_IMAGES=1
 
 python validation/run.py /path/to/tasks \
-  --stages 1,2,3,4 \
+  --stages 0,1,2,3,4 \
   --submit helma --partition cpu --cpus 48 \
   --concurrency 4 --time 02:00:00 \
   --out "$OT_WORKSPACE/validation" \
@@ -28,7 +28,7 @@ python validation/run.py \
   --contract "$OT_WORKSPACE/contracts/validation.json"
 ```
 
-The example runs the full task-filtering pipeline: automatic stage 0, then stages 1 through 4.
+The example runs the full task-filtering pipeline, stages 0 through 4.
 
 To run a single stage, prepare a separate contract with, for example, `--stages 4`. For several stages, use a comma-separated list. Model stages also need their model settings; stages that analyse saved trajectories need `--trials`.
 
@@ -36,13 +36,9 @@ To run a single stage, prepare a separate contract with, for example, `--stages 
 
 Prepare a new contract when tasks, settings or code change. Run `python validation/run.py --help` for all options.
 
-### 3. Inspect the results
+### 3. Publishing the results pm HF
 
-For cluster runs, reports are collected under `<out>/submissions/ID/report/`, with detailed evidence in `evidence.tar.gz`.
-
-`results.parquet` records rule outcomes and evaluations by task revision. Failed required checks exclude tasks; warnings do not. Incomplete checks and infrastructure errors remain unresolved.
-
-See [publishing](publishing/README.md) for creating v1/v2/v3 selections, READMEs and Hugging Face releases.
+See [publishing](publishing/README.md) for how READMEs are generated.
 
 ## Validation protocol
 
@@ -50,7 +46,7 @@ See [publishing](publishing/README.md) for creating v1/v2/v3 selections, READMEs
 
 First, run all selected rules that only need task files. This is a cheap prefilter before starting containers. Tasks with failed or incomplete checks do not continue; warnings are allowed.
 
-Stage 0 runs automatically when the pipeline includes stage 4. See [static rules](rules/README.md).
+Request it with stage 0 in `--stages`. Without it, tasks go straight to the stages you selected. See [static rules](rules/README.md).
 
 ### Stage 1: build, setup and runtime checks
 

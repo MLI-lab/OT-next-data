@@ -32,8 +32,3 @@ description = "The task itself is so easy there is no meaningful work or learnin
 [[categories]]
 name = "OTHER"
 description = "A genuine defect fitting none of the above: verifier code that is buggy/crashes; a task needing network/GPU/GUI/hardware the container lacks; non-determinism; a required background service that is never started; or an internally contradictory spec."
-
-[[criteria]]
-name = "task_clean"
-description = "The task receives CLEAN"
-guidance = "Classify the task using exactly one category above."

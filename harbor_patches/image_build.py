@@ -342,7 +342,7 @@ def directory_overlay_builds(run_unshared, apptainer):
         from harbor_patches.protected_step import remove_tree
         try:
             print('[build] using native directory scratch for deferred RUN steps', flush=True)
-            if os.environ.get('OT_IMAGE_REPAIR_ACCOUNT_OWNERSHIP') == '1':
+            if os.environ.get('OT_IMAGE_REPAIR_ACCOUNT_OWNERSHIP', '1') == '1':
                 if command[-3:-1] != ['bash', '-lc']:
                     raise ValueError('Account preparation requires a deferred bash build script')
                 # Kernel overlayfs cannot copy up or white out a lower inode
@@ -371,7 +371,7 @@ done
             # working-directory mounts. Explicit DNS/certificate binds remain.
             # Containment's empty /tmp and /var/tmp would hide COPY inputs and
             # discard RUN outputs there. Use the image's overlaid directories.
-            root_mode = '--fakeroot' if os.environ.get('OT_IMAGE_BUILD_FAKEROOT') == '1' else '--userns'
+            root_mode = '--fakeroot' if os.environ.get('OT_IMAGE_BUILD_FAKEROOT', '1') == '1' else '--userns'
             result = run_unshared(command[:2] + [root_mode, '--containall', '--no-home',
                 '--no-mount', 'hostfs,bind-paths,cwd,tmp,sys'] + command[2:], timeout=timeout)
             path.rename(tree)

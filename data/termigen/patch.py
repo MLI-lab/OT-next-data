@@ -1,14 +1,10 @@
-"""Repair rules for the pinned full TermiGen Harbor Parquet (ucsb-mlsec/terminal-bench-env @ 03bddac).
+"""Convert pinned Termigen upstream tasks, with optional historical repairs.
 
-R1  restore COPY sources that upstream .gitignore files dropped from environments_harbor/,
-    taking bytes from the pinned termigen_env.zip (never overwriting existing files).
-R2  pin flagged pip tokens from a pin in the same Dockerfile, or bare numpy to the base-image version.
-R3  pin the remaining flagged pip tokens from data/termigen/pip_lock.json (harvested from builds).
-
-The source-repair rules keep tests, instructions, oracles and verifier files unchanged.
-The separate prepare_runtime API adapts reviewed published verifier entrypoints
-using exact image evidence; it preserves test bodies and task initialization.
-R5 (single-file COPY replication) is shared runtime code and is not handled here.
+The environment compatibility conversion and missing COPY-source restoration
+belong to the patch. Recorded instruction suffix/path fixes live in repairs.py
+and are skipped by --no-repairs. Advisory pip-pinning helpers remain available
+for historical callers, but were not used by the published release and are not
+applied by this upstream audit path. Runtime migration uses measured images.
 """
 
 # Support both direct execution and python -m data.<source>.patch.
@@ -274,10 +270,95 @@ def prepare_runtime(files, image, probe, binding, bundle, catalog):
     return verifier_runtime.apply(files, planned, catalog), planned
 
 
+def convert_native(source, output, upstream_zip, *, include_repairs=True):
+    """Convert every upstream task, keeping post-build repairs optional.
+
+    The compatibility converter is the implementation used by the published
+    release. The later advisory pip-pinning helpers above were never applied to
+    that release and must not silently change this audit's dependency versions.
+    """
+    import copy
+    from data.termigen.compatibility import patch_task
+    from data.termigen.repairs import repair_instruction
+    from data.termigen.network import offline_config
+    from data.utils.patch_reporting import write_patch_report
+    from validation.contract import files_digest
+    upstream = load_upstream(upstream_zip)
+    output = Path(output)
+    output.mkdir(parents=True, exist_ok=True)
+    target = output / 'tasks.parquet'
+    if target.exists():
+        raise FileExistsError(target)
+    reader = pq.ParquetFile(source)
+    records, labels, reasons = [], {}, {}
+    with pq.ParquetWriter(target, reader.schema_arrow, compression='zstd') as writer:
+        for batch in reader.iter_batches(batch_size=16):
+            rows = batch.to_pylist()
+            for row in rows:
+                name = row['path']
+                members = [(copy.copy(info), body) for info, body in read_task(row['task_binary'])]
+                # Git tracks only the executable bit. GitHub tarballs add group
+                # write permission, which must not alter embedded chmod commands.
+                for info, body in members:
+                    info.mode = 0o755 if info.isdir() or info.mode & 0o111 else 0o644
+                missing = None
+                try:
+                    restored = restore_sources(name, members, upstream)
+                except ValueError as error:
+                    restored, missing = {}, str(error)
+                members.extend(new_member(path, body) for path, body in sorted(restored.items()))
+                blob, compatibility = patch_task(write_task(members))
+                members = [(info, offline_config(body) if info.name == 'task.toml' else body)
+                           for info, body in read_task(blob)]
+                blob = write_task(members)
+                repairs = []
+                if include_repairs:
+                    members = read_task(blob)
+                    files = {info.name: body for info, body in members if body is not None}
+                    instruction, repairs = repair_instruction(name, files['instruction.md'], files['task.toml'])
+                    if instruction != files['instruction.md']:
+                        members = [(info, instruction if info.name == 'instruction.md' else body)
+                                   for info, body in members]
+                        blob = write_task(members)
+                row['task_binary'] = blob
+                if 'content_sha256' in row:
+                    row['content_sha256'] = files_digest((info.name, body) for info, body in read_task(blob)
+                                                       if body is not None)
+                if 'stages_passed' in row:
+                    row['stages_passed'] = ''
+                records.append(dict(task=name, restored_files=sorted(restored), missing_source=missing,
+                                    compatibility=compatibility, repairs=repairs))
+                labels[name] = ['offline-first'] + (['environment-compatibility'] if compatibility['rules'] or restored else []) + repairs
+                reasons[name] = ('Set every task offline for the initial audit. Preserve the historical environment conversion; '
+                                 + ('apply recorded instruction repairs.' if include_repairs
+                                    else 'omit post-build instruction repairs for the upstream audit.'))
+            writer.write_table(pa.Table.from_pylist(rows, schema=reader.schema_arrow))
+    report = dict(source_revision=REVISION, upstream_zip_sha256=UPSTREAM_ZIP_SHA256,
+                  include_repairs=include_repairs, task_count=len(records), tasks=records,
+                  validation='not run')
+    (output / 'native-conversion.json').write_text(json.dumps(report, indent=1)+'\n')
+    write_patch_report(Path(source), target, source=dict(dataset='termigen',
+        url='https://github.com/ucsb-mlsec/terminal-bench-env', revision=REVISION), dropped={},
+        change_labels=labels, change_reasons=reasons, patcher=Path(__file__))
+    manifest_path = target.with_suffix('.manifest.json')
+    manifest = json.loads(manifest_path.read_text())
+    manifest['patcher_dependencies'] = []
+    for name in ('compatibility.py', 'repairs.py', 'instruction_repairs.json', 'source_inputs.py', 'network.py'):
+        body = Path(__file__).with_name(name).read_bytes()
+        (output / name).write_bytes(body)
+        manifest['patcher_dependencies'].append(dict(path=name, sha256=sha256(body)))
+    manifest_path.write_text(json.dumps(manifest, indent=2)+'\n')
+    return report
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path)
+    parser.add_argument("--upstream-archive", type=Path,
+                        help='Pinned GitHub source tarball; materialize it without extracting task directories')
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--no-repairs", action='store_true',
+                        help='Convert pinned upstream tasks without post-build instruction repairs')
     parser.add_argument("--upstream-zip", type=Path,
                         default=Path(os.environ.get("TERMIGEN_UPSTREAM_ZIP", DEFAULT_UPSTREAM_ZIP)))
     parser.add_argument("--published-input", type=Path)
@@ -286,58 +367,41 @@ def main():
     parser.add_argument("--runtime-image-inventory", type=Path, help="Directory of measured image JSON records")
     parser.add_argument("--runtime-probe", type=Path)
     parser.add_argument("--runtime-cache", type=Path)
+    parser.add_argument("--runtime-shared-bundle", help="Measured sibling image of the same base for Python reuse")
+    parser.add_argument("--runtime-package-inventory", type=Path,
+                        help="JSONL inventories of pristine task images, for package-using verifiers")
     args = parser.parse_args()
     runtime_options = (args.published_input, args.published_revision, args.published_subset,
                        args.runtime_image_inventory, args.runtime_probe, args.runtime_cache)
     if any(runtime_options):
-        if not all(runtime_options) or args.source:
+        if args.no_repairs:
+            parser.error('--no-repairs requires pinned upstream --source, not published tasks')
+        if not all(runtime_options) or args.source or args.upstream_archive:
             parser.error('Published migration requires all --published-* and --runtime-* options; omit --source')
         from data.termigen.verifier_runtime import migrate_published
         inventories = [json.loads(p.read_text()) for p in sorted(args.runtime_image_inventory.glob('*.json'))]
         result = migrate_published(args.published_input, args.output, revision=args.published_revision,
             subset=args.published_subset, images_reviewed=inventories,
-            probes=json.loads(args.runtime_probe.read_text()), cache=args.runtime_cache)
+            probes=json.loads(args.runtime_probe.read_text()), cache=args.runtime_cache,
+            shared_bundle=args.runtime_shared_bundle,
+            package_images=([record for line in args.runtime_package_inventory.read_text().splitlines()
+                             if (record := json.loads(line)).get('return_code') == 0]
+                            if args.runtime_package_inventory else ()))
         print(json.dumps(result['counts'], indent=2))
         return
+    if args.upstream_archive:
+        if args.source:
+            parser.error('Choose --source or --upstream-archive, not both')
+        from data.termigen.source_inputs import prepare
+        args.source, args.upstream_zip = prepare(args.upstream_archive, args.output / 'input')
     if not args.source:
-        parser.error('--source is required for original source repair')
+        parser.error('--source or --upstream-archive is required for original source conversion')
     source = args.source.resolve()
     if not source.is_file() or source.suffix != ".parquet":
         raise ValueError(f"missing pinned TermiGen Parquet: {source}")
-    upstream = load_upstream(args.upstream_zip)
-    lock = json.loads(LOCK.read_text())["entries"]
-    args.output.mkdir(parents=True, exist_ok=True)
-    target = args.output / "tasks.parquet"
-    temporary = target.with_suffix(".parquet.tmp")
-    manifest = {"source_revision": REVISION, "upstream_zip_sha256": UPSTREAM_ZIP_SHA256,
-                "R1_restored_files": [], "pip_pins": []}
-    reader = pq.ParquetFile(source)
-    with pq.ParquetWriter(temporary, reader.schema_arrow, compression="zstd") as writer:
-        for batch in reader.iter_batches(batch_size=64):
-            table = batch.to_pydict()
-            for i, task_id in enumerate(table["path"]):
-                members = read_task(table["task_binary"][i])
-                changed = False
-                for rel, data in sorted(restore_sources(task_id, members, upstream).items()):
-                    members.append(new_member(rel, data))
-                    manifest["R1_restored_files"].append(
-                        {"task": task_id, "path": rel, "sha256": sha256(data)})
-                    changed = True
-                for k, (info, data) in enumerate(members):
-                    if info.name == "environment/Dockerfile":
-                        result = pin_dockerfile(data, lock)
-                        if result:
-                            members[k] = (info, result[0])
-                            manifest["pip_pins"].append({
-                                "task": task_id, "rule": result[1], "replacements": result[2],
-                                "dockerfile_sha256_before": sha256(data),
-                                "dockerfile_sha256_after": sha256(result[0])})
-                            changed = True
-                if changed:
-                    table["task_binary"][i] = write_task(members)
-            writer.write_table(pa.table(table, schema=reader.schema_arrow))
-    temporary.replace(target)
-    (args.output / "termigen_repair_manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+    result = convert_native(source, args.output, args.upstream_zip, include_repairs=not args.no_repairs)
+    print(json.dumps(dict(tasks=result['task_count'], include_repairs=result['include_repairs'])))
+    return
 
 
 # Prepare pilot

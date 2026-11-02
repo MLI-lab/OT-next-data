@@ -75,12 +75,33 @@ def test_required_rules_and_attempt_budget_are_explicit():
                     passk_student_attempts=3)], metadata(), 'v2', 'demo', evaluation_key='passk_student')
 
 
+def test_resource_use_reports_mean_p95_max_of_passing_references():
+    from validation.publishing.readme import resource_use
+    rows = [{'reference': 'pass', 'reference_memory_peak_mb': 1024.0 * n, 'reference_memory_limit_mb': 8192.0,
+             'reference_cpu_seconds': 10.0 * n} for n in (1, 2, 3, 4)]
+    rows += [{'reference': 'fail', 'reference_memory_peak_mb': 99999.0, 'reference_memory_limit_mb': 8192.0},
+             {'reference': 'pass'}]
+    used = {r[0]: r[1:] for r in resource_use(rows)}
+    assert used['Peak memory'] == ('2.50 GiB', '4.00 GiB', '4.00 GiB', 4)
+    assert used['CPU time'] == ('25 s', '40 s', '40 s', 4)
+    assert used['Peak memory / limit'] == ('31%', '50%', '50%', 4)
+    assert resource_use([{'reference': 'pass'}]) == []
+
+
 def test_internet_counts_cover_only_kept_tasks():
     rows = [row('a', paths='pass', allow_internet='true'),
             row('b', paths='pass', allow_internet='false'),
             row('c', paths='pass', allow_internet='unspecified'),
             row('d', paths='pass'), row('excluded', paths='fail', allow_internet='true')]
     text, _ = render(rows, metadata(), 'v1', 'demo')
-    for label in ('allow_internet=true', 'allow_internet=false', 'allow_internet unspecified',
-                  'internet setting not recorded'):
-        assert f'Kept tasks with {label} | 1 |' in text
+    for label in ('allowed', 'not allowed', 'not specified', 'not recorded'):
+        assert f'| Internet | {label} | 1 |' in text
+
+
+def test_resources_count_tasks_by_cpus_and_memory():
+    rows = [row('a', paths='pass', cpus=2, memory_mb=8192), row('b', paths='pass', cpus=2, memory_mb=8192),
+            row('c', paths='pass'), row('excluded', paths='fail', cpus=8, memory_mb=1024)]
+    text, _ = render(rows, metadata(), 'v1', 'demo')
+    assert '| CPUs | 2 | 2 |' in text and '| CPUs | not specified | 1 |' in text
+    assert '| Memory | 8 GiB | 2 |' in text and '| Memory | not specified | 1 |' in text
+    assert '| CPUs | 8 |' not in text

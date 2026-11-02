@@ -70,7 +70,7 @@ HISTORY_INPUT_KEY = 'git_history_is_task_input'
 # fsck --connectivity-only of a large repository takes minutes; a timeout is no verdict.
 LEAK_TIMEOUT_SEC = 300
 # Clone and checkout write files continuously; a pause this long means a later build step.
-MTIME_GAP_SECONDS = 600
+MTIME_GAP_SECONDS = 300
 # A later group this small (share of clean tracked files) singles out files, not the tree.
 MTIME_MINORITY = 0.2
 EXAMPLES = 20
@@ -141,12 +141,31 @@ def empty_object_store_command(repository):
 
     Do not parse objects or follow links. Any file under objects (including packs,
     alternates and malformed/zero-byte objects), traversal error or indirection
-    keeps the original error. Only directory scaffolding qualifies.
+    keeps the original error. Directory scaffolding and a regular zero-byte
+    .git sentinel (used by uv caches) contain no Git object or index data.
+    A relative submodule gitfile also has no store when its ancestor's .git is
+    provably absent. This occurs in the published archspec 0.2.5 wheel.
     """
     return (
         f'cd {shlex.quote(repository)} || exit 3; '
         '[ -z "${GIT_DIR-}${GIT_COMMON_DIR-}${GIT_OBJECT_DIRECTORY-}'
         '${GIT_ALTERNATE_OBJECT_DIRECTORIES-}${GIT_INDEX_FILE-}" ] || exit 4; '
+        'if [ -f .git ] && [ ! -L .git ] && [ ! -s .git ]; then '
+        'printf "empty-gitfile\\n"; exit 0; fi; '
+        'if [ -f .git ] && [ ! -L .git ] && [ -r .git ]; then '
+        '( [ "$(wc -l < .git)" -eq 1 ] || exit 11; '
+        'IFS= read -r pointer < .git || exit 11; '
+        'case "$pointer" in "gitdir: ../"*) ;; *) exit 11;; esac; '
+        'target=${pointer#gitdir: }; '
+        'case "$target" in *[!A-Za-z0-9_./-]*) exit 11;; esac; '
+        'cd -P . || exit 12; '
+        'while [ "${target#../}" != "$target" ]; do '
+        'cd -P .. || exit 12; target=${target#../}; done; '
+        'case "$target" in .git/modules/?*) ;; *) exit 11;; esac; '
+        'case "$target" in *..*|*//*) exit 11;; esac; '
+        '[ -r . ] && [ -x . ] && [ ! -e .git ] && [ ! -L .git ] || exit 12; '
+        'printf "dangling-submodule-gitfile\\n" ) && exit 0; '
+        'exit 11; fi; '
         '[ -d .git ] && [ ! -L .git ] && [ -d .git/objects ] || exit 5; '
         'for p in .git/commondir .git/index .git/shallow; do '
         '[ ! -e "$p" ] && [ ! -L "$p" ] || exit 6; done; '
@@ -158,11 +177,13 @@ def empty_object_store_command(repository):
 async def inspect_empty_object_store(environment, repository):
     command = empty_object_store_command(repository)
     result = await environment.exec(command, timeout_sec=LEAK_TIMEOUT_SEC)
+    kind = (result.stdout or '').strip()
     return {'status': 'passed' if result.return_code == 0 and
-            (result.stdout or '').strip() == 'empty-object-store' else 'not_proven',
+            kind in ('empty-object-store', 'empty-gitfile', 'dangling-submodule-gitfile') else 'not_proven',
+            'kind': kind if result.return_code == 0 else None,
             'command': command, 'exit_code': result.return_code,
             'stdout': (result.stdout or '')[:1000], 'stderr': (result.stderr or '')[-1000:],
-            'scope': 'no object-store files, symlinks, shared store or index; directory scaffolding only'}
+            'scope': 'regular empty .git sentinel, relative submodule pointer to an absent ancestor .git, or directory scaffolding without object-store files, symlinks, shared store or index'}
 
 
 def history_command(repository):
@@ -334,7 +355,10 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=None, history_
                 probe = await inspect_empty_object_store(environment, repository)
                 repo['empty_object_store'] = probe
                 if probe['status'] == 'passed':
-                    repo.update(status='passed', reason='broken Git metadata with a verified empty object store')
+                    reason = {'empty-gitfile': 'verified regular empty .git sentinel',
+                              'dangling-submodule-gitfile': 'verified submodule pointer to an absent ancestor .git'}
+                    repo.update(status='passed', reason=reason.get(probe.get('kind'),
+                        'broken Git metadata with a verified empty object store'))
                     continue
             if repository in uncovered:
                 errors.append(f'{repository}: .git present but not a readable repository; empty object store not proven')
@@ -450,7 +474,8 @@ async def inspect_network(environment, expected):
     # network. Keep probing egress (including host fallback), and preserve the
     # original declaration in evidence rather than rewriting task.toml.
     isolated = os.environ.get('OT_NET_ISOLATION') == '1'
-    if isolated:
+    simulated = os.environ.get('OT_NET_SIMULATED') == '1'
+    if isolated or simulated:
         expected = False
     observations = []
     for direct in (False, True):
@@ -477,9 +502,11 @@ async def inspect_network(environment, expected):
     status = 'not_checked' if expected is None else ('error' if not capable else ('passed' if reachable == expected else 'failed'))
     return {'check': 'declared-network-egress', 'status': status, 'expected_allow_internet': expected,
         'declared_allow_internet': declared,
-        'expectation_source': 'explicit-isolated-run' if isolated else 'task-declaration',
+        'expectation_source': 'explicit-isolated-run' if isolated else
+                              'explicit-simulated-run' if simulated else 'task-declaration',
         'observed_any_reachable': reachable, 'observations': observations,
         'reason': 'No explicit allow_internet declaration; observations only.' if expected is None else
                   'Requires curl or python3; no tools are installed by validation.' if not capable else
                   'Explicit isolated run requires all probed egress to be blocked.' if isolated else
+                  'Simulated offline run requires probed egress to be blocked; routing is not isolated.' if simulated else
                   'Compare observed reachability with declared policy; endpoint outages can cause false negatives.'}

@@ -43,6 +43,9 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
         from validation.rubrics.utils.review import prompt, install_verifier
         text = prompt(rubric, source.name, evidence_mode)
         install_verifier(destination)
+    else:
+        # Same closing lines as the modified prompts; the upstream template stays pinned.
+        text = (text.rstrip('\n') + '\n\nYou have 30 minutes for this review.\n')
     instruction.write_text(text)
     (destination / 'rubric.toml').write_text(rubric)
     if rubric_kind in ('custom', 'river', 'custom_severity'):
@@ -113,7 +116,7 @@ def read_partial_verdicts(path, rubric_path):
     at all, is not a partial review and raises.
     """
     data = json.loads(path.read_text())
-    criteria = {c['name'] for c in tomllib.loads(rubric_path.read_text())['criteria']}
+    criteria = {c['name'] for c in tomllib.loads(rubric_path.read_text()).get('criteria', [])}
     checks = data.get('checks') if isinstance(data, dict) else None
     if not isinstance(checks, dict):
         raise ValueError(f'{path}: verdicts have no checks object')

@@ -30,6 +30,10 @@ import tempfile
 import tomllib
 import urllib.request
 
+from data.tasktrove_bugsinpy.repairs import (
+    INSTRUCTION_REVIEW_EXCLUSIONS, discarded_after_review, reviewed_test_commands,
+    scrapy_bug33_verifier_tests, task_exclusion, youtube_dl_verifier_tests)
+
 
 # Parse the quoted key=value lines used by both project.info and bug.info.
 INFO_LINE = re.compile(r'^\s*([A-Za-z_][A-Za-z_0-9]*)\s*=\s*"([^"]*)"\s*$')
@@ -705,116 +709,9 @@ def fastapi_form_test_requirements(tests: bytes, paths: list[str], inventory: Pa
     raise ValueError("Selected FastAPI Form/File tests need python-multipart, but the bug inventory has no exact pin")
 
 
-def scrapy_bug33_verifier_tests(tests: bytes, bug_id: int) -> tuple[bytes, list[str]]:
-    """Make Bug 33's fixed-only helper absence a normal no-op assertion failure."""
-    if bug_id != 33:
-        return tests, []
-    replacements = {
-        "tests/test_pipeline_media.py": (
-            "from scrapy.utils.log import failure_to_exc_info",
-            "import scrapy.utils.log as scrapy_log\nfailure_to_exc_info = getattr("
-            "scrapy_log, 'failure_to_exc_info', None)",
-            "    def test_default_item_completed(self):\n",
-            "    def test_default_item_completed(self):\n"
-            "        self.assertTrue(callable(failure_to_exc_info), "
-            "'Scrapy must provide failure_to_exc_info')\n",
-        ),
-        "tests/test_utils_log.py": (
-            "from scrapy.utils.log import (failure_to_exc_info, TopLevelFormatter,",
-            "import scrapy.utils.log as scrapy_log\nfailure_to_exc_info = getattr("
-            "scrapy_log, 'failure_to_exc_info', None)\nfrom scrapy.utils.log import (TopLevelFormatter,",
-            "    def test_failure(self):\n",
-            "    def test_failure(self):\n"
-            "        self.assertTrue(callable(failure_to_exc_info), "
-            "'Scrapy must provide failure_to_exc_info')\n",
-        ),
-    }
-    members = {}
-    with tarfile.open(fileobj=io.BytesIO(tests), mode="r:gz") as archive:
-        for member in archive:
-            if member.isfile():
-                members[member.name] = archive.extractfile(member).read()
-    notes = []
-    for path, (old_import, new_import, old_method, new_method) in replacements.items():
-        content = members.get(path)
-        if content is None:
-            raise ValueError(f"Scrapy 33 verifier archive lacks {path}")
-        source = content.decode("utf-8")
-        if source.count(old_import) != 1 or source.count(old_method) != 1:
-            raise ValueError(f"Scrapy 33 expected verifier code changed in {path}")
-        source = source.replace(old_import, new_import, 1).replace(old_method, new_method, 1)
-        members[path] = source.encode("utf-8")
-        notes.append(f"{path}: check fixed-only helper inside test assertion")
-    return compressed(task_tar(members)), notes
 
 
 
-def youtube_dl_verifier_tests(tests: bytes, bug_id: int) -> tuple[bytes, list[str]]:
-    """Record targeted upstream-test adaptations without supplying production code."""
-    helpers = {38: "urlencode_postdata", 39: "limit_length",
-               40: "struct_unpack", 42: "fix_xml_ampersands"}
-    if bug_id not in {*helpers, 14}:
-        return tests, []
-    members = {}
-    with tarfile.open(fileobj=io.BytesIO(tests), mode="r:gz") as archive:
-        for member in archive:
-            if member.isfile():
-                members[member.name] = archive.extractfile(member).read()
-    path = "test/test_youtube_chapters.py" if bug_id == 14 else "test/test_utils.py"
-    source = members[path].decode("utf-8")
-    if bug_id in helpers:
-        helper = helpers[bug_id]
-        imported = f"    {helper},\n"
-        method = f"    def test_{helper}(self):\n"
-        if source.count(imported) != 1 or source.count(method) != 1:
-            raise ValueError(f"youtube-dl {bug_id}: expected helper import/test changed")
-        source = source.replace(imported, "", 1).replace(
-            method, method + "        import youtube_dl.utils as utils\n"
-            + f"        {helper} = getattr(utils, {helper!r}, None)\n"
-            + f"        self.assertTrue(callable({helper}), 'Implement youtube_dl.utils.{helper}')\n", 1)
-        notes = [f"{path}: resolve {helper} inside its test and assert callable before original assertions"]
-    else:
-        method = "    def test_youtube_chapters(self):\n"
-        if source.count(method) != 1:
-            raise ValueError("youtube-dl 14: expected chapter test changed")
-        source = source.replace(method, method + '''        # Additional local regression: JSON chapters and description fallback.
-        import json
-        from test.helper import FakeYDL
-        ie = YoutubeIE(FakeYDL())
-        json_chapters = getattr(ie, '_extract_chapters_from_json', None)
-        description_chapters = getattr(ie, '_extract_chapters_from_description', None)
-        self.assertTrue(callable(json_chapters), 'Implement JSON chapter extraction')
-        self.assertTrue(callable(description_chapters), 'Keep description chapter extraction')
-        expected = [
-            {'title': 'JSON intro', 'start_time': 0.0, 'end_time': 12.5},
-            {'title': 'JSON ending', 'start_time': 12.5, 'end_time': 30},
-        ]
-        chapters = [{'chapterRenderer': {
-            'timeRangeStartMillis': start, 'title': {'simpleText': title}}}
-            for start, title in [(0, 'JSON intro'), (12500, 'JSON ending')]]
-        response = chapters
-        for key in reversed(['playerOverlays', 'playerOverlayRenderer',
-                             'decoratedPlayerBarRenderer', 'decoratedPlayerBarRenderer',
-                             'playerBar', 'chapteredPlayerBarRenderer', 'chapters']):
-            response = {key: response}
-        player = {'watch_next_response': json.dumps(response)}
-        webpage = '"RELATED_PLAYER_ARGS": ' + json.dumps(player) + ',\\n'
-        description = ('<a onclick="yt.www.watch.player.seekTo(0)">0:00</a> Intro'
-                       '<br /><a onclick="yt.www.watch.player.seekTo(20)">0:20</a> Outro')
-        fallback = [
-            {'title': 'Intro', 'start_time': 0, 'end_time': 20},
-            {'title': 'Outro', 'start_time': 20, 'end_time': 30},
-        ]
-        self.assertEqual(json_chapters(webpage, 'fixture', 30), expected)
-        self.assertEqual(ie._extract_chapters(webpage, description, 'fixture', 30), expected)
-        for missing in ['', '"RELATED_PLAYER_ARGS": {},\\n',
-                        '"RELATED_PLAYER_ARGS": {"watch_next_response": "{}"},\\n']:
-            self.assertEqual(ie._extract_chapters(missing, description, 'fixture', 30), fallback)
-
-''', 1)
-        notes = [f"{path}: add offline JSON chapter titles/times, JSON precedence and description fallback assertions; retain original cases"]
-    members[path] = source.encode("utf-8")
-    return compressed(task_tar(members)), notes
 
 
 def scm_version_setup(repo: Path, revision: str, python_version: str
@@ -1245,6 +1142,10 @@ def needs_non_utf8_default(issue: dict | None, reference_patch: bytes, fixed_tes
                    for member in tree)
 
 
+# Unpinned dependencies resolve as of this date, so a later conversion gives the same locks.
+RESOLVED_BY = "2026-10-05"
+
+
 def compile_lock(requirements: list[str], python_version: str,
                  cache: dict[tuple[str, tuple[str, ...]], str],
                  build_python: str | None = None,
@@ -1257,6 +1158,7 @@ def compile_lock(requirements: list[str], python_version: str,
     ``overrides`` are pins that replace what other packages declare for them.
     ``exclude_newer`` is a date; releases published after it are ignored.
     """
+    exclude_newer = exclude_newer or RESOLVED_BY
     minor = ".".join(python_version.split(".")[:2])
     seed = tuple(sorted(set(requirements)))
     key = (minor, seed + tuple(f"override:{pin}" for pin in overrides)
@@ -1543,22 +1445,6 @@ tar -xzf /solution/fixed-files.tar.gz -C /app
 """
 
 
-def reviewed_test_commands(project: str, bug_id: int, fixed: str,
-                           commands: list[str]) -> tuple[list[str], list[str]]:
-    """Apply documented upstream selector corrections without changing tests."""
-    if (project == "ansible" and bug_id == 16
-            and fixed == "93d9d640380252084855885ad27873b4377898ec"):
-        path = "test/units/module_utils/facts/hardware/test_linux_get_cpu_info.py"
-        original = f"pytest {path}::test_get_cpu_info_missing_arch"
-        if commands != [original]:
-            raise ValueError("Ansible 16 upstream test command changed; review correction")
-        # The upstream selector omits architecture, so both endpoints pass.
-        # Keep that check and add the existing architecture-aware regression:
-        # PowerPC processor/cpu fields otherwise double the reported CPU count.
-        return [original + f" {path}::test_get_cpu_info"], [
-            "ansible-16: retain upstream missing-architecture test and add upstream "
-            "test_get_cpu_info to exercise the PowerPC CPU-count fix"]
-    return list(commands), []
 
 
 # Pandas: historical dependency and native-build recipe, with an isolated verifier.
@@ -1662,7 +1548,8 @@ def pandas_bootstrap(lock: str, verifier: bool) -> str:
 
 def build_task(metadata_root: Path, repo: Path, project: dict, bug_id: int,
                issue_cache: dict[str, dict], base_image_template: str,
-               lock_cache: dict[tuple[str, tuple[str, ...]], str]) -> tuple[str, dict[str, bytes], dict]:
+               lock_cache: dict[tuple[str, tuple[str, ...]], str],
+               repairs: bool = True) -> tuple[str, dict[str, bytes], dict]:
     project_name = project["project"]
     bug_dir = metadata_root / "projects" / project_name / "bugs" / str(bug_id)
     info = read_metadata_file(bug_dir / "bug.info")
@@ -1673,11 +1560,8 @@ def build_task(metadata_root: Path, repo: Path, project: dict, bug_id: int,
         # Keras 12: bug.info names one commit for both states and bug_patch.txt
         # is empty, so no reference fix exists. Such a bug is not converted.
         raise ValueError("Discarded: identical buggy and fixed commits, no reference fix")
-    if (project_name, bug_id) == ("keras", 15):
-        # Keras 15 fixes blank CSVLogger rows caused by Windows line-ending
-        # translation. On Linux the unchanged source passes the selected test
-        # (NOP reward 1, job 940231), so the task cannot be graded here.
-        raise ValueError("Discarded: Windows-only bug, unchanged source passes the test on Linux")
+    if repairs and (reason := discarded_after_review(project_name, bug_id)):
+        raise ValueError(reason)
     ensure_commit(repo, buggy)
     ensure_commit(repo, fixed)
     commit_count = int(git(repo, "rev-list", "--count", f"{buggy}..{fixed}").decode())
@@ -1701,8 +1585,8 @@ def build_task(metadata_root: Path, repo: Path, project: dict, bug_id: int,
     if project_name == "fastapi" and (major, minor) == ("3", "8"):
         # All retained FastAPI bugs target 3.8; Bookworm supports host fakeroot.
         image = "python:3.8-slim-bookworm"
-    if project_name in {"cookiecutter", "httpie", "luigi", "matplotlib", "sanic"}:
-        # Cookiecutter 1–4, HTTPie 1–5, Luigi 1–33, Matplotlib 1–30: support host fakeroot.
+    if project_name in {"ansible", "cookiecutter", "httpie", "luigi", "matplotlib", "sanic"}:
+        # Ansible 1–18, Cookiecutter 1–4, HTTPie 1–5, Luigi 1–33, Matplotlib 1–30: support host fakeroot.
         image = "python:3.8-slim-bookworm"
     if project_name == "tqdm":
         # tqdm 1–9 record Python 3.6.9. The 3.6 images are Bullseye and cannot
@@ -1769,10 +1653,10 @@ def build_task(metadata_root: Path, repo: Path, project: dict, bug_id: int,
         roots = sorted(set(roots) | set(inherited_fixtures))
     fixed_tests = compressed(git(repo, "archive", "--format=tar", fixed, *roots))
     verifier_test_corrections = []
-    if project_name == "scrapy":
+    if repairs and project_name == "scrapy":
         fixed_tests, verifier_test_corrections = scrapy_bug33_verifier_tests(
             fixed_tests, bug_id)
-    if project_name == "youtube-dl":
+    if repairs and project_name == "youtube-dl":
         fixed_tests, verifier_test_corrections = youtube_dl_verifier_tests(fixed_tests, bug_id)
     test_lines = [line.strip() for line in (bug_dir / "run_test.sh").read_text().splitlines()
                   if line.strip()]
@@ -1810,8 +1694,8 @@ def build_task(metadata_root: Path, repo: Path, project: dict, bug_id: int,
             for line in test_lines
         ]
     upstream_test_command = "\n".join(test_lines)
-    test_lines, test_command_corrections = reviewed_test_commands(
-        project_name, bug_id, fixed, test_lines)
+    test_lines, test_command_corrections = (reviewed_test_commands(project_name, bug_id, fixed, test_lines)
+                                            if repairs else (test_lines, []))
     raw_test_command = "\n".join(test_lines)
     reference_patch = git(repo, "diff", "--binary", buggy, fixed)
     if not reference_patch:
@@ -1944,6 +1828,8 @@ def build_task(metadata_root: Path, repo: Path, project: dict, bug_id: int,
         requirements = requirement_seeds([
             *requirements, *runtime,
             *inventory_requirements(bug_dir / "requirements.txt", runtime)])
+        # httpie.plugins imports pkg_resources; a clean verifier runtime has no setuptools.
+        requirements = requirement_seeds([*requirements, "setuptools==68.0.0"])
     if project_name == "spacy":
         # These spaCy revisions predate Cython 3; bugs 6/9 use pytest.warns(None),
         # removed in pytest 6. Keep the historical build/test APIs compatible.
@@ -2298,44 +2184,17 @@ CONVERSION_EXPLANATION = (
 )
 
 
-INSTRUCTION_REVIEW_EXCLUSIONS = {
-    ("ansible", 12): ("reference_details", "The tests require environment variables to be read "
-        "through one particular helper. A correct fix that reads them another way can fail."),
-    ("black", 23): ("unrelated_changes", "The instruction asks for a fix to spacing around "
-        "exec/eval, but the selected test checks different Python 2 formatting behavior. "
-        "Fixing the reported issue is not enough to pass."),
-    ("httpie", 4): ("unreliable_tests", "The test needs a successful response from the public "
-        "httpbin.org service. A correct fix can fail when the network or service is unavailable."),
-    ("luigi", 8): ("reference_details", "The test requires the database query to be written "
-        "exactly like the reference fix. A different query that finds the same schema and "
-        "table regardless of letter case can fail."),
-    ("thefuck", 3): ("reference_details", "The test requires the exact command fish --version. "
-        "A fix that safely gets the shell version another way can fail."),
-    ("thefuck", 16): ("reference_details", "The tests require shell aliases to use a particular "
-        "text layout and order of environment variables. An alias that works the same way "
-        "but is written differently can fail."),
-    ("tornado", 6): ("reference_details", "The test expects one closed event loop to remain "
-        "in an internal tracking table. A fix that cleans up all closed loops immediately "
-        "can fail even though it prevents the leak."),
-}
 
 
-def task_exclusion(project: str, bug_id: int) -> dict | None:
-    if finding := INSTRUCTION_REVIEW_EXCLUSIONS.get((project, bug_id)):
-        category, reason = finding
-        task_id = f"bugsinpy-original-{project}-{bug_id}"
-        evidence = ("https://github.com/MLI-lab/OT-next-data/tree/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/tasktrove_bugsinpy/"
-                    f"flagged_instruction_review_20261008/{task_id}")
-        return {"category": "flagged_by_instruction_loop",
-                "reason": f"Flagged during instruction review and excluded after checking the tests. "
-                          f"{reason} Evidence: {evidence}",
-                "review_category": category, "evidence": evidence}
-    if project == "youtube-dl" and bug_id == 40:
-        return {"category": "environment_task_mismatch", "reason": (
-            "Recorded Python 3.7 cannot exercise the older-Python struct Unicode-format "
-            "compatibility bug. The selected test checks the helper interface, but an "
-            "incomplete compatibility fix also passes. Excluded by review, not a NOP false positive.")}
-    return None
+
+
+def record_repairs(manifest_path: Path) -> None:
+    """Keep repairs.py beside the patcher snapshot, so publication includes it."""
+    repairs = Path(__file__).with_name('repairs.py').read_bytes()
+    (manifest_path.parent / 'repairs.py').write_bytes(repairs)
+    manifest = json.loads(manifest_path.read_text())
+    manifest['patcher_dependencies'] = [{'path': 'repairs.py', 'sha256': hashlib.sha256(repairs).hexdigest()}]
+    manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
 
 
 def write_project(output: Path, rows: list[dict], manifest: list[dict], errors: list[dict],
@@ -2364,6 +2223,8 @@ def write_project(output: Path, rows: list[dict], manifest: list[dict], errors: 
                  [*manifest, *(entry['task_manifest'] for entry in exclusions)]}, errors=errors,
         change_labels={row['path']: ['upstream-to-harbor'] for row in rows},
         change_reasons={row['path']: CONVERSION_EXPLANATION for row in rows})
+    if (output / 'tasks.manifest.json').is_file():
+        record_repairs(output / 'tasks.manifest.json')
     report = {"bugsinpy_revision": source_revision, "project_repo": project["repo"],
               "candidate_count": len(rows), "error_count": len(errors),
               "excluded_count": len(exclusions), "exclusions": list(exclusions),
@@ -2585,7 +2446,9 @@ def project_paths_module(paths):
     The finder runs last on sys.meta_path, so it is consulted only for a
     top-level module that no trusted path provides. It then appends the
     declared paths once, giving the same order as the earlier wrapper while the
-    grader stays a plain `python -I -m pytest|unittest` the recorder sees.
+    grader stays a plain `python -I -m pytest|unittest` the recorder sees. A
+    dependency may ship its own top-level `tests` package (scrapy-25), so `tests`
+    alone comes from the project first: the grader's selected tests live there.
     """
     return ('"""Expose declared BugsInPy project paths after trusted paths."""\n'
             'import sys\n'
@@ -2611,6 +2474,20 @@ def project_paths_module(paths):
             '        pass\n'
             '\n'
             '\n'
+            'class ProjectTests(object):\n'
+            '    @staticmethod\n'
+            '    def find_spec(name, path=None, target=None):\n'
+            '        if path is not None or name != \'tests\':\n'
+            '            return None\n'
+            '        from importlib.machinery import PathFinder\n'
+            '        return PathFinder.find_spec(name, PATHS)\n'
+            '\n'
+            '    @staticmethod\n'
+            '    def invalidate_caches():\n'
+            '        pass\n'
+            '\n'
+            '\n'
+            'sys.meta_path.insert(0, ProjectTests)\n'
             'sys.meta_path.append(ProjectPaths)\n')
 
 
@@ -2619,12 +2496,15 @@ def _two_phase_pandas(files):
     lock = set(files['setup_files/requirements.lock'].decode().splitlines())
     return (setup.count(PANDAS_TASK_INSTALL + '\n') == 1
             and set(PANDAS_BUILD_PINS.split()) <= lock
-            and re.search(r'^(?:pytest|/tests/\.venv/bin/python -I (?:/tests/ot_run_tests\.py pytest|-m pytest)) pandas/tests/',
+            and re.search(r'^(?:pytest|/tests/\.venv/bin/python -I (?:-X utf8=0 )?(?:/tests/ot_run_tests\.py pytest|-m pytest)) pandas/tests/',
                           files['tests/run_test.sh'].decode(), re.M))
 
 
 def verifier_build_requirements(files):
     """Build tools observed outside the published lock, scoped to reviewed bytes."""
+    if (sha256(files.get('tests/requirements.lock', b''))
+            == '1b9936c47731581b9ee140d260fa3b13b74fbb47f977a81c9d9de0644555ffa0'):  # spaCy-4, Python 3.8
+        return ['wheel==0.45.1']
     if (sha256(files.get('tests/requirements.lock', b'')) in (
             'bbcc6ff87a534b991491ecb152adb3c18a9245e00adc30409d989217652b5b1f',
             '85299522e1941c1081435984e48048c9fb46fdb8c65494beb588e25663d8412b',
@@ -2652,6 +2532,21 @@ def without_grading_setup_call(files):
     return {**files, 'tests/test.sh': test.replace(GRADING_SETUP_CALL, '', 1).encode()}
 
 
+def without_internet(task_toml):
+    """Prepared runtimes cover every dependency, so the task itself needs no internet."""
+    text = re.sub(r'^allow_internet = true\n', '', task_toml.decode(), flags=re.M)
+    if text.count('[environment]\n') != 1:
+        raise ValueError('Expected one environment section in task.toml')
+    return text.replace('[environment]\n', '[environment]\nallow_internet = false\n').encode()
+
+
+# spaCy rebuilds its extensions at grading; spaCy-4 alone uses the 3.8.20 image.
+SPACY_BUILD_INTERPRETERS = {
+    ('3.7.17', 'aec7ee5b48fa77973fcda22bc798da6c0707e5517a29f1b26b0d7cb180f3bba1'),
+    ('3.8.20', 'bdaff2df0d542d3c237a0d42cd3d0bdf94d4ba181f6489ae1d561a71e21aae2d'),
+}
+
+
 def prepared_verifier_files(files, spec, catalog=None):
     """Bind reviewed BugsInPy grading commands to clean exact-image dependencies.
 
@@ -2674,8 +2569,7 @@ def prepared_verifier_files(files, spec, catalog=None):
     build_requirements = verifier_build_requirements(files)
     expected = requirements
     if build_requirements and any(item not in requirements for item in compared_requirements):
-        if (spec['python'] != '3.7.17' or spec['image_python']['image_sha256'] !=
-                'aec7ee5b48fa77973fcda22bc798da6c0707e5517a29f1b26b0d7cb180f3bba1'):
+        if (spec['python'], spec['image_python']['image_sha256']) not in SPACY_BUILD_INTERPRETERS:
             raise ValueError('Unreviewed build-tool interpreter or image')
         expected = sorted(set(requirements + build_requirements))
     if expected != sorted(compared_requirements):
@@ -2710,7 +2604,8 @@ def prepared_verifier_files(files, spec, catalog=None):
     spacy_build = 'python3 setup.py build_ext --inplace > /logs/verifier/build.txt 2>&1\n'
     spacy_boundary = junit_boundary.replace('export PATH=/tests/.venv/bin:$PATH\n',
                                            'export PATH=/tests/.venv/bin:$PATH\n' + spacy_build)
-    recorded_spacy = (original.count(spacy_boundary) == 1 and spec['python'] == '3.7.17'
+    recorded_spacy = (original.count(spacy_boundary) == 1
+                      and spec['python'] in {python for python, _ in SPACY_BUILD_INTERPRETERS}
                       and 'cd /app && python3 setup.py build_ext --inplace' in files['setup_files/setup.sh'].decode().splitlines()
                       and re.search(r'^py\.test spacy/tests/', files['tests/run_test.sh'].decode(), re.M))
     if ordinary_boundary not in original and not recorded_tornado and not recorded_sanic and not recorded_spacy:
@@ -2750,7 +2645,9 @@ def prepared_verifier_files(files, spec, catalog=None):
         # `-m unittest` and the reviewed recorded-unittest reporter itself.
         runner = {'pytest': '-m pytest', 'unittest': '-m unittest',
                   'recorded-unittest': '/tests/run_unittest.py'}[mode]
-        return '/tests/.venv/bin/python -I ' + runner + (
+        # -I ignores PYTHONUTF8=0, which would hide locale bugs under LC_ALL=C.
+        locale = '-X utf8=0 ' if b'PYTHONUTF8 = "0"' in files.get('task.toml', b'') else ''
+        return '/tests/.venv/bin/python -I ' + locale + runner + (
             ' ' + shlex.join(args) if args else '')
     pattern = r'^(?:python3? -m (unittest|pytest)|python3? (/tests/run_unittest.py)|(pytest|py\.test))([^\n]*)$'
     if re.search(r'\b(?:python3?|pytest|pip3?)\b', re.sub(pattern, '', run, flags=re.M)):
@@ -2762,13 +2659,14 @@ def prepared_verifier_files(files, spec, catalog=None):
     result.update(runtime_reference(spec, catalog))
     result['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n' +
         preparation_command(spec, phase='verifier') + '\n').encode()
-    online = ''.join('  ' + line + '\n' for line in install.splitlines())
     result['tests/test.sh'] = original.replace(GRADING_SETUP_CALL, '', 1).replace(install,
-        'if [ -n "${OT_VERIFIER_PYTHON:-}" ]; then\n'
-        '  "$OT_VERIFIER_PYTHON" -I -m venv --without-pip --system-site-packages /tests/.venv\n'
-        'else\n' + online + 'fi\n' + PROJECT_PATHS_INSTALL).encode()
+        # A missing runtime is built on the host; the container's Python is never used.
+        '"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I -m venv --without-pip '
+        '--system-site-packages /tests/.venv\n' + PROJECT_PATHS_INSTALL).encode()
     result['tests/run_test.sh'] = run.encode()
     result['tests/ot_project_paths.py'] = project_paths_module(paths).encode()
+    if 'task.toml' in files:
+        result['task.toml'] = without_internet(files['task.toml'])
     return result
 
 
@@ -2962,6 +2860,8 @@ def prepare_runtime_candidates(source, output, recipes, catalog, task_ids, sourc
                 if sha256(files['tests/requirements.lock']) != recipe['requirements_sha256']:
                     raise ValueError(task + ': source verifier lock changed')
                 spec = catalog[recipe['runtime_id']]['spec']
+                if b'build_ext' in files['tests/test.sh'] and not spec.get('python_headers'):
+                    raise ValueError(task + ': grading compiles extensions, the runtime needs Python headers')
                 updated = prepared_verifier_files(files, spec, catalog)
                 if offline_catalog is not None:
                     from harbor_patches.verifier_bundle import OFFLINE_REQUEST_KEYS
@@ -3030,7 +2930,70 @@ def prepare_runtime_candidates(source, output, recipes, catalog, task_ids, sourc
     write_patch_report(source, target, source={'dataset': 'FWeindel/validated-tasks',
         'url': 'https://huggingface.co/datasets/FWeindel/validated-tasks', 'revision': source_revision},
         dropped={}, change_labels=labels, change_reasons=reasons, patcher=__file__)
+    record_repairs(target.with_suffix('.manifest.json'))
     return {'tasks': original.metadata.num_rows, 'changed': len(selected), 'validation': 'incomplete'}
+
+
+def prepare_offline(tasks, output, images, runtimes, revision):
+    """Make converted tasks offline with the reviewed recipes in offline-recipes.json.
+
+    tasks is a Parquet of `path`, `task_binary` or a folder of */tasks.parquet from a conversion."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from harbor_patches.verifier_bundle import FORMAT, OFFLINE_FORMAT
+    from validation.contract import files_digest
+    tasks, output, images, runtimes = Path(tasks), Path(output), Path(images), Path(runtimes)
+    reviewed = json.loads(Path(__file__).with_name('offline-recipes.json').read_text())
+    catalog, offline = {}, {}
+    for path in runtimes.glob('*.json'):
+        record = json.loads(path.read_text())
+        if record.get('format') == FORMAT:
+            catalog[record['id']] = record
+        elif record.get('format') == OFFLINE_FORMAT and record.get('status') == 'ready':
+            offline[record['id']] = record
+    schema = pa.schema([('path', pa.string()), ('task_binary', pa.binary()), ('content_sha256', pa.string()),
+                        ('stages_passed', pa.string()), ('archive_stage', pa.int64()), ('archive_reason', pa.string()),
+                        ('run', pa.string()), ('validation_labels', pa.list_(pa.string())),
+                        ('patch_labels', pa.list_(pa.string())), ('archive_labels', pa.list_(pa.string())),
+                        ('patch_changed', pa.bool_()), ('source_task_id', pa.string())])
+    bundles = {image['bundle']: {'name': image['name'], 'files': {image['name']: {
+        'bytes': image['bytes'], 'sha256': image['sha256']}}} for image in reviewed['images'].values()}
+    bound, recipes, rows = {}, {}, []
+    for source in sorted(tasks.glob('*/tasks.parquet')) if tasks.is_dir() else [tasks]:
+        for batch in pq.ParquetFile(source).iter_batches(batch_size=1, columns=['path', 'task_binary']):
+            row = batch.to_pylist()[0]
+            task = row['path']
+            with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
+                files = {m.name: archive.extractfile(m).read() for m in archive if m.isfile()}
+            recipe = reviewed['tasks'][task]
+            image = reviewed['images'][recipe['image']]
+            digest = files_digest(files.items())
+            bound[task] = {'content_sha256': digest, 'environments': [{
+                'path': 'environment', 'environment_sha256': image['environment_sha256'], 'bundle': image['bundle']}]}
+            recipes[task] = {'source_content_sha256': digest, 'requirements_sha256': recipe['requirements_sha256'],
+                             'runtime_id': recipe['verifier_runtime_id'], 'image_sha256': image['sha256'], 'python': recipe['python'],
+                             'image_path': str(images / 'bundles-v1' / image['name'] / image['name'])}
+            rows.append({'path': task, 'task_binary': row['task_binary'], 'content_sha256': digest, 'source_task_id': task})
+    output.parent.mkdir(parents=True, exist_ok=True)
+    source = output.with_name(output.name + '.source.parquet')
+    metadata = {b'ot.images.v1': json.dumps({'version': 1, 'bundles': bundles, 'tasks': bound, 'missing': []}).encode()}
+    pq.write_table(pa.Table.from_pylist([{n: r.get(n) for n in schema.names} for r in rows],
+                                        schema=schema.with_metadata(metadata)), source, compression='zstd')
+    try:
+        return prepare_runtime_candidates(source, output, recipes, catalog, sorted(recipes), revision, offline)
+    finally:
+        source.unlink(missing_ok=True)
+
+
+def offline_cli():
+    parser = argparse.ArgumentParser(description='Make converted BugsInPy tasks offline')
+    parser.add_argument('--tasks', type=Path, required=True, help='Parquet, or conversion folder of */tasks.parquet')
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--images', type=Path, required=True, help='folder holding bundles-v1')
+    parser.add_argument('--runtimes', type=Path, required=True, help='folder of runtime archives and manifests')
+    parser.add_argument('--source-revision', required=True, help='conversion recorded in the task metadata')
+    args = parser.parse_args()
+    print(json.dumps(prepare_offline(args.tasks, args.output, args.images, args.runtimes, args.source_revision), indent=2))
 
 
 def runtime_cli():
@@ -3064,6 +3027,8 @@ def main() -> None:
     parser.add_argument("--render-dir", type=Path, help="Optional folder for inspectable Harbor tasks")
     parser.add_argument("--issue-cache", type=Path, help="Optional saved issue responses to reuse")
     parser.add_argument('--validated-tasks', type=Path, help='Prepare the reviewed historical publication')
+    parser.add_argument('--no-repairs', action='store_true',
+                        help='Convert only: leave out repairs.py, to evaluate the pipeline on the plain conversion')
     parser.add_argument('--include-static-repairs', action='store_true',
                         help='Preserve exact historical payloads with reviewed instructions and rule-based suffix repairs')
     parser.add_argument('--validated-archive', type=Path)
@@ -3122,8 +3087,9 @@ def main() -> None:
         for bug_id in project["bug_ids"]:
             try:
                 task_name, files, record = build_task(metadata_root, repo, project, bug_id,
-                                                      issue_cache, args.base_image_template, lock_cache)
-                exclusion = task_exclusion(name, bug_id)
+                                                      issue_cache, args.base_image_template, lock_cache,
+                                                      repairs=not args.no_repairs)
+                exclusion = None if args.no_repairs else task_exclusion(name, bug_id)
                 if exclusion:
                     reason = exclusion['category'] + ': ' + exclusion['reason']
                     archived.append({"path": task_name, "task_binary": task_tar(files),
@@ -3158,5 +3124,6 @@ def instruction_loop_cli():
 
 if __name__ == "__main__":
     from data.utils.cli import dispatch
-    dispatch({'instruction-loop': instruction_loop_cli, 'prepare-runtimes': runtime_cli})
+    dispatch({'instruction-loop': instruction_loop_cli, 'prepare-runtimes': runtime_cli,
+              'prepare-offline': offline_cli})
     main()

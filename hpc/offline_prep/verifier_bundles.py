@@ -61,13 +61,11 @@ def build(spec, cache, uv='uv', test_image=None):
         verify({**manifest, 'spec': spec}, cache)
         return manifest
     image_native = 'image_python' in spec
-    if image_native:
-        from hpc.offline_prep.image_python_runtime import source_image
-        test_image = source_image(spec, test_image)
     with tempfile.TemporaryDirectory(prefix='verifier-build-', dir=os.environ.get('TMPDIR')) as tmp:
         tmp = Path(tmp)
         if image_native:
-            from hpc.offline_prep.image_python_runtime import stage_source
+            from hpc.offline_prep.image_python_runtime import source_image, stage_source
+            test_image = source_image(spec, test_image, scratch=tmp)
             test_image = stage_source(test_image, tmp)
         download = tmp / 'download'
         target = f"cpython-{spec['python']}-linux-{spec['architecture']}-{spec['libc']}"
@@ -120,6 +118,20 @@ def build(spec, cache, uv='uv', test_image=None):
                             *install_options, *requirements], check=True)
         if spec.get('runtime_layout') == 2:
             relocate_scripts(runtime)
+        if spec.get('image_tools'):
+            from hpc.offline_prep.image_verifier_tools import prepare as prepare_tools
+            prepare_tools(spec['image_tools'], runtime, tmp)
+        image_asset_records = None
+        if spec.get('image_assets'):
+            from hpc.offline_prep.image_runtime_assets import prepare as prepare_assets
+            asset_python = 'python3'
+            if spec.get('image_python', {}).get('image_sha256') == spec['image_assets']['image_sha256']:
+                asset_python = spec['image_python']['executable']
+            image_asset_records = prepare_assets(spec['image_assets'], runtime, tmp, test_image, python=asset_python)
+        image_package_records = {}
+        if spec.get('image_python', {}).get('packages') or spec.get('image_python', {}).get('modules'):
+            from hpc.offline_prep.image_python_packages import prepare as prepare_image_packages
+            image_package_records = prepare_image_packages(spec, runtime, tmp, test_image)
         for tool in spec.get('tools', []):
             path = runtime / 'bin' / tool
             if not path.is_file() or not os.access(path, os.X_OK):
@@ -162,6 +174,13 @@ def build(spec, cache, uv='uv', test_image=None):
             '  data = email.parser.Parser().parsestr(path.read_text())\n'
             '  records.add(data["Name"] + "==" + data["Version"])\n'
             'print("\\n".join(sorted(records)))'), text=True)
+        auxiliary_records = {}
+        if image_package_records:
+            # Distro packages retain egg-info rather than wheel dist-info.
+            lock = '\n'.join(sorted(set(lock.splitlines()) | {pin for pin in image_package_records if '==' in pin}))
+        if spec.get('auxiliary'):
+            from hpc.offline_prep.auxiliary_verifier_runtimes import prepare as prepare_auxiliary
+            auxiliary_records = prepare_auxiliary(spec['auxiliary'], runtime, tmp, cache, uv, test_image)
         archive = cache / (key + '.tar.gz')
         if archive.exists():
             raise FileExistsError(f'Unpublished archive already exists: {archive}; inspect it before retrying')
@@ -183,8 +202,14 @@ def build(spec, cache, uv='uv', test_image=None):
         manifest = {'format': FORMAT, 'id': key, 'spec': spec, 'archive_sha256': checksum,
                     'status': 'ready', 'resolved_requirements': lock.splitlines(),
                     'archive_bytes': archive.stat().st_size, 'python_target': target}
+        if image_asset_records:
+            manifest['image_assets'] = image_asset_records
         if source_artifacts:
             manifest['source_artifacts'] = source_artifacts
+        if auxiliary_records:
+            manifest['auxiliary_runtimes'] = auxiliary_records
+        if image_package_records:
+            manifest['image_packages'] = image_package_records
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
         return manifest
 

@@ -71,7 +71,8 @@ def implementation_rubric(source, references=None, suffixes=None):
     for criterion in ('difficult', 'novel', 'separate_verifier_configured', 'environment_hygiene',
                       'difficulty_explanation_quality', 'solution_explanation_quality',
                       'verification_explanation_quality', 'category_and_tags', 'task_name', 'task_readme',
-                      'expert_time_estimate', 'task_toml_schema', 'binary_reward'):
+                      'expert_time_estimate', 'task_toml_schema', 'binary_reward',
+                      'artifact_efficiency', 'ctrf_reporting', 'verifier_execution_isolation'):
         patches.append(f'skip-{criterion}.patch')
         policy = next(p for p in metadata['patches'] if p['criterion'] == criterion)
         skipped[criterion] = {'outcome': 'not_applicable',
@@ -85,6 +86,7 @@ def implementation_rubric(source, references=None, suffixes=None):
         patches.append('concision-timeout.patch')
     patches.append('concision-formatting.patch')
     patches.append('concision-paths.patch')
+    patches.append('verify-time-installs.patch')
     with tempfile.TemporaryDirectory(prefix='ot-rubric-') as directory:
         target = Path(directory) / 'rubric.toml'
         target.write_bytes(payload)

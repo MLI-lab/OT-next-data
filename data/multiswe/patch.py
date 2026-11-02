@@ -16,6 +16,12 @@ import tarfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
+from data.multiswe import repairs as task_repairs
+from data.multiswe import build_cache
+from data.multiswe.repairs import (
+    SPOTBUGS_VERIFIER_FIXTURES, TASK_MEMORY_MB, apply_task_memory, expected_missing_source, normalize_hugo_output, normalize_nuxt_output, normalize_trpc_output, repair_hugo_result_lines, repair_spotbugs_verifier_fixtures)
+
+
 # Embedded build inputs retain their exact bytes so image cache keys remain stable.
 EMBEDDED_FILES = {
     'grader-requirements.txt': (
@@ -553,70 +559,14 @@ EMBEDDED_FILES = {
 
 REVISION = '80de95c62ac792c99dcfa8e26569bcd7d036bdc3'
 MARKER = '# Multi-SWE pinned grader runtime v4'
-TASK_MEMORY_MB = {'gohugoio__hugo-12703': 8192}
-SPOTBUGS_VERIFIER_FIXTURES = {
-    'spotbugs__spotbugs-2872': 'spotbugsTestCases/src/java/ghIssues/Issue453.java',
-    'spotbugs__spotbugs-2887': 'spotbugsTestCases/src/java/ghIssues/Issue608.java',
-    'spotbugs__spotbugs-3032': 'spotbugsTestCases/src/java/ghIssues/Issue2968.java',
-}
 
 
-def repair_spotbugs_verifier_fixtures(files, task_id):
-    """Supply regression fixtures discarded by the upstream fix/test path split."""
-    fixture = SPOTBUGS_VERIFIER_FIXTURES.get(task_id)
-    target = 'setup_files/upstream/test.patch'
-    if fixture is None or target not in files:
-        return files
-    header = f'diff --git a/{fixture} b/{fixture}\n'.encode()
-    blocks = re.split(rb'(?m)(?=^diff --git )', files['solution/gold.patch'])
-    matches = [block for block in blocks if block.startswith(header)]
-    if len(matches) != 1 or b'\n--- /dev/null\n' not in matches[0]:
-        raise ValueError(f'Expected one new regression fixture for {task_id}')
-    test_patch = files[target]
-    if header in test_patch:
-        if matches[0].rstrip(b'\n') not in test_patch:
-            raise ValueError(f'Conflicting regression fixture for {task_id}')
-        return files
-    # The fixture is a verifier input, not the production fix. Preserve the
-    # original reference and assertions; apply the fixture after extraction
-    # resets the repository, for both oracle and unchanged-baseline trials.
-    return {**files, target: test_patch.rstrip(b'\n') + b'\n' + matches[0]}
 
 
-def normalize_hugo_output(output):
-    """Separate Go test results appended to a warning without a newline."""
-    import re
-    return re.sub(
-        r'(?m)(?<=[^\n])(?=--- (?:PASS|FAIL|SKIP): \S+ \([0-9]+(?:\.[0-9]+)?s\)[ \t]*$)',
-        '\n', output)
 
 
-def repair_hugo_result_lines(files, task_id):
-    if task_id != 'gohugoio__hugo-13005':
-        return files
-    import inspect
-    grade = files['tests/grade.py'].decode()
-    if 'def normalize_hugo_output(' in grade:
-        return files
-    anchor = '    reward_path = Path(sys.argv[3])'
-    if grade.count('def main():') != 1 or grade.count(anchor) != 1:
-        raise ValueError('Unknown Hugo grader structure')
-    grade = grade.replace('def main():', inspect.getsource(normalize_hugo_output) + '\n\ndef main():')
-    grade = grade.replace(anchor, '    output = normalize_hugo_output(output)\n' + anchor)
-    return {**files, 'tests/grade.py': grade.encode()}
 
 
-def apply_task_memory(files, task_id):
-    """Apply the operator-selected budget; expected no-op OOM is reviewed separately."""
-    if task_id not in TASK_MEMORY_MB:
-        return files
-    updated = dict(files)
-    updated['task.toml'], count = re.subn(
-        rb'(?m)^memory_mb[ \t]*=[ \t]*\d+[ \t]*$',
-        f'memory_mb = {TASK_MEMORY_MB[task_id]}'.encode(), files['task.toml'])
-    if count != 1:
-        raise ValueError('Expected one task memory setting')
-    return updated
 
 # Bullseye packages moved off the live mirrors after its LTS end in August 2026.
 # Keep signature checking; only relax archive Release-file expiration checks.
@@ -692,9 +642,31 @@ def patched_image_prepare(recipe):
     return script
 
 
-def patch_files(files):
+def offline_configuration(content):
+    """The audit starts offline even when the source explicitly requested internet."""
+    import tomllib
+    text = content.decode()
+    parsed = tomllib.loads(text)
+    if 'environment' not in parsed:
+        return (text.rstrip() + '\n[environment]\nallow_internet = false\n').encode()
+    block = re.search(r'(?ms)^\[environment\][ \t]*\n(.*?)(?=^\[|\Z)', text)
+    if block is None:
+        raise ValueError('Unreviewed Multi-SWE environment configuration')
+    body = block[1]
+    if 'allow_internet' in parsed['environment']:
+        body, count = re.subn(r'(?m)^allow_internet[ \t]*=[^\n]*', 'allow_internet = false', body)
+        if count != 1:
+            raise ValueError('Expected one Multi-SWE network declaration')
+    else:
+        body = 'allow_internet = false\n' + body
+    return (text[:block.start(1)] + body + text[block.end(1):]).encode()
+
+
+def patch_files(files, *, repairs=True):
     """Keep task/reference semantics; make grader infrastructure failures explicit."""
     files = dict(files)
+    if 'task.toml' in files:
+        files['task.toml'] = offline_configuration(files['task.toml'])
     docker = files['environment/Dockerfile'].decode()
     if MARKER in docker:
         return files
@@ -703,20 +675,8 @@ def patch_files(files):
     if len(install) != 1 or 'python3 /tests/grade.py ' not in test:
         raise ValueError('Unexpected Multi-SWE verifier layout; refusing partial repair')
     grade = files['tests/grade.py'].decode()
-    error_line = '        print(f"Multi-SWE grader error: {type(exc).__name__}: {exc}", file=sys.stderr)'
-    if grade.count(error_line) != 1:
-        raise ValueError('Unexpected grader error handling')
-    grade = grade.replace(error_line, error_line + '\n        reward_path.unlink(missing_ok=True)\n        raise')
-    import inspect
-    grade = grade.replace('def main():', inspect.getsource(expected_missing_source) + '\n\ndef main():')
-    grade = grade.replace('        reward = float(report.valid',
-                          '        if report.fix_patch_result.all_count == 0 and not expected_missing_source(row, output):\n'
-                          '            raise RuntimeError("Verifier produced no parsed test results; see test_output.txt")\n'
-                          '        reward = float(report.valid')
-    grade = grade.replace('        print(report.error_msg or "valid report")',
-                          '        missing = {field: sorted(set(getattr(dataset, field)) - set(getattr(report, field)))\n'
-                          '                   for field in ("p2p_tests", "f2p_tests", "s2p_tests", "n2p_tests")}\n'
-                          '        print(report.error_msg or ("Missing required test results: " + json.dumps(missing) if not reward else "valid report"))')
+    if repairs:
+        grade = task_repairs.grader(grade)
     test = test.replace('set -uo pipefail', 'set -euo pipefail')
     test = test.replace(install[0] + '\n', '')
     test = test.replace('export PYTHONPATH=/tmp/multiswe-grader:${PYTHONPATH:-}\n', '')
@@ -785,7 +745,7 @@ unset electron_https_proxy electron_http_proxy
 
 PREINSTALLED_REPOS = {
     'insomnia', 'github-readme-stats', 'async', 'trpc', 'redux', 'material-ui',
-    'dayjs', 'react-router', 'checkstyle', 'fastjson2', 'junit5', 'logstash', 'mockito', 'spotbugs',
+    'dayjs', 'react-router', 'core', 'checkstyle', 'fastjson2', 'junit5', 'logstash', 'mockito', 'spotbugs',
 }
 
 JUNIT_RUNTIME_SNAPSHOT_BASELINES = {
@@ -814,6 +774,7 @@ def preinstalled_docker(recipe):
             'p.tasks.withType(org.gradle.api.tasks.testing.Test).each { t ->',
             'p.tasks.withType(org.gradle.api.tasks.testing.Test).toList().each { t ->')
         helper = helper.replace('./gradlew --no-daemon', './gradlew --stacktrace --no-daemon')
+    helper = build_cache.preinstall_helper(recipe, helper)
     proxy = EMBEDDED_FILES['gradle_proxy.py'].split("\nif __name__ == '__main__':", 1)[0]
     proxy = proxy.replace('def main():', 'def configure_gradle_proxy():')
     invocation = 'preinstall(json.loads(sys.argv[1]), configure_gradle_proxy)\n'
@@ -837,11 +798,12 @@ def preinstalled_docker(recipe):
     return ('\n# Install baseline dependencies once, for this exact source commit.\n'
             'ENV GRADLE_USER_HOME=/opt/multiswe-gradle\n'
             + ('ENV MAVEN_USER_HOME=/opt/multiswe-maven-user\n' if recipe['repo'] == 'fastjson2' else '')
+            + build_cache.additional_docker(recipe)
             + 'RUN /opt/multiswe-python/bin/python3 -c ' + shlex.quote('exec(' + repr(program) + ')')
             + ' ' + shlex.quote(json.dumps(spec, sort_keys=True)) + '\n' + readable_cache)
 
 
-def share_image(files, recipe, locks):
+def share_image(files, recipe, locks, *, repairs=True, cache_spec=None):
     """Move the audited upstream PR layer to idempotent task initialization."""
     if 'error' in recipe:
         raise ValueError(recipe['error'])
@@ -858,7 +820,9 @@ def share_image(files, recipe, locks):
         raise ValueError('Invalid repository commit')
     if not re.fullmatch(r'[A-Za-z0-9_.-]+', recipe['repo']):
         raise ValueError('Invalid repository name')
-    recipe = repair_recipe(recipe)
+    recipe = repair_recipe(recipe, repairs=repairs)
+    if cache_spec is not None:
+        recipe = build_cache.prepare_recipe(recipe, cache_spec)
     updated = dict(files)
     updated['environment/Dockerfile'] = docker.replace(old, 'FROM ' + pinned, 1).encode()
     if recipe['repo'] == 'logstash':
@@ -874,11 +838,14 @@ def share_image(files, recipe, locks):
                 '--allow-releaseinfo-change-label update; fi\n')
         updated['environment/Dockerfile'] = updated['environment/Dockerfile'].replace(
             (MARKER + '\nUSER root\n').encode(), (MARKER + '\nUSER root\n' + azul).encode(), 1)
-    preinstalled = recipe['repo'] in PREINSTALLED_REPOS
+    preinstalled = cache_spec is None and (recipe['repo'] in PREINSTALLED_REPOS or
+        (recipe['repo'] == 'nuxt' and recipe['base_sha'] in build_cache.PREINSTALLED_NUXT))
     if preinstalled:
         updated['environment/Dockerfile'] += preinstalled_docker(recipe).encode()
         recipe['files']['prepare.sh'] = ('#!/bin/bash\nset -eu\ncd /home/' + recipe['repo'] +
             '\n[ "$(git rev-parse HEAD)" = ' + recipe['base_sha'] + ' ]\n')
+    if cache_spec is not None:
+        updated['environment/Dockerfile'] += build_cache.docker(cache_spec).encode()
     proxy_setup = ELECTRON_PROXY if recipe['original_image'].startswith('mswebench/kong_m_insomnia:') else ''
     identity = hashlib.sha256((json.dumps(recipe, sort_keys=True) + proxy_setup).encode()).hexdigest()
     marker = '/setup_files/.multiswe-' + identity
@@ -915,92 +882,21 @@ def share_image(files, recipe, locks):
     updated['solution/solve.sh'] = solve.replace('set -e\n', 'set -e\nbash /setup_files/setup.sh\n', 1).encode()
     if b'bash /setup_files/setup.sh\n' not in updated['solution/solve.sh']:
         raise ValueError('Unknown reference entrypoint')
-    updated['instruction.md'] = updated['instruction.md'].rstrip() + b'\n\nBefore working on the task, run `bash /setup_files/setup.sh`. It initializes this task once and safely does nothing on subsequent calls.\n'
     if 'tests/extract_fix_patch.sh' in updated:
         updated['tests/extract_fix_patch.py'] = EMBEDDED_FILES['extract_fix_patch.py'].encode()
         updated['tests/extract_fix_patch.sh'] = b'#!/bin/bash\nset -euo pipefail\nexec /opt/multiswe-python/bin/python3 /tests/extract_fix_patch.py "$@"\n'
-    if recipe['repo'] in ('dayjs', 'darkreader', 'spotbugs', 'mockito') and 'task.toml' in updated:
-        updated['task.toml'] = updated['task.toml'].replace(b'memory_mb = 4096', b'memory_mb = 8192')
-    if recipe['repo'] == 'nuxt':
-        grade = updated['tests/grade.py'].decode()
-        # The pinned parser uses the first token of each result line. Verbose
-        # Vitest prefixes individual tests with their file, while the original
-        # dataset also records suite names from default-reporter slow-test lines.
-        import inspect
-        grade = grade.replace('def main():', inspect.getsource(normalize_nuxt_output) + '\n\ndef main():')
-        grade = grade.replace('    reward_path = Path(sys.argv[3])',
-                              '    output = normalize_nuxt_output(output)\n    reward_path = Path(sys.argv[3])')
-        updated['tests/grade.py'] = grade.encode()
-    if recipe['repo'] == 'trpc':
-        import inspect
-        grade = updated['tests/grade.py'].decode()
-        grade = grade.replace('def main():', inspect.getsource(normalize_trpc_output) + '\n\ndef main():')
-        grade = grade.replace('    reward_path = Path(sys.argv[3])',
-                              '    output = normalize_trpc_output(output)\n    reward_path = Path(sys.argv[3])')
-        updated['tests/grade.py'] = grade.encode()
+    if repairs:
+        updated = task_repairs.repository_files(updated, recipe['repo'])
     return updated
 
 
-def expected_missing_source(row, output):
-    """Recognize a baseline import failure for a source file supplied by the fix."""
-    import posixpath
-    import re
-    baseline = row.get('test_patch_result', {})
-    if any(baseline.get(k, 0) for k in ('passed_count', 'failed_count', 'skipped_count')):
-        return False
-    match = re.search(r"Cannot find module '([^']+)'\nRequire stack:\n- ([^\n]+)", output)
-    if not match or not match[1].startswith('.'):
-        return False
-    missing = posixpath.normpath(posixpath.join(posixpath.dirname(match[2]), match[1]))
-    added = re.findall(r'(?m)^--- /dev/null\n\+\+\+ b/([^\n]+)', row.get('fix_patch', ''))
-    if any('/home/' + row.get('repo', '') + '/' + name == missing + suffix
-           for name in added for suffix in ('', '.js', '.jsx', '.ts', '.tsx', '/index.js', '/index.ts')):
-        return True
-    # The fix can also remove a broken import rather than add its target.
-    importer = match[2].removeprefix('/home/' + row.get('repo', '') + '/')
-    for block in row.get('fix_patch', '').split('diff --git '):
-        if '\n--- a/' + importer + '\n' not in block:
-            continue
-        for line in block.splitlines():
-            if line.startswith('-') and re.search(r'''(?:from\s*|require\s*\(\s*|import\s*)['"]''' + re.escape(match[1]) + r'''['"]''', line):
-                return True
-    return False
 
 
-def normalize_trpc_output(output):
-    """The pinned tRPC parser requires ANSI color even for non-interactive logs."""
-    import re
-    lines = []
-    for line in output.splitlines():
-        plain = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
-        match = re.match(r'^(?:@trpc/tests:test-ci: )?\[0\]\s+([✓❯])\s+(?:\|tests\|\s+)?([^|\s]\S*)', plain)
-        if match:
-            color = '32' if match[1] == '✓' else '33'
-            line = f'[0] \x1b[{color}m{match[1]}\x1b[39m \x1b[32m|tests|\x1b[39m {match[2]}'
-        lines.append(line)
-    return '\n'.join(lines)
 
 
-def normalize_nuxt_output(output):
-    """Map verbose Vitest results to upstream identifiers, with failures winning."""
-    import re
-    statuses = {}
-    for line in output.splitlines():
-        line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
-        match = re.match(r'^([✓×❯])\s+(\S+)(.*)', line)
-        if not match:
-            continue
-        names = [match[2]]
-        detail = re.match(r'^ > (\S+)', match[3])
-        if detail and re.search(r'\.(test|spec)\.', match[2]):
-            names.append(detail[1])
-        for name in names:
-            statuses[name] = statuses.get(name, True) and match[1] == '✓'
-    return '\n'.join(('✓' if passed else '❯') + ' ' + name + ' result'
-                     for name, passed in statuses.items())
 
 
-def repair_recipe(recipe):
+def repair_recipe(recipe, *, repairs=True):
     """Repair runtime/test invocation, without changing tests or their expectations."""
     recipe = copy.deepcopy(recipe)
     for name in ('prepare.sh', 'fix-run.sh'):
@@ -1017,31 +913,7 @@ def repair_recipe(recipe):
     if recipe['repo'] == 'junit5':
         recipe['files']['fix-run.sh'] = recipe['files']['fix-run.sh'].replace(
             './gradlew ', './gradlew --init-script /opt/multiswe-junit-local.gradle ')
-    run = recipe['files']['fix-run.sh']
-    # git apply rejects an empty fix.patch, preventing no-op tests from running.
-    def split_apply(match):
-        command = match.group(0).replace(' /home/fix.patch', '')
-        fix_command = command.replace('/home/test.patch', '/home/fix.patch')
-        return command + '\nif [ -s /home/fix.patch ]; then ' + fix_command + '; fi'
-    run = re.sub(r'(?m)^git apply[^\n]* /home/test\.patch /home/fix\.patch[ \t]*$', split_apply, run)
-    if recipe['repo'] == 'darkreader':
-        run = run.replace('npm run test:unit -- ', 'npm run test:unit -- --runInBand ')
-    if recipe['repo'] == 'dayjs':
-        # npm test runs Jest repeatedly for four time zones. Limit every invocation.
-        limit = "node -e 'const fs=require(\"fs\"); const p=JSON.parse(fs.readFileSync(\"package.json\")); for(const k of Object.keys(p.scripts||{})) p.scripts[k]=p.scripts[k].replace(/\\bjest\\b/g, \"jest --runInBand\"); fs.writeFileSync(\"package.json\", JSON.stringify(p));'\n"
-        run = run.replace('npm test ', limit + 'npm test ')
-    if recipe['repo'] == 'nuxt':
-        run = run.replace('pnpm test:unit -- --verbose', 'pnpm test:unit --reporter=verbose')
-        run = run.replace('pnpm test:runtime  --no-watch', 'pnpm test:runtime --no-watch --reporter=verbose')
-    if recipe['repo'] == 'axios':
-        # Local proxy tests must control their own proxy environment. Node 20's
-        # new family-autoselection default breaks this older custom lookup API.
-        run = run.replace('npm test ', 'unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY npm_config_proxy npm_config_https_proxy npm_config_noproxy\n'
-                          'if node --help | grep -q -- --network-family-autoselection; then\n'
-                          '    export NODE_OPTIONS="${NODE_OPTIONS:-} --no-network-family-autoselection"\nfi\n'
-                          'npm test ')
-    recipe['files']['fix-run.sh'] = run
-    return recipe
+    return task_repairs.recipe_tests(recipe) if repairs else recipe
 
 
 def blob_files(blob):
@@ -1049,7 +921,7 @@ def blob_files(blob):
         return {m.name: archive.extractfile(m).read() for m in archive if m.isfile()}
 
 
-def patch_blob(blob, recipe=None, locks=None, task_id=None):
+def patch_blob(blob, recipe=None, locks=None, task_id=None, *, repairs=True, cache_spec=None):
     with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
         members = archive.getmembers()
         files = {}
@@ -1061,21 +933,25 @@ def patch_blob(blob, recipe=None, locks=None, task_id=None):
                 if str(name) in files:
                     raise ValueError('Duplicate task archive member')
                 files[str(name)] = archive.extractfile(member).read()
-    updated = patch_files(files)
+    updated = patch_files(files, repairs=repairs)
     if recipe is not None:
-        updated = share_image(updated, recipe, locks or {})
-    updated = apply_task_memory(updated, task_id)
-    updated = repair_spotbugs_verifier_fixtures(updated, task_id)
-    updated = repair_hugo_result_lines(updated, task_id)
+        updated = share_image(updated, recipe, locks or {}, repairs=repairs, cache_spec=cache_spec)
+    if repairs:
+        updated = apply_task_memory(updated, task_id)
+        updated = repair_spotbugs_verifier_fixtures(updated, task_id)
+        updated = repair_hugo_result_lines(updated, task_id)
+        updated = task_repairs.grader_metadata(updated)
+        if recipe is not None:
+            updated['instruction.md'] = task_repairs.instruction_suffix(
+                updated['instruction.md'], updated['task.toml'])
     if updated == files:
         return blob
     return rewrite_blob(members, updated)
 
 
-def release_repair_files(files):
+def release_repair_files(files, *, repairs=True):
     """Repairs for already published tasks: reinstall the upstream harness from /tests before
     grading (the /home and /setup_files copies are agent-writable) and add the timeout suffix."""
-    from validation.rules.static.instruction_suffix import suffix
     updated = dict(files)
     upstream = {name[len('setup_files/upstream/'):]: data for name, data in files.items()
                 if name.startswith('setup_files/upstream/')}
@@ -1089,15 +965,19 @@ def release_repair_files(files):
         restore = ['install -m 0644 ' + shlex.quote('/tests/upstream/' + name) + ' ' + shlex.quote('/home/' + name)
                    for name in sorted(upstream)]
         updated['tests/test.sh'] = test.replace(entry, '\n'.join(restore) + '\n' + entry, 1).encode()
-    updated['instruction.md'] = suffix(files['instruction.md'], files['task.toml'])
+    instruction = re.sub(
+        rb'(?m)^Before working on the task, run `bash /setup_files/setup\.sh`\. '
+        rb'It initializes this task once and safely does nothing on subsequent calls\.(?:\n+|$)',
+        b'', files['instruction.md'])
+    updated['instruction.md'] = task_repairs.instruction_suffix(instruction, files['task.toml']) if repairs else instruction
     return updated
 
 
-def release_repair_blob(blob):
+def release_repair_blob(blob, *, repairs=True):
     with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
         members = archive.getmembers()
         files = {m.name: archive.extractfile(m).read() for m in members if m.isfile()}
-    updated = release_repair_files(files)
+    updated = release_repair_files(files, repairs=repairs)
     return blob if updated == files else rewrite_blob(members, updated)
 
 
@@ -1157,6 +1037,8 @@ def prepare_verifier_runtime(blob, observed, runtime_source, catalog=None):
         image_python={'image_sha256': runtime_source['image_sha256'],
                       'executable': runtime_source['executable']})
     updates = runtime_reference(spec, catalog)
+    if 'task.toml' in files:
+        updates['task.toml'] = offline_configuration(files['task.toml'])
     for name, old in (
             ('tests/test.sh', b'/opt/multiswe-python/bin/python3 -I /tests/grade.py'),
             ('tests/extract_fix_patch.sh', b'/opt/multiswe-python/bin/python3 /tests/extract_fix_patch.py')):
@@ -1180,18 +1062,35 @@ def prepare_verifier_runtime(blob, observed, runtime_source, catalog=None):
     return rewrite_blob(members, {**files, **updates}), spec
 
 
-def export_published_runtime(source, output, evidence, runtime_source, catalog, revision):
-    """Export the pinned published membership, retaining historical score evidence."""
+def export_published_runtime(source, output, evidence, runtime_source, catalog, revision, *, source_sha256=None,
+                             task_catalog=None, native_catalog=None, sdk_catalog=None, repairs=True,
+                             source_dataset="FWeindel/validated-tasks"):
+    """Adapt pinned task membership, retaining input annotations as historical evidence."""
     import base64
+    import tempfile
     import pyarrow as pa
     import pyarrow.parquet as pq
     from data.utils.patch_reporting import write_patch_report
     from data.utils.task_archive import read_members
     from harbor_patches.verifier_bundle import spec_id
     from validation.contract import files_digest
+    from validation.publishing.image_release import stage_build_contexts
+    from harbor_patches.image_context import environment_dir_hash
     if not re.fullmatch(r'[0-9a-f]{40}', revision or ''):
         raise ValueError('An immutable source revision is required')
+    if source_dataset not in ('FWeindel/validated-tasks', 'PrimeIntellect/Multi-SWE-RL-Verified'):
+        raise ValueError('Unsupported MultiSWE source dataset')
+    source_subset = 'multiswe_v1' if source_dataset == 'FWeindel/validated-tasks' else None
+    source_provenance = {'dataset': source_dataset, 'revision': revision,
+        'url': f'https://huggingface.co/datasets/{source_dataset}/tree/{revision}' + ('/multiswe_v1' if source_subset else '')}
+    if source_subset:
+        source_provenance['subset'] = source_subset
     source, output = Path(source), Path(output)
+    if source_sha256 is not None:
+        with source.open('rb') as stream:
+            actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+        if not re.fullmatch(r'[0-9a-f]{64}', source_sha256) or actual != source_sha256:
+            raise ValueError('Published source Parquet checksum mismatch')
     if output.exists() and any(output.iterdir()):
         raise ValueError('Use a new empty MultiSWE runtime output directory')
     output.mkdir(parents=True, exist_ok=True)
@@ -1207,11 +1106,14 @@ def export_published_runtime(source, output, evidence, runtime_source, catalog, 
     for key in (b'ot.environment_reliable.v1', b'ot.full_release.v1', b'ot.release.v2', b'ot.release.v3'):
         metadata.pop(key, None)
     metadata[b'ot.runtime_migration.v1'] = json.dumps({
-        'source_revision': revision, 'source_subset': 'multiswe_v1', 'validation': 'pending',
+        'source_dataset': source_dataset, 'source_revision': revision, 'source_subset': source_subset, 'validation': 'pending',
         'effective_network': 'unverified', 'existing_scores': 'historical, before runtime migration',
         'historical_evidence': 'historical-evidence.json',
     }).encode()
     history, specs, labels, reasons = [], {}, {}, {}
+    stale_bindings = []
+    task_artifacts = set()
+    native_artifacts = set()
     destination = output / 'tasks.parquet'
     with pq.ParquetWriter(destination, schema.with_metadata(metadata), compression='zstd') as writer:
         for batch in parquet.iter_batches(batch_size=1):
@@ -1228,16 +1130,67 @@ def export_published_runtime(source, output, evidence, runtime_source, catalog, 
                 if (probe['image_sha256'] != bundle['files'][bundle['name']]['sha256']
                         or probe['environment_sha256'] != binding['environment_sha256']):
                     raise ValueError('Image probe differs from published task binding')
+                image = {'image_sha256': probe['image_sha256']}
+                for suffix, field in (('.overlay.img', 'overlay_sha256'), ('.deferred.json', 'deferred_sha256')):
+                    member = bundle['name'].removesuffix('.sif') + suffix
+                    if member in bundle['files']:
+                        image[field] = bundle['files'][member]['sha256']
                 files = read_members(row['task_binary'])
+                with tempfile.TemporaryDirectory(prefix='multiswe-binding-') as temporary:
+                    roots = stage_build_contexts(row['task_binary'], Path(temporary), files_digest(files.items()))
+                    if len(roots) != 1 or environment_dir_hash(roots[0].parent) != binding['environment_sha256']:
+                        raise ValueError('Task build context differs from its image binding')
                 if files_digest(files.items()) != images['tasks'][name]['content_sha256']:
-                    raise ValueError('Source task content digest mismatch')
+                    # The published harness repair retained older content hashes.
+                    # Accept those only with independently pinned full-file bytes;
+                    # environment identities remain checked above and rebound below.
+                    if source_sha256 is None:
+                        raise ValueError('Source task content digest mismatch')
+                    stale_bindings.append(name)
                 probe['dockerfile_sha256'] = hashlib.sha256(files['environment/Dockerfile']).hexdigest()
                 history.append({k: v for k, v in row.items() if k != 'task_binary'})
                 # Keep the existing release repair in this published-input path:
                 # grading must restore the trusted harness rather than execute
                 # an agent-replaced /home/fix-run.sh or test.patch.
-                repaired = release_repair_blob(row['task_binary'])
+                repaired = release_repair_blob(row['task_binary'], repairs=repairs)
                 row['task_binary'], spec = prepare_verifier_runtime(repaired, probe, runtime_source, catalog)
+                if native_catalog is not None:
+                    migrated = read_members(row['task_binary'])
+                    if re.search(rb'(?m)^go test ', migrated.get('tests/upstream/run.sh', b'')):
+                        from data.multiswe.native_runtime import adapt as native_adapt
+                        record = native_catalog[binding['bundle']]
+                        if record['spec']['source_image'] != image:
+                            raise ValueError('Go toolchain source differs from the task image')
+                        updated = native_adapt(migrated, record)
+                        with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
+                            row['task_binary'] = rewrite_blob(archive.getmembers(), updated)
+                        native_artifacts.add(record['id'])
+                if sdk_catalog is not None:
+                    from data.multiswe.verifier_sdk import adapt as sdk_adapt
+                    record = sdk_catalog[binding['bundle']]
+                    for component in ('image_python', 'image_tools', 'image_assets'):
+                        if record['spec'].get(component) is not None:
+                            actual = {k: v for k, v in record['spec'][component].items()
+                                      if k in ('image_sha256', 'overlay_sha256', 'deferred_sha256')}
+                            if actual != image:
+                                raise ValueError('Verifier SDK source differs from the complete task image bundle')
+                    updated = sdk_adapt(read_members(row['task_binary']), record, record['native_tools'])
+                    with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
+                        row['task_binary'] = rewrite_blob(archive.getmembers(), updated)
+                    spec = record['spec']
+                if task_catalog is not None:
+                    from data.multiswe.setup_runtime import recipe as task_recipe, adapt as task_adapt
+                    migrated = read_members(row['task_binary'])
+                    request = task_recipe(migrated, image)
+                    record = task_catalog[spec_id(request)] if request is not None else None
+                    updated = task_adapt(migrated, request, record)
+                    if sdk_catalog is not None and request is not None:
+                        from data.multiswe.verifier_sdk import adapt_inputs
+                        updated = adapt_inputs(updated, request, record)
+                    with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
+                        row['task_binary'] = rewrite_blob(archive.getmembers(), updated)
+                    if record is not None:
+                        task_artifacts.add(record['id'])
                 digest = files_digest(read_members(row['task_binary']).items())
                 row['content_sha256'] = digest; row['stages_passed'] = ''
                 images['tasks'][name]['content_sha256'] = digest
@@ -1246,21 +1199,50 @@ def export_published_runtime(source, output, evidence, runtime_source, catalog, 
                 reasons[name] = ('Run grading and patch extraction with fresh exact-image Python and the original '
                     'checksum-pinned grading dependencies. Preserve repository test commands, interpreter '
                     'selection, submitted files and task setup. Reinstall the original upstream harness '
-                    'from protected tests and retain the existing instruction timeout-suffix repair. Existing scores '
+                    'from protected tests, remove the manual setup instruction, and retain the instruction timeout suffix. Existing scores '
                     'are historical; fresh validation remains required.')
+                if task_catalog is not None:
+                    reasons[name] += (' Task setup supports --prepare, restores private package-manager inputs '
+                        'at the original install step, and retains online installation on a cache miss. '
+                        'Failed dependency installations are reported as setup errors. Image-contained '
+                        'dependencies need no additional artifact.')
             writer.write_table(pa.Table.from_pylist(rows, schema=schema))
         metadata[b'ot.images.v1'] = json.dumps(images).encode()
         writer.add_key_value_metadata({**metadata, b'ARROW:schema': base64.b64encode(
             schema.with_metadata(metadata).serialize())})
-    (output/'historical-evidence.json').write_text(json.dumps({'revision': revision, 'subset': 'multiswe_v1',
+    (output/'historical-evidence.json').write_text(json.dumps({**source_provenance,
         'status': 'historical, not migrated-task validation', 'tasks': history}, indent=2)+'\n')
     (output/'historical-schema-metadata.json').write_text(json.dumps(historical_schema, indent=2)+'\n')
+    (output/'source-integrity.json').write_text(json.dumps({
+        'revision': revision, 'source_sha256': source_sha256,
+        'stale_published_content_bindings': stale_bindings,
+        'output_content_bindings': 'recomputed from migrated task files',
+    }, indent=2)+'\n')
     (output/'verifier-bundle-specs.json').write_text(json.dumps(list(specs.values()), indent=2)+'\n')
-    write_patch_report(source, destination, source={'dataset': 'FWeindel/validated-tasks',
-        'revision': revision, 'subset': 'multiswe_v1',
-        'url': f'https://huggingface.co/datasets/FWeindel/validated-tasks/tree/{revision}/multiswe_v1'},
+    write_patch_report(source, destination, source=source_provenance,
         dropped={}, change_labels=labels, change_reasons=reasons, patcher=__file__)
-    return {'rows': len(labels), 'runtimes': len(specs), 'validation': 'pending'}
+    save_patcher_dependencies(destination, task_catalog=task_catalog, native_catalog=native_catalog, sdk_catalog=sdk_catalog)
+    return {'rows': len(labels), 'runtimes': len(specs), 'task_input_artifacts': len(task_artifacts),
+            'native_toolchains': len(native_artifacts), 'validation': 'pending'}
+
+
+def save_patcher_dependencies(destination, *, task_catalog=None, native_catalog=None, sdk_catalog=None):
+    """Keep imported datasource helpers with every frozen patch report."""
+    dependencies = []
+    for enabled, name in ((True, 'repairs'), (True, 'build_cache'), (True, 'warm_cache'),
+                          (task_catalog is not None, 'setup_runtime'), (native_catalog is not None, 'native_runtime'),
+                          (sdk_catalog is not None, 'verifier_sdk'), (sdk_catalog is not None, 'restore_sdk')):
+        if not enabled:
+            continue
+        helper = Path(__file__).with_name(name + '.py').read_bytes()
+        saved = Path(destination).parent/(name.replace('_', '-') + '.patch.py')
+        saved.write_bytes(helper)
+        dependencies.append({'path': saved.name, 'sha256': hashlib.sha256(helper).hexdigest()})
+    if dependencies:
+        path = Path(destination).with_suffix('.manifest.json')
+        manifest = json.loads(path.read_text())
+        manifest['patcher_dependencies'] = dependencies
+        path.write_text(json.dumps(manifest, indent=2)+'\n')
 
 
 def main():
@@ -1270,23 +1252,37 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--no-repairs', action='store_true', help='Skip post-build outcome and rule repairs for the upstream audit')
     parser.add_argument('--share-images', action='store_true', help='experimental: move audited upstream PR preparation into setup_files')
     parser.add_argument('--base-image-lock', type=Path, help='Override the embedded digest-pinned base-image mapping with a JSON file')
     parser.add_argument('--recipe-python', default=sys.executable, help='Python with multi-swe-bench==1.1.2 installed')
+    parser.add_argument('--recipe-catalog', type=Path,
+                        help='Previously exported pinned upstream recipes (avoids regenerating the same catalog)')
     parser.add_argument('--release-repair', action='store_true',
                         help='--source is the published multiswe_v1 tasks.parquet; apply only release_repair_files')
     parser.add_argument('--source-revision', help='validated-tasks commit of --source (with --release-repair)')
+    parser.add_argument('--runtime-source-dataset', default='FWeindel/validated-tasks',
+                        choices=['FWeindel/validated-tasks', 'PrimeIntellect/Multi-SWE-RL-Verified'])
     parser.add_argument('--prepare-runtime', action='store_true', help='Migrate published MultiSWE grader tools only')
     parser.add_argument('--interpreter-evidence', type=Path)
     parser.add_argument('--runtime-source-evidence', type=Path)
     parser.add_argument('--runtime-catalog', type=Path)
+    parser.add_argument('--task-runtime-catalog', type=Path, help='Ready package inputs keyed by setup recipe ID')
+    parser.add_argument('--native-runtime-catalog', type=Path, help='Ready exact-image Go toolchains keyed by image bundle')
+    parser.add_argument('--sdk-runtime-catalog', type=Path, help='Ready clean native SDK runtimes keyed by image bundle')
+    parser.add_argument('--source-sha256', help='Published Parquet SHA256, required to rebind stale published content metadata')
     args = parser.parse_args()
     if args.prepare_runtime:
         if args.release_repair or args.share_images or not all((args.interpreter_evidence, args.runtime_source_evidence, args.runtime_catalog, args.source_revision)):
             parser.error('--prepare-runtime needs image evidence, runtime source evidence/catalog and source revision; cannot combine conversion modes')
         print(json.dumps(export_published_runtime(args.source, args.output,
             json.loads(args.interpreter_evidence.read_text()), json.loads(args.runtime_source_evidence.read_text()),
-            json.loads(args.runtime_catalog.read_text()), args.source_revision), indent=2))
+            json.loads(args.runtime_catalog.read_text()), args.source_revision,
+            source_sha256=args.source_sha256,
+            task_catalog=json.loads(args.task_runtime_catalog.read_text()) if args.task_runtime_catalog else None,
+            native_catalog=json.loads(args.native_runtime_catalog.read_text()) if args.native_runtime_catalog else None,
+            sdk_catalog=json.loads(args.sdk_runtime_catalog.read_text()) if args.sdk_runtime_catalog else None,
+            repairs=not args.no_repairs, source_dataset=args.runtime_source_dataset), indent=2))
         return
     if args.release_repair:
         if args.output.exists():
@@ -1296,9 +1292,9 @@ def main():
         rows = table.to_pylist()
         labels = {}
         for row in rows:
-            patched = release_repair_blob(row['task_binary'])
+            patched = release_repair_blob(row['task_binary'], repairs=not args.no_repairs)
             if patched != row['task_binary']:
-                labels[row['path']] = ['verifier-harness-reinstall', 'instruction-suffix']
+                labels[row['path']] = ['verifier-harness-reinstall'] + ([] if args.no_repairs else ['instruction-suffix'])
             row['task_binary'] = patched
         output = args.output / 'tasks.parquet'
         pq.write_table(pa.Table.from_pylist(rows, schema=table.schema), output, compression='zstd')
@@ -1307,8 +1303,9 @@ def main():
             'url': f'https://huggingface.co/datasets/FWeindel/validated-tasks/tree/{args.source_revision}/multiswe_v1'},
             dropped={}, change_labels=labels,
             change_reasons={t: 'Reinstall the upstream test harness from /tests before grading, because the /home copies are '
-                               'agent-writable; append the timeout sentence.' for t in labels},
+                               'agent-writable.' + ('' if args.no_repairs else ' Append the timeout sentence.') for t in labels},
             unresolved={}, patches=[{'version': 'multiswe-release-repair-v1'}])
+        save_patcher_dependencies(output)
         print(f'{output}: {len(rows)} tasks, {len(labels)} repaired')
         return
     locks = json.loads(args.base_image_lock.read_text() if args.base_image_lock
@@ -1325,26 +1322,33 @@ def main():
         labels, reasons = {}, {}
         recipes, unresolved = {}, {}
         if args.share_images:
-            row_data = {r['path']: json.loads(blob_files(r['task_binary'])['tests/row.json']) for r in rows}
-            generated = subprocess.run([args.recipe_python, str(Path(__file__).resolve()), '--export-shared-recipes'],
-                                       input=json.dumps(row_data), capture_output=True, text=True, check=True)
-            recipes = json.loads(generated.stdout)
+            if args.recipe_catalog:
+                recipes = json.loads(args.recipe_catalog.read_text())
+                if any(row['path'] not in recipes for row in rows):
+                    raise ValueError('Recipe catalog does not cover every source task')
+            else:
+                row_data = {r['path']: json.loads(blob_files(r['task_binary'])['tests/row.json']) for r in rows}
+                generated = subprocess.run([args.recipe_python, str(Path(__file__).resolve()), '--export-shared-recipes'],
+                                           input=json.dumps(row_data), capture_output=True, text=True, check=True)
+                recipes = json.loads(generated.stdout)
+        cache_plans = build_cache.plans(recipes)
         for row in rows:
             try:
-                patched = patch_blob(row['task_binary'], recipes.get(row['path']), locks, task_id=row['path'])
+                patched = patch_blob(row['task_binary'], recipes.get(row['path']), locks, task_id=row['path'], repairs=not args.no_repairs,
+                    cache_spec=cache_plans.get(recipes.get(row['path'], {}).get('base')))
             except ValueError as exc:
                 if not args.share_images:
                     raise
                 unresolved[row['path']] = str(exc)
-                patched = patch_blob(row['task_binary'])
+                patched = patch_blob(row['task_binary'], repairs=not args.no_repairs)
             if patched != row['task_binary']:
                 labels[row['path']] = ['runtime-and-verifier-repair']
                 reasons[row['path']] = ('Bake a pinned, isolated grader and required network tools into the image; '
-                                        'repair Debian archive downloads and report verifier infrastructure failures explicitly.')
+                                        'repair Debian archive downloads.' + ('' if args.no_repairs else ' Report verifier infrastructure failures explicitly.'))
             if row['path'] in recipes and row['path'] not in unresolved:
                 reasons[row['path']] += (' Use a digest-pinned base image. '
-                                         'Exclude setup artifacts from solution patches, batch Git filenames safely, '
-                                         'and run tests when the solution patch is empty.')
+                                         'Exclude setup artifacts from solution patches and batch Git filenames safely.'
+                                         + ('' if args.no_repairs else ' Run tests when the solution patch is empty.'))
                 recipe = recipes[row['path']]
                 if recipe['repo'] in PREINSTALLED_REPOS:
                     reasons[row['path']] += ' Preinstall baseline dependencies in the image for the exact source commit; remove dependency installation and baseline test execution from task setup.'
@@ -1364,24 +1368,24 @@ def main():
                     reasons[row['path']] += ' Accept the Azul repository Origin and Label metadata rename only for its signed apt source.'
                 else:
                     reasons[row['path']] += ' Initialize the task checkout in setup while sharing its compatible base image.'
-                if recipe['repo'] in ('dayjs', 'darkreader'):
+                if not args.no_repairs and recipe['repo'] in ('dayjs', 'darkreader'):
                     reasons[row['path']] += ' Run Jest serially with an 8 GiB task allowance to avoid worker memory kills.'
-                if recipe['repo'] in ('nuxt', 'trpc'):
+                if not args.no_repairs and recipe['repo'] in ('nuxt', 'trpc'):
                     reasons[row['path']] += ' Make actual test results parseable despite reporter verbosity or ANSI-color differences.'
-                if recipe['repo'] == 'axios':
+                if not args.no_repairs and recipe['repo'] == 'axios':
                     reasons[row['path']] += ' Let local proxy tests control their own proxy environment.'
-            if row['path'] in TASK_MEMORY_MB and patched != row['task_binary']:
+            if not args.no_repairs and row['path'] in TASK_MEMORY_MB and patched != row['task_binary']:
                 labels[row['path']].append('task-memory-budget')
                 reasons[row['path']] += (' Set this task to the operator-selected 8 GiB budget for the reference solution; '
                                          'its expected no-op assertion-output OOM is accepted only through individual review.')
-            if (row['path'] in SPOTBUGS_VERIFIER_FIXTURES and args.share_images
+            if (not args.no_repairs and row['path'] in SPOTBUGS_VERIFIER_FIXTURES and args.share_images
                     and row['path'] not in unresolved and patched != row['task_binary']):
                 labels.setdefault(row['path'], []).append('reference-test-fixture')
                 reasons[row['path']] = reasons.get(row['path'], '') + (
                     ' Include the original Java regression fixture in the verifier test patch so '
                     'the fix/test path filter cannot discard it before compilation; preserve the '
                     'reference implementation and all test assertions.')
-            if row['path'] == 'gohugoio__hugo-13005' and patched != row['task_binary']:
+            if not args.no_repairs and row['path'] == 'gohugoio__hugo-13005' and patched != row['task_binary']:
                 labels.setdefault(row['path'], []).append('verifier-log-parser')
                 reasons[row['path']] = reasons.get(row['path'], '') + (
                     ' Separate existing Go test result markers appended to warnings before parsing, '
@@ -1397,6 +1401,7 @@ def main():
                       'helper_sha256': {name: hashlib.sha256(EMBEDDED_FILES[name].encode()).hexdigest()
                                         for name in ('extract_fix_patch.py', 'gradle_proxy.py', 'preinstall.py', 'preinstall_cache_v8.py')},
                       'base_image_lock': locks if args.share_images else {}}])
+        save_patcher_dependencies(output)
         if args.share_images:
             (args.output / (source.stem + '.shared-images.json')).write_text(json.dumps({
                 'tasks': len(rows), 'converted': len(recipes) - len(unresolved), 'unresolved': unresolved,

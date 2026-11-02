@@ -57,20 +57,11 @@ Offline execution requires all dependencies and other task assets to be availabl
 
 Verification runs either in the agent’s environment (`shared`) or in a separate environment (`separate`), configured through `[verifier].environment_mode` in `task.toml`.
 
-To reduce reward hacking in shared mode, verifier setup should supply a clean runtime or reinstall all packages the verifier needs, including those already in the image, since the agent could have modified them. Preserve packages the task explicitly asks the agent to modify, so verification evaluates the agent’s changes.
+In shared mode the agent is root in the container that grades it, and only files uploaded from `tests/` after it stops are clean. Clean test files are not enough. We tested this on a SWE-Lego task without a clean runtime, and an agent that did not fix the bug got reward 1 in each of three ways: adding a line to conda's `activate` script, replacing `pytest` with a script that prints the required tests as passed, and wrapping `python` so that running the grader writes the reward.
 
-## Repository layout
+That's why we're moving all tasks to a clean runtime. After the agent stops, verifier setup supplies a fresh copy of Python and the test tools, and the test scripts use that copy instead of the Python and tools in the agent's container. They also shouldn't run files from outside `/tests`, such as `/setup_files`, unless they first restore them from `/tests`. If a task asks the agent to change a package, we keep that change, so grading still sees the agent's work.
 
-| Path | Purpose |
-| --- | --- |
-| `requirements.txt` | Python dependencies and versions |
-| `setup.sh` | Install the environment and generate `env.sh` |
-| `config/` | Cluster requirements, runtime checks and model settings |
-| `data/` | Dataset patches, shared patch helpers and the patch repair loop |
-| `validation/` | Validation stages and rules, teacher generation, reports and Hugging Face uploads |
-| `hpc/` | Cluster launchers, runtime staging and offline preparation |
-| `harbor_patches/` | Harbor task-execution fixes |
-| `tests/` | Repository tests |
+This doesn't close everything: grading still starts through the container's own `bash`. On a migrated BugsInPy task, replacing Python and pytest no longer helped, but replacing `/bin/bash` still got reward 1. We accept this as a known limitation: many tasks ask the agent to change the environment itself, so they have to be graded in that same container, and a separate one would lose those changes.
 
 ## Use
 
@@ -80,7 +71,7 @@ that fixes the input tasks, validation stages and settings for a run.
 Create one, then run it (this example checks 10 tasks on Helma without an LLM):
 
 ```bash
-python validation/run.py /path/to/tasks --stages 1,2,3,4 \
+python validation/run.py /path/to/tasks --stages 0,1,2,3,4 \
   --limit 10 --submit helma --partition cpu --cpus 48 --time 02:00:00 \
   --out "$OT_WORKSPACE/runs/check" \
   --prepare-contract "$OT_WORKSPACE/contracts/check.json"

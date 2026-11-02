@@ -101,13 +101,68 @@ class SourceImage:
     private: bool = False
 
 
-def source_image(spec, image=None):
+def matches_source_bundle(manifest, name, binding):
+    """Shared SIF bytes do not identify the baked dependency overlay."""
+    files = manifest.get('files', {})
+    for suffix, field in (('.sif', 'image_sha256'), ('.overlay.img', 'overlay_sha256'),
+                          ('.deferred.json', 'deferred_sha256')):
+        if field in binding:
+            filename = str(Path(name).with_suffix(suffix))
+            if files.get(filename, {}).get('sha256') != binding[field]:
+                return False
+    return True
+
+
+def source_image(spec, image=None, *, scratch=None):
     expected = spec['image_python']['image_sha256']
     if image is None:
         root = os.environ.get('OT_RUNTIME_IMAGE_CACHE')
-        if not root:
-            raise ValueError('Image-native Python requires --test-image or OT_RUNTIME_IMAGE_CACHE')
-        image = Path(root) / (expected + '.sif')
+        if root:
+            image = Path(root) / (expected + '.sif')
+        else:
+            # A normal online run has already prepared its pristine image. Find
+            # it by content identity, never by an agent-controlled container path.
+            workspace = os.environ.get('OT_WORKSPACE')
+            if workspace:
+                cache = Path(workspace) / 'images' / 'bundles-v1'
+                for manifest_path in sorted(cache.glob('*.sif/manifest.json')):
+                    try:
+                        manifest = json.loads(manifest_path.read_text())
+                    except (OSError, ValueError):
+                        continue
+                    name = manifest_path.parent.name
+                    if matches_source_bundle(manifest, name, spec['image_python']):
+                        image = manifest_path.parent / name
+                        break
+                if image is None:
+                    import tarfile
+                    import tempfile
+                    from hpc.offline_prep.image_cache import bundle_manifest, bundle_name, restore
+                    for packed in sorted(cache.glob('*.sif.tar')):
+                        try:
+                            manifest = bundle_manifest(packed)
+                        except (OSError, ValueError, KeyError, tarfile.TarError):
+                            continue
+                        name = bundle_name(packed)
+                        if matches_source_bundle(manifest, name, spec['image_python']):
+                            private = Path(tempfile.mkdtemp(prefix='runtime-source-', dir=scratch))
+                            image = restore(packed, private)
+                            break
+            if image is None and not os.environ.get('OT_RUNTIME_IMAGE_SOURCE'):
+                raise ValueError('Pristine runtime source image is unavailable; prepare it in '
+                                 'OT_WORKSPACE/images or set OT_RUNTIME_IMAGE_CACHE')
+        if (image is None or not Path(image).exists()) and os.environ.get('OT_RUNTIME_IMAGE_SOURCE'):
+            # Shared recipes may use a sibling image that a normal task run
+            # has not downloaded. Fetch it privately, with its declared digest,
+            # rather than depending on another account's preparation cache.
+            import urllib.request
+            from data.utils.verifier_runtime import runtime_image_source
+            if scratch is None or 'overlay_sha256' in spec['image_python']:
+                raise ValueError('Runtime image download requires private scratch and a single SIF')
+            url = runtime_image_source(os.environ['OT_RUNTIME_IMAGE_SOURCE'])
+            image = Path(scratch) / (expected + '.sif')
+            with urllib.request.urlopen(url, timeout=180) as source, image.open('xb') as target:
+                shutil.copyfileobj(source, target, 8 * 1024 * 1024)
     # Sidecars belong beside the selected SIF path, including checksum-named
     # cache links. Resolving the SIF symlink first can select unrelated sidecars.
     image = Path(os.path.abspath(image))
@@ -208,6 +263,8 @@ def prepare(spec, runtime, scratch, image, uv):
         options = ['--no-deps'] if spec.get('install_no_deps', False) else []
         if spec.get('install_no_build_isolation'):
             options.append('--no-build-isolation')
-        if spec['requirements']:
-            install(spec['requirements'], options)
+        image_packages = spec['image_python'].get('packages', {})
+        install_requirements = [pin for pin in spec['requirements'] if pin not in image_packages]
+        if install_requirements:
+            install(install_requirements, options)
         normalize_scripts(runtime)

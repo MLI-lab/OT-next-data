@@ -70,7 +70,7 @@ def test_new_cache_default_and_legacy_lookup(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('phase', ['task', 'verifier'])
 @pytest.mark.parametrize('damage', ['missing', 'incomplete', 'corrupt'])
-def test_unusable_cache_entry_is_skipped_so_scripts_install_normally(tmp_path, monkeypatch, damage, phase):
+def test_unusable_cache_entry_uses_the_phase_specific_installation(tmp_path, monkeypatch, damage, phase):
     task, context, cache, archive, record = setup_task(tmp_path, phase)
     monkeypatch.setenv('OT_RUNTIME_CACHE', str(cache))
     if damage == 'missing':
@@ -81,11 +81,19 @@ def test_unusable_cache_entry_is_skipped_so_scripts_install_normally(tmp_path, m
         archive.write_bytes(b'corrupt')
     checked = bundles.preflight([task])
     assert checked[record['id']]['status'] == 'missing' and checked[record['id']]['reason']
-    # Nothing is staged or built; no container API is touched.
+    # Agent setup retains its installation branch. Verifier installation must
+    # happen on the trusted controller before any container tools can execute.
     if phase == 'task':
         assert asyncio.run(task_runtime.stage(SimpleNamespace(), task, tmp_path / 'evidence')) is None
     else:
-        assert asyncio.run(bundles.stage(SimpleNamespace(), context, tmp_path / 'evidence')) is None
+        calls = []
+        async def install(environment, actual_context, reference, evidence, reason, **kwargs):
+            assert actual_context == context and reference['id'] == record['id'] and reason
+            calls.append('trusted installation')
+            return {'clean': True}
+        monkeypatch.setattr(bundles, 'install_and_stage', install)
+        assert asyncio.run(bundles.stage(SimpleNamespace(), context, tmp_path / 'evidence')) == {'clean': True}
+        assert calls == ['trusted installation']
     assert archive.read_bytes() == b'corrupt' if damage == 'corrupt' else True
 
 
@@ -123,7 +131,8 @@ def test_regeneration_preserves_explicit_readonly_mount(tmp_path, monkeypatch):
     assert result['archive_sha256'] == record['archive_sha256']
 
 
-def test_task_offline_preparation_writes_bound_reference_without_initialization(tmp_path, monkeypatch):
+@pytest.mark.parametrize("phase", ["task", "verifier"])
+def test_task_offline_preparation_writes_bound_reference_without_initialization(tmp_path, monkeypatch, phase):
     import io
     import sys
     from data.utils import verifier_runtime
@@ -142,14 +151,16 @@ def test_task_offline_preparation_writes_bound_reference_without_initialization(
     monkeypatch.setattr(verifier_offline, 'build', build)
     monkeypatch.setenv('OT_RUNTIME_PREPARE_IMAGE', str(image))
     monkeypatch.setenv('OT_RUNTIME_CACHE', str(tmp_path / 'cache'))
-    reference = tmp_path / 'ot-task-offline.json'
+    reference = tmp_path / ('ot-'+phase+'-offline.json')
     monkeypatch.setattr(sys, 'stdin', io.StringIO(json.dumps(payload)))
-    monkeypatch.setattr(sys, 'argv', ['prepare', '--prepare-offline', '--phase', 'task', '--reference', str(reference)])
+    monkeypatch.setattr(sys, 'argv', ['prepare', '--prepare-offline', '--phase', phase, '--reference', str(reference)])
     verifier_runtime.main()
     ref = json.loads(reference.read_text())
-    assert calls == ['build'] and ref['request_id'] == bundles.spec_id(request)
+    assert calls == ['build']
+    if phase == 'task':assert ref['request_id'] == bundles.spec_id(request)
+    else:assert ref['id'] == bundles.spec_id(spec)
     assert 'spec' not in ref and ref['archive_sha256'] == 'b' * 64
-    script = verifier_runtime.offline_preparation_command(**payload)
+    script = verifier_runtime.offline_preparation_command(**payload, phase=phase)
     assert '--prepare-offline' in script and script.count('# OT_OFFLINE_RECIPE:') == 1
 
 
@@ -170,3 +181,24 @@ def test_offline_preparation_propagates_build_failure(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match='download failed'):
         verifier_runtime.main()
     assert not reference.exists()
+
+
+@pytest.mark.parametrize('first_status',[0,7])
+def test_single_prepare_option_can_prepare_runtime_then_wheels(tmp_path,first_status):
+    from data.utils.verifier_runtime import offline_preparation_command
+    spec=runtime_spec(python='3.13.9',requirements=[])
+    fake=tmp_path/'prepare'
+    fake.write_text('#!/bin/sh\ncat >/dev/null\necho prepared >> "'+str(tmp_path/'calls')+'"\nexit '+str(first_status)+'\n')
+    fake.chmod(0o755)
+    second=tmp_path/'offline'
+    second.write_text('#!/bin/sh\ncat >/dev/null\necho offline >> "'+str(tmp_path/'calls')+'"\n')
+    second.chmod(0o755)
+    script=tmp_path/'setup.sh'
+    request={'apt':[],'python':[{'tool':'uv','requirements':['wheel']}],'uv':False}
+    script.write_text('set -eu\n'+preparation_command(spec,phase='verifier',python=str(fake),exit_after=False)+'\n'
+        +offline_preparation_command(request,image_sha256='a'*64,phase='verifier',python=str(second))+'\n'
+        +'touch "'+str(tmp_path/'initialized')+'"\n')
+    result=subprocess.run(['bash',str(script),'--prepare'])
+    assert result.returncode==first_status
+    assert (tmp_path/'calls').read_text().splitlines()==(['prepared','offline'] if first_status==0 else ['prepared'])
+    assert not (tmp_path/'initialized').exists()

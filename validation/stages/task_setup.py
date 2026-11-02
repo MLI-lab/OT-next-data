@@ -22,8 +22,9 @@ def detect(task: Path) -> str | None:
     scripts under /setup_files may be executed automatically.
     """
     from harbor_patches.task_runtime import declared
+    from harbor_patches.verifier_assets import declared as assets_declared
     default = 'bash /setup_files/setup.sh' if (task / 'setup_files/setup.sh').is_file() else None
-    runtime_only = 'true' if declared(task) else None
+    runtime_only = 'true' if declared(task) or assets_declared(task) else None
     oracle = task / 'solution/solve.sh'
     if not oracle.is_file():
         return default or runtime_only
@@ -94,6 +95,8 @@ async def prepare(environment, *, command, timeout_sec, force_build, upload, log
         if logger and error.diagnostics:
             logger.info('Task setup failure diagnostics:\n%s', error.diagnostics)
         raise error
+    from harbor_patches.verifier_assets import capture
+    await measured('verifier_asset_capture', lambda: capture(environment))
 
 
 def capture_setup_command(command, directory):
@@ -181,11 +184,15 @@ async def setup_diagnostics(environment):
 
 async def upload_setup(environment, task_path, *, task_runtime=True):
     """Stage-1 equivalent of Harbor's setup-files upload, within the same budget."""
-    await environment.empty_dirs(['/setup_files'], chmod=False)
-    await environment.upload_dir(source_dir=task_path / 'setup_files', target_dir='/setup_files')
-    await environment.exec('chmod -R a+rX /setup_files', user='root')
+    if (task_path / 'setup_files').is_dir():
+        await environment.empty_dirs(['/setup_files'], chmod=False)
+        await environment.upload_dir(source_dir=task_path / 'setup_files', target_dir='/setup_files')
+        await environment.exec('chmod -R a+rX /setup_files', user='root')
     if task_runtime:
         from harbor_patches.task_runtime import stage
+        from harbor_patches.verifier_assets import register
+        paths = getattr(environment, 'trial_paths', None)
+        register(environment, task_path, paths.trial_dir if paths is not None else None)
         await stage(environment, task_path)
 
 
@@ -252,6 +259,9 @@ def install():
             await original_upload(self)
             from harbor_patches.task_runtime import stage
             paths = getattr(self, 'paths', None)
+            from harbor_patches.verifier_assets import register
+            register(self.agent_environment, self.task.paths.task_dir,
+                     paths.trial_dir if paths is not None else None)
             await stage(self.agent_environment, self.task.paths.task_dir,
                         paths.trial_dir if paths is not None else None)
         try:

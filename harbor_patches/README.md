@@ -27,6 +27,22 @@ still consume part of the task memory budget.
 | `/tmp` cleanup deletes tmux socket | Put sockets in the container's private `/run/ot-harbor-tmux` | Does not prevent explicit tmux removal or shell exits |
 | Task OOM kills executor/terminal | Keep controller outside task limit; reopen preserved filesystem and restart terminal | Requires confirmed task OOM; process state is lost |
 | Failed startup keeps a Slurm slot | Remember early stop requests and check them while waiting for an executor | Cleanup remains scoped to that environment |
+| Closed shell or unresponsive terminal | Same-container terminal restart (3 in a row max), poll unresponsive containers until the agent time limit | All Terminus runs; shell state is lost on restart |
+| Judge runs out of time or writes an invalid verdict file | One final-answer message, one in-session repair; valid verdicts kept after the hard limit | Judge reviews only |
+
+### Terminus sessions (`terminus_session.py`)
+
+**Unresponsive terminal (all Terminus runs).** Each Terminus turn is one container call: type the keystrokes into tmux, wait the requested time (at most 60 s), then read the screen. Harbor does not wait for the command to finish; it keeps running in tmux. If Harbor cannot read the screen within the wait plus 180 s (`DEFAULT_BATCH_EXEC_TIMEOUT_MARGIN_SEC`), it ends the trial and does not retry. We found this in the 2026-11-01 LLM-as-a-judge runs, where it ended 9 reviews (8 GLM-5.3-Flash, 1 Qwen3.8-27B). The judges' own heavy commands, such as a torch install or a full test run, overloaded the container so that tmux could not answer. The patch checks whether the tmux session still exists, allowing 60 s for each container call. If the container does not answer, or the subsequent screen read times out, it waits 30 s and checks again until the screen can be read or Harbor’s hard agent time limit cancels the wait. The model gets the recovered screen as a normal observation. These waits do not count toward the consecutive terminal-restart limit and do not interrupt or repeat the command. This also covers the two embedding-model reviews on 2026-11-02 where the container itself stopped answering and the earlier single-read recovery failed. Waiting does not guarantee that a stalled container will recover. Only when a response confirms that the session is missing does a new one start in the same container, with the reported duration including time spent waiting. The model is told:
+
+> NOTE: The terminal stopped responding for more than {N} s while your last command was running and has been closed. A new terminal has been started in the same container. Files written so far are kept. The working directory, environment variables, shell options and any processes started from the old shell are gone.
+
+**Closed shell (all Terminus runs).** When the shell exits (`exit`, or `set -e` followed by a failing command), a new terminal starts in the same container and the model is told:
+
+> NOTE: The shell exited during your last command (for example after `exit`, or `set -e` followed by a failing command), which closed the terminal. A new terminal has been started in the same container. Files written so far are kept. The working directory, environment variables, shell options and any processes started from the old shell are gone. Commands that did not run before the shell closed were not repeated.
+
+After 3 losses in a row without a successful command in between, the session ends.
+
+**Judge reviews only.** After 30 minutes the judge is asked to write its verdict now, with `--review-grace-minutes` more minutes (default 10). A valid verdict file written before Harbor's hard limit is kept. An invalid verdict file refuses completion once, with the exact parse or rubric error, in the same session.
 
 ### Terminal output and uploads
 

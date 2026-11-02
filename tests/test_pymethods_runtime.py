@@ -67,7 +67,7 @@ def test_rejects_existing_conftest():
             member = tarfile.TarInfo(name)
             member.size = len(body)
             archive.addfile(member, io.BytesIO(body))
-    with pytest.raises(ValueError, match='existing pymethods2test conftest'):
+    with pytest.raises(ValueError, match='existing pymethods2test pytest configuration'):
         prepare_verifier_runtime(out.getvalue(), python='3.10.22', interpreter_evidence=evidence)
 
 
@@ -90,7 +90,7 @@ def test_rejects_observed_package_mismatch():
         prepare_verifier_runtime(blob, python='3.10.22', interpreter_evidence=evidence)
 
 
-def test_published_export_invalidates_passes_and_preserves_historical_scores(tmp_path, monkeypatch):
+def test_published_export_keeps_stage_results_and_rebinds_content(tmp_path, monkeypatch):
     import pyarrow as pa
     import pyarrow.parquet as pq
     from data.tasktrove_pymethods2test.patch import main
@@ -116,12 +116,12 @@ def test_published_export_invalidates_passes_and_preserves_historical_scores(tmp
     row = table.to_pylist()[0]
     assert row['content_sha256'] == files_digest(read_members(row['task_binary']).items())
     assert row['content_sha256'] != old_digest
-    assert row['stages_passed'] == ''
+    assert row['stages_passed'] == '1,3,4,5'
     assert row['thinking_successes'] == 2
     meta = table.schema.metadata
     assert b'ot.environment_reliable.v1' not in meta
     assert json.loads(meta[b'ot.images.v1'])['tasks'][name]['content_sha256'] == row['content_sha256']
-    assert json.loads(meta[b'ot.runtime_migration.v1'])['effective_network'] == 'unverified'
+    assert 'offline sample' in json.loads(meta[b'ot.runtime_migration.v1'])['validation']
     old = json.loads((output / 'historical-evidence.json').read_text())['tasks'][0]
     assert old['content_sha256'] == old_digest and old['stages_passed'] == '1,3,4,5'
 
@@ -156,3 +156,38 @@ def test_editable_mapping_preserves_submitted_edits_without_running_startup_code
     module.write_text('VALUE = 12345\n')
     after = subprocess.run(command, capture_output=True, text=True, cwd=app, env=environment)
     assert after.returncode == 1 and '12345' in after.stdout, after.stdout + after.stderr
+
+
+def test_follows_readme_offline_and_verifier_sections():
+    blob, evidence = source()
+    result, _ = prepare_verifier_runtime(blob, python='3.10.22', interpreter_evidence=evidence)
+    files = read_members(result)
+    setup = files['tests/setup.sh'].decode()
+    assert 'if [ "${1:-}" = "--prepare" ]; then' in setup
+    assert 'pip' not in setup.split('OT_RUNTIME_RECIPE_JSON')[-1]
+    script = files['tests/test.sh'].decode()
+    assert '/setup_files' not in script and 'activate' not in script and 'pip3' not in script
+    assert '\npytest ' not in script and '\npython' not in script
+    assert 'tests/ot-verifier-runtime.json' in files
+    assert '-m pytest -c /tests/pytest.ini ' in script and files['tests/pytest.ini'] == b'[pytest]\n'
+    assert 'allow_internet' not in files.get('task.toml', b'').decode()
+
+
+def test_unpinned_plain_conversion_gets_the_runtime_of_the_pinned_image():
+    blob, evidence = source()
+    plain = io.BytesIO()
+    with tarfile.open(fileobj=plain, mode='w:gz') as archive:
+        files = {**read_members(blob), 'environment/Dockerfile': b'FROM python:3.10-slim\nRUN pip install --no-cache-dir pytest\n',
+                 'tests/test.sh': read_members(blob)['tests/test.sh'].replace(
+                     b'pip3 install --quiet pytest==9.1.1 || true', b'pip3 install --quiet pytest 2>/dev/null || true')}
+        for name, body in files.items():
+            member = tarfile.TarInfo(name)
+            member.size = len(body)
+            archive.addfile(member, io.BytesIO(body))
+    pinned = hashlib.sha256(b'FROM python:3.10-slim\nRUN pip install --no-cache-dir pytest==9.1.1\n').hexdigest()
+    result, spec = prepare_verifier_runtime(plain.getvalue(), python='3.10.22',
+                                            interpreter_evidence={pinned: next(iter(evidence.values()))})
+    after = read_members(result)
+    assert 'pytest==9.1.1' in spec['requirements']
+    assert b'pip3' not in after['tests/test.sh']
+    assert after['environment/Dockerfile'] == files['environment/Dockerfile']

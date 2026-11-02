@@ -84,7 +84,8 @@ def summarize(archive):
                 instruction_fixup = contract.get('dataset', {}).get('normalization')
                 continue
             # Stage summary is results/stage_N_name/<uuid>/summary.json.
-            if path.name != 'summary.json' or len(path.parts) != 4 or path.parts[0] != 'results':
+            if (path.name != 'summary.json' or len(path.parts) != 4 or path.parts[0] != 'results'
+                    or not path.parts[1].startswith('stage_')):
                 continue
             report = json.load(tar.extractfile(member))
             from validation.stages.layout import require_layout
@@ -196,7 +197,8 @@ def write_report(archive, out):
                     shutil.copyfileobj(tar.extractfile(member), stream)
                 temporary.replace(out / 'results.parquet')
                 continue
-            if len(path.parts) != 4 or path.parts[0] != 'results' or path.name != 'summary.json' or not member.isfile():
+            if (len(path.parts) != 4 or path.parts[0] != 'results' or path.name != 'summary.json'
+                    or not path.parts[1].startswith('stage_') or not member.isfile()):
                 continue
             content = tar.extractfile(member).read()
             if path.parts[1].startswith('stage_5_'):

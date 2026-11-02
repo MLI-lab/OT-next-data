@@ -95,7 +95,7 @@ def test_missing_gptzero_key_does_not_prevent_slurm_submission(tmp_path, monkeyp
         cfg.update(required_stages=[1, 3, 4], validation_policy_reason="human approval",
                    static_exclusions={"check-test-file-references.sh": "no reference solution"})
     result = controller.submit(cfg, tmp_path, ["task"], tmp_path, full=True)
-    assert calls[0][calls[0].index("--stages") + 1] == ("1,3,4" if without_oracle else "1,2,3,4")
+    assert calls[0][calls[0].index("--stages") + 1] == ("0,1,3,4" if without_oracle else "0,1,2,3,4")
     if without_oracle:
         assert "check-test-file-references.sh=no reference solution" in calls[0]
     assert result["job_id"] == "123"

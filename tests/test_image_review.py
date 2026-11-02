@@ -199,3 +199,45 @@ def test_worker_reserves_all_concurrent_review_environments(monkeypatch):
     assert trial_capacity(['task'], args, image_review=True)['reserved_cpus_per_trial'] == 9
     assert trial_capacity(['task'], args, image_review=True)['max_concurrency'] == 2
     assert trial_capacity(['task'], args)['reserved_cpus_per_trial'] == 6
+
+
+def test_usage_limit_waits_and_retries_only_on_a_real_limit(monkeypatch):
+    import asyncio
+    import json
+    from validation.stages import image_review
+    limited = (1, json.dumps({'is_error': True, 'result': "You've hit your usage limit. Resets at 8pm."}), '')
+    done = (0, json.dumps({'is_error': False, 'result': 'done'}), '')
+    other = (1, json.dumps({'is_error': True, 'result': 'Invalid model'}), '')
+    assert image_review.hit_usage_limit(*limited)
+    assert not image_review.hit_usage_limit(*done)
+    assert not image_review.hit_usage_limit(*other)
+    assert not image_review.hit_usage_limit(0, json.dumps({'is_error': False, 'result': 'rate limit discussed in the task'}), '')
+    monkeypatch.setenv('OT_JUDGE_LIMIT_MAX_WAIT_SECONDS', str(7 * 86400))
+    results = [limited, limited, done]
+    waits = []
+
+    async def judge(*args):
+        return results.pop(0)
+
+    async def sleep(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr(image_review, 'run_judge', judge)
+    monkeypatch.setattr(image_review.asyncio, 'sleep', sleep)
+    assert asyncio.run(image_review.run_judge_waiting('c', 'p', '.', {}, 1)) == done
+    assert len(waits) == 2 and all(0 < wait <= 86460 for wait in waits)
+    monkeypatch.setenv('OT_JUDGE_LIMIT_MAX_WAIT_SECONDS', '0')
+    results[:] = [limited]
+    assert asyncio.run(image_review.run_judge_waiting('c', 'p', '.', {}, 1)) == limited
+
+
+def test_reset_time_is_read_from_the_limit_message():
+    import time
+    from validation.stages import image_review
+    now = time.mktime((2026, 11, 1, 19, 30, 0, 0, 0, -1))
+    assert image_review.seconds_until_reset('usage limit, resets 8pm', now) == 1860
+    assert image_review.seconds_until_reset('limit reached · resets at 8:40pm', now) == 4260
+    assert image_review.seconds_until_reset('continuing automatically at 8:40pm', now) == 4260
+    assert image_review.seconds_until_reset('resets 7am', now) == 41460
+    assert image_review.seconds_until_reset('{"resetsAt": %d}' % (now + 600), now) == 660
+    assert image_review.seconds_until_reset('usage limit reached', now) == image_review.LIMIT_RETRY_SECONDS

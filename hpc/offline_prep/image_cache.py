@@ -177,7 +177,17 @@ def prepare_images(tasks, images, shared, args):
                 if base.is_file() and not args.force_build:
                     matches.append(base)
         if matches and not args.force_build:
-            return {'key': key, 'status': 'cached', 'image': str(matches[0])}
+            cached = matches[0]
+            # Workers may append an environment label to the task name. Expose
+            # legacy task.sif entries through the context key too,
+            # so their hash-based lookup finds the bytes preparation accepted.
+            if cached == direct and not any(path.name.endswith('-' + key + '.sif') for path in matches):
+                for suffix in ('.deferred.json', '.overlay.img', '.sif'):
+                    source = cached.with_suffix(suffix)
+                    if source.is_file():
+                        image.with_suffix(suffix).symlink_to(source.name)
+                cached = image
+            return {'key': key, 'status': 'cached', 'image': str(cached)}
         if os.environ.get('OT_REQUIRE_PREBUILT_IMAGES') == '1':
             raise RuntimeError(f'Required prebuilt image is missing for {name} ({key}); '
                                'run image preparation before validation')
@@ -377,7 +387,7 @@ def main():
             patch.worker.subprocess.run, os.environ['OT_IMAGE_BUILD_ARTIFACTS'])
     patch.worker._run_unshared = file_backed_build_scripts(
         logged_build_commands(patch.worker.subprocess.run), patch.worker.APPTAINER)
-    if os.environ.get('OT_IMAGE_REPAIR_ACCOUNT_OWNERSHIP') == '1':
+    if os.environ.get('OT_IMAGE_REPAIR_ACCOUNT_OWNERSHIP', '1') == '1':
         from harbor_patches.image_build import account_ownership_builds
         patch.worker._run_unshared = account_ownership_builds(
             patch.worker._run_unshared, patch.worker.APPTAINER)

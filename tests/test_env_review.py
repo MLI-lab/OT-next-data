@@ -1,6 +1,7 @@
 """Terminus-2 reviews run in the reviewed task's environment; missing criteria get one repair review."""
 import asyncio
 import json
+from pathlib import Path
 from types import SimpleNamespace
 import tomllib
 
@@ -39,8 +40,7 @@ def test_stage_keeps_environment_and_adds_evidence(tmp_path):
     config = tomllib.loads((task / 'task.toml').read_text())
     assert config['agent'] == {'user': 'solver', 'timeout_sec': env_review.TIMEOUT_SEC}
     assert config['artifacts'] == [{'source': '/app/verdicts.json', 'destination': 'verdicts.json'}]
-    assert (task / 'instruction.md').read_text().startswith('Review /app/task-under-review.')
-    assert 'own agent environment' in (task / 'instruction.md').read_text()
+    assert (task / 'instruction.md').read_text() == 'Review /app/task-under-review.\n'
 
 
 def test_stage_refuses_tasks_it_cannot_review_faithfully(tmp_path):
@@ -50,9 +50,12 @@ def test_stage_refuses_tasks_it_cannot_review_faithfully(tmp_path):
     steps = make_task(tmp_path / 'steps', 'schema_version = "1.0"\n\n[[steps]]\nname = "one"\n')
     with pytest.raises(ValueError, match='single-step'):
         env_review.stage(steps, staged, tmp_path / 'o1', {}, '/app/verdicts.json')
-    artifacts = make_task(tmp_path / 'artifacts', 'artifacts = ["/app/out"]\n')
-    with pytest.raises(ValueError, match='already declares artifacts'):
-        env_review.stage(artifacts, staged, tmp_path / 'o2', {}, '/app/verdicts.json')
+    for number, declared in enumerate(('artifacts = []\n', 'artifacts = ["/app/out"]\n',
+                                       'artifacts = [\n    "/app/a",\n    "/app/b",\n]\n')):
+        artifacts = make_task(tmp_path / f'artifacts{number}', declared)
+        task = env_review.stage(artifacts, staged, tmp_path / f'o{number + 2}', {}, '/app/verdicts.json')
+        assert tomllib.loads((task / 'task.toml').read_text())['artifacts'] == [
+            {'source': '/app/verdicts.json', 'destination': 'verdicts.json'}]
 
 
 @pytest.mark.parametrize('text', ['schema_version = "1.0"\n', '[agent]\nuser = "x"\n[verifier]\ntimeout_sec = 5.0\n'])
@@ -146,8 +149,8 @@ def test_terminus_review_runs_in_task_environment(tmp_path, monkeypatch):
     (trial / 'artifacts').mkdir(parents=True)
     seen = {}
 
-    async def run(task, out, args, model):
-        seen.update(task=task, model=model)
+    async def run(task, out, args, model, validate=None):
+        seen.update(task=task, model=model, validate=validate)
         checks = {'anti_cheat_robustness': {'outcome': 'pass', 'explanation': 'Tests are hidden.'}}
         (trial / 'artifacts/verdicts.json').write_text(json.dumps({'checks': checks}))
         return trial.parent, [(trial, {})]
@@ -158,7 +161,11 @@ def test_terminus_review_runs_in_task_environment(tmp_path, monkeypatch):
                                {'task_count': 1, 'solution_count': 0, 'complete': True})
     assert result['status'] == 'passed' and result['evidence_mode'] == 'task-environment'
     assert seen['model'] == 'openai/glm-5.3-flash'
+    with pytest.raises(ValueError, match='invalid JSON'):
+        seen['validate']('{"checks": {"anti_cheat_robustness": {"outcome": "pass", "explanation": "a\x01b"}}}')
+    assert tomllib.loads((seen['task'] / 'task.toml').read_text())['agent']['timeout_sec'] == env_review.hard_timeout(600.0)
     assert (seen['task'] / 'review_files/task-under-review/sample/task.toml').is_file()
+    assert (seen['task'] / 'review_files/rubric.toml').is_file()
     assert environment_dir_hash(seen['task'] / 'environment') == environment_dir_hash(source / 'environment')
 
 
@@ -171,11 +178,12 @@ def test_local_image_review_runs_terminus_in_task_environment(tmp_path, monkeypa
     staged = tmp_path / 'staged'
     staged.mkdir()
     (staged / 'rubric-skips.json').write_text('{}')
+    (staged / 'rubric.toml').write_text('[[criteria]]\nname = "x"\n')
     monkeypatch.setattr(runner, 'resolve_review_defaults', lambda *a: None)
     monkeypatch.setattr(prepare_review_tasks, 'stage_review', lambda *a: staged)
-    monkeypatch.setattr(env_review, 'stage', lambda *a: tmp_path / 'review-task')
+    monkeypatch.setattr(env_review, 'stage', lambda *a, **k: tmp_path / 'review-task')
     seen = {}
-    async def run(task, out, args, model):
+    async def run(task, out, args, model, validate=None):
         seen['model'] = model
         return None, []
     async def inspector(*a, **k):
@@ -184,3 +192,13 @@ def test_local_image_review_runs_terminus_in_task_environment(tmp_path, monkeypa
     monkeypatch.setattr(image_review, 'review', inspector)
     result = asyncio.run(runner.review_once(5, tmp_path / 'source', tmp_path / 'out', options, tmp_path))
     assert result['status'] == 'previewed' and seen['model'] == 'hosted_vllm/judge'
+
+
+def test_terminal_bench_prompt_file_matches_the_real_prompt(tmp_path):
+    source = make_task(tmp_path / 'sample', 'schema_version = "1.1"\n[agent]\ntimeout_sec = 60.0\n')
+    for kind in ('terminal-bench', 'harbor'):
+        task = prepare_review_tasks.stage_review(source, tmp_path / kind, checkout('terminal-bench'),
+                                                 rubric_kind=kind, evidence_mode='image')
+        real = (task / 'instruction.md').read_text().replace((task / 'rubric.toml').read_text(), '<RUBRIC>')
+        expected = Path(prepare_review_tasks.__file__).parents[1] / 'rubrics/prompt_templates/modified/terminal_bench.txt'
+        assert real == expected.read_text()

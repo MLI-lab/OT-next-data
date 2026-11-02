@@ -20,6 +20,17 @@ def test_partial_update_preserves_other_checks_and_changed_content_resets(tmp_pa
     assert new['revision'] == 2 and new['change_reason'] == 'Fixed verifier'
 
 
+def test_reference_resource_usage_is_kept_as_numbers(tmp_path):
+    usage = {'agent': {'memory_peak_mb': 2437.2, 'memory_limit_mb': 7782.4, 'cpu_seconds': 418.6, 'step_seconds': 236.1},
+             'verifier': {'memory_peak_mb': 500.0}}
+    item = {'task': '/tmp/t', 'status': 'completed', 'resources': [usage, None]}
+    results.export_report(tmp_path / 'r.parquet', {'stage': 2, 'items': [item]}, {'t': 'hash'})
+    row, = results.read(tmp_path / 'r.parquet')
+    assert row['reference'] == 'pass'
+    assert (row['reference_memory_peak_mb'], row['reference_memory_limit_mb']) == (2437.2, 7782.4)
+    assert (row['reference_cpu_seconds'], row['reference_step_seconds']) == (418.6, 236.1)
+
+
 def test_same_reports_have_same_cells_for_both_entrypoints(tmp_path):
     item = {'task': '/tmp/t', 'status': 'failed', 'checks': [
         {'check': 'check-agent-editable-test.py', 'status': 'failed'},

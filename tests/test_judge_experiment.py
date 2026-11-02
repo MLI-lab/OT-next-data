@@ -14,6 +14,11 @@ class ExperimentTests(unittest.TestCase):
     def test_binary_decisions_and_incomplete_reviews(self):
         self.assertEqual(prediction(item({'x': {'outcome': 'pass'}})), 0)
         self.assertEqual(prediction(item({'x': {'outcome': 'fail'}})), 1)
+        hypothetical = item({'anti_cheat_robustness': {'outcome': 'fail'}})
+        self.assertEqual(prediction(hypothetical), 1)
+        self.assertEqual(prediction(hypothetical, strict_exploits=True), 0)
+        shown = item({'anti_cheat_robustness': {'outcome': 'fail', 'verifier_reward': 1.0}})
+        self.assertEqual(prediction(shown, strict_exploits=True), 1)
         for row in ({}, item({}), item({'x': {'outcome': 'incomplete'}}),
                     item({'x': {'outcome': 'unexpected'}}),
                     {'status': 'error', 'verdicts': [{'checks': {'x': {'outcome': 'pass'}}}]}):

@@ -30,22 +30,25 @@ SITE_PROBE = (
     'sys.stdout.write(ok[0] if ok else "")\n')
 
 
-def install_python_hooks_command(target, roots=PYTHON_SEARCH_ROOTS):
+def install_python_hooks_command(target, roots=PYTHON_SEARCH_ROOTS, *, include_path=True):
     """Shell (run as root) that copies the recorders into every interpreter's site
     directory and lists `ok|fail|nosite <python> <site>` lines in target/python-hooks.txt."""
     import shlex
     q = shlex.quote(target)
+    path_scan = ('for d in $(printf "%s" "$PATH" | tr ":" " "); do '
+                 'for f in "$d"/python "$d"/python[0-9]*; do echo "$f"; done; done; '
+                 if include_path else '')
     return (
         f'T={q}; out="$T/python-hooks.txt"; : > "$out"; '
         'to=; command -v timeout >/dev/null 2>&1 && to="timeout"; '
-        '{ for d in $(printf "%s" "$PATH" | tr ":" " "); do for f in "$d"/python "$d"/python[0-9]*; do echo "$f"; done; done; '
+        '{ ' + path_scan +
         f'${{to:+$to 60}} find {roots} -xdev -maxdepth 8 '
         r'\( -name node_modules -o -name .git -o -name site-packages -o -name dist-packages -o -name __pycache__ \) -prune '
         r"-o -path '*/bin/python*' \( -type f -o -type l \) -print 2>/dev/null; } | sort -u | "
         'while read -r f; do '
         'case "${f##*/}" in python|python[0-9]|python[0-9].[0-9]|python[0-9].[0-9][0-9]) ;; *) continue ;; esac; '
         '[ -x "$f" ] && [ ! -d "$f" ] || continue; '
-        f's=$(${{to:+$to 15}} "$f" -E -c {shlex.quote(SITE_PROBE)} 2>/dev/null); '
+        f's=$(${{to:+$to 15}} "$f" -I -c {shlex.quote(SITE_PROBE)} 2>/dev/null); '
         'if [ -z "$s" ]; then echo "nosite $f -" >> "$out"; continue; fi; '
         # One copy per site directory: several interpreters can share one (python3, python3.11).
         'awk -v s="$s" \'{n=split($0, a, " ")} a[n]==s{found=1} END{exit !found}\' "$out" && continue; '
@@ -192,6 +195,9 @@ class SetupEnvironment:
             _, context, _ = self.verifier._resolve_tests()
             bundle = await stage_bundle(self.environment, context, self.verifier.trial_paths.verifier_dir)
             self._runtime_bundle = bundle
+            from harbor_patches.verifier_assets import stage as stage_assets
+            await stage_assets(self.environment, context, bundle['python'] if bundle else None,
+                               self.verifier.trial_paths.verifier_dir)
             bundle_prefix = ('export OT_VERIFIER_PYTHON=' + shlex.quote(bundle['python']) + '; '
                              'export OT_VERIFIER_BIN=' + shlex.quote(bundle['bin']) + '; '
                              if bundle else '')
@@ -252,7 +258,8 @@ class SetupEnvironment:
                 + git_proxy_command(target), user='root')
             try:
                 installed = await self.environment.exec(install_python_hooks_command(target,
-                    roots=(shlex.quote(bundle['directory']) + ' ' + PYTHON_SEARCH_ROOTS) if bundle else PYTHON_SEARCH_ROOTS), user='root',
+                    roots=shlex.quote(bundle['directory'] + '/python') if bundle else PYTHON_SEARCH_ROOTS,
+                    include_path=bundle is None), user='root',
                                                         timeout_sec=180)
                 hooks = parse_python_hooks(installed.stdout)
             except Exception as exc:

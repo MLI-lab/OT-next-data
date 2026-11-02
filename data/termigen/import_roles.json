@@ -1,0 +1,118 @@
+{
+  "cython_cpp_mode_compilation_hard": {
+    "submitted": [
+      "matrix_ops"
+    ],
+    "reason": "Agent compiles matrix_ops.pyx in place; existing test adds its directory.",
+    "test_sha256": "a70150cc8d70b99f56b3f196431b3b7d31cb79b27d63b9e5c37308d2a62669b1"
+  },
+  "make_missing_include_file_medium": {
+    "submitted": [
+      "src"
+    ],
+    "reason": "Project test fixture imports its existing calculator source namespace.",
+    "test_sha256": "1c3f575a6605827435d069c353d04225b58ea93f7adddc927c1e143029b5db82"
+  },
+  "optix_callable_programs_recursion_medium": {
+    "absent": [
+      "yaml"
+    ],
+    "reason": "Pristine image has no PyYAML distribution; preserve original missing dependency for audit.",
+    "test_sha256": "026e98c677dfc8b24936dc6a9d10b4a38ed8da4d51c7e6a6f191ef4075fdb277"
+  },
+  "protobuf_version_incompatibility_medium": {
+    "submitted": [
+      "data"
+    ],
+    "installed": [
+      "google"
+    ],
+    "reason": "Agent generates protobuf modules and may change the installed protobuf version; grade that version.",
+    "test_sha256": "15263d3631446a849dc05ff0c8755ceca713105ec8676cbc568b41b1b2f0e7a9"
+  },
+  "pybind11_cpp_python_bindings_medium": {
+    "submitted": [
+      "mathlib"
+    ],
+    "installed": [
+      "mathlib"
+    ],
+    "reason": "Agent builds and installs the mathlib extension; preserve installed subject import.",
+    "test_sha256": "d1faf1b3a078a01f779dcb7f5c78225d620a00a30650c949837df20a3e62aefc"
+  },
+  "swig_wrapper_generation_failed_medium": {
+    "submitted": [
+      "signal_ops"
+    ],
+    "reason": "Agent generates signal_ops module; existing test adds its project directory.",
+    "test_sha256": "5e4b5ba7266301e5e2c8696cbe95242f96c790274fc60a96781872d3fa6e9b00"
+  },
+  "vampire_fof_proof_generation_medium": {
+    "absent": [
+      "pycosat"
+    ],
+    "reason": "Optional pycosat fallback is absent in pristine image; preserve its existing ImportError handling.",
+    "test_sha256": "5931b96f6964c146de73e197272058995e75f027bc14519d92ef10073c2dadac"
+  },
+  "python_setuptools_compiler_error_hard": {
+    "installed": [
+      "datautils"
+    ],
+    "test_sha256": "8fceb3a9b9f6eca1de9fbd7200f46ccf121e4f0e39be7545737a4a4428d3ae4c",
+    "reason": "Agent fixes packaging and installs datautils; preserve installed subject import."
+  },
+  "multiprocessing_imap_chunksize_tuning_medium": {
+    "test_sha256": "960340d96fbd970947667dbbf639dbfa5b5a420b31a602f28f7e4e37e26cc8dd",
+    "grader_imports": [
+      "numpy"
+    ],
+    "clean_call_lines": [
+      134
+    ],
+    "reason": "Generated benchmark is grading code, not submitted code; preserve its measured NumPy and clean interpreter."
+  },
+  "graphql_resolver_dataloader_hard": {
+    "absent": [
+      "requests"
+    ],
+    "reason": "Pristine image does not install requests; retain the original missing verifier dependency for the baseline audit.",
+    "test_sha256": "06480aed5bb25026962f31ae8f6bf8aca64d1632d617117962c764e8288c5a85"
+  },
+  "maturin_rust_python_packages_medium": {
+    "submitted": [
+      "mathops"
+    ],
+    "installed": [
+      "mathops"
+    ],
+    "reason": "Agent must fix, compile and install the Rust extension package; inspect submitted package with clean grader tools.",
+    "test_sha256": "5022f7c7454eb1431b89e084a6b45a3ec7ef7f945dcd23746e548c633ef33028"
+  },
+  "python_bytecode_decompilation_medium": {
+    "submitted": [
+      "license_check"
+    ],
+    "reason": "Task bytecode validator loaded explicitly from /opt/validator; preserve original test import and bytecode compatibility.",
+    "test_sha256": "bdd5694be29d6f5734984bbad84adf659651a26873e67e4c7f48951e6a2e6465"
+  },
+  "jwt_token_expiration_refresh_hard": {
+    "submitted": [
+      "auth_api"
+    ],
+    "restore_grader_files": {
+      "environment/test_security.py": "/app/test_security.py"
+    },
+    "reason": "Restore the supplied security grader from tests before execution; preserve application edits and original import paths.",
+    "test_sha256": "479edf4c381bd6ad3fd071c704b7c539c25abfe811e9927442a8093d97d816b5"
+  },
+  "xml_parsing_external_entity_medium": {
+    "submitted": [
+      "app"
+    ],
+    "restore_grader_files": {
+      "environment/app/tests/test_security.py": "/app/tests/test_security.py"
+    },
+    "reason": "Restore supplied security tests without changing their app import or fixing existing namespace errors; preserve submitted parsers.",
+    "test_sha256": "62a7137bbbf8bdc7d6c3e08f97c6179c52e657c6832b7678a433dd96067e1c6b"
+  }
+}

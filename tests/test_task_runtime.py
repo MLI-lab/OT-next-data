@@ -27,6 +27,9 @@ def prepared(tmp_path):
         item = tarfile.TarInfo('python/bin/python3')
         item.size, item.mode = 4, 0o755
         out.addfile(item, io.BytesIO(b'test'))
+        tool = tarfile.TarInfo('python/bin/pytest')
+        tool.size, tool.mode = 4, 0o755
+        out.addfile(tool, io.BytesIO(b'test'))
     manifest = dict(format=FORMAT, spec=spec, id=key, status='ready', archive_sha256=digest(archive))
     (cache / (key + '.json')).write_text(json.dumps(manifest))
     task = tmp_path / 'task'
@@ -133,7 +136,8 @@ def test_separate_verifier_upload_does_not_activate_task_runtime(tmp_path):
     assert calls == ['upload', 'chmod -R a+rX /setup_files']
 
 
-def test_task_offline_packages_stage_before_agent_without_replacing_python(tmp_path, monkeypatch):
+@pytest.mark.parametrize('standard_reference', [False, True])
+def test_task_offline_packages_stage_before_agent_without_replacing_python(tmp_path, monkeypatch, standard_reference):
     from data.utils.verifier_runtime import offline_package_reference
     from harbor_patches.verifier_bundle import OFFLINE_FORMAT
     spec = {'image_key': 'image123', 'apt': ['tree'], 'python': [], 'uv': False}
@@ -145,7 +149,7 @@ def test_task_offline_packages_stage_before_agent_without_replacing_python(tmp_p
     manifest = dict(format=OFFLINE_FORMAT, id=key, spec=spec, status='ready', archive_sha256=digest(archive))
     (cache / (key + '.json')).write_text(json.dumps(manifest))
     task = tmp_path / 'task'
-    for name, data in offline_package_reference(spec, {key: manifest}, phase='task').items():
+    for name, data in offline_package_reference(spec, {key: manifest}, phase='task', task_reference=standard_reference).items():
         path = task / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
     monkeypatch.setenv('OT_VERIFIER_BUNDLE_CACHE', str(cache))
     assert detect(task) == 'true' and key in preflight([task], cache)
@@ -155,7 +159,7 @@ def test_task_offline_packages_stage_before_agent_without_replacing_python(tmp_p
         async def exec(self, command, **kwargs):
             calls.append(command)
             return SimpleNamespace(return_code=0, stderr='', stdout=(
-                '/setup_files/.ot-task-offline-abc123' if command.startswith('mktemp ') else ''))
+                '/tmp/.ot-task-offline-abc123' if command.startswith('mktemp ') else ''))
         async def upload_file(self, source_path, target_path):
             assert target_path.endswith('/packages.tar.gz')
     env = Environment()
@@ -163,7 +167,7 @@ def test_task_offline_packages_stage_before_agent_without_replacing_python(tmp_p
     assert record['runtime'] is None and record['offline']['phase'] == 'before-agent'
     assert set(record['offline']['timings_seconds']) == {'verify_structure','allocate','archive_upload','checksum_extract_configuration'}
     assert all(v >= 0 for v in record['offline']['timings_seconds'].values())
-    assert env._persistent_env == {'PATH': '/image/bin', 'OT_TASK_OFFLINE': '/setup_files/.ot-task-offline-abc123'}
+    assert env._persistent_env == {'PATH': '/image/bin', 'OT_TASK_OFFLINE': '/tmp/.ot-task-offline-abc123'}
     assert any('apt.conf' in call for call in calls)
 
 

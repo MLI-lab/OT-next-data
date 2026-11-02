@@ -23,7 +23,7 @@ def test_preflight_blocks_failures_and_errors_but_not_warnings(tmp_path, monkeyp
             for t, status in zip(tasks, ['passed', 'passed', 'failed', 'incomplete'])]}))
     monkeypatch.setattr(terminal_bench, 'run_checks', checks)
     args = SimpleNamespace(tasks=tmp_path, out=tmp_path / 'results', static_profile='training',
-                           exclude=[], dry_run=False)
+                           exclude=[], dry_run=False, static_gate=True)
     static_gate.prepare(args, [1, 2, 3, 4])
     selected, skipped = static_gate.partition(tasks, args)
     assert [t.name for t in selected] == ['good', 'warn']

@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shlex
 import signal
@@ -41,6 +42,53 @@ async def run_judge(command, prompt, cwd, env, timeout):
             except ProcessLookupError:
                 pass
             await process.wait()
+
+
+USAGE_LIMIT = re.compile(r"usage limit|hit your .{0,40}limit|limit reached|rate.?limit|status(?: code)?:? 429", re.I)
+LIMIT_RETRY_SECONDS = 900
+RESET_EPOCH = re.compile(r'"?resets?_?[Aa]t"?\s*[:=]\s*"?(\d{10,13})')
+RESET_CLOCK = re.compile(r'(?:resets?|reset at|continuing automatically)\D{0,20}?(\d{1,2})(?::(\d{2}))?\s*([ap]m)', re.I)
+
+
+def seconds_until_reset(text, now=None):
+    """Seconds until the reset time in a limit message, or the fallback retry interval."""
+    now = time.time() if now is None else now
+    if match := RESET_EPOCH.search(text):
+        stamp = int(match.group(1))
+        stamp = stamp / 1000 if stamp > 10 ** 11 else stamp
+        return max(60, stamp - now + 60) if stamp > now else LIMIT_RETRY_SECONDS
+    if match := RESET_CLOCK.search(text):
+        hour = int(match.group(1)) % 12 + (12 if match.group(3).lower() == 'pm' else 0)
+        clock = time.localtime(now)
+        seconds = (hour * 3600 + int(match.group(2) or 0) * 60
+                   - (clock.tm_hour * 3600 + clock.tm_min * 60 + clock.tm_sec)) % 86400
+        return seconds + 60
+    return LIMIT_RETRY_SECONDS
+
+
+def hit_usage_limit(code, stdout, stderr):
+    """A CLI subscription limit, as opposed to a judge or task failure."""
+    try:
+        envelope = json.loads(stdout)
+    except ValueError:
+        envelope = {}
+    failed = code or (isinstance(envelope, dict) and envelope.get('is_error'))
+    text = envelope.get('result') if isinstance(envelope, dict) and envelope.get('result') else stdout
+    return bool(failed and USAGE_LIMIT.search(f'{text}\n{stderr}'))
+
+
+async def run_judge_waiting(command, prompt, cwd, env, timeout):
+    """Wait out a subscription limit: retrying is free, and only the job's time limit ends it."""
+    limit = float(os.environ.get('OT_JUDGE_LIMIT_MAX_WAIT_SECONDS', 12 * 3600))
+    waited = 0
+    while True:
+        result = await run_judge(command, prompt, cwd, env, timeout)
+        if not hit_usage_limit(*result) or waited >= limit:
+            return result
+        delay = seconds_until_reset(f'{result[1]}\n{result[2]}')
+        print(f'Usage limit reached; retrying in {delay:.0f} s ({waited:.0f} s waited so far)', flush=True)
+        await asyncio.sleep(delay)
+        waited += delay
 
 
 class Inspector:
@@ -215,12 +263,11 @@ async def review(source, staged, out, args, agent, model, *, runtime_task=None, 
                     'env': {'OT_REVIEW_INSPECT_TOKEN': inspector.token}}}}
                 command = judge_command(provider, model.removeprefix('anthropic/').removeprefix('openai/').removeprefix('hosted_vllm/'),
                     getattr(args, 'review_reasoning_effort', 'medium'), mcp, getattr(args, 'review_max_budget_usd', 5))
-                prompt += '\n\nUse the inspect tool to examine the task files, including tests/setup.sh and setup_files when present. Available environments: ' + ', '.join(environments) + '. The agent environment has completed task setup; separate verifier environments have not executed tests/setup.sh. The rubric for this round is at /app/rubric.toml. Review-only files are not evidence of solver access. Changes affect only this disposable instance. Distinguish solver permissions from reviewer access. Write /app/verdicts.json in the agent environment. At least one successful inspection is required for this round.\n'
                 (round_dir / 'prompt.txt').write_text(prompt)
                 envelope = {}
                 started = time.monotonic()
                 try:
-                    code, stdout, stderr = await run_judge(command, prompt, round_dir, env, args.timeout_minutes * 60)
+                    code, stdout, stderr = await run_judge_waiting(command, prompt, round_dir, env, args.timeout_minutes * 60)
                     (round_dir / 'stdout.txt').write_text(stdout)
                     (round_dir / 'stderr.txt').write_text(stderr)
                     envelope = codex_envelope(stdout, model.removeprefix('openai/')) if provider == 'codex' else json.loads(stdout)

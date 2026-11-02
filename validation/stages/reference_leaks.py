@@ -35,14 +35,14 @@ def evidence_digest(task):
 async def probe(environment, request):
     source = Path(reference_files.__file__).read_text()
     remote = '/tmp/ot-reference-probe-' + uuid4().hex + '.json'
-    sanity = 'import sys, hashlib, json; assert sys.version_info >= (3, 8); hashlib.sha256(b"probe")'
+    sanity = 'import sys, hashlib, json; assert sys.version_info >= (3, 7); hashlib.sha256(b"probe")'
     command = (
         'umask 077; ot_probe_python=; for ot_candidate in ' + PROBE_PYTHONS + '; do '
         'if command -v "$ot_candidate" >/dev/null 2>&1 && '
         '"$ot_candidate" -I -c ' + shlex.quote(sanity) + ' >/dev/null 2>&1; then '
         'ot_probe_python=$ot_candidate; break; fi; done; '
         'if [ -z "$ot_probe_python" ]; then '
-        'echo "reference probe needs an existing Python 3.8+ interpreter (PATH, /usr/bin, /usr/local/bin or /opt/*/bin)" >&2; '
+        'echo "reference probe needs an existing Python 3.7+ interpreter (PATH, /usr/bin, /usr/local/bin or /opt/*/bin)" >&2; '
         'exit 127; fi; '
         '"$ot_probe_python" -I -c ' + shlex.quote(source) + ' '
         + shlex.quote(json.dumps(request)) + ' > ' + shlex.quote(remote))

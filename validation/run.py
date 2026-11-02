@@ -14,14 +14,17 @@ from validation.stages.runner import parser, run_stage, save
 
 def main():
     ap = parser()
-    ap.add_argument('--stages', default='1', help='comma-separated stage numbers or all (default: 1)')
+    ap.add_argument('--stages', default='1', help='comma-separated stage numbers 0-10, or all (default: 1)')
     args = ap.parse_args()
     try:
-        numbers = [1, 2, 3, 4, 5, 6, 9, 7, 8, 10] if args.stages == 'all' else [int(n) for n in args.stages.split(',')]
-        if not numbers or any(n not in range(1, 11) for n in numbers) or len(set(numbers)) != len(numbers):
-            raise ValueError('choose unique stages from 1 through 10')
+        numbers = [0, 1, 2, 3, 4, 5, 6, 9, 7, 8, 10] if args.stages == 'all' else [int(n) for n in args.stages.split(',')]
+        if not numbers or any(n not in range(0, 11) for n in numbers) or len(set(numbers)) != len(numbers):
+            raise ValueError('choose unique stages from 0 through 10')
     except ValueError as exc:
         ap.error(str(exc))
+    # Stage 0 is a filter before the other stages, not a stage of its own in the run.
+    args.static_gate = 0 in numbers
+    numbers = [n for n in numbers if n] or ap.error('stage 0 needs a stage to filter for')
     from hpc.validation_submit import maybe_submit
     try:
         from validation.contract import bind
@@ -138,6 +141,15 @@ def retry_unsettled(args, stage_runs, numbers):
 BASE = {'dataset', 'task_id', 'content_sha256', 'revision', 'latest', 'change_reason',
         'task_file', 'updated_at', 'run'}
 STATUSES = {'pass', 'fail', 'warning', 'not_run', 'not_recorded'}
+USAGE = {'memory_peak_mb': 'reference_memory_peak_mb', 'memory_limit_mb': 'reference_memory_limit_mb',
+         'cpu_seconds': 'reference_cpu_seconds', 'step_seconds': 'reference_step_seconds'}
+
+
+def reference_usage(item):
+    """Largest use across the reference runs and environments, to check task.toml limits against."""
+    used = [e for run in item.get('resources') or [] for e in (run or {}).values()]
+    return {column: max(values) for key, column in USAGE.items()
+            if (values := [e[key] for e in used if isinstance(e.get(key), (int, float))])}
 
 
 def rule_name(name):
@@ -196,8 +208,16 @@ def observations(reports, hashes, dataset='', settings=None):
                         7: 'trace_metrics', 8: 'trajectory_review', 9: 'adversarial',
                         10: 'repair_loop'}.get(int(stage))
                 if name:
-                    put(name, item, status(item['normal_baseline_status'])
-                        if 'normal_baseline_status' in item else None)
+                    value = (status(item['normal_baseline_status'])
+                             if 'normal_baseline_status' in item else None)
+                    # Trial infrastructure can report "failed" without ever
+                    # obtaining a reward. Keep that absence distinct from an
+                    # observed wrong reward, preserving the original details.
+                    if int(stage) in (2, 3) and item.get('rewards') == []:
+                        value = 'not_run'
+                    put(name, item, value)
+                if int(stage) == 2:
+                    row.update(reference_usage(item))
             if int(stage) == 6:
                 identity = {k: settings.get(k) for k in ('model', 'agent', 'agent_kwargs', 'attempts')}
                 model = re.sub(r'[^a-zA-Z0-9_]+', '_', str(identity['model'] or 'unknown'))
@@ -296,7 +316,8 @@ def write(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
     names = sorted(BASE | {k for r in rows for k in r})
     integers = {'revision'} | {n for n in names if n.endswith(('_solved', '_attempts'))}
-    schema = pa.schema([(n, pa.bool_() if n == 'latest' else pa.int64() if n in integers else pa.string())
+    schema = pa.schema([(n, pa.bool_() if n == 'latest' else pa.int64() if n in integers
+                         else pa.float64() if n in USAGE.values() else pa.string())
                         for n in names], metadata={b'ot.results.version': b'1'})
     temporary = path.with_name(path.name + '.' + uuid4().hex + '.tmp')
     try:

@@ -40,17 +40,37 @@ def test_pymethods_repairs_preserve_solution_and_payload():
         'tests/test.sh': b'pip3 install --quiet pytest 2>/dev/null || true\n',
         'solution/solution.py': b'print("reference")\n',
         'instruction.md': b'Implement the function.\n',
-        'task.toml': b'[verifier]\nrestart_environment = false\ntimeout_sec = 720.0\n',
+        'task.toml': b'[agent]\ntimeout_sec = 900.0\n[verifier]\nrestart_environment = false\ntimeout_sec = 720.0\n',
     }
     result = read_members(patch_task(pack_task(original)))
     assert result['solution/solve.sh'] == SOLVE_SH
     assert result['solution/solution.py'] == original['solution/solution.py']
-    assert result['instruction.md'] == original['instruction.md']
+    assert result['instruction.md'] == (b'Implement the function.\n\nYou have 900 seconds to complete this task. '
+                                        b'Do not cheat by using online solutions or hints specific to this task.\n')
     assert b'pytest==9.1.1' in result['environment/Dockerfile']
     assert b'pytest==9.1.1' in result['tests/test.sh']
     import tomllib
     assert tomllib.loads(result['task.toml'].decode())['verifier'] == {
         'environment_mode': 'shared', 'timeout_sec': 720.0}
+    assert tomllib.loads(result['task.toml'].decode())['environment'] == {'allow_internet': False}
+
+
+def test_pymethods_no_repairs_stops_at_the_plain_conversion():
+    from data.tasktrove_pymethods2test.patch import patch_task, SOLVE_SH
+    from data.utils.harbor_parquet import pack_task
+    from data.utils.task_archive import read_members
+    original = {
+        'environment/Dockerfile': b'FROM python:3.12\nRUN pip install --no-cache-dir pytest\n',
+        'tests/test.sh': b'pip3 install --quiet pytest 2>/dev/null || true\n',
+        'solution/solution.py': b'print("reference")\n',
+        'instruction.md': b'Implement the function.\n',
+        'task.toml': b'[agent]\ntimeout_sec = 900.0\n[verifier]\nrestart_environment = false\n',
+    }
+    result = read_members(patch_task(pack_task(original), 'pymethods2test-1059', repairs=False))
+    assert result['solution/solve.sh'] == SOLVE_SH
+    assert b'environment_mode = "shared"' in result['task.toml']
+    for name in ('environment/Dockerfile', 'tests/test.sh', 'solution/solution.py', 'instruction.md'):
+        assert result[name] == original[name]
 
 
 def test_pymethods_verifier_migration_rejects_different_execution_mode():

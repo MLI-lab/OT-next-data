@@ -39,7 +39,7 @@ def test_clean_verifier_adapter_preserves_inputs_grader_and_answer_contract(tmp_
     result, spec = prepare_verifier_runtime(original, observed)
     after = read_members(result)
     changed = {k for k in before.keys() | after.keys() if before.get(k) != after.get(k)}
-    assert changed == {'tests/setup.sh', 'tests/test.sh', 'tests/ot-verifier-runtime.json'}
+    assert changed == {'setup_files/setup.sh', 'tests/setup.sh', 'tests/test.sh', 'tests/ot-verifier-runtime.json'}
     assert spec['python'] == observed['python']
     assert b' -I /tests/grader.py' in after['tests/test.sh']
     assert b'OT_VERIFIER_PYTHON' in after['tests/setup.sh']

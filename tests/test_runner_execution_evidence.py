@@ -404,3 +404,27 @@ def test_reviewed_in_process_pytest_driver_is_recorded_with_pytest_counts(tmp_pa
         [record] = invocations
         assert problem is None and record['finished'] is True
         assert record['executed'] == 2 and record['exitstatus'] == 1
+
+
+def test_clean_runtime_hooks_never_execute_python_from_task_path(tmp_path):
+    from harbor_patches.verifier_setup import install_python_hooks_command
+    import shlex
+    target = tmp_path / 'recorders'
+    target.mkdir()
+    for name in ('ot_pytest_execution.py', 'sitecustomize.py'):
+        (target / name).write_bytes((PATCHES / name).read_bytes())
+    clean = tmp_path / 'clean'
+    subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(clean)], check=True)
+    poisoned = tmp_path / 'agent-bin'
+    poisoned.mkdir()
+    hit = tmp_path / 'agent-python-executed'
+    for name in ('python', 'python3'):
+        tool = poisoned / name
+        tool.write_text('#!/bin/sh\ntouch ' + shlex.quote(str(hit)) + '\nexit 97\n')
+        tool.chmod(0o755)
+    command = install_python_hooks_command(str(target), roots=shlex.quote(str(clean)), include_path=False)
+    result = subprocess.run(['sh', '-c', command], env={**os.environ, 'PATH':str(poisoned)+':'+os.environ['PATH']},
+                            capture_output=True, text=True, check=True)
+    assert not hit.exists()
+    assert any(line.startswith('ok '+str(clean)) for line in result.stdout.splitlines())
+    assert str(poisoned) not in result.stdout

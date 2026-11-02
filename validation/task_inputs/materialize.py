@@ -61,6 +61,8 @@ def materialize(source, destination, limit=None, per_file=False, selected_ids=No
                 if image_manifest and name in image_manifest['tasks']:
                     entry = image_manifest['tasks'][name]
                     image_sources[name] = {k: image_manifest[k] for k in ('version', 'repo_id', 'revision')}
+                    if 'local_only' in image_manifest:
+                        image_sources[name]['local_only'] = image_manifest['local_only']
                     image_sources[name].update(tasks={name: entry}, bundles={
                         env['bundle']: image_manifest['bundles'][env['bundle']] for env in entry['environments']})
                 if name in cached_paths:

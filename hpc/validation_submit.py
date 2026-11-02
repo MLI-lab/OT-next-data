@@ -229,7 +229,9 @@ def maybe_submit(args, numbers):
     if cluster.account:
         command.append(f'--account={cluster.account}')
     if gpus:
-        command.append('--gres=' + cluster.gpu_gres.format(partition=partition, n=gpus))
+        # Helma's preempt queue has no GPU type of its own; it runs on the default GPU nodes.
+        gpu_type = cluster.gpu_partition if partition == 'preempt' else partition
+        command.append('--gres=' + cluster.gpu_gres.format(partition=gpu_type, n=gpus))
         if args.memory:
             if cluster.name == 'helma':
                 raise ValueError('Helma GPU jobs assign memory by GPU count; omit --memory')

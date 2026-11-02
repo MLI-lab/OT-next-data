@@ -5,7 +5,7 @@ from uuid import uuid4
 
 
 def prepare(args, numbers):
-    if 4 not in numbers or not set(numbers) & {1, 2, 3, 5, 6, 9, 10} or args.dry_run:
+    if not getattr(args, 'static_gate', False) or args.dry_run:
         return
     from validation.task_inputs.selection import discover_tasks, select_paths
     from validation.contract import verify_materialized

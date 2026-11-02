@@ -89,6 +89,7 @@ def test_small_and_unrelated_commands_are_unchanged():
 @pytest.mark.parametrize('fakeroot', [False, True])
 def test_directory_build_only_leaves_artifact_after_complete_success(tmp_path, failure, fakeroot, monkeypatch):
     monkeypatch.setenv('OT_IMAGE_BUILD_FAKEROOT', '1' if fakeroot else '0')
+    monkeypatch.setenv('OT_IMAGE_REPAIR_ACCOUNT_OWNERSHIP', '0')
     overlay = tmp_path / 'image.overlay.tmp'
     calls = []
 
@@ -175,8 +176,10 @@ def test_deferred_build_streams_full_failure_output_and_preserves_deadline():
                       {'check': True, 'timeout': 91})]
 
 
-def test_deferred_build_preserves_image_tmp_inputs_and_outputs(tmp_path):
+def test_deferred_build_preserves_image_tmp_inputs_and_outputs(tmp_path, monkeypatch):
     """Exercise real mount semantics and reopen the frozen overlay, without downloads."""
+    monkeypatch.setenv('OT_IMAGE_REPAIR_ACCOUNT_OWNERSHIP', '0')
+    monkeypatch.setenv('OT_IMAGE_BUILD_FAKEROOT', '0')  # this bare root has no /.singularity.d
     import shutil
     import subprocess
     import sys

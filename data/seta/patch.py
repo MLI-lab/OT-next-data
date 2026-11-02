@@ -312,7 +312,7 @@ esac
     ARCHIVE_TARGET: {
         "expected": {'instruction.md': '0e9bc13ad3353322387cf64a33f6051bd43bad3f7ed2c7c89f9628b4e9ad88fd', 'solution/solve.sh': '4207723aa7bcb7b29a6387d3621e74543edb92ee322df7b2e51497ce495458b8', 'tests/test.sh': 'fc9835e405cbbb0389d09b6482294a11e8f7ea4b856ec88162b8239c8b4b4d67', 'tests/test_outputs.py': 'cfc206dcea39bb8b10cc57c57b6a92bfa96d7207fc8b18d28d2fa3e09a2652f9', 'environment/Dockerfile': '6d046c63ebc1414303613b831675bc3f7ebf66b19a2d0276bc86bcd9bbaea687'},
         "files": {
-            'instruction.md': r'''Before solving, run `bash /setup_files/setup.sh`. Stop if it fails. Successful repeated setup preserves your changes. For each fresh command use `bash /setup_files/exec.sh bash -c 'YOUR COMMAND'`; in a persistent Bash session, run `source /setup_files/context.sh` after setup. This enters the original task directory and environment.
+            'instruction.md': r'''For each fresh command use `bash /setup_files/exec.sh bash -c 'YOUR COMMAND'`; in a persistent Bash session, run `source /setup_files/context.sh`. This enters the original task directory and environment.
 
 Create a reusable executable command-line tool at `/app/extract_archives` that can extract and validate archives in multiple formats (zip, tar.gz, tar.bz2, tar.xz, 7z) with integrity checking and error handling. The tool should:
 1. Accept a directory path containing one or more archive files
@@ -2154,6 +2154,103 @@ def prebuild_reviewed_preparation(files, task_id):
     files['environment/Dockerfile'] = (recipe.encode(), files['environment/Dockerfile'][1])
 
 
+# The harness runs setup before the agent; every source instruction still asked for it.
+SETUP_GUIDANCE = ('Before solving, run `bash /setup_files/setup.sh`. Stop if it fails. '
+                  'Successful repeated setup preserves your changes. ')
+
+
+def without_setup_guidance(blob):
+    files = unpack(blob)
+    text, mode = files['instruction.md']
+    text = text.decode().replace(SETUP_GUIDANCE, '', 1).replace(
+        'run `source /setup_files/context.sh` after setup.', 'run `source /setup_files/context.sh`.', 1)
+    if '/setup_files/setup.sh' in text:
+        raise ValueError('Unexpected setup guidance in instruction')
+    files['instruction.md'] = (text.encode(), mode)
+    return pack(files)
+
+
+def offline_task(blob):
+    """Apply the audit's offline-first policy, regardless of upstream defaults."""
+    files = unpack(blob)
+    data, mode = files['task.toml']
+    text = data.decode()
+    config = tomllib.loads(text)
+    if 'environment' not in config:
+        text = text.rstrip() + '\n\n[environment]\nallow_internet = false\n'
+    else:
+        pattern = r'(?ms)(^\[environment\][ \t]*(?:#[^\n]*)?\n)(.*?)(?=^\[|\Z)'
+        def replace(match):
+            body = re.sub(r'(?m)^\s*allow_internet\s*=.*\n?', '', match[2])
+            return match[1] + 'allow_internet = false\n' + body
+        text, count = re.subn(pattern, replace, text)
+        if count != 1:
+            raise ValueError('Expected one explicit environment table')
+    if tomllib.loads(text)['environment']['allow_internet'] is not False:
+        raise ValueError('Offline policy did not apply')
+    files['task.toml'] = (text.encode(), mode)
+    return pack(files)
+
+
+def conversion_only(blob, task_id):
+    """Build-derived changes only; never apply outcome or instruction repairs.
+
+    Runtime adaptation is a subsequent step with measured interpreter bindings.
+    Keep all upstream payloads, including historical exclusions.
+    """
+    files = unpack(blob)
+    if rocky_build_exclusion(files):
+        data, mode = files['environment/Dockerfile']
+        # The pinned minimal Rocky base contains coreutils-single/curl-minimal.
+        # DNF must replace them to install the explicitly requested full tools.
+        files['environment/Dockerfile'] = (data.replace(
+            b'dnf install -y ', b'dnf install -y --allowerasing ', 1), mode)
+    # Pytest alignment/pinning was learned from rule reviews. Keep upstream
+    # installer arguments here; preparation locks resolved artifacts separately.
+    # This entry records setup precompilation memory, not a reference outcome.
+    if task_id == 'stack_overflow__synth__54789050':
+        repair_oracle_zero(files, task_id)
+    if task_id in SETUP_TIMEOUT_TARGETS:
+        data, mode = files['task.toml']
+        seconds = tomllib.loads(data.decode())['environment']['build_timeout_sec']
+        if seconds not in (600, 900):
+            raise ValueError(f'{task_id}: unexpected upstream setup timeout')
+        text, count = re.subn(r'(?m)^build_timeout_sec = [0-9.]+$',
+                              f'build_timeout_sec = {seconds * 2:.1f}', data.decode())
+        if count != 1:
+            raise ValueError(f'{task_id}: expected one setup timeout')
+        files['task.toml'] = (text.encode(), mode)
+    return offline_task(without_setup_guidance(pack(files)))
+
+
+def baseline_main(args):
+    """Write every source task without outcome-derived repairs or exclusions."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    if digest(args.input) != 'd9f31e39ce2b2159e36555f35398a1d67b5e00f4df11e03c526841a936e2aef6':
+        raise ValueError('Baseline requires the pinned upstream source parquet')
+    report_path = args.output.with_suffix('.report.json')
+    if args.output.exists() or report_path.exists():
+        raise ValueError('Use new baseline output paths')
+    if args.pilot_output:
+        raise ValueError('Select the audit pilot from the complete baseline output')
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    source = pq.ParquetFile(args.input)
+    records = []
+    with pq.ParquetWriter(args.output, source.schema_arrow) as writer:
+        for batch in source.iter_batches(batch_size=16):
+            rows = batch.to_pylist()
+            for row in rows:
+                before = hashlib.sha256(row['task_binary']).hexdigest()
+                row['task_binary'] = conversion_only(row['task_binary'], row['path'])
+                records.append(dict(task_id=row['path'], source_sha256=before,
+                                    output_sha256=hashlib.sha256(row['task_binary']).hexdigest()))
+            writer.write_table(pa.Table.from_pylist(rows, schema=source.schema_arrow))
+    report_path.write_text(json.dumps(dict(source_revision=REVISION, repairs=False,
+        network_policy='offline-first', runtime_adaptation='pending measured bindings',
+        validation_status='not_validated', tasks=records), indent=2) + '\n')
+
+
 def patch_task(blob, task_id=TARGET, dependency_cache=None):
     files = unpack(_patch_task(blob, task_id))
     harden_verifier_curl(files)
@@ -2177,82 +2274,8 @@ def patch_task(blob, task_id=TARGET, dependency_cache=None):
 
 
 def _patch_task(blob, task_id=TARGET):
-    files = unpack(blob)
-    repair_ssh_verifier(files, task_id)
-    curl_edits = harden_verifier_curl(dict(files))
-    repair_oracle_zero(files, task_id)
-    if task_id in FILE_REPAIRS:
-        repair = FILE_REPAIRS[task_id]
-        for name, checksum in repair['expected'].items():
-            if name not in files or hashlib.sha256(files[name][0]).hexdigest() != checksum:
-                raise ValueError(f'{task_id}: repair requires reviewed original {name}')
-        for name, text in repair['files'].items():
-            mode = files[name][1] if name in files else 0o755
-            if task_id == ARCHIVE_TARGET:
-                mode = 0o755 if name.endswith('.sh') or name == 'solution/extract_archives.py' else 0o644
-            files[name] = (text.encode(), mode)
-        if task_id == ARCHIVE_TARGET:
-            return pack(files)
-    if task_id == 'ask_ubuntu__synth__396':
-        preserve_original_heic_check(files)
-    if task_id == CONFIG_LOADER_TARGET:
-        repair_config_loader_test(files)
-    if task_id == FHS_LOOKUP_TARGET:
-        repair_fhs_lookup(files)
-    extra_pins = unpinned_verifier_extras(files)
-    if extra_pins:
-        pin_verifier_extras(files, extra_pins)
-    uvx_pins = unpinned_uvx_pins(files)
-    if uvx_pins:
-        apply_unpinned_uvx_pins(files, uvx_pins)
-    uv_bootstrap = pin_uv_bootstrap(files)
-    solution_pip = apply_pip_edits(files, task_id, 'solution/solve.sh', SOLUTION_PIP_EDITS)
-    verifier_pip = apply_pip_edits(files, task_id, 'tests/test.sh', VERIFIER_PIP_EDITS)
-    setup_edits = setup_pytest_edits(files)
-    if setup_edits:
-        apply_setup_pytest_edits(files, setup_edits)
-    unpinned_edits = unpinned_setup_commands(files)
-    if unpinned_edits:
-        apply_unpinned_setup_commands(files, unpinned_edits)
-    dockerfile = files.get('environment/Dockerfile')
-    shared_image = dockerfile is not None and dockerfile[0] == SHARED_DOCKERFILE
-    if shared_image:
-        files['environment/Dockerfile'] = (SHARED_DOCKERFILE + SHARED_DOCKERFILE_ADDENDUM,
-                                           dockerfile[1])
-        if task_id != TARGET:
-            script, mode = files['tests/test.sh']
-            if b'uvx' not in script and SYSTEM_PYTEST_COMMAND.search(script.decode()):
-                files['tests/test.sh'] = (migrate_verifier_to_uvx(script.decode()).encode(), mode)
-    if task_id in INSTRUCTION_REPAIRS:
-        old, new = INSTRUCTION_REPAIRS[task_id]
-        text = files['instruction.md'][0].decode()
-        if text.count(old) != 1:
-            raise ValueError(f'{task_id}: expected original instruction anchor exactly once')
-        text = text.replace(old, new)
-        if task_id == 'ask_ubuntu__synth__190':
-            old_manifest = '5. Create a manifest file that lists all successfully extracted software packages with their versions and target directories'
-            if text.count(old_manifest) != 1:
-                raise ValueError(f'{task_id}: expected original manifest instruction exactly once')
-            text = text.replace(old_manifest, '5. Create `/app/manifest.json` as a JSON array with `name`, `version` and `path` for each successfully extracted package.')
-        if task_id == 'ask_ubuntu__synth__160':
-            text = text.replace("a file named 'memory_log.csv'", 'the file `/app/memory_log.csv`')
-        if task_id == 'ask_ubuntu__synth__207':
-            text = text.replace('a file called "disk_report.txt"', 'the file `/app/disk_report.txt`')
-        files['instruction.md'] = (text.encode(), files['instruction.md'][1])
-        return pack(files)
-    if task_id != TARGET:
-        if task_id in PREPARATION_IMAGE_OPERATIONS or task_id in SETUP_TIMEOUT_TARGETS or task_id in ORACLE_ZERO_REPAIRS or task_id in (CONFIG_LOADER_TARGET, FHS_LOOKUP_TARGET, VIM_TARGET) or shared_image or setup_edits or unpinned_edits or extra_pins or uvx_pins or uv_bootstrap or solution_pip or verifier_pip or curl_edits:
-            return pack(files)
-        raise ValueError(f'Unreviewed target: {task_id}')
-    config = tomllib.loads(files['task.toml'][0].decode())
-    if config.get('verifier', {}).get('environment_mode') not in (None, 'shared'):
-        raise ValueError('Expected a shared-verifier task')
-    if dockerfile is not None and b'seta-shared-verifier-v2' in dockerfile[0]:
-        raise ValueError('Task has already been patched')
-    if not shared_image:
-        raise ValueError('Expected the pinned shared Dockerfile')
-    files['tests/test.sh'] = (TEST_SH.encode(), 0o755)
-    return pack(files)
+    from data.seta.repairs import apply
+    return apply(blob, task_id)
 
 
 def uses_shared_recipe(blob):
@@ -2474,7 +2497,10 @@ def main():
     ap.add_argument('--output', type=Path, required=True)
     ap.add_argument('--pilot-output', type=Path, help='also write the one repaired task for smoke validation')
     ap.add_argument('--dependency-cache', type=Path, help='verified Java downloads; defaults beside output')
+    ap.add_argument('--no-repairs', action='store_true', help='build the offline-first upstream baseline without outcome repairs or exclusions')
     args = ap.parse_args()
+    if args.no_repairs:
+        return baseline_main(args)
     outputs = [args.output, args.output.with_suffix('.report.json'),
                args.output.with_suffix('.archive.parquet'), args.output.with_suffix('.manifest.json')]
     if args.pilot_output:
@@ -2635,6 +2661,7 @@ def main():
                     report['patched'].append({'task_id': row['path'], 'before_sha256': before,
                         'after_sha256': hashlib.sha256(row['task_binary']).hexdigest(),
                         'changes': ['separate verifier installation and Python dependency preparation into tests/setup.sh; grade with offline uv']})
+                row['task_binary'] = offline_task(without_setup_guidance(row['task_binary']))
                 kept_rows.append(row)
             writer.write_table(pa.Table.from_pylist(kept_rows, schema=source.schema_arrow))
     if rocky_image_tasks != ROCKY_RECIPE_TASK_COUNT:
@@ -2765,7 +2792,10 @@ def runtime_cli():
     ap.add_argument('--published-subset',choices=['seta_v1','seta_v2','seta_v3'],required=True)
     ap.add_argument('--runtime-image-inventory',type=Path,required=True)
     ap.add_argument('--runtime-probe',type=Path,required=True)
+    ap.add_argument('--uvx-probe',type=Path,action='append',default=[],help='Own-image uvx selection evidence, keyed by bundle and Python selector')
+    ap.add_argument('--project-probe',type=Path,action='append',default=[],help='Own-image uv project interpreter evidence with reviewed setup hashes')
     ap.add_argument('--runtime-cache',type=Path,required=True)
+    ap.add_argument('--shared-uvx',action='store_true',help='Reuse measured explicit uv 0.10.11 Python selection on reviewed GNU bases without a matching native interpreter')
     ap.add_argument('--task-input-manifest',type=Path,action='append',help='Verified apt/uv input manifest beside its archive; repeat for reviewed families')
     ap.add_argument('--output',type=Path,required=True)
     args=ap.parse_args()
@@ -2773,7 +2803,9 @@ def runtime_cli():
     report=migrate_published(args.published_input,args.output,revision=args.published_revision,
         subset=args.published_subset,image=json.loads(args.runtime_image_inventory.read_text()),
         probe=json.loads(args.runtime_probe.read_text()),cache=args.runtime_cache,
-        task_input_manifest=args.task_input_manifest)
+        task_input_manifest=args.task_input_manifest,shared_uvx=args.shared_uvx,
+        project_probes=[json.loads(path.read_text()) for path in args.project_probe],
+        uvx_probes=[json.loads(path.read_text()) for path in args.uvx_probe])
     print(json.dumps(report['counts'],indent=2))
 
 

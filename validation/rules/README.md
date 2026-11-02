@@ -752,8 +752,7 @@ flagged. To mitigate this, paths that appear in the instruction are not flagged.
 Checks whether task and verifier setup is consistently fast and successful.
 Enable with `--review-setup` for five preparations in fresh containers, or
 `--review-setup N` to choose the count. By default, task setup must average at most
-30 seconds, verifier setup at most 5% of its timeout, and each preparation must
-finish within 60 seconds. Failed preparations or exceeded limits flag the task.
+30 seconds, and each task or verifier preparation must finish within 60 seconds. Failed preparations or exceeded limits flag the task.
 Uses cached images; image builds and container startup are not included in these
 timing limits.
 
@@ -772,21 +771,42 @@ starting commit’s time.
 <details>
 <summary>Implementation</summary>
 
-Searches the accessible agent filesystem for repositories, skipping `/proc`,
-`/sys` and `/dev`. Directory links are followed and each discovered repository is
-checked once. Bare repositories and linked worktrees are included; bare repositories
-have no working files to timestamp. Discovery errors remain incomplete.
+**Search for `.git` and `HEAD`.** Start at `/` and search downward through the
+agent-accessible filesystem, skipping `/proc`, `/sys` and `/dev`. Look for `.git`
+entries, and for `HEAD` beside an `objects` directory to find bare repositories
+without checked-out files. Also handle worktrees whose `.git` and `commondir`
+files point to metadata elsewhere.
 
-- **History:** warns about newer commits that are not part of the history leading to
-  the task’s starting version, and leftover commits or file contents hidden from normal Git history. Nothing is deleted. Inspection errors remain incomplete;
-  malformed metadata with a verified empty object store passes.
-- **Timestamps:** flags a small group of unchanged tracked files (up to 20%) whose
-  modification times are more than 600 seconds later than the main group.
-- **Repair:** runs after task setup and sets tracked-file and directory timestamps
-  to `HEAD`’s commit time, even when Git history is task input. Without a `HEAD`
-  commit, there is no timestamp baseline, so normalization is skipped.
+**For each Git project found, do the following:**
 
-Both checks are skipped when Git is unavailable.
+1. **Read the starting commit and its time.** Use `git rev-parse HEAD` to identify
+   the commit and `git log -1 --format=%ct HEAD` to read its committer timestamp.
+2. **Find commits outside its history.** `git log --all --not HEAD` searches
+   branches, tags and other references, such as the stash. Warn if any commits
+   outside the starting commit’s history are newer than it.
+3. **Find leftover objects.** Deleting branches can leave commits and file
+   contents on disk. `git fsck --unreachable --no-reflogs --connectivity-only`
+   finds unreachable objects, including those retained only through reflogs.
+   Warn about unreachable commits or blobs (stored file contents), regardless
+   of age. Also record `git log --reflog --not HEAD` results to show commits
+   accessible through previous reference positions.
+4. **Check file timestamps.** Inspect modification times of tracked files whose
+   contents still match the starting commit (`HEAD`). List tracked files with
+   `git ls-files`, exclude content changes using `git diff HEAD`, and read
+   modification times with `stat`. Content changes can explain newer timestamps,
+   so excluding them reduces false alarms, but can miss hints in those files.
+   Sort the remaining timestamps into groups separated by gaps greater than
+   300 seconds (5 minutes). Treat the largest group as the main group, and flag later files
+   if they make up at most 20% of the inspected files.
+
+**Repair:** after task setup, normalize tracked-file and directory timestamps to
+`HEAD`’s commit time, even when history is task input. This includes tracked files
+excluded from the timestamp check because their contents changed. Skip
+normalization without a `HEAD` commit or working files.
+
+Permission-denied directories are outside the agent’s accessible scope. Other
+discovery or inspection errors leave the check incomplete. Both checks are skipped
+when Git is unavailable.
 
 </details>
 
@@ -839,29 +859,30 @@ are already accessible to the agent, either as ordinary files or in Git history.
 <details>
 <summary>Implementation</summary>
 
-When the reference solution runs, we record the sizes and SHA-256 hashes of files
-it adds or changes in its workspace. We then start a fresh agent environment,
-complete its normal setup, and search for the same content without uploading the
-solution or tests.
+**Steps:**
 
-The search runs as the agent’s user across the filesystem, skipping `/proc`, `/sys`
-and `/dev`. It follows directory links without scanning the same directory twice.
-It also reads local Git blobs, including packed objects and objects no branch
-points to, in repositories discovered during the scan. Bare repositories, linked
-worktrees and alternate object stores are included. Git matches record the object
-ID and Git directory; the scan does not check out files or download missing objects.
+1. **Record files before and after the reference solution.** After task setup,
+   record the path, size and SHA-256 content hash of each regular file under the
+   agent’s starting working directory, excluding `.git`. Repeat after the
+   reference solution, before grading. From a successful run, keep the final
+   sizes and hashes of added or changed files.
+2. **Search a fresh starting environment.** After normal setup, search recursively from `/`, excluding `/proc`, `/sys` and `/dev`.
+   This includes caches and is not limited to the workspace. For each file,
+   compare its size with the added or changed files from step 1 (to save time).
+   If a size matches, compute its hash and compare it with the corresponding
+   reference hashes.
+3. **Search Git blobs too.** Enumerate local Git objects with
+   `git cat-file --batch-all-objects`. Compare stored file contents by size and
+   hash, including packed and unreachable blobs.
+4. **Count matches.** More than 50% of added or changed reference files matching
+   fails the task; any matches up to 50% produce a warning. Each reference file
+   counts once, regardless of how many copies exist. No matches passes only
+   after a complete scan.
 
-More than 50% of the reference files matching fails the task; a nonzero match rate
-up to 50% produces a warning. Each reference file counts once, even if it appears
-in several places. This finds exact copies, not partial or differently written
-solutions, and legitimate existing code can also match.
-
-Missing reference fingerprints, missing scan tools, timeouts and scan errors are
-incomplete results, not passes. Git is required when repositories are found.
-There is no automatic repair: matching content may be legitimate task input.
-Tasks without a reference solution are not applicable. The reference fingerprints
-cover added or changed files in its workspace, not deleted files or changes outside it.
-
+Only whole-file exact copies are detected. Deleted files and reference changes
+outside the starting workspace are excluded. Missing evidence, tools or failed
+scans leave the check incomplete. Tasks without a reference solution are not
+applicable.
 </details>
 
 ## Running rules on a dataset
@@ -873,16 +894,18 @@ python -m validation.rules TASKS --out DIR --rules nproc,no_behavioural_tests
 python -m validation.rules TASKS --out DIR --rules dynamic -- --submit helma --cpus 48
 ```
 
-Rule names are those in `registry.py`. Dynamic runs use stages 1-4, including the
-static prefilter and final reference-leak results. Static failures skip container
-work; warnings continue. Arguments after `--` go to `validation/run.py`.
+Rule names are in `registry.py`. Arguments after `--` go to `validation/run.py`.
 
-Both this command and the full pipeline write `DIR/results.parquet`: one row per
-task revision, with a status and optional details for each check. Rerunning selected
-checks updates their columns; changed task content gets a new revision with other
-checks set to `not_run`. Detailed JSON evidence is kept alongside the table.
+Before starting containers for dynamic checks, we run static checks on the task
+files. If those fail, we do not start containers for that task. This saves time
+because starting containers takes longer. Warnings do not stop the run.
 
-The publisher writes `<dataset>/results.parquet` and `tasks/r1.parquet`, followed
-by task files containing only new or changed tasks. Use `latest = true` to select
-current revisions. Existing payload files are preserved; `--layout legacy`
-retains the older `tasks.parquet` / `archive.parquet` publication format.
+**How results are saved:** Results go to `DIR/results.parquet`, with a status for
+each check and detailed JSON evidence alongside it.
+
+- If you rerun a check on the same task, its result is replaced and the other
+  check results are kept.
+- If the task files change, we create a new revision. Previous check results do
+  not carry over to the changed task.
+- Published results can contain older revisions. Filter on `latest = true` to
+  see only the current revision of each task.

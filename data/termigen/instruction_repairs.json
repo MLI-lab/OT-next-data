@@ -1,0 +1,252 @@
+{
+  "source_revision": "58ffc16048f3f6bc6c891bb0416526bb615ba5a7",
+  "rule": "check-task-absolute-path.sh",
+  "tasks": {
+    "benchmark_criterion_rust_hard": {
+      "before_sha256": "7d415b88e61c24ab507cf8c25d372bcd43dccafc3c75ba6cb1dac650a7c29e8b",
+      "after_sha256": "36c9c61f4ab128475f2b9a199b8556bfedf598c04d215b20fd89b8b3ee5f9286",
+      "replacements": [
+        {
+          "old": "- A functioning Rust library in `src/lib.rs` with mathematical functions\n",
+          "new": "- A functioning Rust library in `/workspace/math_utils/src/lib.rs` with mathematical functions\n"
+        }
+      ]
+    },
+    "cpachecker_predicate_abstraction_hard": {
+      "before_sha256": "9698b41c154fe11d12dc4a79b7012b138529a431d642c4b54915fade17be2907",
+      "after_sha256": "1f70da53f27d6aa26e129e6c931ea1795a5a3e02546650e2592d67337a600c57",
+      "replacements": [
+        {
+          "old": "- `config/incomplete.properties` - A partial CPAchecker configuration with missing critical parameters\n- `config/reference.properties` - A working configuration from a different project (different analysis type)\n- `logs/previous_run.log` - Error output from the last failed verification attempt\n",
+          "new": "- `/workspace/config/incomplete.properties` - A partial CPAchecker configuration with missing critical parameters\n- `/workspace/config/reference.properties` - A working configuration from a different project (different analysis type)\n- `/workspace/logs/previous_run.log` - Error output from the last failed verification attempt\n"
+        }
+      ]
+    },
+    "cuda_out_of_memory_hard": {
+      "before_sha256": "96013f534a685a82dd2ec19c83b839de1af540f22a034c4a1fd7aea7ca6dbb60",
+      "after_sha256": "1c2e4e5f317e391fa2a96c094f11715032bb04f0307cfa9609d79e18c0a6a354",
+      "replacements": [
+        {
+          "old": "- A CSV dataset (`data/training_data.csv`) with 500,000 rows and 50 columns\n",
+          "new": "- A CSV dataset (`/workspace/data/training_data.csv`) with 500,000 rows and 50 columns\n"
+        }
+      ]
+    },
+    "feast_feature_retrieval_hard": {
+      "before_sha256": "6169be9d1fe0196038e53889e9771d752ca57f29095094e5714a73dd02f80329",
+      "after_sha256": "e6e48c9709ee29393563de828a8ab73b37daaf08160627cf4e494b6ac488cf9f",
+      "replacements": [
+        {
+          "old": "- `features/user_daily_stats.csv` - Daily aggregated user statistics\n- `features/user_profile.csv` - Static user profile information\n",
+          "new": "- `/workspace/feature_store/features/user_daily_stats.csv` - Daily aggregated user statistics\n- `/workspace/feature_store/features/user_profile.csv` - Static user profile information\n"
+        }
+      ]
+    },
+    "horovod_rank_mismatch_error_hard": {
+      "before_sha256": "914108a9f1b5a9053035bb9d53ede1f5cc44f090aa6cae688a026eca3f969bf6",
+      "after_sha256": "fe04d05cdc5c22ddbaf257db4ca60496c3e78258d4fe611ccd3b844613acc0c0",
+      "replacements": [
+        {
+          "old": "- `config_fixes`: A list of specific changes needed (e.g., \"Set WORKER_COUNT=4 in worker_env.txt\", \"Change master_port to 29500 in config/cluster.yaml\")\n",
+          "new": "- `config_fixes`: A list of specific changes needed (e.g., \"Set WORKER_COUNT=4 in worker_env.txt\", \"Change master_port to 29500 in /workspace/config/cluster.yaml\")\n"
+        }
+      ]
+    },
+    "kedro_pipeline_run_medium": {
+      "before_sha256": "5d8abb7bf02465b83656fe3b6f9acdea995006151360846519ab8143c05e485b",
+      "after_sha256": "73dd78bf8daea51ecb1b017e354226c6d6c6ab474b27e8ad3519ba3577404933",
+      "replacements": [
+        {
+          "old": "- A CSV file with sales transaction data at `data/01_raw/sales.csv`\n",
+          "new": "- A CSV file with sales transaction data at `/home/project/sales_pipeline/data/01_raw/sales.csv`\n"
+        }
+      ]
+    },
+    "libtool_portable_library_build_medium": {
+      "before_sha256": "c97aa99a941f6c4e4e63b6913631ed5fe0c41180f4c027befb051a4788365a91",
+      "after_sha256": "7726cf3c66322b5b4d2a138ac501cc27a298bd10164df662d5b6f6cb47278b29",
+      "replacements": [
+        {
+          "old": "- `src/vector.c` - Implementation of vector operations (dot product, magnitude, normalize)\n- `src/vector.h` - Header file declaring the vector functions\n- `tests/test_vector.c` - A test program that uses the library\n",
+          "new": "- `/workspace/vecmath/src/vector.c` - Implementation of vector operations (dot product, magnitude, normalize)\n- `/workspace/vecmath/src/vector.h` - Header file declaring the vector functions\n- `/workspace/vecmath/tests/test_vector.c` - A test program that uses the library\n"
+        }
+      ]
+    },
+    "makefile_pattern_rules_hard": {
+      "before_sha256": "d2d432d47802f28f130257b65edf02f2d18bab4907489f39b89742d9a30556bd",
+      "after_sha256": "7220b4546242cb9a7967ebc3e485c3d354cd46e7f24ff66664d85098af53d2e2",
+      "replacements": [
+        {
+          "old": "- Source files: `src/main.cpp`, `src/utils.cpp`, `src/parser.cpp`\n- Header files: `include/utils.hpp`, `include/parser.hpp`\n",
+          "new": "- Source files: `/workspace/src/main.cpp`, `/workspace/src/utils.cpp`, `/workspace/src/parser.cpp`\n- Header files: `/workspace/include/utils.hpp`, `/workspace/include/parser.hpp`\n"
+        }
+      ]
+    },
+    "makefile_pattern_rules_medium": {
+      "before_sha256": "177e1c5a9abd9d1ea2aaf39902a0cfc2af5a19389de1df9f53131aa0ad7c5ec6",
+      "after_sha256": "39b696d028bfa93cfbedf5e10d72a4d31f852b68577ca539fe4ef8249b61002a",
+      "replacements": [
+        {
+          "old": "If `src/docs/readme.txt` contains:\n",
+          "new": "If `/workspace/src/docs/readme.txt` contains:\n"
+        }
+      ]
+    },
+    "makefile_shell_function_escaping_hard": {
+      "before_sha256": "1c963aebad94142c33532b0e75497e86d4ca09051813c5ee2b38f5c0484a53ec",
+      "after_sha256": "bacb89c0de702b477d80e4826bb3da2938de7ff1d236a9ff577ae8aa86e293ac",
+      "replacements": [
+        {
+          "old": "- `src/main.c` - a simple C source file\n",
+          "new": "- `/workspace/project/src/main.c` - a simple C source file\n"
+        }
+      ]
+    },
+    "mpi_one_sided_fence_deadlock_hard": {
+      "before_sha256": "17b9e565aa48eb319fc216c156492684cc7d79c81eebe59b7e2d706bf5888780",
+      "after_sha256": "4311b6edbc12d64c72c349c74668ad01315e94117a2a4ccab79b1b3869653b99",
+      "replacements": [
+        {
+          "old": "- `input/sensors.txt` - Temperature readings in plain text format\n",
+          "new": "- `/workspace/sensor_system/input/sensors.txt` - Temperature readings in plain text format\n"
+        }
+      ]
+    },
+    "rust_bindgen_c_bindings_medium": {
+      "before_sha256": "e2fcf743d250cfe3ae2a35321f112b91f21c6f7ed515d062026a6c4060f6f264",
+      "after_sha256": "496dd90e75bcf7e72941eef5832e8c44be1ab2469cd6cadd33f0fdb86dfa7723",
+      "replacements": [
+        {
+          "old": "- A C library at `c_lib/hash.c` and `c_lib/hash.h` that implements SHA-256 hashing\n- A Rust project structure with `Cargo.toml` and `src/main.rs`\n",
+          "new": "- A C library at `/workspace/hash_project/c_lib/hash.c` and `/workspace/hash_project/c_lib/hash.h` that implements SHA-256 hashing\n- A Rust project structure with `Cargo.toml` and `/workspace/hash_project/src/main.rs`\n"
+        }
+      ]
+    },
+    "rust_build_script_custom_build_medium": {
+      "before_sha256": "c87a60dcfc4cb0e4dfab45802e01662a3dbbb5147e674d96ef55813d0cde109b",
+      "after_sha256": "3fd730147cc8a901313aa306de3e8ca4096f73d9c2a351026d95297ec50ee935",
+      "replacements": [
+        {
+          "old": "- Source code at `src/lib.rs` that expects a constant `GENERATED_CONFIG` to exist\n- A configuration file at `config/settings.json` containing application settings\n",
+          "new": "- Source code at `/workspace/config_macro/src/lib.rs` that expects a constant `GENERATED_CONFIG` to exist\n- A configuration file at `/workspace/config_macro/config/settings.json` containing application settings\n"
+        },
+        {
+          "old": "The `src/lib.rs` file contains:\n",
+          "new": "The `/workspace/config_macro/src/lib.rs` file contains:\n"
+        },
+        {
+          "old": "The `config/settings.json` file contains:\n",
+          "new": "The `/workspace/config_macro/config/settings.json` file contains:\n"
+        }
+      ]
+    },
+    "rust_cargo_features_conditional_hard": {
+      "before_sha256": "8aa026d9ce71610fae57e73e2c878b35bfca9580bc7aedac50fbfdcedecea321",
+      "after_sha256": "177f476c5ee1fce0c3264431c52d49cb2d0117eeab850243df8e44e85d74af93",
+      "replacements": [
+        {
+          "old": "- `src/lib.rs`\n- `src/logger.rs`\n- `src/network.rs`\n- `src/compress.rs`\n",
+          "new": "- `/workspace/rust-lib/src/lib.rs`\n- `/workspace/rust-lib/src/logger.rs`\n- `/workspace/rust-lib/src/network.rs`\n- `/workspace/rust-lib/src/compress.rs`\n"
+        }
+      ]
+    },
+    "rust_cargo_linker_failure_hard": {
+      "before_sha256": "72f3816c684b08d2202f07839a60563ec1d9ff4f6909f68093c12286aaf21f0d",
+      "after_sha256": "24d11b50ac801366b35b16f3d271107e93cc3669d24a8b14185f640e5591f508",
+      "replacements": [
+        {
+          "old": "- The project directory `/workspace/rust_project` contains a basic Cargo.toml and src/main.rs\n",
+          "new": "- The project directory `/workspace/rust_project` contains a basic Cargo.toml and /workspace/rust_project/src/main.rs\n"
+        }
+      ]
+    },
+    "rust_musl_static_linking_hard": {
+      "before_sha256": "d8240f05b94c328257d98f8e92cd285d1356351e6014de2dc80cb7911768b18a",
+      "after_sha256": "31a3691be5f63bb848afd566dcba5b6998948b1859ac63e935a31da61ec68893",
+      "replacements": [
+        {
+          "old": "- A basic Rust project structure with Cargo.toml and src/main.rs\n",
+          "new": "- A basic Rust project structure with Cargo.toml and /workspace/textproc/src/main.rs\n"
+        }
+      ]
+    },
+    "rust_musl_static_linking_medium": {
+      "before_sha256": "c78f564e29bf9ccd3c3dede8cb29b1f0dd142f113c352c3e0c58f329f179e98f",
+      "after_sha256": "1aa1c5ea2aae7dcd799638da0dfbab44b190c1749b5465ace9edfe0ea563d160",
+      "replacements": [
+        {
+          "old": "- `src/main.rs` - A simple CLI tool that reads a filename argument and outputs a greeting message\n",
+          "new": "- `/workspace/rust-app/src/main.rs` - A simple CLI tool that reads a filename argument and outputs a greeting message\n"
+        }
+      ]
+    },
+    "schema_validation_pandera_hard": {
+      "before_sha256": "504b5a96eb8497f2da42cfe91e687f2214588cb3a4aa8c1bb60b181a2becc220",
+      "after_sha256": "5b626cf4c7a6f4aa27676bfa660ba640db7ca0277606b39765886ca8fb3490bb",
+      "replacements": [
+        {
+          "old": "- `schemas/stage1_schema.py`\n- `schemas/stage2_schema.py`\n- `schemas/stage3_schema.py`\n",
+          "new": "- `/workspace/pipeline/schemas/stage1_schema.py`\n- `/workspace/pipeline/schemas/stage2_schema.py`\n- `/workspace/pipeline/schemas/stage3_schema.py`\n"
+        }
+      ]
+    },
+    "sfinae_substitution_failure_hard": {
+      "before_sha256": "f80adbec4133c7df7bcf710045775264d2aa5fcc541e17f3a447df289fbd030d",
+      "after_sha256": "07c65ce0d11ce6cd2723cc1c5b5858888f2b116535137d63a4fbb27782721912",
+      "replacements": [
+        {
+          "old": "- `include/vector_ops.hpp` - The main header file with template operations\n- `test/test_operations.cpp` - A test program that should compile and run\n",
+          "new": "- `/workspace/numlib/include/vector_ops.hpp` - The main header file with template operations\n- `/workspace/numlib/test/test_operations.cpp` - A test program that should compile and run\n"
+        },
+        {
+          "old": "- Must compile with: `g++ -std=c++14 -Wall -Wextra -Werror -I./include test/test_operations.cpp -o /tmp/test_run`\n",
+          "new": "- Must compile with: `g++ -std=c++14 -Wall -Wextra -Werror -I./include /workspace/numlib/test/test_operations.cpp -o /tmp/test_run`\n"
+        },
+        {
+          "old": "- Do NOT modify the test program (`test/test_operations.cpp`)\n",
+          "new": "- Do NOT modify the test program (`/workspace/numlib/test/test_operations.cpp`)\n"
+        }
+      ]
+    },
+    "shap_values_explanation_hard": {
+      "before_sha256": "0807dbe3993555c2fe9309b68bf1086d8795011b565986ee6912f6483fec8a5d",
+      "after_sha256": "5d767042240c7977196b2a79944cdd5e704b42c48f9970d018f6524361b12541",
+      "replacements": [
+        {
+          "old": "- `data/transactions.csv` - Transaction dataset (500 rows, 10 features)\n",
+          "new": "- `/workspace/data/transactions.csv` - Transaction dataset (500 rows, 10 features)\n"
+        }
+      ]
+    },
+    "spring_boot_circular_dependency_hard": {
+      "before_sha256": "f537734c9d9bc4d6a7ce8a7b83ca855fa0e55be95c267fc3dedb40eb099db025",
+      "after_sha256": "0f26f2d7c1111cb0d9261658bb7e7e2f9d14ef5c4db6a106adc78a3721561cad",
+      "replacements": [
+        {
+          "old": "- `logs/startup.log` - Contains the error output from the last failed startup attempt\n",
+          "new": "- `/workspace/logs/startup.log` - Contains the error output from the last failed startup attempt\n"
+        }
+      ]
+    },
+    "vcr_http_recording_hard": {
+      "before_sha256": "7adf6bf9981d5d01008702a9f046c5d3d66fc4b8276a9f8e94abc2635a8241b0",
+      "after_sha256": "89107d264ca799e18668fd85de9288a67b148c3421609d527f9d37f262bccbea",
+      "replacements": [
+        {
+          "old": "- `cassettes/test_weather.yaml` - cassette for weather test\n- `cassettes/test_users.yaml` - cassette for users test  \n- `cassettes/test_posts.yaml` - cassette for posts test\n",
+          "new": "- `/workspace/cassettes/test_weather.yaml` - cassette for weather test\n- `/workspace/cassettes/test_users.yaml` - cassette for users test  \n- `/workspace/cassettes/test_posts.yaml` - cassette for posts test\n"
+        }
+      ]
+    },
+    "weak_symbol_attribute_medium": {
+      "before_sha256": "3d920a06eec6e2d938c46f5ac14e6a53250c1af8edb5de1cd67d116e72841624",
+      "after_sha256": "651ad7f3104d070f08d9d1251557454e00335152e8c5265645ac8a1754af1063",
+      "replacements": [
+        {
+          "old": "- `src/logger_app.c` - Main application that may use plugin functions\n- `src/plugins/json_plugin.c` - Optional JSON formatting plugin\n- `src/plugins/xml_plugin.c` - Optional XML formatting plugin\n",
+          "new": "- `/workspace/src/logger_app.c` - Main application that may use plugin functions\n- `/workspace/src/plugins/json_plugin.c` - Optional JSON formatting plugin\n- `/workspace/src/plugins/xml_plugin.c` - Optional XML formatting plugin\n"
+        }
+      ]
+    }
+  }
+}

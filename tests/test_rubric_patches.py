@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+import re
 import tomllib
 
 import pytest
@@ -40,10 +41,14 @@ def test_effective_rubric_changes_only_authorized_criteria(references, skip):
     assert 'expert_time_estimate' not in effective
     assert 'task_toml_schema' not in effective
     assert 'binary_reward' not in effective
+    assert 'artifact_efficiency' not in effective and 'ctrf_reporting' not in effective
+    assert 'verifier_execution_isolation' not in effective
+    assert 'runtime network installs' not in text
     assert set(skipped) == {'difficult', 'novel', 'separate_verifier_configured', 'environment_hygiene',
                             'difficulty_explanation_quality', 'solution_explanation_quality',
                             'verification_explanation_quality', 'category_and_tags', 'task_name', 'task_readme',
-                            'expert_time_estimate', 'task_toml_schema', 'binary_reward'} | ({'solvable'} if skip else set())
+                            'expert_time_estimate', 'task_toml_schema', 'binary_reward',
+                            'artifact_efficiency', 'ctrf_reporting', 'verifier_execution_isolation'} | ({'solvable'} if skip else set())
     assert 'binary rewards are not necessarily required for every RL training task' in skipped['binary_reward']['explanation']
     assert 'Moved to the Stage 1 static check check-task-toml-schema.py' in skipped['task_toml_schema']['explanation']
     assert skipped['expert_time_estimate']['explanation'] == (
@@ -64,10 +69,19 @@ def test_effective_rubric_changes_only_authorized_criteria(references, skip):
     for criterion in original:
         name = criterion['name']
         if name == 'verifiable':
-            guidance = criterion['guidance'].replace(
-                'etc. inside `test.sh` introduce flakiness',
-                'etc. inside `tests/setup.sh` or `tests/test.sh` introduce flakiness')
+            guidance = re.sub(r'Reliability also means avoiding runtime network installs.*?\n\n', '',
+                              criterion['guidance'], count=1, flags=re.S)
+            guidance = guidance.replace(
+                'is deterministic, reliable, programmatic, and does not perform runtime network installs '
+                'for verifier dependencies at verify time.', 'is deterministic, reliable, and programmatic.')
+            guidance = guidance.replace(
+                'is non-deterministic, uses LLM-as-a-judge without documented justification, or relies on `test.sh` '
+                "to install verifier tooling that could be baked into `tests/Dockerfile` (the agent's pinned manifest "
+                'excepted).', 'is non-deterministic, or uses LLM-as-a-judge without documented justification.')
             assert effective[name] == {**criterion, 'guidance': guidance}
+        elif name == 'deterministic_reproducible':
+            sentence = ' Installing verifier dependencies from these repositories during verification is acceptable.'
+            assert effective[name]['guidance'].replace(sentence, '') == criterion['guidance']
         elif name == 'instruction_concision':
             guidance = criterion['guidance']
             for paragraph in guidance.split('\n\n'):

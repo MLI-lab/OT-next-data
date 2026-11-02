@@ -101,7 +101,8 @@ def main():
             for check in load_checks(a.static_profile)[1]:
                 if check not in wanted:
                     extra.extend(['--exclude', check + '=not selected with --rules'])
-        command = [sys.executable, str(ROOT / 'validation/run.py'), str(a.tasks), '--stages', stages,
+        command = [sys.executable, str(ROOT / 'validation/run.py'), str(a.tasks),
+                   '--stages', '0,' + stages if '4' in stages.split(',') else stages,
                    '--out', str(a.out), *extra]
         print('Dynamic rules: ' + ', '.join(sorted(names)) + '\n' + ' '.join(command), flush=True)
         code = subprocess.call(command) or code

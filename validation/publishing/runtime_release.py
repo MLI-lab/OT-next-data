@@ -51,6 +51,8 @@ def task_references(binary):
             if member.isfile() and _context_of(name) is not None:
                 data = json.load(archive.extractfile(member))
                 fmt = KINDS[PurePosixPath(name).name]
+                if PurePosixPath(name).name == TASK_REFERENCE and data.get('format') == OFFLINE_FORMAT:
+                    fmt = OFFLINE_FORMAT
                 if (data.get('format') != fmt or not _HEX.fullmatch(data.get('id', ''))
                         or not _HEX.fullmatch(data.get('archive_sha256') or '')):
                     raise ValueError(f'Invalid or unpinned runtime reference: {name}')
@@ -284,6 +286,8 @@ def fetch_for_tasks(tasks, manifest, cache=None, download=None):
                 if not path.is_file() or _context_of(path.relative_to(task).as_posix()) is None:
                     continue
                 ref = json.loads(path.read_text())
+                if name == TASK_REFERENCE and ref.get('format') == OFFLINE_FORMAT:
+                    fmt = OFFLINE_FORMAT
                 key = ref.get('id')
                 if not isinstance(key, str) or not _HEX.fullmatch(key):
                     raise ValueError(f'Invalid runtime reference: {path}')

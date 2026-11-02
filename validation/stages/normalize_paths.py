@@ -80,7 +80,17 @@ def discover(selected, out, args):
                                 'reference_unavailable': not (task / 'solution/solve.sh').is_file()}]}
                 except Exception as exc:
                     return {'task': str(task), 'status': 'error', 'reason': str(exc)}
-        return await asyncio.gather(*(one(task) for task in selected))
+        replace = getattr(args, '_image_batch', None)
+        if replace is None:
+            return await asyncio.gather(*(one(task) for task in selected))
+        from hpc.local_assets import IMAGE_BATCH
+        finished = []
+        for start in range(0, len(selected), IMAGE_BATCH):
+            batch = selected[start:start + IMAGE_BATCH]
+            if start:  # The worker staged the first batch before its services started.
+                await asyncio.to_thread(replace, batch)
+            finished += await asyncio.gather(*(one(task) for task in batch))
+        return finished
     items = asyncio.run(baselines())
     unresolved = [task for task, item in zip(selected, items)
                   if (task / 'solution/solve.sh').is_file() and

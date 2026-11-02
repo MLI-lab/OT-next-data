@@ -62,8 +62,8 @@ class History:
         return value
 
 
-def internet_setting(binary):
-    """Read the declared task setting without extracting or executing the payload."""
+def task_environment(binary):
+    """Read task.toml [environment] without extracting or executing the payload."""
     import io
     import tarfile
     import tomllib
@@ -72,13 +72,19 @@ def internet_setting(binary):
             members = [member for member in archive.getmembers()
                        if member.isfile() and member.name.removeprefix('./') == 'task.toml']
             if len(members) != 1:
-                return 'unknown'
+                return None
             stream = archive.extractfile(members[0])
-            config = tomllib.loads(stream.read().decode())
-            value = config.get('environment', {}).get('allow_internet')
-            return 'true' if value is True else 'false' if value is False else 'unspecified'
+            return tomllib.loads(stream.read().decode()).get('environment', {})
     except (tarfile.TarError, UnicodeError, ValueError):
+        return None
+
+
+def internet_setting(binary):
+    environment = task_environment(binary)
+    if environment is None:
         return 'unknown'
+    value = environment.get('allow_internet')
+    return 'true' if value is True else 'false' if value is False else 'unspecified'
 
 
 def write(tables, record, run_file, out, reports, contract, history, cards=None, image_manifest=None, release_specs=None):
@@ -109,6 +115,8 @@ def write(tables, record, run_file, out, reports, contract, history, cards=None,
             key = task['path'], task['content_sha256']
             row = incoming.setdefault(key, {'dataset': folder, 'task_id': key[0], 'content_sha256': key[1]})
             row['allow_internet'] = internet_setting(task['task_binary'])
+            environment = task_environment(task['task_binary']) or {}
+            row['cpus'], row['memory_mb'] = environment.get('cpus'), environment.get('memory_mb')
             row['run'] = run_file
             row['publication_details'] = results.encode({k: v for k, v in task.items() if k != 'task_binary'})
             if task.get('patch_labels'):

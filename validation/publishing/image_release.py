@@ -170,7 +170,12 @@ def stage_published(tasks, cache, target, download=None, *, selected_keys=None):
         manifest = references[sidecar].get(task.name)
         if not manifest:
             continue
-        if manifest['version'] != 1 or not re.fullmatch('[0-9a-f]{40}', manifest.get('revision') or ''):
+        local_only = manifest.get('local_only', False)
+        if not isinstance(local_only, bool):
+            raise ValueError('Image local_only must be a boolean')
+        if local_only and (manifest.get('repo_id') is not None or manifest.get('revision') is not None):
+            raise ValueError('Local-only images must not claim an HF repository or revision')
+        if manifest['version'] != 1 or (not local_only and not re.fullmatch('[0-9a-f]{40}', manifest.get('revision') or '')):
             raise ValueError('Published images require a pinned HF commit revision')
         entry = manifest['tasks'][task.name]
         if task_digest(task) != entry['content_sha256']:
@@ -226,15 +231,20 @@ def stage_published(tasks, cache, target, download=None, *, selected_keys=None):
                     raise ValueError(f'Invalid cached image bundle: {cached}')
                 with bundle_directory(cached, target) as unpacked:
                     local_manifest = bundle_manifest(unpacked)
-                    if (local_manifest['files'] != bundle['files']
-                            or local_manifest.get('provenance') != provenance):
+                    if local_manifest['files'] != bundle['files']:
                         raise ValueError(f'Published image cache manifest mismatch: {cached}')
+                    # The pinned task reference above supplies trusted provenance.
+                    # A local cache may record its retrieval history instead. As
+                    # with the already-staged path, require every byte to match
+                    # the pinned manifest rather than trusting cache provenance.
                     validate_bundle(bundle['name'], bundle, unpacked)
                     local = restore(unpacked, target)
                 done.add(identity)
                 records.append({'source': str(cached), 'revision': manifest['revision'],
                                 'local': str(local), 'verified_bundle': True, 'reused': True})
                 continue
+            if local_only:
+                raise ValueError('Required local-only image is missing from the verified cache: ' + bundle['name'])
             with tempfile.TemporaryDirectory(prefix='.hf-image-', dir=target) as temporary:
                 directory = Path(temporary) / bundle['name']
                 directory.mkdir()

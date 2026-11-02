@@ -26,462 +26,19 @@ import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from data.endless.repairs import (STATIC_VERSION, JSONSCHEMA_SOURCE_SHA256, PIN_REPAIRS,
+    CPU_REPAIRS, REVIEWED_EXCLUSIONS, REVIEWED_REPAIRS, WITHHELD_TIMESTAMP_REPAIRS,
+    static_repairs, repair_timestamps, repair_instructions, published_instruction_paths)
+
 REVISION = '26ecf78458e7f756e4d06780d5fbf3dd78e91815'
 SOURCE_SHA256 = '9b4d72b139e235aa64335b6a4b2511b7e710864e0f48b4e6669d2a689ca65490'
 VERSION = 'et-apptainer-build-v6'
-STATIC_VERSION = 'et-static-repairs-v2'
-JSONSCHEMA_SOURCE_SHA256 = '14d0e5189ed8001724d4eaaee202ee56b3c40299d38a13b6d5319b7d532cc8af'
-PIN_REPAIRS = json.loads(r'''{
-  "evidence": [
-    "pilot-validation/submissions/1941f174284d/evidence.tar.gz",
-    "pin-followup-validation/submissions/0ca6f3556148/evidence.tar.gz",
-    "final-pilot-validation/submissions/865a72be0dbc/evidence.tar.gz"
-  ],
-  "requirement": "reward-1 oracle followed by freeze --all; normal stage-4 rerun after generated pins",
-  "tasks": {
-    "task_000000_047019b5": {
-      "script_sha256": "cde44e3f0def2f6d66ee2a14dc87c2711ee46aa2e2642fe3f25c6e907388b1ae",
-      "edits": [
-        {
-          "requirement": "wheel",
-          "start": 316,
-          "end": 321,
-          "original": "wheel",
-          "file": "solution/solve.sh",
-          "replacement": "wheel==0.48.0"
-        }
-      ]
-    },
-    "task_000000_3e17389f": {
-      "script_sha256": "92a66f5cbf881225bf2bde56c499cedbebdcfbee73e42df764c6691f564741a4",
-      "edits": [
-        {
-          "requirement": "pip",
-          "start": 3771,
-          "end": 3774,
-          "original": "pip",
-          "file": "solution/solve.sh",
-          "replacement": "pip==26.2.1"
-        },
-        {
-          "requirement": "setuptools",
-          "start": 3775,
-          "end": 3785,
-          "original": "setuptools",
-          "file": "solution/solve.sh",
-          "replacement": "setuptools==84.0.0"
-        },
-        {
-          "requirement": "wheel",
-          "start": 3786,
-          "end": 3791,
-          "original": "wheel",
-          "file": "solution/solve.sh",
-          "replacement": "wheel==0.48.0"
-        }
-      ]
-    },
-    "task_000000_9aa135c8": {
-      "script_sha256": "2dd3485a8ab55ba0d3609ee1acca470c2d2132ae7db305e461814aae423e73c8",
-      "edits": [
-        {
-          "requirement": "pip",
-          "start": 484,
-          "end": 487,
-          "original": "pip",
-          "file": "solution/solve.sh",
-          "replacement": "pip==26.2.1"
-        },
-        {
-          "requirement": "setuptools",
-          "start": 488,
-          "end": 498,
-          "original": "setuptools",
-          "file": "solution/solve.sh",
-          "replacement": "setuptools==84.0.0"
-        },
-        {
-          "requirement": "requests",
-          "start": 843,
-          "end": 851,
-          "original": "requests",
-          "file": "solution/solve.sh",
-          "replacement": "requests==2.34.2"
-        }
-      ]
-    },
-    "task_000000_f4935f25": {
-      "script_sha256": "8286b9a57a6f152794b826a0bc3cb696a7d0938f0469997cfbe46efee6196156",
-      "edits": [
-        {
-          "requirement": "pulp",
-          "start": 65,
-          "end": 69,
-          "original": "pulp",
-          "file": "solution/solve.sh",
-          "replacement": "pulp==3.3.2"
-        }
-      ]
-    },
-    "task_000000_1bb9cf9f": {
-      "script_sha256": "0ea7ab1b42e698d0add1e0053c257cb20571f19b7d2385d56cbf9e3152c1d226",
-      "edits": [
-        {
-          "requirement": "psutil",
-          "start": 1380,
-          "end": 1386,
-          "original": "psutil",
-          "file": "solution/solve.sh",
-          "replacement": "psutil==7.2.2"
-        }
-      ]
-    },
-    "task_000000_ce45e6d1": {
-      "script_sha256": "da0c7278bdaaa13680cc53b7ce1ca6aba7b36f7539068844bf016cf575737e41",
-      "edits": [
-        {
-          "requirement": "pandas",
-          "start": 142,
-          "end": 148,
-          "original": "pandas",
-          "file": "solution/solve.sh",
-          "replacement": "pandas==2.3.3"
-        },
-        {
-          "requirement": "boto3",
-          "start": 149,
-          "end": 154,
-          "original": "boto3",
-          "file": "solution/solve.sh",
-          "replacement": "boto3==1.43.114"
-        }
-      ]
-    },
-    "task_000000_efb4f0f7": {
-      "script_sha256": "85e83e999fb64cf7fcc6a15168be78aad684415c7a870fc0229ea1c87a08c606",
-      "edits": [
-        {
-          "requirement": "ping3",
-          "start": 191,
-          "end": 196,
-          "original": "ping3",
-          "file": "solution/solve.sh",
-          "replacement": "ping3==5.1.6"
-        },
-        {
-          "requirement": "ping3",
-          "start": 1975,
-          "end": 1980,
-          "original": "ping3",
-          "file": "solution/solve.sh",
-          "replacement": "ping3==5.1.6"
-        },
-        {
-          "requirement": "ping3",
-          "start": 3987,
-          "end": 3992,
-          "original": "ping3",
-          "file": "solution/solve.sh",
-          "replacement": "ping3==5.1.6"
-        },
-        {
-          "requirement": "ping3",
-          "start": 8612,
-          "end": 8617,
-          "original": "ping3",
-          "file": "solution/solve.sh",
-          "replacement": "ping3==5.1.6"
-        },
-        {
-          "requirement": "ping3",
-          "start": 9146,
-          "end": 9151,
-          "original": "ping3",
-          "file": "solution/solve.sh",
-          "replacement": "ping3==5.1.6"
-        }
-      ]
-    },
-    "task_000000_b5807114": {
-      "script_sha256": "14d0e5189ed8001724d4eaaee202ee56b3c40299d38a13b6d5319b7d532cc8af",
-      "edits": [
-        {
-          "requirement": "jsonschema",
-          "start": 852,
-          "end": 862,
-          "original": "jsonschema",
-          "file": "solution/solve.sh",
-          "replacement": "jsonschema==4.26.0"
-        },
-        {
-          "requirement": "jsonschema",
-          "start": 3051,
-          "end": 3061,
-          "original": "jsonschema",
-          "file": "solution/solve.sh",
-          "replacement": "jsonschema==4.26.0"
-        },
-        {
-          "requirement": "jsonschema",
-          "start": 5492,
-          "end": 5502,
-          "original": "jsonschema",
-          "file": "solution/solve.sh",
-          "replacement": "jsonschema==4.26.0"
-        }
-      ]
-    }
-  }
-}''')
-# These are source-bound solution edits. They change resource selection only,
-# preserving the commands which produce and verify the task's requested outputs.
-CPU_REPAIRS = {
-    'task_000000_0b92c5c3': '8985fce1b8097c9bde8c2e44f53b91ac477932586f7178f6307624927fd80928',
-    'task_000000_27030ede': 'dc43dba54353cb7e997c80f815007136cee815bd89870eacf5cb8278b0e9d8fd',
-    'task_000000_b3ae7cf7': '4acc4b9d5212c5b4b03ead5e11f71761a804078ece9ca05b23fede475d0aabe6',
-    'task_000000_bffd5dd1': '0e13aa67639020670aa7cc5bad61b9ab9550bacaec229f61b7fbf989990871d2',
-    'task_000000_bc9c5a3e': 'f1df4fc2b9bb50808d832b113a7cfbe6b99ae33b0b28f9e8aeaea74e00f1993c',
-}
-REVIEWED_EXCLUSIONS = {
-    'task_000000_9719b9f3': {
-        'source_sha256': 'ab1c146763ad2acd0476342110a1c053db29157853f4cb8a5106b2ff4c7b949f',
-        'category': 'reference-solution-integrity',
-        'reason': ('The source oracle installs an empty yaml.py as PyYAML 5.4.1. The recorded oracle '
-                   'trajectory executes this replacement and still receives reward 1. It does not '
-                   'satisfy the instruction to install the actual PyYAML package; version-only grading '
-                   'accepts a placeholder. Retain the original task in the archive for verifier/reference repair.'),
-    },
-    'task_000000_bc9c5a3e': {
-        'source_sha256': '6d68d66fb8a8b71e098ea0648200f211fab0d9c841c758bb3119b3f715f153f9',
-        'category': 'reference-solution-reward-zero',
-        'reason': ('On the tested Helma/Apptainer profile, exactly five ICMP requests to 8.8.8.8 '
-                   'produce no latency sample. Both original and CPU-repaired references score 0: '
-                   'the latency field is empty and the summary JSON is invalid. This is a '
-                   'profile-specific exclusion, not a claim that the task is universally unsolvable.'),
-    },
-}
 BASE_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 OPS = set('FROM RUN ENV WORKDIR USER LABEL CMD ENTRYPOINT'.split())
 CACHE_TARGETS = {'/var/cache/apt', '/var/lib/apt', '/root/.cache/pip'}
 WORKDIR_BASE_ROOT = '/home'
 VERIFIER_VERSION = 'et-offline-verifier-v1'
 ORIGINAL_TEST_SH_SHA256 = '52d87e5cb768634d6a7bda203b72ea77c802fdb9e8700d3d7cdcf631080c3298'
-REVIEWED_REPAIRS = json.loads(r'''{
-  "instructions": {
-    "task_000000_3a08bb12": {
-      "description_sha256": "0a129d48079da193c54a51abfc1e27f7e3aa42909712c816cb98306f185d7ed3",
-      "instruction_sha256": "a5bf7db83bbb192cbd1dad89129970caa07bf5b8d899fa04b418ea57088493fd"
-    },
-    "task_000000_84d4748a": {
-      "description_sha256": "861cdd02b2e583ae5efc110327f61556f72e7360fe7254d07e7c13b60d4c08d0",
-      "instruction_sha256": "75e295224630da03eab1acd79e624c1344e1d0809eb8915b6784430dfbc53e45"
-    },
-    "task_000000_c40b78a6": {
-      "description_sha256": "99faf2ba1dbcb1feccd02aba3071bc4a1881adaf5ef424d7021b00ebfa8a7703",
-      "instruction_sha256": "83a83a509eec61b4c7658820983e8d3dc6d4016e9491ca35bac09b286da55662"
-    },
-    "task_000000_e24cd12d": {
-      "description_sha256": "acb37e963b3ee578144105f5f588506d063b129ee3b76c0b0dcffc75ec3c8b8f",
-      "instruction_sha256": "365c16bea2fa4ca234db867960f18b81bec1501b55d59f1c5f7fca2c69351516"
-    },
-    "task_000000_e9aac96e": {
-      "description_sha256": "72ee9078822892887fae1a2c74fb95fbfe633a7cf28dc6bdb0de8ded889cb0b4",
-      "instruction_sha256": "8d39c133ecfd197c4083d60fb61fe0e212556ff638675a953c7488711f6c33aa"
-    }
-  },
-  "revision": "26ecf78458e7f756e4d06780d5fbf3dd78e91815",
-  "timestamps": {
-    "task_000000_44c20928": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "BASE=/home/user/storage && touch -d \"3 days ago\"  ${BASE}/incoming/project1/keep.txt && touch -d \"2 days ago\"  ${BASE}/incoming/project1/large.bak && touch -d \"15 days ago\" ${BASE}/incoming/project1/old.txt && touch -d \"12 days ago\" ${BASE}/incoming/project2/archive.txt && touch -d \"1 day ago\"   ${BASE}/incoming/project2/temp2.bak",
-          "source_line": 13
-        }
-      ],
-      "source_sha256": "0831fe61449aad85038dba7f925b93b116f1004942521fcd90aea6efe64547fe"
-    },
-    "task_000000_5cc0f6f2": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "OLD_TIMESTAMP=\"202001010000\" && touch -m -d '1 day ago' /home/user/audit_targets/webserver/newhttpd.conf && touch -m -d '1 day ago' /home/user/audit_targets/app/settings/recent.conf",
-          "source_line": 58
-        }
-      ],
-      "source_sha256": "6018318699692c694629f159c8b82a5c26ccdff6463acdcb4837d9f16218175f"
-    },
-    "task_000000_6723c42c": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d \"1 hour ago\" /home/user/app/logs/serviceA.log",
-          "source_line": 19
-        },
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d \"25 hours ago\" /home/user/app/logs/serviceB.log",
-          "source_line": 23
-        },
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d \"9 days ago\" /home/user/app/logs/old/serviceC.log",
-          "source_line": 27
-        }
-      ],
-      "source_sha256": "63f73cf6fd9eaf323291477c17d62c747986d2175a218195a9895d4cdd10e4ad"
-    },
-    "task_000000_87d17935": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/home/user/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "TEN_DAYS_AGO=$(date -d '10 days ago' '+%Y%m%d%H%M.%S') && touch -t \"$TEN_DAYS_AGO\" /home/user/experiments/exp_alpha && touch -t \"$TEN_DAYS_AGO\" /home/user/experiments/exp_alpha/model.bin && touch -t \"$TEN_DAYS_AGO\" /home/user/experiments/exp_beta && touch -t \"$TEN_DAYS_AGO\" /home/user/experiments/exp_beta/model.chk && touch -t \"$TEN_DAYS_AGO\" /home/user/experiments/exp_gamma && touch -t \"$TEN_DAYS_AGO\" /home/user/experiments/exp_gamma/metrics.json",
-          "source_line": 39
-        }
-      ],
-      "source_sha256": "77435bfa229063d1a7054961f1667d2b236c606c4c163b3693a9307d12c75b7d"
-    },
-    "task_000000_9ba2b0a3": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d '3 days ago' /home/user/apps/logs/app1.log && touch -d '3 days ago' /home/user/apps/logs/app2.log && touch -d '5 days ago' /home/user/apps/logs/old/old.log",
-          "source_line": 21
-        }
-      ],
-      "source_sha256": "8d52db4d19f8e2df563d6eab03d5d3edbb0fd979262bd2fe0d1e38e8dd12c45d"
-    },
-    "task_000000_aac3d4dd": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d \"30 days ago\" /home/user/projects/microservices/serviceA/scripts/deploy.sh && touch -d \"20 days ago\" /home/user/projects/microservices/serviceB/scripts/restart.sh && touch -d \"91 days ago\" /home/user/projects/microservices/serviceC/scripts/cleanup.sh",
-          "source_line": 69
-        }
-      ],
-      "source_sha256": "bd898e6a7c435932b701ff9e7007c1db81ee98294f8fbb887b0a98359054a240"
-    },
-    "task_000000_c0d576aa": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d \"10 days ago\" /home/user/repositories/repoA/nested/sample-archive.tar.gz && touch -d \"20 days ago\" /home/user/repositories/repoB/data-1.1.tar.gz",
-          "source_line": 39
-        }
-      ],
-      "source_sha256": "29227f37b8fe593d13830d74382262900e2c008e405897f72e1f5fa139e15d42"
-    },
-    "task_000000_d314a7d5": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "DEBIAN_FRONTEND": "noninteractive",
-            "HOME": "/root",
-            "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "PYTHONIOENCODING": "utf-8"
-          },
-          "script": "touch -d \"2 days ago\"  /home/user/db/queries/daily/report.sql && touch -d \"10 days ago\" /home/user/db/queries/archive/old_report.sql && touch -d \"10 days ago\" /home/user/db/queries/maintenance/cleanup.sql",
-          "source_line": 48
-        }
-      ],
-      "source_sha256": "0957ec33c28b59295ec76e9433f3d658beaf855d23600b6f812fc6157389f59e"
-    },
-    "task_000000_d3ad8877": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d '2 days ago' /home/user/configs/nginx/nginx.conf && touch -d '2 days ago' /home/user/configs/nginx/sites-available/default.conf && touch -d '2 days ago' /home/user/configs/app/app.conf && touch -d '2 days ago' /home/user/configs/app/db/database.conf && touch -d '90 days ago' /home/user/configs/obsolete/old.conf",
-          "source_line": 41
-        }
-      ],
-      "source_sha256": "c2ff26b4d8a9625e68dd55b388abd5d1b7a4fd3c7c666985bd254b4f8419833b"
-    },
-    "task_000000_da9fb171": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d \"$(date -d '10 days ago')\" /home/user/mobile-build/logs/build-20230901.log && touch -d \"$(date -d '9 days ago')\"  /home/user/mobile-build/logs/test-20230902.log",
-          "source_line": 32
-        }
-      ],
-      "source_sha256": "96d5741a2be65d6207ac7f6f6d40b182e1d851995a458bfc7bf50074a5f3dbdd"
-    },
-    "task_000000_fba47f66": {
-      "commands": [
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "BASE=/home/user/workspace && BUILDS=${BASE}/builds && ARTIFACTS=${BUILDS}/artifacts && ARCHIVE=${BUILDS}/archive && touch -d '10 days ago'         \"${ARTIFACTS}/app-core-1.0.0.jar\"         \"${ARTIFACTS}/app-core-1.1.0.jar\"         \"${ARTIFACTS}/lib-util-2.0.0.jar\"",
-          "source_line": 26
-        },
-        {
-          "cwd": "/",
-          "env": {
-            "HOME": "/root",
-            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "script": "touch -d '1 hour ago' /home/user/workspace/builds/artifacts/fresh-feature-9999.jar /home/user/workspace/builds/artifacts/README.txt",
-          "source_line": 53
-        }
-      ],
-      "source_sha256": "68ddfd6a2462f3437a12099fd93c1f38c529fd1a0240e43c39a7852f587b40f6"
-    }
-  }
-}''')
-# Directory timestamp replay in 87d17935 regressed the archive oracle in the
-# Apptainer pilot. All of its fixtures already exceed the seven-day cutoff.
-# Keep its reviewed source record above, but do not apply the runtime refresh.
-WITHHELD_TIMESTAMP_REPAIRS = {'task_000000_87d17935': 'directory timestamp refresh regressed the oracle pilot'}
-for withheld in WITHHELD_TIMESTAMP_REPAIRS:
-    REVIEWED_REPAIRS['timestamps'].pop(withheld)
 
 VERIFIER_INSTALL = (
     '/usr/bin/python3 -m pip install --no-cache-dir --target /opt/et-verifier/uv uv==0.9.5 && '
@@ -1226,6 +783,41 @@ def write_task(members):
     return buffer.getvalue()
 
 
+def offline_config(config):
+    """Explicit offline-first policy, independent of upstream defaults and repairs."""
+    original = tomllib.loads(config.decode())
+    if original.get('environment', {}).get('allow_internet') is False:
+        return config
+    expected = copy.deepcopy(original)
+    expected.setdefault('environment', {})['allow_internet'] = False
+    output, section, found = [], '', False
+    for line in config.decode().splitlines(keepends=True):
+        header = re.match(r'^\s*\[([^\]]+)\]\s*(?:#.*)?$', line.strip())
+        if header:
+            section = header[1]
+        if section == 'environment' and re.match(r'^\s*allow_internet\s*=', line):
+            continue
+        output.append(line)
+        if header and section == 'environment':
+            if not line.endswith('\n'):
+                output.append('\n')
+            output.append('allow_internet = false\n')
+            found = True
+    if not found:
+        if 'environment' in original:
+            raise ValueError('Unreviewed inline environment configuration')
+        output.append('\n[environment]\nallow_internet = false\n')
+    result = ''.join(output).encode()
+    if tomllib.loads(result.decode()) != expected:
+        raise ValueError('Offline policy changed unrelated task configuration')
+    return result
+
+
+def offline_task(binary):
+    return write_task([(m, offline_config(d) if m.name == 'task.toml' else d)
+                       for m, d in read_task(binary)])
+
+
 def setup_script(commands, source_sha256):
     """Run reviewed initialization once per instance, never reset an oracle trial."""
     return ('#!/bin/bash\nset -eu\n'
@@ -1283,18 +875,8 @@ def patch_task(task_id, binary, *, task_setup=True, share_images=False, offline_
                 converted = plan.pop('dockerfile')
                 commands.extend(plan.pop('commands'))
                 details['sharing'] = dict(plan, status='separated', relocated=moves)
-        timestamp = REVIEWED_REPAIRS['timestamps'].get(task_id) if reviewed_repairs and task_setup else None
-        if timestamp:
-            if digest(source) != timestamp['source_sha256']:
-                raise Unsupported('Reviewed timestamp source digest differs')
-            # Shared initialization already replays these original RUN programs.
-            in_setup = details.get('sharing', {}).get('status') == 'separated'
-            if not in_setup:
-                keys = sorted(set(details['expected']['env']) | {'HOME', 'PATH'})
-                commands.extend(shell_command(c['script'], c['env'], c['cwd'], keys)
-                                for c in timestamp['commands'])
-            details['timestamp_refresh'] = {'kind': 'source-initialization' if in_setup else 'reviewed-touch',
-                                            'commands': timestamp['commands']}
+        if reviewed_repairs and task_setup:
+            repair_timestamps(task_id, source, details, commands)
         if repair:
             if details['expected']['user'] not in ('root', '0'):
                 raise Unsupported('Task setup cannot implement a non-root runtime identity')
@@ -1313,17 +895,8 @@ def patch_task(task_id, binary, *, task_setup=True, share_images=False, offline_
             details['task_setup'] = {'kind': 'initialization-and-startup' if details.get('sharing', {}).get('status') == 'separated'
                                     else 'reviewed-entrypoint', 'commands': len(commands),
                                     'completion_marker': '.ot-et-' + details['source_sha256'] + '.done'}
-        instruction = REVIEWED_REPAIRS['instructions'].get(task_id) if reviewed_repairs else None
-        if instruction:
-            original = next(data for info, data in members if info.name == 'instruction.md')
-            metadata = next(data for info, data in members
-                            if info.name in ('environment/task.json', 'source_metadata/environment/task.json'))
-            restored = json.loads(metadata)['description'].encode()
-            if digest(original) != instruction['instruction_sha256'] or digest(restored) != instruction['description_sha256']:
-                raise Unsupported('Reviewed instruction source digest differs')
-            members = [(info, restored if info.name == 'instruction.md' else data) for info, data in members]
-            details['instruction_restoration'] = dict(instruction, original_chars=len(original.decode()),
-                                                      restored_chars=len(restored.decode()))
+        if reviewed_repairs:
+            members = repair_instructions(task_id, members, details)
         if offline_verifier:
             wrapper = next(data for info, data in members if info.name == 'tests/test.sh')
             if digest(wrapper) != ORIGINAL_TEST_SH_SHA256:
@@ -1373,71 +946,13 @@ def context_digest(binary):
     return result.hexdigest()
 
 
-def static_repairs(task_id, original, binary):
-    """Reuse suffix normalization and apply the reviewed CPU edits, with evidence."""
-    from validation.rules.static.instruction_suffix import suffix
-    members = read_task(binary)
-    files = {info.name: data for info, data in members}
-    edits = {}
-    instruction = suffix(files['instruction.md'], files['task.toml'])
-    if instruction != files['instruction.md']:
-        edits['instruction.md'] = instruction
-    if task_id in PIN_REPAIRS['tasks']:
-        recipe = PIN_REPAIRS['tasks'][task_id]
-        source = {info.name: data for info, data in read_task(original)}['solution/solve.sh']
-        if digest(source) != recipe['script_sha256']:
-            raise ValueError(f'{task_id}: reviewed pip source changed')
-        first, separator, body = source.partition(b'\n')
-        setup_call = b'bash /setup_files/setup.sh || exit $?\n'
-        if files['solution/solve.sh'] not in (source, first + separator + setup_call + body):
-            raise ValueError(f'{task_id}: unexpected changes before pip repairs')
-        script = files['solution/solve.sh'].decode()
-        delta = len(script) - len(source.decode())
-        for edit in sorted(recipe['edits'], key=lambda e: e['start'], reverse=True):
-            start, end = edit['start'] + delta, edit['end'] + delta
-            if script[start:end] != edit['original']:
-                raise ValueError(f'{task_id}: stale package-pin evidence')
-            script = script[:start] + edit['replacement'] + script[end:]
-        edits['solution/solve.sh'] = script.encode()
-    if task_id == 'task_000000_b5807114' and files['tests/test.sh'] == OFFLINE_TEST_SH:
-        source = {info.name: data for info, data in read_task(original)}['solution/solve.sh']
-        if digest(source) != JSONSCHEMA_SOURCE_SHA256:
-            raise ValueError('Reviewed JSON-schema solution changed')
-        # pytest is already invoked by absolute path. Its subprocess must find
-        # the task Python (with jsonschema), not the isolated grading Python.
-        edits['tests/test.sh'] = OFFLINE_TEST_SH.replace(b'export PATH="/opt/et-verifier/venv/bin:$PATH"\n', b'')
-    if task_id in CPU_REPAIRS:
-        source = {info.name: data for info, data in read_task(original)}['solution/solve.sh']
-        if digest(source) != CPU_REPAIRS[task_id]:
-            raise ValueError(f'{task_id}: reviewed CPU source changed')
-        script = files['solution/solve.sh'].decode()
-        if task_id == 'task_000000_bc9c5a3e':
-            # This task measures the host; the audit must log the command used.
-            script = script.replace('cpu_cmd="nproc"', 'cpu_cmd="nproc --all"')
-            script = script.replace('cpu=$(nproc)', 'cpu=$(nproc --all)')
-        else:
-            cpus = tomllib.loads(files['task.toml'].decode())['environment']['cpus']
-            if isinstance(cpus, bool) or not isinstance(cpus, int) or cpus <= 0:
-                raise ValueError(f'{task_id}: expected positive integer CPU budget')
-            script, count = re.subn(
-                r'\$\((?:command -v nproc >/dev/null && nproc \|\| echo 4|nproc 2>/dev/null \|\| echo 4|nproc)\)',
-                str(cpus), script)
-            if count != (3 if task_id == 'task_000000_27030ede' else 1):
-                raise ValueError(f'{task_id}: reviewed CPU replacement count changed')
-        edits['solution/solve.sh'] = script.encode()
-    result = [(info, edits.get(info.name, data)) for info, data in members]
-    evidence = {'version': STATIC_VERSION, 'edits': [
-        {'file': name, 'before_sha256': digest(files[name]), 'after_sha256': digest(data)}
-        for name, data in sorted(edits.items())]}
-    return write_task(result), evidence
-
-
 def patch_main(args):
     import pyarrow as pa
     import pyarrow.parquet as pq
     pa.set_cpu_count(2)
     pa.set_io_thread_count(2)
-    if digest(args.source.read_bytes()) != SOURCE_SHA256:
+    source_sha256 = digest(args.source.read_bytes())
+    if source_sha256 != SOURCE_SHA256:
         raise ValueError('Source checksum differs from the unmodified pinned ET Parquet')
     if args.output.resolve().is_relative_to(Path(__file__).resolve().parent):
         raise ValueError('Generated artifacts must live outside data/endless_terminals')
@@ -1449,7 +964,7 @@ def patch_main(args):
     # Plan first, so singleton recipes keep the byte-identical compatibility task.
     planned, sizes = [], collections.Counter()
     for row in rows(args.source):
-        if args.filter_reviewed and row['path'] in REVIEWED_EXCLUSIONS:
+        if args.filter_reviewed and not getattr(args, 'no_repairs', False) and row['path'] in REVIEWED_EXCLUSIONS:
             exclusion = REVIEWED_EXCLUSIONS[row['path']]
             if digest(row['task_binary']) != exclusion['source_sha256']:
                 raise ValueError(f"{row['path']}: reviewed exclusion source changed")
@@ -1457,7 +972,7 @@ def patch_main(args):
             continue
         new, details = patch_task(row['path'], row['task_binary'], task_setup=not args.no_task_setup,
                                   share_images=not args.no_share_images, offline_verifier=not args.no_offline_verifier,
-                                  reviewed_repairs=not args.no_reviewed_repairs)
+                                  reviewed_repairs=not (getattr(args, "no_repairs", False) or args.no_reviewed_repairs))
         sharing = details.get('sharing', {})
         if sharing.get('status') == 'separated':
             sizes[sharing['identity']] += 1
@@ -1472,12 +987,18 @@ def patch_main(args):
                 identity = sharing['identity']
                 new, details = patch_task(row['path'], row['task_binary'], task_setup=not args.no_task_setup,
                                           offline_verifier=not args.no_offline_verifier,
-                                          reviewed_repairs=not args.no_reviewed_repairs)
+                                          reviewed_repairs=not (getattr(args, "no_repairs", False) or args.no_reviewed_repairs))
                 details['sharing'] = {'status': 'retained', 'reason': 'no matching dependency recipe',
                                       'candidate_identity': identity}
                 sharing = details['sharing']
-            if not args.no_static_repairs:
+            if not (getattr(args, "no_repairs", False) or args.no_static_repairs):
                 new, details['static_repairs'] = static_repairs(row['path'], row['task_binary'], new)
+                if not args.no_reviewed_repairs:
+                    restored = published_instruction_paths(row['path'], new)
+                    details['published_instruction_paths'] = restored != new
+                    new = restored
+            new = offline_task(new)
+            details['network_policy'] = 'offline-first; explicit allow_internet=false'
             key = context_digest(new)
             details['environment_sha256'] = key
             if sharing.get('status') == 'separated':
@@ -1488,6 +1009,7 @@ def patch_main(args):
                 labels[row['path']] = ['apptainer-build-compatibility']
                 reasons[row['path']] = ('Preserve ordered build environment/cwd; lower heredocs and emulate '
                     'reviewed disposable cache mounts. Shared runtime behavior is unchanged.')
+                reasons[row['path']] += ' Set allow_internet=false for the initial audit, including upstream online or unset declarations.'
                 if details.get('startup_command'):
                     labels[row['path']] = ['apptainer-build-and-startup-compatibility']
                     reasons[row['path']] += (' Invoke the reviewed finite source ENTRYPOINT after container mounts, '
@@ -1499,6 +1021,7 @@ def patch_main(args):
                         'Keep installation in the image; replay task initialization with its original shell context '
                         'before any repaired entrypoint. Preserve unused context metadata outside the image and '
                         'agent-visible setup. Add one guarded setup call before the unchanged solution body.')
+                labels[row['path']].append('offline-first-network-policy')
                 if details.get('workdir_timing'):
                     reasons[row['path']] += ' Undo early empty WORKDIR creation before source RUN steps.'
                 if details.get('timestamp_refresh'):
@@ -1525,6 +1048,9 @@ def patch_main(args):
                     if any(e['file'] == 'tests/test.sh' for e in details['static_repairs']['edits']):
                         labels[row['path']].append('verifier-subprocess-path')
                         reasons[row['path']] += ' Preserve the task PATH for verifier subprocesses while invoking isolated pytest by absolute path; assertions are unchanged.'
+                if details.get('published_instruction_paths'):
+                    labels[row['path']].append('historical-instruction-paths')
+                    reasons[row['path']] += ' Reproduce source-bound instruction edits made after the historical patcher; these edits are omitted from the unrepaired audit baseline.'
             writer.write_table(pa.Table.from_pylist([dict(row, task_binary=new)], schema=schema))
             records.append(details)
     temporary.replace(target)
@@ -1535,8 +1061,8 @@ def patch_main(args):
     (args.output / 'build-manifest.jsonl').write_text(''.join(json.dumps(r, sort_keys=True) + '\n' for r in records))
     save(args.output / 'image-groups.json', image_groups)
     summary = {'version': VERSION, 'sharing_version': None if args.no_share_images else SHARING_VERSION,
-               'static_repairs_version': None if args.no_static_repairs else STATIC_VERSION,
-               'source_sha256': SOURCE_SHA256, 'source_revision': REVISION, 'tasks': len(records),
+               'static_repairs_version': None if (getattr(args, 'no_repairs', False) or args.no_static_repairs) else STATIC_VERSION,
+               'source_sha256': source_sha256, 'source_revision': REVISION, 'tasks': len(records),
                'reviewed_exclusions': dropped, 'source_tasks': len(records) + len(dropped),
                'statuses': dict(collections.Counter(r['status'] for r in records)),
                'runtime_validated': 0, 'task_setup': sum(bool(r.get('task_setup')) for r in records),
@@ -1713,7 +1239,7 @@ async def probe_main(args):
 
 
 def prepared_verifier_files(files, spec, catalog=None):
-    """Protect this release's image-baked grader without changing task setup.
+    """Protect this release's image-baked grader, preserving normal initialization.
 
     The caller supplies the exact interpreter and distribution versions inspected
     in this task's image. No default Python patch version is inferred from 3.12.
@@ -1732,21 +1258,28 @@ def prepared_verifier_files(files, spec, catalog=None):
         raise ValueError('Existing verifier setup requires composition review')
     result = dict(files)
     result.update(runtime_reference(spec, catalog))
+    if 'task.toml' in result:
+        result['task.toml'] = offline_config(result['task.toml'])
     result['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n' +
         preparation_command(spec, phase='verifier') + '\n').encode()
-    # Keep the original task-subprocess PATH. Replacing it globally would change
-    # tests of task-created environments; only the trusted grading entrypoint moves.
+    # Replace the image's grading prefix with its clean, version-matched copy.
+    # Keep the reviewed no-PATH variant: that task intentionally runs the
+    # submitted script with its task-installed jsonschema dependency.
     result['tests/test.sh'] = original.replace(
+        b'export PATH="/opt/et-verifier/venv/bin:$PATH"',
+        b'export PATH="${OT_VERIFIER_BIN:?prepared verifier runtime required}:$PATH"').replace(
         b'/opt/et-verifier/venv/bin/pytest /tests/test_final_state.py -v',
         b'"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I -m pytest /tests/test_final_state.py -v')
-    # These two tests intentionally launch task programs with Python. Preserve
-    # the original interpreter rather than silently pointing at the grader bundle.
-    test = result['tests/test_final_state.py']
-    for pattern in (b'[sys.executable, str(SLEEP_SCRIPT), str(secs)]',
-                    b'[sys.executable, str(SERVER_PY)]'):
-        test = test.replace(pattern, pattern.replace(b'sys.executable',
-                            b'"/opt/et-verifier/venv/bin/python"'))
-    result['tests/test_final_state.py'] = test
+    # sys.executable in the two stdlib-only script checks now selects the clean
+    # copy of the same Python version. Explicit task-created venvs remain intact.
+    if 'setup_files/setup.sh' in result:
+        setup = result['setup_files/setup.sh']
+        prefix = b'#!/bin/bash\nset -eu\n'
+        if not setup.startswith(prefix):
+            raise ValueError('Unreviewed Endless initialization setup')
+        result['setup_files/setup.sh'] = setup.replace(prefix, prefix +
+            b'# Dependencies are already in the image; preparation must not initialize task state.\n'
+            b'if [ "${1:-}" = "--prepare" ]; then\n  exit 0\nfi\n', 1)
     return result
 
 
@@ -1823,15 +1356,19 @@ def prepare_published_runtimes(args):
                         'content_sha256': row['content_sha256'], 'image_sha256': entry['image_sha256'],
                         'historical_stages_passed': row.get('stages_passed'),
                         'historical_run': row.get('run'), 'runtime_spec': entry['spec'],
-                        'setup': 'no additional preparation needed',
+                        'setup': 'verifier dependencies prepared; task initialization has no additional dependencies',
                         'validation': 'incomplete, new payload has not run default training checks'}
                     row['stages_passed'] = ''
                     row['run'] = ''
                     if 'validation_labels' in row:
                         row['validation_labels'] = []
-                    labels[task] = ['prepared-verifier-runtime']
+                    labels[task] = ['prepared-verifier-runtime', 'offline-first-network-policy']
                     reasons[task] = ('Use the exact image-inspected Python and grading distributions in a fresh private '
-                        'verifier runtime. Keep task setup, reward branching and task subprocess interpreters unchanged. '
+                        'verifier runtime, including the grading PATH. Preserve normal task initialization and reward '
+                        'branching. Setup --prepare saves grading dependencies; initialization-only setup exits '
+                        'without changing task state because its dependencies are already in the image. '
+                        'Preserve explicit task-created environments and the reviewed task-dependency PATH exception. '
+                        'Set allow_internet=false for the offline-first audit, regardless of upstream policy. '
                         'Earlier validation describes the prior payload; new payload validation remains incomplete.')
                     seen.add(task)
                 output.append(row)
@@ -1845,7 +1382,8 @@ def prepare_published_runtimes(args):
         'source_revision': args.source_revision, 'changed_tasks': sorted(seen),
         'historical_evidence': 'runtime-migration.json',
         'historical_scores': 'changed tasks retain scores evaluated on previous payloads',
-        'effective_network': 'unverified', 'validation': 'incomplete'}).encode()
+        'effective_network': 'unverified', 'requested_network': 'offline-first for every task',
+        'validation': 'incomplete'}).encode()
     schema = source.schema_arrow.with_metadata(metadata)
     with pq.ParquetWriter(target, schema, compression='zstd') as writer:
         for batch in pq.ParquetFile(temporary).iter_batches(batch_size=32):
@@ -1871,6 +1409,7 @@ def main():
         parser.add_argument('--runtime-recipes', required=True, type=Path)
         parser.add_argument('--runtime-catalog', type=Path)
     if command == 'patch':
+        parser.add_argument('--no-repairs', action='store_true', help='Skip post-run repairs and reviewed exclusions; preserve the plain conversion for auditing')
         parser.add_argument('--no-share-images', action='store_true', help='Reproduce the completed compatibility-only patch')
         parser.add_argument('--no-task-setup', action='store_true', help='Build-only control for repair comparisons')
         parser.add_argument('--no-offline-verifier', action='store_true', help='Keep the original online grading wrapper')

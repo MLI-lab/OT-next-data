@@ -21,7 +21,7 @@ OFFLINE_FORMAT = 'ot-verifier-offline-v1'
 # cran/: local CRAN source repository. http/: recorded download responses served by
 # http/bin/curl (harbor_patches/http_replay.sh) to the original setup command.
 OFFLINE_ROOTS = ('repo', 'wheels', 'bin', 'cran', 'http', 'sources')
-OFFLINE_REQUEST_KEYS = ('apt', 'python', 'uv', 'cran', 'http', 'sources')
+OFFLINE_REQUEST_KEYS = ('apt', 'python', 'uv', 'cran', 'http', 'sources', 'apt_source_packages', 'git_sources')
 # Exact non-Python toolchain copied from the task's pristine image (hpc/offline_prep/image_toolchain.py),
 # staged read-only after the agent so agent changes to the image's toolchain cannot grade.
 TOOLCHAIN_REFERENCE = 'ot-verifier-toolchain.json'
@@ -62,6 +62,22 @@ def reference(context, name=REFERENCE, format=FORMAT):
         from harbor_patches.verifier_mount import mode
         mode(data)
     return data
+
+
+def task_references(context):
+    """Read the standard task reference, retaining legacy package-cache files.
+
+    A task can name cached installation inputs in ot-task-runtime.json using
+    their existing format. Python runtimes and package inputs remain distinct
+    archive types, with their respective validators and staging behavior.
+    """
+    path = Path(context) / TASK_REFERENCE
+    fmt = json.loads(path.read_text()).get('format') if path.is_file() else FORMAT
+    if fmt == OFFLINE_FORMAT:
+        if (Path(context) / TASK_OFFLINE_REFERENCE).exists():
+            raise ValueError('Task declares package inputs in both runtime reference files')
+        return None, reference(context, TASK_REFERENCE, OFFLINE_FORMAT)
+    return reference(context, TASK_REFERENCE), reference(context, TASK_OFFLINE_REFERENCE, OFFLINE_FORMAT)
 
 
 def verify(ref, root=None, format=FORMAT):
@@ -131,6 +147,44 @@ def lookup(ref, format=FORMAT, validate=validate_archive, root=None):
     try:
         archive = verify(ref, root, format)
         validate(archive)
+        if format == OFFLINE_FORMAT:
+            manifest = json.loads(archive.with_suffix('').with_suffix('.json').read_text())
+            validate_http_archive(manifest['spec'], archive)
+        if format == FORMAT:
+            manifest = json.loads(archive.with_suffix('').with_suffix('.json').read_text())
+            environments = [('python', manifest['spec'])]
+            auxiliary = manifest['spec'].get('auxiliary')
+            if auxiliary is not None:
+                from hpc.offline_prep.auxiliary_verifier_runtimes import canonical
+                auxiliary = canonical(auxiliary, architecture=manifest['spec']['architecture'], libc=manifest['spec']['libc'])
+                environments.extend(('python/aux/' + name, spec) for name, spec in auxiliary.items())
+            with tarfile.open(archive) as stream:
+                members = {m.name: m for m in stream}
+            for prefix, environment in environments:
+                if environment.get('image_tools', {}).get('shared_libraries'):
+                    from hpc.offline_prep.image_tool_libraries import validate_members as validate_libraries
+                    validate_libraries(archive, environment['image_tools'], members, prefix)
+                if environment.get('image_assets'):
+                    from hpc.offline_prep.image_runtime_assets import validate_members
+                    validate_members(environment['image_assets'], members, prefix)
+                tools = environment.get('tools', [])
+                from data.utils.verifier_runtime import NAME
+                if any(not NAME.fullmatch(tool) for tool in tools):
+                    raise ValueError('Invalid runtime executable name')
+                for name in ['python3', *tools]:
+                    member = members.get(prefix + '/bin/' + name)
+                    seen = set()
+                    while member is not None and (member.issym() or member.islnk()):
+                        import posixpath
+                        if member.name in seen:
+                            member = None
+                            break
+                        seen.add(member.name)
+                        target = (member.linkname if member.islnk() else
+                                  posixpath.join(posixpath.dirname(member.name), member.linkname))
+                        member = members.get(posixpath.normpath(target))
+                    if member is None or not member.isfile() or not member.mode & 0o111:
+                        raise ValueError('Incomplete runtime executable: ' + (name if prefix == 'python' else prefix + '/bin/' + name))
     except (OSError, ValueError, tarfile.TarError) as error:
         return None, str(error)
     return archive, None
@@ -147,6 +201,18 @@ def upload_measured(upload):
 
 def validate_offline_archive(path):
     validate_archive(path, OFFLINE_ROOTS, 'repo/Packages')
+
+
+def validate_http_archive(spec, archive):
+    """Reject incomplete download caches so normal setup can install instead."""
+    if not spec.get('http'):
+        return
+    with tarfile.open(archive) as contents:
+        members = {member.name: member for member in contents}
+    helper = members.get('http/bin/curl')
+    responses = [name for name in members if name.startswith('http/responses/') and name.endswith('/url')]
+    if not helper or not helper.isfile() or not helper.mode & 0o111 or not responses:
+        raise ValueError('Incomplete HTTP archive: replay helper and recorded responses are required')
 
 
 def validate_toolchain_archive(path):
@@ -229,6 +295,10 @@ def preflight(tasks, root=None):
             (TASK_OFFLINE_REFERENCE, OFFLINE_FORMAT, validate_offline_archive))))
         for context, selected_kinds in contexts:
             for name, format, validate in selected_kinds:
+                if name == TASK_REFERENCE:
+                    task_ref, package_ref = task_references(context)
+                    if task_ref is None and package_ref is not None and (context / TASK_REFERENCE).is_file():
+                        format, validate = OFFLINE_FORMAT, validate_offline_archive
                 ref = reference(context, name, format)
                 if not ref:
                     continue
@@ -248,16 +318,87 @@ async def stage(environment, context, evidence_dir, *, user=None):
     ref = reference(context)
     if ref is None:
         return None
-    archive = cached(ref)
+    archive, reason = lookup(ref)
     if archive is None:
-        return None
+        return await install_and_stage(environment, context, ref, evidence_dir, reason, user=user)
     return await _stage(environment, archive, ref, evidence_dir, user=user)
+
+
+async def install_and_stage(environment, context, ref, evidence_dir, reason, *, user=None):
+    """Install with trusted host tools into a disposable cache on a cache miss.
+
+    Read recipes from the controller's task, never the agent's container. Neither
+    rebuilt bytes nor their new checksum replace the published cache/reference.
+    """
+    import asyncio
+    import sys
+    import tempfile
+    spec = setup_recipe(context, ref)
+    if spec is None:
+        raise RuntimeError('Verifier runtime unavailable and no matching setup recipe: ' + str(reason))
+    evidence = Path(evidence_dir)
+    evidence.mkdir(parents=True, exist_ok=True)
+    record = {'id': ref['id'], 'requested_sha256': ref.get('archive_sha256'),
+              'reason': reason, 'cache_writeback': False, 'status': 'installation-required'}
+    isolated = '1' in (os.environ.get('OT_NET_ISOLATION'), os.environ.get('OT_NET_SIMULATED'))
+    record['installation_network'] = 'isolated' if isolated else 'host'
+    report = evidence / 'verifier-runtime-fallback.json'
+    report.write_text(json.dumps(record, indent=2) + '\n')
+    with tempfile.TemporaryDirectory(prefix='ot-verifier-fallback-') as directory:
+        root = Path(directory)
+        specs = root / 'specs.json'
+        specs.write_text(json.dumps([spec]))
+        builder = Path(__file__).resolve().parents[1] / 'hpc/offline_prep/verifier_bundles.py'
+        command = [sys.executable, str(builder), '--specs', str(specs), '--cache', str(root)]
+        env = os.environ.copy()
+        if ref.get('image_source') is not None:
+            from data.utils.verifier_runtime import runtime_image_source
+            env['OT_RUNTIME_IMAGE_SOURCE'] = runtime_image_source(ref['image_source'])
+        if isolated:
+            # Container isolation must not be bypassed by a host-side cache
+            # miss. Kernel isolation also covers URL inputs and native-image
+            # installers, which do not all inherit uv's offline environment.
+            command = ['unshare', '--user', '--map-current-user', '--net', '--', *command]
+            env['UV_OFFLINE'] = '1'
+        try:
+            with (evidence / 'verifier-runtime-install.log').open('wb') as log:
+                process = await asyncio.create_subprocess_exec(
+                    *command, env=env, stdout=log, stderr=log, start_new_session=True)
+                try:
+                    status = await process.wait()
+                except BaseException:
+                    import signal
+                    try:
+                        os.killpg(process.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=10)
+                    except asyncio.TimeoutError:
+                        os.killpg(process.pid, signal.SIGKILL)
+                        await process.wait()
+                    raise
+            if status:
+                raise RuntimeError(f'Trusted verifier runtime installation failed (exit {status}); see {log.name}')
+            built = json.loads((root / (ref['id'] + '.json')).read_text())
+            actual = {**ref, 'archive_sha256': built['archive_sha256']}
+            archive = verify(actual, root)
+            validate_archive(archive)
+            result = await _stage(environment, archive, actual, evidence_dir, user=user)
+            record.update(status='installed', actual_sha256=actual['archive_sha256'])
+            return result
+        except BaseException as error:
+            record.update(status='failed', error=str(error))
+            raise
+        finally:
+            report.write_text(json.dumps(record, indent=2) + '\n')
 
 async def _stage(environment, archive, ref, evidence_dir, *, user=None):
     timings = {}
     started = time.monotonic()
     tools = json.loads(archive.with_suffix('').with_suffix('.json').read_text())['spec'].get('tools', [])
-    if any(not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*', tool) for tool in tools):
+    from data.utils.verifier_runtime import NAME
+    if any(not NAME.fullmatch(tool) for tool in tools):
         raise ValueError('Invalid verifier tool name')
     # /tests is backed by job-local disk in the bridge. Apptainer's default
     # /tmp session filesystem is too small for complete Python runtimes.
@@ -332,7 +473,7 @@ def offline_setup_command(target):
 
 
 async def stage_offline(environment, context, evidence_dir, *, task=False):
-    ref = reference(context, TASK_OFFLINE_REFERENCE if task else OFFLINE_REFERENCE, OFFLINE_FORMAT)
+    ref = task_references(context)[1] if task else reference(context, OFFLINE_REFERENCE, OFFLINE_FORMAT)
     if ref is None:
         return None
     timings = {}
@@ -342,7 +483,9 @@ async def stage_offline(environment, context, evidence_dir, *, task=False):
         return None
     timings['verify_structure'] = time.monotonic() - started
     started = time.monotonic()
-    prefix = '/setup_files/.ot-task-offline-' if task else '/tests/.ot-verifier-offline-'
+    # Apptainer binds /tmp to private node-local storage. Large package inputs
+    # must not pass through the writable image layer under /setup_files.
+    prefix = '/tmp/.ot-task-offline-' if task else '/tests/.ot-verifier-offline-'
     result = await environment.exec('mktemp -d ' + prefix + 'XXXXXXXXXXXX', user='root')
     target = (result.stdout or '').strip()
     if result.return_code or not re.fullmatch(re.escape(prefix) + r'[A-Za-z0-9]+', target):
@@ -354,9 +497,11 @@ async def stage_offline(environment, context, evidence_dir, *, task=False):
     upload = await upload_runtime(environment, archive, ref, remote)
     timings['archive_upload'] = time.monotonic() - started
     started = time.monotonic()
+    from harbor_patches.upload_runtime import extraction_command
     command = (f'cd {shlex.quote(target)} && '
                f'printf "%s  packages.tar.gz\\n" {shlex.quote(ref["archive_sha256"])} | sha256sum -c - && '
-               'tar --no-same-owner -xzf packages.tar.gz && rm -f packages.tar.gz && test -f repo/Packages && '
+               + extraction_command('packages.tar.gz', '.')
+               + ' && rm -f packages.tar.gz && test -f repo/Packages && '
                + offline_setup_command(target))
     result = await environment.exec(command, user='root', timeout_sec=300)
     timings['checksum_extract_configuration'] = time.monotonic() - started

@@ -1,9 +1,7 @@
 """Published NL2Bash verifier integrity migration, with no added packages."""
 import argparse
-import base64
 import copy
 import hashlib
-import gzip
 import io
 import json
 from pathlib import Path
@@ -17,6 +15,9 @@ SUBSETS = ('nl2bash_v1', 'nl2bash_v2', 'nl2bash_v3')
 PYTHON = '3.12.3'
 EXECUTABLE = '/usr/bin/python3'
 SCORER = 'tests/verifier.py'
+# Seeds ship with the task, so the agent setup has nothing to save.
+PREPARE_NOTHING = 'if [ "${1:-}" = "--prepare" ]; then exit 0; fi\n'
+STRICT = b'set -euo pipefail\n'
 
 
 def prepare_runtime(blob, observed, runtime, catalog):
@@ -37,7 +38,14 @@ def prepare_runtime(blob, observed, runtime, catalog):
     old = ('python3 /' + SCORER).encode()
     if files['tests/test.sh'].count(old) != 1:
         raise ValueError('Unexpected NL2Bash verifier invocation')
+    if files['setup_files/setup.sh'].count(STRICT) != 1 or b'--prepare' in files['setup_files/setup.sh']:
+        raise ValueError('Unexpected NL2Bash agent setup')
     updates = runtime_reference(spec, catalog)
+    # Upstream leaves allow_internet unset; the prepared runtime covers everything the task needs.
+    if b'[environment]' in files['task.toml'] or b'allow_internet' in files['task.toml']:
+        raise ValueError('Review the task network declaration before migration')
+    updates['task.toml'] = files['task.toml'].rstrip(b'\n') + b'\n\n[environment]\nallow_internet = false\n'
+    updates['setup_files/setup.sh'] = files['setup_files/setup.sh'].replace(STRICT, STRICT + PREPARE_NOTHING.encode())
     # -I without -S: the fresh runtime's own site-packages holds only the
     # verifier setup's execution recorder; -I still drops PYTHON* and user site.
     updates['tests/test.sh'] = files['tests/test.sh'].replace(old,
@@ -48,8 +56,7 @@ def prepare_runtime(blob, observed, runtime, catalog):
         + '"import platform; assert platform.python_version() == ' + repr(PYTHON) + '"\n').encode()
     output = io.BytesIO()
     with tarfile.open(fileobj=io.BytesIO(blob), mode='r:*') as source, \
-            gzip.GzipFile(fileobj=output, mode='wb', filename='', mtime=0) as compressed, \
-            tarfile.open(fileobj=compressed, mode='w') as target:
+            tarfile.open(fileobj=output, mode='w') as target:
         for member in source:
             info = copy.copy(member)
             if member.name in updates:
@@ -63,86 +70,81 @@ def prepare_runtime(blob, observed, runtime, catalog):
     return output.getvalue()
 
 
-def export(source, output, *, revision, subset, evidence, runtime, catalog):
+def load_conversion(image_evidence, runtime_builds):
+    """The one verified image probe and runtime, for tasks built from upstream."""
+    evidence = json.loads(Path(image_evidence).read_text())
+    runtime = next(record for record in json.loads(Path(runtime_builds).read_text()) if record['subset'] == SUBSETS[0])
+    if len(evidence) != 1:
+        raise ValueError('Expected one image probe')
+    return evidence[0], runtime, {runtime['artifact']['id']: runtime['artifact']}
+
+
+def convert_task(blob, observed, runtime, catalog):
+    dockerfile = read_members(blob)['environment/Dockerfile']
+    return prepare_runtime(blob, {**observed, 'dockerfile_sha256': hashlib.sha256(dockerfile).hexdigest()}, runtime, catalog)
+
+
+def export_part(source, destination, evidence, runtime, catalog, labels, reasons):
+    """Rewrite one published Parquet; only task bytes and their digests change."""
     import pyarrow as pa
     import pyarrow.parquet as pq
-    from data.utils.patch_reporting import write_patch_report
     from validation.contract import files_digest
+    table = pq.read_table(source)
+    metadata = dict(table.schema.metadata)
+    images = json.loads(metadata[b'ot.images.v1'])
+    probes = {record['bundle']: record for record in evidence}
+    rows = table.to_pylist()
+    for row in rows:
+        name = row['path']
+        # Only tasks a release kept have an image binding; archived payloads share the one image.
+        entry = images['tasks'].get(name)
+        bindings = entry['environments'] if entry else [{'bundle': next(iter(probes))}]
+        if len(bindings) != 1:
+            raise ValueError('Expected one task image')
+        bundle = images['bundles'].get(bindings[0]['bundle'])
+        observed = dict(probes[bindings[0]['bundle']])
+        if bundle and 'environment_sha256' in bindings[0] and bundle['provenance']['environment_sha256'] != bindings[0]['environment_sha256']:
+            raise ValueError('Task image environment identity mismatch')
+        if bundle and observed['image_sha256'] != bundle['files'][bundle['name']]['sha256']:
+            raise ValueError('Image probe source bytes differ from published image')
+        files = read_members(row['task_binary'])
+        if files_digest(files.items()) != (entry['content_sha256'] if entry else row['content_sha256']):
+            raise ValueError('Source payload differs from published content binding')
+        observed['dockerfile_sha256'] = hashlib.sha256(files['environment/Dockerfile']).hexdigest()
+        row['task_binary'] = prepare_runtime(row['task_binary'], observed, runtime, catalog)
+        row['content_sha256'] = files_digest(read_members(row['task_binary']).items())
+        if entry:
+            entry['content_sha256'] = row['content_sha256']
+        labels[name] = ['verifier-runtime-integrity']
+        reasons[name] = ('Run the unchanged text scorer with a clean exact-version Python from the verifier setup; '
+                         'agent setup gains a no-op --prepare; the task runs without internet. Answers, references and scores are unchanged.')
+    metadata[b'ot.images.v1'] = json.dumps(images).encode()
+    pq.write_table(pa.Table.from_pylist(rows, schema=table.schema).replace_schema_metadata(metadata),
+                   destination, compression='zstd')
+
+
+def export(source, output, *, revision, subset, evidence, runtime, catalog):
+    """Migrate one published folder: tasks.parquet and archive.parquet."""
+    from data.utils.patch_reporting import write_patch_report
     if subset not in SUBSETS or not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('Expected a supported NL2Bash subset and immutable source revision')
     source, output = Path(source), Path(output)
     if output.exists() and any(output.iterdir()):
         raise ValueError('Use a new empty runtime output directory')
-    p = pq.ParquetFile(source); schema = p.schema_arrow
-    for name in ('content_sha256', 'stages_passed'):
-        if name not in schema.names: schema = schema.append(pa.field(name, pa.string()))
-    metadata = dict(p.schema_arrow.metadata or {})
-    historical_schema = {k.decode(): base64.b64encode(v).decode() for k, v in metadata.items()}
-    images = json.loads(metadata[b'ot.images.v1'])
-    probes = {record['bundle']: record for record in evidence if record['dataset'] == SUBSETS[0]}
-    for key in (b'ot.environment_reliable.v1', b'ot.full_release.v1', b'ot.release.v2', b'ot.release.v3'):
-        metadata.pop(key, None)
-    metadata[b'ot.runtime_migration.v1'] = json.dumps({'source_revision': revision, 'source_subset': subset,
-        'validation': 'pending', 'effective_network': 'unverified',
-        'existing_scores': 'historical, before runtime migration',
-        'historical_evidence': 'historical-evidence.json'}).encode()
-    output.mkdir(parents=True, exist_ok=True); destination = output/'tasks.parquet'
-    history, labels, reasons, checked_images = [], {}, {}, {}
-    with pq.ParquetWriter(destination, schema.with_metadata(metadata), compression='zstd') as writer:
-        for batch in p.iter_batches(batch_size=16):
-            rows = batch.to_pylist()
-            for row in rows:
-                name = row['path']
-                if name in labels: raise ValueError('Duplicate task: ' + name)
-                entry = images['tasks'][name]; bindings = entry['environments']
-                if len(bindings) != 1: raise ValueError('Expected one task image')
-                binding = bindings[0]; bundle = images['bundles'][binding['bundle']]
-                observed = dict(probes[binding['bundle']])
-                if bundle['provenance']['environment_sha256'] != binding['environment_sha256']:
-                    raise ValueError('Task image environment identity mismatch')
-                # Probe files were checksum-verified before probing; independently
-                # bind this invocation to those same original image bytes.
-                if observed['image'] not in checked_images:
-                    with Path(observed['image']).open('rb') as f:
-                        checked_images[observed['image']] = hashlib.file_digest(f, 'sha256').hexdigest()
-                image_sha = checked_images[observed['image']]
-                if image_sha != bundle['files'][bundle['name']]['sha256']:
-                    raise ValueError('Image probe source bytes differ from published image')
-                files = read_members(row['task_binary'])
-                if files_digest(files.items()) != entry['content_sha256']:
-                    raise ValueError('Source payload differs from published content binding')
-                observed['dockerfile_sha256'] = hashlib.sha256(files['environment/Dockerfile']).hexdigest()
-                history.append({k: v for k, v in row.items() if k != 'task_binary'})
-                row['task_binary'] = prepare_runtime(row['task_binary'], observed, runtime, catalog)
-                row['content_sha256'] = files_digest(read_members(row['task_binary']).items())
-                row['stages_passed'] = ''; entry['content_sha256'] = row['content_sha256']
-                labels[name] = ['verifier-runtime-integrity']
-                reasons[name] = ('Run the unchanged text scorer with a pristine exact-version Python and standard library, '
-                    'ignoring agent startup hooks. No additional packages or task setup changes. '
-                    'Preserve submitted answers, references and historical scores; fresh validation remains required.')
-            writer.write_table(pa.Table.from_pylist(rows, schema=schema))
-        metadata[b'ot.images.v1'] = json.dumps(images).encode()
-        writer.add_key_value_metadata({**metadata, b'ARROW:schema': base64.b64encode(schema.with_metadata(metadata).serialize())})
-    (output/'historical-evidence.json').write_text(json.dumps({'revision': revision, 'subset': subset,
-        'status': 'historical, not migrated-task validation', 'tasks': history}, indent=2)+'\n')
-    (output/'historical-schema-metadata.json').write_text(json.dumps(historical_schema, indent=2)+'\n')
-    (output/'verifier-bundle-specs.json').write_text(json.dumps([runtime['spec']], indent=2)+'\n')
-    # The public entrypoint and this source-specific implementation are both retained.
-    implementation = output/'runtime.patch.py'; implementation.write_bytes(Path(__file__).read_bytes())
-    write_patch_report(source, destination, source={'dataset': 'FWeindel/validated-tasks', 'revision': revision,
-        'subset': subset, 'url': f'https://huggingface.co/datasets/FWeindel/validated-tasks/tree/{revision}/{subset}'},
+    output.mkdir(parents=True, exist_ok=True)
+    labels, reasons = {}, {}
+    export_part(source/'archive.parquet', output/'archive.parquet', evidence, runtime, catalog, {}, {})
+    export_part(source/'tasks.parquet', output/'tasks.parquet', evidence, runtime, catalog, labels, reasons)
+    write_patch_report(source/'tasks.parquet', output/'tasks.parquet', source={'dataset': 'FWeindel/validated-tasks',
+        'revision': revision, 'subset': subset,
+        'url': f'https://huggingface.co/datasets/FWeindel/validated-tasks/tree/{revision}/{subset}'},
         dropped={}, change_labels=labels, change_reasons=reasons, patcher=Path(__file__).with_name('patch.py'))
-    manifest_path = destination.with_suffix('.manifest.json')
-    manifest = json.loads(manifest_path.read_text())
-    manifest['patcher_dependencies'] = [{'path': implementation.name,
-        'sha256': hashlib.sha256(implementation.read_bytes()).hexdigest()}]
-    manifest_path.write_text(json.dumps(manifest, indent=2)+'\n')
-    return {'rows': len(labels), 'runtime': runtime['artifact']['id'], 'validation': 'pending'}
+    return {'rows': len(labels), 'runtime': runtime['artifact']['id']}
 
 
 def cli():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--source', type=Path, required=True)
+    parser.add_argument('--source', type=Path, required=True, help='folder with the published tasks and archive Parquets')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--source-revision', required=True)
     parser.add_argument('--subset', choices=SUBSETS, required=True)

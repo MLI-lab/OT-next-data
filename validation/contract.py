@@ -211,6 +211,8 @@ def profile(args):
         'submission_host': platform.node(),
         'network': args.network_mode if apptainer else 'backend/task-defined; see frozen task configs',
         'network_guarantee': ('host networking through cluster HTTP proxy' if args.network_mode == 'host'
+                              else 'simulated offline: no proxy and no DNS; routing is not blocked, the stage-1 egress probe is the evidence'
+                              if args.network_mode == 'simulated'
                               else 'isolation requested; existing bridge may fall back to host network; offline isolation is NOT established') if apptainer else 'backend-defined',
         'privileges': 'fakeroot requested, host UID unprivileged; bridge may fall back without fakeroot' if apptainer else 'backend-defined',
         'mount_policy': ('per-trial workdir, tests, logs, home and tmp; site hostfs/bind-paths/cwd disabled; '
@@ -224,7 +226,7 @@ def profile(args):
             'runs': getattr(args, 'review_setup', None) or getattr(args, 'preparation_runs', 1),
             'mean_target_seconds': getattr(args, 'preparation_mean_target_seconds', None) or (30.0 if getattr(args, 'review_setup', None) is not None else None),
             'median_target_seconds': getattr(args, 'preparation_median_target_seconds', None),
-            'verifier_review': {'timeout_fraction': 0.05, 'max_seconds': 60,
+            'verifier_review': {'max_seconds': 60,
                                 'setup_script': 'tests/setup.sh'} if getattr(args, 'review_setup', None) is not None else None,
             'max_seconds': getattr(args, 'preparation_max_seconds', None) or (60.0 if getattr(args, 'review_setup', None) is not None else None),
             'startup_policy': 'review records startup separately, bounded by each environment.build_timeout_sec; startup failures fail validation',
@@ -236,6 +238,7 @@ def profile(args):
         'review_format': getattr(args, 'review_format', None),
         'review_runs': getattr(args, 'review_runs', None) or args.attempts,
         'review_retries': getattr(args, 'review_retries', 2),
+        'review_grace_minutes': getattr(args, 'review_grace_minutes', 10),
         'review_resume': getattr(args, 'review_resume', True),
         'review_seed': getattr(args, 'review_seed', 42),
         'review_evidence': getattr(args, 'review_evidence', 'files'),

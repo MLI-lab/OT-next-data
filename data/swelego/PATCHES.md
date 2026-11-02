@@ -33,8 +33,8 @@ once by cause; it does not claim every task ran every final validation stage.
 The final automatic-change record lists only the instruction suffix, with no
 additional automatic pip-pin or instruction-path repairs and no static exclusions.
 The patcher does not separately count edits initially prompted only by static
-findings. The setup guidance naming `/testbed` and `bash /setup_files/setup.sh`
-remains because it is part of the shared-image conversion.
+findings. The instruction names `/testbed`; it no longer tells the agent to run setup,
+because the harness runs it before the agent.
 
 Audit and prepared Parquets:
 `/hnvme/workspace/y500bb12-optiagent/swelego-environment-reliable-20261015/prepared/`.

@@ -319,7 +319,7 @@ def test_probe_finds_image_python_outside_path_or_reports_missing(tmp_path, monk
         assert result['status'] == 'completed'
         assert result['files'][str(workspace / 'fixed')]['sha256'] == files.fingerprint(workspace / 'fixed')['sha256']
     else:
-        with pytest.raises(RuntimeError, match='needs an existing Python 3.8'):
+        with pytest.raises(RuntimeError, match=r'needs an existing Python 3\.7\+'):
             asyncio.run(leaks.probe(Environment(), {'mode': 'snapshot'}))
 
 
@@ -464,3 +464,33 @@ def test_nop_scans_once_before_agent_and_stage4_reuses_it(tmp_path, monkeypatch)
     assert leaks.read_scans(tmp_path, 'different-runtime') == {}
     evidence['files'][0]['sha256'] = 'different'
     assert leaks.evidence_signature(evidence) not in leaks.read_scans(tmp_path)
+
+
+def test_packaged_submodule_pointer_to_absent_store_is_recorded(tmp_path):
+    package = tmp_path / 'site-packages/archspec/vendor/cpuid'
+    package.mkdir(parents=True)
+    marker = package / '.git'
+    marker.write_text('gitdir: ../../../.git/modules/archspec/vendor/cpuid\n')
+    ref = reference(tmp_path / 'reference', b'fixed source')
+    result = files.scan(str(package.parent.parent.parent), [ref])
+    assert result['status'] == 'completed', result['errors']
+    assert result['stats']['absent_submodule_stores'] == 1
+    assert result['stats']['git_repositories'] == 0
+    assert marker.read_text() == 'gitdir: ../../../.git/modules/archspec/vendor/cpuid\n'
+    # A dangling ancestor symlink and an existing but broken store stay errors.
+    store = package.parent.parent.parent / '.git'
+    store.symlink_to(tmp_path / 'missing')
+    assert files.scan(str(package), [ref])['status'] == 'incomplete'
+    store.unlink()
+    store.mkdir()
+    assert files.scan(str(package), [ref])['status'] == 'incomplete'
+
+
+@pytest.mark.parametrize('pointer', [
+    'gitdir: ../../../.git/modules/../hidden',
+    'gitdir: ../../../.git/modules/cpuid\nother',
+    'gitdir: /absent',
+    'gitdir: ../../../other/cpuid',
+])
+def test_absent_submodule_store_rejects_ambiguous_paths(tmp_path, pointer):
+    assert not files.absent_submodule_store(str(tmp_path), pointer)

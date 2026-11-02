@@ -25,6 +25,9 @@ We adjust the rubrics to make them suitable for filtering training tasks.
 | `difficulty_explanation_quality`, `solution_explanation_quality`, `verification_explanation_quality`, `category_and_tags`, `task_name`, `task_readme`, `expert_time_estimate` | Dropped | These criteria require benchmark-style explanations, metadata, naming, or time estimates. Training tasks do not need those benchmark-specific fields and sections. |
 | `task_toml_schema` | Replaced with a Stage 1 static check | `check-task-toml-schema.py` checks Harbor's schema more cheaply and reliably than an LLM judge. Static failures still fail Stage 1. |
 | `binary_reward` | Dropped | Binary rewards are not required for every RL training task; no replacement static check was added. |
+| `artifact_efficiency`, `ctrf_reporting` | Dropped | Artifact size is a storage concern and CTRF reports help debugging. Neither makes a task defective, and SWE tasks copy the whole repository in separate mode. |
+| `verifier_execution_isolation` | Dropped | Shared-mode verifiers run agent code in the container that grades it for nearly every task. This is a known limitation of the setup, not a task defect. |
+| `verifiable`, `deterministic_reproducible` verify-time installs | Changed | Removed the rule against network installs during verification, because our tasks may install verifier dependencies in `tests/setup.sh` or `tests/test.sh`. |
 
 ### Harbor
 

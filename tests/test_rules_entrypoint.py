@@ -11,7 +11,7 @@ def test_all_rules_use_pipeline_with_static_gate_and_final_leak_check(tmp_path, 
     monkeypatch.setattr(cli.subprocess, 'call', lambda command: calls.append(command) or 0)
     assert cli.main() == 0
     command, = calls
-    assert command[command.index('--stages') + 1] == '1,2,3,4'
+    assert command[command.index('--stages') + 1] == '0,1,2,3,4'
     assert command[command.index('--out') + 1] == str(tmp_path / 'out')
     assert '--no-reference-leaks' not in command
 

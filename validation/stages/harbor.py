@@ -40,6 +40,8 @@ def install_runtime_patches():
     install_tmux_diagnostics()
     from harbor_patches.oom_recovery import install as install_oom_recovery
     install_oom_recovery()
+    from harbor_patches.terminus_session import install as install_terminus_session
+    install_terminus_session()
     from harbor_patches.resource_usage import install as install_resource_usage
     install_resource_usage()
     # The pinned bridge keys images only by Dockerfile text. Include COPY
@@ -770,7 +772,8 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
             'trial_seconds': [trial_seconds(result) for _, result in results],
             # How long the solution and the verifier themselves ran: the slow tasks can be found later.
             'agent_seconds': [trial_seconds(result, 'agent_execution') for _, result in results],
-            'verifier_seconds': [trial_seconds(result, 'verifier') for _, result in results]}
+            'verifier_seconds': [trial_seconds(result, 'verifier') for _, result in results],
+            'resources': [result.get('resources') for _, result in results]}
 
 
 async def build_task(task_path, out, args):

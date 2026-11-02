@@ -96,7 +96,10 @@ def test_candidate_export_preserves_membership_history_and_untouched_payload(tmp
     with tarfile.open(fileobj=io.BytesIO(changed['task_binary'])) as archive:
         assert archive.getmember('solution/solve.sh').mode == 0o700
         assert archive.extractfile('solution/solve.sh').read() == files['solution/solve.sh']
-        assert archive.extractfile('task.toml').read() == files['task.toml']
+        import tomllib
+        config = tomllib.loads(archive.extractfile('task.toml').read().decode())
+        assert config['environment']['healthcheck'] == 'original checkout initialization'
+        assert config['environment']['allow_internet'] is False
     history = json.loads((tmp_path/'output/runtime-migration.json').read_text())
     assert history['tasks']['measured']['historical_row']['run'] == 'historical-run'
     assert history['validation'] == 'incomplete' and history['effective_network'] == 'unverified'

@@ -28,7 +28,8 @@ def test_start_and_upload_consume_the_setup_budget(monkeypatch):
         timeout_sec=600, force_build=True, upload=upload, timings=timings))
     assert calls == [('start', {'force_build': True}), ('upload', {}),
                      ('setup', {'timeout_sec': 150, 'user': 'root'})]
-    assert timings == {'container_start': 400, 'setup_upload': 50, 'setup_execution': 12}
+    assert timings == {'container_start': 400, 'setup_upload': 50, 'setup_execution': 12,
+                       'verifier_asset_capture': 0.0}
 
 
 @pytest.mark.parametrize('failure', ['startup', 'upload', 'setup', 'nonzero'])

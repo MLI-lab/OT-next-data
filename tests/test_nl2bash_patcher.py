@@ -6,8 +6,9 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from data.tasktrove_nl2bash.patch import (
-    LABEL, SETUP_LABEL, OUTPUT_LABEL, INSTRUCTION_SETUP, INPUT_LINES, INPUT_LINE, HELPER_LINE, clean_config, patch_archive, patch,
+from data.tasktrove_nl2bash.patch import LABEL, SETUP_LABEL, INSTRUCTION_SETUP, clean_config, patch_archive, patch
+from data.tasktrove_nl2bash.repairs import (
+    FIXTURE_LABEL, OUTPUT_LABEL, PATHS_LABEL, SUFFIX_LABEL, INPUT_LINES, INPUT_LINE, HELPER_LINE,
 )
 
 
@@ -24,11 +25,15 @@ def test_removes_only_verifier_setting(value):
     assert clean_config(cleaned) == cleaned
 
 
+SENTENCE = (b'You have 600 seconds to complete this task. Do not cheat by using online solutions '
+            b'or hints specific to this task.\n')
+
+
 def archive():
     out = io.BytesIO()
     with tarfile.open(fileobj=out, mode='w:gz') as tar:
         for name, body, mode in [
-            ('task.toml', b'[verifier]\nrestart_environment = false\ntimeout_sec = 600\n', 0o644),
+            ('task.toml', b'[verifier]\nrestart_environment = false\ntimeout_sec = 600\n[agent]\ntimeout_sec = 600\n', 0o644),
             ('solution/solve.sh', b'#!/bin/bash\nbash /tests/setup_seeds.sh\n', 0o755),
             ('setup_files/setup_seeds.sh', b'#!/bin/bash\necho setup\n', 0o755),
             ('tests/test.sh', b'#!/bin/bash\necho unchanged\n', 0o755),
@@ -43,7 +48,7 @@ def archive():
 def test_archive_preserves_verifier_bytes_modes_and_is_idempotent():
     original = archive()
     result, edited = patch_archive(original)
-    assert edited == [LABEL, SETUP_LABEL]
+    assert edited == [LABEL, SETUP_LABEL, FIXTURE_LABEL, SUFFIX_LABEL]
     assert patch_archive(original)[0] == result
     with tarfile.open(fileobj=io.BytesIO(result)) as tar:
         assert tar.extractfile('tests/test.sh').read() == b'#!/bin/bash\necho unchanged\n'
@@ -54,7 +59,7 @@ def test_archive_preserves_verifier_bytes_modes_and_is_idempotent():
         assert tar.getmember('setup_files/setup.sh').mode == 0o755
         assert 'setup_files/setup_seeds.sh' not in tar.getnames()
         assert tar.extractfile('instruction.md').read() == (
-            b'# Terminal Automation Request\n' + INPUT_LINE + b'- Write /output/command_capture.txt.\n')
+            b'# Terminal Automation Request\n' + INPUT_LINE + b'- Write /output/command_capture.txt.\n\n' + SENTENCE)
     assert patch_archive(result) == (result, [])
 
 
@@ -87,7 +92,7 @@ def test_parquet_patch_records_exact_change_and_preserves_columns(tmp_path):
     assert report['tasks'][0]['changed_files'] == [
         'instruction.md', 'setup_files/setup.sh', 'setup_files/setup_seeds.sh',
         'solution/solve.sh', 'task.toml']
-    assert report['tasks'][0]['labels'] == sorted([LABEL, SETUP_LABEL])
+    assert report['tasks'][0]['labels'] == sorted([LABEL, SETUP_LABEL, FIXTURE_LABEL, SUFFIX_LABEL])
     assert 'Removed verifier.restart_environment' in report['tasks'][0]['reason']
     assert 'setup_files/setup.sh' in report['tasks'][0]['reason']
     assert source.read_bytes() != (tmp_path/'patched/tasks.parquet').read_bytes()
@@ -105,10 +110,30 @@ def test_task_267_goal_names_the_capture_file_the_verifier_reads():
             member.size = len(body)
             tar.addfile(member, io.BytesIO(body))
     result, labels = patch_archive(out.getvalue(), 'task_267')
-    assert labels == [LABEL, SETUP_LABEL, OUTPUT_LABEL]
+    assert labels == [LABEL, SETUP_LABEL, FIXTURE_LABEL, OUTPUT_LABEL, SUFFIX_LABEL]
     with tarfile.open(fileobj=io.BytesIO(result)) as tar:
         text = tar.extractfile('instruction.md').read()
     assert b'capturing output in /output/command_capture.txt.' in text and b'$PWD' not in text
     assert patch_archive(result, 'task_267') == (result, [])
     # Other tasks keep their goal unchanged.
     assert OUTPUT_LABEL not in patch_archive(out.getvalue(), 'task_268')[1]
+
+
+def test_no_repairs_keeps_the_upstream_text_and_the_two_defect_fixes():
+    result, labels = patch_archive(archive(), 'task_0', repairs=False)
+    assert labels == [LABEL, SETUP_LABEL]
+    with tarfile.open(fileobj=io.BytesIO(result)) as tar:
+        text = tar.extractfile('instruction.md').read()
+        assert b'restart_environment' not in tar.extractfile('task.toml').read()
+        assert 'setup_files/setup.sh' in tar.getnames()
+    assert INPUT_LINES[0] in text and HELPER_LINE in text and SENTENCE not in text
+    assert patch_archive(result, 'task_0')[1] == [FIXTURE_LABEL, SUFFIX_LABEL]
+
+
+def test_path_edit_requires_its_exact_text(monkeypatch):
+    from data.tasktrove_nl2bash import repairs
+    monkeypatch.setitem(repairs.PATH_EDITS, 'task_0', ((b'Write /output', b'Write /other'),))
+    assert PATHS_LABEL in patch_archive(archive(), 'task_0')[1]
+    monkeypatch.setitem(repairs.PATH_EDITS, 'task_0', ((b'not there', b'absent too'),))
+    with pytest.raises(ValueError, match='expected exactly one'):
+        patch_archive(archive(), 'task_0')

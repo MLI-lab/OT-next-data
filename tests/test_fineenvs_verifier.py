@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from data.fineenvs.patch import normalize_rewards
+from data.fineenvs.repairs import normalize_rewards
 from validation.stages.harbor import assess_trials
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'fineenvs_verifier'
@@ -138,3 +138,47 @@ def test_reward_rename_preserves_grading_and_auxiliary_metrics(tmp_path, gold, a
     expected = dict(results[0])
     expected['reward'] = expected.pop('correctness')
     assert results[1] == expected
+
+
+def test_runtime_migration_prepares_both_setups_and_uses_clean_python(tmp_path):
+    import hashlib
+    import io
+    import tarfile
+    from data.fineenvs.patch import LOCK_PATH, prepare_verifier_runtime, verifier_setup
+    from data.utils.task_archive import read_members
+    lock = json.loads(LOCK_PATH.read_text())
+    docker = b'FROM image\n'
+    wrapper = b'#!/bin/bash\n# generated\nset -e\nbash /setup_files/ot-task-setup.sh "$@"\n'
+    files = {'environment/Dockerfile': docker, 'tests/setup.sh': verifier_setup(lock),
+             'tests/test.sh': b'#!/usr/bin/env bash\npython3 /tests/grader.py --json < a > b\n',
+             'setup_files/setup.sh': wrapper}
+    stream = io.BytesIO()
+    with tarfile.open(fileobj=stream, mode='w:gz') as archive:
+        for name, body in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(body)
+            archive.addfile(info, io.BytesIO(body))
+    observed = {'dockerfile_sha256': hashlib.sha256(docker).hexdigest(), 'python': '3.12.13',
+                'distributions': lock['verifier_distributions'], 'image_sha256': 'a' * 64,
+                'executable': '/usr/local/bin/python3'}
+    blob, spec = prepare_verifier_runtime(stream.getvalue(), observed)
+    migrated = read_members(blob)
+    assert spec['image_python']['image_sha256'] == 'a' * 64
+    test = migrated['tests/test.sh'].decode()
+    assert '-I /tests/grader.py --json' in test and 'python3' not in test and '/setup_files' not in test
+    assert 'tests/ot-verifier-runtime.json' in migrated
+    setup = migrated['tests/setup.sh'].decode()
+    assert '"${1:-}" = "--prepare"' in setup and '--prepare-runtime' not in setup
+    # The task setup stops before its own initialization and repair.
+    script = tmp_path / 'setup.sh'
+    script.write_bytes(migrated['setup_files/setup.sh'])
+    assert subprocess.run(['bash', str(script), '--prepare'], capture_output=True).returncode == 0
+    assert subprocess.run(['bash', str(script)], capture_output=True).returncode != 0
+
+
+def test_conversion_sets_every_task_offline():
+    from data.fineenvs.patch import without_internet
+    changed = without_internet(b'[environment]\nallow_internet = true\ncpus = 1\n')
+    assert changed == b'[environment]\nallow_internet = false\ncpus = 1\n'
+    with pytest.raises(ValueError):
+        without_internet(b'[environment]\ncpus = 1\n')

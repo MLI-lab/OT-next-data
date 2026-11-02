@@ -173,6 +173,10 @@ def _bound_download_task(tmp_path):
         item = tarfile.TarInfo('http/bin/curl')
         item.size, item.mode = len(script), 0o755
         out.addfile(item, io.BytesIO(script))
+        url = b'https://hackage.haskell.org/01-index.tar.gz'
+        item = tarfile.TarInfo('http/responses/index/url')
+        item.size = len(url)
+        out.addfile(item, io.BytesIO(url))
     record = {'format': OFFLINE_FORMAT, 'id': key, 'spec': spec, 'status': 'ready', 'archive_sha256': digest(archive)}
     (cache / (key + '.json')).write_text(json.dumps(record))
     task = tmp_path / 'task'
@@ -192,7 +196,7 @@ class _Environment:
     async def exec(self, command, **kwargs):
         from types import SimpleNamespace
         self.calls.append(command)
-        stdout = '/setup_files/.ot-task-offline-abc123' if command.startswith('mktemp ') else ''
+        stdout = '/tmp/.ot-task-offline-abc123' if command.startswith('mktemp ') else ''
         return SimpleNamespace(return_code=0, stdout=stdout, stderr='')
 
     async def upload_file(self, source_path, target_path):
@@ -215,7 +219,7 @@ def test_staging_uses_ready_download_set_or_falls_back_to_online_setup(tmp_path,
     record = asyncio.run(task_runtime.stage(env, task, tmp_path / 'evidence'))
     if damage is None:
         assert next(iter(checked.values()))['archive'] == str(archive)
-        assert env._persistent_env['OT_TASK_OFFLINE'] == '/setup_files/.ot-task-offline-abc123'
+        assert env._persistent_env['OT_TASK_OFFLINE'] == '/tmp/.ot-task-offline-abc123'
         assert any(c.startswith('upload ') for c in env.calls)
     else:
         # Bytes are rejected before use; setup's original online branch remains.

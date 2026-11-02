@@ -35,6 +35,115 @@ def test_task_environment_dependencies_require_review(source):
     with pytest.raises(ValueError,match='review'):runtime.plan(*case(source))
 
 
+def test_submitted_program_keeps_original_python_after_grader_moves():
+    source = (b'import sys, subprocess\n# Keep this comment and the assertion.\n'
+              b'def test_output():\n'
+              b'    result = subprocess.run([sys.executable, "/workspace/solution.py"], capture_output=True)\n'
+              b'    assert result.returncode == 0\n')
+    args = case(source)
+    planned = runtime.plan(*args)
+    result = runtime.apply(args[0], planned, None)
+    assert result['tests/test_outputs.py'] == source.replace(b'sys.executable', b"'/usr/bin/python3'")
+    assert b'OT_VERIFIER_PYTHON' in result['tests/test.sh']
+    assert b'/setup_files' not in result['tests/test.sh']
+    assert b'activate' not in result['tests/test.sh']
+
+
+@pytest.mark.parametrize('source', [
+    b'import sys\npython = sys.executable\n',
+    b'import sys, subprocess\nsubprocess.run(["echo", sys.executable])\n',
+    b'import sys\nprint(sys.executable)\n',
+])
+def test_unreviewed_interpreter_uses_are_not_rewritten(source):
+    with pytest.raises(ValueError, match='review'):
+        runtime.task_interpreter_calls(source, '/usr/bin/python3')
+
+
+def test_package_lock_preserves_optional_packages_and_submitted_module():
+    args = case(b'import pandas\nimport importlib.util\n'
+                b'import sys\nsys.path.insert(0, "/workspace")\n'
+                b'import solution\npath = "/workspace/solution.py"\n')
+    files, image, _, binding, bundle = args
+    files['environment/Dockerfile'] = DOCKER
+    binding['content_sha256'] = files_digest(files.items())
+    image['stdlib'] += ['importlib']
+    image['modules'] = {'pandas': ['pandas']}
+    image['distributions'].update({
+        'pandas': {'version': '2.3.2', 'installer': 'pip', 'requires': ['numpy>=1.26']},
+        'numpy': {'version': '2.3.0', 'installer': 'pip', 'requires': []},
+        'pyarrow': {'version': '20.0.0', 'installer': 'pip', 'requires': []},
+        'torch': {'version': '2.14.1+cpu', 'installer': 'pip', 'requires': []},
+    })
+    image['executable'] = '/usr/bin/python3'
+    image['pytest_entry'] = {'source': '#!/usr/bin/python3\nfrom pytest import console_main\n'}
+    result = runtime.plan_from_inventory(files, image, binding, bundle, image)
+    assert result['dependency_review']['submitted_modules'] == ['solution']
+    assert {'pandas==2.3.2', 'numpy==2.3.0', 'pyarrow==20.0.0'} <= set(result['spec']['requirements'])
+    assert result['spec']['install_no_deps'] is True
+    from data.utils.verifier_runtime import requirement_source
+    cpu_wheel = next(pin for pin in result['spec']['requirements'] if pin.startswith('torch @ '))
+    assert requirement_source(cpu_wheel)['filename'].startswith('torch-2.14.1+cpu-cp312-cp312-')
+    assert 'torch==2.14.1+cpu' in result['dependency_review']['requirements']
+    assert runtime.apply(files, result, None)['tests/test_outputs.py'] == files['tests/test_outputs.py']
+    # Neither a new package version nor a task-local source enters the recipe.
+    assert not any('solution' in requirement for requirement in result['spec']['requirements'])
+
+
+def test_package_lock_rejects_unexplained_import():
+    files, image, *_ = case(b'import missing_library\n')
+    image['modules'] = {}
+    with pytest.raises(ValueError, match='missing_library'):
+        runtime.dependency_requirements(files, image)
+
+
+def test_submitted_package_directory_is_recognized():
+    files, image, *_ = case(b'from schemas.stage1_schema import Stage1Schema\n')
+    files['environment/pipeline/schemas/__init__.py'] = b''
+    files['environment/pipeline/schemas/stage1_schema.py'] = b'class Stage1Schema: pass\n'
+    image['modules'] = {}
+    review = runtime.dependency_requirements(files, image)
+    assert review['submitted_modules'] == ['schemas']
+    assert not any(pin.startswith('schemas==') for pin in review['requirements'])
+
+
+def test_subject_hook_reads_installed_edits_without_exposing_grader_packages(tmp_path):
+    import importlib
+    import sys
+    site = tmp_path / 'site-packages'
+    site.mkdir()
+    (site / 'termigen_subject.py').write_text('value = "agent edit"\n')
+    (site / 'pytest.py').write_text('raise RuntimeError("agent pytest executed")\n')
+    (site / 'hostile.pth').write_text('import pytest\n')
+    before = list(sys.path)
+    namespace = {}
+    exec(runtime.subject_import_hook({'termigen_subject': [str(site)]}), namespace)
+    finder = namespace['SubjectPackages']
+    try:
+        assert sys.meta_path[0] is finder
+        assert importlib.import_module('termigen_subject').value == 'agent edit'
+        assert finder.find_spec('pytest') is None
+        assert sys.path == before
+        assert str(site) not in pytest.__file__
+    finally:
+        sys.meta_path.remove(finder)
+        sys.modules.pop('termigen_subject', None)
+
+
+def test_installed_subject_exception_requires_reviewed_test_identity():
+    files, image, *_ = case(b'import datautils\n')
+    image['path'] = ['/usr/local/lib/python3.12/dist-packages']
+    assert runtime.installed_subject_paths(files, image) == {}
+
+
+def test_reviewed_missing_optional_import_stays_missing(monkeypatch):
+    files, image, *_ = case(b'try:\n import pycosat\nexcept ImportError:\n pass\n')
+    image['modules'] = {}
+    monkeypatch.setattr(runtime, 'import_role', lambda files: {'absent': ['pycosat']})
+    review = runtime.dependency_requirements(files, image)
+    assert review['original_missing_imports'] == ['pycosat']
+    assert not any(pin.startswith('pycosat==') for pin in review['requirements'])
+
+
 def test_image_and_original_interpreter_bindings_required():
     args=case();args[1]['sif_sha256']='c'*64
     with pytest.raises(ValueError,match='identity'):runtime.plan(*args)
@@ -88,15 +197,18 @@ def test_export_preserves_membership_history_and_unreviewed_payload(tmp_path, mo
     report=runtime.migrate_published(source,tmp_path/'output',revision='a'*40,subset='termigen_v2',images_reviewed=[image],probes=[dict(probe,bundle=image["bundle"])],cache=cache)
     output=pq.read_table(tmp_path/'output/tasks.parquet'); result=output.to_pylist()
     assert [r['path'] for r in result]==['task_1','task_2']
-    assert result[1]['task_binary']==rows[1]['task_binary']
+    from data.termigen.patch import read_task
+    from data.termigen.network import offline_config
+    actual = {m.name: body for m, body in read_task(result[1]['task_binary']) if body is not None}
+    assert actual == {**files, 'task.toml': offline_config(files['task.toml'])}
     assert all(r['score']==0.5 and r.get('stages_passed','')=='' for r in result)
     assert ('stages_passed' in result[0]) == stage_column
     expected = 'unmodified: image not yet reviewed' if other_layout == 'single' else 'unmodified: environment layout requires review'
     assert report['counts']=={'adapted, validation pending':1,expected:1}
     import hashlib
     manifest=json.loads((tmp_path/'output/tasks.manifest.json').read_text())
-    assert manifest['patcher_dependencies']==[dict(path='runtime.patch.py',sha256=hashlib.sha256(
-        (tmp_path/'output/runtime.patch.py').read_bytes()).hexdigest())]
+    assert manifest['patcher_dependencies']==[dict(path=name,sha256=hashlib.sha256(
+        (tmp_path/'output'/name).read_bytes()).hexdigest()) for name in ('runtime.patch.py', 'import_roles.json', 'network.py', 'dependency_sources.json')]
     meta=output.schema.metadata
     assert b'ot.review.v1' not in meta
     assert json.loads(meta[b'ot.runtime_migration.v1'])['effective_network']=='unverified'
@@ -176,3 +288,76 @@ def test_export_adapts_unprobed_same_base_task_only_with_shared_bundle(tmp_path,
     assert shared['runtime_ids'] == [key]
     with pytest.raises(ValueError, match='reviewed and probed'):
         runtime.migrate_published(source, tmp_path / 'bad', shared_bundle='missing', **common)
+
+
+def test_grading_subprocesses_use_clean_python_but_submissions_keep_task_python():
+    source = (b'import sys, subprocess\n'
+              b'subprocess.run([sys.executable, "benchmark.py"])\n'
+              b'subprocess.run([sys.executable, "solution.py"])\n'
+              b'subprocess.run([sys.executable, "-m", "py_compile", "solution.py"])\n'
+              b'subprocess.run([sys.executable, "-m", "pip", "list"])\n')
+    result = runtime.task_interpreter_calls(source, '/usr/bin/python3', clean_call_lines=[2])
+    assert b'[sys.executable, \'-I\', "benchmark.py"]' in result
+    assert b"['/usr/bin/python3', \"solution.py\"]" in result
+    assert b'[sys.executable, \'-I\', "-m", "py_compile", "solution.py"]' in result
+    assert b"['/usr/bin/python3', \"-m\", \"pip\", \"list\"]" in result
+
+
+def test_multiline_reviewed_grader_executes_with_clean_interpreter(monkeypatch):
+    import subprocess
+    import sys
+    source = (b'import subprocess, sys\n'
+              b'result = subprocess.run(\n'
+              b'    [sys.executable, "/tmp/generated_benchmark.py"],\n'
+              b'    capture_output=True, text=True)\n'
+              b'subprocess.run([sys.executable, "submission.py"])\n')
+    calls = []
+    monkeypatch.setattr(subprocess, 'run', lambda argv, **kwargs: calls.append(argv))
+    rewritten = runtime.task_interpreter_calls(source, '/usr/bin/python3', clean_call_lines=[2])
+    exec(compile(rewritten, '<reviewed verifier>', 'exec'), {})
+    assert calls == [[sys.executable, '-I', '/tmp/generated_benchmark.py'],
+                     ['/usr/bin/python3', 'submission.py']]
+    with pytest.raises(ValueError, match='location changed'):
+        runtime.task_interpreter_calls(source, '/usr/bin/python3', clean_call_lines=[3])
+
+
+def test_reviewed_generated_grader_imports_need_pristine_inventory(monkeypatch):
+    files, image, probe, binding, bundle = case()
+    monkeypatch.setattr(runtime, 'import_role', lambda files: {'grader_imports': ['numpy']})
+    with pytest.raises(ValueError, match='generated grader dependencies'):
+        runtime.plan(files, image, probe, binding, bundle)
+    image['modules'] = {'numpy': ['numpy']}
+    image['distributions']['numpy'] = {'version': '2.3.0', 'installer': 'pip'}
+    assert 'numpy==2.3.0' in runtime.dependency_requirements(files, image)['requirements']
+
+
+@pytest.mark.parametrize('argv', ['"pytest", "/workspace/tests/"',
+                                  '"python", "-m", "pytest", "/app/test_security.py"',
+                                  'sys.executable, "-m", "pytest", "/app/tests/test_security.py"'])
+def test_nested_pytest_uses_clean_runtime_and_preserves_agent_tests(argv):
+    source = ('import subprocess, sys\nsubprocess.run([' + argv + '], cwd="/app")\n').encode()
+    result = runtime.task_interpreter_calls(source, '/usr/bin/python3')
+    assert b"__import__('sys').executable, '-I', '-m', 'pytest'" in result
+    assert argv.split(', ')[-1].encode() in result
+    assert b'cwd="/app"' in result
+    assert b'/usr/bin/python3' not in result
+
+
+def test_supplied_security_grader_restored_without_overwriting_application(monkeypatch):
+    files, image, _, binding, bundle = case(b'import subprocess\nsubprocess.run(["python", "-m", "pytest", "/app/test_security.py"])\n')
+    files['environment/Dockerfile'] = DOCKER
+    helper = b'from auth_api import app\ndef test_security(): assert app.secure\n'
+    files['environment/test_security.py'] = helper
+    files['environment/auth_api.py'] = b'secure = False\n'
+    image.update(modules={},executable='/usr/bin/python3',pytest_entry={'source':'#!/usr/bin/python3\nfrom pytest import console_main\n'})
+    monkeypatch.setattr(runtime, 'import_role', lambda files: {
+        'submitted': ['auth_api'], 'restore_grader_files': {'environment/test_security.py':'/app/test_security.py'}})
+    binding['content_sha256'] = files_digest(files.items())
+    planned = runtime.plan_from_inventory(files, image, binding, bundle, image)
+    result = runtime.apply(files, planned, None)
+    assert result['tests/ot_original_test_security.py'] == helper
+    assert result['environment/auth_api.py'] == files['environment/auth_api.py']
+    assert b'OT_VERIFIER_PYTHON' in result['tests/test.sh']
+    assert b'ot_original_test_security.py' in result['tests/test.sh']
+    assert b'auth_api.py' not in result['tests/test.sh']
+    assert b'|| exit $?' in result['tests/test.sh']

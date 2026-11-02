@@ -13,7 +13,6 @@ import io
 import json
 from pathlib import Path
 import re
-import shlex
 import sys
 import tarfile
 import tomllib
@@ -21,6 +20,7 @@ from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from data.fineenvs import repairs as task_repairs
 from data.utils.patch_reporting import write_patch_report
 from data.utils.task_archive import read_members
 
@@ -45,6 +45,11 @@ if Path(__file__).with_name("preparation.json").is_file():
 LOCK_PATH = SUPPORT_DIR / "preparation.json"
 SNAPSHOT_PATH = SUPPORT_DIR / "input-snapshot.json"
 SNAPSHOT_ROOT = "/opt/fineenvs-inputs"
+# Stops before task initialization, like the verifier setup's --prepare. Agent
+# dependencies are in the image and inputs are packaged, so nothing is saved.
+TASK_NO_PREPARATION = (b'if [ "${1:-}" = "--prepare" ]; then\n'
+                       b'  exit 0\n'
+                       b'fi\n')
 # Only the measured slow prefix receives an additional shared image. Build-time
 # downloads must match both the recorded remote identities and actual bytes.
 BUILD_SNAPSHOT = b'''import hashlib
@@ -140,33 +145,6 @@ def verifier_setup(lock):
             "PY\n").encode()
 
 
-def gold_solution(config):
-    """Reference solution: write the answer the grader expects, exactly as the agent must.
-
-    It proves the environment starts, the answer path is writable and the grader
-    accepts the expected value; it does not recompute the answer from the data.
-    The grader compares against verifier.env EXPECTED_ANSWER, which differs from the
-    notebook's metadata.gold_answer in 41 upstream tasks.
-    """
-    expected = config["verifier"]["env"]["EXPECTED_ANSWER"]
-    return ("#!/bin/bash\nset -euo pipefail\nmkdir -p /workdir\n"
-            f"printf '%s' {shlex.quote(expected)} > /workdir/answer.txt\n").encode()
-
-
-def normalize_rewards(script, grader):
-    """Rename the JSON score, including the missing-answer branch, without regrading."""
-    if grader.count(b'"correctness":') != 2:
-        raise ValueError("unexpected upstream JSON grader score fields")
-    if b"reward.json" in script:
-        if script.count(b'"correctness":') != 1:
-            raise ValueError("unexpected upstream missing-answer JSON score")
-        script = script.replace(b'"correctness":', b'"reward":')
-        script = script.replace(b"#   correctness      ", b"#   reward           ")
-    elif b"reward.txt" not in script:
-        raise ValueError("unknown upstream reward format")
-    return script, grader.replace(b'"correctness":', b'"reward":')
-
-
 def drop_hf_token(toml):
     """Remove the HF_TOKEN declaration; packaged inputs need no Hugging Face access.
 
@@ -181,7 +159,17 @@ def drop_hf_token(toml):
     return text.encode()
 
 
-def transform(blob, lock, snapshot=None, packaged=None):
+def without_internet(toml):
+    """Every task runs offline first, whatever upstream sets; see .agents/NEXT.md."""
+    text, count = re.subn(r'(?m)^allow_internet = true$', 'allow_internet = false', toml.decode())
+    expected = tomllib.loads(toml.decode())
+    expected["environment"]["allow_internet"] = False
+    if count != 1 or tomllib.loads(text) != expected:
+        raise ValueError("unexpected allow_internet declaration")
+    return text.encode()
+
+
+def transform(blob, lock, snapshot=None, packaged=None, repairs=True):
     files = read_members(blob)
     config = tomllib.loads(files["task.toml"].decode())
     if files["environment/Dockerfile"] != ORIGINAL_DOCKERFILE:
@@ -208,11 +196,12 @@ def transform(blob, lock, snapshot=None, packaged=None):
     del before["environment"]["healthcheck"]
     if tomllib.loads(toml) != before:
         raise ValueError("configuration changed beyond the healthcheck removal")
-    verifier_script, grader = normalize_rewards(
-        files["tests/test.sh"].replace(PIP_PREPARATION, b""), files["tests/grader.py"])
+    verifier_script, grader = files["tests/test.sh"].replace(PIP_PREPARATION, b""), files["tests/grader.py"]
+    if repairs:
+        verifier_script, grader = task_repairs.normalize_rewards(verifier_script, grader)
     replacements = {
         "environment/Dockerfile": (f'FROM {lock["image"]}\nWORKDIR /workdir\n').encode(),
-        "task.toml": toml.encode(),
+        "task.toml": without_internet(toml.encode()),
         "tests/test.sh": verifier_script,
         "tests/grader.py": grader,
     }
@@ -220,8 +209,9 @@ def transform(blob, lock, snapshot=None, packaged=None):
         "setup_files/setup.sh": (TASK_SETUP, 0o755),
         "setup_files/pull_bucket.py": (files["environment/pull_bucket.py"], 0o644),
         "tests/setup.sh": (verifier_setup(lock), 0o755),
-        "solution/solve.sh": (gold_solution(config), 0o755),
     }
+    if repairs:
+        additions["solution/solve.sh"] = (task_repairs.gold_solution(config), 0o755)
     prebuilt = packaged is None and snapshot is not None and config["environment"]["env"]["BUCKET_PREFIX"].rstrip("/") == snapshot["prefix"]
     if prebuilt:
         if config["environment"]["env"]["HF_BUCKET"] != snapshot["bucket"]:
@@ -292,20 +282,23 @@ def transform(blob, lock, snapshot=None, packaged=None):
                         patched.addfile(info, io.BytesIO(content))
     variant = "reward.json" if b"reward.json" in files["tests/test.sh"] else "reward.txt"
     reason = (
+        "Set allow_internet = false: every task runs offline first. "
         f"Retain one shared upstream image pinned to {lock['image']}; use its existing "
         "math-verify 0.9.0 and check installed dependency versions in tests/setup.sh "
         "instead of repeating a best-effort pip install. Move the original input "
         f"initialization for BUCKET_PREFIX={config['environment']['env']['BUCKET_PREFIX']} "
         "and nonempty-input check into setup_files/setup.sh and remove the duplicate "
         "healthcheck hook. Preserve the upstream downloader bytes and basename mapping, "
-        f"environment variables, instructions, grading logic and {variant} output format. "
-        "Rename the JSON correctness score to reward, including empty/missing-answer zeros; "
-        "preserve the score value and auxiliary metrics. "
-        "Add solution/solve.sh, which writes the verifier's EXPECTED_ANSWER to "
-        "/workdir/answer.txt, so the reference stage can check that the environment and grader "
-        "accept it; it does not recompute the answer from the data."
+        f"environment variables, instructions, grading logic and {variant} output format."
     )
-    if config["metadata"]["gold_answer"] != config["verifier"]["env"]["EXPECTED_ANSWER"]:
+    if repairs:
+        reason += (
+            " Rename the JSON correctness score to reward, including empty/missing-answer zeros; "
+            "preserve the score value and auxiliary metrics. "
+            "Add solution/solve.sh, which writes the verifier's EXPECTED_ANSWER to "
+            "/workdir/answer.txt, so the reference stage can check that the environment and grader "
+            "accept it; it does not recompute the answer from the data.")
+    if repairs and config["metadata"]["gold_answer"] != config["verifier"]["env"]["EXPECTED_ANSWER"]:
         reason += (f" Upstream records two answers: notebook gold_answer "
                    f"{config['metadata']['gold_answer']!r} and graded EXPECTED_ANSWER "
                    f"{config['verifier']['env']['EXPECTED_ANSWER']!r}; the solution uses the graded one.")
@@ -345,6 +338,18 @@ def transform(blob, lock, snapshot=None, packaged=None):
                        'Keep task-declared root files at their original root locations and make those instruction '
                        'paths explicit; disclose the additional source subfolders. Question and graded answer are unchanged.')
     return output.getvalue(), reason
+
+
+def build(name, blob, lock, family, paths, observed, catalog):
+    """One upstream task through the conversion, repairs and clean verifier runtime."""
+    repairs = paths is not None
+    blob, reason = transform(blob, lock, None, family, repairs=repairs)
+    if repairs:
+        blob = task_repairs.apply(name, blob, paths)
+    spec = None
+    if observed is not None:
+        blob, spec = prepare_verifier_runtime(blob, observed, catalog)
+    return blob, reason, spec
 
 
 def packaged_inputs(cache, source):
@@ -391,6 +396,7 @@ def prepare_verifier_runtime(blob, observed, catalog=None):
         docker = archive.extractfile('environment/Dockerfile').read()
         setup = archive.extractfile('tests/setup.sh').read()
         test = archive.extractfile('tests/test.sh').read()
+        task_setup = archive.extractfile('setup_files/setup.sh').read()
     if hashlib.sha256(docker).hexdigest() != observed['dockerfile_sha256']:
         raise ValueError('Interpreter evidence belongs to a different FineEnvs image recipe')
     if setup != verifier_setup(lock):
@@ -405,7 +411,11 @@ def prepare_verifier_runtime(blob, observed, catalog=None):
     old = b'python3 /tests/grader.py'
     if test.count(old) != 1:
         raise ValueError('Unexpected FineEnvs grader invocation')
+    head, count = re.subn(rb'(?m)^set -e(?:uo pipefail)?\n', lambda m: m[0] + TASK_NO_PREPARATION, task_setup, count=1)
+    if count != 1:
+        raise ValueError('Unexpected FineEnvs task setup')
     updates = runtime_reference(spec, catalog)
+    updates['setup_files/setup.sh'] = head
     updates['tests/test.sh'] = test.replace(old,
         b'"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I /tests/grader.py')
     updates['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n'
@@ -483,8 +493,9 @@ def export_published_runtime(source, output, observed, catalog, *, revision, sub
                 labels[name] = ['verifier-runtime-preparation']
                 reasons[name] = ('Replace version-only checks of shared grading packages with a fresh '
                     'image-bound verifier runtime using the observed Python version and exact grading '
-                    'dependency pins. Preserve packaged inputs, task setup, grader code, reference and '
-                    'reward handling. Existing scores are historical; fresh validation remains required.')
+                    'dependency pins. Add --prepare to both setup scripts. Preserve packaged inputs, task '
+                    'initialization, grader code, reference and reward handling. Existing scores are '
+                    'historical; fresh validation remains required.')
             writer.write_table(pa.Table.from_pylist(rows, schema=parquet.schema_arrow))
             if len(labels) % 100 == 0:
                 print(f'Migrated {len(labels)} published FineEnvs tasks', flush=True)
@@ -514,6 +525,7 @@ def main():
                         help='only add clean verifier preparation to already-published tasks')
     parser.add_argument('--published-revision')
     parser.add_argument('--published-subset', choices=('fineenvs_v1', 'fineenvs_v2', 'fineenvs_v3'))
+    parser.add_argument('--no-repairs', action='store_true', help='stop at the plain conversion; see repairs.py')
     parser.add_argument('--interpreter-evidence', type=Path)
     parser.add_argument('--runtime-catalog', type=Path)
     parser.add_argument('--workers', type=int, default=4, help='bounded parallel task compression workers')
@@ -531,8 +543,8 @@ def main():
         return
     if not args.inputs_cache:
         parser.error('--inputs-cache is required unless --published-input is selected')
-    if args.interpreter_evidence or args.runtime_catalog or args.published_revision or args.published_subset:
-        parser.error('Runtime migration options require --published-input')
+    if args.published_revision or args.published_subset:
+        parser.error('Published options require --published-input')
     if not 1 <= args.workers <= 8:
         parser.error('--workers must be between 1 and 8')
     import pyarrow as pa
@@ -556,6 +568,9 @@ def main():
     parquet = pq.ParquetFile(source)
     args.output.mkdir(parents=True, exist_ok=True)
     labels, reasons = {}, {}
+    paths = None if args.no_repairs else task_repairs.load_paths()
+    observed = json.loads(args.interpreter_evidence.read_text()) if args.interpreter_evidence else None
+    catalog = json.loads(args.runtime_catalog.read_text()) if args.runtime_catalog else None
     excluded = {} if args.include_archived else EXCLUDED
     with ProcessPoolExecutor(max_workers=args.workers, mp_context=get_context('spawn')) as pool, \
             pq.ParquetWriter(destination, parquet.schema_arrow) as writer:
@@ -566,14 +581,15 @@ def main():
                 config = tomllib.loads(read_members(row['task_binary'])['task.toml'].decode())
                 env = config['environment']['env']
                 family = inputs[(env['HF_BUCKET'], env['BUCKET_PREFIX'].rstrip('/'))]
-                pending.append(pool.submit(transform, row['task_binary'], lock, None, family))
+                pending.append(pool.submit(build, row['path'], row['task_binary'], lock, family, paths, observed, catalog))
             for row, future in zip(rows, pending):
                 name = row["path"]
                 if name in labels:
                     raise ValueError(f"duplicate source task ID: {name}")
-                row["task_binary"], reasons[name] = future.result()
-                labels[name] = ["runtime-preparation", "gold-answer-solution", "reward-key-normalization"]
-                labels[name].append('packaged-task-inputs')
+                row["task_binary"], reasons[name], _ = future.result()
+                labels[name] = ['runtime-preparation', 'packaged-task-inputs']
+                if paths is not None:
+                    labels[name] += ['gold-answer-solution', 'reward-key-normalization']
             writer.write_table(pa.Table.from_pylist(rows, schema=parquet.schema_arrow))
             if len(labels) and len(labels) % 100 < len(rows):
                 print(f'Packaged {len(labels)} tasks', flush=True)

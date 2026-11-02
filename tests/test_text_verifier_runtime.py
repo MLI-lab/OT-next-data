@@ -19,7 +19,7 @@ def test_pristine_text_scorer_preserves_task_setup_and_answer_paths(name, python
              'environment/Dockerfile': b'FROM original\n',
              scorer: b'import json\n',
              'tests/test.sh': ('#!/bin/bash\npython3 /' + scorer + ' --output /output/answer\n').encode(),
-             'setup_files/setup.sh': b'cp -a /seed/. /workspace/\n',
+             'setup_files/setup.sh': b'#!/bin/bash\nset -euo pipefail\ncp -a /seed/. /workspace/\n',
              'solution/solve.sh': b'printf answer > /output/answer\n',
              'instruction.md': b'Submit the answer.'}
     output = io.BytesIO()
@@ -36,12 +36,17 @@ def test_pristine_text_scorer_preserves_task_setup_and_answer_paths(name, python
     patched = read_members(result)
     assert set(patched)-set(files)=={'tests/setup.sh','tests/ot-verifier-runtime.json'}
     for path in files:
-        if path != 'tests/test.sh' and not (name == 'crosscodeeval' and path == 'task.toml'):
+        if path != 'tests/test.sh' and not (name == 'crosscodeeval' and path == 'task.toml') and not (
+                name == 'tasktrove_nl2bash' and path in ('setup_files/setup.sh', 'task.toml')):
             assert patched[path]==files[path]
+    if name == 'tasktrove_nl2bash':
+        assert patched['task.toml'].endswith(b'\n\n[environment]\nallow_internet = false\n')
     # -S would skip the .pth execution recorder; -I alone keeps agent PYTHON* and user site out.
     assert b'" -I /' + scorer.encode() in patched['tests/test.sh'] and b' -S ' not in patched['tests/test.sh']
     assert b'--output /output/answer' in patched['tests/test.sh']
     assert b'= "--prepare" ]' in patched['tests/setup.sh']
+    if name == 'tasktrove_nl2bash':
+        assert patched['setup_files/setup.sh'].index(b'= "--prepare" ]') < patched['setup_files/setup.sh'].index(b'cp -a')
     with pytest.raises(ValueError,match='original'):
         module.prepare_runtime(output.getvalue(),{**observed,'python':'3.13.1'},{'spec':spec},catalog)
     with pytest.raises(ValueError,match='existing verifier setup'):

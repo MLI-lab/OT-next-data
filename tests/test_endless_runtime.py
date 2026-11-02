@@ -13,20 +13,65 @@ def recipe():
 def files():
     return {'tests/test.sh': OFFLINE_TEST_SH,
             'tests/test_final_state.py': b'subprocess.run([sys.executable, str(SERVER_PY)])\n',
-            'setup_files/setup.sh': b'#!/bin/bash\necho original initialization\n'}
+            'setup_files/setup.sh': b'#!/bin/bash\nset -eu\necho original initialization\n'}
 
 
 def test_grader_moves_but_task_setup_and_subprocess_environment_remain():
     original = files()
     result = prepared_verifier_files(original, recipe())
-    assert result['setup_files/setup.sh'] == original['setup_files/setup.sh']
-    assert b'export PATH="/opt/et-verifier/venv/bin:$PATH"' in result['tests/test.sh']
+    assert result['setup_files/setup.sh'].endswith(b'echo original initialization\n')
+    assert b'export PATH="${OT_VERIFIER_BIN:' in result['tests/test.sh']
     assert b'"${OT_VERIFIER_PYTHON:' in result['tests/test.sh']
-    assert b'"/opt/et-verifier/venv/bin/python", str(SERVER_PY)' in result['tests/test_final_state.py']
+    assert result['tests/test_final_state.py'] == original['tests/test_final_state.py']
+    assert b'/opt/et-verifier' not in result['tests/test.sh']
     assert result['tests/test.sh'].split(b'rc=$?')[1] == OFFLINE_TEST_SH.split(b'rc=$?')[1]
     assert json.loads(result['tests/ot-verifier-runtime.json'])['mount_mode'] == 'writable'
     assert b'= "--prepare" ]' in result['tests/setup.sh']
     assert 'tests/setup.sh' not in original
+
+
+def test_initialization_prepare_does_not_run_task_state(tmp_path):
+    import subprocess
+    result = prepared_verifier_files(files(), recipe())
+    setup = tmp_path / 'setup.sh'
+    setup.write_bytes(result['setup_files/setup.sh'])
+    prepared = subprocess.run(['bash', str(setup), '--prepare'], capture_output=True, text=True)
+    assert prepared.returncode == 0 and prepared.stdout == ''
+    normal = subprocess.run(['bash', str(setup)], capture_output=True, text=True)
+    assert normal.returncode == 0 and normal.stdout == 'original initialization\n'
+
+
+@pytest.mark.parametrize('with_task_setup', [False, True])
+def test_repository_repair_keeps_preparation_free_of_task_state(tmp_path, monkeypatch, with_task_setup):
+    import shlex
+    import subprocess
+    from validation.rules.dynamic.environment import repair
+
+    marker = tmp_path / 'repository-repaired'
+    monkeypatch.setattr(repair, 'SETUP_SCRIPT', 'touch ' + shlex.quote(str(marker)))
+    source = prepared_verifier_files(files(), recipe()) if with_task_setup else {}
+    repaired, _ = repair.repair_files(source)
+    setup = tmp_path / 'setup.sh'
+    script = repaired['setup_files/setup.sh'].decode()
+    if with_task_setup:
+        original = tmp_path / 'ot-task-setup.sh'
+        original.write_bytes(repaired['setup_files/ot-task-setup.sh'])
+        script = script.replace('/setup_files/ot-task-setup.sh', shlex.quote(str(original)))
+    setup.write_text(script)
+
+    prepared = subprocess.run(['bash', str(setup), '--prepare'], capture_output=True, text=True)
+    assert prepared.returncode == 0 and prepared.stdout == ''
+    assert not marker.exists()
+    normal = subprocess.run(['bash', str(setup)], capture_output=True, text=True)
+    assert normal.returncode == 0
+    assert normal.stdout == ('original initialization\n' if with_task_setup else '')
+    assert marker.exists()
+
+    if with_task_setup:
+        marker.unlink()
+        original.write_text('#!/bin/bash\nexit 7\n')
+        failed = subprocess.run(['bash', str(setup), '--prepare'], capture_output=True, text=True)
+        assert failed.returncode == 7 and not marker.exists()
 
 
 def test_task_with_reviewed_path_exception_keeps_it():

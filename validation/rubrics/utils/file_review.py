@@ -1,7 +1,7 @@
 """Read-only file review on login nodes; no shell execution or task code execution.
 
 Durable results and usage live in one SQLite database per judge. Claude uses the
-same restricted file tools over MCP; GPT uses Responses and DeepSeek uses Chat.
+same restricted file tools over MCP; GPT uses the ChatGPT-authenticated Codex CLI.
 """
 from __future__ import annotations
 import argparse
@@ -117,55 +117,37 @@ def mcp(source, rubric_path, verdict_path):
         print(json.dumps({'jsonrpc': '2.0', 'id': req['id'], 'result': result}), flush=True)
 
 
-async def api_review(judge, source, rubric, instructions, record):
-    from openai import AsyncOpenAI
-    deepseek = judge == 'deepseek-flash'
-    client = AsyncOpenAI(api_key=os.environ['DEEPSEEK_API_KEY' if deepseek else 'OPENAI_API_KEY'],
-                         base_url='https://api.deepseek.com' if deepseek else None,
-                         timeout=300, max_retries=2)
-    fs = Files(source, rubric)
-    messages = [{'role': 'user', 'content': instructions}]
-    try:
-        for turn in range(70):
-            if deepseek:
-                response = await client.chat.completions.create(model='deepseek-flash', messages=messages,
-                    tools=[{'type': 'function', 'function': t} for t in TOOLS], max_tokens=32768)
-                u = response.usage.model_dump() if response.usage else {}
-                message = response.choices[0].message
-                messages.append(message.model_dump(exclude_none=True))
-                calls = [(t.id, t.function.name, t.function.arguments) for t in (message.tool_calls or [])]
-                usage = {'input_tokens': u.get('prompt_tokens'), 'output_tokens': u.get('completion_tokens'),
-                         'cache_read_input_tokens': u.get('prompt_cache_hit_tokens'), 'cache_write_input_tokens': 0}
-            else:
-                response = await client.responses.create(model='gpt-5.4', input=messages,
-                    tools=[{'type': 'function', **t, 'strict': True} for t in TOOLS],
-                    reasoning={'effort': 'medium'}, max_output_tokens=32768, store=False)
-                messages.extend(x.model_dump(exclude_none=True) for x in response.output)
-                calls = [(x.call_id, x.name, x.arguments) for x in response.output if x.type == 'function_call']
-                u = response.usage.model_dump() if response.usage else {}
-                usage = {'input_tokens': u.get('input_tokens'), 'output_tokens': u.get('output_tokens'),
-                         'cache_read_input_tokens': (u.get('input_tokens_details') or {}).get('cached_tokens'), 'cache_write_input_tokens': 0}
-            record['usage'].append(usage)
-            record['turns'].append({'turn': turn, 'response': response.model_dump(exclude_none=True)})
-            if not calls:
-                messages.append({'role': 'user', 'content': 'Read the relevant files, then call submit_review with the required verdict JSON.'})
-                continue
-            for call_id, name, arguments in calls:
-                try:
-                    args = json.loads(arguments)
-                    value = fs.invoke(name, args)
-                except Exception as exc:
-                    value = {'error': str(exc)}
-                record['tools'].append({'name': name, 'arguments': arguments, 'result': value})
-                if deepseek:
-                    messages.append({'role': 'tool', 'tool_call_id': call_id, 'content': json.dumps(value)})
-                else:
-                    messages.append({'type': 'function_call_output', 'call_id': call_id, 'output': json.dumps(value)})
-                if fs.verdict is not None:
-                    return fs.verdict
-        raise ValueError('Review exhausted its turn budget')
-    finally:
-        await client.close()
+async def codex_review(source, rubric, instructions, record):
+    from validation.rubrics.utils.review import judge_command, codex_envelope
+    with tempfile.TemporaryDirectory(prefix='judge-files-codex-') as temp:
+        folder = Path(temp)
+        (folder/'rubric.toml').write_text(rubric)
+        server = {'command': sys.executable,
+                  'args': ['-m', 'validation.rubrics.utils.file_review', '--mcp', str(source), str(folder/'rubric.toml'), str(folder/'verdict.json')],
+                  'env': {'PYTHONPATH': str(ROOT.parents[1])}}
+        command = judge_command('codex', 'gpt-5.4', 'medium', {'mcpServers': {'image': server}}, 5)
+        command[-1:-1] = ['-c', 'forced_login_method="chatgpt"', '-c', 'model_provider="openai"']
+        env = os.environ.copy()
+        for key in ('OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_API_BASE', 'CODEX_ACCESS_TOKEN', 'CODEX_ACCESS_TOKEN_FILE'):
+            env.pop(key, None)
+        record['transport'] = 'codex-cli-chatgpt'
+        proc = await asyncio.create_subprocess_exec(*command, cwd=folder, env=env,
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        try:
+            stdout, stderr = await proc.communicate(instructions.encode())
+        finally:
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+        result = codex_envelope(stdout.decode(), 'gpt-5.4')
+        record['codex'] = result
+        record['cli_events'] = stdout.decode()
+        u = result.get('modelUsage', {}).get('gpt-5.4', {})
+        record['usage'].append({'input_tokens': u.get('input_tokens'), 'output_tokens': u.get('output_tokens'),
+                               'cache_read_input_tokens': u.get('cached_input_tokens'), 'cache_write_input_tokens': 0})
+        if proc.returncode or result.get('is_error'):
+            raise RuntimeError(str(result.get('result') or stderr.decode())[:1500])
+        return json.loads((folder/'verdict.json').read_text())
 
 
 async def claude_review(source, rubric, instructions, record):
@@ -228,7 +210,7 @@ async def batch(args):
             try:
                 async with asyncio.timeout(1800):
                     verdict=await (claude_review(task['input'],rubric,instructions,record) if args.judge=='sonnet-5.5'
-                                   else api_review(args.judge,task['input'],rubric,instructions,record))
+                                   else codex_review(task['input'],rubric,instructions,record))
                 verdict=validate_complete(verdict,tomllib.loads(rubric))
                 verdict['checks'].update(skipped)
                 record.update(status='findings' if any(v['outcome'] in ('fail','incomplete') for v in verdict['checks'].values()) else 'passed', verdicts=[verdict], automatic_skips=skipped)
@@ -259,7 +241,7 @@ def main(argv=None):
     ap.add_argument('--mcp',nargs=3)
     ap.add_argument('--plan',type=Path)
     ap.add_argument('--out',type=Path)
-    ap.add_argument('--judge',choices=['gpt-5.4','sonnet-5.5','deepseek-flash'])
+    ap.add_argument('--judge',choices=['gpt-5.4','sonnet-5.5'])
     ap.add_argument('--concurrency',type=int,default=7)
     ap.add_argument('--configuration')
     ap.add_argument('--limit',type=int)

@@ -1,154 +1,254 @@
+import io
 import json
+import re
+import subprocess
+import tarfile
+
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
+
 from data.facet import verifier_runtime as runtime
-from data.facet.patch import prepare_runtime
+from data.facet.patch import CURL_BLOCK, ENV_BLOCK, SETUP_SCRIPT, UV_BLOCKS, VERIFIER_HEAD, VERIFIER_TAIL
 from harbor_patches.verifier_bundle import FORMAT, spec_id
 from validation.contract import files_digest
 
-
-def case(source=b'import json\nimport pytest\ndef test_value(): assert True\n'):
-    setup, test = runtime.original_scripts()
-    files = {'tests/setup.sh': setup, 'tests/test.sh': test, 'tests/test_state.py': source,
-             'setup_files/setup.sh': b'original initialization', 'instruction.md': b'fix task'}
-    image = dict(return_code=0, sif_sha256='a'*64, environment_sha256='b'*64, bundle='image',
-                 version='3.10.12', python3=['/usr/bin/python3','/usr/bin/python3.10'], stdlib=['json', 'sys'])
-    probe = dict(returncode=0, sif_sha256='a'*64, stdout='OT_RUNTIME_PROBE='+json.dumps(
-        dict(python='3.10.12', requirements=['pytest==8.4.1', 'pytest-json-ctrf==0.3.5'])))
-    binding = dict(content_sha256=files_digest(files.items()), environments=[dict(path='environment',
-                   environment_sha256='b'*64,bundle='image')])
-    bundle = dict(name='image.sif', files={'image.sif': {'sha256':'a'*64}})
-    return files,image,probe,binding,bundle
+PLAIN = ('uvx \\\n  --with pytest==8.4.1 \\\n  --with pytest-json-ctrf==0.3.5 \\\n'
+         '  pytest --ctrf /logs/verifier/ctrf.json /tests/test_state.py -rA')
+ARGUMENTS = '--ctrf /logs/verifier/ctrf.json /tests/test_state.py -rA'
+PINS = ['pytest==8.4.1', 'pytest-json-ctrf==0.3.5']
+YAML_PINS = sorted([*PINS, 'pyyaml==6.0.3'])
+LOCKS = {'pytest-json-ctrf==0.3.5 pytest==8.4.1': PINS,
+         'pytest-json-ctrf==0.3.5 pytest==8.4.1 pyyaml': YAML_PINS,
+         'pillow pytest-json-ctrf==0.3.5 pytest==8.4.1': sorted([*PINS, 'pillow==12.3.0'])}
 
 
-def test_preserves_task_and_tests_replaces_only_verifier_tools():
-    args=case(); planned=runtime.plan(*args); key=spec_id(planned['spec'])
-    catalog={key:dict(id=key,format=FORMAT,spec=planned['spec'],status='ready',archive_sha256='c'*64)}
-    result, _=prepare_runtime(*args,catalog)
-    assert result['tests/test_state.py']==args[0]['tests/test_state.py']
-    assert result['setup_files/setup.sh']==args[0]['setup_files/setup.sh']
-    assert b'uvx' not in result['tests/test.sh']
-    assert b' -I -m pytest --ctrf ' in result['tests/test.sh']
-    assert b'status=$?' in result['tests/test.sh']
-    assert b'= "--prepare" ]' in result['tests/setup.sh']
-    assert b'set -e\n' in result['tests/setup.sh']
-    ref=json.loads(result['tests/ot-verifier-runtime.json'])
-    assert ref['archive_sha256']=='c'*64 and 'spec' not in ref
+def setup_script(extra=''):
+    return ('#!/bin/bash\nset +e\n\n' + CURL_BLOCK + '\n' + ENV_BLOCK + '\n' + UV_BLOCKS[0] + '\n' + extra + 'exit 0\n').encode()
 
 
-@pytest.mark.parametrize('source',[b'import requests',b'import sys\nprint(sys.executable)',
-                                   b'import importlib',b'from .helper import value'])
-def test_unreviewed_import_or_interpreter_semantics_rejected(source):
-    with pytest.raises(ValueError,match='review'):
-        runtime.plan(*case(source))
+def verifier_script(command=PLAIN, before=''):
+    return (VERIFIER_HEAD + '\n' + ENV_BLOCK + '\n' + before + command + '\n' + VERIFIER_TAIL).encode()
 
 
-def test_binding_and_image_mismatch_rejected_before_adapting():
-    args=case(); args[0]['instruction.md']=b'changed'
-    with pytest.raises(ValueError,match='published image binding'):runtime.plan(*args)
-    args=case();args[2]['sif_sha256']='d'*64
-    with pytest.raises(ValueError,match='another image'):runtime.plan(*args)
-    args=case();args[4]['files']['image.sif']['sha256']='d'*64
-    with pytest.raises(ValueError,match='measured interpreter'):runtime.plan(*args)
+def case(setup=None, test=None, source=b'import json\nimport pytest\ndef test_value(): assert True\n'):
+    return {'tests/setup.sh': setup or setup_script(), 'tests/test.sh': test or verifier_script(), 'tests/test_state.py': source,
+            SETUP_SCRIPT: b'#!/bin/bash\nset -euo pipefail\nrm -rf /setup_files/context\n', 'instruction.md': b'fix task',
+            'environment/Dockerfile': b'FROM ubuntu:22.04\n'}
 
 
-def test_nonstandard_setup_is_never_discarded():
-    args=case();args[0]['tests/setup.sh']+=b'echo required initialization\n'
-    args[3]['content_sha256']=files_digest(args[0].items())
-    with pytest.raises(ValueError,match='family'):runtime.plan(*args)
+def catalog_for(requested):
+    spec = runtime.spec_for(requested, LOCKS)
+    key = spec_id(spec)
+    return {key: dict(id=key, format=FORMAT, spec=spec, status='ready', archive_sha256='c' * 64)}
 
 
-def test_changed_test_body_invalidates_existing_plan():
-    args=case();planned=runtime.plan(*args)
-    args[0]['tests/test_state.py']+=b'\nimport requests\n'
-    with pytest.raises(ValueError,match='changed after runtime planning'):
-        runtime.apply(args[0],planned,{})
+def test_plain_task_uses_clean_runtime_only():
+    files = case()
+    planned = runtime.plan(files)
+    result = runtime.apply(files, planned, catalog_for(planned['requested']), LOCKS)
+    assert result['tests/test_state.py'] == files['tests/test_state.py']
+    test = result['tests/test.sh']
+    assert b'uvx' not in test and b'source' not in test and b'/setup_files' not in test
+    assert b'"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I -m pytest ' + ARGUMENTS.encode() in test
+    assert test.count(b'status=$?') == 1
+    assert b'= "--prepare" ]' in result['tests/setup.sh'] and b'set -e\n' in result['tests/setup.sh']
+    assert b'apt-get' not in result['tests/setup.sh'] and b'curl' not in result['tests/setup.sh']
+    reference = json.loads(result['tests/ot-verifier-runtime.json'])
+    assert reference['archive_sha256'] == 'c' * 64 and 'spec' not in reference
+
+
+def test_agent_setup_prepare_exits_before_initialization(tmp_path):
+    files = case()
+    planned = runtime.plan(files)
+    setup = runtime.apply(files, planned, catalog_for(planned['requested']), LOCKS)[SETUP_SCRIPT].decode()
+    marker = tmp_path / 'ran'
+    script = tmp_path / 'setup.sh'
+    script.write_text(setup.replace('rm -rf /setup_files/context', f'touch {marker}'))
+    assert subprocess.run(['bash', script, '--prepare']).returncode == 0
+    assert not marker.exists()
+    assert subprocess.run(['bash', script]).returncode == 0
+    assert marker.exists()
+
+
+def test_task_without_agent_setup_gets_no_setup_script():
+    files = case()
+    del files[SETUP_SCRIPT]
+    planned = runtime.plan(files)
+    assert SETUP_SCRIPT not in runtime.apply(files, planned, catalog_for(planned['requested']), LOCKS)
+
+
+@pytest.mark.parametrize('with_set,expected', [
+    ('Pillow', 'pillow'), ('pillow', 'pillow'), ("'pyyaml>=6.0'", 'pyyaml>=6.0'), ('"PyYAML<7"', 'pyyaml<7'),
+    ('python_docx', 'python-docx')])
+def test_dependency_sets_share_a_canonical_key(with_set, expected):
+    command = PLAIN.replace('  pytest --ctrf', f'  --with {with_set} \\\n  pytest --ctrf')
+    assert expected in runtime.plan(case(test=verifier_script(command)))['requested'].split(' ')
+
+
+def test_index_strategy_and_python_selection_do_not_change_the_set():
+    for option in ('--index-strategy unsafe-best-match', '--python python3'):
+        command = PLAIN.replace('uvx \\\n', f'uvx \\\n  {option} \\\n')
+        assert runtime.plan(case(test=verifier_script(command)))['requested'] == 'pytest-json-ctrf==0.3.5 pytest==8.4.1'
+
+
+def test_unknown_uvx_option_is_rejected():
+    command = PLAIN.replace('uvx \\\n', 'uvx \\\n  --from thing \\\n')
+    with pytest.raises(ValueError, match='review'):
+        runtime.plan(case(test=verifier_script(command)))
+
+
+@pytest.mark.parametrize('command', ['python3 -m pytest ' + ARGUMENTS, 'python -m pytest ' + ARGUMENTS, 'pytest ' + ARGUMENTS])
+def test_system_python_task_gets_its_yaml_in_the_runtime(command):
+    source = b'import yaml\nimport pytest\n'
+    setup = setup_script('python3 -m pip install --quiet pytest==8.4.1 pytest-json-ctrf==0.3.5\n')
+    planned = runtime.plan(case(setup, verifier_script(command), source))
+    assert planned == {'requested': 'pytest-json-ctrf==0.3.5 pytest==8.4.1 pyyaml', 'arguments': ARGUMENTS}
+
+
+def test_venv_activation_is_replaced():
+    setup = setup_script('python3 -m venv /tmp/verifier-venv\nsource /tmp/verifier-venv/bin/activate\n'
+                         'pip install pytest==8.4.1 pytest-json-ctrf==0.3.5\n')
+    files = case(setup, verifier_script('pytest ' + ARGUMENTS, 'source /tmp/verifier-venv/bin/activate\n'))
+    planned = runtime.plan(files)
+    result = runtime.apply(files, planned, catalog_for(planned['requested']), LOCKS)
+    assert b'activate' not in result['tests/test.sh'] + result['tests/setup.sh']
+
+
+def test_image_yaml_through_pythonpath_moves_into_the_runtime():
+    before = 'export PYTHONPATH="/usr/lib/python3/dist-packages:${PYTHONPATH}"\n'
+    files = case(test=verifier_script(before=before), source=b'import yaml\nimport pytest\n')
+    planned = runtime.plan(files)
+    assert 'pyyaml' in planned['requested'].split(' ')
+    result = runtime.apply(files, planned, catalog_for(planned['requested']), LOCKS)
+    assert b'PYTHONPATH' not in result['tests/test.sh']
+
+
+def test_optional_yaml_stays_absent_as_under_uvx():
+    # task_007700: pip wrote to the image's Python, so the test's try/import failed under uvx.
+    setup = setup_script('uv pip install pyyaml 2>/dev/null || python3 -m pip install pyyaml 2>/dev/null || true\n')
+    source = b'import pytest\ntry:\n    import yaml\nexcept ImportError:\n    yaml = None\n'
+    assert runtime.plan(case(setup, source=source))['requested'] == 'pytest-json-ctrf==0.3.5 pytest==8.4.1'
+
+
+def test_system_python_task_with_other_imports_is_rejected():
+    with pytest.raises(ValueError, match='review'):
+        runtime.plan(case(test=verifier_script('python3 -m pytest ' + ARGUMENTS), source=b'import requests\n'))
+
+
+def test_poppler_guard_needs_the_tool_in_the_image():
+    guard = ('if ! command -v pdftotext >/dev/null 2>&1; then\n'
+             '  apt-get update && apt-get install -y poppler-utils && rm -rf /var/lib/apt/lists/*\nfi\n')
+    files = case(setup_script(guard))
+    with pytest.raises(ValueError, match='poppler'):
+        runtime.plan(files)
+    files['environment/Dockerfile'] += b'RUN apt-get install -y poppler-utils\n'
+    assert runtime.plan(files)['requested'] == 'pytest-json-ctrf==0.3.5 pytest==8.4.1'
+
+
+@pytest.mark.parametrize('extra', ['echo required initialization\n', 'bash /setup_files/setup.sh\n',
+                                   'apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*\n'])
+def test_unknown_verifier_setup_is_never_discarded(extra):
+    with pytest.raises(ValueError, match='requires review'):
+        runtime.plan(case(setup_script(extra)))
+
+
+@pytest.mark.parametrize('extra', ['python3 /tests/helper.py\n', 'bash /setup_files/setup.sh\n'])
+def test_unknown_test_script_lines_are_never_discarded(extra):
+    with pytest.raises(ValueError, match='requires review'):
+        runtime.plan(case(test=verifier_script(before=extra)))
+
+
+def test_task_without_verifier_setup_gains_one():
+    source = b'import pytest\n'
+    test = (VERIFIER_HEAD + 'python3 -m pytest ' + ARGUMENTS + '\n' + VERIFIER_TAIL).encode()
+    files = case(test=test, source=source)
+    del files['tests/setup.sh']
+    planned = runtime.plan(files)
+    result = runtime.apply(files, planned, catalog_for(planned['requested']), LOCKS)
+    assert b'OT_RUNTIME_RECIPE' in result['tests/setup.sh']
+
+
+def test_recipe_is_the_only_copy_of_the_dependency_list():
+    files = case()
+    planned = runtime.plan(files)
+    result = runtime.apply(files, planned, catalog_for(planned['requested']), LOCKS)
+    assert re.findall(r'^# OT_RUNTIME_RECIPE: (.+)$', result['tests/setup.sh'].decode(), re.M)
+    assert b'requirements' not in result['tests/ot-verifier-runtime.json']
+
+
+def test_lock_passes_no_project_or_user_configuration(monkeypatch):
+    calls = []
+
+    def run(command, **options):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, 'pytest==8.4.1\npluggy==1.7.0\n')
+    monkeypatch.setattr(runtime.subprocess, 'run', run)
+    assert runtime.lock('pytest==8.4.1') == ['pluggy==1.7.0', 'pytest==8.4.1']
+    assert {'--no-config', '--only-binary', '--exclude-newer', runtime.EXCLUDE_NEWER} <= set(calls[0])
+
+
+def published(tmp_path, files, stage_column=True):
+    bound = dict(content_sha256=files_digest(files.items()), environments=[dict(path='environment', bundle='image')])
+    blob = io.BytesIO()
+    with tarfile.open(fileobj=blob, mode='w') as archive:
+        for name, body in files.items():
+            entry = tarfile.TarInfo(name)
+            entry.size, entry.mode = len(body), 0o755 if name.endswith('.sh') else 0o644
+            archive.addfile(entry, io.BytesIO(body))
+    rows = [dict(path='task_1', task_binary=blob.getvalue(), content_sha256=bound['content_sha256'], score=0.5,
+                 **({'stages_passed': '1,2'} if stage_column else {}))]
+    images = dict(tasks={'task_1': bound}, bundles={})
+    source = tmp_path / 'source.parquet'
+    pq.write_table(pa.Table.from_pylist(rows).replace_schema_metadata(
+        {b'ot.images.v1': json.dumps(images).encode(), b'ot.review.v1': b'old'}), source)
+    return source, rows
 
 
 @pytest.mark.parametrize('stage_column', [True, False])
-def test_export_preserves_membership_history_and_unreviewed_payload(tmp_path, monkeypatch, stage_column):
-    import io
-    import tarfile
-    import pyarrow as pa
-    import pyarrow.parquet as pq
+def test_export_keeps_membership_scores_and_binds_every_task(tmp_path, monkeypatch, stage_column):
     from harbor_patches import verifier_bundle
-    args = case()
-    files,image,probe,binding,bundle=args
-    files['task.toml']=b'[task]\nname="facet/task_1"\n'
-    binding['content_sha256']=files_digest(files.items())
-    blob=io.BytesIO()
-    with tarfile.open(fileobj=blob,mode='w') as archive:
-        for name,body in files.items():
-            entry=tarfile.TarInfo(name);entry.size=len(body);entry.mode=0o755 if name.endswith('.sh') else 0o644
-            archive.addfile(entry,io.BytesIO(body))
-    import copy
-    other=copy.deepcopy(binding);other['environments'][0]['bundle']='other'
-    images=dict(tasks={'task_1':binding,'task_2':other},bundles={'image':bundle,'other':bundle})
-    rows=[dict(path=name,task_binary=blob.getvalue(),content_sha256=binding['content_sha256'],stages_passed='1,2',score=0.5,
-               patch_labels=['historical-patch']) for name in images['tasks']]
-    if not stage_column:
-        for row in rows:
-            row.pop('stages_passed')
-    source=tmp_path/'source.parquet'
-    table=pa.Table.from_pylist(rows).replace_schema_metadata({b'ot.images.v1':json.dumps(images).encode(),b'ot.review.v1':b'old'})
-    pq.write_table(table,source)
-    spec=runtime.plan(files,image,probe,binding,bundle)['spec'];key=spec_id(spec)
-    cache=tmp_path/'cache';cache.mkdir()
-    (cache/(key+'.json')).write_text(json.dumps(dict(id=key,format=FORMAT,spec=spec,status='ready',archive_sha256='c'*64)))
-    monkeypatch.setattr(verifier_bundle,'verify',lambda *a:tmp_path/'unused')
-    monkeypatch.setattr(verifier_bundle,'validate_archive',lambda *a:None)
-    report=runtime.migrate_published(source,tmp_path/'output',revision='a'*40,subset='facet_v2',image=image,probe=probe,cache=cache)
-    output=pq.read_table(tmp_path/'output/tasks.parquet'); result=output.to_pylist()
-    assert [r['path'] for r in result]==['task_1','task_2']
-    assert result[1]['task_binary']==rows[1]['task_binary']
-    assert all(r['score']==0.5 and r.get('stages_passed','')=='' for r in result)
+    files = case()
+    files['task.toml'] = b'[task]\nname="facet/task_1"\n[environment]\nallow_internet = true\n'
+    source, rows = published(tmp_path, files, stage_column)
+    catalog = catalog_for('pytest-json-ctrf==0.3.5 pytest==8.4.1')
+    cache = tmp_path / 'cache'
+    cache.mkdir()
+    for key, record in catalog.items():
+        (cache / (key + '.json')).write_text(json.dumps(record))
+    monkeypatch.setattr(verifier_bundle, 'verify', lambda *a: tmp_path / 'unused')
+    monkeypatch.setattr(verifier_bundle, 'validate_archive', lambda *a: None)
+    report = runtime.migrate_published(source, tmp_path / 'output', revision='a' * 40, subset='facet_v2', cache=cache, locks=LOCKS)
+    output = pq.read_table(tmp_path / 'output/tasks.parquet')
+    result = output.to_pylist()
+    assert [r['path'] for r in result] == ['task_1'] and result[0]['score'] == 0.5
     assert ('stages_passed' in result[0]) == stage_column
-    assert report['counts']=={'adapted, validation pending':1,'unmodified: image not yet reviewed':1}
-    meta=output.schema.metadata
+    assert report['tasks'][0]['runtime_id'] == next(iter(catalog))
+    with tarfile.open(fileobj=io.BytesIO(result[0]['task_binary'])) as archive:
+        names = archive.getnames()
+        toml = archive.extractfile('task.toml').read()
+    assert 'tests/ot-verifier-runtime.json' in names
+    assert b'allow_internet = true' in toml  # Tasks stay online-capable; only their verifier is prepared.
+    meta = output.schema.metadata
     assert b'ot.review.v1' not in meta
-    assert json.loads(meta[b'ot.runtime_migration.v1'])['effective_network']=='unverified'
-    bindings=json.loads(meta[b'ot.images.v1'])
-    assert bindings['tasks']['task_1']['content_sha256']==result[0]['content_sha256']
-    assert json.loads((tmp_path/'output/historical-evidence.json').read_text())['tasks'][0].get('stages_passed')==('1,2' if stage_column else None)
+    assert json.loads(meta[b'ot.images.v1'])['tasks']['task_1']['content_sha256'] == result[0]['content_sha256']
     with pytest.raises(FileExistsError):
-        runtime.migrate_published(source,tmp_path/'output',revision='a'*40,subset='facet_v2',image=image,probe=probe,cache=cache)
+        runtime.migrate_published(source, tmp_path / 'output', revision='a' * 40, subset='facet_v2', cache=cache, locks=LOCKS)
 
 
-DOCKER = ('FROM ubuntu:22.04\nENV DEBIAN_FRONTEND=noninteractive\n'
-          'RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git jq \\\n'
-          '    python3 python3-pip python3-venv && rm -rf /var/lib/apt/lists/*\n'
-          + runtime.UV_INSTRUCTION + '\n').encode()
+def test_missing_runtime_in_cache_fails_the_export(tmp_path):
+    files = case()
+    source, _ = published(tmp_path, files)
+    with pytest.raises(FileNotFoundError):
+        runtime.migrate_published(source, tmp_path / 'output', revision='a' * 40, subset='facet_v2', cache=tmp_path, locks=LOCKS)
 
 
-def sibling(docker):
-    files, image, probe, binding, bundle = case()
-    files['environment/Dockerfile'] = docker
-    binding['content_sha256'] = files_digest(files.items())
-    binding['environments'][0].update(bundle='other', environment_sha256='e' * 64)
-    return files, image, probe, binding, dict(name='other.sif', files={'other.sif': {'sha256': 'f' * 64}})
-
-
-@pytest.mark.parametrize('docker,ok', [
-    (DOCKER, True),
-    (DOCKER.replace(b'ubuntu:22.04', b'ubuntu:24.04'), False),
-    (DOCKER.replace(b'0.9.7', b'0.9.8'), False),
-    (DOCKER.replace(b'python3 python3-pip python3-venv', b'jq'), False),  # no apt Python at all
-    (DOCKER + b'RUN apt-get install -y python3.11 && update-alternatives --install /usr/bin/python3 p /usr/bin/python3.11 1\n', False),
-    (DOCKER + b'ENV UV_PYTHON=3.12\n', False),
-    (DOCKER + runtime.UV_INSTRUCTION.encode() + b'\n', False)])
-def test_shared_base_family_requires_same_build_recipe(docker, ok):
-    args = sibling(docker)
-    with pytest.raises(ValueError, match='measured interpreter'):
-        runtime.plan(*args)
-    if ok:
-        assert runtime.plan(*args, shared=True)['spec'] == runtime.plan(*case())['spec']
-    else:
-        with pytest.raises(ValueError, match='review'):
-            runtime.plan(*args, shared=True)
-
-
-def test_shared_base_family_keeps_verifier_review_rules():
-    files, image, probe, binding, bundle = sibling(DOCKER)
-    files['tests/test_state.py'] = b'import requests\n'
-    binding['content_sha256'] = files_digest(files.items())
-    with pytest.raises(ValueError, match='task-environment imports'):
-        runtime.plan(files, image, probe, binding, bundle, shared=True)
+def test_changed_published_content_is_rejected(tmp_path):
+    files = case()
+    source, rows = published(tmp_path, files)
+    table = pq.read_table(source)
+    index = table.schema.get_field_index('content_sha256')
+    changed = table.set_column(index, 'content_sha256', pa.array(['0' * 64]))
+    pq.write_table(changed, source)
+    with pytest.raises(ValueError, match='binding differs'):
+        runtime.migrate_published(source, tmp_path / 'output', revision='a' * 40, subset='facet_v2', cache=tmp_path, locks=LOCKS)

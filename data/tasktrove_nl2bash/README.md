@@ -25,6 +25,15 @@
 
 Intended benchmark transfer: **Terminal-Bench 2.0, OpenThoughts-TBLite 2.0 and Harbor-Index**, through translating requests into correct shell pipelines in a Harbor-style container.
 
+## Upstream defects
+
+`patch.py` fixes two upstream defects, because no task reaches a valid start state with them:
+
+- `task.toml` sets `verifier.restart_environment`, which the pinned Harbor schema does not recognize. It is removed.
+- `solve.sh` calls `/tests/setup_seeds.sh`, which does not exist, and the instruction asks the agent to run the seed script. `setup_files/setup_seeds.sh` becomes `setup_files/setup.sh`, so the harness seeds `/workspace`, `solve.sh` calls it there, and the instruction block is removed.
+
+All other changes come from running the tasks and are in `repairs.py`. `patch.py --no-repairs` stops after the two fixes above.
+
 ## Per-stage breakdown
 
 - **Build and setup: 1,425 changed, 0 archived.** The reference solution called a seed script that did not exist; `setup_files/setup_seeds.sh` is now `setup_files/setup.sh`, so the harness runs it before the agent and the verifier start. The instruction block telling the agent to run it was removed, and the instructions now say the input files are already in `/workspace`. Removed `verifier.restart_environment` from `task.toml`, which the pinned Harbor schema does not recognize.

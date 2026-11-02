@@ -91,12 +91,14 @@ def parser():
                          '(validation/rules/dynamic/do_not_modify; default: enabled)')
     ap.add_argument('--review-runs', type=int, help='independent stage-5 reviews per task; defaults to --attempts')
     ap.add_argument('--review-retries', type=int, default=2, help='repair rounds for incomplete/invalid stage-5 judgments (default: 2)')
+    ap.add_argument('--review-grace-minutes', type=float, default=10,
+                    help='Terminus-2 judges: final-answer window after the 30-minute review time (default: 10)')
     ap.add_argument('--review-resume', action=argparse.BooleanOptionalAction, default=True, help='reuse matching completed/partial stage-5 review checkpoints (default: enabled)')
     ap.add_argument('--review-seed', type=int, default=42, help='local judge seed; independent review runs increment it')
     ap.add_argument('--outcome-retries', type=int, default=3,
                     help='after the run: rerun stages 1-3 tasks without a result up to N more times')
     ap.add_argument('--review-setup', type=int, nargs='?', const=5, metavar='RUNS',
-                    help='stage 1 setup review: five fresh task/verifier preparations; mean task <=30s, verifier <=5%% of timeout, each <=60s; excludes container startup')
+                    help='stage 1 setup review: five fresh task/verifier preparations; mean task <=30s, each task or verifier preparation <=60s; excludes container startup')
     ap.add_argument('--preparation-runs', type=int, default=1,
                     help='stage 1 repetitions in fresh containers with prepared images')
     ap.add_argument('--preparation-mean-target-seconds', type=float,
@@ -157,9 +159,10 @@ def parser():
     ap.add_argument('--serve-memory-mb', type=int, default=32768, help='memory reserved for the vLLM Slurm step')
     ap.add_argument('--max-num-seqs', type=int, help='vLLM sequence slots; default twice concurrency')
     ap.add_argument('--api-base', help='existing OpenAI-compatible model endpoint, including /v1')
-    ap.add_argument('--network-mode', choices=['isolated', 'host'],
+    ap.add_argument('--network-mode', choices=['isolated', 'host', 'simulated'],
                     help='bridge network mode (default: the cluster\'s, isolated elsewhere); '
-                         'installed cloud agents need host access on Helma')
+                         'installed cloud agents need host access on Helma; simulated removes proxy '
+                         'and DNS where namespaces are unavailable, localhost keeps working')
     ap.add_argument('--reward-key', default='reward')
     ap.add_argument('--trials', type=Path, help='Harbor job directory for stages 7 and 8; one level of trial dirs')
     ap.add_argument('--max-iterations', type=int, default=10)
@@ -391,6 +394,17 @@ async def run_review_async(number, source, item_dir, args, upstream, references=
     return result
 
 
+def accepted_after_timeout(result, path, validate):
+    """True when the only trial error is the agent time limit and the verdict file is valid."""
+    if not validate or (result.get('exception_info') or {}).get('exception_type') != 'AgentTimeoutError':
+        return False
+    try:
+        validate(path.read_text())
+    except (OSError, ValueError):
+        return False
+    return True
+
+
 async def review_once(number, source, item_dir, args, upstream, references=None, suffixes=None):
     resolve_review_defaults(args, [number])
     agent, model = (args.review_agent, args.review_model) if number == 5 else (args.analysis_agent, args.analysis_model)
@@ -424,11 +438,16 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
     if agent == 'terminus-2' and (image or number == 8):
         # Terminus-2 runs inside the reviewed task's own environment, as a solver would.
         from validation.stages import env_review
-        files = ({f'task-under-review/{source.name}': source} if number == 5
+        files = ({f'task-under-review/{source.name}': source, 'rubric.toml': rubric} if number == 5
                  else {'task': source, 'trial': args.current_trial})
+        validate = None
+        if number == 5:
+            from validation.rubrics.utils.review import verdict_validator
+            validate = verdict_validator(rubric.read_text())
         task = env_review.stage(source, task, item_dir / 'input' / 'task-environment-review' / source.name,
-                                files, '/app/' + verdict_name)
-        job_dir, results = await env_review.run(task, item_dir, args, model)
+                                files, '/app/' + verdict_name,
+                                grace_sec=env_review.grace_sec(args) if validate else None)
+        job_dir, results = await env_review.run(task, item_dir, args, model, validate)
         if args.dry_run:
             return {'status': 'previewed', 'config': str(item_dir / 'job.json'), 'automatic_skips': skipped}
         result = {'status': 'completed', 'findings': [], 'evidence_mode': 'task-environment'}
@@ -436,6 +455,10 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
             result['findings'].append(f'expected {args.attempts} trials, found {len(results)}')
         for trial, data in results:
             if data.get('exception_info'):
+                if accepted_after_timeout(data, trial / 'artifacts' / verdict_name, validate):
+                    # The judge ran into Harbor's hard limit after writing a valid verdict.
+                    result.setdefault('timed_out_with_verdict', []).append(trial.name)
+                    continue
                 result['findings'].append(f'{trial.name}: exception: {data["exception_info"]}')
         if result['findings']:
             result['status'] = 'failed'
@@ -891,6 +914,7 @@ def _run_stage(number, args):
         report['review_agent'] = 'terminus-2' if getattr(args, 'review_local', False) else args.review_agent
         report['review_model'] = args.model if getattr(args, 'review_local', False) else args.review_model
         report['review_retries'] = getattr(args, 'review_retries', 2)
+        report['review_grace_minutes'] = getattr(args, 'review_grace_minutes', 10)
         report['review_criteria'] = getattr(args, 'review_criteria', None)
     report['task_content_sha256'] = source_hashes
     report_path = out / 'summary.json'

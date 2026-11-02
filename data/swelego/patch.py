@@ -13,10 +13,13 @@ import re
 import shlex
 import sys
 import tarfile
+import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from validation.contract import files_digest
+from data.swelego import repairs
+from data.swelego.repairs import VERIFIER_FIXES, TASK_RESOURCE_FIXES, ARCHIVED_TASKS
 
 REVISION = '8b0d2bed6f04ef571ca04abebf737ea23cbceaf3'
 HERE = Path(__file__).resolve().parent / 'assets'
@@ -24,289 +27,26 @@ MARKER = 'swelego-shared-python-v2'
 COMMON_PACKAGES = {'gcc', 'g++', 'gfortran', 'make', 'git', 'curl', 'wget',
                    'ca-certificates', 'tmux', 'patch', 'pkg-config', 'libffi-dev', 'libssl-dev'}
 DATASET = 'PrimeIntellect/SWE-Lego-Real-Data-Verified'
-VERIFIER_FIXES = {
-    'msgpack__msgpack-python-388': {
-        'commit': '7a8ce0f9ca910a851b6835d26b1d6970a188fa4e',
-        'label': 'verifier-python-backend',
-        'reason': 'Run verification with MSGPACK_PUREPYTHON=1 so the existing regression tests exercise msgpack/fallback.py, which the reference patch repairs. The default compiled backend already passes without the fix. Preserve test assertions, required results, dependency versions and reference patch.'},
-    'mtgjson__mtgjson-469': {
-        'commit': 'b3d7bc4531bdca514dc1cf9f4ea5f6eac1104f89',
-        'label': 'verifier-pythonpath-append',
-        'reason': 'The verifier command sets PYTHONPATH=. so the tests import the checkout; it is the only SWE-Lego verifier that assigns PYTHONPATH, and the bare assignment discards any path the grading runner adds, which made pytest abort before running tests (reward 0 for the reference). Append the inherited PYTHONPATH after the checkout directory instead. Test selection, assertions, required results, dependency versions and reference patch are unchanged.'},
-    'h2non__pook-111': {
-        'commit': 'fac40e9f571152ba09bc16954548ce51d590ccea',
-        'label': 'mocked-http',
-        'unset_env': ['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy'],
-        'reason': 'The constructor tests mock https://httpbin.org and never reach the network, but with the cluster proxy configured the intercepted request carries the proxy address and no mock matches; removing only the plain-HTTP proxy left the two https cases failing (job 964411) while the other ten tests pass. The verifier command runs with all proxy variables unset; task setup keeps them for its downloads. Test selection, assertions, required results, dependency versions and reference patch are unchanged.'},
-    'sdss__sdss_access-69': {
-        'commit': '1519bc3870486d8bc3b6293d8c76680fabee909a',
-        'label': 'verifier-fixed-date',
-        'reason': 'Fix the verifier-local sdss_access.path.path clock at 2025-04-01, before the pinned sdss-tree 4.0.7 DR19 release date of 2025-07-11. This preserves the pre-release regression case that otherwise stops detecting the missing fix after release. Preserve test assertions, required results, dependency versions and reference patch.'},
-}
-TASK_RESOURCE_FIXES = {
-    'dask__dask-1150': {
-        'memory_mb': 8192,
-        'label': 'task-memory-8gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 8 GiB. The unchanged reference verifier passed with a 12 GiB limit and recorded 7,527,284 KiB (about 7.18 GiB) MaxRSS, so 8 GiB provides a modest margin above measured peak while avoiding the unnecessary 12 GiB allocation.'},
-    'dask__dask-4050': {
-        'memory_mb': 8192,
-        'label': 'task-memory-8gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 8 GiB. With a 12 GiB limit the unchanged verifier passed reference (reward 1) and no-op (reward 0) in job 960179; its reference step recorded 7.17 GiB MaxRSS and the no-op step 6.30 GiB, the same dask array test load as dask-1150. At 4 GiB the verifier was killed before scoring.'},
-    'dask__dask-4181': {
-        'memory_mb': 8192,
-        'label': 'task-memory-8gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 8 GiB. With a 12 GiB limit the unchanged verifier passed reference (reward 1) and no-op (reward 0) in job 960179; its steps recorded 6.49 GiB and 6.65 GiB MaxRSS. At 4 GiB the verifier was killed before scoring.'},
-    'tobymao__sqlglot-1889': {
-        'memory_mb': 16384,
-        'label': 'task-memory-16gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 16 GiB. With a 12 GiB limit the unchanged reference verifier passed (reward 1) in job 960179 and recorded 7.82 GiB MaxRSS even with its two bounded worker processes; 8 GiB would leave too little margin, and 16 GiB is the next size the static resource check allows (1, 2, 4, 8, 16, 32 GiB; a 10 GiB limit failed that check in job 965822). At 4 GiB the verifier was killed before scoring.'},
-    'microsoft__electionguard-python-381': {
-        'memory_mb': 8192,
-        'label': 'task-memory-8gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 8 GiB. The big-integer key-ceremony and decryption tests passed reference in four of five 4 GiB attempts and were killed by the task memory limit in the fifth (job 959908); the 12 GiB rerun in job 960179 passed with 3.06 GiB MaxRSS. 8 GiB removes the limit-dependent flakiness without changing tests or dependencies.'},
-    'zarr-developers__zarr-python-2784': {
-        'memory_mb': 16384,
-        'label': 'task-memory-16gib',
-        'reason': 'Raise the task memory limit from 4 GiB to 16 GiB. With a 12 GiB limit the verifier ran to completion in job 964135 and its reference and no-op steps recorded 8.11 GiB and 8.09 GiB MaxRSS, above 8 GiB; 16 GiB is the next size the static resource check allows (1, 2, 4, 8, 16, 32 GiB; a 10 GiB limit failed that check in job 965822). At 4 GiB it was killed before scoring. Tests and dependency versions are unchanged.'},
-    'tcgdex__python-sdk-2': {
-        'no_proxy': 'api.tcgdex.net',
-        'label': 'recorded-http',
-        'reason': 'The verifier replays recorded vcrpy cassettes (RecordMode.ONCE) for api.tcgdex.net. Through the inherited cluster proxy the live request URI names the proxy host and port, so every cassette lookup fails on the host and port matchers while method, path and query match (job 964137). Send that host directly so the recordings match; no cassette, test or reference change.'},
-    'contentful__contentful-management.py-117': {
-        'no_proxy': 'api.contentful.com',
-        'label': 'recorded-http',
-        'reason': 'Thirteen ContentType tests fail with vcrpy CannotOverwriteExistingCassette for api.contentful.com recordings while the other seventeen tests pass (job 959554). The same proxy-rewritten request URI breaks tcgdex-2; send the recorded host directly so the cassettes match. Verified by rerun; no cassette, test or reference change.'},
-    'h2non__pook-83': {
-        'runtime_unset': ['HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'],
-        'label': 'mocked-http',
-        'reason': 'pook intercepts HTTP at the client library and never reaches the network, but with the cluster proxy configured the intercepted request URL becomes http://proxy.nhr.fau.de:80http://httpbin.org/foo and no mock matches (job 964137). The verifier runs without plain-HTTP proxy variables (the mocked URLs are http://); HTTPS keeps the proxy so the git fetch during setup still works, as for conan-5005. Tests and reference patch are unchanged.'},
-    'googleapis__google-auth-library-python-424': {
-        'runtime_unset': ['HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'],
-        'label': 'mocked-http',
-        'reason': 'The required test_connection_error expects a TransportError from a plain-HTTP request to the reserved invalid host test.invalid; through the cluster proxy the request gets an HTTP error reply instead and nothing is raised (jobs 964137 and 964323, all 21 other tests pass). The verifier runs without plain-HTTP proxy variables; HTTPS keeps the proxy for setup downloads. Tests and reference patch are unchanged.'},
-}
-ARCHIVED_TASKS = {
-    'openstates__pyopenstates-15': {
-        'category': 'no-op-passes-required-tests',
-        'reason': 'The two required tests (testBillSearchMissingFilter, testBillDetailInputs) check input validation that already passes on the unpatched tree, so the no-op run scores 1 (job 958628); the other 26 tests in the module query the live Open States API and fail with NotFound regardless of the patch. The verifier cannot distinguish the reference from no change. Archived with the original payload preserved.'},
-    'modin-project__modin-5058': {
-        'category': 'verifier-memory-exceeds-limits',
-        'reason': 'The reference verifier (modin/test/storage_formats/pandas/test_internals.py on Ray 2.7.2) ran for the full 1800 s and was killed at a 12 GiB task limit (job 960179). With MODIN_CPUS=4 and a 512 MiB MODIN_MEMORY object store, the bound that fixed modin-1842, it was still killed at 12 GiB after 16 minutes with 46 OOM-killed Ray processes (job 964168) and at 4 GiB in job 964134. Archived at user request as exceeding supportable task memory; original payload preserved.'},
-    'lundberg__respx-13': {
-        'category': 'incompatible-verifier-dependency',
-        'reason': 'The reference run crashes inside respx/mock.py:229 with AttributeError: str object has no attribute attachment for every HTTPX mock test (job 959554, batch v66-1). The pinned httpx no longer passes the pattern objects this historical respx expects, so the recorded dependency set cannot execute the suite. Archived with the original payload preserved; see https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-17-diagnosis-v68.json.'},
-    'lundberg__respx-21': {
-        'category': 'incompatible-verifier-dependency',
-        'reason': 'The same str-versus-pattern AttributeError as respx-13 occurs at respx/mock.py:273 together with unmatched-mock assertions (job 959554, batch v66-1); the pinned httpx is incompatible with this historical respx. Archived with the original payload preserved; see https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-17-diagnosis-v68.json.'},
-    'mdsol__rwslib-111': {
-        'category': 'incompatible-verifier-dependency',
-        'reason': 'Seventeen tests fail because the pinned HTTPretty exposes no HTTPrettyRequest.headers attribute under Python 3.7 while 24 pass (job 959554, batch v66-1), the same HTTPretty incompatibility that archived PyPeri-8. Archived with the original payload preserved; see https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-17-diagnosis-v68.json.'},
-    'getsentry__sentry-python-79': {
-        'category': 'incompatible-verifier-dependency',
-        'reason': 'test_safe_repr_never_broken_for_strings fails inside hypothesis 3.69.9, which drives coverage.py internals that the pinned coverage 7.2.7 no longer provides (TypeError: missing should_start_context and file_mapper). test_transport_works additionally saw its local pytest-localserver bypassed by the cluster proxy (job 964137); loopback is now excluded from the proxy, but the hypothesis/coverage pin conflict remains in the recorded environment. Archived with the original payload preserved.'},
-    '2gis__k8s-handle-120': {
-        'category': 'version-sensitive-test-expectation',
-        'reason': 'Only test_generate_templates fails: the rendered YAML has the same lines in a different order and blank-line placement than the expected literal, while the reference patch changes tag filtering, not template serialization (jobs 959554 and batch v66-0). The expectation depends on the exact YAML/Jinja versions of the original environment. Archived with the original payload preserved.'},
-    'pytest-dev__pytest-asyncio-1029': {
-        'category': 'version-sensitive-test-expectation',
-        'reason': 'Three nested pytester tests expect exactly two unclosed-event-loop warnings but observe three: the recorded Python/pytest patch versions emit an additional unraisable ResourceWarning for the loop\'s self-pipe socket (job 964137). The other four selected tests pass. Archived with the original payload preserved.'},
-    'ctypesgen__ctypesgen-150': {
-        'category': 'unsupported-host-environment',
-        'reason': 'Archived because the task does not work with the shared base image we chose: the historical parser reports syntax errors in the glibc 2.36 sys/cdefs.h of the Debian 12 image and its version test exits 2 (jobs 959554 and batch v66-0). It could be repaired with a separate older base image, which would mean one extra image for a single task. Archived with the original payload preserved; see https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-17-diagnosis-v68.json.'},
-    'richardkiss__pycoin-353': {
-        'category': 'unreliable-external-service-dependency',
-        'reason': 'Reference and no-op verification exceeded 1800 seconds. A diagnostic rerun traced test_tx_create_dump_sign_txt to an unbounded blockchain.info socket connection; the CLI test helper removes proxy settings. Archived at user request, with original payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-correctness-investigation-20261008.json.'},
-    'fatiando__pooch-291': {
-        'category': 'unreliable-external-service-dependency',
-        'reason': 'Required Zenodo download tests intermittently fail resolving DOI 10.5281/zenodo.4924875. The same payload also passed previously; caching files alone would bypass neither the fresh-directory downloads nor their assertions. Archived at user request instead of adding response replay, with original payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-correctness-investigation-20261008.json.'},
-    'takeontom__PyPeri-29': {
-        'category': 'unreliable-live-service-dependency',
-        'reason': 'Reference verification calls the live Periscope service for API, broadcast, and user data; these requests failed TLS verification in the cluster and depend on an external service remaining available. Archived because live-service verification is unreliable here. Original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
-    'takeontom__PyPeri-35': {
-        'category': 'unreliable-live-service-dependency',
-        'reason': 'Reference verification calls the live Periscope service for API, broadcast, user, and session-token data; these requests failed TLS verification in the cluster and depend on an external service remaining available. Archived because live-service verification is unreliable here. Original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
-    'kivy__kivy-6954': {
-        'category': 'unreliable-live-service-dependency',
-        'reason': 'Verifier tests issue real requests to google.com and httpbin.org to check callbacks, authentication, and TLS behavior. Those external endpoints failed to complete in the cluster, so reference scores depend on live service and network availability. Archived as unreliable; original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
-    'sphinx-doc__sphinx-5203': {
-        'category': 'unreliable-live-service-dependency',
-        'reason': 'The linkcheck verifier fetches https://www.w3.org/TR/2006/REC-xml-names-20060816/#defaulting and asserts the remote anchor exists. The current W3C response no longer contains that anchor, so results depend on mutable live site content. Archived as unreliable; original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
-    'cisagov__check-cve-2019-19781-10': {
-        'category': 'unreliable-live-service-dependency',
-        'reason': 'The valid timeout and retry verifier cases call github.com directly rather than using a local HTTP fixture. Their outcome depends on live DNS/network/service behavior, so verification is unreliable on our cluster. Archived as unreliable; original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
-}
-ARCHIVED_TASKS.update({'Azure__azure-cli-3409': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1030': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1040': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1095': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1211': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1229': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1269': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1308': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1404': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1415': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1417': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'burnash__gspread-1498': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Inherited cluster proxy changes the HTTP request host and prevents '
-                                     'matching the recorded HTTP responses used by verification. Archived at '
-                                     'user request because verification is unreliable under our proxy '
-                                     'environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'cdent__gabbi-186': {'category': 'proxy-sensitive-verification',
-                      'reason': 'HTTP interception tests reject inherited proxy environment variables; '
-                                'wsgi-intercept explicitly requires them to be unset. Archived at user '
-                                'request because verification is unreliable under our proxy environment. '
-                                'This does not establish that the test requires live external network '
-                                'access. Original task payload preserved. Evidence: '
-                                'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'cdent__gabbi-191': {'category': 'proxy-sensitive-verification',
-                      'reason': 'HTTP interception tests reject inherited proxy environment variables; '
-                                'wsgi-intercept explicitly requires them to be unset. Archived at user '
-                                'request because verification is unreliable under our proxy environment. '
-                                'This does not establish that the test requires live external network '
-                                'access. Original task payload preserved. Evidence: '
-                                'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'cdent__wsgi-intercept-47': {'category': 'proxy-sensitive-verification',
-                              'reason': 'HTTP interception tests reject inherited proxy environment '
-                                        'variables; wsgi-intercept explicitly requires them to be unset. '
-                                        'Archived at user request because verification is unreliable under '
-                                        'our proxy environment. This does not establish that the test '
-                                        'requires live external network access. Original task payload '
-                                        'preserved. Evidence: '
-                                        'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'desihub__desitransfer-5': {'category': 'proxy-sensitive-verification',
-                             'reason': 'Case-insensitive environment parsing fails because inherited '
-                                       'NO_PROXY/no_proxy settings produce duplicate configuration keys. '
-                                       'Archived at user request because verification is unreliable under '
-                                       'our proxy environment. This does not establish that the test '
-                                       'requires live external network access. Original task payload '
-                                       'preserved. Evidence: '
-                                       'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'getsentry__sentry-python-2009': {'category': 'proxy-sensitive-verification',
-                                   'reason': 'Proxy configuration assertions observe the inherited cluster '
-                                             'proxy instead of the test-controlled configuration. Archived '
-                                             'at user request because verification is unreliable under our '
-                                             'proxy environment. This does not establish that the test '
-                                             'requires live external network access. Original task payload '
-                                             'preserved. Evidence: '
-                                             'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'getsentry__sentry-python-3351': {'category': 'proxy-sensitive-verification',
-                                   'reason': 'Proxy configuration assertions observe the inherited cluster '
-                                             'proxy instead of the test-controlled configuration. Archived '
-                                             'at user request because verification is unreliable under our '
-                                             'proxy environment. This does not establish that the test '
-                                             'requires live external network access. Original task payload '
-                                             'preserved. Evidence: '
-                                             'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'lundberg__respx-60': {'category': 'proxy-sensitive-verification',
-                        'reason': 'Verification reaches the inherited HTTP proxy and receives HTTP 503 '
-                                  'instead of the expected mocked transport response. Archived at user '
-                                  'request because verification is unreliable under our proxy environment. '
-                                  'This does not establish that the test requires live external network '
-                                  'access. Original task payload preserved. Evidence: '
-                                  'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'pdm-project__pdm-3255': {'category': 'proxy-sensitive-verification',
-                           'reason': 'The inherited cluster proxy overrides the localhost proxy selected by '
-                                     'the test. Archived at user request because verification is unreliable '
-                                     'under our proxy environment. This does not establish that the test '
-                                     'requires live external network access. Original task payload '
-                                     'preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'radiasoft__pykern-107': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Case-insensitive environment parsing fails because inherited '
-                                     'NO_PROXY/no_proxy settings produce duplicate configuration keys. '
-                                     'Archived at user request because verification is unreliable under our '
-                                     'proxy environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                                     'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'},
- 'radiasoft__pykern-259': {'category': 'proxy-sensitive-verification',
-                           'reason': 'Case-insensitive environment parsing fails because inherited '
-                                     'NO_PROXY/no_proxy settings produce duplicate configuration keys. '
-                                     'Archived at user request because verification is unreliable under our '
-                                     'proxy environment. This does not establish that the test requires live '
-                                     'external network access. Original task payload preserved. Evidence: '
-                            'https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-failure-triage-20261009.json.'}})
-ARCHIVED_TASKS.update({
-    'Yelp__bravado-410': {
-        'category': 'proxy-sensitive-verification',
-        'reason': 'The verifier uses local HTTP mocks, but the fresh reference rerun received HTTP 503 responses from the inherited cluster proxy for the HTTP-client tests, including test_real_post. Reference reward remained 0.0; the no-op also scored 0.0 as expected. Archived because the proxy prevents reliable mock verification in this environment, not because the task intentionally requires a live service. Original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json and the reference42-v66-0 stage 4 report.'},
-    'takeontom__PyPeri-8': {
-        'category': 'incompatible-verifier-dependency',
-        'reason': 'The verifier uses HTTP mocks, but its pinned HTTPretty 1.1.4 test adapter raises AttributeError because HTTPrettyRequest has no headers attribute in the pinned Python environment. The reference scored 0.0 while the no-op scored 0.0, so the required reference/no-op distinction is not established. Archived as an incompatible verifier dependency; this is not classified as a live-service failure. A fresh Stage 4/5 retry already in progress is retained as diagnostic evidence only. Original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json and the reference42-v66-2 stage 4 report.'},
-    'PyPSA__linopy-77': {
-        'category': 'unsupported-expired-proprietary-license',
-        'reason': 'The reference verifier exercises Xpress solver cases, but the available Xpress license expired on 2026-02-28. The required proprietary solver cases cannot be validated on our infrastructure without a renewed license. Archived with the original task payload preserved. Evidence: https://github.com/MLI-lab/OT-next-data/blob/33c7a1648a5eca45310eb4515f11e14f363fabb2/data/swelego/pilot-results/swelego-reference-stage4-remaining-20261009.json.'},
-    'airbrake__pybrake-77': {
-        'category': 'unreliable-live-service-verification',
-        'reason': 'The verifier calls the default Airbrake endpoint and an intentionally invalid external host without HTTP mocks. The unauthorized test received a non-JSON response and raised JSONDecodeError; the invalid-host test also failed instead of observing the expected DNS URLError. The reference scored 0.0 and no-op scored 0.0. These tests depend on live network/proxy behavior, so archive the original payload as unreliable on our cluster.'},
-})
+# Build-discovered exclusion: the pinned source repository cannot be fetched.
+BUILD_EXCLUSIONS = {'peopledoc__vault-cli-140': {'category': 'build-execution-error', 'reason': 'The source repository https://github.com/peopledoc/vault-cli is no longer available (git fetch: repository not found), so the task cannot be set up (same result in all 4 attempts)'}}
+
+
+def record_patcher_dependencies(manifest_path):
+    """Snapshot datasource helpers beside the patcher for publication provenance."""
+    manifest_path = Path(manifest_path)
+    dependencies = []
+    for name in ('repairs.py', 'runtime_inputs.py', 'verifier_runtime.py',
+                 'source_cache.py', 'submodule_cache.py', 'editable_sources.py',
+                 'setup_assets.py', 'subject_imports.py', 'runtime_measurements.py'):
+        content = Path(__file__).with_name(name).read_bytes()
+        target = manifest_path.parent / name
+        if target.exists() and target.read_bytes() != content:
+            raise ValueError('Conflicting patcher dependency snapshot: ' + name)
+        target.write_bytes(content)
+        dependencies.append({'path': name, 'sha256': hashlib.sha256(content).hexdigest()})
+    manifest = json.loads(manifest_path.read_text())
+    manifest['patcher_dependencies'] = dependencies
+    manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
 SOURCE_MIRRORS = {
     'NREL/hescore-hpxml': 'https://github.com/rubythonode/hescore-hpxml.git',
     'cuenca-mx/cuenca-python': 'https://github.com/ricardo8990/cuenca-python.git',
@@ -387,7 +127,9 @@ def load_recipes(metadata, cache):
         name = f'data/resolved-{index:05d}-of-00003.parquet'
         path = Path(hf_hub_download(DATASET, name, repo_type='dataset', revision=REVISION,
                                     cache_dir=str(cache)))
-        for batch in pq.ParquetFile(path).iter_batches(columns=METADATA_COLUMNS):
+        parquet = pq.ParquetFile(path)
+        columns = METADATA_COLUMNS + (['allow_internet'] if 'allow_internet' in parquet.schema_arrow.names else [])
+        for batch in parquet.iter_batches(columns=columns):
             for row in batch.to_pylist():
                 if row['instance_id'] in recipes:
                     raise ValueError('Duplicate upstream task: ' + row['instance_id'])
@@ -447,7 +189,7 @@ def local_resolution(row, line):
     return None
 
 
-def dependencies(row, specs):
+def dependencies(row, specs, *, apply_repairs=True):
     """Retain frozen pip pins; conda restores nonportable file:// packages."""
     conda = {canonical(s.split('=')[0]): s.split('=')[1] for s in specs}
     aliases = {'msgpack': ('msgpack-python',), 'esmf-regrid': ('iris-esmf-regrid',),
@@ -529,6 +271,8 @@ def dependencies(row, specs):
                   'hatch-jupyter-builder==0.9.1', 'editables==0.5']
     backend = build_backends().get(row.get('instance_id'))
     if backend:
+        if not apply_repairs:
+            backend = repairs.baseline_backend(row.get('instance_id'), backend)
         if backend['base_commit'] != row['base_commit']:
             raise ValueError('Build backend source commit mismatch')
         recorded = dict(conda)
@@ -541,28 +285,24 @@ def dependencies(row, specs):
             if recorded.get(canonical(name), version) != version:
                 raise ValueError('Build dependency conflicts with frozen runtime: ' + requirement)
         lines += backend['install']
-    repair = environment_repair(row)
-    for old, new in repair.get('runtime_replacements', {}).items():
-        if lines.count(old) != 1:
-            raise ValueError('Runtime repair requires exactly one original pin: ' + old)
-        lines[lines.index(old)] = new
-    lines += repair.get('test_dependencies', [])
+    if apply_repairs:
+        lines = repairs.dependency_pins(lines, row)
     return '\n'.join(lines) + '\n'
 
 
-@lru_cache(maxsize=1)
-def environment_repairs():
-    document = json.loads((HERE / 'environment-repairs.json').read_text())
-    if document['source_revision'] != REVISION:
-        raise ValueError('Wrong environment repair source revision')
-    return document['tasks']
+environment_repairs = repairs.environment_repairs
 
 
-def environment_repair(row):
-    repair = environment_repairs().get(row.get('instance_id'), {})
-    if repair and repair['base_commit'] != row['base_commit']:
-        raise ValueError('Environment repair source commit mismatch')
-    return repair
+def environment_repair(row, *, apply_repairs=True):
+    value = repairs.environment_repair(row)
+    if apply_repairs or not value:
+        return value
+    # Pip could not install dependencies with a directory in place of METADATA.
+    # This is build-discovered; the later git-history fix stays in repairs.
+    if value.get('remove_directory_metadata'):
+        return {'base_commit': value['base_commit'],
+                'remove_directory_metadata': value['remove_directory_metadata']}
+    return {}
 
 
 @lru_cache(maxsize=1)
@@ -595,7 +335,7 @@ def wheel_batches(pins):
     return batches
 
 
-def select_image(row, lock):
+def select_image(row, lock, *, apply_repairs=True):
     """Promote measured expensive environments; keep the default shared image."""
     python, specs = environment(row)
     key = hashlib.sha256('\n'.join(specs).encode()).hexdigest()
@@ -607,7 +347,7 @@ def select_image(row, lock):
         selected['environments'] = {**lock['environments'], python: specs}
         selected['_omit_wheels'] = True
         identity += ':conda-' + key[:12]
-    requirements = set(dependencies(row, specs).splitlines())
+    requirements = set(dependencies(row, specs, apply_repairs=apply_repairs).splitlines())
     profiles = [(name, profile) for name, profile in lock.get('pip_layers', {}).items()
                 if python == profile['python'] and set(profile['requires']).issubset(requirements)]
     for name, profile in profiles:
@@ -639,38 +379,8 @@ def select_image(row, lock):
             raise ValueError('Compiled checkout commit mismatch')
         selected['_compiled'] = True
         identity += ':compiled-' + row['base_commit'][:12]
-    direct_http = {
-        'cuenca-mx/cuenca-python': 'api.cuenca.com,sandbox.cuenca.com',
-        'edgi-govdata-archiving/wayback': 'web.archive.org',
-        'conan-io/conan': 'localhost,127.0.0.1,::1',
-    }
-    if row['repo'] in direct_http:
-        # Preserve recorded request hosts and access local test servers directly.
-        selected['_no_proxy'] = direct_http[row['repo']]
-        identity += ':recorded-http'
-    if row.get('instance_id') == 'modin-project__modin-1842':
-        # Ray 0.8 reads host resources rather than the task's cgroup limits.
-        selected['_runtime_env'] = {'MODIN_CPUS': '4', 'MODIN_MEMORY': '536870912'}
-        identity += ':bounded-ray'
-    resource_fix = TASK_RESOURCE_FIXES.get(row.get('instance_id'), {})
-    if resource_fix.get('runtime_env'):
-        # Reviewed per-task runtime bounds for libraries that size themselves from the host.
-        selected['_runtime_env'] = {**selected.get('_runtime_env', {}), **resource_fix['runtime_env']}
-        identity += ':' + resource_fix['label']
-    if resource_fix.get('no_proxy'):
-        # Recorded or mocked hosts must keep their original URI through the verifier.
-        hosts = [h for h in selected.get('_no_proxy', '').split(',') if h] + [resource_fix['no_proxy']]
-        selected['_no_proxy'] = ','.join(hosts)
-        identity += ':' + resource_fix['label']
-    if resource_fix.get('runtime_unset'):
-        selected['_runtime_unset'] = sorted(set(selected.get('_runtime_unset', [])) | set(resource_fix['runtime_unset']))
-        identity += ':' + resource_fix['label']
-    if row.get('instance_id') == 'conan-io__conan-5005':
-        # This historical Conan requester copies HTTP proxies into explicit
-        # request arguments, bypassing NO_PROXY for its local HTTP server.
-        # HTTPS downloads used by setup retain their configured proxy.
-        selected['_runtime_unset'] = ['HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy']
-        identity += ':local-http'
+    if apply_repairs:
+        return repairs.image_options(selected, identity, row)
     return selected, identity
 
 
@@ -784,7 +494,7 @@ def explicit_conda(specs):
                                    for spec in specs)
 
 
-def task_setup(row, specs, lock):
+def task_setup(row, specs, lock, *, apply_repairs=True):
     python, _ = environment(row)
     config = row['install_config']
     install = config.get('install') or 'true'
@@ -860,7 +570,7 @@ def task_setup(row, specs, lock):
                                   'chaostoolkit__chaostoolkit-lib-89'}:
         # pyhcl imports ply while building its wheel, before pip installs the
         # rest of the requirements. Install the recorded ply pin first.
-        ply = [line for line in dependencies(row, specs).splitlines()
+        ply = [line for line in dependencies(row, specs, apply_repairs=apply_repairs).splitlines()
                if line.startswith('ply==')]
         if len(ply) != 1:
             raise ValueError('Missing frozen ply build dependency')
@@ -906,6 +616,8 @@ def task_setup(row, specs, lock):
         # commits, so it has real history rather than a shallow-checkout warning.
         depth = '2147483647'
     history = lock.get('checkout_tags', {}).get(row.get('instance_id'))
+    if not apply_repairs and row.get('instance_id') in environment_repairs():
+        history = None
     if history:
         if row['base_commit'] != history['base_commit']:
             raise ValueError('Historical version tag commit mismatch')
@@ -938,7 +650,7 @@ def task_setup(row, specs, lock):
         release = 'b7a97ebb8590750e7c5c82f5ce7b1f5ad2ebd6df'
         version_tag = ('git merge-base --is-ancestor ' + release + ' HEAD\n'
                        'git tag -f 0.16.8 ' + release)
-    repair = environment_repair(row)
+    repair = environment_repair(row, apply_repairs=apply_repairs)
     if repair.get('remove_directory_metadata'):
         metadata = PurePosixPath(repair['remove_directory_metadata'])
         if metadata.is_absolute() or '..' in metadata.parts:
@@ -948,24 +660,18 @@ def task_setup(row, specs, lock):
             'metadata_path="$site_packages/' + str(metadata) + '"\n'
             'if [ -d "$metadata_path" ] && [ ! -L "$metadata_path" ]; then '
             'rm -rf -- "$metadata_path"; fi')
-    if repair.get('full_history'):
-        depth = '2147483647'
-    if repair.get('leap_second_table'):
-        install += ('\npython -c ' + shlex.quote(
-            'import astropy_iers_data, shutil; '
-            'shutil.copyfile("/setup_files/Leap_Second.dat", astropy_iers_data.IERS_LEAP_SECOND_FILE)'))
-    if repair.get('branch'):
-        version_tag += '\ngit checkout -B ' + shlex.quote(repair['branch']) + ' ' + shlex.quote(row['base_commit'])
+    if apply_repairs:
+        depth, install, version_tag = repairs.setup_parts(repair, row, depth, install, version_tag)
     identity = hashlib.sha256(json.dumps(row, sort_keys=True).encode()).hexdigest()
     cache_pins = set(image_wheels(python, lock))
     pip_cache = ''
     if any(line.startswith('torch==') and '+cpu' in line
-           for line in dependencies(row, specs).splitlines()):
+           for line in dependencies(row, specs, apply_repairs=apply_repairs).splitlines()):
         # The recorded CPU build is published on PyTorch's own wheel index.
         pip_cache = ' --extra-index-url https://download.pytorch.org/whl/cpu'
     if cache_pins:
         pip_cache += ' --find-links /opt/swelego-wheels'
-        if set(dependencies(row, specs).splitlines()).issubset(cache_pins):
+        if set(dependencies(row, specs, apply_repairs=apply_repairs).splitlines()).issubset(cache_pins):
             pip_cache += ' --no-index'
     template = (HERE / 'setup.sh').read_text()
     prepared = ''
@@ -990,7 +696,37 @@ def task_setup(row, specs, lock):
             .replace('@INSTALL@', install))
 
 
-def patch_files(files, row, lock):
+def offline_default(task_toml):
+    """Every task starts offline; online exceptions require later audit evidence."""
+    import tomllib
+    online = False
+    text = task_toml.decode()
+    environment = tomllib.loads(text).get('environment', {})
+    sections = list(re.finditer(r'(?m)^\[environment\][ \t]*(?:#.*)?$', text))
+    value = 'true' if online else 'false'
+    if len(sections) == 1:
+        start = sections[0].end()
+        following = re.search(r'(?m)^\[', text[start:])
+        end = start + following.start() if following else len(text)
+        body = text[start:end]
+        if 'allow_internet' in environment:
+            body, count = re.subn(r'(?m)^(allow_internet\s*=\s*)(?:true|false)([ \t]*(?:#.*)?)$',
+                                 lambda match: match[1] + value + match[2], body)
+            if count != 1:
+                raise ValueError('Review nonstandard allow_internet TOML')
+        else:
+            body = '\nallow_internet = ' + value + body
+        text = text[:start] + body + text[end:]
+    elif not environment and not sections:
+        text = text.rstrip() + '\n\n[environment]\nallow_internet = ' + value + '\n'
+    else:
+        raise ValueError('Review nonstandard environment TOML before setting offline policy')
+    if tomllib.loads(text)['environment']['allow_internet'] is not online:
+        raise ValueError('Network policy was not applied')
+    return text.encode()
+
+
+def patch_files(files, row, lock, *, apply_repairs=True):
     if lock['source_revision'] != REVISION:
         raise ValueError('Wrong base environment source revision')
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', row['repo']):
@@ -1007,31 +743,23 @@ def patch_files(files, row, lock):
     if ('base=' + row['base_commit'] + '\n').encode() not in files['tests/test.sh']:
         raise ValueError('Task base commit and upstream metadata do not match')
     python, specs = environment(row)
-    lock, image_identity = select_image(row, lock)
+    lock, image_identity = select_image(row, lock, apply_repairs=apply_repairs)
     updated = dict(files)
-    resource_fix = TASK_RESOURCE_FIXES.get(row.get('instance_id'))
-    if resource_fix and 'memory_mb' in resource_fix:
-        if 'task.toml' not in updated:
-            raise ValueError('Task resource fix requires task.toml')
-        task_toml = updated['task.toml'].decode()
-        memory_pattern = re.compile(r'(?m)^(memory_mb\s*=\s*)\d+(\s*(?:#.*)?)$')
-        task_toml, replacements = memory_pattern.subn(
-            lambda match: match.group(1) + str(resource_fix['memory_mb']) + match.group(2), task_toml)
-        if replacements != 1:
-            raise ValueError('Task resource fix requires exactly one memory_mb in task.toml')
-        updated['task.toml'] = task_toml.encode()
+    updated['task.toml'] = offline_default(updated['task.toml'])
+    if apply_repairs:
+        updated = repairs.resource_config(updated, row)
     updated['environment/Dockerfile'] = dockerfile(python, lock).encode()
     base_explicit = explicit_conda(sorted(lock['environments'][python]))
     if base_explicit:
         updated['environment/base-conda.txt'] = base_explicit.encode()
-    updated['setup_files/requirements.txt'] = dependencies(row, specs).encode()
+    updated['setup_files/requirements.txt'] = dependencies(row, specs, apply_repairs=apply_repairs).encode()
     explicit = explicit_conda(specs)
     if explicit is not None:
         updated['setup_files/conda-explicit.txt'] = explicit.encode()
-    updated['setup_files/setup.sh'] = task_setup(row, specs, lock).encode()
-    if environment_repair(row).get('leap_second_table'):
+    updated['setup_files/setup.sh'] = task_setup(row, specs, lock, apply_repairs=apply_repairs).encode()
+    if environment_repair(row, apply_repairs=apply_repairs).get('leap_second_table'):
         table = (HERE / 'Leap_Second.dat').read_bytes()
-        if hashlib.sha256(table).hexdigest() != environment_repair(row)['leap_second_table']['sha256']:
+        if hashlib.sha256(table).hexdigest() != environment_repair(row, apply_repairs=apply_repairs)['leap_second_table']['sha256']:
             raise ValueError('Leap-second table checksum mismatch')
         updated['setup_files/Leap_Second.dat'] = table
     if lock.get('_compiled'):
@@ -1052,8 +780,9 @@ def patch_files(files, row, lock):
         updated['setup_files/data-manifest.json'] = json.dumps(data_manifest['manifest'], indent=2).encode()
     updated['setup_files/swelego.json'] = json.dumps({
         'version': MARKER, 'revision': REVISION, 'repo': row['repo'],
+        **({'upstream_allow_internet': row['allow_internet']} if 'allow_internet' in row else {}),
         'base_commit': row['base_commit'], 'original_image': row['image_name'],
-        **({'environment_repair': environment_repair(row)} if environment_repair(row) else {}),
+        **({'environment_repair': environment_repair(row, apply_repairs=apply_repairs)} if environment_repair(row, apply_repairs=apply_repairs) else {}),
         **({'checkout_mirror': SOURCE_MIRRORS[row['repo']]} if row['repo'] in SOURCE_MIRRORS else {}),
         'python': python, 'conda_specs': specs, 'explicit_conda': explicit is not None,
         'image_profile': image_identity, 'compiled_checkout': bool(lock.get('_compiled')),
@@ -1084,78 +813,16 @@ def patch_files(files, row, lock):
     if not solve.startswith('#!/bin/bash\nset -e\n'):
         raise ValueError('Unknown solution entrypoint')
     updated['solution/solve.sh'] = solve.replace('set -e\n', 'set -e\nbash /setup_files/setup.sh\n', 1).encode()
-    test = files['tests/test.sh'].decode()
-    test = test.replace('mkdir -p /logs/verifier\n', 'mkdir -p /logs/verifier\n'
-                        'bash /setup_files/setup.sh || exit $?\n'
-                        'cp /setup_files/setup-timing.json /logs/verifier/setup-timing.json\n', 1)
-    if row.get('instance_id') == 'F5Networks__f5-common-python-967':
-        entry = 'bash /tests/eval.sh | tee /logs/verifier/test-output.txt'
-        if test.count(entry) != 1:
-            raise ValueError('Unknown F5 verifier entrypoint')
-        updated['tests/f5_test_imports.py'] = (HERE / 'f5_test_imports.py').read_bytes()
-        test = test.replace(entry, 'python /tests/f5_test_imports.py || exit $?\n' + entry)
-    verifier_fix = VERIFIER_FIXES.get(row.get('instance_id'))
-    if verifier_fix:
-        if row['base_commit'] != verifier_fix['commit']:
-            raise ValueError('Verifier fix task commit mismatch')
-        entry = 'bash /tests/eval.sh | tee /logs/verifier/test-output.txt'
-        if test.count(entry) != 1:
-            raise ValueError('Unknown verifier fix entrypoint')
-        if row['instance_id'] == 'msgpack__msgpack-python-388':
-            test = test.replace(entry, 'MSGPACK_PUREPYTHON=1 ' + entry)
-        elif verifier_fix.get('unset_env'):
-            test = test.replace(entry, 'env ' + ' '.join('-u ' + name for name in verifier_fix['unset_env']) + ' ' + entry)
-        elif row['instance_id'] == 'mtgjson__mtgjson-469':
-            evaluate = files['tests/eval.sh'].decode()
-            if evaluate.count(' PYTHONPATH=. pytest ') != 1:
-                raise ValueError('Unknown mtgjson verifier command')
-            updated['tests/eval.sh'] = evaluate.replace(
-                ' PYTHONPATH=. pytest ', ' PYTHONPATH=.${PYTHONPATH:+:$PYTHONPATH} pytest ').encode()
-        else:
-            updated['tests/swelego_sdss_clock.py'] = (HERE / 'sdss_verifier_clock.py').read_bytes()
-            test = test.replace(entry,
-                                'export PYTHONPATH=/tests${PYTHONPATH:+:$PYTHONPATH}\n'
-                                'export PYTEST_PLUGINS=swelego_sdss_clock${PYTEST_PLUGINS:+,$PYTEST_PLUGINS}\n'
-                                + entry)
-    repair = environment_repair(row)
-    if repair.get('verifier_script'):
-        script = repair['verifier_script']
-        if not re.fullmatch(r'[A-Za-z0-9_.-]+\.py', script):
-            raise ValueError('Invalid verifier repair script name')
-        entry = 'bash /tests/eval.sh | tee /logs/verifier/test-output.txt'
-        if test.count(entry) != 1:
-            raise ValueError('Unknown verifier script repair entrypoint')
-        updated['tests/' + script] = (HERE / script).read_bytes()
-        test = test.replace(entry, 'python /tests/' + script
-                            + ' /testbed/tests/test_affinity.py || exit $?\n' + entry)
-    if repair.get('pytest_workers'):
-        entry = ' pytest '
-        evaluate = files['tests/eval.sh'].decode()
-        if evaluate.count(entry) != 1:
-            raise ValueError('Unknown parallel verifier command')
-        # An explicit -n on the command line overrides the repository's addopts.
-        evaluate = evaluate.replace(entry, ' pytest -n ' + str(repair['pytest_workers']) + ' ')
-        updated['tests/eval.sh'] = evaluate.encode()
-        test = test.replace('bash /tests/eval.sh | tee',
-                            'OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 '
-                            'NUMEXPR_NUM_THREADS=1 bash /tests/eval.sh | tee')
-    if repair.get('pytest_plugin'):
-        plugin = repair['pytest_plugin']
-        entry = 'bash /tests/eval.sh | tee /logs/verifier/test-output.txt'
-        if test.count(entry) != 1:
-            raise ValueError('Unknown environment repair verifier entrypoint')
-        updated['tests/' + plugin + '.py'] = (HERE / (plugin + '.py')).read_bytes()
-        test = test.replace(entry,
-                            'export PYTHONPATH=/tests${PYTHONPATH:+:$PYTHONPATH}\n'
-                            'export PYTEST_PLUGINS=' + plugin + '${PYTEST_PLUGINS:+,$PYTEST_PLUGINS}\n' + entry)
-    updated['tests/test.sh'] = test.encode()
+    if apply_repairs:
+        updated = repairs.verifier_files(updated, files, row)
     updated['instruction.md'] = files['instruction.md'].rstrip() + (
-        '\n\nThe repository is at `/testbed`. Before working, run `bash /setup_files/setup.sh`. '
-        'It initializes the task once; later calls preserve your changes.\n').encode()
+        '\n\nThe repository is at `/testbed`.\n').encode()
+    if apply_repairs:
+        updated = repairs.instruction_suffix(updated)
     return updated
 
 
-def patch_blob(blob, row, lock):
+def patch_blob(blob, row, lock, *, apply_repairs=True):
     with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
         files = {}
         for member in archive:
@@ -1166,7 +833,7 @@ def patch_blob(blob, row, lock):
                 if str(name) in files:
                     raise ValueError('Duplicate task archive member')
                 files[str(name)] = archive.extractfile(member).read()
-    updated = patch_files(files, row, lock)
+    updated = patch_files(files, row, lock, apply_repairs=apply_repairs)
     result = io.BytesIO()
     with tarfile.open(fileobj=result, mode='w') as archive:
         for name, data in sorted(updated.items()):
@@ -1380,32 +1047,112 @@ def prepared_verifier_files(files, spec, catalog, *, observation, image_bundle):
             or spec.get('image_python') != expected_image or not spec.get('install_no_deps')
             or len(pins) != len(tools) or spec['requirements'] != sorted(pins)):
         raise ValueError('Runtime differs from measured interpreter or original grading tools')
+    return _prepared_verifier_files(files, spec, catalog, python_version=python_version,
+                                    prefix=prefix, plugins=plugins)
+
+
+def _prepared_verifier_files(files, spec, catalog, *, python_version, prefix, plugins):
+    from data.utils.verifier_runtime import runtime_reference, preparation_command
     if any(name in files for name in ('tests/setup.sh', 'tests/ot-verifier-runtime.json',
                                      'tests/ot_run_pytest.py', 'tests/ot_swelego_paths.py')):
         raise ValueError('Existing verifier runtime requires composition review')
     if hashlib.sha256(files['tests/grade.py']).hexdigest() != 'fede48517f440983dc8d0c5dc15be848097f749a21150b2265480d48c3f42264':
         raise ValueError('Unreviewed grader')
-    pytest_command = b'LANG=C.UTF-8 LC_ALL=C.UTF-8 pytest '
+    pytest_prefix = b'LANG=C.UTF-8 LC_ALL=C.UTF-8 '
+    pytest_variants = [b'pytest ', b'python -m pytest ', b'python3 -m pytest ',
+                       b'python -u -m pytest ',
+                       b'PYTHONPATH=.${PYTHONPATH:+:$PYTHONPATH} pytest ',
+                       b'ROS_PYTHON_VERSION=3 pytest ']
+    matches = [pytest_prefix + variant for variant in pytest_variants
+               if pytest_prefix + variant in files['tests/eval.sh']]
     grade_command = b'python /tests/grade.py '
-    if files['tests/eval.sh'].count(pytest_command) != 1 or files['tests/test.sh'].count(grade_command) != 1:
+    if (len(matches) != 1 or files['tests/eval.sh'].count(matches[0]) != 1
+            or files['tests/test.sh'].count(grade_command) != 1):
         raise ValueError('Unreviewed grading entrypoints')
+    pytest_command = matches[0]
     result = dict(files)
+    result['task.toml'] = offline_default(result['task.toml'])
+    # Release tasks predate the clean runtime and can still bootstrap setup or
+    # source Conda's agent-writable activation scripts. Remove those entrypoints
+    # before handing grading to the freshly staged interpreter.
+    test_script = files['tests/test.sh'].decode()
+    for line in (
+        'bash /setup_files/setup.sh || exit $?\n',
+        'cp /setup_files/setup-timing.json /logs/verifier/setup-timing.json\n',
+        'export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/bin:/opt/conda/envs/testbed/bin:/opt/conda/bin:$PATH\n',
+    ):
+        test_script = test_script.replace(line, '')
+    evaluation = files['tests/eval.sh'].decode()
+    activation = (
+        'set +u\n'
+        'if [ -f /opt/miniconda3/bin/activate ]; then source /opt/miniconda3/bin/activate; '
+        'elif [ -f /opt/conda/bin/activate ]; then source /opt/conda/bin/activate; fi\n'
+        'conda activate testbed 2>/dev/null || true\nset -u\n'
+    )
+    evaluation = evaluation.replace(activation, '')
+    if any('/setup_files' in script or 'activate' in script
+           for script in (test_script, evaluation)):
+        raise ValueError('Unreviewed agent-side grading bootstrap')
+    for helper, checksum in (
+        ('f5_test_imports.py', 'c0aa2d64eae38c24f14029b6bebf2b449ffcd4ae971a3dcec06028635ac41b79'),
+        ('swelego_rpyc_affinity.py', '449cbf3140876bd1ffebc4cab7439d97e7ec161c84334d8434e7493ac7aa2d2b'),
+    ):
+        command = 'python /tests/' + helper
+        if command in test_script:
+            if hashlib.sha256(files['tests/' + helper]).hexdigest() != checksum:
+                raise ValueError('Unreviewed verifier helper: ' + helper)
+            test_script = test_script.replace(command, '"$OT_VERIFIER_PYTHON" -I -S /tests/' + helper)
+    if 'instruction.md' in files:
+        result['instruction.md'] = files['instruction.md'].replace(
+            b' Before working, run `bash /setup_files/setup.sh`. '
+            b'It initializes the task once; later calls preserve your changes.', b'')
     # `-I -m pytest` is the form the stage-3 execution recorder sees. The -p
     # plugin keeps the earlier wrapper's order: grading plugins are imported
     # from the clean runtime first, then the task paths are appended.
-    result['tests/eval.sh'] = files['tests/eval.sh'].replace(
-        pytest_command, b'LANG=C.UTF-8 LC_ALL=C.UTF-8 ' + VERIFIER_VENV.encode()
-        + b'/bin/python -I -m pytest -p ot_swelego_paths ')
-    result['tests/test.sh'] = files['tests/test.sh'].replace(
+    environment = b''
+    for assignment in (b'PYTHONPATH=.${PYTHONPATH:+:$PYTHONPATH} ', b'ROS_PYTHON_VERSION=3 '):
+        if assignment in pytest_command:
+            environment = assignment
+    flags = b'-I -u' if b'python -u' in pytest_command else b'-I'
+    result['tests/eval.sh'] = evaluation.encode().replace(
+        pytest_command, pytest_prefix + environment + VERIFIER_VENV.encode()
+        + b'/bin/python ' + flags + b' -m pytest -p ot_swelego_paths ')
+    result['tests/test.sh'] = test_script.encode().replace(
         grade_command, b'"$OT_VERIFIER_PYTHON" -I -S /tests/grade.py ')
+    for script in ('tests/test.sh', 'tests/eval.sh'):
+        if re.search(rb'(?:^|[;&|]\s*|\$\()\s*(?:python[0-9.]*|pytest)(?=\s|$)', result[script], re.M):
+            raise ValueError('Unreviewed container interpreter in verifier: ' + script)
+    from data.swelego.subject_imports import reviewed as reviewed_subject, bootstrap as subject_bootstrap
+    subject_import = reviewed_subject(json.loads(files['setup_files/swelego.json']))
+    if subject_import:
+        result['tests/ot-subject-import.json'] = (json.dumps(subject_import, indent=2) + '\n').encode()
+        result['tests/ot_swelego_subject.py'] = ('import sys\n' + subject_bootstrap(subject_import)).encode()
     result['tests/ot_swelego_paths.py'] = (
-        'import sys\nimport pytest\n' + ''.join('import ' + plugin + '\n' for plugin in plugins) +
-        'for path in ' + json.dumps(['/testbed', prefix + '/lib/python' + '.'.join(python_version.split('.')[:2]) + '/site-packages']) + ':\n'
-        '    if path not in sys.path: sys.path.append(path)\n').encode()
+        'import sys\nimport pytest\n'
+        + ('import ot_swelego_subject\n' if subject_import else '')
+        + '# Observed plugin modules: ' + json.dumps(plugins) + '\n'
+        'def pytest_addoption(parser, pluginmanager):\n'
+        '    # Discover grading plugins before exposing agent-writable package metadata.\n'
+        '    # Let pytest honor original -p no:NAME options before importing plugins.\n'
+        '    pluginmanager.load_setuptools_entrypoints("pytest11")\n'
+        '    original = pluginmanager.load_setuptools_entrypoints\n'
+        '    def clean_entrypoints(group, name=None):\n'
+        '        if group == "pytest11": return 0\n'
+        '        return original(group, name)\n'
+        '    pluginmanager.load_setuptools_entrypoints = clean_entrypoints\n'
+        '    for path in ' + json.dumps(['/testbed', '/testbed/src', '/tests', prefix + '/lib/python' + '.'.join(python_version.split('.')[:2]) + '/site-packages']) + ':\n'
+        '        if path not in sys.path: sys.path.append(path)\n').encode()
     result.update(runtime_reference(spec, catalog))
     result['tests/setup.sh'] = ('#!/bin/bash\nset -euo pipefail\n' +
         preparation_command(spec, phase='verifier') +
         '\n: "${OT_VERIFIER_PYTHON:?trusted controller runtime required}"\n' + VERIFIER_VENV_SETUP).encode()
+    if subject_import:
+        # A private .pth hook also covers pytester/execnet subprocesses that do
+        # not inherit the outer pytest command's explicit -p argument. It does
+        # not replace the clean runtime's own sitecustomize/recorder hooks.
+        result['tests/setup.sh'] += (
+            'cp /tests/ot_swelego_subject.py "$ot_site/ot_swelego_subject.py"\n'
+            'printf "%s\\n" "import ot_swelego_subject" > "$ot_site/ot_swelego_subject.pth"\n').encode()
     return result
 
 
@@ -1419,7 +1166,40 @@ VERIFIER_VENV_SETUP = (
     'cp /tests/ot_swelego_paths.py "$ot_site/ot_swelego_paths.py"\n')
 
 
-def prepare_runtime_candidates(source, output, selections, catalog, source_revision):
+def prepared_compiled_setup(files, *, observation):
+    """Expose preparation for images that already contain all task inputs."""
+    if (not json.loads(files['setup_files/swelego.json']).get('compiled_checkout')
+            or observation.get('returncode') != 0 or not observation.get('source_bundle_unchanged')
+            or observation.get('source_content_sha256') != files_digest(files.items())
+            or observation.get('dependency_source') != 'already baked in verified compiled task image'
+            or observation.get('task_preparation') != 'no additional dependencies or assets needed; baked checkout archive present'):
+        raise ValueError('Missing evidence for baked task dependencies and checkout assets')
+    setup = files['setup_files/setup.sh'].decode()
+    header = '#!/bin/bash\nset -euo pipefail\n'
+    if not setup.startswith(header) or '--prepare' in setup:
+        raise ValueError('Unreviewed compiled setup entrypoint')
+    if len(re.findall(r'if \[ -f /opt/swelego-ready/[0-9a-f]{64} \]; then', setup)) != 1:
+        raise ValueError('Missing baked checkout restoration')
+    prefix = ('if [ "${1:-}" = "--prepare" ]; then\n'
+              '  printf "%s\\n" "Task dependencies and checkout assets are already in the pinned image; no additional cache is needed."\n'
+              '  exit 0\nfi\n')
+    return {**files, 'setup_files/setup.sh': setup.replace(header, header + prefix, 1).encode()}
+
+
+def prepare_runtime_candidates(source, output, selections, catalog, source_revision,
+                               *, source_assets=None, conda_sources=None,
+                               source_dataset='FWeindel/validated-tasks'):
+    # One node-local spool avoids retaining every task's source archive in RAM
+    # or creating thousands of disposable files on shared storage.
+    import tempfile
+    with tempfile.TemporaryFile(prefix='swelego-candidates-') as spool:
+        return _prepare_runtime_candidates(source, output, selections, catalog, source_revision,
+            source_assets=source_assets, conda_sources=conda_sources, spool=spool,
+            source_dataset=source_dataset)
+
+
+def _prepare_runtime_candidates(source, output, selections, catalog, source_revision,
+                                *, source_assets, conda_sources, spool, source_dataset):
     """Export only measured verifier changes, retaining release membership/history.
 
     Each selection binds a successful setup observation and pristine local image
@@ -1454,7 +1234,15 @@ def prepare_runtime_candidates(source, output, selections, catalog, source_revis
         directory = Path(selection['image_directory'])
         key = (str(directory), json.dumps(bundle, sort_keys=True))
         if key not in verified:
-            validate_bundle(bundle['name'], bundle, directory)
+            if directory.is_file():
+                import tempfile
+                from hpc.offline_prep.image_cache import bundle_directory
+                # Packed caches save shared-storage inodes. Only checksum
+                # validation needs an extraction, one image at a time.
+                with bundle_directory(directory, tempfile.gettempdir()) as unpacked:
+                    validate_bundle(bundle['name'], bundle, unpacked)
+            else:
+                validate_bundle(bundle['name'], bundle, directory)
             verified.add(key)
         files, modes = {}, {}
         with tarfile.open(fileobj=io.BytesIO(row['task_binary'])) as archive:
@@ -1470,8 +1258,28 @@ def prepare_runtime_candidates(source, output, selections, catalog, source_revis
         if files_digest(files.items()) != row['content_sha256']:
             raise ValueError(task + ': source payload digest differs')
         runtime = catalog[selection['runtime_id']]
-        updated = prepared_verifier_files(files, runtime['spec'], catalog,
+        adapt_verifier = prepared_verifier_files
+        if selection['observation'].get('kind') == 'swelego-dependencies-v1':
+            from data.swelego.verifier_runtime import prepared_files as adapt_verifier
+        updated = adapt_verifier(files, runtime['spec'], catalog,
             observation=selection['observation'], image_bundle=bundle)
+        if json.loads(files['setup_files/swelego.json']).get('compiled_checkout'):
+            compiled = prepared_compiled_setup(files, observation=selection['observation'])
+            updated['setup_files/setup.sh'] = compiled['setup_files/setup.sh']
+        if 'task_runtime_id' in selection:
+            from data.swelego import runtime_inputs, source_cache
+            planned = runtime_inputs.plan(files, bundle, source_catalog=conda_sources)
+            task_runtime = catalog[selection['task_runtime_id']]
+            updated = runtime_inputs.prepared_files(updated, planned, task_runtime)
+            recipe = source_cache.recipe(files['setup_files/setup.sh'].decode())
+            source_id = source_cache.spec_id(recipe)
+            if source_assets is None or selection.get('source_asset_id') != source_id:
+                raise ValueError(task + ': missing matching prepared source asset')
+            asset_root = Path(source_assets)
+            source_record = json.loads((asset_root / (source_id + '.json')).read_text())
+            source_archive = asset_root / (source_id + '.tar.gz')
+            source_cache.validate_archive(source_archive)
+            updated = source_cache.prepared_files(updated, recipe, source_record, source_archive.read_bytes())
         packed = io.BytesIO()
         with tarfile.open(fileobj=packed, mode='w') as archive:
             for name, body in sorted(updated.items()):
@@ -1480,7 +1288,9 @@ def prepare_runtime_candidates(source, output, selections, catalog, source_revis
                 member.size = len(body)
                 archive.addfile(member, io.BytesIO(body))
         new_hash = files_digest(updated.items())
-        prepared[task] = (packed.getvalue(), new_hash)
+        payload = packed.getbuffer()
+        prepared[task] = (spool.tell(), len(payload), new_hash)
+        spool.write(payload)
         images['tasks'][task]['content_sha256'] = new_hash
         evidence[task] = {'historical_row': {k:v for k,v in row.items() if k != 'task_binary'},
             'source_content_sha256': row['content_sha256'], 'content_sha256': new_hash,
@@ -1488,10 +1298,20 @@ def prepare_runtime_candidates(source, output, selections, catalog, source_revis
             'changed_files': sorted(k for k,v in updated.items() if files.get(k) != v),
             'historical_score_status': 'historical, evaluated on the original payload',
             'effective_network': 'unverified', 'validation': 'incomplete'}
+        if json.loads(files['setup_files/swelego.json']).get('compiled_checkout'):
+            evidence[task]['task_dependencies'] = 'no additional cache needed; dependencies and checkout assets verified in pinned image'
         labels[task] = ['prepared-verifier-runtime']
         reasons[task] = ('Use fresh grading tools with the exact observed Python and original tool versions. '
             'Preserve task libraries, setup, required tests and reference. Earlier scores describe '
             'the original payload; new training validation and offline setup remain incomplete.')
+        if 'task_runtime_id' in selection:
+            evidence[task].update(task_runtime_id=task_runtime['id'], source_asset_id=source_id)
+            labels[task] = ['prepared-task-and-verifier-runtimes']
+            reasons[task] = ('Prepare package inputs and pinned Git assets through setup --prepare; '
+                'normal setup uses cached inputs at the original install steps or installs online on a miss. '
+                'Use fresh grading tools with the exact observed Python and original tool versions. '
+                'Preserve required tests, reference and task membership. Earlier scores describe the '
+                'original payload; new training validation and offline setup remain incomplete.')
         if len(prepared) == len(selections):
             break
     if set(prepared) != set(selections):
@@ -1512,15 +1332,20 @@ def prepare_runtime_candidates(source, output, selections, catalog, source_revis
         for batch in original.iter_batches(batch_size=1):
             row = batch.to_pylist()[0]
             if row['path'] in prepared:
-                row['task_binary'], row['content_sha256'] = prepared[row['path']]
+                offset, size, row['content_sha256'] = prepared[row['path']]
+                spool.seek(offset)
+                row['task_binary'] = spool.read(size)
+                if len(row['task_binary']) != size:
+                    raise ValueError('Incomplete candidate spool')
                 row['stages_passed'] = ''; row['run'] = ''
                 if 'validation_labels' in row:
                     row['validation_labels'] = []
             writer.write_table(pa.Table.from_pylist([row], schema=schema))
     (output / 'runtime-migration.json').write_text(json.dumps(report, indent=2) + '\n')
-    write_patch_report(source, target, source={'dataset': 'FWeindel/validated-tasks',
-        'url': 'https://huggingface.co/datasets/FWeindel/validated-tasks', 'revision': source_revision},
+    write_patch_report(source, target, source={'dataset': source_dataset,
+        'url': 'https://huggingface.co/datasets/' + source_dataset, 'revision': source_revision},
         dropped={}, change_labels=labels, change_reasons=reasons, patcher=__file__)
+    record_patcher_dependencies(target.with_suffix('.manifest.json'))
     return {'rows': original.metadata.num_rows, 'changed': len(prepared),
             'validation': 'incomplete', 'effective_network': 'unverified'}
 
@@ -1539,7 +1364,10 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--metadata', type=Path, help='Pinned upstream recipe JSON; defaults to recipes.json beside source')
     parser.add_argument('--restore-historical-instructions', type=Path, help='Current release tasks; restore recorded historical instructions and preserve runtime/image bindings')
+    parser.add_argument('--no-repairs', action='store_true', help='Build the upstream audit baseline without post-build repairs')
     args = parser.parse_args()
+    if args.no_repairs and args.validated_tasks:
+        parser.error('--no-repairs requires pinned upstream --source inputs')
     if args.restore_historical_instructions:
         if not all((args.validated_tasks, args.validated_archive, args.run_record, args.publication_revision)):
             parser.error('Historical restoration requires validated tasks, archive, run record and immutable publication revision')
@@ -1576,8 +1404,9 @@ def main():
     for source in sources:
         table = pq.read_table(source)
         original_rows = table.to_pylist()
-        dropped = {item['path']: ARCHIVED_TASKS[item['path']] for item in original_rows
-                   if item['path'] in ARCHIVED_TASKS}
+        exclusions = {**BUILD_EXCLUSIONS, **({} if args.no_repairs else ARCHIVED_TASKS)}
+        dropped = {item['path']: exclusions[item['path']] for item in original_rows
+                   if item['path'] in exclusions}
         rows = [item for item in original_rows if item['path'] not in dropped]
         labels, images, unresolved, reasons = {}, set(), {}, {}
         for item in rows:
@@ -1585,14 +1414,14 @@ def main():
             if recipe['instance_id'] != item['path']:
                 raise ValueError('Recipe task ID mismatch')
             try:
-                item['task_binary'] = patch_blob(item['task_binary'], recipe, lock)
+                item['task_binary'] = patch_blob(item['task_binary'], recipe, lock, apply_repairs=not args.no_repairs)
             except ValueError as exc:
                 if not str(exc).startswith('Local requirement has no frozen conda package:'):
                     raise
                 unresolved[item['path']] = str(exc)
                 images.add(recipe['image_name'])
                 continue
-            selected, identity = select_image(recipe, lock)
+            selected, identity = select_image(recipe, lock, apply_repairs=not args.no_repairs)
             images.add(identity)
             labels[item['path']] = ['shared-python-image', 'pinned-dependencies-in-setup', 'setup-timing']
             reasons[item['path']] = (
@@ -1607,24 +1436,33 @@ def main():
                 reasons[item['path']] += ' Restores unavailable frozen dependency artifacts from pinned upstream sources; setup_files/swelego.json records each original requirement and replacement.'
             if item['path'] == 'pgmpy__pgmpy-1905':
                 reasons[item['path']] += ' Daft 0.4.9 uses its official getdaft distribution alias, built from the same release with only the distribution name changed; the imported module remains daft.'
-            if item['path'] == 'F5Networks__f5-common-python-967':
+            if not args.no_repairs and item['path'] == 'F5Networks__f5-common-python-967':
                 labels[item['path']].append('verifier-call-time-imports')
                 reasons[item['path']] += ' Defer the reviewed Import_Policy test import to consuming functions so the unpatched task executes tests instead of aborting collection; preserve test selection, assertions, required results and reference patch.'
-            if item['path'] in VERIFIER_FIXES:
+            if not args.no_repairs and item['path'] in VERIFIER_FIXES:
                 labels[item['path']].append(VERIFIER_FIXES[item['path']]['label'])
                 reasons[item['path']] += ' ' + VERIFIER_FIXES[item['path']]['reason']
-            if item['path'] in TASK_RESOURCE_FIXES:
+            if not args.no_repairs and item['path'] in TASK_RESOURCE_FIXES:
                 fix = TASK_RESOURCE_FIXES[item['path']]
                 labels[item['path']].append(fix['label'])
                 reasons[item['path']] += ' ' + fix['reason']
-            if item['path'] in environment_repairs():
+            if not args.no_repairs and item['path'] in environment_repairs():
                 repair = environment_repairs()[item['path']]
                 labels[item['path']].append(repair['label'])
                 labels[item['path']] += repair.get('additional_labels', [])
                 reasons[item['path']] += ' ' + repair['reason']
-            if item['path'] in build_backends() or item['path'] == 'encode__starlette-1715':
+            backend = build_backends().get(item['path'])
+            if backend and args.no_repairs:
+                backend = repairs.baseline_backend(item['path'], backend)
+            if (backend and (backend['install'] or backend.get('legacy_setup') or backend.get('isolated_build_constraints'))) or item['path'] == 'encode__starlette-1715':
                 labels[item['path']].append('pinned-build-backend')
                 reasons[item['path']] += ' Restores a declared build backend or plugin omitted from the runtime dependency freeze.'
+            if not args.no_repairs:
+                with tarfile.open(fileobj=io.BytesIO(item['task_binary'])) as archive:
+                    task_config = tomllib.loads(archive.extractfile('task.toml').read().decode())
+                if task_config.get('agent', {}).get('timeout_sec') is not None:
+                    labels[item['path']].append('anti-cheat-instruction')
+                    reasons[item['path']] += ' Reproduces the historical instruction repair stating the task time limit and prohibiting task-specific online solutions or hints.'
         output = args.output / source.name
         pq.write_table(pa.Table.from_pylist(rows, schema=table.schema), output)
         write_patch_report(source, output, patcher=__file__, source={
@@ -1632,6 +1470,8 @@ def main():
             'url': 'https://huggingface.co/datasets/PrimeIntellect/SWE-Lego-Real-Data-Verified/tree/' + REVISION},
             dropped=dropped, change_labels=labels, change_reasons=reasons, patches=[{
                 'version': MARKER, 'images': sorted(images), 'unconverted': unresolved,
+                'repairs_applied': not args.no_repairs,
+                'repairs_sha256': hashlib.sha256(Path(repairs.__file__).read_bytes()).hexdigest(),
                 'metadata_sha256': hashlib.sha256(metadata.read_bytes()).hexdigest(),
                 'base_environments_sha256': hashlib.sha256((HERE / 'base-environments.json').read_bytes()).hexdigest(),
                 'conda_explicit_lock_sha256': hashlib.sha256((HERE / 'conda-explicit-lock.json').read_bytes()).hexdigest(),
@@ -1645,6 +1485,7 @@ def main():
                 'rpyc_affinity_sha256': hashlib.sha256((HERE / 'swelego_rpyc_affinity.py').read_bytes()).hexdigest(),
                 'pytrakt_clock_sha256': hashlib.sha256((HERE / 'swelego_pytrakt_clock.py').read_bytes()).hexdigest(),
                 'sdss_verifier_clock_sha256': hashlib.sha256((HERE / 'sdss_verifier_clock.py').read_bytes()).hexdigest()}])
+        record_patcher_dependencies(output.with_suffix('.manifest.json'))
         (args.output / (source.stem + '.images.json')).write_text(json.dumps({
             'tasks': len(rows), 'archived': len(dropped), 'converted': len(labels), 'unique_images': len(images),
             'unconverted': unresolved}, indent=2) + '\n')

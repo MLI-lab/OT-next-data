@@ -11,7 +11,7 @@ COPY build_scripts/ /tmp/build_scripts/
 RUN chmod +x /tmp/build_scripts/* && \\
     python3 /tmp/build_scripts/gen.py
 """
-TOML = b'[task]\nname = "FACET-Terminal"\n'
+TOML = b'[task]\nname = "FACET-Terminal"\n[agent]\ntimeout_sec = 120.0\n'
 
 
 def test_ownership_archive_preserves_original_payload_and_reason(tmp_path, monkeypatch):

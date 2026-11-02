@@ -9,6 +9,7 @@ import ssl
 
 
 GIB = 1024 ** 3
+IMAGE_BATCH = 200
 
 
 def size(path):
@@ -86,6 +87,16 @@ def stage_images(tasks, source, target, *, selected_keys=None):
     records.extend(stage_published(tasks, source, target, selected_keys=selected_keys))
     (target / 'staging.json').write_text(json.dumps(records, indent=2))
     return target
+
+
+def replace_images(tasks, source, target, args):
+    """Swap node-local images for the next batch once no container uses them."""
+    from hpc.offline_prep.image_cache import prepare_images
+    for path in Path(target).iterdir():
+        if path.is_file() and path.name.endswith(('.sif', '.overlay.img', '.deferred.json')):
+            path.unlink()
+    stage_images(tasks, source, target)
+    return prepare_images(tasks, target, source, args)
 
 
 def stage_multinode_weights(source, target, nodes, reserve=20 * GIB):

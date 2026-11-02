@@ -1,0 +1,21 @@
+{
+  "repository": "PrimeIntellect/Scale-SWE-Verified",
+  "revision": "8935f8e55244fd56080cdb8dcd0819a57e8a003c",
+  "files": [
+    {
+      "path": "data/train-00000-of-00002.parquet",
+      "bytes": 109110619,
+      "sha256": "0adeb2c24fc54ca14434bd41d685a22a0213cba97476083f6bc6b7ae26d30985"
+    },
+    {
+      "path": "data/train-00001-of-00002.parquet",
+      "bytes": 107886797,
+      "sha256": "575efa5ea634c7eace3ed3c26fd496f3d04a1a8fbc75a32d66c830eb52f0ffd7"
+    }
+  ],
+  "adapter_files": {
+    "conversion_score.py": "7de17a9ba612b569894ff0c95b5331de8c0011cc7e5f1d7705bfad47f9076819",
+    "conversion_restore.sh": "ae1c68f0c260659bb1420a6b493a56dbac97e77a237744ef1c95ab486d46a6d0"
+  },
+  "conversion_hash_evidence": "All 17,202 converted task archive hashes match the original source hashes in historical run 2026-10-14-scaleswe-historical-audit, published at e77e80246668e100171168fa369012fd68f3d53a."
+}

@@ -131,8 +131,7 @@ async def review_task(task_path, out, args):
         # otherwise change the state the verifier preparation is intended to test.
         for name, context, verifier, spec, sources, artifacts, step in plans:
             record = {'environment': name, 'status': 'error', 'timings_seconds': {},
-                      'timeout_seconds': verifier.timeout_sec,
-                      'mean_target_seconds': verifier.timeout_sec * .05}
+                      'timeout_seconds': verifier.timeout_sec}
             verifiers.append(record)
             if agent_entry['status'] != 'passed':
                 record.update(status='blocked', error='task preparation failed')
@@ -183,6 +182,9 @@ async def review_task(task_path, out, args):
                         user = verifier.user if verifier.user is not None else task.config.verifier.user
                         bundle = await measured(record, 'runtime_staging', lambda: stage_bundle(
                             target, context, out / name, user=user))
+                        from harbor_patches.verifier_assets import stage as stage_assets
+                        await measured(record, 'reference_staging', lambda: stage_assets(
+                            target, context, bundle['python'] if bundle else None, out / name))
                         offline = await measured(record, 'offline_staging', lambda: stage_offline(
                             target, context, out / name))
                         variables = resolve_env_vars(dict(task.config.verifier.env, **verifier.env))

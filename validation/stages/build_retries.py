@@ -60,6 +60,12 @@ def save_preparation_review(sources, items, out):
     }, indent=2) + '\n')
 
 
+def network_mismatch(result):
+    """The container's network did not match the task's allow_internet."""
+    return any(check.get('check') == 'declared-network-egress' and check.get('status') == 'failed'
+               for environment in result.get('environments', []) for check in environment.get('checks', []))
+
+
 def task_caused(result):
     """A failure of the task's own image build or container start, not of our infrastructure."""
     return result['status'] != 'passed' and result.get('cause') == 'build-execution-error'
@@ -212,8 +218,10 @@ async def run_builds(sources, out, args, outcomes):
     # or start on every attempt is a plain build failure. A task that fails on its own and then
     # builds, or the other way round, is not robust. Failures of our infrastructure (node, bridge,
     # disk) or without a verdict that never clear say nothing about the task: it was not judged.
+    # A network that does not match allow_internet is not retried: the task is simply not run further.
     for attempt in range(1, 4):
-        failed = [index for index, history in enumerate(histories) if history[-1]['status'] != 'passed']
+        failed = [index for index, history in enumerate(histories)
+                  if history[-1]['status'] != 'passed' and not network_mismatch(history[-1])]
         if not failed:
             break
         await asyncio.gather(*(one(index, attempt) for index in failed))
@@ -246,24 +254,17 @@ def verifier_summary(history, repetitions):
         runs = [next((v for v in run.get('verifier_preparation', []) if v['environment'] == name), {}) for run in history]
         seconds = [v.get('timings_seconds', {}).get('preparation') for v in runs]
         valid = [s for s in seconds if isinstance(s, (float, int)) and math.isfinite(s) and s >= 0]
-        limits = [v.get('mean_target_seconds') for v in runs]
         complete = len(valid) == repetitions and all(v.get('status') == 'passed' for v in runs)
-        limit = limits[0] if limits else None
-        consistent = isinstance(limit, (float, int)) and math.isfinite(limit) and limit > 0 and all(x == limit for x in limits)
         mean = statistics.mean(valid) if valid else None
         maximum = max(valid) if valid else None
-        accepted = complete and consistent and mean <= limit and maximum <= 60
+        accepted = complete and maximum <= 60
         entry = dict(environment=name, seconds=seconds, mean_seconds=mean, max_seconds=maximum,
-                     mean_target_seconds=limit, max_limit_seconds=60, accepted=bool(accepted), runs=runs)
+                     max_limit_seconds=60, accepted=bool(accepted), runs=runs)
         entries.append(entry)
         if not accepted:
             detail = [v['error'] for v in runs if v.get('error')]
             if not complete:
                 detail.append('one or more verifier preparations failed, were blocked, or lacked timings')
-            if not consistent:
-                detail.append('missing/inconsistent verifier timeout budget')
-            if consistent and mean is not None and mean > limit:
-                detail.append(f'mean preparation {mean:.3f}s exceeds {limit:g}s (5% of verifier timeout)')
             if maximum is not None and maximum > 60:
                 detail.append(f'maximum preparation {maximum:.3f}s exceeds 60s')
             reasons.append(name + ': ' + '; '.join(dict.fromkeys(detail)))

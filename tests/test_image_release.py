@@ -255,3 +255,61 @@ def test_explicit_runtime_context_rejects_invalid_path(tmp_path, path):
     task, cache, bundle, tables = fixture(tmp_path)
     with pytest.raises(ValueError):
         release.prepare_release(tables, cache, tmp_path / 'release', 'org/tasks', environment_paths=(path,))
+
+
+def test_local_only_image_reference_materializes_and_requires_cached_bytes(tmp_path, monkeypatch):
+    task, cache, bundle, tables = fixture(tmp_path)
+    manifest, _ = release.prepare_release(tables, cache, tmp_path / 'prepared', 'org/tasks')
+    manifest.update(local_only=True, repo_id=None, revision=None)
+    parquet = write_parquet(tmp_path, tables, manifest, monkeypatch)
+    tasks = materialize(parquet, tmp_path / 'downloaded/tasks', limit=1)
+    references = json.loads(release.reference_path(tasks[0].parent).read_text())
+    assert references[tasks[0].name]['local_only'] is True
+    def no_download(**kwargs):
+        pytest.fail('Local-only references must never download')
+    records = release.stage_published(tasks, cache, tmp_path / 'runtime', no_download)
+    assert len(records) == 1 and records[0]['verified_bundle']
+    with pytest.raises(ValueError, match='local-only image is missing'):
+        release.stage_published(tasks, tmp_path / 'missing', tmp_path / 'fresh-runtime', no_download)
+    references[tasks[0].name]['repo_id'] = 'org/tasks'
+    release.reference_path(tasks[0].parent).write_text(json.dumps(references))
+    with pytest.raises(ValueError, match='must not claim'):
+        release.stage_published(tasks, cache, tmp_path / 'runtime', no_download)
+
+
+@pytest.mark.parametrize('packed', [False, True])
+def test_pinned_bytes_allow_cache_retrieval_metadata(tmp_path, monkeypatch, packed):
+    task, cache, bundle, tables = fixture(tmp_path)
+    manifest, _ = release.prepare_release(tables, cache, tmp_path / 'prepared', 'org/tasks')
+    manifest['revision'] = 'a' * 40
+    parquet = write_parquet(tmp_path, tables, manifest, monkeypatch)
+    tasks = materialize(parquet, tmp_path / 'downloaded/tasks', limit=1)
+    retrieved = tmp_path / 'retrieved'
+    cache_publish(bundle / bundle.name, retrieved,
+                  provenance={'source': 'pinned download'}, packed=packed)
+    def no_download(**kwargs):
+        pytest.fail('Verified cached bytes should not be downloaded again')
+    records = release.stage_published(tasks, retrieved, tmp_path / 'runtime', no_download)
+    assert records[0]['verified_bundle']
+    assert (tmp_path / 'runtime' / bundle.name).read_bytes() == b'pristine sif'
+    # The reference, not cache metadata, remains the provenance authority.
+    path = release.reference_path(tasks[0].parent)
+    references = json.loads(path.read_text())
+    next(iter(references[tasks[0].name]['bundles'].values()))['provenance']['pristine'] = False
+    path.write_text(json.dumps(references))
+    with pytest.raises(ValueError, match='provenance mismatch'):
+        release.stage_published(tasks, retrieved, tmp_path / 'fresh-runtime', no_download)
+
+
+def test_cache_retrieval_metadata_does_not_hide_corrupt_bytes(tmp_path, monkeypatch):
+    task, cache, bundle, tables = fixture(tmp_path)
+    manifest, _ = release.prepare_release(tables, cache, tmp_path / 'prepared', 'org/tasks')
+    manifest['revision'] = 'a' * 40
+    parquet = write_parquet(tmp_path, tables, manifest, monkeypatch)
+    tasks = materialize(parquet, tmp_path / 'downloaded/tasks', limit=1)
+    local = json.loads((bundle / 'manifest.json').read_text())
+    local['provenance'] = {'source': 'pinned download'}
+    (bundle / 'manifest.json').write_text(json.dumps(local))
+    (bundle / bundle.name).write_bytes(b'tampered sif')
+    with pytest.raises(ValueError, match='Corrupt image bundle'):
+        release.stage_published(tasks, cache, tmp_path / 'runtime', lambda **kwargs: pytest.fail('No download'))

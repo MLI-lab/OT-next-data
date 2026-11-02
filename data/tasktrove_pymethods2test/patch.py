@@ -1,27 +1,20 @@
-"""Reproduce the pinned pymethods2test TaskTrove source with reviewed repairs.
+"""Convert the pinned pymethods2test TaskTrove source to Harbor tasks on Apptainer.
 
-R1 (stage 1): pin pytest in environment/Dockerfile and tests/test.sh, and drop
-the `2>/dev/null` that makes check-pip-pinning.sh report the package as unpinned.
-The version is the one the unpinned install resolved in the pilot stage-5 logs.
-
-R2 (stage 4): add solution/solve.sh, which copies the existing solution/solution.py
-to /app/solution.py.
-
-Tests and reward logic are never edited.
+R2: add solution/solve.sh, which copies the existing solution/solution.py to
+/app/solution.py: the source has a reference but no entry point to run it.
 
 R3: replace the ignored verifier.restart_environment=false field with the
 supported environment_mode="shared" setting.
 
-R4: repair the missing cmp_to_key import in reference 1059 and install the
-missing numpy==2.2.6 dependency during verifier preparation for task 3412.
+R10: set every task to offline; a task that fails for lack of internet goes back online
+here after the audit.
 
-R5: bake numpy==2.2.6 into the task image for 18 further verified NumPy failures.
-The pinned upstream image installs pytest only; no NumPy dependency was removed.
+R8: grade with a clean runtime. tests/setup.sh --prepare builds it and records it in
+tests/ot-verifier-runtime.json; test.sh runs pytest from it, not from the container.
 
-R6: add missing standard-library imports to 37 audited reference solutions.
-
-R7: replace `solution.py` with `/app/solution.py` in 15 instructions, at the
-positions the validation path resolver observed and applied.
+Tests and reward logic are never edited. R1 and R4-R7 and the instruction sentence are in
+repairs.py, which `--no-repairs` leaves out, so the validation rules can be measured on
+the plain conversion.
 """
 
 # Support both direct execution and python -m data.<source>.patch.
@@ -42,126 +35,16 @@ import tomllib
 from pathlib import Path
 
 REVISION = '946884702046be1a7dcea2638186ad6b0d2ea103'
-PATCH_VERSION = 'pymethods2test-numpy18-import37-paths15-v7'
-REPAIRED_PYTEST_VERSION = '9.0.2'
+PATCH_VERSION = 'pymethods2test-numpy18-import37-paths15-runtime-v10'
 EXPECTED_TASK_COUNT = 4990
+RUNTIME_PYTEST_VERSION = '9.1.1'
 
-DOCKER_LINE = 'RUN pip install --no-cache-dir pytest'
-DOCKER_LINE_FIXED = 'RUN pip install --no-cache-dir pytest==9.1.1'
-TEST_LINE = 'pip3 install --quiet pytest 2>/dev/null || true'
-TEST_LINE_FIXED = 'pip3 install --quiet pytest==9.1.1 || true'
 SOLVE_SH = b'#!/bin/bash\nset -euo pipefail\ncp /solution/solution.py /app/solution.py\n'
 
 from data.utils.task_archive import read_members
 from data.utils.patch_reporting import write_patch_report
-
-REFERENCE_HASHES = {
-    'pymethods2test-1059': '487e92ef39067b0649af5f61a1435fdcb5e6ddde4693c076977a5c169d14bde8',
-    'pymethods2test-3412': 'e76b0b9ba081cda01d4eef0ccaee180c951c9ea66c433ed96401307b1e593f34',
-}
-REPAIR_REASONS = {
-    'pymethods2test-1059': 'Added the missing functools.cmp_to_key import to the supplied reference solution; its seven unchanged tests pass locally.',
-    'pymethods2test-3412': 'Added numpy==2.2.6 to tests/setup.sh because the supplied reference imports NumPy; its six unchanged tests pass locally. The shared Dockerfile is unchanged by this repair.',
-}
-NUMPY_REFERENCE_HASHES = json.loads((Path(__file__).parent / 'repairs' / 'numpy_repairs.json').read_text())
-IMPORT_REPAIRS = json.loads((Path(__file__).parent / 'repairs' / 'import_repairs.json').read_text())
-PATH_REPAIRS = json.loads((Path(__file__).parent / 'repairs' / 'path_repairs.json').read_text())
-REPAIR_REASONS.update({task: 'Baked numpy==2.2.6 into the task image to repair an undeclared upstream dependency; reference, tests and reward logic unchanged.'
-                       for task in NUMPY_REFERENCE_HASHES})
-REPAIR_REASONS.update({task: 'Added missing standard-library imports to the supplied reference: '
-                       + '; '.join(repair['imports']) + '. Function bodies, instructions, tests and reward logic unchanged.'
-                       for task, repair in IMPORT_REPAIRS.items()})
-for task in NUMPY_REFERENCE_HASHES.keys() | IMPORT_REPAIRS.keys():
-    REPAIR_REASONS[task] += ' Pinned pytest to 9.0.2, the version used for local verification, before image preparation.'
-
-
-def pin_repaired_pytest(task_id, files):
-    """Freeze the verified pytest version before cache verification and validation."""
-    if task_id not in NUMPY_REFERENCE_HASHES and task_id not in IMPORT_REPAIRS:
-        return {}
-    edits = {}
-    for name in ('environment/Dockerfile', 'tests/test.sh', 'tests/setup.sh'):
-        if name not in files:
-            continue
-        lines = files[name].decode().splitlines(keepends=True)
-        for index, line in enumerate(lines):
-            if re.search(r'\bpip[0-9]*\s+install\b', line):
-                lines[index] = re.sub(r'\bpytest(?:==9\.1\.1)?(?=\s|$)',
-                                      'pytest==' + REPAIRED_PYTEST_VERSION, line)
-                # Keep pip-check parsing unambiguous, as in the existing R1 fix.
-                if 'pytest==' + REPAIRED_PYTEST_VERSION in lines[index]:
-                    lines[index] = lines[index].replace(' 2>/dev/null', '')
-        updated = ''.join(lines).encode()
-        if updated != files[name]:
-            edits[name] = updated
-    return edits
-
-
-def repair_numpy_environment(task_id, files):
-    """Repair only audited reference payloads; keep existing image instructions."""
-    if task_id not in NUMPY_REFERENCE_HASHES:
-        return {}
-    if hashlib.sha256(files['solution/solution.py']).hexdigest() != NUMPY_REFERENCE_HASHES[task_id]:
-        raise ValueError(f'{task_id}: unexpected NumPy reference solution')
-    dockerfile = files['environment/Dockerfile']
-    if b'numpy' in dockerfile.lower():
-        raise ValueError(f'{task_id}: unexpected existing NumPy image declaration')
-    return {'environment/Dockerfile': dockerfile.rstrip(b'\n') + b'\nRUN python -m pip install --no-cache-dir numpy==2.2.6\n'}
-
-
-def repair_reference(task_id, files):
-    """Return targeted edits and additions, rejecting unexpected source payloads."""
-    if task_id in IMPORT_REPAIRS:
-        repair = IMPORT_REPAIRS[task_id]
-        raw = files['solution/solution.py']
-        if hashlib.sha256(raw).hexdigest() != repair['reference_sha256']:
-            raise ValueError(f'{task_id}: unexpected reference solution for import repair')
-        prefix = ('\n'.join(repair['imports']) + '\n\n').encode()
-        return {'solution/solution.py': prefix + raw}, {}
-    if task_id not in REFERENCE_HASHES:
-        return {}, {}
-    if hashlib.sha256(files['solution/solution.py']).hexdigest() != REFERENCE_HASHES[task_id]:
-        raise ValueError(f'{task_id}: unexpected reference solution')
-    if task_id == 'pymethods2test-1059':
-        return {'solution/solution.py': b'from functools import cmp_to_key\n\n' + files['solution/solution.py']}, {}
-    if 'tests/setup.sh' in files:
-        raise ValueError(f'{task_id}: unexpected existing verifier setup')
-    return {}, {'tests/setup.sh': b'#!/bin/bash\nset -euo pipefail\npython -m pip install --quiet numpy==2.2.6\n'}
-
-
-def repair_instruction_paths(task_id, files):
-    """Apply the resolver's recorded absolute-path edits to the unchanged instruction."""
-    if task_id not in PATH_REPAIRS:
-        return {}
-    repair = PATH_REPAIRS[task_id]
-    raw = files['instruction.md']
-    if hashlib.sha256(raw).hexdigest() != repair['instruction_sha256']:
-        raise ValueError(f'{task_id}: unexpected instruction for path repair')
-    text = raw.decode()
-    for edit in sorted(repair['edits'], key=lambda e: e['start'], reverse=True):
-        if text[edit['start']:edit['end']] != edit['old']:
-            raise ValueError(f'{task_id}: path repair does not match the instruction')
-        text = text[:edit['start']] + edit['new'] + text[edit['end']:]
-    return {'instruction.md': text.encode()}
-
-
-def replace_single_line(text, old, new, name):
-    lines = text.split('\n')
-    if lines.count(old) != 1:
-        raise ValueError(f'{name}: expected exactly one {old!r} line, got {lines.count(old)}')
-    return '\n'.join(new if line == old else line for line in lines)
-
-
-def pin_pytest(files):
-    """R1. Raises unless each file has exactly one matching line and no other pip line."""
-    for name, old, new in (('environment/Dockerfile', DOCKER_LINE, DOCKER_LINE_FIXED),
-                           ('tests/test.sh', TEST_LINE, TEST_LINE_FIXED)):
-        text = files[name].decode()
-        others = [line for line in text.split('\n') if 'pip' in line and line != old]
-        if others:
-            raise ValueError(f'{name}: unexpected pip lines {others!r}')
-        files[name] = replace_single_line(text, old, new, name).encode()
-
+from data.tasktrove_pymethods2test.repairs import (
+    DOCKER_LINE, DOCKER_LINE_FIXED, REPAIR_REASONS, TEST_LINE, apply_repairs, replace_single_line)
 
 def add_oracle_wrapper(files):
     """R2. Raises if solve.sh already exists or solution.py is missing."""
@@ -185,6 +68,13 @@ def migrate_verifier_mode(content):
     if count != 1:
         raise ValueError("expected exactly one legacy verifier restart flag")
     return updated
+
+
+def set_offline(content):
+    """R10. The source tasks leave allow_internet unset, which Harbor reads as online."""
+    if 'environment' in tomllib.loads(content.decode()):
+        raise ValueError('unexpected existing environment configuration')
+    return content.rstrip(b'\n') + b'\n\n[environment]\nallow_internet = false\n'
 
 
 def repack(blob, edits, additions):
@@ -224,18 +114,14 @@ def repack(blob, edits, additions):
     return out.getvalue()
 
 
-def patch_task(blob, task_id=None):
+def patch_task(blob, task_id=None, repairs=True):
     files = read_members(blob)
     additions = {'solution/solve.sh': add_oracle_wrapper(files)}
-    pin_pytest(files)
-    edits = {name: files[name] for name in ('environment/Dockerfile', 'tests/test.sh')}
-    edits['task.toml'] = migrate_verifier_mode(files['task.toml'])
-    reference_edits, reference_additions = repair_reference(task_id, files)
-    edits.update(reference_edits)
-    additions.update(reference_additions)
-    edits.update(repair_numpy_environment(task_id, files))
-    edits.update(pin_repaired_pytest(task_id, {**files, **edits, **additions}))
-    edits.update(repair_instruction_paths(task_id, files))
+    edits = {'task.toml': set_offline(migrate_verifier_mode(files['task.toml']))}
+    if repairs:
+        repaired, added = apply_repairs(task_id, {**files, **edits})
+        edits.update(repaired)
+        additions.update(added)
     return repack(blob, edits, additions)
 
 
@@ -313,20 +199,25 @@ def prepare_verifier_runtime(blob, *, python, interpreter_evidence, catalog=None
     optional adapter still requires task-environment semantics validation before
     publication, especially for dependencies the agent installs itself.
     """
-    from data.utils.verifier_runtime import (
-        preparation_command, python_install_or_prepared, runtime_reference, runtime_spec,
-    )
+    from data.utils.verifier_runtime import preparation_command, runtime_reference, runtime_spec
     files = read_members(blob)
     script = files['tests/test.sh'].decode()
-    installs = re.findall(r'(?m)^pip3 install --quiet pytest==([0-9.]+) \|\| true$', script)
-    if len(installs) != 1 or installs[0] not in ('9.1.1', '9.0.2'):
-        raise ValueError('Unexpected pymethods2test pytest installation')
-    requirements = ['pytest==' + installs[0]]
+    if TEST_LINE in script.split('\n'):
+        install, version = TEST_LINE, RUNTIME_PYTEST_VERSION
+    else:
+        installs = re.findall(r'(?m)^pip3 install --quiet pytest==([0-9.]+) \|\| true$', script)
+        if len(installs) != 1 or installs[0] not in ('9.1.1', '9.0.2'):
+            raise ValueError('Unexpected pymethods2test pytest installation')
+        install, version = 'pip3 install --quiet pytest==' + installs[0] + ' || true', installs[0]
+    requirements = ['pytest==' + version]
     existing_setup = files.get('tests/setup.sh', b'')
     if existing_setup not in (b'', b'#!/bin/bash\nset -euo pipefail\npython -m pip install --quiet numpy==2.2.6\n'):
         raise ValueError('Unexpected pymethods2test verifier setup')
     docker = files['environment/Dockerfile']
-    observed = interpreter_evidence[hashlib.sha256(docker).hexdigest()]
+    # The unpinned conversion has no image of its own in the evidence; its runtime
+    # is the one of the image that install resolved to.
+    observed = interpreter_evidence[hashlib.sha256(docker.replace(
+        DOCKER_LINE.encode() + b'\n', DOCKER_LINE_FIXED.encode() + b'\n')).hexdigest()]
     if (not docker.startswith(b'FROM python:3.10-slim\n')
             or observed.get('python') != python
             or not observed.get('executable', '').startswith('/')
@@ -352,14 +243,12 @@ def prepare_verifier_runtime(blob, *, python, interpreter_evidence, catalog=None
         'executable': runtime_image.get('resolved_executable', runtime_image['executable']),
     })
     setup = ('#!/bin/bash\nset -euo pipefail\n'
-             + preparation_command(spec, phase='verifier') + '\n'
-             + ': "${OT_VERIFIER_PYTHON:?prepared verifier runtime required}"\n'
-             + python_install_or_prepared(spec['requirements'], phase='verifier') + '\n')
-    script = replace_single_line(script, 'pip3 install --quiet pytest==' + installs[0] + ' || true',
+             + preparation_command(spec, phase='verifier') + '\n')
+    script = replace_single_line(script, install,
                                  '# Dependencies are prepared by tests/setup.sh.', 'tests/test.sh')
     script = replace_single_line(
         script, 'pytest /tests/test_solution.py -v --tb=short 2>&1 | tee /logs/verifier/test_output.txt',
-        'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I -m pytest '
+        'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I -m pytest -c /tests/pytest.ini '
         '/tests/test_solution.py -v --tb=short 2>&1 | tee /logs/verifier/test_output.txt', 'tests/test.sh')
     # Import trusted pytest before exposing the submitted solution's directory.
     # -I ignores agent PYTHONPATH but tests must still evaluate /app/solution.py.
@@ -370,12 +259,13 @@ def prepare_verifier_runtime(blob, *, python, interpreter_evidence, catalog=None
     site_packages = observed['site_packages']
     if not site_packages.startswith('/'):
         raise ValueError('Expected absolute observed task site-packages path')
-    if 'tests/conftest.py' in files:
-        raise ValueError('Review existing pymethods2test conftest before migration')
+    if 'tests/conftest.py' in files or 'tests/pytest.ini' in files:
+        raise ValueError('Review existing pymethods2test pytest configuration before migration')
     conftest = verifier_conftest(site_packages)
     updates = runtime_reference(spec, catalog, mount_mode='writable')
+    # An explicit config keeps pytest from reading /pytest.ini or /conftest.py.
     updates.update({'tests/setup.sh': setup.encode(), 'tests/test.sh': script.encode(),
-                    'tests/conftest.py': conftest})
+                    'tests/conftest.py': conftest, 'tests/pytest.ini': b'[pytest]\n'})
     edits = {name: body for name, body in updates.items() if name in files}
     additions = {name: body for name, body in updates.items() if name not in files}
     return repack(blob, edits, additions), spec
@@ -390,9 +280,11 @@ def main():
     parser.add_argument("--runtime-python", help="Optionally prepare a clean verifier, exact Python 3.10 patch version")
     parser.add_argument("--runtime-catalog", type=Path, help="Ready runtime records keyed by recipe ID")
     parser.add_argument("--interpreter-evidence", type=Path,
+                        default=Path(__file__).parent / 'runtime_images.json',
                         help="Observed python/executable/image_sha256 records keyed by Dockerfile SHA256")
     parser.add_argument('--runtime-image-source',
                         help='Optional Dockerfile SHA256 in interpreter evidence for a compatible shared runtime source image')
+    parser.add_argument("--no-repairs", action="store_true", help="stop at the plain conversion; see repairs.py")
     parser.add_argument("--published-input", action="store_true", help="Apply only runtime preparation to existing patched tasks")
     parser.add_argument("--published-revision", help="Immutable source HF revision for --published-input")
     parser.add_argument("--published-subset", help="Source pymethods2test_v1, v2 or v3 directory")
@@ -404,27 +296,23 @@ def main():
     if args.published_input and (not re.fullmatch(r'[0-9a-f]{40}', args.published_revision or '')
                                  or args.published_subset not in ('pymethods2test_v1', 'pymethods2test_v2', 'pymethods2test_v3')):
         parser.error('--published-input requires --published-revision and --published-subset')
+    if args.published_input and args.no_repairs:
+        parser.error('--no-repairs needs the pinned source, not --published-input')
     if args.runtime_catalog and not args.runtime_python:
         parser.error('--runtime-catalog requires --runtime-python')
-    if args.runtime_python and not args.interpreter_evidence:
-        parser.error('--runtime-python requires --interpreter-evidence from the original task images')
     catalog = json.loads(args.runtime_catalog.read_text()) if args.runtime_catalog else None
-    interpreter_evidence = json.loads(args.interpreter_evidence.read_text()) if args.interpreter_evidence else None
-    if args.runtime_image_source and not interpreter_evidence:
-        parser.error('--runtime-image-source requires --interpreter-evidence')
+    interpreter_evidence = json.loads(args.interpreter_evidence.read_text())
     runtime_image = interpreter_evidence[args.runtime_image_source] if args.runtime_image_source else None
     specs = {}
     historical = []
     metadata = dict(source.schema_arrow.metadata or {})
     images = json.loads(metadata[b'ot.images.v1']) if b'ot.images.v1' in metadata else None
     if args.published_input:
-        # Existing scores describe the old definitions. Preserve them explicitly,
-        # but do not carry validation passes onto the changed task payloads.
+        # Stage results stay from the full run; only a sample was rerun offline.
         metadata.pop(b'ot.environment_reliable.v1', None)
         metadata[b'ot.runtime_migration.v1'] = json.dumps({
             'source_revision': args.published_revision, 'source_subset': args.published_subset,
-            'validation': 'pending', 'effective_network': 'unverified',
-            'existing_scores': 'historical, evaluated before runtime migration',
+            'validation': 'full run before the runtime change, offline sample after it',
             'historical_evidence': 'historical-evidence.json',
         }).encode()
     if not args.published_input and source.metadata.num_rows != EXPECTED_TASK_COUNT:
@@ -439,9 +327,11 @@ def main():
                 if args.published_input:
                     historical.append({k: v for k, v in row.items() if k != 'task_binary'})
                 if not args.published_input:
-                    row['task_binary'] = patch_task(row['task_binary'], task_id)
+                    row['task_binary'] = patch_task(row['task_binary'], task_id, not args.no_repairs)
                 labels[task_id] = ['pymethods-preparation-repairs']
-                reasons[task_id] = ('Pinned pytest, added the reference entry point and migrated the shared verifier schema. '
+                reasons[task_id] = ('Added the reference entry point and migrated the shared verifier schema. '
+                                    if args.no_repairs else
+                                    'Pinned pytest, added the reference entry point and migrated the shared verifier schema. '
                                     + REPAIR_REASONS.get(task_id, 'The supplied reference solution is unchanged.'))
                 if args.runtime_python:
                     from harbor_patches.verifier_bundle import spec_id
@@ -462,8 +352,6 @@ def main():
                     digest = files_digest(read_members(row['task_binary']).items())
                     if 'content_sha256' in row:
                         row['content_sha256'] = digest
-                    if 'stages_passed' in row:
-                        row['stages_passed'] = ''
                     if images is not None:
                         images['tasks'][task_id]['content_sha256'] = digest
                 patched += 1
@@ -484,10 +372,10 @@ def main():
         }, indent=2) + '\n')
     if patched != source.metadata.num_rows:
         raise ValueError(f'Patched {patched} tasks, expected {EXPECTED_TASK_COUNT}')
-    manifest = {'patch_version': PATCH_VERSION, 'revision': REVISION,
-                'r1_pin_pytest_tasks': patched, 'r2_oracle_wrapper_tasks': patched,
+    manifest = {'patch_version': PATCH_VERSION, 'revision': REVISION, 'repairs': not args.no_repairs,
+                'r1_pin_pytest_tasks': 0 if args.no_repairs else patched, 'r2_oracle_wrapper_tasks': patched,
                 'r3_shared_verifier_schema_tasks': patched,
-                'reference_repairs': {task: reason for task, reason in REPAIR_REASONS.items() if task in labels}}
+                'reference_repairs': {task: reason for task, reason in REPAIR_REASONS.items() if task in labels and not args.no_repairs}}
     if args.published_input:
         manifest = {'patch_version': PATCH_VERSION + '-verifier-runtime-v1',
                     'revision': args.published_revision, 'subset': args.published_subset,
@@ -506,6 +394,13 @@ def main():
     write_patch_report(args.source, args.output / 'tasks.parquet', source=source_info,
                        dropped={}, change_labels=labels, change_reasons=reasons,
                        patcher=__file__)
+    # Keep repairs.py beside the patcher snapshot, so publication includes it.
+    if (args.output / 'tasks.manifest.json').is_file():
+        code = Path(__file__).with_name('repairs.py').read_bytes()
+        (args.output / 'repairs.py').write_bytes(code)
+        recorded = json.loads((args.output / 'tasks.manifest.json').read_text())
+        recorded['patcher_dependencies'] = [{'path': 'repairs.py', 'sha256': hashlib.sha256(code).hexdigest()}]
+        (args.output / 'tasks.manifest.json').write_text(json.dumps(recorded, indent=2) + '\n')
 
 
 if __name__ == "__main__":

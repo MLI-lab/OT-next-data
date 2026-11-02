@@ -40,10 +40,9 @@ def test_preserves_task_setup_and_grading_status_and_uses_trusted_venv():
     assert result['setup_files/setup.sh'] == source['setup_files/setup.sh']
     assert result['tests/test.sh'].split(b'set +e')[1] == source['tests/test.sh'].split(b'set +e')[1]
     test = result['tests/test.sh'].decode()
-    # Prepared runtime when staged, else the task's original online install.
-    runtime, online = test.split('if [ -n "${OT_VERIFIER_PYTHON:-}" ]; then\n')[1].split('else\n')
-    assert '--without-pip --system-site-packages /tests/.venv' in runtime and 'pip install' not in runtime
-    assert 'python3 -m venv /tests/.venv' in online and 'pip install --no-deps -r /tests/requirements.lock' in online
+    # The prepared runtime only: a missing one is built on the host, never with the container's Python.
+    assert '"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I -m venv --without-pip' in test
+    assert 'pip install' not in test and 'python3 -m venv' not in test
     assert 'bash /setup_files/setup.sh' not in test
     assert b'/tests/.venv/bin/python -I -m unittest -q' in result['tests/run_test.sh']
     assert 'tests/ot_run_tests.py' not in result
@@ -411,6 +410,30 @@ def test_project_paths_follow_trusted_paths_in_recorder_visible_venv(tmp_path):
                          cwd=str(project), check=True, capture_output=True, text=True).stdout.splitlines()
     assert not out[0].startswith(str(project))
     assert out[1:] == ['7', 'True']
+
+
+def test_project_tests_win_over_a_dependency_tests_package(tmp_path):
+    """scrapy-25: a dependency's top-level tests/ must not hide the project's."""
+    import subprocess, sys
+    from data.tasktrove_bugsinpy.patch import project_paths_module
+    project = tmp_path / 'app'
+    (project / 'tests').mkdir(parents=True)
+    (project / 'tests/__init__.py').write_text('')
+    (project / 'tests/test_x.py').write_text('')
+    site = tmp_path / 'site'
+    (site / 'tests').mkdir(parents=True)
+    (site / 'tests/__init__.py').write_text('')
+    (site / 'ot_project_paths.py').write_text(project_paths_module([str(project)]))
+    out = subprocess.run([sys.executable, '-I', '-c',
+                          'import sys; sys.path.insert(0, %r); import ot_project_paths, tests.test_x; print(tests.__file__)' % str(site)],
+                         check=True, capture_output=True, text=True).stdout.strip()
+    assert out == str(project / 'tests/__init__.py')
+
+
+def test_prepared_tasks_declare_no_internet():
+    from data.tasktrove_bugsinpy.patch import without_internet
+    assert without_internet(b'[environment]\nstorage_mb = 1\n') == b'[environment]\nallow_internet = false\nstorage_mb = 1\n'
+    assert without_internet(b'[environment]\nallow_internet = true\ncpus = 2\n') == b'[environment]\nallow_internet = false\ncpus = 2\n'
 
 
 def test_grading_never_runs_agent_writable_setup():

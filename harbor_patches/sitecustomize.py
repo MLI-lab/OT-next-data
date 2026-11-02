@@ -326,12 +326,15 @@ def shuffle_listing(environ=None):
     shuffle = random.Random().shuffle
     original_listdir = os.listdir
 
-    def listdir(*args, **kwargs):
-        names = original_listdir(*args, **kwargs)
-        shuffle(names)
-        return names
+    # Callable objects, not functions: Python 3.10's pathlib keeps os.listdir and
+    # os.scandir as class attributes, and a function there would bind as a method.
+    class Listdir(object):
+        def __call__(self, *args, **kwargs):
+            names = original_listdir(*args, **kwargs)
+            shuffle(names)
+            return names
 
-    os.listdir = listdir
+    os.listdir = Listdir()
     original_scandir = getattr(os, 'scandir', None)
     if original_scandir is not None:
         class ShuffledScandir(object):
@@ -364,10 +367,11 @@ def shuffle_listing(environ=None):
                 self.close()
                 return False
 
-        def scandir(*args, **kwargs):
-            return ShuffledScandir(original_scandir(*args, **kwargs))
+        class Scandir(object):
+            def __call__(self, *args, **kwargs):
+                return ShuffledScandir(original_scandir(*args, **kwargs))
 
-        os.scandir = scandir
+        os.scandir = Scandir()
     os._ot_shuffled_listing = True
     return True
 

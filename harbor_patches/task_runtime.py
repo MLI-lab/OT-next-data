@@ -5,7 +5,7 @@ import re
 import shlex
 
 from harbor_patches.verifier_bundle import (
-    TASK_REFERENCE, TASK_OFFLINE_REFERENCE, OFFLINE_FORMAT, reference, cached, stage_offline, validate_offline_archive as validate_offline,
+    TASK_REFERENCE, TASK_OFFLINE_REFERENCE, OFFLINE_FORMAT, task_references, cached, stage_offline, validate_offline_archive as validate_offline,
 )
 
 PROFILE = '/etc/profile.d/zzzz-ot-task-runtime.sh'
@@ -22,7 +22,8 @@ def ensure_cleanup(environment):
         try:
             commands = ['rm -f -- ' + PROFILE]
             for root in environment._ot_task_runtime_roots:
-                if not re.fullmatch(r'/setup_files/\.ot-task-(?:runtime|offline)-[A-Za-z0-9]+', root):
+                if not (re.fullmatch(r'/setup_files/\.ot-task-(?:runtime|offline)-[A-Za-z0-9]+', root)
+                        or re.fullmatch(r'/tmp/\.ot-task-offline-[A-Za-z0-9]+', root)):
                     raise ValueError('Invalid private task dependency directory')
                 q = shlex.quote(root)
                 commands.append(f'if [ -d {q} ] && [ ! -L {q} ]; then '
@@ -76,8 +77,7 @@ async def stage(environment, task, evidence_dir=None):
     environment, unlike the independently staged verifier.
     """
     context = Path(task) / 'setup_files'
-    ref = reference(context, TASK_REFERENCE)
-    offline_ref = reference(context, TASK_OFFLINE_REFERENCE, OFFLINE_FORMAT)
+    ref, offline_ref = task_references(context)
     archive = cached(ref) if ref else None
     if archive is None:
         ref = None

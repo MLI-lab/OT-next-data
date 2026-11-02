@@ -4,7 +4,6 @@ R1  FROM <repo>:<tag>@sha256:<64 hex>  ->  FROM <repo>@sha256:<64 hex>  (Apptain
     the digest already fixes the image content).
 R2  shell-form RUN after a literal absolute WORKDIR  ->  RUN mkdir -p <wd> && cd <wd> && <cmd>
     (Harbor's Apptainer builder never changes directory in %post; Docker semantics are unchanged).
-R3  instruction.md fenced block: after a line/segment `cd <abs>`, rewrite `./name` to `<abs>/name`.
 R4  COPY <src> /tmp/<name> used only by RUN steps  ->  COPY to /opt/calibforge-build/tmp/<name>, with the
     same replacement in the RUN steps and a final removal of the staging directory (Apptainer mounts the
     build host's /tmp over the image's /tmp while RUN steps execute, hiding the copied files).
@@ -41,8 +40,6 @@ R16 RUN <command> <<DELIMITER with its body  ->  RUN printf '%s\\n' '<line>' ...
 R17 `ulimit -c unlimited` in a listed build script  ->  `ulimit -c unlimited || true`  (build steps on the
     compute nodes cannot raise the core file limit; the script writes its dump with gcore, which does not
     use that limit, and the script is deleted from the image by the same RUN step).
-R18 Remove the three apt tool-version pins in the reviewed sensor-log debugging task. The task
-    requires build/debugging tools, not these exact versions; retain packages and installation flags.
 X   Listed tasks are excluded and archived: the Dockerfile must run a server under an unprivileged
     account while the image is built (the build backend has a single user ID), the Dockerfile must bind
     port 80 while the image is built (an unprivileged build step may not), or the task's evidence
@@ -54,14 +51,10 @@ B1  The installation commands that tests/test.sh runs before its checks, and one
 B2  A leading block of installation commands moves unchanged from tests/test.sh to tests/setup.sh, the
     preparation script the shared runner executes and times before test.sh.
 
-Instructions change only through R3. V1 adds explicitly user-authorized missing-output
-assertions to ten test_outputs.py files; V2 asserts the pandas dependency before loading its
-verifier. V3 moves expected PostgreSQL connection and Go service-build failures from
-fixture setup into test assertions. Original behavioral checks remain when prerequisites
-are available. C1 removes ignored agent resource fields from two task.toml files only when
-identical values already exist under environment. The pytest command, its arguments and
-reward handling are unchanged. Heredoc RUN lines are left alone and listed in the manifest, as are
-verifier scripts whose installation commands are not a clean leading block.
+The pytest command, its arguments and reward handling are unchanged. Heredoc RUN lines are left alone
+and listed in the manifest, as are verifier scripts whose installation commands are not a clean
+leading block. Rules R3, R18, C1 and V1-V3 and the no-op exclusions are in repairs.py, which
+`--no-repairs` leaves out, so the validation rules can be measured on the plain conversion.
 """
 
 # Support both direct execution and python -m data.<source>.patch.
@@ -86,14 +79,18 @@ import pyarrow.parquet as pq
 import fnmatch
 import posixpath
 
+from data.calibforge.repairs import (
+    APT_TOOL_PIN_TASK, APT_TOOL_PINS, CHECK_EXCLUSIONS, REDUNDANT_AGENT_RESOURCE_TASKS,
+    REQUIRED_SOLUTION_FILES, REQUIRED_VERIFIER_MODULES, SERVICE_VERIFIER_REPAIRS,
+    assert_required_solution_file, assert_required_verifier_module, assert_requested_service,
+    patch_instruction, remove_redundant_agent_resources, unpin_reviewed_apt_tools)
+
 REVISION = "fb1e75441a94b8bb0ced08acd6b59e711704d70a"
 
 FROM_LINE = re.compile(r"^(?P<head>\s*FROM\s+(?:--\S+\s+)*)(?P<ref>\S+)(?P<tail>.*)$", re.I)
 TAG_AND_DIGEST = re.compile(r"^(?P<repo>[^\s@]+?):(?P<tag>[^:@/\s]+)@(?P<digest>sha256:[0-9a-f]{64})$")
 WORKDIR_LINE = re.compile(r"^\s*WORKDIR\s+(?P<path>\S+)\s*$", re.I)
 RUN_LINE = re.compile(r"^(?P<head>\s*RUN[ \t]+)(?P<cmd>.*)$", re.I | re.S)
-CD_SEGMENT = re.compile(r"^cd\s+(/[^\s'\"$`;&|]*)$")
-DOT_SLASH_TOKEN = re.compile(r"(?<![\w./~$-])\./(?=\w)")
 QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
 SEQUENCE = re.compile(r"(?<!\\);")
 
@@ -135,61 +132,7 @@ def logical_instructions(lines):
         i = j + 1
 
 
-APT_TOOL_PIN_TASK = "contrastive_solver-debugging_20260611_112034_004"
-APT_TOOL_PINS = (
-    "build-essential=12.10ubuntu1",
-    "gdb=15.0.50.20240403-0ubuntu1",
-    "valgrind=1:3.22.0-0ubuntu3",
-)
-
-
-def unpin_reviewed_apt_tools(task_id, text):
-    """R18: only rewrite the reviewed install stanza; reject source drift."""
-    if task_id != APT_TOOL_PIN_TASK:
-        return text, []
-    start = "apt-get install -y --no-install-recommends \\\n"
-    end = "    && rm -rf /var/lib/apt/lists/*"
-    old = start + ''.join(f"    {pin} \\\n" for pin in APT_TOOL_PINS) + end
-    new = start + ''.join(f"    {pin.split('=')[0]} \\\n" for pin in APT_TOOL_PINS) + end
-    if old not in text and text.count(new) == 1:
-        return text, []
-    if text.count(old) != 1:
-        raise ValueError(f"{task_id}: reviewed apt tool install stanza changed")
-    return text.replace(old, new), list(APT_TOOL_PINS)
-
-
-REDUNDANT_AGENT_RESOURCE_TASKS = {
-    "contrastive_solver-data-processing_20260606_172622_004",
-    "contrastive_solver-software-engineering_20260603_181444_003",
-}
 VERIFIER_PREPARATION_COMMENT = "# Verifier preparation from tests/test.sh, installed at build time."
-
-
-def remove_redundant_agent_resources(task_id, text):
-    """Remove ignored resource keys only when the environment already agrees."""
-    if task_id not in REDUNDANT_AGENT_RESOURCE_TASKS:
-        return text, []
-    raw = tomllib.loads(text)
-    agent, environment = raw.get('agent', {}), raw.get('environment', {})
-    keys = [key for key in ('cpus', 'memory', 'storage') if key in agent]
-    if any(key not in environment or agent[key] != environment[key] for key in keys):
-        raise ValueError(f"{task_id}: agent resources differ from environment resources")
-    section, kept, removed = '', [], []
-    for line in text.splitlines(keepends=True):
-        if line.lstrip().startswith('['):
-            section = line.split('#', 1)[0].strip()
-        match = re.match(r'^\s*(cpus|memory|storage)\s*=', line)
-        if section == '[agent]' and match and match[1] in keys:
-            removed.append(match[1])
-        else:
-            kept.append(line)
-    if set(removed) != set(keys):
-        raise ValueError(f"{task_id}: unsupported agent resource syntax")
-    result = ''.join(kept)
-    expected = {**raw, 'agent': {k: v for k, v in agent.items() if k not in keys}}
-    if tomllib.loads(result) != expected:
-        raise ValueError(f"{task_id}: resource cleanup changed unrelated configuration")
-    return result, removed
 
 
 def patch_dockerfile(task_id, text):
@@ -827,31 +770,6 @@ def stage_tmp_copies(text, directories, other_texts):
 
 # ---- instruction rule (R3) ---------------------------------------------------------------------
 
-def patch_instruction(text):
-    """Rewrite ./name after a `cd <abs>` inside one fenced block. Returns (new_text, rewrites)."""
-    lines = text.split("\n")
-    in_block, cwd, count = False, None, 0
-    for index, line in enumerate(lines):
-        if line.lstrip().startswith("```"):
-            in_block, cwd = not in_block, None
-            continue
-        if not in_block:
-            continue
-        pieces = re.split(r"(\s*(?:&&|;)\s*)", line)
-        for k in range(0, len(pieces), 2):
-            segment = pieces[k].strip()
-            cd = CD_SEGMENT.match(segment)
-            if cd:
-                cwd = cd.group(1).rstrip("/") or "/"
-            elif re.match(r"cd(\s|$)", segment):
-                cwd = None
-            elif cwd and cwd != "/":
-                pieces[k], n = DOT_SLASH_TOKEN.subn(cwd + "/", pieces[k])
-                count += n
-        lines[index] = "".join(pieces)
-    return "\n".join(lines), count
-
-
 # ---- verifier preparation (B1, B2) -------------------------------------------------------------
 
 STATE_LINE = re.compile(r"^(?:set [-+][A-Za-z]+(?: -o pipefail)?|set -o pipefail|export DEBIAN_FRONTEND=noninteractive)$")
@@ -1031,14 +949,14 @@ def normalized_dockerfile(text):
     return None if continued else "\n".join(kept)
 
 
-def plan_shared_dockerfiles(files):
+def plan_shared_dockerfiles(files, dropped):
     """First pass over the upstream bytes: {task_id: (canonical_task_id, canonical_dockerfile)}."""
     groups = {}
     for path in files:
         for batch in pq.ParquetFile(path).iter_batches(batch_size=64):
             table = batch.to_pydict()
             for task_id, binary in zip(table["path"], table["task_binary"]):
-                if task_id in DROPPED:
+                if task_id in dropped:
                     continue
                 context, dockerfile, verifier = [], None, ""
                 for info, data in read_task(binary):
@@ -1259,33 +1177,6 @@ for _task, (_shard, _backdoor) in LOGIN_PROFILE_BACKDOORS.items():
 
 
 
-# User-requested exclusions: upstream verifier prerequisites are absent and undocumented.
-DROPPED['contrastive_solver-system-administration_20260610_111012_001'] = {
-    "category": "verifier-missing-python",
-    "reason": "Temporarily archived at the user's request: the original upstream Dockerfile uses ubuntu:24.04 without installing Python, while tests/test.sh requires Python and pytest without provisioning them. No-op verification stops with 'no Python interpreter found' before any tests execute. The agent instructions ask for source builds of OpenSSL, libevent and memcached, not installation of Python or pytest. These are undocumented verifier prerequisites, not dependencies the instructions require the agent to supply. Our Dockerfile patches did not remove Python; a runtime using the image without injecting dependencies encounters the same mismatch. Original payload preserved for later repair.",
-}
-
-DROPPED['contrastive_solver-software-engineering_20260611_210349_018'] = {
-    "category": "verifier-missing-python",
-    "reason": "Temporarily archived at the user's request: the original upstream Dockerfile uses ubuntu:24.04 without installing Python, while tests/test.sh requires Python and pytest without provisioning them. No-op verification stops with 'no Python interpreter found' before any tests execute. The agent instructions ask for a C/shell polyglot base64 program using gcc and bash, not installation of Python or pytest. These are undocumented verifier prerequisites, not dependencies the instructions require the agent to supply. Our Dockerfile patches did not remove Python; a runtime using the image without injecting dependencies encounters the same mismatch. Original payload preserved for later repair.",
-}
-
-DROPPED['contrastive_solver-security_20260610_111702_002'] = {
-    "category": "verifier-missing-python",
-    "reason": "Temporarily archived at the user's request: the original upstream Dockerfile uses ubuntu:24.04 without installing Python, while tests/test.sh requires Python and pytest without provisioning them. No-op verification stops with 'no Python interpreter found' before any tests execute. The agent instructions ask for passphrase recovery and GPG decryption, not installation of Python or pytest. These are undocumented verifier prerequisites, not dependencies the instructions require the agent to supply. Our Dockerfile patches did not remove Python; a runtime using the image without injecting dependencies encounters the same mismatch. Original payload preserved for later repair.",
-}
-
-DROPPED['contrastive_solver-software-engineering_20260604_003113_010'] = {
-    "category": "verifier-missing-python",
-    "reason": "Temporarily archived at the user's request: the original upstream Dockerfile uses ubuntu:24.04 without installing Python, while tests/test.sh requires Python and pytest without provisioning them. No-op verification stops with 'no Python interpreter found' before any tests execute. The agent instructions ask for a C gzip decompressor using only libc, not installation of Python or pytest. These are undocumented verifier prerequisites, not dependencies the instructions require the agent to supply. Our Dockerfile patches did not remove Python; a runtime using the image without injecting dependencies encounters the same mismatch. Original payload preserved for later repair.",
-}
-
-DROPPED["multi_solver-software-engineering_20260414_211532_024"] = {
-    "category": "verifier-task-memory-limit",
-    "reason": "Temporarily archived at the user's request: no-op verification exceeded the task's configured 2 GiB memory limit in all four attempts. Slurm recorded OOM kills in job 1015176, steps 183, 201, 202 and 205 (stage-5 array 1015095_5). The verifier exercises the unchanged logger through threading and multiprocessing. This is not proof that an agent-corrected implementation is unsolvable; no memory-limit increase or grader weakening was applied.",
-}
-
-
 # ---- driver ------------------------------------------------------------------------------------
 
 LABELS = (
@@ -1342,105 +1233,7 @@ LABELS = (
 RULES = [rule for rule, _, _ in LABELS]
 
 
-# Explicitly authorized verifier adjustment: missing agent output is a failed test.
-REQUIRED_SOLUTION_FILES = {
-    "contrastive_solver-security_20260604_003113_006": "/app/base64_decoder.py",
-    'contrastive_solver-software-engineering_20260528_174918_024': '/app/server.py',
-    'contrastive_solver-software-engineering_20260603_181444_011': '/app/table_format.py',
-    'contrastive_solver-data-science_20260604_002443_006': '/app/pipeline.py',
-    'contrastive_solver-software-engineering_20260613_152233_017': '/app/calc/calc.c',
-    'contrastive_solver-data-science_20260614_141608_006': '/app/csv2parquet.py',
-    'contrastive_solver-data-science_20260601_053159_006': '/app/consolidate.py',
-    'contrastive_solver-software-engineering_20260606_172622_024': '/app/gc.c',
-    'contrastive_solver-software-engineering_20260604_002443_024': '/app/regex_engine.py',
-    "contrastive_solver-data-science_20260610_112157_008": "/app/fit_seir.py",
-}
-
-
-def _indent_verifier(text):
-    """Indent Python control flow without changing multiline string contents."""
-    import io
-    import tokenize
-    interiors = set()
-    for token in tokenize.generate_tokens(io.StringIO(text).readline):
-        if token.type == tokenize.STRING:
-            interiors.update(range(token.start[0] + 1, token.end[0] + 1))
-    return ''.join(line if number in interiors else '    ' + line
-                   for number, line in enumerate(text.splitlines(keepends=True), 1))
-
-
-def assert_required_solution_file(task_id, text):
-    path = REQUIRED_SOLUTION_FILES.get(task_id)
-    marker = "# CalibForge: assert missing agent output before loading dependent tests."
-    if path is None or text.startswith(marker):
-        return text
-    return (marker + "\nfrom pathlib import Path as _RequiredSolutionPath\n"
-            + f"if not _RequiredSolutionPath({path!r}).is_file():\n"
-            + "    def test_required_solution_file_exists():\n"
-            + f"        assert _RequiredSolutionPath({path!r}).is_file(), {('Required agent output is missing: ' + path)!r}\n"
-            + "else:\n" + _indent_verifier(text))
-
-
-REQUIRED_VERIFIER_MODULES = {
-    "contrastive_solver-data-processing_20260604_003814_003": "pandas",
-}
-
-
-def assert_required_verifier_module(task_id, text):
-    module = REQUIRED_VERIFIER_MODULES.get(task_id)
-    marker = "# CalibForge: assert missing verifier dependency before loading tests."
-    if module is None or text.startswith(marker):
-        return text
-    return (marker + "\nfrom importlib.util import find_spec as _verifier_find_spec\n"
-            + f"if _verifier_find_spec({module!r}) is None:\n"
-            + "    def test_required_verifier_dependency():\n"
-            + f"        assert _verifier_find_spec({module!r}) is not None, {('Required verifier dependency is missing: ' + module)!r}\n"
-            + "else:\n" + _indent_verifier(text))
-
-
-SERVICE_VERIFIER_REPAIRS = {
-    "contrastive_solver-system-administration_20260610_111702_004": "The agent must recover and start PostgreSQL; absence of a usable connection is an expected unsolved state.",
-    "contrastive_solver-software-engineering_20260604_002443_020": "The agent must repair the Go/cgo build and start the service; failed compilation or service startup is an expected unsolved state.",
-}
-
-
-def assert_requested_service(task_id, text):
-    """Move expected unsolved-state failures into test calls, retaining real checks."""
-    import ast
-    marker = "# CalibForge: report expected unsolved service state in test assertions."
-    if task_id not in SERVICE_VERIFIER_REPAIRS or text.startswith(marker):
-        return text
-    if task_id == "contrastive_solver-system-administration_20260610_111702_004":
-        old = '    pytest.fail("Could not connect to any PostgreSQL instance. "\n                "Is the server running?")'
-        if text.count(old) != 1:
-            raise ValueError(f"{task_id}: PostgreSQL failure guard changed")
-        text = text.replace(old, '    return None  # Expected until the agent recovers and starts PostgreSQL.')
-        assertion = 'assert pg_connection is not None, "Required recovered PostgreSQL service is not running"'
-    else:
-        old = '    assert result.returncode == 0, (\n        f"Go build failed.\\nSTDOUT: {result.stdout}\\nSTDERR: {result.stderr}"\n    )'
-        if text.count(old) != 1 or text.count('def setup_module():') != 1:
-            raise ValueError(f"{task_id}: Go build setup changed")
-        text = text.replace('def setup_module():', 'from functools import lru_cache as _cache_service_preparation\n\n@_cache_service_preparation(maxsize=1)\ndef _prepare_requested_service():')
-        text = text.replace(old, '    if result.returncode != 0:\n        return f"Go build failed.\\nSTDOUT: {result.stdout}\\nSTDERR: {result.stderr}"')
-        old = '        raise RuntimeError("Server failed to start within 15 seconds")'
-        if text.count(old) != 1:
-            raise ValueError(f"{task_id}: Go startup failure changed")
-        text = text.replace(old, '        return "Server failed to start within 15 seconds"')
-        assertion = '_service_error = _prepare_requested_service()\nassert _service_error is None, _service_error'
-    lines = text.splitlines(keepends=True)
-    tests = [node for node in ast.parse(text).body if isinstance(node, ast.FunctionDef) and node.name.startswith('test_')]
-    if not tests:
-        raise ValueError(f"{task_id}: no tests found")
-    for node in reversed(tests):
-        if 'PostgreSQL' in SERVICE_VERIFIER_REPAIRS[task_id] and not any(a.arg == 'pg_connection' for a in node.args.args):
-            raise ValueError(f"{task_id}: expected every test to use pg_connection")
-        first = node.body[0]
-        index = first.end_lineno if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str) else first.lineno - 1
-        lines.insert(index, ''.join('    ' + line + '\n' for line in assertion.splitlines()))
-    return marker + "\n" + ''.join(lines)
-
-
-def patch_task(task_id, binary, shared=None):
+def patch_task(task_id, binary, shared=None, repairs=True):
     members = read_task(binary)
     names = {info.name: k for k, (info, _) in enumerate(members)}
     changes = {}
@@ -1483,7 +1276,7 @@ def patch_task(task_id, binary, shared=None):
                 new = ''.join(line for line in new.splitlines(keepends=True)
                               if line.rstrip('\r\n') != VERIFIER_PREPARATION_COMMENT)
                 changes["B3"] = True
-            new, pins = unpin_reviewed_apt_tools(task_id, new)
+            new, pins = unpin_reviewed_apt_tools(task_id, new) if repairs else (new, [])
             if pins:
                 changes["R18"] = ", ".join(pins)
             new, count, reason = inline_heredocs(new)
@@ -1563,7 +1356,7 @@ def patch_task(task_id, binary, shared=None):
                 new = new.rstrip("\n") + "\n\n" + layer
                 changes["B1"] = plan["kind"]
             members[k] = (info, new.encode("utf-8"))
-        elif info.name == "task.toml":
+        elif info.name == "task.toml" and repairs:
             new, removed = remove_redundant_agent_resources(task_id, data.decode('utf-8'))
             if removed:
                 members[k] = (info, new.encode('utf-8'))
@@ -1574,25 +1367,25 @@ def patch_task(task_id, binary, shared=None):
                 raise ValueError(f"{task_id}: {info.name} does not set the core file limit exactly once")
             members[k] = (info, new.encode("utf-8"))
             changes["R17"] = count
-        elif info.name == "tests/test_outputs.py" and task_id in REQUIRED_SOLUTION_FILES:
+        elif repairs and info.name == "tests/test_outputs.py" and task_id in REQUIRED_SOLUTION_FILES:
             text = data.decode("utf-8")
             new = assert_required_solution_file(task_id, text)
             if new != text:
                 members[k] = (info, new.encode("utf-8"))
                 changes["V1"] = REQUIRED_SOLUTION_FILES[task_id]
-        elif info.name == "tests/test_outputs.py" and task_id in REQUIRED_VERIFIER_MODULES:
+        elif repairs and info.name == "tests/test_outputs.py" and task_id in REQUIRED_VERIFIER_MODULES:
             text = data.decode("utf-8")
             new = assert_required_verifier_module(task_id, text)
             if new != text:
                 members[k] = (info, new.encode("utf-8"))
                 changes["V2"] = REQUIRED_VERIFIER_MODULES[task_id]
-        elif info.name == "tests/test_outputs.py" and task_id in SERVICE_VERIFIER_REPAIRS:
+        elif repairs and info.name == "tests/test_outputs.py" and task_id in SERVICE_VERIFIER_REPAIRS:
             text = data.decode("utf-8")
             new = assert_requested_service(task_id, text)
             if new != text:
                 members[k] = (info, new.encode("utf-8"))
                 changes["V3"] = SERVICE_VERIFIER_REPAIRS[task_id]
-        elif info.name == "instruction.md":
+        elif repairs and info.name == "instruction.md":
             text = data.decode("utf-8")
             new, count = patch_instruction(text)
             if new != text:
@@ -1617,28 +1410,31 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--no-repairs", action="store_true", help="stop at the plain conversion; see repairs.py")
     args = parser.parse_args()
+    repairs = not args.no_repairs
+    dropped = {**DROPPED, **CHECK_EXCLUSIONS} if repairs else DROPPED
     source = args.source.resolve()
     files = [source] if source.is_file() else sorted(source.glob("*.parquet"))
     if not files or any(f.suffix != ".parquet" for f in files):
         raise ValueError(f"no pinned CalibForge Parquet files in {source}")
     args.output.mkdir(parents=True, exist_ok=True)
-    manifest = {"source_revision": REVISION, "tasks": [], "dropped": DROPPED,
+    manifest = {"source_revision": REVISION, "tasks": [], "dropped": dropped, "repairs": repairs,
                 "counts": {**dict.fromkeys(RULES, 0), "changed": 0, "dropped": 0, "total": 0}}
     for path in files:
         target = args.output / path.name
         temporary = target.with_suffix(".parquet.tmp")
         reader = pq.ParquetFile(path)
-        shared = plan_shared_dockerfiles([path])
+        shared = plan_shared_dockerfiles([path], dropped)
         with pq.ParquetWriter(temporary, reader.schema_arrow, compression="zstd") as writer:
             for batch in reader.iter_batches(batch_size=64):
                 table = batch.to_pydict()
-                kept = [i for i, task_id in enumerate(table["path"]) if task_id not in DROPPED]
+                kept = [i for i, task_id in enumerate(table["path"]) if task_id not in dropped]
                 manifest["counts"]["total"] += len(table["path"])
                 manifest["counts"]["dropped"] += len(table["path"]) - len(kept)
                 table = {name: [column[i] for i in kept] for name, column in table.items()}
                 for i, task_id in enumerate(table["path"]):
-                    binary, changes, modified = patch_task(task_id, table["task_binary"][i], shared.get(task_id))
+                    binary, changes, modified = patch_task(task_id, table["task_binary"][i], shared.get(task_id), repairs)
                     if changes:
                         manifest["tasks"].append({"task": task_id, "changes": changes})
                     if modified:
@@ -1652,7 +1448,7 @@ def main():
         changed = [item for item in manifest["tasks"] if set(RULES) & item["changes"].keys()]
         write_patch_report(path, target,
             source={"dataset": "AweAI-Team/CalibForge", "url": "https://huggingface.co/datasets/AweAI-Team/CalibForge", "revision": REVISION},
-            dropped=DROPPED, patcher=__file__,
+            dropped=dropped, patcher=__file__,
             change_labels={item["task"]: sorted({label for rule, label, _ in LABELS if rule in item["changes"]})
                            for item in changed},
             change_reasons={item["task"]: " ".join(message.format(**item["changes"]) for rule, _, message in LABELS
@@ -1661,6 +1457,14 @@ def main():
                 "verifier_network_use_in_test_sh"):
         manifest["counts"][key] = sum(key in item["changes"] for item in manifest["tasks"])
     (args.output / "calibforge_repair_manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+    # Keep repairs.py beside the patcher snapshot, so publication includes it.
+    report = args.output / "tasks.manifest.json"
+    if report.is_file():
+        code = Path(__file__).with_name("repairs.py").read_bytes()
+        (args.output / "repairs.py").write_bytes(code)
+        recorded = json.loads(report.read_text())
+        recorded["patcher_dependencies"] = [{"path": "repairs.py", "sha256": hashlib.sha256(code).hexdigest()}]
+        report.write_text(json.dumps(recorded, indent=2) + "\n")
 
 
 # Prepare pilot
@@ -1747,12 +1551,23 @@ def runtime_cli():
     ap.add_argument('--runtime-image-inventory',type=Path,required=True)
     ap.add_argument('--runtime-probe',type=Path,required=True)
     ap.add_argument('--runtime-cache',type=Path,required=True)
+    ap.add_argument('--shared-base', action='store_true', help='Reuse the measured immutable verifier base for reviewed descendants')
+    ap.add_argument('--uvx-probes', type=Path, help='Original uvx interpreter probes keyed by task ID')
+    ap.add_argument('--uvx-family-probe', type=Path, help='Measured managed Python for the reviewed Ubuntu/uv family')
+    ap.add_argument('--native-probes', type=Path, help='Original native verifier interpreter probes keyed by task ID')
+    ap.add_argument('--auxiliary-probes', type=Path, help='Original helper interpreter probes keyed by task ID and helper name')
+    ap.add_argument('--task-runtime-proofs', type=Path, help='Source-bound verifier fixtures and native package preparation proofs keyed by task ID')
     ap.add_argument('--output',type=Path,required=True)
     args=ap.parse_args()
     from data.calibforge.verifier_runtime import migrate_published
     report=migrate_published(args.published_input,args.output,revision=args.published_revision,
         subset=args.published_subset,image=json.loads(args.runtime_image_inventory.read_text()),
-        probe=json.loads(args.runtime_probe.read_text()),cache=args.runtime_cache)
+        probe=json.loads(args.runtime_probe.read_text()),cache=args.runtime_cache,shared_base=args.shared_base,
+        uvx_probes=json.loads(args.uvx_probes.read_text()) if args.uvx_probes else None,
+        uvx_family_probe=json.loads(args.uvx_family_probe.read_text()) if args.uvx_family_probe else None,
+        native_probes=json.loads(args.native_probes.read_text()) if args.native_probes else None,
+        auxiliary_probes=json.loads(args.auxiliary_probes.read_text()) if args.auxiliary_probes else None,
+        task_runtime_proofs=json.loads(args.task_runtime_proofs.read_text()) if args.task_runtime_proofs else None)
     print(json.dumps(report['counts'],indent=2))
 
 

@@ -40,6 +40,19 @@ def test_only_infrastructure_failures_are_retried(tmp_path, monkeypatch, retries
     assert table['tasks_built_first_try'] == 1 and table['tasks_retried'] == 1
 
 
+def test_network_mismatch_is_not_retried_and_blocks_later_stages(tmp_path, monkeypatch):
+    calls = []
+    async def build(task, out, args):
+        calls.append(task.name)
+        return {'status': 'error', 'environments': [{'environment': 'agent', 'status': 'failed', 'checks': [
+            {'check': 'declared-network-egress', 'status': 'failed', 'expected_allow_internet': False}]}]}
+    monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
+    monkeypatch.setattr(build_retries.runtime, 'build_task', build)
+    args = SimpleNamespace(concurrency=1, backend='apptainer', outcome_retries=3)
+    item = asyncio.run(build_retries.run_builds([tmp_path / 'bad'], tmp_path / 'out', args, StringIO()))[0]
+    assert calls == ['bad'] and item['status'] == 'error' and 'build_attempts' not in item
+
+
 @pytest.mark.parametrize('results, status, stability, outcome', [
     (['failed', 'failed', 'failed', 'failed'], 'failed', 'task_failure', 'archive'),
     (['failed', 'passed'], 'failed', 'unstable_build', 'archive'),
@@ -173,7 +186,7 @@ def test_setup_review_rejects_invalid_policy(values):
 @pytest.mark.parametrize('task_seconds, verifier_seconds, verifier_status, buckets', [
     ([10]*5, [2]*5, 'passed', []),
     ([20, 20, 20, 50, 50], [2]*5, 'passed', ['task-setup-needs-review']),
-    ([10]*5, [2, 2, 2, 8, 8], 'passed', ['verifier-setup-needs-review']),
+    ([10]*5, [2, 2, 2, 8, 8], 'passed', []),
     ([10]*5, [0, 0, 0, 0, 61], 'passed', ['verifier-setup-needs-review']),
     ([40]*5, [2]*5, 'error', ['task-setup-needs-review', 'verifier-setup-needs-review']),
 ])
@@ -189,7 +202,7 @@ def test_review_has_independent_mean_budgets_and_buckets(tmp_path, monkeypatch, 
         return {'status': 'error' if verifier_status == 'error' else 'passed',
             'environments': [{'environment': 'agent', 'status': 'passed', 'timings_seconds': {'start': task_seconds[i] + 120, 'container_start': 120, 'preparation': task_seconds[i]}}],
             'verifier_preparation': [{'environment': 'verifier', 'status': verifier_status,
-                'mean_target_seconds': 3, 'timings_seconds': {'preparation': verifier_seconds[i]}}]}
+                'timings_seconds': {'preparation': verifier_seconds[i]}}]}
     monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
     monkeypatch.setattr(build_retries.runtime, 'build_task', build)
     args = parser().parse_args([str(source), '--review-setup'])
@@ -201,6 +214,6 @@ def test_review_has_independent_mean_budgets_and_buckets(tmp_path, monkeypatch, 
         assert bool(index['flagged']) == (bucket in buckets)
 
 
-def test_review_help_renders_percent_budget():
+def test_review_help_states_preparation_limits():
     from validation.stages.runner import parser
-    assert '5% of timeout' in ' '.join(parser().format_help().split())
+    assert 'each task or verifier preparation <=60s' in ' '.join(parser().format_help().split())

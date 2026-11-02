@@ -70,6 +70,10 @@ CLUSTERS = [
             # No Apptainer module: /usr/bin/apptainer is already available.
             # Login 1.5.3 is checked during setup; compute jobs require 1.5.4.
             cuda_module='cuda/13.0.2', cuda_version='13.0',
+            # max_net_namespaces=0 on every node: task containers cannot be isolated from the
+            # network, so an isolated run falls back to host and fails the stage-1 egress check
+            # (job 1178955, 2026-10-29).
+            network_mode='host',
             # Each Storage entry lists: variable name, path, what to store there,
             # and which nodes can access it. config/runtime.py exports each name
             # as $OT_STORAGE_<NAME> when env.sh is sourced and when jobs start.

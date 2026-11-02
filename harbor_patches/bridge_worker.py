@@ -599,9 +599,11 @@ def network_isolation_available(sif_cache):
                 reason = str(exc)
     # Helma sets max_net_namespaces=0 on every node, so isolation cannot exist there.
     fallback = requested and not available and helma_host_network_fallback()
-    status = {'requested': 'isolated' if requested else 'host',
-              'effective': 'network-none' if available else ('host' if fallback or not requested else 'unavailable'),
-              'reason': reason}
+    simulated = os.environ.get('OT_NET_SIMULATED') == '1'
+    status = {'requested': 'simulated' if simulated else 'isolated' if requested else 'host',
+              'effective': 'simulated' if simulated else 'network-none' if available else (
+                  'host' if fallback or not requested else 'unavailable'),
+              'reason': 'no proxy, no DNS; stage-1 egress probe is the evidence' if simulated else reason}
     if fallback:
         status['warning'] = 'Helma host-network fallback: containers can reach the network; run is not offline'
     print('[worker] network status: ' + json.dumps(status), flush=True)
@@ -643,6 +645,8 @@ def configure_loopback_hosts(staging_base):
 
 def configure_explicit_host_network(force=False):
     """Give explicit or fallback host networking the same DNS/proxy setup."""
+    if os.environ.get('OT_NET_SIMULATED') == '1':
+        return
     if not force and os.environ.get('OT_NET_ISOLATION', '1') != '0':
         return
     dns = '/etc/resolv.conf:/etc/resolv.conf:ro'

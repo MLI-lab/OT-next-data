@@ -51,10 +51,150 @@ def test_custom_setup_and_mutated_plan_preserved_by_rejection():
     with pytest.raises(ValueError,match='review'):runtime.plan(*args)
 
 
+@pytest.mark.parametrize('flat', [False, True])
+def test_comment_variants_keep_verifier_arguments_and_clean_interpreter(flat):
+    args = case()
+    script = runtime.SCRIPT.replace(b'\nif ! command', b'\n# Install uv\nif ! command')
+    script = script.replace(b'test_outputs.py -rA', b'test_outputs.py -rA -v')
+    if flat:
+        script = script.replace(b'\\\n', b' ')
+    args[0]['tests/test.sh'] = script
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    planned = runtime.plan(*args)
+    output = runtime.apply(args[0], planned, None)
+    assert b'test_outputs.py -rA -v' in output['tests/test.sh']
+    assert b'"${OT_VERIFIER_PYTHON:?' in output['tests/test.sh']
+    assert b'curl' not in output['tests/test.sh']
+    assert output['tests/test_outputs.py'] == args[0]['tests/test_outputs.py']
+
+
+@pytest.mark.parametrize('addition', [b'bash /setup_files/setup.sh\n', b'source /opt/conda/bin/activate\n'])
+def test_comment_normalization_does_not_hide_initialization(addition):
+    args = case()
+    args[0]['tests/test.sh'] = runtime.SCRIPT + addition
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    with pytest.raises(ValueError, match='initialization requires review'):
+        runtime.plan(*args)
+
+
+def test_different_uvx_dependency_is_not_covered_by_old_probe():
+    args = case()
+    args[0]['tests/test.sh'] = runtime.SCRIPT.replace(b'pytest==8.4.1', b'pytest==8.3.0')
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    with pytest.raises(ValueError, match='requirements differ'):
+        runtime.plan(*args)
+
+
+def test_published_runtime_migration_removes_setup_guidance():
+    from data.seta.patch import SETUP_GUIDANCE
+    args = case()
+    args[0]['instruction.md'] = (SETUP_GUIDANCE + 'Fix the requested files.').encode()
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    output = runtime.apply(args[0], runtime.plan(*args), None)
+    assert output['instruction.md'] == b'Fix the requested files.'
+
+
+def test_shared_uvx_preserves_explicit_python_and_extra_package_recipe():
+    args = case(b'import numpy\ndef test_value(): assert numpy.arange(2).tolist() == [0, 1]')
+    args[0]['environment/Dockerfile'] = (sorted(runtime.GNU_BASES)[0] + '\n').encode()
+    args[0]['tests/test.sh'] = runtime.SCRIPT.replace(b'-w pytest==8.4.1', b'-w numpy==2.2.6 -w pytest==8.4.1')
+    args[2]['sif_sha256'] = 'd'*64
+    args[2]['command'] += '; curl https://astral.sh/uv/0.10.11/install.sh'
+    args[4]['provenance'] = dict(architecture='x86_64')
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    planned = runtime.plan(*args, shared_uvx=True)
+    assert planned['spec']['requirements'] == ['numpy==2.2.6', 'pytest-json-ctrf==0.3.5', 'pytest==8.4.1']
+    assert planned['interpreter_evidence'] == 'shared explicit uvx selection'
+    output = runtime.apply(args[0], planned, None)
+    assert output['tests/test_outputs.py'] == args[0]['tests/test_outputs.py']
+
+
+def test_shared_uvx_requires_explicit_python_selection():
+    with pytest.raises(ValueError, match='Python selection requires review'):
+        runtime.uvx_script(runtime.SCRIPT.decode().replace('-p 3.13', ''))
+
+
+def test_optional_uv_path_bootstrap_is_removed_with_installer():
+    args = case()
+    args[0]['tests/test.sh'] = runtime.SCRIPT.replace(
+        b'source $HOME/.local/bin/env', b'source $HOME/.local/bin/env 2>/dev/null || true')
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    output = runtime.apply(args[0], runtime.plan(*args), None)
+    assert b'source ' not in output['tests/test.sh']
+    assert b'curl' not in output['tests/test.sh']
+    assert output['tests/test_outputs.py'] == args[0]['tests/test_outputs.py']
+
+
+def test_uvx_keeps_a_matching_image_interpreter_instead_of_shared_download():
+    args = case()
+    args[1].update(version='3.13.15', executable='/usr/local/bin/python3')
+    observed = json.loads(args[2]['stdout'].split('=', 1)[1])
+    observed.update(python='3.13.15', base_executable='/usr/local/bin/python3.13')
+    args[2]['stdout'] = 'OT_RUNTIME_PROBE=' + json.dumps(observed)
+    planned = runtime.plan(*args)
+    assert planned['spec']['python'] == '3.13.15'
+    assert planned['spec']['image_python']['executable'] == '/usr/local/bin/python3'
+
+
+@pytest.mark.parametrize('guard', [False, True])
+def test_robust_reward_handling_and_log_initialization_are_preserved(guard):
+    args = case()
+    prefix = ['set -o pipefail' if guard else 'set -uo pipefail', *runtime.ROBUST_UVX_PREFIX]
+    if guard:
+        prefix += ['if [ "$PWD" = "/" ]; then', 'echo "Error: No working directory set."', 'exit 1', 'fi']
+    command = 'uvx -p 3.13 -w pytest==8.4.1 -w pytest-json-ctrf==0.3.5 pytest --junitxml=/logs/verifier/junit.xml /tests/test_outputs.py'
+    args[0]['tests/test.sh'] = ('#!/bin/bash\n' + '\n'.join(prefix + [command] + runtime.ROBUST_UVX_REWARD) + '\n').encode()
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    output = runtime.apply(args[0], runtime.plan(*args), None)['tests/test.sh']
+    assert b'mkdir -p /logs/verifier\nrm -f /logs/verifier/reward.txt /logs/verifier/junit.xml' in output
+    assert output.split(b'rc=$?', 1)[1] == args[0]['tests/test.sh'].split(b'rc=$?', 1)[1]
+    assert b'curl' not in output and b'export PATH=' not in output
+    assert b'"${OT_VERIFIER_PYTHON:?' in output
+
+
+def project_case():
+    import hashlib
+    args = case()
+    args[0]['tests/test.sh'] = ('#!/bin/bash\n' + '\n'.join(runtime.PROJECT_LINES) + '\n').encode()
+    args[0]['setup_files/operations.json'] = b'{"operations": []}'
+    args[1].update(executable='/usr/bin/python3', version='3.12.3')
+    args[2].update(command='curl https://astral.sh/uv/0.7.13/install.sh; uv init; uv add pytest==8.4.1; uv run pytest -p ot_probe --version',
+                   reviewed_setup_sha256=[hashlib.sha256(args[0]['setup_files/setup.sh']).hexdigest()],
+                   stdout='OT_RUNTIME_PROBE='+json.dumps(dict(python='3.12.3', requirements=['pytest==8.4.1']))+'\npytest 8.4.1\n')
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    return args
+
+
+def test_project_verifier_keeps_its_measured_native_python():
+    args = project_case()
+    planned = runtime.project_plan(*args)
+    assert planned['spec']['python'] == '3.12.3'
+    assert planned['spec']['image_python'] == dict(image_sha256='a'*64, executable='/usr/bin/python3')
+    output = runtime.apply(args[0], planned, None)
+    assert b'uv init' not in output['tests/test.sh']
+    assert b'uv run' not in output['tests/test.sh']
+    assert b'"${OT_VERIFIER_PYTHON:?' in output['tests/test.sh']
+    assert b'/setup_files' not in output['tests/test.sh']
+    assert output['tests/test_outputs.py'] == args[0]['tests/test_outputs.py']
+
+
+def test_project_verifier_does_not_guess_task_interpreter_changes():
+    args = project_case()
+    args[2]['reviewed_setup_sha256'] = []
+    with pytest.raises(ValueError, match='reviewed task initialization'):
+        runtime.project_plan(*args)
+    args = project_case()
+    args[0]['tests/test_outputs.py'] = b'from pathlib import Path\ndef test_project(): assert Path("pyproject.toml").exists()'
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    with pytest.raises(ValueError, match='project/import semantics'):
+        runtime.project_plan(*args)
+
+
+@pytest.mark.parametrize('source_hash', [True, False])
 @pytest.mark.parametrize('task_inputs', ['original', 'minimal', 'sysadmin', False])
 @pytest.mark.parametrize('stage_column', [True, False])
 @pytest.mark.parametrize('other_layout', ['single', 'multi'])
-def test_export_preserves_membership_history_and_unreviewed_payload(tmp_path, monkeypatch, stage_column, other_layout, task_inputs):
+def test_export_preserves_membership_history_and_unreviewed_payload(tmp_path, monkeypatch, stage_column, other_layout, task_inputs, source_hash):
     import io
     import tarfile
     import pyarrow as pa
@@ -84,6 +224,9 @@ def test_export_preserves_membership_history_and_unreviewed_payload(tmp_path, mo
     if not stage_column:
         for row in rows:
             row.pop('stages_passed')
+    if not source_hash:
+        for row in rows:
+            row.pop('content_sha256')
     source=tmp_path/'source.parquet'
     table=pa.Table.from_pylist(rows).replace_schema_metadata({b'ot.images.v1':json.dumps(images).encode(),b'ot.review.v1':b'old'})
     pq.write_table(table,source)
@@ -144,7 +287,7 @@ def test_reviewed_setup_inputs_preserve_original_install_order_and_failures():
     assert 'export APT_CONFIG="$OT_TASK_OFFLINE/apt.conf"' in script
     assert '${OT_TASK_OFFLINE:+$OT_TASK_OFFLINE/http/bin:}' in script
     assert updated['tests/test.sh'] == b'grade' and updated['instruction.md'] == b'task'
-    assert set(updated)-set(files) == {'setup_files/ot-task-offline.json'}
+    assert set(updated)-set(files) == {'setup_files/ot-task-runtime.json'}
     with pytest.raises(ValueError, match='review'):
         runtime.prepare_task_inputs({**files,'setup_files/setup.sh':runtime.SETUP_SCRIPT+b'echo changed'}, image, record)
     with pytest.raises(ValueError, match='recipe'):
@@ -224,3 +367,87 @@ def test_sysadmin_setup_exact_copy_and_service_initialization_preserved():
                     script.replace(b'copy-004.tar',b'copy-005.tar'),
                     script.replace(b'0.10.11',b'0.10.12')):
         assert runtime.reviewed_setup_request(changed) is None
+
+
+def test_upstream_unhardened_uvx_bootstrap_keeps_grading_arguments():
+    args = case()
+    hardened = next(line for line in runtime.SCRIPT.decode().splitlines() if line.startswith('    (set -o pipefail; curl'))
+    args[0]['tests/test.sh'] = runtime.SCRIPT.replace(hardened.encode(),
+        b'    curl -LsSf https://astral.sh/uv/0.10.11/install.sh | sh')
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    output = runtime.apply(args[0], runtime.plan(*args), None)
+    assert b'curl' not in output['tests/test.sh']
+    assert b'--ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA' in output['tests/test.sh']
+    assert output['tests/test_outputs.py'] == args[0]['tests/test_outputs.py']
+
+
+def test_upstream_project_bootstrap_uses_its_measured_interpreter():
+    args = project_case()
+    hardened = next(line for line in runtime.PROJECT_LINES if line.startswith('(set -o pipefail; curl'))
+    args[0]['tests/test.sh'] = args[0]['tests/test.sh'].replace(hardened.encode(),
+        b'curl -LsSf https://astral.sh/uv/0.7.13/install.sh | sh')
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    planned = runtime.project_plan(*args)
+    assert planned['spec']['python'] == args[1]['version']
+    assert 'uv init' not in planned['test_script']
+    assert '${OT_VERIFIER_PYTHON:?' in planned['test_script']
+
+
+@pytest.mark.parametrize('module', ['ast', 'filecmp', 'pty', 'termios', 'pickle',
+                                    'threading', 'html', 'ipaddress', 'select', 'fcntl', 'errno'])
+def test_standard_library_imports_use_the_preserved_python(module):
+    import sys
+    assert module in sys.stdlib_module_names
+    args = case(('import ' + module + '\ndef test_result(): assert True\n').encode())
+    result = runtime.apply(args[0], runtime.plan(*args), None)
+    assert result['tests/test_outputs.py'] == args[0]['tests/test_outputs.py']
+    assert b'OT_VERIFIER_PYTHON' in result['tests/test.sh']
+
+
+@pytest.mark.parametrize('variant', ['dnf', 'optional-env', 'no-workdir-guard'])
+def test_known_bootstrap_variants_preserve_grading_body(variant):
+    args = case()
+    script = runtime.SCRIPT.decode()
+    if variant == 'dnf':
+        script = script.replace('apt-get update && apt-get install -y curl', 'dnf install -y curl')
+    elif variant == 'optional-env':
+        script = script.replace('source $HOME/.local/bin/env\n',
+            'if [ -f "$HOME/.local/bin/env" ]; then\nsource $HOME/.local/bin/env\nfi\n')
+    else:
+        start = script.index('if [ "$PWD"')
+        end = script.index('\nfi\n', start) + len('\nfi\n')
+        script = script[:start] + script[end:]
+    args[0]['tests/test.sh'] = script.encode()
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    result = runtime.apply(args[0], runtime.plan(*args), None)['tests/test.sh']
+    assert b'curl' not in result and b'dnf' not in result and b'source ' not in result
+    assert (b'if [ "$PWD"' in result) == (variant != 'no-workdir-guard')
+    assert result.split(b'--ctrf', 1)[1] == script.encode().split(b'--ctrf', 1)[1]
+
+
+@pytest.mark.parametrize('variant', ['path-both', 'source-fallback', 'source-and-path', 'path-only', 'conditional-source'])
+def test_reviewed_path_bootstraps_remove_only_bootstrap(variant):
+    args = case()
+    script = runtime.SCRIPT.decode()
+    source = 'source $HOME/.local/bin/env'
+    export = 'export PATH="$HOME/.local/bin:$PATH"'
+    if variant == 'path-both':
+        script = script.replace('if ! command -v uv', export + '\nif ! command -v uv')
+        script = script.replace('fi\n' + source, export + '\nfi')
+    elif variant == 'source-fallback':
+        script = script.replace(source, source + ' 2>/dev/null || ' + export)
+    elif variant == 'source-and-path':
+        script = script.replace(source, source + ' 2>/dev/null || true\n' + export)
+    elif variant == 'path-only':
+        script = script.replace(source, export)
+    else:
+        script = script.replace('fi\n' + source, source + '\nfi')
+    args[0]['tests/test.sh'] = script.encode()
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    result = runtime.apply(args[0], runtime.plan(*args), None)['tests/test.sh']
+    assert b'curl' not in result and b'source ' not in result and b'export PATH' not in result
+    assert result.split(b'--ctrf', 1)[1] == script.encode().split(b'--ctrf', 1)[1]
+    args[0]['tests/test.sh'] = script.replace('uvx \\', 'touch /app/result\nuvx \\').encode()
+    args[3]['content_sha256'] = files_digest(args[0].items())
+    with pytest.raises(ValueError, match='initialization requires review'):
+        runtime.plan(*args)

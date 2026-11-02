@@ -21,8 +21,7 @@ def rubric():
 def entry(level='none', subcategory=None):
     return {'severity': level, 'subcategory': subcategory,
             'finding': 'An essential requirement is not checked.' if level in ('minor', 'major') else None,
-            'evidence': ['tests/test_outputs.py:12 only checks the output format.'] if level in ('minor', 'major') else [],
-            'not_assessed_reason': 'Verifier environment was unavailable.' if level == 'not_assessed' else None}
+            'evidence': ['tests/test_outputs.py:12 only checks the output format.'] if level in ('minor', 'major') else []}
 
 
 def verdict():
@@ -68,13 +67,13 @@ def test_schema_derives_checks_without_losing_severity():
     raw = verdict()
     raw['results']['instruction_quality'] = entry('minor')
     raw['results']['instruction_verifier_alignment'] = entry('major', 'contradictory_requirement')
-    raw['results']['anti_cheating_robustness'] = entry('not_assessed')
+    raw['results']['anti_cheating_robustness'] = entry('major')
     raw['checks'] = {'anti_cheating_robustness': {'outcome': 'pass'}}
     result = review.validate_complete(raw, rubric())
     assert result['results'] == raw['results']
     assert result['checks']['instruction_quality']['outcome'] == 'fail'
     assert result['checks']['instruction_verifier_alignment']['outcome'] == 'fail'
-    assert result['checks']['anti_cheating_robustness']['outcome'] == 'incomplete'
+    assert result['checks']['anti_cheating_robustness']['outcome'] == 'fail'
     assert result['checks']['other']['outcome'] == 'pass'
 
 
@@ -94,14 +93,13 @@ def test_invalid_severity_fields_are_rejected(name, field, value):
         review.validate_complete(raw, rubric())
 
 
-def test_schema_requires_evidence_subcategories_and_assessment_reason():
+def test_schema_requires_evidence_and_subcategories_and_rejects_not_assessed():
     for name, value in [
         ('instruction_quality', {**entry('minor'), 'evidence': []}),
         ('instruction_quality', {**entry('major'), 'finding': ''}),
-        ('instruction_quality', {**entry('not_assessed'), 'not_assessed_reason': ''}),
+        ('instruction_quality', entry('not_assessed')),
         ('instruction_verifier_alignment', entry('major')),
         ('instruction_verifier_alignment', entry('major', 'unknown')),
-        ('instruction_verifier_alignment', entry('not_assessed', 'unstated_requirement')),
     ]:
         raw = verdict(); raw['results'][name] = value
         with pytest.raises(ValueError):
@@ -151,18 +149,6 @@ def test_context_repair_after_all_results_are_retained(tmp_path):
     assert len(calls) == 2
 
 
-def test_not_assessed_is_a_valid_completed_judgment(tmp_path):
-    raw = verdict(); raw['results']['anti_cheating_robustness'] = entry('not_assessed')
-    calls = []
-    async def invoke(*args):
-        calls.append(args)
-        return raw, {}
-    state = asyncio.run(review.complete_review(review.load('custom_severity')[0], 'Review', tmp_path, invoke))
-    assert state['complete']
-    assert len(calls) == 1
-    assert state['verdict']['checks']['anti_cheating_robustness']['outcome'] == 'incomplete'
-
-
 def test_partial_resume_after_transport_failure(tmp_path):
     text = review.load('custom_severity')[0]
     async def first(selected, prompt, folder):
@@ -182,8 +168,11 @@ def test_partial_resume_after_transport_failure(tmp_path):
 def test_compact_exports_and_grouping_preserve_severity():
     from validation.publishing.report import review_task, review_finding_reason
     from validation.metrics.review_results import group_reviews
-    raw = verdict(); raw['results']['anti_cheating_robustness'] = entry('not_assessed')
+    raw = verdict()
     parsed = review.validate_complete(raw, rubric())
+    # Saved reports from before not_assessed was removed must still export.
+    parsed['results']['anti_cheating_robustness'] = {**entry(), 'severity': 'not_assessed'}
+    parsed['checks']['anti_cheating_robustness']['outcome'] = 'incomplete'
     item = {'task': '/tasks/sample', 'status': 'findings', 'verdicts': [parsed]}
     exported = review_task(item)['implementation']['attempts'][0]
     for field in ['results', 'task_interpretation', 'verifier_mode']:
@@ -194,6 +183,7 @@ def test_compact_exports_and_grouping_preserve_severity():
     assert grouped['groups']['review_error'] == []
     assert grouped['counts']['all_pass'] == 0
     assert grouped['severity_counts']['anti_cheating_robustness'] == {'not_assessed': 1}
+    raw['results']['anti_cheating_robustness'] = entry()
     raw['results']['instruction_verifier_alignment'] = entry('minor', 'unstated_requirement')
     item['verdicts'] = [review.validate_complete(raw, rubric())]
     grouped = group_reviews([item])
@@ -325,7 +315,7 @@ def test_image_inspection_keeps_severity_and_repairs(tmp_path, monkeypatch):
         ids = env.ids[:1] if len(calls) == 1 else env.ids
         env.raw = {**verdict(), 'results': {name: entry() for name in ids}}
         if 'anti_cheating_robustness' in ids:
-            env.raw['results']['anti_cheating_robustness'] = entry('not_assessed')
+            env.raw['results']['anti_cheating_robustness'] = entry('major')
         return 0, json.dumps({'modelUsage': {'test': {'input_tokens': 3, 'output_tokens': 2}}}), ''
     monkeypatch.setattr(image_review, 'create_environments', create)
     monkeypatch.setattr(image_review, 'run_judge', judge)
@@ -336,7 +326,7 @@ def test_image_inspection_keeps_severity_and_repairs(tmp_path, monkeypatch):
     result = asyncio.run(image_review.review(source, staged, tmp_path, args, 'claude-code', 'test'))
     assert result['status'] == 'findings', result
     assert [len(ids) for ids in calls] == [5, 4]
-    assert result['verdicts'][0]['results']['anti_cheating_robustness']['severity'] == 'not_assessed'
+    assert result['verdicts'][0]['results']['anti_cheating_robustness']['severity'] == 'major'
     assert result['verdicts'][0]['verifier_mode'] == 'shared'
     assert env.stopped
 

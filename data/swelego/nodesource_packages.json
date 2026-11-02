@@ -1,0 +1,24 @@
+{
+  "16": {
+    "package": "nodejs",
+    "version": "16.20.2-1nodesource1",
+    "filename": "nodejs_16.20.2-1nodesource1_amd64.deb",
+    "url": "https://deb.nodesource.com/node_16.x/pool/main/n/nodejs/nodejs_16.20.2-1nodesource1_amd64.deb",
+    "sha256": "7b8084c1d7f8455777016a3488feb962ab2ba53381391baad32f0594209074fb",
+    "bytes": 27528856,
+    "index_sha256": "f222ce7200aad9a2edb44a81165bb3242a8b6b915244969978dedf0a703768e0",
+    "depends": "libc6 (>= 2.17), ca-certificates",
+    "setup_sha256": "60fd3d2fce9277b265862af85f9fe3d835935b10cd71ea5e0d68d3506967f9e2"
+  },
+  "18": {
+    "package": "nodejs",
+    "version": "18.20.8-1nodesource1",
+    "filename": "nodejs_18.20.8-1nodesource1_amd64.deb",
+    "url": "https://deb.nodesource.com/node_18.x/pool/main/n/nodejs/nodejs_18.20.8-1nodesource1_amd64.deb",
+    "sha256": "e91d56bef792c48bb1ca9212ec44d480f9b3998e88f83451e314ff62606b55d7",
+    "bytes": 29654864,
+    "index_sha256": "9d6e5e0e1e287b09ffc375b91162f94d0c50d49d08db4c61860d5358b6e57327",
+    "depends": "libc6 (>= 2.28), libgcc1 (>= 1:3.4), libstdc++6 (>= 5.2), python3, ca-certificates",
+    "setup_sha256": "ca24d262908046c72c24e79ee2bb65378c7dca732fcddb3a1cb605a1d541f9a0"
+  }
+}

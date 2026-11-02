@@ -1,4 +1,5 @@
 """Load the rubric and prompt, prepare the review, and parse and validate the agent’s output."""
+from contextlib import nullcontext
 import hashlib
 import json
 import os
@@ -72,7 +73,7 @@ def severity_context(data):
 
 
 def validate_severity_entry(value, definition):
-    fields = {'severity', 'subcategory', 'finding', 'evidence', 'not_assessed_reason'}
+    fields = {'severity', 'subcategory', 'finding', 'evidence'}
     if not isinstance(value, dict) or set(value) != fields:
         raise ValueError(f"Expected severity fields for {definition['id']}")
     severity = value['severity']
@@ -95,12 +96,6 @@ def validate_severity_entry(value, definition):
             or any(not isinstance(entry, (str, dict)) or not entry for entry in evidence)
             or (defect and not evidence)):
         raise ValueError('Findings require a nonempty evidence list; evidence entries must be observations')
-    reason = value['not_assessed_reason']
-    if severity == 'not_assessed':
-        if not isinstance(reason, str) or not reason.strip():
-            raise ValueError('not_assessed requires a reason')
-    elif reason is not None:
-        raise ValueError('not_assessed_reason must be null for assessed rubrics')
     return value
 
 
@@ -120,19 +115,44 @@ def valid_severity_results(data, rubric, names):
     return retained
 
 
+def name_mismatch(kind, expected, given):
+    """'Missing or unexpected rubric <kind>' with the names, for logs and the judge's repair."""
+    parts = []
+    if set(expected) - set(given):
+        parts.append('missing ' + ', '.join(sorted(set(expected) - set(given))))
+    if set(given) - set(expected):
+        parts.append('unexpected ' + ', '.join(sorted(map(str, set(given) - set(expected)))))
+    return f'Missing or unexpected rubric {kind}: ' + '; '.join(parts)
+
+
+def verdict_validator(rubric_text):
+    """validate(text) for a judge's verdict file; raises ValueError with a message for the judge."""
+    rubric = tomllib.loads(rubric_text)
+
+    def check(text):
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f'invalid JSON ({exc})') from None
+        validate_complete(data, rubric)
+    return check
+
+
 def validate_severity(data, rubric):
     context = severity_context(data)
     definitions = {entry['id']: entry for entry in rubric['rubrics']}
     results = data.get('results')
-    if not isinstance(results, dict) or set(results) != definitions.keys():
-        raise ValueError('Missing or unexpected severity rubric IDs')
+    if not isinstance(results, dict):
+        raise ValueError('Expected a "results" object keyed by rubric ID')
+    if set(results) != definitions.keys():
+        raise ValueError(name_mismatch('rubric IDs', definitions.keys(), results))
     checks = {}
     for name, value in results.items():
         validate_severity_entry(value, definitions[name])
         level = value['severity']
         checks[name] = {
-            'outcome': {'none': 'pass', 'minor': 'fail', 'major': 'fail', 'not_assessed': 'incomplete'}[level],
-            'explanation': value['finding'] or value['not_assessed_reason'] or 'No defect identified through the completed assessment.',
+            'outcome': {'none': 'pass', 'minor': 'fail', 'major': 'fail'}[level],
+            'explanation': value['finding'] or 'No defect identified through the completed assessment.',
         }
     return {**context, 'results': results, 'checks': checks}
 
@@ -152,16 +172,18 @@ def validate(data, rubric):
             raise ValueError('Classification requires a nonempty explanation')
         # Derive the compatibility check ourselves; never trust conflicting checks.
         return {**data, 'checks': {'task_clean': {
-            'outcome': 'pass' if category == 'CLEAN' else ('incomplete' if category == 'INCOMPLETE' else 'fail'),
+            'outcome': 'pass' if category == 'CLEAN' else 'fail',
             'explanation': explanation}}}
     names = {entry['name'] for entry in rubric['criteria']}
     checks = data.get('checks')
-    if not isinstance(checks, dict) or set(checks) != names:
-        raise ValueError('Missing or unexpected rubric criteria')
+    if not isinstance(checks, dict):
+        raise ValueError('Expected a "checks" object keyed by criterion name')
+    if set(checks) != names:
+        raise ValueError(name_mismatch('criteria', names, checks))
     for name, verdict in checks.items():
-        if (not isinstance(verdict, dict) or verdict.get('outcome') not in ('pass', 'fail', 'not_applicable', 'incomplete')
+        if (not isinstance(verdict, dict) or verdict.get('outcome') not in ('pass', 'fail', 'not_applicable')
                 or not isinstance(verdict.get('explanation'), str) or not verdict['explanation'].strip()):
-            raise ValueError(f'Expected pass/fail/not_applicable/incomplete and a nonempty explanation for {name}')
+            raise ValueError(f'Expected pass/fail/not_applicable and a nonempty explanation for {name}')
     return data
 
 
@@ -173,11 +195,10 @@ def read_output(path, rubric):
 
 
 def valid_checks(data, names):
-    # Incomplete is a recorded label for manual inspection, not a missing response.
     checks=data.get('checks',{}) if isinstance(data, dict) else {}
     if not isinstance(checks,dict): return {}
     return {k:v for k,v in checks.items() if k in names and isinstance(v,dict)
-            and v.get('outcome') in ('pass','fail','not_applicable','incomplete')
+            and v.get('outcome') in ('pass','fail','not_applicable')
             and isinstance(v.get('explanation'),str) and v['explanation'].strip()}
 
 
@@ -285,7 +306,8 @@ def checkpoint_dir(source, staged, args, agent, model):
     settings = {key: getattr(args, key, None) for key in (
         'backend', 'environment_kwargs', 'trial_cpus', 'trial_memory_mb', 'review_evidence',
         'review_reasoning_effort', 'review_max_budget_usd', 'review_local', 'serve_model',
-        'agent_kwargs', 'serve_context', 'review_seed', 'review_retries', 'timeout_minutes')}
+        'agent_kwargs', 'serve_context', 'review_seed', 'review_retries', 'timeout_minutes',
+        'review_grace_minutes')}
     settings.update(agent=agent, model=model)
     if not getattr(args, 'serve_model', None):
         settings['api_base'] = getattr(args, 'api_base', None)
@@ -318,7 +340,8 @@ async def complete_review(rubric_text, base_prompt, folder, invoke, retries=2, r
     rubric = tomllib.loads(rubric_text)
     classification = rubric.get('review', {}).get('format') == 'classification'
     severity = rubric.get('review', {}).get('format') == 'severity'
-    names = {c['id'] for c in rubric['rubrics']} if severity else {c['name'] for c in rubric['criteria']}
+    names = ({'task_clean'} if classification else
+             {c['id'] for c in rubric['rubrics']} if severity else {c['name'] for c in rubric['criteria']})
     state_path = folder / 'state.json'
     state = json.loads(state_path.read_text()) if resume and state_path.exists() else {
         'checks': {}, 'rounds': [], 'criterion_origin': {}}
@@ -428,16 +451,22 @@ async def review_files(staged, source, out, args, agent, model, task_environment
                     dockerfile.write_text(dockerfile.read_text() + 'RUN ln -s /setup_files/rubric.toml /app/rubric.toml\n')
                 attempt_args = copy.copy(args)
                 attempt_args.attempts = 1
+                session = nullcontext()
+                validate = None
                 if task_environment:
                     from validation.stages import env_review
+                    from harbor_patches.terminus_session import active
+                    validate = verdict_validator(reduced)
                     task = env_review.stage(source, task, round_dir / 'task-environment' / source.name,
                         {f'task-under-review/{source.name}': source, 'rubric.toml': task / 'rubric.toml'},
-                        '/app/verdicts.json')
+                        '/app/verdicts.json', grace_sec=env_review.grace_sec(args))
+                    session = active(env_review.policy(args, validate))
                 config = runtime.job_config(task, round_dir / 'jobs', attempt_args, agent, model)
                 if task_environment:
                     config['verifier'] = {'disable': True}
                 save(round_dir / 'job.json', config)
-                job = await runtime.execute_job(config)
+                with session:
+                    job = await runtime.execute_job(config)
                 results = runtime.trial_results(job)
                 pricing = for_stage(args, 5)
                 usage = collect(results, agent, model, pricing['rates'], 1, pricing['source'])
@@ -446,7 +475,9 @@ async def review_files(staged, source, out, args, agent, model, task_environment
                 if len(results) != 1:
                     raise RuntimeError('Expected exactly one Harbor review trial')
                 trial, result = results[0]
-                if result.get('exception_info'):
+                from validation.stages.runner import accepted_after_timeout
+                if result.get('exception_info') and not accepted_after_timeout(
+                        result, trial / 'artifacts/verdicts.json', validate):
                     raise RuntimeError('Harbor review failed: ' + str(result['exception_info']))
                 try:
                     raw = json.loads((trial / 'artifacts/verdicts.json').read_text())
