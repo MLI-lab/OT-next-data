@@ -108,6 +108,20 @@ def test_unresponsive_terminal_is_read_again_without_interrupting(harbor):
     assert not any('C-c' in command for command in environment.commands)
 
 
+def test_apptainer_deadline_counts_as_unresponsive_terminal(harbor):
+    """Seen on 2026-11-02: Apptainer itself gave up with 255 'FATAL: context deadline exceeded'."""
+    TmuxSession, _ = harbor
+    from harbor.agents.terminus_2.tmux_session import TmuxBatchProtocolError
+    async def capture(self, batches):
+        raise TmuxBatchProtocolError("x: batched tmux call returned no recognized status marker: "
+                                     "return_code=255, stderr='FATAL:   context deadline exceeded\\n', stdout=''")
+    TmuxSession.send_keys_and_capture = capture
+    patch.install()
+    environment = Environment([(0, ''), (0, 'screen')])
+    (output, alive), _ = in_review(TmuxSession.send_keys_and_capture, session(environment), batch())
+    assert alive and output == 'screen'
+
+
 def test_lost_unresponsive_terminal_restarts_with_its_own_note(harbor):
     TmuxSession, _ = harbor
     from harbor.agents.terminus_2.tmux_session import TmuxBatchProtocolError

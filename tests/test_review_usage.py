@@ -151,8 +151,8 @@ def test_stage_review_keeps_spend_when_verdict_is_missing(tmp_path, monkeypatch)
     reviewed = runner.run_review(5, tmp_path / 'task', tmp_path / 'review', options, tmp_path)
     assert reviewed['status'] == 'error'
     assert 'Missing or invalid criteria' in reviewed['findings'][0]
-    assert len(reviewed['usage']['trials']) == 3
-    assert reviewed['usage']['summary']['metrics']['cost_usd']['total'] == pytest.approx(3 * 0.0018)
+    assert len(reviewed['usage']['trials']) == 2  # the review and its one retry
+    assert reviewed['usage']['summary']['metrics']['cost_usd']['total'] == pytest.approx(2 * 0.0018)
 
 
 def test_together_defaults_match_exact_models_and_freeze_rates():

@@ -1,7 +1,30 @@
 # Task-quality rubrics
 
-We use **five rubrics in six rubric/prompt configurations** to judge whether an
-RL task is clean or defective.
+We compare **five rubrics in six rubric/prompt configurations** on 80
+human-annotated tasks. Three judges review every task in every configuration:
+**Claude Sonnet 5.5, GLM-5.3-Flash and Qwen3.8-27B**, so 6 × 80 = 480 reviews per
+judge and 1,440 in total.
+
+## Tasks
+
+The 80 tasks are in
+[FWeindel/task-defect-ground-truth](https://huggingface.co/datasets/FWeindel/task-defect-ground-truth)
+([judge-calibration-80/tasks.parquet](https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/judge-calibration-80/tasks.parquet)):
+
+| Benchmark | Label | Tasks | Source | Confidence |
+| --- | --- | ---: | --- | --- |
+| SWE | Clean | 20 | [OpenAI SWE-bench audit](https://openai.com/index/introducing-swe-bench-verified/) ([annotations](https://cdn.openai.com/introducing-swe-bench-verified/swe-bench-annotation-results.zip)) | High |
+| SWE | Defective | 20 | [OpenAI SWE-bench audit](https://openai.com/index/introducing-swe-bench-verified/) | High |
+| TB | Clean | 20 | [Z.ai Terminal-Bench 2 Verified](https://huggingface.co/datasets/zai-org/terminal-bench-2-verified) publisher review | Moderate |
+| TB | Defective | 10 | [Terminal-Bench 2 to 2.1 update](https://github.com/harbor-framework/terminal-bench-2/pull/53) | High |
+| TB | Defective | 5 | [Z.ai targeted review (August 2026)](https://huggingface.co/datasets/zai-org/terminal-bench-2-verified), [pre-fix versions](https://huggingface.co/datasets/zai-org/terminal-bench-2-verified/tree/8b000db63b1217760921564ddf5c5dd724f10b57) | High |
+| TB | Defective | 5 | [Epoch AI Terminal-Bench 4 review](https://epoch.ai/benchmarks/terminal-bench-4/review) | High |
+
+[convert_swe_to_harbor.py](convert_swe_to_harbor.py) turns the SWE tasks
+into Harbor tasks that run on Apptainer. The Terminal-Bench tasks are already Harbor tasks; we build their images for
+Apptainer.
+
+## Rubric overview
 
 | Rubric | Prompt/output strategy | Prompt template |
 | --- | --- | --- |
@@ -12,112 +35,137 @@ RL task is clean or defective.
 | [River](rubric_river/rubric.toml) | One category, including CLEAN | [Classification prompt](prompt_templates/modified/classification.txt) |
 | [Custom severity](rubric_custom_severity/rubric.toml) | None/minor/major per criterion | [Severity prompt](prompt_templates/modified/custom_severity.txt) |
 
-
-## How judges run
+## Runtime configuration
 
 By default, each judge inspects a **fresh sandbox using the task's actual
 runtime** (`--review-evidence image`). It contains the task's starting files and
 dependencies, plus the rubric, instructions, tests and reference solution for
-review. Ground-truth labels are kept outside.
+review. 
 
-**File-only review** (`--review-evidence files`) provides the files in a basic
-container instead. It is not recommended for the main comparison because it
-cannot establish how the task behaves in its actual runtime.
+**File-only review** (`--review-evidence files`) does not use the task's image.
+The judge gets a copy of the task files under `/app/task-under-review` in a plain
+`ubuntu:24.04` container with `curl`, `git`, `python3`, `nodejs`/`npm` and the
+Claude Code CLI (Terminal-Bench's upstream review image). The task's
+dependencies are not installed, so the judge can read the files but cannot run
+the task's tests or demonstrate an exploit.
 
-Judges should run in the task's sandbox so they can demonstrate exploit behaviour.
-In file-only runs, all 8 unresolved Terminal-Bench reviews were shortcuts the judge
-found but could not run. Some judges also could not find the SWE tests: those
-tasks were not in Harbor layout, so `test.patch` sorted after thousands of
-repository files, and GPT-5.4's transcripts show it searching for the usual file
-names instead of paging through the listing. Sandbox accuracy has not been measured yet.
 
-## Judges
+## Judge configuration
 
-Sonnet uses the Claude CLI signed in with Claude. API keys are not used for this judge.
-Sandbox API/local judges use Terminus 2. Model calls run on the host; inspection
-commands run inside the sandbox. Login-node file-only runs use read-only file
-tools and do not execute task code.
+All judges run inside the reviewed task's own container, with the same prompt,
+time limit and retries.
 
-Default limits:
+**Claude Sonnet 5.5** runs as Claude Code (Harbor's `claude-code` agent), signed
+in with a Claude subscription:
 
-- **Session timeout:** 30 minutes per review attempt. Repair rounds get their own
-  timeout, so a task can take longer overall.
-- **GLM-5.3 / GLM-5.3-Flash:** 131,072-token context window and up to 32,768 output
-  tokens per turn, including thinking. Context includes the prompt, conversation
-  and current reply; it is not a cumulative token budget for the whole session.
-- Earlier GLM-Flash runs used **16,384 output tokens per turn**. The
-  [model configuration](../../config/models.py) records that this cut off thinking,
-  so the current limit was raised to 32,768. Other models use their own context limits.
+- **Session timeout:** 30 minutes per review attempt.
+- **Settings:** reasoning effort medium, no cost limit, all Claude Code tools
+  except web search and web fetch, so it cannot look up published reviews of the
+  tasks.
+- **Usage limit:** if the subscription limit is reached, the review waits until
+  the limit resets and then runs again.
 
-Earlier experiments tested **Claude Opus 5.5, Claude Fable 5.1, GPT-6 Astra
-(medium), GLM-5.3 and GLM-5.3-Flash**. Their examples and results are preserved in
-[old/labeled_examples](old/labeled_examples).
+**GLM-5.3-Flash and Qwen3.8-27B** are served locally with vLLM and run in
+Terminus 2:
 
-The new comparison plans **Claude Sonnet 5.5, GLM-5.3-Flash and Qwen3.8-27B**.
+- **Session timeout:** 30 minutes per review attempt.
+- **Context:** 131,072 tokens, with interleaved thinking.
+- **Output per turn, including thinking:** 32,768 tokens for GLM-5.3-Flash,
+  32,767 for Qwen3.8-27B.
+- **Sampling:** each model's default from its model card.
+  - GLM-5.3-Flash: temperature 1.0, top_p 0.95.
+  - Qwen3.8-27B, thinking on: temperature 1.0, top_p 0.95, top_k 20, min_p 0,
+    presence_penalty 0, repetition_penalty 1.0.
+
+<details>
+<summary><b>Retries and repairs</b></summary>
+
+All judges:
+
+- **Time limit:** after 30 minutes the judge gets 10 more minutes. Its next
+  prompt (Claude Code: its next tool result) ends with:
+  "The review time limit has been reached. Do not investigate further. Write
+  /app/verdicts.json now from the evidence you have. You have 10 minutes."
+  Harbor stops the agent at 42 minutes (30 + 10 + 2 slack).
+- **Valid verdict at the hard limit:** if the agent is stopped but
+  `verdicts.json` is already valid, the verdict is kept.
+- **Invalid verdict at completion:** when the judge finishes, `verdicts.json`
+  is checked. If it is invalid, the judge gets the exact error and is asked to
+  correct the file, once, in the same session:
+  "/app/verdicts.json is not valid, so the review cannot be accepted yet:
+  &lt;error&gt;. Correct the file, then mark the task complete again."
+- **One retry** (`--review-retries 1`): a fresh review with the exact same
+  prompt and its own 30-minute timeout. Criteria missing from an otherwise valid
+  verdict are retried with `/app/rubric.toml` reduced to them; a missing or
+  unusable verdict, or a failed session, is retried with the full rubric.
+
+Local judges only (Claude Code has no persistent terminal):
+
+- **Lost terminal** (for example after `exit`, or `set -e` and a failing
+  command): a new terminal is started in the same container, at most 3 times in
+  a row, and the judge gets: "NOTE: The shell exited during your last command
+  (for example after `exit`, or `set -e` followed by a failing command), which
+  closed the terminal. A new terminal has been started in the same container.
+  Files written so far are kept. The working directory, environment variables,
+  shell options and any processes started from the old shell are gone. Commands
+  that did not run before the shell closed were not repeated."
+- **Unresponsive terminal:** if a command does not return in time, the
+  container is checked again every 30 s until it answers or the hard limit is
+  reached.
+
+</details>
+<br>
 
 We skipped GLM-5.3. In a 3-task test on Helma, served across 2 nodes, it made only
 14 model requests in 30 minutes and wrote no verdicts. A full review takes about
-15-25 steps, so we estimated about 2 hours per review, or around 13 days of GPU
-time for all 480 reviews.
+15-25 steps, so we estimated about 2 hours per review.
 
-GLM-5.3-Flash ended two sandbox reviews by running `exit`, which closes the judge's shell session before it writes a verdict, so all prompts now tell judges not to run it.
-
-## Planned evaluation
-
-Use [download_gt.py](download_gt.py) to select and download **80 tasks**: 20 clean
-and 20 defective each from SWE and Terminal-Bench, preferring high confidence,
-then moderate. Exclude low confidence and Mobius; no holdout. Use
-[convert_swe_to_harbor.py](convert_swe_to_harbor.py) to turn the SWE tasks into
-Harbor tasks; `--swe-bench-pro` converts the SWE-bench Pro tasks.
-**Six configurations × five judges = 2,400 reviews**, before repairs.
-
-Compare clean/defective accuracy and cost, with expandable task-level evidence
-and criterion findings. Minor and major both count as defective. Exact defect labels are diagnostic, not the primary score.
+Earlier experiments tested **Claude Opus 5.5, Claude Fable 5.1, GPT-6 Astra
+(medium), GLM-5.3 and GLM-5.3-Flash**. Their examples and results + pricing are in
+[old/labeled_examples](old/labeled_examples).
 
 ## Results
 
-Partial, file-only results. Sandbox reviews have not run. Sonnet 5.5 has all 480
-file-only reviews. GPT-5.4 has 119: Terminal-Bench 80/80 and Harbor 39/80. Those
-39 Harbor reviews are all defective tasks, so they give no accuracy yet.
+Accuracy on all 80 tasks (40 clean, 40 defective), defective counted as positive.
 
-Sonnet 5.5 on the 40 Terminal-Bench tasks, with defective as positive. The SWE
-tasks are left out because of the findings below.
+| Rubric | Prompt/output strategy | Sonnet 5.5 | GLM-5.3-Flash | Qwen3.8-27B |
+| --- | --- | ---: | ---: | ---: |
+| Terminal-Bench | Per-criterion pass/fail | 54/80 (68%) | 42/80 (52%) | 46/80 (57%) |
+| Harbor | Per-criterion pass/fail | 53/80 (66%) | 41/80 (51%) | 56/80 (70%) |
+| Custom | Per-criterion pass/fail | 54/80 (68%) | 38/80 (48%) | 51/80 (64%) |
+| Custom | Per-criterion, strict exploits | 54/80 (68%) | 41/80 (51%) | 51/80 (64%) |
+| Custom | Classification | 56/80 (70%) | 44/80 (55%) | 54/80 (68%) |
+| River | Classification | **59/80 (74%)** | **54/80 (68%)** | **59/80 (74%)** |
+| Custom severity | Minor or worse = defective | 56/80 (70%) | 42/80 (52%) | 57/80 (71%) |
+| Custom severity | Major only = defective | 56/80 (70%) | 42/80 (52%) | 56/80 (70%) |
 
-| Rubric | Strategy | TP | FP | TN | FN | Unresolved |
-| --- | --- | --- | --- | --- | --- | --- |
-| Terminal-Bench | Labeling | 18 | 20 | 0 | 2 | 0 |
-| Harbor | Labeling | 14 | 12 | 8 | 6 | 0 |
-| Custom | Labeling | 7 | 8 | 10 | 8 | 7 |
-| Custom | Classification | 8 | 7 | 13 | 12 | 0 |
-| River | Classification | 6 | 4 | 16 | 14 | 0 |
-| Custom | Severity, minor or worse | 17 | 13 | 7 | 2 | 1 |
-| Custom | Severity, major only | 5 | 2 | 18 | 14 | 1 |
+By benchmark (40 tasks each: 20 clean, 20 defective). Sonnet and Qwen do much
+better on SWE than on Terminal-Bench; on Terminal-Bench all three judges are
+close to chance.
 
-Findings from the file-only runs:
+| Rubric | Prompt/output strategy | Sonnet SWE | Sonnet TB | GLM-Flash SWE | GLM-Flash TB | Qwen SWE | Qwen TB |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Terminal-Bench | Per-criterion pass/fail | 35/40 (88%) | 19/40 (48%) | 22/40 (55%) | 20/40 (50%) | 28/40 (70%) | 18/40 (45%) |
+| Harbor | Per-criterion pass/fail | 33/40 (82%) | 20/40 (50%) | 23/40 (57%) | 18/40 (45%) | 34/40 (85%) | 22/40 (55%) |
+| Custom | Per-criterion pass/fail | 35/40 (88%) | 19/40 (48%) | 20/40 (50%) | 18/40 (45%) | 30/40 (75%) | 21/40 (52%) |
+| Custom | Per-criterion, strict exploits | 35/40 (88%) | 19/40 (48%) | 22/40 (55%) | 19/40 (48%) | 30/40 (75%) | 21/40 (52%) |
+| Custom | Classification | 34/40 (85%) | 22/40 (55%) | 22/40 (55%) | 22/40 (55%) | 33/40 (82%) | 21/40 (52%) |
+| River | Classification | 36/40 (90%) | 23/40 (57%) | 29/40 (72%) | 25/40 (62%) | 33/40 (82%) | 26/40 (65%) |
+| Custom severity | Minor or worse = defective | 34/40 (85%) | 22/40 (55%) | 20/40 (50%) | 22/40 (55%) | 31/40 (78%) | 26/40 (65%) |
+| Custom severity | Major only = defective | 37/40 (92%) | 19/40 (48%) | 20/40 (50%) | 22/40 (55%) | 32/40 (80%) | 24/40 (60%) |
 
-- **File-only reviews cannot verify exploits.** All 8 unresolved Terminal-Bench
-  reviews are anti-cheat: the judge found a plausible shortcut but could not run
-  it. 6 of the 8 are on defective tasks. Judges need the sandbox for this.
-- **File-only reviews often miss the SWE tests.** SWE inputs are not Harbor tasks.
-  `test.patch` and `tests.json` sort after thousands of `repository/` files, and
-  one listing page holds at most 300. All 96 `incomplete` SWE notes say the
-  verifier or tests were missing. In the Terminal-Bench rubric, GPT-5.4 read them
-  in only 20 of 40 SWE reviews.
-- **Unresolved reviews count as not correct.** These runs allowed `incomplete`
-  in the custom rubrics. It has since been removed, so judges now always decide:
-  anti-cheat fails only on a demonstrated exploit.
-- **Some clean SWE tasks can be hacked through git history.** Some SWE-bench
-  evaluation images keep future git history. In 5 of the 20 clean SWE tasks, the
-  reference fix is in a commit in the image, and applying it from git history
-  passes the real verifier (reward 1) without solving the task. This comes from
-  the upstream images, not our conversion. All 5 are outside SWE-bench Verified:
-  the 15 clean tasks in Verified do not contain the fix. Labels are unchanged, and
-  we report these tasks separately.
+These reviews ran before the current judge configuration: Sonnet reviewed from
+the host through an `inspect` tool, the local judges' history did not keep
+earlier reasoning, Qwen3.8-27B used the model card's non-thinking sampling, and
+up to 2 retries were allowed. GLM-5.3-Flash custom-criteria has no verdict for
+one task, counted as wrong.
+
+Additional findings:
+
 - **Most SWE tasks can be passed without fixing the bug.** SWE-bench runs the
   repository's own tests from a directory the agent can edit, resetting only the
   named test files, so an agent can change other files the tests load (a
   `conftest.py`, the test runner) to make them report success unfixed. This
   affects 39 of 40 SWE tasks, including all 20 clean ones (all in SWE-bench
   Verified); only `sphinx-doc__sphinx-9711` differs. It is an upstream property,
-  not from our conversion. We confirmed reward 1 on three tasks; the rest is a
-  structural count. We therefore report SWE anti-cheat results separately.
+  not from our conversion. Note: the agent sees the verfier, which makes it easier to find the exploit and may not be found if we ask an agent to cheat without acess to the verifier/reference solution. 

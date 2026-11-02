@@ -100,9 +100,15 @@ async def _answered(session, command):
         result = await session.environment.exec(command, user=session._user, timeout_sec=60)
     except Exception:
         return None
-    if result.return_code == -1 and 'timed out' in (result.stderr or ''):
+    if _exec_timed_out(result.return_code, result.stderr or ''):
         return None
     return result
+
+
+def _exec_timed_out(return_code, text):
+    """The bridge's own exec limit (-1) or Apptainer's ("FATAL: context deadline exceeded", 255)."""
+    return ((return_code == -1 and 'timed out' in text)
+            or (return_code == 255 and 'context deadline exceeded' in text))
 
 
 def _session_missing(result):
@@ -153,7 +159,9 @@ def install():
             return TERMINAL_RESTARTED + '\n', True
         except TmuxBatchProtocolError as exc:
             # Only a batch exec that hit its own time limit; other protocol errors stay fatal.
-            if 'return_code=-1' not in str(exc) or 'timed out' not in str(exc):
+            message = str(exc)
+            if not (('return_code=-1' in message and 'timed out' in message)
+                    or ('return_code=255' in message and 'context deadline exceeded' in message)):
                 raise
             seconds = round(sum(max(0.0, b.duration_sec) for b in keystroke_batches)
                             + self._batch_exec_timeout_margin_sec)

@@ -128,7 +128,7 @@ def main(argv=None):
     args.force_build = False
     args.review_evidence = plan['evidence_mode']
     args.attempts = args.review_runs = args.concurrency = 1
-    args.review_retries = 2
+    args.review_retries = 1
     args.review_rubric, args.review_format = cell['rubric'], cell['format']
     args.review_agent, args.review_model = cell['judge']['agent'], cell['judge']['model']
     args.model = args.review_model

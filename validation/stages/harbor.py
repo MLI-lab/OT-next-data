@@ -42,6 +42,8 @@ def install_runtime_patches():
     install_oom_recovery()
     from harbor_patches.terminus_session import install as install_terminus_session
     install_terminus_session()
+    from harbor_patches.claude_session import install as install_claude_session
+    install_claude_session()
     from harbor_patches.resource_usage import install as install_resource_usage
     install_resource_usage()
     # The pinned bridge keys images only by Dockerfile text. Include COPY

@@ -122,7 +122,7 @@ def test_repair_retains_results_context_and_resume(tmp_path):
         if len(calls) == 1:
             return {**verdict(), 'results': {'instruction_quality': entry('minor'),
                 'anti_cheating_robustness': entry('minor')}}, {}
-        assert 'For this repair round, include only these rubric IDs' in prompt
+        assert prompt == review.prompt(text, 'sample')  # same prompt; only rubric.toml is reduced
         return {**verdict(), 'results': {**{name: entry() for name in ids},
                 'instruction_quality': entry()}}, {}
     state = asyncio.run(review.complete_review(text, review.prompt(text, 'sample'), tmp_path, invoke))
@@ -142,7 +142,7 @@ def test_context_repair_after_all_results_are_retained(tmp_path):
         calls.append(folder)
         if len(calls) == 1:
             return {'results': verdict()['results']}, {}
-        assert 'return an empty results object' in prompt
+        assert prompt == 'Review'  # same prompt; retained results are kept by the runner
         return {**verdict(), 'results': {}}, {}
     state = asyncio.run(review.complete_review(review.load('custom_severity')[0], 'Review', tmp_path, invoke))
     assert state['complete']

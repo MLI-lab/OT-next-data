@@ -293,7 +293,7 @@ async def review(source, staged, out, args, agent, model, *, runtime_task=None, 
                              'tool_calls': inspector.calls, 'evidence': str(session)}
 
             state = await complete_review(rubric_text, (staged / 'instruction.md').read_text(), folder,
-                invoke, retries=getattr(args, 'review_retries', 2), resume=resume)
+                invoke, retries=getattr(args, 'review_retries', 1), resume=resume)
             data = state['verdict']
             data['checks'].update(skipped)
             verdicts.append({'trial': str(folder), 'sample_id': str(folder), 'resumed': state.get('resumed', False),

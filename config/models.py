@@ -52,8 +52,10 @@ MODELS = {
         name='Qwen3.8-27B', hf_repo='Qwen/Qwen3.8-27B', gpus=1,
         weights_gb=56, reasoning_parser='qwen3', tool_call_parser='qwen3_xml', thinking=True,
         max_output_tokens=32767,
-        sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20,
-                  'presence_penalty': 1.5, 'repetition_penalty': 1.0},
+        # The model card's thinking-mode sampling (thinking is on); the old values
+        # (0.7 / 0.8 / presence 1.5) were the card's non-thinking settings.
+        sampling={'temperature': 1.0, 'top_p': 0.95, 'top_k': 20, 'min_p': 0.0,
+                  'presence_penalty': 0.0, 'repetition_penalty': 1.0},
         extra_args=['--language-model-only']),
     'coder-30b': Model(
         name='Qwen3-Coder-30B-A3B-Instruct', hf_repo='Qwen/Qwen3-Coder-30B-A3B-Instruct',

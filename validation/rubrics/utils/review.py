@@ -328,7 +328,7 @@ def validate_complete(data, rubric):
     return validate(data, config)
 
 
-async def complete_review(rubric_text, base_prompt, folder, invoke, retries=2, resume=True):
+async def complete_review(rubric_text, base_prompt, folder, invoke, retries=1, resume=True):
     """Retain valid labels, retry only missing/invalid criteria, and checkpoint progress.
 
     invoke(rubric_text, prompt, round_dir) returns (raw_output, metadata) after
@@ -354,10 +354,6 @@ async def complete_review(rubric_text, base_prompt, folder, invoke, retries=2, r
         missing = names - retained.keys()
         reduced = rubric_text if classification or not retained or not missing else subset_rubric(rubric_text, missing)
         review_prompt = base_prompt.replace(rubric_text, reduced) if rubric_text in base_prompt else base_prompt
-        if severity and (retained or state['rounds']):
-            review_prompt += '\nFor this repair round, include only these rubric IDs in results: ' + (', '.join(sorted(missing)) or '(none; return an empty results object)') + '. This replaces the full results example; keep task_interpretation and verifier_mode. Previously accepted results are retained by the runner.\n'
-        elif not classification and (retained or state['rounds']):
-            review_prompt += '\nReview only these criteria: ' + ', '.join(sorted(missing)) + '. Return their exact names; do not add other criteria.\n'
         index = len(state['rounds'])
         round_dir = folder / f'round-{index:03d}'
         round_dir.mkdir(exist_ok=True)
@@ -463,11 +459,15 @@ async def review_files(staged, source, out, args, agent, model, task_environment
                     session = active(env_review.policy(args, validate))
                 config = runtime.job_config(task, round_dir / 'jobs', attempt_args, agent, model)
                 if task_environment:
+                    config = env_review.judge_config(config, args)
                     config['verifier'] = {'disable': True}
                 save(round_dir / 'job.json', config)
                 with session:
-                    job = await runtime.execute_job(config)
-                results = runtime.trial_results(job)
+                    if task_environment:
+                        job, results = await env_review.execute(config)
+                    else:
+                        job = await runtime.execute_job(config)
+                        results = runtime.trial_results(job)
                 pricing = for_stage(args, 5)
                 usage = collect(results, agent, model, pricing['rates'], 1, pricing['source'])
                 new_rows.extend(usage['trials'])
@@ -476,16 +476,21 @@ async def review_files(staged, source, out, args, agent, model, task_environment
                     raise RuntimeError('Expected exactly one Harbor review trial')
                 trial, result = results[0]
                 from validation.stages.runner import accepted_after_timeout
+                exception = None
                 if result.get('exception_info') and not accepted_after_timeout(
                         result, trial / 'artifacts/verdicts.json', validate):
-                    raise RuntimeError('Harbor review failed: ' + str(result['exception_info']))
+                    if not task_environment:
+                        raise RuntimeError('Harbor review failed: ' + str(result['exception_info']))
+                    # Judges in the task environment: a failed trial gets the one retry, like a missing verdict.
+                    exception = str(result['exception_info'])[:2000]
                 try:
-                    raw = json.loads((trial / 'artifacts/verdicts.json').read_text())
+                    raw = {} if exception else json.loads((trial / 'artifacts/verdicts.json').read_text())
                 except (OSError, ValueError):
                     raw = {}
-                return raw, {'usage_rows': usage['trials'], 'job_dir': str(job)}
+                return raw, {'usage_rows': usage['trials'], 'job_dir': str(job),
+                             **({'trial_exception': exception} if exception else {})}
             state = await complete_review(rubric, (staged / 'instruction.md').read_text(), folder,
-                invoke, retries=getattr(args, 'review_retries', 2), resume=resume)
+                invoke, retries=getattr(args, 'review_retries', 1), resume=resume)
             data = state['verdict']
             data['checks'].update(skipped)
             verdicts.append({'trial': str(folder), 'sample_id': str(folder), 'resumed': state.get('resumed', False),

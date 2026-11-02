@@ -96,9 +96,12 @@ def test_collect_verdict_separates_complete_partial_and_invalid(tmp_path):
         (tmp_path / name).write_text(json.dumps(data))
         prepare_review_tasks.collect_verdict(result, tmp_path / name, tmp_path / name, rubric, {'c': good})
     assert set(result['verdicts'][0]['checks']) == {'a', 'b', 'c'}
-    assert result['partial'] == [{'trial': str(tmp_path / 'partial'), 'checks': {'a': good},
-                                  'missing': ['b'], 'unexpected': ['renamed_b']}]
-    assert result['status'] == 'failed' and 'invalid' in result['findings'][0]
+    assert result['partial'][0] == {'trial': str(tmp_path / 'partial'), 'checks': {'a': good},
+                                    'missing': ['b'], 'unexpected': ['renamed_b']}
+    # No valid judgment at all: one full retry instead of a failing finding.
+    invalid = result['partial'][1]
+    assert (invalid['trial'], invalid['checks'], invalid['missing']) == (str(tmp_path / 'invalid'), {}, None)
+    assert result['findings'] == [] and result['status'] == 'completed'
 
 
 def test_missing_criteria_get_one_restricted_repair(tmp_path, monkeypatch):
@@ -149,7 +152,7 @@ def test_terminus_review_runs_in_task_environment(tmp_path, monkeypatch):
     (trial / 'artifacts').mkdir(parents=True)
     seen = {}
 
-    async def run(task, out, args, model, validate=None):
+    async def run(task, out, args, model, validate=None, agent='terminus-2'):
         seen.update(task=task, model=model, validate=validate)
         checks = {'anti_cheat_robustness': {'outcome': 'pass', 'explanation': 'Tests are hidden.'}}
         (trial / 'artifacts/verdicts.json').write_text(json.dumps({'checks': checks}))
@@ -183,7 +186,7 @@ def test_local_image_review_runs_terminus_in_task_environment(tmp_path, monkeypa
     monkeypatch.setattr(prepare_review_tasks, 'stage_review', lambda *a: staged)
     monkeypatch.setattr(env_review, 'stage', lambda *a, **k: tmp_path / 'review-task')
     seen = {}
-    async def run(task, out, args, model, validate=None):
+    async def run(task, out, args, model, validate=None, agent='terminus-2'):
         seen['model'] = model
         return None, []
     async def inspector(*a, **k):
@@ -202,3 +205,74 @@ def test_terminal_bench_prompt_file_matches_the_real_prompt(tmp_path):
         real = (task / 'instruction.md').read_text().replace((task / 'rubric.toml').read_text(), '<RUBRIC>')
         expected = Path(prepare_review_tasks.__file__).parents[1] / 'rubrics/prompt_templates/modified/terminal_bench.txt'
         assert real == expected.read_text()
+
+
+def test_missing_verdict_gets_one_full_retry(tmp_path, monkeypatch):
+    good = {'outcome': 'pass', 'explanation': 'Fine.'}
+    asked = []
+
+    async def review_once(number, source, item_dir, args, *rest):
+        asked.append(getattr(args, 'review_criteria', None))
+        usage = {'trials': [{'trial': str(item_dir)}], 'expected_trials': 1, 'summary': {}}
+        if len(asked) == 1:
+            return {'status': 'completed', 'findings': [], 'verdicts': [], 'usage': usage, 'automatic_skips': {},
+                    'partial': [{'trial': 'run/t0', 'checks': {}, 'missing': None, 'unexpected': [], 'error': 'missing'}]}
+        return {'status': 'completed', 'findings': [], 'usage': usage,
+                'verdicts': [{'trial': 'retry', 'checks': {'a': good, 'b': good}}]}
+
+    monkeypatch.setattr(runner, 'review_once', review_once)
+    args = SimpleNamespace(review_criteria=None, attempts=1)
+    result = asyncio.run(runner.run_review_async(5, tmp_path / 'task', tmp_path / 'item', args, None))
+    assert asked == [None, None]  # the retry uses the full rubric
+    assert result['status'] == 'passed'
+    assert result['verdicts'][0]['trial'] == 'run/t0' and set(result['verdicts'][0]['checks']) == {'a', 'b'}
+    assert result['criteria_repairs'][0]['missing'] == 'all'
+
+
+def test_missing_verdict_fails_after_one_retry(tmp_path, monkeypatch):
+    async def review_once(number, source, item_dir, args, *rest):
+        return {'status': 'completed', 'findings': [], 'verdicts': [], 'automatic_skips': {},
+                'partial': [{'trial': 'run/t0', 'checks': {}, 'missing': None, 'unexpected': [], 'error': 'missing'}]}
+
+    monkeypatch.setattr(runner, 'review_once', review_once)
+    result = asyncio.run(runner.run_review_async(5, tmp_path / 'task', tmp_path / 'item',
+                                                 SimpleNamespace(review_criteria=None, attempts=1), None))
+    assert result['status'] == 'failed' and 'no valid verdict after one retry' in result['findings'][0]
+
+
+def test_claude_judge_config_and_usage_limit(tmp_path):
+    from validation.stages import env_review
+    config = env_review.judge_config({'agents': [{'name': 'claude-code', 'kwargs': {}}]},
+                                     SimpleNamespace(review_reasoning_effort='medium'))
+    kwargs = config['agents'][0]['kwargs']
+    assert kwargs == {'reasoning_effort': 'medium', 'disallowed_tools': 'WebSearch WebFetch'}
+    assert 'max_budget_usd' not in kwargs
+    trial = tmp_path / 'trial'
+    (trial / 'agent').mkdir(parents=True)
+    (trial / 'agent/claude-code.txt').write_text('{"type":"result","is_error":true,"result":"Claude usage limit reached. Resets at 5pm"}')
+    assert env_review.usage_limited(trial)
+    (trial / 'agent/claude-code.txt').write_text('{"type":"result","is_error":false}')
+    assert not env_review.usage_limited(trial)
+
+
+def test_claude_judge_refuses_api_key(monkeypatch):
+    from validation.stages import env_review
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'x')
+    with pytest.raises(RuntimeError, match='must not run'):
+        asyncio.run(env_review.execute({'agents': [{'name': 'claude-code', 'kwargs': {}}]}))
+
+
+def test_claude_time_limit_hook_fires_once(tmp_path):
+    import subprocess
+    from harbor_patches import claude_session
+    script = claude_session.hook_script(0, 'The review time limit has been reached.')
+    script = script.replace(claude_session.AGENT_DIR, str(tmp_path))
+    (tmp_path / 'ot-review-started').write_text('0\n')
+    hook = tmp_path / 'hook.sh'
+    hook.write_text(script)
+    first = subprocess.run(['sh', str(hook)], input='{}', capture_output=True, text=True)
+    second = subprocess.run(['sh', str(hook)], input='{}', capture_output=True, text=True)
+    payload = json.loads(first.stdout)
+    assert payload['hookSpecificOutput'] == {'hookEventName': 'PostToolUse',
+                                             'additionalContext': 'The review time limit has been reached.'}
+    assert second.stdout == ''

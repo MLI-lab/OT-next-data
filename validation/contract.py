@@ -237,7 +237,7 @@ def profile(args):
         'review_rubric': getattr(args, 'review_rubric', 'terminal-bench'),
         'review_format': getattr(args, 'review_format', None),
         'review_runs': getattr(args, 'review_runs', None) or args.attempts,
-        'review_retries': getattr(args, 'review_retries', 2),
+        'review_retries': getattr(args, 'review_retries', 1),
         'review_grace_minutes': getattr(args, 'review_grace_minutes', 10),
         'review_resume': getattr(args, 'review_resume', True),
         'review_seed': getattr(args, 'review_seed', 42),

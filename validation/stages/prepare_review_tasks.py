@@ -129,8 +129,10 @@ def read_partial_verdicts(path, rubric_path):
 
 
 def collect_verdict(result, trial, path, rubric_path, skipped, analysis=False):
-    """Add one judge output to result: complete verdicts, a partial review for
-    criteria repair (stage 5 only), or a finding that fails the review."""
+    """Add one judge output to result: complete verdicts, or (stage 5) a partial
+    review for the one retry: the missing criteria, or all of them (missing=None)
+    when the output is missing or has no valid judgment. Stage 8 output that is
+    not valid is a finding that fails the review."""
     try:
         data = read_verdicts(path, rubric_path, analysis=analysis)
     except (OSError, ValueError) as exc:
@@ -139,8 +141,13 @@ def collect_verdict(result, trial, path, rubric_path, skipped, analysis=False):
                 raise exc
             valid, missing, unexpected = read_partial_verdicts(path, rubric_path)
         except (OSError, ValueError):
-            result['status'] = 'failed'
-            result['findings'].append(f'{Path(trial).name}: invalid or missing reviewer output: {exc}')
+            if analysis:
+                result['status'] = 'failed'
+                result['findings'].append(f'{Path(trial).name}: invalid or missing reviewer output: {exc}')
+                return
+            # No usable judgment at all: one full retry (missing=None), like a partial one.
+            result.setdefault('partial', []).append({'trial': str(trial), 'checks': {}, 'missing': None,
+                                                     'unexpected': [], 'error': str(exc)[:1000]})
             return
         result.setdefault('partial', []).append({'trial': str(trial), 'checks': valid,
                                                  'missing': missing, 'unexpected': unexpected})

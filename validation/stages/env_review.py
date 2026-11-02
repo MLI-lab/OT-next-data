@@ -27,6 +27,66 @@ def grace_sec(args):
     return getattr(args, 'review_grace_minutes', GRACE_SEC / 60) * 60
 
 
+AGENTS = ('terminus-2', 'claude-code')  # judges that run inside the reviewed task's environment
+# Claude Code could otherwise look up published reviews of the benchmark tasks.
+CLAUDE_DISALLOWED_TOOLS = 'WebSearch WebFetch'
+
+
+def judge_config(config, args=None):
+    """Judge settings: Terminus-2 keeps earlier turns' reasoning in the chat history
+    (interleaved thinking); Claude Code gets the review reasoning effort and no web tools."""
+    for agent in config.get('agents', []):
+        if agent['name'] == 'terminus-2':
+            agent['kwargs']['interleaved_thinking'] = True
+        elif agent['name'] == 'claude-code':
+            agent['kwargs'].setdefault('reasoning_effort', getattr(args, 'review_reasoning_effort', None) or 'medium')
+            agent['kwargs'].setdefault('disallowed_tools', CLAUDE_DISALLOWED_TOOLS)
+    return config
+
+
+def usage_limited(trial):
+    """True when a Claude Code trial ended on a subscription usage limit."""
+    from validation.stages.image_review import USAGE_LIMIT
+    try:
+        text = (Path(trial) / 'agent' / 'claude-code.txt').read_text(errors='replace')
+    except OSError:
+        return False
+    return bool(USAGE_LIMIT.search(text[-20000:]))
+
+
+async def execute(config, item_dir=None):
+    """Run a judge job; wait out a Claude subscription usage limit and run it again.
+
+    The wait happens outside the trial, so Harbor's agent limit never covers it.
+    Up to OT_JUDGE_LIMIT_MAX_WAIT_SECONDS (12 h) in total.
+    """
+    import asyncio
+    import os
+    from validation.stages import harbor as runtime
+    from validation.stages.image_review import seconds_until_reset
+    if any(agent['name'] == 'claude-code' for agent in config.get('agents', [])):
+        # Judges use the subscription login only (OT_SECRETS_FILE=~/.env-judge-cli), never an API key.
+        if os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('ANTHROPIC_AUTH_TOKEN'):
+            raise RuntimeError('Claude Code judges must not run with ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN set')
+        if not os.environ.get('CLAUDE_CODE_OAUTH_TOKEN'):
+            raise RuntimeError('Claude Code judges need CLAUDE_CODE_OAUTH_TOKEN (OT_SECRETS_FILE=~/.env-judge-cli)')
+    limit = float(os.environ.get('OT_JUDGE_LIMIT_MAX_WAIT_SECONDS', 12 * 3600))
+    waited, attempt, base = 0.0, 0, config.get('job_name', 'job')
+    while True:
+        job_dir = await runtime.execute_job(config)
+        results = runtime.trial_results(job_dir)
+        limited = [trial for trial, _ in results if usage_limited(trial)]
+        if not limited or waited >= limit:
+            return job_dir, results
+        text = (Path(limited[0]) / 'agent' / 'claude-code.txt').read_text(errors='replace')[-20000:]
+        delay = seconds_until_reset(text)
+        print(f'Usage limit reached; running the review again in {delay:.0f} s ({waited:.0f} s waited so far)', flush=True)
+        await asyncio.sleep(delay)
+        waited += delay
+        attempt += 1
+        config = dict(config, job_name=f'{base}-after-limit-{attempt}')
+
+
 def policy(args, validate):
     """Review-session policy for Terminus-2 judges; validate(text) raises ValueError."""
     from harbor_patches.terminus_session import Policy
@@ -91,21 +151,21 @@ def stage(source, staged, destination, files, artifact, grace_sec=None):
     return destination
 
 
-async def run(task, out, args, model, validate=None):
-    """One Harbor job of args.attempts Terminus-2 trials; returns the job's trial results.
+async def run(task, out, args, model, validate=None, agent='terminus-2'):
+    """One Harbor job of args.attempts judge trials (Terminus-2 or Claude Code); returns the job's trial results.
 
     With validate (stage-5 verdicts), the trials run as judge review sessions
-    (harbor_patches/terminus_session.py); stage(grace_sec=...) must match.
+    (harbor_patches/terminus_session.py, harbor_patches/claude_session.py);
+    stage(grace_sec=...) must match.
     """
     from contextlib import nullcontext
     from harbor_patches.terminus_session import active
     from validation.stages import harbor as runtime
     runtime.check_runtime_task(task, args.backend)
-    config = runtime.job_config(task, out / 'jobs', args, 'terminus-2', model)
+    config = judge_config(runtime.job_config(task, out / 'jobs', args, agent, model), args)
     config['verifier'] = {'disable': True}
     (out / 'job.json').write_text(json.dumps(config, indent=2) + '\n')
     if args.dry_run:
         return None, []
     with active(policy(args, validate)) if validate else nullcontext():
-        job_dir = await runtime.execute_job(config)
-    return job_dir, runtime.trial_results(job_dir)
+        return await execute(config)
