@@ -1,5 +1,5 @@
+import json
 import os
-from pathlib import Path
 import shlex
 import subprocess
 import sys
@@ -206,3 +206,105 @@ def test_worker_patch_preserves_timeouts(monkeypatch):
     assert result["return_code"] == -1
     assert "timed out" in result["stderr"]
 
+
+@pytest.mark.parametrize('command', [
+    '\x00', 'echo before\x00echo after',
+    # JSON tool arguments turn this escape into an actual NUL on decoding.
+    json.loads(r'{"command": "python3 -c \"data = \u0000\""}')['command'],
+])
+def test_nul_command_returns_tool_error_without_execution(command):
+    calls = []
+
+    class Instance:
+        def _proxy_command_prefix(self):
+            raise AssertionError('Invalid command must not reach shell setup')
+
+        def exec(self, payload):
+            calls.append(payload)
+            return {'stdout': 'recovered', 'stderr': '', 'return_code': 0}
+
+    module = SimpleNamespace(ApptainerInstance=Instance)
+    patch.install_worker(module)
+    installed_exec = Instance.exec
+    patch.install_worker(module)
+    assert Instance.exec is installed_exec
+    instance = Instance()
+    payload = {'command': command, 'cwd': '/app', 'timeout_sec': 30,
+               'env_vars': {'VALUE': 'unchanged'}}
+    original_payload = {**payload, 'env_vars': dict(payload['env_vars'])}
+    result = instance.exec(payload)
+    assert result['stdout'] == ''
+    assert result['return_code'] == 2
+    assert 'NUL (0x00)' in result['stderr']
+    assert 'Command not executed' in result['stderr']
+    assert result['stdout_truncated'] is False
+    assert result['stderr_truncated'] is False
+    assert calls == []
+    assert payload == original_payload
+    # Rejecting one action leaves the same instance usable for the next action.
+    assert instance.exec({'command': 'echo recovered'})['stdout'] == 'recovered'
+    assert len(calls) == 1
+
+
+def test_nul_guard_preserves_other_exec_failures():
+    failure = ValueError('unrelated execution failure')
+
+    class Instance:
+        def _proxy_command_prefix(self):
+            return ''
+
+        def exec(self, payload):
+            raise failure
+
+    patch.install_worker(SimpleNamespace(ApptainerInstance=Instance))
+    with pytest.raises(ValueError) as caught:
+        Instance().exec({'command': 'true'})
+    assert caught.value is failure
+    assert patch._execution.get() is None
+
+
+def test_nul_guard_through_real_harbor_exec_preserves_binary_and_options(monkeypatch):
+    from harbor.environments.apptainer import worker as worker_module
+
+    class Instance(worker_module.ApptainerInstance):
+        pass
+
+    patch.install_worker(SimpleNamespace(ApptainerInstance=Instance))
+    instance = Instance.__new__(Instance)
+    instance.instance_name = 'test'
+    instance._dockerfile_workdir = '/tmp'
+    instance._deferred_spec = None
+    instance.max_exec_output_chars = 10000
+    monkeypatch.delenv('BRIDGE_AGENT_TOOLS', raising=False)
+    monkeypatch.delenv('BRIDGE_PROXY_HOST', raising=False)
+    monkeypatch.setattr(worker_module, 'APPTAINER', 'apptainer')
+    calls = []
+    real_run = subprocess.run
+
+    def simulated_apptainer(command, **kwargs):
+        calls.append((command, kwargs))
+        command = patch.command_arguments(command)
+        boundary = command.index('instance://test')
+        return real_run(command[boundary + 1:], **kwargs)
+
+    monkeypatch.setattr(worker_module, 'subprocess', SimpleNamespace(
+        run=simulated_apptainer, TimeoutExpired=subprocess.TimeoutExpired))
+    assert instance.exec({'command': 'echo bad\x00'})['return_code'] == 2
+    assert calls == []
+    assert patch._execution.get() is None
+    # Literal backslash escapes are valid shell text and may produce NUL output.
+    command = r"printf '\000'; printf 'error' >&2; exit 7"
+    payload = {'command': command, 'cwd': '/tmp', 'env_vars': {'VALUE': 'kept'},
+               'timeout_sec': 13}
+    result = instance.exec(payload)
+    assert result['stdout'] == '\x00'
+    assert result['stderr'] == 'error'
+    assert result['return_code'] == 7
+    assert len(calls) == 1
+    argv, options = calls[0]
+    assert command in argv[-1]
+    assert 'VALUE=kept' in argv
+    assert argv[argv.index('--pwd') + 1] == '/tmp'
+    assert options['timeout'] == 13
+    assert payload['command'] == command
+    assert patch._execution.get() is None

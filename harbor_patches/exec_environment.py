@@ -4,12 +4,11 @@ Apptainer already loads image ENV with --cleanenv. Harbor's fixed PATH and
 implicit login shell both override it. Adapt only commands emitted by exec(),
 leaving explicitly requested login shells in task commands untouched.
 """
+import os
+import shlex
 from contextvars import ContextVar
 from functools import wraps
-import os
 from pathlib import Path
-import shlex
-
 
 DEFAULT_PATH = '/root/.local/bin:/testbed/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 _execution = ContextVar('harbor_execution_environment', default=None)
@@ -47,6 +46,21 @@ def install_worker(worker):
 
     @wraps(original_exec)
     def execute(self, payload):
+        # NUL cannot be represented in process arguments. Report an invalid
+        # command through the normal exec result so the agent can correct it,
+        # rather than aborting the trial or silently changing the command.
+        command = payload.get('command', '')
+        if isinstance(command, str) and '\x00' in command:
+            return {
+                'stdout': '',
+                'stderr': ('Command not executed: shell commands cannot contain NUL '
+                           '(0x00) characters. Read binary data from a file inside '
+                           'the command, or represent it with escaped text or base64 '
+                           'instead of copying raw binary into the command.'),
+                'return_code': 2,
+                'stdout_truncated': False,
+                'stderr_truncated': False,
+            }
         # Deferred images use a base SIF; their Dockerfile ENV is supplied
         # separately. Keep it on each exec, with explicit payload values last.
         environment = {**(getattr(self, '_deferred_spec', None) or {}).get('env', {}),

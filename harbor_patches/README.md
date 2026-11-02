@@ -39,6 +39,15 @@ also supplies these options before protected-executor dispatch. Consumers that
 only need this fix can call `install_output_decoding(worker)` without enabling
 the other OT runtime patches. Keep source hashes with run provenance.
 
+The worker's `exec_environment.install_worker()` wrapper also rejects actual
+NUL (`0x00`) characters in command text before execution. It returns an ordinary
+exec result with exit code 2 and an explanatory stderr, so the agent can correct
+its command instead of losing the trial to `ValueError: embedded null byte`.
+It never strips or rewrites the rejected command. Literal escapes such as
+`\x00`, binary stdout/stderr, and commands without NUL retain their normal
+behavior. Other execution errors still propagate as before. This guard is part
+of the full OT worker patches, not the standalone output-decoding patch.
+
 
 Marin [PR 136](https://github.com/marin-community/harbor/pull/136) retains the last
 500,000 characters of an exec stream; [PR 137](https://github.com/marin-community/harbor/pull/137)
