@@ -49,7 +49,7 @@ GPU=${GPU:-0}   # the GPU 'serve' starts a model on (one model at a time, unless
 INSTRUCT_PORT=${INSTRUCT_PORT:-8101}; THINKING_PORT=${THINKING_PORT:-8102}
 HF_REPO=FWeindel/validated-tasks
 PREBUILD_JOBS=${PREBUILD_JOBS:-8}; PREBUILD_HOURS=${PREBUILD_HOURS:-36}   # images built at once; time limit per image
-STUCK_HOURS=${STUCK_HOURS:-3}   # a shard with no finished attempt for this long is stuck (see write_shard_watch)
+STUCK_HOURS=${STUCK_HOURS:-2}   # a shard with no finished attempt for this long is stuck (see write_shard_watch)
 MAX_TRIALS=${MAX_TRIALS:-64}   # attempts at once over all runs (CPU-bound: agents mostly wait for the model)
 MIN_FREE_GB=${MIN_FREE_GB:-2000}   # a shard starts only with this much free on its disk and Docker's (0: no check)
 CACHE_HOURS=${CACHE_HOURS:-2}      # remove Docker build cache unused this long, every 2 minutes (0: never)
@@ -687,7 +687,9 @@ write_docker_wrapper() {
     printf 'services:\n  main:\n    network_mode: bridge\n' > "$WS/bin/compose-bridge.yaml"
     cat > "$WS/bin/run_docker.py" <<'EOF'
 """validation/run.py on Harbor's Docker backend, with the cluster bridge's behaviours and prebuilt images kept."""
+import faulthandler
 import runpy
+import signal
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -699,6 +701,20 @@ from harbor.environments.docker.docker import DockerEnvironment  # noqa: E402
 _upload_file, _upload_dir, _exec = docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir, DockerEnvironment.exec
 _stop = DockerEnvironment.stop
 _compose_paths = DockerEnvironment._docker_compose_paths
+
+
+# When a shard hangs, the watcher asks where: SIGUSR1 writes every thread's stack to the shard log (even while
+# the event loop is blocked), SIGUSR2 every asyncio task's (shows what each attempt is waiting for).
+def _task_stacks(signum, frame):
+    import asyncio
+    loop = asyncio._get_running_loop()
+    for task in asyncio.all_tasks(loop) if loop else ():
+        task.print_stack(file=sys.stderr)
+    sys.stderr.flush()
+
+
+faulthandler.register(signal.SIGUSR1, all_threads=True)
+signal.signal(signal.SIGUSR2, _task_stacks)
 BRIDGE = Path(__file__).with_name('compose-bridge.yaml')
 
 
@@ -747,8 +763,9 @@ EOF
 # trial's container held one MiMo attempt, and so its whole shard, for 15 hours. Attempts take at most about
 # 1.3 hours, so when no attempt of a shard has finished for STUCK_HOURS, every attempt still running is stuck:
 # the watcher kills the shard's Docker commands running for over half that time and removes the shard's
-# containers; those attempts then end as errors. If that does not help within STUCK_HOURS more, it stops the
-# shard, and the loop retries it once at the end.
+# containers; those attempts then end as errors. If that does not help within a quarter of STUCK_HOURS (an
+# attempt can also hang elsewhere), it stops the shard, and the loop retries it once at the end. At both steps
+# it first has the shard write its stacks to its log, to show where it hangs.
 write_shard_watch() {
     mkdir -p "$WS/bin"
     cat > "$WS/bin/shard_watch.py" <<'EOF'
@@ -783,6 +800,15 @@ def shown(gb, inodes):
     return f'{gb:.0f} GB and {inodes:.1f}% of inodes'
 
 
+if sys.argv[1] == 'enospc':   # the tasks whose attempts under a shard report a full disk, one per line
+    tasks = set()
+    for result in Path(sys.argv[2]).glob('stage_*/**/job/*/result.json'):
+        try:
+            if 'no space left on device' in result.read_text(errors='replace').lower():
+                tasks.add(result.parent.name.rsplit('__', 1)[0])
+        except OSError:
+            pass
+    sys.exit(print('\n'.join(sorted(tasks))) if tasks else 0)
 if sys.argv[1] in ('space', 'low', 'spoiled'):
     if sys.argv[1] == 'space':
         gb, inodes = space(sys.argv[2:])
@@ -919,6 +945,28 @@ def too_full():
     return floor > 0 and (least[0] < floor or least[1] < 1)
 
 
+def mtimes(paths):
+    for p in paths:
+        try:
+            yield p.stat().st_mtime
+        except OSError:   # removed meanwhile
+            pass
+
+
+def stacks():
+    """Have the shard write its threads' and asyncio tasks' stacks to its log, if it catches the signals."""
+    try:
+        caught = next(int(line.split()[1], 16) for line in open(f'/proc/{shard_pid}/status') if line.startswith('SigCgt:'))
+    except (OSError, StopIteration, ValueError):
+        return
+    for sig in (signal.SIGUSR1, signal.SIGUSR2):
+        if caught & (1 << (sig - 1)):
+            kill([shard_pid], sig)
+            time.sleep(5)
+    if caught & (1 << (signal.SIGUSR1 - 1)):
+        log('wrote the stacks of its threads and tasks to its log')
+
+
 acted, least = None, None
 while alive(shard_pid):
     # A nearly full disk breaks attempts (Harbor cannot save them, tests cannot build) and they count as
@@ -928,22 +976,22 @@ while alive(shard_pid):
         stop_shard()
         break
     time.sleep(min(60, limit / 4))
-    # Attempts of stage 6 (pass@k), of stages 2 and 3 (check), and their retries.
-    finished = [p.stat().st_mtime for pattern in ('stage_*/*/*/job/*/result.json', 'stage_*/*/retry-*/*/job/*/result.json')
-                for p in shard.glob(pattern)]
-    idle = time.time() - max(finished, default=started)
+    # Attempts of stage 6 (pass@k), of stages 2 and 3 (check), their retries and do-not-modify reruns.
+    idle = time.time() - max(mtimes(shard.glob('stage_*/**/job/*/result.json')), default=started)
     if idle < limit:
         acted = None
     elif acted is None:
         acted = time.time()
+        stacks()
         docker = [pid for pid, age, args in descendants(shard_pid)
                   if age > limit / 2 and os.path.basename(args.split(' ', 1)[0]) in ('docker', 'docker-compose')]
         kill(docker, signal.SIGKILL)
         stuck = remove(containers())
         log(f'no attempt finished for {idle / 60:.0f} min: stopped {len(docker)} Docker commands and removed the '
             f'{len(stuck)} containers of its attempts ({", ".join(n for _, n, _, _ in stuck) or "none"})')
-    elif time.time() - acted > limit:
-        log(f'still no attempt finished {limit / 60:.0f} min later: stopping the shard')
+    elif time.time() - acted > limit / 4:
+        log(f'still no attempt finished {limit / 4 / 60:.0f} min later: stopping the shard')
+        stacks()
         stop_shard()
         break
 EOF
@@ -1041,12 +1089,26 @@ EOF
                 echo "$(date -Is) $missing Shard $i/$count not counted: it is redone when you run again." >> "$root/loop.log"
                 exit 1
             fi
-            # Not counted if an attempt reported a full disk, or free space fell below the floor at any time.
-            if grep -rqsiI --include=result.json "no space left on device" "$root/shards/$s" ||
-               grep -qsi "no space left on device" "$root/shards/$s.log" ||
-               { [ "$minfree" != 0 ] && python "$watch" spoiled "$root/shards/$s" "${minfree}e-1" ${dockerroot:+"$dockerroot"} >/dev/null; }; then
+            # Not counted if free space fell below the floor at any time, or Harbor (the shard log) or attempts of
+            # several tasks report a full disk: any disk of the host, also ones not measured (Harbor writes to /tmp).
+            # Attempts of one task alone point to a small disk inside its own containers, which belongs to the
+            # task: they count, unless free space was also below MIN_FREE_GB.
+            why=
+            if [ "$minfree" != 0 ] && low=$(python "$watch" spoiled "$root/shards/$s" "${minfree}e-1" ${dockerroot:+"$dockerroot"}); then
+                why="free space fell to $low"
+            elif grep -qsi "no space left on device" "$root/shards/$s.log"; then
+                why="its log reports a full disk"
+            else
+                tasks=$(python "$watch" enospc "$root/shards/$s"); n=$(printf "%s" "$tasks" | grep -c .)
+                if [ "$n" -gt 1 ]; then
+                    why="attempts of $n tasks report a full disk"
+                elif [ "$n" = 1 ] && [ "$minfree" != 0 ] && low=$(python "$watch" spoiled "$root/shards/$s" "$minfree" ${dockerroot:+"$dockerroot"}); then
+                    why="free space fell to $low, and attempts of $tasks report a full disk"
+                fi
+            fi
+            if [ -n "$why" ]; then
                 python "$watch" cleanup "$root/shards/$s" >> "$root/loop.log" 2>&1
-                echo "$(date -Is) the disk was (nearly) full during shard $i/$count; shard not counted. Free some space, then run again: the shard is redone." >> "$root/loop.log"
+                echo "$(date -Is) the disk was (nearly) full during shard $i/$count ($why); shard not counted. Free some space, then run again: the shard is redone." >> "$root/loop.log"
                 exit 1
             fi
             for f in "$root"/shards/$s/stage_*_*/*/summary.json; do
