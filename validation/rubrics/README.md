@@ -252,7 +252,7 @@ correct. Vertically aligned colors show shared errors.
 Pairwise counts include tasks missed by all three; the rows are not additive.
 
 <details>
-<summary><b>Errors by category: false alarms versus missed defects</b></summary>
+<summary><b>Errors by rubric criteria</b></summary>
 
 Colors identify judges; each task contributes up to three reviews.
 
