@@ -37,110 +37,69 @@ Apptainer.
 
 ## Runtime configuration
 
-By default, each judge inspects a **fresh sandbox using the task's actual
-runtime** (`--review-evidence image`). It contains the task's starting files and
-dependencies, plus the rubric, instructions, tests and reference solution for
-review. 
+By default (`--review-evidence auto`), the judge uses the task's original
+workspace and setup when matching cached images are available; otherwise, it
+uses a base Ubuntu environment with the task files under
+`/app/task-under-review/`. The prompt introduction reflects the selected environment.
 
-**File-only review** (`--review-evidence files`) does not use the task's image.
-The judge gets a copy of the task files under `/app/task-under-review` in a plain
-`ubuntu:24.04` container with `curl`, `git`, `python3`, `nodejs`/`npm` and the
-Claude Code CLI (Terminal-Bench's upstream review image). The task's
-dependencies are not installed, so the judge can read the files but cannot run
-the task's tests or demonstrate an exploit.
+Use `--review-evidence image` to require the task environment, or
+`--review-evidence files` to select the base environment directly. Results record
+the selected mode and reason in `environment_selection` and `review-environment.json`.
 
+Automatic selection supports Apptainer and locally cached Docker prebuilt images.
+On Apptainer, the base review image must also be cached on the target cluster.
+Missing images trigger fallback; cache and startup failures remain errors.
+Other backends and `--force-build` require an explicit mode.
 
 ## Judge configuration
 
-Choose the judge independently of the solver with `--judge-mode` and
-`--judge-model`. These options apply to stages 5 and 8:
+Select the judge with `--judge-mode` and `--judge-model`, independently of the
+solver. From the repository root:
 
 ```bash
-# Start a local server in the cluster allocation, using Terminus 2.
---judge-mode serve --judge-model Qwen/Qwen3-Coder-30B-A3B-Instruct
+# Pipeline (judge options apply to stages 5 and 8).
+python validation/run.py /path/to/tasks --stages 5 --out /path/to/results \
+  --judge-mode serve --judge-model qwen38-27b
 
-# Connect to an already running server, local or remote, using Terminus 2.
---judge-mode api --judge-model openai/my-model --judge-api-base http://HOST:8000/v1
-
-# Provider API, using Terminus 2 and ANTHROPIC_API_KEY.
---judge-mode api --judge-model anthropic/MODEL_ID
-
-# Optional custom credential variable (the name, never the secret).
---judge-mode api --judge-model openai/MODEL_ID --judge-api-key-env MY_JUDGE_KEY
-
-# Supported CLI, using that CLI's own agent and authentication.
---judge-mode cli --judge-cli claude-code --judge-model MODEL_ID
---judge-mode cli --judge-cli codex --judge-model MODEL_ID
+# Standalone review (stage 5 only).
+python validation/rubrics/run_review.py task /path/to/tasks --out /path/to/reviews \
+  --judge-mode serve --judge-model qwen38-27b
 ```
 
-Append these arguments to `python validation/run.py /path/to/tasks --stages 5
---out /path/to/results`, with the usual runtime and cluster options. Existing
-image-cache prerequisites still apply. `local` is accepted as an alias for
-`serve`. For an existing endpoint, the model ID must match the name exposed by
-that endpoint (with the API adapter prefix, such as `openai/`).
+Three judge modes are supported:
 
-Serve mode accepts registered model keys and Hugging Face IDs. Known IDs reuse
-registered hardware and sampling settings. Unregistered IDs use a generic
-one-GPU, auto-dtype configuration; the model must be supported by vLLM and its
-chat template. Prepare weights before submission, using `--serve-weights` for
-an existing directory; the default location is `$OT_MODELS/ORG/MODEL` for an
-unregistered ID. Existing `--serve-context`, `OT_SERVE_GPUS` and serving options
-control resource configuration. This does not automatically download weights
-or determine family-specific reasoning parsers.
+- **Local:** `--judge-mode serve --judge-model MODEL_ID`, using a registered
+  model key or Hugging Face ID.
 
-API credentials use exported environment variables first, then `.env` in the
-working directory, then `~/.env`. Set `OT_SECRETS_FILE` to select a different
-file instead. `--judge-api-key-env` selects a custom variable instead of the
-provider's standard variable. Missing custom credentials fail before review.
-Only the variable name is stored in arguments and contracts. The custom-key
-mapping supports OpenAI, hosted_vllm, Anthropic, Gemini, Together AI, Groq,
-DeepSeek, Mistral, Cohere and OpenRouter; other adapters use their standard
-credential environment variables. CLI authentication remains managed by the
-CLI; Claude Code requires subscription OAuth in this pipeline.
+- **API:** `--judge-mode api --judge-model PROVIDER/MODEL_ID`, optionally
+  `--judge-api-base URL` for an existing endpoint.
+- **CLI:** `--judge-mode cli --judge-cli claude-code --judge-model MODEL_ID`
+  (also supports `--judge-cli codex`).
 
-`--model`, `--api-base` and `--agent` remain solver settings. New judge flags
-cannot be mixed with conflicting legacy reviewer flags. Existing
-`--review-local`, `--review-agent`, `--review-model`, `--analysis-agent` and
-`--analysis-model` commands remain supported. With the legacy interface,
-`--review-local` still reads `--model`. Rubric, evidence, timeout and retry
-options are unchanged.
-
-
-All judges run inside the reviewed task's own container, with the same prompt,
-time limit and retries.
-
-**Claude Sonnet 5.5** runs as Claude Code (Harbor's `claude-code` agent), signed
-in with a Claude subscription:
-
-- **Session timeout:** 30 minutes per review attempt.
-- **Settings:** reasoning effort medium, no cost limit, all Claude Code tools
-  except web search and web fetch, so it cannot look up published reviews of the
-  tasks.
-- **Usage limit:** if the subscription limit is reached, the review waits until
-  the limit resets and then runs again.
-
-**GLM-5.3-Flash and Qwen3.8-27B** are served locally with vLLM and run in
-Terminus 2:
-
-- **Session timeout:** 30 minutes per review attempt.
-- **Context:** 131,072 tokens, with interleaved thinking.
-- **Output per turn, including thinking:** 32,768 tokens for GLM-5.3-Flash,
-  32,767 for Qwen3.8-27B.
-- **Sampling:** each model's default from its model card.
-  - GLM-5.3-Flash: temperature 1.0, top_p 0.95.
-  - Qwen3.8-27B, thinking on: temperature 1.0, top_p 0.95, top_k 20, min_p 0,
-    presence_penalty 0, repetition_penalty 1.0.
+Preconfigured models and their settings are in
+[`config/models.py`](../../config/models.py), under `MODELS` and `JUDGE_MODELS`.
+Configure models there, or use command-line overrides (see `--help`).
 
 <details>
 <summary><b>Retries and repairs</b></summary>
 
+Review time limits are configured under `JUDGE_MODELS`. Use `--timeout-minutes`
+to override the review budget and `--review-grace-minutes` to override the extra
+time allowed to finish the answer.
+
 All judges:
 
-- **Time limit:** after 30 minutes the judge gets 10 more minutes. Its next
-  prompt (Claude Code: its next tool result) ends with:
-  "The review time limit has been reached. Do not investigate further. Write
-  /app/verdicts.json now from the evidence you have. You have 10 minutes."
-  Harbor stops the agent at 42 minutes (30 + 10 + 2 slack).
+- **Time limit:** after the configured review budget, the next prompt asks the
+  judge to stop investigating and write `/app/verdicts.json`, stating how much
+  time remains to finish the answer. For Terminus 2, this countdown starts when
+  the prompt is sent. Waiting to send it is bounded by the same duration.
+  The session watchdog stops the agent when the countdown expires, or records
+  `finish_instruction_timeout` if it could not send the instruction.
+  Harbor's outer safeguard is the review budget + twice the answer-writing
+  allowance + 2 minutes (182 minutes for GLM-5.3). This is a ceiling, not extra
+  investigation time. Claude Code's hard limit is the review budget + the
+  answer-writing allowance + 2 minutes. Session metadata records the actual
+  finish-instruction time and timeout phase.
 - **Valid verdict at the hard limit:** if the agent is stopped but
   `verdicts.json` is already valid, the verdict is kept.
 - **Invalid verdict at completion:** when the judge finishes, `verdicts.json`
@@ -149,7 +108,7 @@ All judges:
   "/app/verdicts.json is not valid, so the review cannot be accepted yet:
   &lt;error&gt;. Correct the file, then mark the task complete again."
 - **One retry** (`--review-retries 1`): a fresh review with the exact same
-  prompt and its own 30-minute timeout. Criteria missing from an otherwise valid
+  prompt and its own full configured review budget. Criteria missing from an otherwise valid
   verdict are retried with `/app/rubric.toml` reduced to them; a missing or
   unusable verdict, or a failed session, is retried with the full rubric.
 
@@ -170,9 +129,13 @@ Local judges only (Claude Code has no persistent terminal):
 </details>
 <br>
 
-We skipped GLM-5.3. In a 3-task test on Helma, served across 2 nodes, it made only
-14 model requests in 30 minutes and wrote no verdicts. A full review takes about
-15-25 steps, so we estimated about 2 hours per review.
+GLM-5.3 is not included in the full 80-task comparison. Its initial pilot
+requested two hours but hit a hardcoded 30-minute limit; that bug was fixed.
+The subsequent two-hour pilot (Helma job 1204056, two nodes) completed one of
+three reviews. The other two still had no accepted verdict after a retry each.
+First attempts averaged 9.4 minutes per API call, with a 26.7-minute maximum.
+The new 30-minute allowance for writing the answer starts when the finish
+instruction is delivered; it has not yet been evaluated on another live pilot.
 
 Earlier experiments tested **Claude Opus 5.5, Claude Fable 5.1, GPT-6 Astra
 (medium), GLM-5.3 and GLM-5.3-Flash**. Their examples and results + pricing are in

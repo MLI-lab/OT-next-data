@@ -34,7 +34,10 @@ def test_builder_source_binding_relocation_and_exclusive_cache(tmp_path,monkeypa
     monkeypatch.setenv('TMPDIR',str(tmp_path))
     monkeypatch.setattr(image,'command',lambda image,scratch,*args:list(args))
     calls=[]
+    original_run = tool.subprocess.run
     def run(command,**kw):
+        if command[0] in ('mksquashfs', 'unsquashfs'):
+            return original_run(command, **kw)
         calls.append(command)
         if command[0]=='readlink':text='/opt/go-1.26'
         elif command[0]=='tar':
@@ -58,6 +61,8 @@ def test_builder_source_binding_relocation_and_exclusive_cache(tmp_path,monkeypa
     count=len(calls)
     assert tool.build(value,source,cache)==record and len(calls)==count
     # Corrupt existing bytes cannot be overwritten through a second preparation.
+    archive = cache / (record['id'] + '.squashfs')
+    archive.chmod(0o644)
     archive.write_bytes(b'conflicting')
     with pytest.raises(ValueError):tool.build(value,source,cache)
     assert archive.read_bytes()==b'conflicting'

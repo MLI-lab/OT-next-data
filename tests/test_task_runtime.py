@@ -37,7 +37,9 @@ def prepared(tmp_path):
         destination = task / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)
-    return task, cache, archive
+    from harbor_patches.runtime_images import build
+    image = build(manifest, cache, processors=1)
+    return task, cache, Path(image['path'])
 
 
 def test_runtime_only_task_triggers_setup_and_cache_preflight(tmp_path):
@@ -47,6 +49,7 @@ def test_runtime_only_task_triggers_setup_and_cache_preflight(tmp_path):
     assert next(iter(checked.values()))['archive'] == str(archive)
     (task / 'setup_files/setup.sh').write_text('echo initialized')
     assert detect(task) == 'bash /setup_files/setup.sh'
+    archive.chmod(0o644)
     archive.write_bytes(b'corrupt')
     assert next(iter(preflight([task], cache).values()))['status'] == 'missing'
 
@@ -88,7 +91,8 @@ def test_missing_declared_cache_does_not_install_or_touch_environment(tmp_path, 
     task, cache, archive = prepared(tmp_path)
     monkeypatch.setenv('OT_VERIFIER_BUNDLE_CACHE', str(cache))
     archive.unlink()
-    assert asyncio.run(task_runtime.stage(SimpleNamespace(), task)) is None
+    with pytest.raises(RuntimeError, match='not mounted'):
+        asyncio.run(task_runtime.stage(SimpleNamespace(_persistent_env={}), task))
 
 
 def test_stage_precedes_setup_and_persists_selection_for_agent(tmp_path, monkeypatch):
@@ -96,7 +100,10 @@ def test_stage_precedes_setup_and_persists_selection_for_agent(tmp_path, monkeyp
     monkeypatch.setenv('OT_VERIFIER_BUNDLE_CACHE', str(cache))
     before = digest(archive)
     calls = []
-    root = '/setup_files/.ot-task-runtime-abc123'
+    from harbor_patches.runtime_images import load
+    ref = json.loads((task / 'setup_files' / TASK_REFERENCE).read_text())
+    image = dict(load(ref, cache), agent_runtime=True)
+    root = image['image_root']
     class Environment:
         _persistent_env = {'EXISTING': 'keep', 'PATH': '/image/bin'}
         async def exec(self, command, **kwargs):
@@ -111,8 +118,10 @@ def test_stage_precedes_setup_and_persists_selection_for_agent(tmp_path, monkeyp
         async def empty_dirs(self, *args, **kwargs):
             calls.append('empty setup')
     env = Environment()
+    env._verifier_runtime_images = {ref['id']: image}
     asyncio.run(upload_setup(env, task))
-    assert calls.index('upload setup') < calls.index('upload archive')
+    assert 'upload archive' not in calls
+    assert calls.index('upload setup') < next(i for i, c in enumerate(calls) if c.startswith('test -x '))
     assert env._persistent_env['OT_TASK_PYTHON'] == root + '/python/bin/python3'
     assert env._persistent_env['PATH'] == root + '/python/bin:/image/bin'
     assert env._persistent_env['EXISTING'] == 'keep'
@@ -163,9 +172,11 @@ def test_task_offline_packages_stage_before_agent_without_replacing_python(tmp_p
         async def upload_file(self, source_path, target_path):
             assert target_path.endswith('/packages.tar.gz')
     env = Environment()
+    from harbor_patches.runtime_images import build
+    env._verifier_runtime_images = {key: build(manifest, cache, processors=1)}
     record = asyncio.run(task_runtime.stage(env, task, tmp_path / 'evidence'))
     assert record['runtime'] is None and record['offline']['phase'] == 'before-agent'
-    assert set(record['offline']['timings_seconds']) == {'verify_structure','allocate','archive_upload','checksum_extract_configuration'}
+    assert set(record['offline']['timings_seconds']) == {'verify_structure','allocate','image_configuration'}
     assert all(v >= 0 for v in record['offline']['timings_seconds'].values())
     assert env._persistent_env == {'PATH': '/image/bin', 'OT_TASK_OFFLINE': '/tmp/.ot-task-offline-abc123'}
     assert any('apt.conf' in call for call in calls)

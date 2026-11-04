@@ -149,6 +149,8 @@ def prepare_images(tasks, images, shared, args):
     task_paths = {}
     for task in tasks:
         for dockerfile in task_dockerfiles(task):
+            if getattr(args, 'git_checks_only', False) and dockerfile.parent != task / 'environment':
+                continue
             key = environment_dir_hash_truncated(dockerfile.parent)
             selected.setdefault(key, (task.name, dockerfile))
             task_paths.setdefault(key, task)

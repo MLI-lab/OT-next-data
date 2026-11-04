@@ -46,55 +46,15 @@ def test_compact_reference_validates_cached_recipe_identity(tmp_path):
     task, context, cache, archive, record = setup_task(tmp_path, 'verifier')
     ref = bundles.reference(context)
     assert 'spec' not in ref
-    assert bundles.verify(ref, cache) == archive
+    assert bundles.verify_source_archive(ref, cache) == archive
     record['spec']['python'] = '3.11.14'
     (cache / (record['id'] + '.json')).write_text(json.dumps(record))
     with pytest.raises(ValueError, match='corrupt'):
-        bundles.verify(ref, cache)
+        bundles.verify_source_archive(ref, cache)
 
 
-def test_new_cache_default_and_legacy_lookup(tmp_path, monkeypatch):
-    monkeypatch.delenv('OT_RUNTIME_CACHE', raising=False)
-    monkeypatch.delenv('OT_VERIFIER_BUNDLE_CACHE', raising=False)
-    monkeypatch.setenv('OT_WORKSPACE', str(tmp_path))
-    assert bundles.cache_root() == tmp_path / 'runtimes'
-    spec = runtime_spec(python='3.10.19', requirements=[])
-    archive, record = artifact(tmp_path / 'verifier-bundles', spec)
-    assert bundles.verify(record) == archive
-    monkeypatch.setenv('OT_VERIFIER_BUNDLE_CACHE', str(tmp_path / 'legacy-override'))
-    monkeypatch.setenv('OT_RUNTIME_CACHE', str(tmp_path / 'new-override'))
-    assert bundles.cache_root() == tmp_path / 'new-override'
-    with pytest.raises(FileNotFoundError):
-        bundles.verify(record)
 
 
-@pytest.mark.parametrize('phase', ['task', 'verifier'])
-@pytest.mark.parametrize('damage', ['missing', 'incomplete', 'corrupt'])
-def test_unusable_cache_entry_uses_the_phase_specific_installation(tmp_path, monkeypatch, damage, phase):
-    task, context, cache, archive, record = setup_task(tmp_path, phase)
-    monkeypatch.setenv('OT_RUNTIME_CACHE', str(cache))
-    if damage == 'missing':
-        archive.unlink()
-    elif damage == 'incomplete':
-        (cache / (record['id'] + '.json')).unlink()
-    else:
-        archive.write_bytes(b'corrupt')
-    checked = bundles.preflight([task])
-    assert checked[record['id']]['status'] == 'missing' and checked[record['id']]['reason']
-    # Agent setup retains its installation branch. Verifier installation must
-    # happen on the trusted controller before any container tools can execute.
-    if phase == 'task':
-        assert asyncio.run(task_runtime.stage(SimpleNamespace(), task, tmp_path / 'evidence')) is None
-    else:
-        calls = []
-        async def install(environment, actual_context, reference, evidence, reason, **kwargs):
-            assert actual_context == context and reference['id'] == record['id'] and reason
-            calls.append('trusted installation')
-            return {'clean': True}
-        monkeypatch.setattr(bundles, 'install_and_stage', install)
-        assert asyncio.run(bundles.stage(SimpleNamespace(), context, tmp_path / 'evidence')) == {'clean': True}
-        assert calls == ['trusted installation']
-    assert archive.read_bytes() == b'corrupt' if damage == 'corrupt' else True
 
 
 def test_preparation_option_exits_before_task_initialization(tmp_path):

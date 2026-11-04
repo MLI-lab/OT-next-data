@@ -23,7 +23,7 @@ class ExperimentalRubrics(TestCase):
     def test_custom_requires_valid_per_criterion_labels(self):
         rubric, _ = load('custom')
         selected, _ = select_criteria(rubric, {}, ['test_coverage'])
-        self.assertEqual(tomllib.loads(selected)['review']['format'], 'criteria')
+        self.assertEqual(set(tomllib.loads(selected)), {'criteria'})
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'rubric.toml').write_text(selected)
@@ -68,7 +68,7 @@ class ExperimentalRubrics(TestCase):
                 (destination / 'instruction.md').write_text('Upstream prompt\nORIGINAL RUBRIC')
                 (destination / 'environment/Dockerfile').write_text('FROM ubuntu:24.04\nRUN git init /tmp/source\n')
                 (destination / 'task.toml').write_text('artifacts = ["/app/verdicts.json"]\n')
-        for kind, fmt in [('custom', None), ('custom', 'classification'), ('river', None), ('custom_severity', None)]:
+        for kind, fmt in [('custom', None), ('custom', 'classification'), ('river', None), ('river_selected', None), ('custom_severity', None)]:
             with self.subTest(kind=kind, fmt=fmt), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 source = root / 'task'; source.mkdir()
@@ -79,6 +79,7 @@ class ExperimentalRubrics(TestCase):
                 with mock.patch('validation.stages.prepare_review_tasks.module', return_value=Stager()):
                     stage_review(source, destination, root / 'upstream', rubric_kind=kind, review_format=fmt)
                 rubric = (destination / 'rubric.toml').read_text()
+                self.assertNotIn('[review]', rubric)
                 self.assertEqual(rubric, (destination / 'setup_files/review-rubric.toml').read_text())
                 if kind == 'custom' and fmt is None:
                     self.assertIn('/app/rubric.toml', (destination / 'instruction.md').read_text())

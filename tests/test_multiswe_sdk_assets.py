@@ -143,30 +143,4 @@ def test_native_compiler_names_survive_runtime_lookup(tmp_path):
     ref = {'format': FORMAT, 'id': key, 'spec': spec,
            'status': 'ready', 'archive_sha256': digest(path)}
     (tmp_path / (key + '.json')).write_text(json.dumps(ref))
-    assert lookup(ref, root=tmp_path) == (path, None)
-
-
-def test_native_compiler_names_survive_full_staging(tmp_path, monkeypatch):
-    import asyncio
-    import json
-    from types import SimpleNamespace
-    from harbor_patches.verifier_bundle import _stage
-    import harbor_patches.runtime_transfer as transfer
-    import harbor_patches.verifier_mount as mount
-    archive = tmp_path/'sdk.tar.gz';archive.write_bytes(b'archive')
-    (tmp_path/'sdk.json').write_text(json.dumps({'spec': {'tools': ['c++', 'g++']}}))
-    commands = []
-    class Environment:
-        async def exec(self, command, **kwargs):
-            commands.append(command)
-            return SimpleNamespace(return_code=0, stdout='/tests/.ot-verifier-runtime-abc123', stderr='')
-    async def upload(*args, **kwargs):
-        return None
-    async def prepare(*args, **kwargs):
-        return None
-    monkeypatch.setattr(transfer, 'upload', upload)
-    monkeypatch.setattr(mount, 'prepare', prepare)
-    result = asyncio.run(_stage(Environment(), archive, {'id':'a'*64, 'archive_sha256':'b'*64}, tmp_path/'evidence'))
-    assert result['network_downloads'] is False
-    assert 'test -x python/bin/c++' in commands[1]
-    assert 'test -x python/bin/g++' in commands[1]
+    assert lookup(ref, root=tmp_path, preparation=True) == (path, None)

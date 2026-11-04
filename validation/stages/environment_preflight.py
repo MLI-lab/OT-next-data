@@ -24,6 +24,17 @@ def run_build_stage(sources, out, args, checkpoint=None):
     results = []
     for source in sources:
         result = dict(by_name[source.name])
+        # Status below includes checker findings for acceptance. Only this
+        # preparation verdict controls whether later container stages can run.
+        result['build_status'] = result.get('build_status', result['status'])
+        inspections = [*result.get('environments', []),
+                       *(v.get('inspection', {}) for v in result.get('verifier_preparation', []))]
+        bad_checks = [c for e in inspections for c in e.get('checks', [])
+                      if c.get('status') in ('failed', 'error', 'incomplete')]
+        if result['status'] == 'passed' and bad_checks:
+            result.update(status='error' if any(c['status'] != 'failed' for c in bad_checks) else 'failed',
+                          reason='Environment inspection: ' + '; '.join(
+                              c['check'] + ': ' + c.get('reason', c['status']) for c in bad_checks))
         from validation.rules.dynamic.environment.check import leak_verdict
         verdict = next((leak_verdict(e) for e in result.get('environments', [])
                         if e.get('environment') == 'agent'), None)
@@ -32,7 +43,7 @@ def run_build_stage(sources, out, args, checkpoint=None):
             # Restoring would need the container started again, which is stage 1 itself.
             result.update(status='error', environment_leak='not_run',
                           reason='leak checks missing from reused stage-1 result; rerun stage 1')
-        elif verdict and result.get('status') == 'passed':
+        elif verdict and result.get('build_status') == 'passed':
             # Decided after the build retries: a leak is the same on every rebuild.
             result.update(status=verdict[0], reason=verdict[1], environment_leak=verdict[0])
         results.append(result)

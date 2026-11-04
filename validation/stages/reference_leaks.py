@@ -124,21 +124,19 @@ def read_evidence(output):
         if report.get('stage') != REFERENCE:
             continue
         for item in report.get('items', []):
-            if item.get('status') not in ('passed', 'completed'):
-                continue
             records.setdefault(Path(item.get('task', '')).name, []).extend(item.get('reference_file_fingerprints', []))
     return records
 
 
 def collect(task, output, records=None):
-    """Reuse only successful, content-matching reference-stage evidence in this run."""
+    """Reuse complete, content-matching fingerprints independently of grading verdicts."""
     digest = evidence_digest(task)
     records = read_evidence(output) if records is None else records
     candidates = [e for e in records.get(task.name, [])
                   if e.get('version') == reference_files.VERSION and e.get('task_sha256') == digest]
     valid = [e for e in candidates if e.get('status') == 'completed']
     if not valid:
-        raise ValueError(f'No complete, matching reference fingerprints from a successful stage {REFERENCE} in this output directory; rerun stage {REFERENCE}')
+        raise ValueError(f'No complete, matching reference fingerprints from stage {REFERENCE} in this output directory; rerun stage {REFERENCE}')
     signatures = {json.dumps({'files': sorted(e['files'], key=lambda f: f['path']),
                               'deleted_files': e['deleted_files'], 'workspace': e['workspace']}, sort_keys=True)
                   for e in valid}
@@ -217,8 +215,8 @@ def plan_nop_scans(tasks, output):
         try:
             evidence = collect(task, output, records)
         except (ValueError, OSError) as exc:
-            # No usable stage-2 evidence: the check depends on the reference run.
-            results[task.name] = {'check': CHECK, 'status': 'skipped', 'blocked_by_stage': REFERENCE,
+            # Missing fingerprints are an incomplete measurement, not a rule gate.
+            results[task.name] = {'check': CHECK, 'status': 'error', 'scan_status': 'incomplete',
                                   'reason': str(exc)}
             continue
         if evidence['files']:

@@ -99,6 +99,37 @@ MODELS = {
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
 
+@dataclass(frozen=True)
+class JudgeDefaults:
+    """Review policy, separate from the model's shared serving/sampling settings."""
+    review_minutes: float = 30
+    grace_minutes: float = 10
+    context: int | None = None
+
+
+JUDGE_MODELS = {
+    # The 3-task two-hour pilot had 9.4-minute mean API calls and a 26.7-minute
+    # maximum. Thirty-minute grace is the next pilot setting, not yet validated.
+    'glm-5.3': JudgeDefaults(review_minutes=120, grace_minutes=30, context=131072),
+    'glm-5.3-flash': JudgeDefaults(context=131072),
+    'qwen38-27b': JudgeDefaults(context=131072),
+}
+
+
+def judge_defaults(model: str | None) -> JudgeDefaults:
+    """Resolve exact registered keys, HF IDs and API-prefixed registered names."""
+    name = model or ''
+    for prefix in ('openai/', 'hosted_vllm/', 'together_ai/'):
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+            break
+    for key, defaults in JUDGE_MODELS.items():
+        spec = MODELS[key]
+        if name in (key, spec.hf_repo, spec.name):
+            return defaults
+    return JudgeDefaults()
+
+
 # The two models the RL runs start from, measured on every dataset. Sampling is
 # the model card's (and generation_config.json's) own, nothing added.
 #

@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load(kind, output_format=None):
+    if kind == 'river_selected' and output_format not in (None, 'criteria'):
+        raise ValueError('river_selected uses --review-format criteria')
     if kind == 'river' and output_format not in (None, 'classification'):
         raise ValueError('River uses classification; --review-format criteria is not supported')
     if kind == 'custom_severity' and output_format not in (None, 'severity'):
@@ -19,29 +21,71 @@ def load(kind, output_format=None):
     if kind == 'custom' and output_format not in (None, 'criteria', 'classification'):
         raise ValueError('custom uses --review-format criteria or classification')
     text = (ROOT / f'rubric_{kind}' / 'rubric.toml').read_text()
-    if kind == 'custom_severity':
-        text = '[review]\nformat = "severity"\n\n' + text
-    if kind == 'custom':
-        if output_format == 'classification':
-            text = (ROOT / 'rubric_custom/classification.toml').read_text()
-        else:
-            text = '[review]\nformat = "criteria"\n\n' + text
+    if kind == 'custom' and output_format == 'classification':
+        text = (ROOT / 'rubric_custom/classification.toml').read_text()
+    settings(tomllib.loads(text))
     return text, {}
 
 
-def prompt(rubric, task_name, evidence_mode="image"):
+# Runner policy stays in code, never in the rubric supplied to a judge.
+RIVER_CRITERIA = frozenset({
+    'VERIFIER-TOO-WEAK', 'INSTR-VERIFIER-MISMATCH',
+    'INSTR-ENV-MISMATCH', 'INSTR-AMBIGUOUS',
+})
+
+
+def settings(rubric):
+    """Determine review policy from definition structure, including retry subsets.
+
+    Accept only definition-bearing sections so runner metadata cannot silently
+    enter a judge-facing rubric. Severity levels and guidance are rubric content.
+    """
+    formats = {'criteria': 'criteria', 'categories': 'classification', 'rubrics': 'severity'}
+    sections = set(rubric) & formats.keys()
+    if len(sections) != 1:
+        raise ValueError('Rubric must contain exactly one definition section')
+    section = next(iter(sections))
+    allowed = {section} | ({'severity_levels', 'guidance'} if section == 'rubrics' else set())
+    if set(rubric) - allowed:
+        raise ValueError('Rubric contains non-definition metadata: ' + ', '.join(sorted(set(rubric) - allowed)))
+    output_format = formats[section]
+    names = {c['name'] for c in rubric.get('criteria', [])}
+    river = bool(names) and names <= RIVER_CRITERIA
+    return {
+        'format': output_format,
+        'prompt': 'river_labeling' if river else {
+            'criteria': 'labeling', 'classification': 'classification', 'severity': 'custom_severity',
+        }[output_format],
+        'outcomes': ['pass', 'fail'] if river else ['pass', 'fail', 'not_applicable'],
+    }
+
+
+def prompt(rubric, task_name, evidence_mode="image", minutes=30):
     config = tomllib.loads(rubric)
     templates = ROOT / 'prompt_templates/modified'
-    template = {'classification': 'classification.txt', 'criteria': 'labeling.txt',
-                'severity': 'custom_severity.txt'}[config['review']['format']]
+    template = settings(config)['prompt'] + '.txt'
     text = (templates / template).read_text()
+    anti_cheat = any(c['name'] == 'anti_cheat_robustness' for c in config.get('criteria', []))
+    text = text.replace('{{VERIFIER_RUNTIME}}',
+                        (templates / 'verifier_runtime.txt').read_text().strip() if anti_cheat else '')
+    text = text.replace('{{ANTI_CHEAT_REWARD}}',
+                        '- If `anti_cheat_robustness` fails, also set `"verifier_reward"` in that entry to the reward you observed when you ran the verifier on your exploit.' if anti_cheat else '')
+    text = text.replace('{{REVIEW_MINUTES}}', f'{minutes:g}')
+    return environment_context(text, evidence_mode)
+
+
+def environment_context(text, evidence_mode):
+    """Insert the introduction for the execution path selected by the runner."""
+    if evidence_mode not in ('image', 'files'):
+        raise ValueError(f'Unknown review evidence mode: {evidence_mode}')
+    introduction = (ROOT / 'prompt_templates/modified/environment' / f'{evidence_mode}.txt').read_text().strip()
+    if text.count('{{REVIEW_INTRODUCTION}}') != 1:
+        raise ValueError('Review template must contain exactly one introduction placeholder')
+    text = text.replace('{{REVIEW_INTRODUCTION}}', introduction)
     if evidence_mode == 'files':
         text = text.replace(
-            'You see the same starting environment as the task-solving agent, with an additional copy of the complete task under `/app/task-under-review/`, including tests and reference solutions that are not provided to the task-solving agent.',
-            'You are reviewing a copy of the complete task under `/app/task-under-review/` in a separate review environment.')
-        text = text.replace(
-            "You have access to the solving agent's starting environment, the complete task folder at `/app/task-under-review/<task>/` (including instructions, configuration, tests, and reference solutions), and shell execution in a disposable environment.",
-            'You have access to the complete task folder at `/app/task-under-review/<task>/` (including instructions, configuration, tests, and reference solutions), and shell execution in a separate review environment. The actual task and verifier environments are not running here; do not treat execution in this review environment as evidence of their behavior.')
+            'inspect the relevant task files, and interact with the environment as needed',
+            'inspect the relevant task files, and analyze those files as needed')
     return text
 
 
@@ -160,9 +204,9 @@ def validate_severity(data, rubric):
 def validate(data, rubric):
     if not isinstance(data, dict):
         raise ValueError('Verdict must be a JSON object')
-    if rubric.get('review', {}).get('format') == 'severity':
+    if settings(rubric)['format'] == 'severity':
         return validate_severity(data, rubric)
-    if rubric.get('review', {}).get('format') == 'classification':
+    if settings(rubric)['format'] == 'classification':
         category = data.get('category')
         allowed = {entry['name'] for entry in rubric['categories']}
         if not isinstance(category, str) or category not in allowed:
@@ -180,10 +224,11 @@ def validate(data, rubric):
         raise ValueError('Expected a "checks" object keyed by criterion name')
     if set(checks) != names:
         raise ValueError(name_mismatch('criteria', names, checks))
+    outcomes = settings(rubric)['outcomes']
     for name, verdict in checks.items():
-        if (not isinstance(verdict, dict) or verdict.get('outcome') not in ('pass', 'fail', 'not_applicable')
+        if (not isinstance(verdict, dict) or verdict.get('outcome') not in outcomes
                 or not isinstance(verdict.get('explanation'), str) or not verdict['explanation'].strip()):
-            raise ValueError(f'Expected pass/fail/not_applicable and a nonempty explanation for {name}')
+            raise ValueError(f"Expected {'/'.join(outcomes)} and a nonempty explanation for {name}")
     return data
 
 
@@ -194,11 +239,11 @@ def read_output(path, rubric):
 
 
 
-def valid_checks(data, names):
+def valid_checks(data, names, outcomes=('pass', 'fail', 'not_applicable')):
     checks=data.get('checks',{}) if isinstance(data, dict) else {}
     if not isinstance(checks,dict): return {}
     return {k:v for k,v in checks.items() if k in names and isinstance(v,dict)
-            and v.get('outcome') in ('pass','fail','not_applicable')
+            and v.get('outcome') in outcomes
             and isinstance(v.get('explanation'),str) and v['explanation'].strip()}
 
 
@@ -283,8 +328,8 @@ def save(path, data):
 
 
 def subset_rubric(text, names):
-    """Keep exact criterion wording and any rubric-level metadata."""
-    severity = tomllib.loads(text).get('review', {}).get('format') == 'severity'
+    """Keep exact criterion wording and shared severity definitions and guidance."""
+    severity = settings(tomllib.loads(text))['format'] == 'severity'
     section, key = ('rubrics', 'id') if severity else ('criteria', 'name')
     blocks = re.findall(rf'(?ms)^\[\[{section}\]\][ \t]*\n.*?(?=^\[\[{section}\]\]|\Z)', text)
     prefix = text[:text.index(f'[[{section}]]')]
@@ -323,9 +368,7 @@ def checkpoint_dir(source, staged, args, agent, model):
 
 
 def validate_complete(data, rubric):
-    config = dict(rubric)
-    config.setdefault('review', {'format': 'criteria'})
-    return validate(data, config)
+    return validate(data, rubric)
 
 
 async def complete_review(rubric_text, base_prompt, folder, invoke, retries=1, resume=True):
@@ -338,8 +381,8 @@ async def complete_review(rubric_text, base_prompt, folder, invoke, retries=1, r
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     rubric = tomllib.loads(rubric_text)
-    classification = rubric.get('review', {}).get('format') == 'classification'
-    severity = rubric.get('review', {}).get('format') == 'severity'
+    classification = settings(rubric)['format'] == 'classification'
+    severity = settings(rubric)['format'] == 'severity'
     names = ({'task_clean'} if classification else
              {c['id'] for c in rubric['rubrics']} if severity else {c['name'] for c in rubric['criteria']})
     state_path = folder / 'state.json'
@@ -349,7 +392,8 @@ async def complete_review(rubric_text, base_prompt, folder, invoke, retries=1, r
         validate_complete(state['verdict'], rubric)
         return {**state, 'resumed': True}
     retained = (valid_severity_results(state, rubric, names) if severity
-                else valid_checks({'checks': state.get('checks', {})}, names))
+                else valid_checks({'checks': state.get('checks', {})}, names,
+                                  settings(rubric)['outcomes']))
     for _ in range(retries + 1):
         missing = names - retained.keys()
         reduced = rubric_text if classification or not retained or not missing else subset_rubric(rubric_text, missing)
@@ -393,7 +437,8 @@ async def complete_review(rubric_text, base_prompt, folder, invoke, retries=1, r
                 except ValueError as exc:
                     state['last_error'] = str(exc)
         else:
-            added = valid_checks(raw if isinstance(raw, dict) else {}, missing)
+            added = valid_checks(raw if isinstance(raw, dict) else {}, missing,
+                                 settings(rubric)['outcomes'])
             retained.update(added)
             state['criterion_origin'].update({name: index for name in added})
             state['checks'] = retained
@@ -456,7 +501,8 @@ async def review_files(staged, source, out, args, agent, model, task_environment
                     task = env_review.stage(source, task, round_dir / 'task-environment' / source.name,
                         {f'task-under-review/{source.name}': source, 'rubric.toml': task / 'rubric.toml'},
                         '/app/verdicts.json', grace_sec=env_review.grace_sec(args),
-                        review=env_review.review_sec(args))
+                        review=env_review.review_sec(args),
+                        delivery_wait_sec=env_review.grace_sec(args) if agent == 'terminus-2' else 0)
                     session = active(env_review.policy(args, validate))
                 config = runtime.job_config(task, round_dir / 'jobs', attempt_args, agent, model)
                 if task_environment:

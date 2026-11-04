@@ -108,7 +108,7 @@ def test_review_orders_setup_transfers_and_cleans_up(tmp_path, monkeypatch, sepa
         assert timing['start'] == 125
     assert ('verifier', 'bash /setup_files/setup.sh') not in events
     verifier = result['verifier_preparation'][0]
-    success = failure in (None, 'absent', 'verifier_start', 'queued_start') or (failure == 'inspection' and not separate)
+    success = failure in (None, 'absent', 'verifier_start', 'queued_start') or failure == 'inspection'
     assert verifier['status'] == ('passed' if success else 'error')
     if failure == 'collect':
         assert not any(e[1] in ('artifact-download', SETUP_COMMAND) for e in events)

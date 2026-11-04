@@ -185,7 +185,9 @@ def _bound_download_task(tmp_path):
     (task / 'setup_files/setup.sh').write_bytes(setup_script(plan))
     for name, data in task_offline_reference(request, record).items():
         (task / name).write_bytes(data)
-    return task, cache, archive
+    from harbor_patches.runtime_images import build
+    image = build(record, cache, processors=1)
+    return task, cache, Path(image['path'])
 
 
 class _Environment:
@@ -204,7 +206,7 @@ class _Environment:
 
 
 @pytest.mark.parametrize('damage', [None, 'missing', 'corrupt'])
-def test_staging_uses_ready_download_set_or_falls_back_to_online_setup(tmp_path, monkeypatch, damage):
+def test_staging_requires_ready_download_image(tmp_path, monkeypatch, damage):
     import asyncio
     from harbor_patches import task_runtime
     from harbor_patches.verifier_bundle import preflight
@@ -213,16 +215,21 @@ def test_staging_uses_ready_download_set_or_falls_back_to_online_setup(tmp_path,
     if damage == 'missing':
         archive.unlink()
     elif damage == 'corrupt':
+        archive.chmod(0o644)
         archive.write_bytes(archive.read_bytes()[:-8] + b'tampered')
     checked = preflight([task])
     env = _Environment()
-    record = asyncio.run(task_runtime.stage(env, task, tmp_path / 'evidence'))
     if damage is None:
+        from harbor_patches.runtime_images import load
+        ref = json.loads((task / 'setup_files/ot-task-offline.json').read_text())
+        env._verifier_runtime_images = {ref['id']: load(ref, cache)}
+        record = asyncio.run(task_runtime.stage(env, task, tmp_path / 'evidence'))
         assert next(iter(checked.values()))['archive'] == str(archive)
         assert env._persistent_env['OT_TASK_OFFLINE'] == '/tmp/.ot-task-offline-abc123'
-        assert any(c.startswith('upload ') for c in env.calls)
+        assert not any(c.startswith('upload ') for c in env.calls)
     else:
         # Bytes are rejected before use; setup's original online branch remains.
         assert next(iter(checked.values()))['status'] == 'missing'
-        assert record is None
+        with pytest.raises(RuntimeError, match='not mounted'):
+            asyncio.run(task_runtime.stage(env, task, tmp_path / 'evidence'))
         assert env.calls == [] and 'OT_TASK_OFFLINE' not in env._persistent_env

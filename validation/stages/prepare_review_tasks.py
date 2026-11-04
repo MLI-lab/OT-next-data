@@ -21,14 +21,15 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
         rubric, skipped = implementation_rubric(rubric_path, references, suffixes)
     elif rubric_kind == 'harbor':
         rubric, skipped = harbor_rubric()
-    elif rubric_kind in ('custom', 'river', 'custom_severity'):
+    elif rubric_kind in ('custom', 'river', 'river_selected', 'custom_severity'):
         from validation.rubrics.utils.review import load
         rubric, skipped = load(rubric_kind, review_format)
     else:
         raise ValueError(f'unknown implementation rubric: {rubric_kind}')
-    if review_format and rubric_kind not in ('custom', 'river', 'custom_severity'):
-        raise ValueError('--review-format is supported only for custom, river and custom_severity rubrics')
-    if tomllib.loads(rubric).get('review', {}).get('format') == 'classification' and criteria is not None:
+    if review_format and rubric_kind not in ('custom', 'river', 'river_selected', 'custom_severity'):
+        raise ValueError('--review-format is supported only for custom, river, river_selected and custom_severity rubrics')
+    from validation.rubrics.utils.review import settings
+    if settings(tomllib.loads(rubric))['format'] == 'classification' and criteria is not None:
         raise ValueError('--review-criteria cannot restrict a single-category classification')
     rubric, skipped = select_criteria(rubric, skipped, criteria)
     instruction = destination / 'instruction.md'
@@ -39,18 +40,19 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     if text.count(original_rubric) != 1:
         raise ValueError('expected exactly one embedded upstream rubric')
     text = text.replace(original_rubric, rubric)
-    if rubric_kind in ('custom', 'river', 'custom_severity'):
+    if rubric_kind in ('custom', 'river', 'river_selected', 'custom_severity'):
         from validation.rubrics.utils.review import prompt, install_verifier
-        text = prompt(rubric, source.name, evidence_mode)
+        text = prompt(rubric, source.name, evidence_mode, minutes=minutes)
         install_verifier(destination)
     else:
-        # Same closing lines as the modified prompts; the upstream template stays pinned.
-        text = (text.rstrip('\n') + '\n\nYou have 30 minutes for this review.\n')
+        from validation.rubrics.utils.review import ROOT, environment_context
+        text = (ROOT / 'prompt_templates/modified/terminal_bench.txt').read_text()
+        text = environment_context(text.replace('<RUBRIC>', rubric), evidence_mode)
     # The closing time line states the session length (--timeout-minutes).
     text = text.replace('You have 30 minutes for this review.', f'You have {minutes:g} minutes for this review.')
     instruction.write_text(text)
     (destination / 'rubric.toml').write_text(rubric)
-    if rubric_kind in ('custom', 'river', 'custom_severity'):
+    if rubric_kind in ('custom', 'river', 'river_selected', 'custom_severity'):
         (destination / 'setup_files/review-rubric.toml').write_text(rubric)
         (destination / 'setup_files/rubric.toml').write_text(rubric)
     (destination / 'rubric-skips.json').write_text(json.dumps(skipped, indent=2) + '\n')
@@ -58,7 +60,7 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     original = (env / 'Dockerfile').read_text()
     header = original.split('RUN git init /tmp/source', 1)[0]
     (env / 'Dockerfile').write_text(header + 'WORKDIR /app\nRUN ln -s /setup_files/task-under-review /app/task-under-review\n'
-        + ('RUN ln -s /setup_files/rubric.toml /app/rubric.toml\n' if rubric_kind in ('custom', 'river', 'custom_severity') else ''))
+        + ('RUN ln -s /setup_files/rubric.toml /app/rubric.toml\n' if rubric_kind in ('custom', 'river', 'river_selected', 'custom_severity') else ''))
     shutil.copytree(source, destination / 'setup_files' / 'task-under-review' / source.name)
     # Explicit artifact destination keeps host-side validation independent of
     # container absolute paths. Schema is checked by our result reader too.
@@ -118,12 +120,17 @@ def read_partial_verdicts(path, rubric_path):
     at all, is not a partial review and raises.
     """
     data = json.loads(path.read_text())
-    criteria = {c['name'] for c in tomllib.loads(rubric_path.read_text()).get('criteria', [])}
+    from validation.rubrics.utils.review import settings
+    rubric = tomllib.loads(rubric_path.read_text())
+    criteria = {c['name'] for c in rubric.get('criteria', [])}
+    outcomes = settings(rubric)['outcomes']
+    if 'not_applicable' in outcomes:
+        outcomes = [*outcomes, 'incomplete']
     checks = data.get('checks') if isinstance(data, dict) else None
     if not isinstance(checks, dict):
         raise ValueError(f'{path}: verdicts have no checks object')
     valid = {name: verdict for name, verdict in checks.items() if name in criteria
-             and isinstance(verdict, dict) and verdict.get('outcome') in ('pass', 'fail', 'not_applicable', 'incomplete')
+             and isinstance(verdict, dict) and verdict.get('outcome') in outcomes
              and isinstance(verdict.get('explanation'), str) and verdict['explanation'].strip()}
     if not valid:
         raise ValueError(f'{path}: no valid rubric judgment')
@@ -161,17 +168,8 @@ def collect_verdict(result, trial, path, rubric_path, skipped, analysis=False):
 def read_verdicts(path, rubric_path, analysis=False):
     data = json.loads(path.read_text())
     config = tomllib.loads(rubric_path.read_text())
-    if config.get('review'):
-        from validation.rubrics.utils.review import read_output
-        return read_output(path, config)
-    criteria = {c['name'] for c in config['criteria']}
-    checks = data.get('checks')
-    if not isinstance(checks, dict) or set(checks) != criteria:
-        raise ValueError(f'{path}: missing or unexpected rubric criteria')
-    for name, verdict in checks.items():
-        if (not isinstance(verdict, dict) or verdict.get('outcome') not in ('pass', 'fail', 'not_applicable')
-                or not isinstance(verdict.get('explanation'), str) or not verdict['explanation'].strip()):
-            raise ValueError(f'{path}: invalid verdict for {name}')
+    from validation.rubrics.utils.review import read_output
+    data = read_output(path, config)
     if analysis and (not isinstance(data.get('summary'), str) or not data['summary'].strip()):
         raise ValueError(f'{path}: missing analysis summary')
     return data

@@ -841,7 +841,7 @@ def uvx_plan(files, *, python, resolved_requirements=None, source_image_sha256=N
     flat = re.sub(r'^uv run ', 'uvx ', flat, flags=re.M)
     # These variants only bootstrap the pinned installer, including its SSL
     # workaround. Match whole commands so task initialization is never removed.
-    flat = '\n'.join('# uv installer replaced by runtime preparation' if pinned_uv_installer(line.strip())
+    flat = '\n'.join(': # uv installer replaced by runtime preparation' if pinned_uv_installer(line.strip())
                      else line for line in flat.split('\n'))
     flat = re.sub(r'^if ! command -v uvx (?:>/dev/null 2>&1|&> /dev/null); then$',
                   'if [ ! -x "${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" ]; then',
@@ -874,6 +874,8 @@ def uvx_plan(files, *, python, resolved_requirements=None, source_image_sha256=N
             raise ValueError('CalibForge task process initialization needs pristine tool image binding')
         native_tools.update(role.get('tools',{}))
     for line in shell_lines(skeleton):
+        if line == ': # uv installer replaced by runtime preparation':
+            continue
         if line in asset_commands.values():
             continue
         if any(line in role['lines'] for role in initializations):

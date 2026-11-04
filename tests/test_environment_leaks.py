@@ -146,10 +146,10 @@ def test_later_majority_and_small_spread_pass(tmp_path):
 def test_no_repository_is_not_checked(tmp_path):
     report, checks = leaks(tmp_path)
     assert report['status'] == 'not_checked'
-    assert checks['repository-history-leak']['status'] == 'not_checked'
+    assert checks['repository-history-leak']['status'] == 'not_applicable'
 
 
-def test_git_directory_without_git_is_skipped_but_unreadable_one_is_an_error():
+def test_unreadable_git_directory_is_intentionally_excluded():
     class Environment:
         def __init__(self, stdout):
             self.stdout = stdout
@@ -161,9 +161,9 @@ def test_git_directory_without_git_is_skipped_but_unreadable_one_is_an_error():
     assert [c['reason'] for c in report['checks']] == ['no git binary in the image'] * 2
     assert environment.leak_verdict({'leaks': report}) is None
     report = asyncio.run(environment.inspect_leaks(Environment('git 1\ngitdir /testbed\n')))
-    assert report['status'] == 'error'
-    verdict = environment.leak_verdict({'leaks': report})
-    assert verdict[0] == 'error' and verdict[1].startswith('environment leak check could not run')
+    assert report['status'] == 'not_checked'
+    assert all(c['excluded_by_policy'] and c['status'] == 'not_applicable' for c in report['checks'])
+    assert environment.leak_verdict({'leaks': report}) is None
 
 
 @pytest.mark.parametrize('status, outcome, label', [
@@ -194,6 +194,7 @@ def test_build_stage_fails_a_leaking_task_without_rebuilding_it(tmp_path, monkey
     clean, leaky = environment_preflight.run_build_stage(sources, tmp_path, SimpleNamespace())
     assert clean['status'] == 'passed' and 'environment_leak' not in clean
     assert leaky['status'] == 'failed' and leaky['environment_leak'] == 'failed'
+    assert leaky['build_status'] == 'passed'
     assert publish.judge(1, leaky) == ('archive', 'environment leak: repository-history-leak: '
                                                   '/testbed: 3 unreachable commits (3 newer than HEAD)')
 
@@ -255,7 +256,7 @@ def broken_fixture(tmp_path, readable=True):
 def test_broken_git_with_verified_empty_objects_passes(tmp_path, readable):
     repo = broken_fixture(tmp_path, readable)
     report, checks = leaks(repo)
-    assert report['status'] == 'passed', report
+    assert report['status'] == 'not_checked', report
     evidence = checks['repository-history-leak']['repositories'][str(repo)]
     assert evidence['empty_object_store']['status'] == 'passed'
     assert checks['repository-mtime-leak']['repositories'][str(repo)]['status'] == 'passed'
@@ -267,12 +268,12 @@ def test_uv_empty_gitfile_is_not_an_unreadable_repository(tmp_path):
     repo.mkdir()
     (repo / '.git').write_bytes(b'')
     report, checks = leaks(repo)
-    assert report['status'] == 'passed', report
+    assert report['status'] == 'not_checked', report
     evidence = checks['repository-history-leak']['repositories'][str(repo)]
     assert evidence['empty_object_store']['kind'] == 'empty-gitfile'
     assert (repo / '.git').read_bytes() == b''
     (repo / '.git').write_text('gitdir: /elsewhere\n')
-    assert leaks(repo)[0]['status'] == 'error'
+    assert leaks(repo)[0]['status'] == 'not_checked'
 
 
 def test_symlink_to_empty_gitfile_is_still_unproven(tmp_path):
@@ -281,7 +282,7 @@ def test_symlink_to_empty_gitfile_is_still_unproven(tmp_path):
     repo = tmp_path / 'cache'
     repo.mkdir()
     (repo / '.git').symlink_to(target)
-    assert leaks(repo)[0]['status'] == 'error'
+    assert leaks(repo)[0]['status'] == 'not_checked'
 
 
 @pytest.mark.parametrize('path', ['objects/ab/bad', 'objects/pack/x.pack',
@@ -293,7 +294,7 @@ def test_broken_git_with_object_data_or_indirection_does_not_pass(tmp_path, path
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(b'')
     report, checks = leaks(repo)
-    assert report['status'] == 'error', report
+    assert report['status'] == 'not_checked', report
     assert checks['repository-history-leak']['repositories'][str(repo)]['empty_object_store']['status'] == 'not_proven'
 
 
@@ -301,7 +302,7 @@ def test_broken_git_with_object_data_or_indirection_does_not_pass(tmp_path, path
 def test_broken_git_with_symlink_does_not_pass(tmp_path, path):
     repo = broken_fixture(tmp_path, False)
     (repo / '.git' / path).symlink_to(tmp_path / 'missing')
-    assert leaks(repo)[0]['status'] == 'error'
+    assert leaks(repo)[0]['status'] == 'not_checked'
 
 
 def test_empty_fixture_does_not_hide_another_repository_leak(tmp_path):
@@ -324,7 +325,7 @@ def test_empty_store_traversal_failure_is_not_a_pass(tmp_path):
             return await super().exec(command, **kwargs)
 
     report = asyncio.run(environment.inspect_leaks(FailedProbe(repo), roots=(), home=None))
-    assert report['status'] == 'error'
+    assert report['status'] == 'not_checked'
 
 
 @pytest.mark.parametrize('variable', ['GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
@@ -401,17 +402,17 @@ def test_packaged_submodule_gitfile_proves_absent_ancestor_without_removing_mark
     pointer = 'gitdir: ../../../.git/modules/archspec/vendor/cpuid\n'
     (repo / '.git').write_text(pointer)
     report, checks = leaks(repo)
-    assert report['status'] == 'passed', report
+    assert report['status'] == 'not_checked', report
     evidence = checks['repository-history-leak']['repositories'][str(repo)]
     assert evidence['empty_object_store']['kind'] == 'dangling-submodule-gitfile'
     assert (repo / '.git').read_text() == pointer
     # Any ancestor metadata, even a dangling symlink, keeps the error.
     target = tmp_path / 'site-packages/.git'
     target.symlink_to(tmp_path / 'missing-store')
-    assert leaks(repo)[0]['status'] == 'error'
+    assert leaks(repo)[0]['status'] == 'not_checked'
     target.unlink()
     target.mkdir()
-    assert leaks(repo)[0]['status'] == 'error'
+    assert leaks(repo)[0]['status'] == 'not_checked'
 
 
 @pytest.mark.parametrize('pointer', [
@@ -427,3 +428,57 @@ def test_packaged_submodule_probe_rejects_ambiguous_targets(tmp_path, pointer):
     (repo / '.git').write_text(pointer)
     probe = asyncio.run(environment.inspect_empty_object_store(Local(repo), str(repo)))
     assert probe['status'] == 'not_proven'
+
+
+@pytest.mark.parametrize('has_leak', [False, True])
+def test_fsck_error_is_excluded_without_hiding_readable_leaks(tmp_path, has_leak):
+    repo = repository(tmp_path)
+    if has_leak:
+        (repo / 'pkg/m1.py').write_text('solution')
+        git(repo, 'commit', '-qam', 'fix', when=1_600_001_000)
+        git(repo, 'reset', '-q', '--hard', 'HEAD~1')
+    uniform(repo)
+    class BrokenFsck(Local):
+        async def exec(self, command, **kwargs):
+            result = await super().exec(command, **kwargs)
+            if command == environment.history_command(str(repo)):
+                result.stdout = result.stdout.replace('fsck_exit 0', 'fsck_exit 128')
+            return result
+    report = asyncio.run(environment.inspect_leaks(BrokenFsck(repo), roots=(), home=None))
+    history = report['checks'][0]
+    assert history['status'] == ('warning' if has_leak else 'not_applicable')
+    assert history['repositories'][str(repo)]['excluded_by_policy']
+    from validation.run import observations
+    row, = observations({1: {'items': [{'task': 't', 'status': 'passed', 'build_status': 'passed',
+        'environments': [{'environment': 'agent', 'leaks': report}]}]}}, {'t': 'hash'})
+    assert row['repository_history'] == ('warning' if has_leak else 'not_applicable')
+    assert row['build'] == 'pass'
+
+
+def test_workdir_and_network_probe_errors_do_not_skip_git_checks(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    (tmp_path / 'Dockerfile').write_text('FROM example\nWORKDIR /app\n')
+    calls = []
+    class BrokenProbes:
+        async def exec(self, command, **kwargs):
+            calls.append('workdir')
+            raise RuntimeError('workdir probe unavailable')
+        def with_default_user(self, user):
+            return nullcontext()
+    async def network(*args):
+        calls.append('network')
+        raise RuntimeError('network probe unavailable')
+    async def git_checks(*args, **kwargs):
+        calls.append('git')
+        return {'status': 'passed', 'checks': []}
+    monkeypatch.setattr(environment, 'inspect_network', network)
+    monkeypatch.setattr(environment, 'inspect_leaks', git_checks)
+    monkeypatch.setattr(environment, 'declared_policy', lambda *a: False)
+    monkeypatch.setattr(environment, 'history_is_task_input', lambda *a: False)
+    task = SimpleNamespace(config=SimpleNamespace(agent=SimpleNamespace(user=None)))
+    entry = {'status': 'passed'}
+    asyncio.run(environment.collect_inspection(BrokenProbes(), task, tmp_path, 'agent', entry))
+    assert calls == ['workdir', 'network', 'git']
+    assert entry['status'] == 'passed'
+    assert entry['leaks']['status'] == 'passed'
+    assert [c['status'] for c in entry['checks']] == ['error', 'error']

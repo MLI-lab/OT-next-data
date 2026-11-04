@@ -182,3 +182,13 @@ def test_old_audit_contract_is_not_silently_reinterpreted():
                      {'arguments': {'expected_outcomes': '/old/audit.json'}}):
         with pytest.raises(ValueError, match='retired expected-outcomes'):
             verify_source(SimpleNamespace(), contract)
+
+
+def test_inspection_error_allows_trial_retry_without_rebuilding(tmp_path):
+    item = build('t', 'error', 'Git inspection failed')
+    item['build_status'] = 'passed'
+    stage = runs(tmp_path, s1=[item], s3=[trial('t', 'failed', [], CRASH)])
+    script = Scripted({3: {'t': [trial('t', rewards=(0.0,))]}})
+    retry_round(stage, args_for(), contract_for('t'), script, saved)
+    assert [c[0] for c in script.calls] == [3]
+    assert item['status'] == 'error'

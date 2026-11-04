@@ -1,0 +1,1 @@
+You are reviewing the quality of an agent task. The files for the task under review are in `/app/task-under-review/`. Your environment uses the task’s original workspace and setup, with this folder added for review. The verifier tests and reference solutions in this folder are not shown to the task-solving agent.

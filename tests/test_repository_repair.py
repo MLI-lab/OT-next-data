@@ -333,7 +333,7 @@ def test_unborn_branch_with_dangling_commit_is_warned_and_preserved(tmp_path, sc
     assert git(repo, 'ls-files').split() == ['kept.py']
 
 
-def test_stale_commit_graph_is_not_modified_and_inspection_remains_incomplete(tmp_path):
+def test_stale_commit_graph_is_preserved_and_intentionally_excluded(tmp_path):
     """MiMo 000306: a read-only commit-graph lists commits whose objects are gone."""
     repo = tmp_path / 'graph'
     repo.mkdir()
@@ -348,11 +348,11 @@ def test_stale_commit_graph_is_not_modified_and_inspection_remains_incomplete(tm
     git(repo, 'reflog', 'expire', '--expire=now', '--all')
     git(repo, '-c', 'gc.writeCommitGraph=false', 'gc', '--prune=now', '-q')
     (repo / '.git/objects/info/commit-graph').chmod(0o444)
-    assert history(repo)['repository-history-leak']['status'] == 'error'
+    assert history(repo)['repository-history-leak']['status'] == 'not_applicable'
     graph = (repo / '.git/objects/info/commit-graph').read_bytes()
     run_repair(repo)
     assert (repo / '.git/objects/info/commit-graph').read_bytes() == graph
-    assert history(repo)['repository-history-leak']['status'] == 'error'
+    assert history(repo)['repository-history-leak']['status'] == 'not_applicable'
 
 
 def test_repository_below_home_is_found_and_repaired(tmp_path):

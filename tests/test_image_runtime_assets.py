@@ -71,7 +71,7 @@ def test_incomplete_asset_cache_triggers_fallback(tmp_path):
         stream.addfile(member, io.BytesIO(b'x'))
     ref = dict(format=FORMAT, id=key, spec=spec, status='ready', archive_sha256=digest(archive))
     (tmp_path / (key + '.json')).write_text(json.dumps(ref))
-    path, reason = lookup(ref, root=tmp_path)
+    path, reason = lookup(ref, root=tmp_path, preparation=True)
     assert path is None
     assert reason == 'Incomplete runtime dependency tree: node'
 

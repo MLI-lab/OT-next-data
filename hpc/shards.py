@@ -108,7 +108,7 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
         payload = dict(contract['arguments'])
         payload.update(contract=str(Path(contract_path).resolve()), prepare_contract=None, submit='never',
                        out=str(folder), shard=f'{index}/{count}', partition=partition, gpus=gpus, cpus=cpus,
-                       time=time, memory=memory)
+                       time=time, memory=memory, stages=','.join(map(str, contract['stages'])))
         save(folder / 'request.json', {'args': payload, 'stages': contract['stages']})
     # Keep one packed snapshot on shared storage instead of ~1,000 files; every
     # shard (and any retry) unpacks it on node-local disk at job start.
@@ -246,7 +246,8 @@ def merge(contract_path, root, out):
                           {t['task_id']: t['sha256'] for t in task_records(contract)},
                           settings=contract.get('arguments', {}))
         written[stage] = str(target)
-    if written and not any(json.loads(Path(p).read_text()).get('dry_run') for p in written.values()):
+    if (written and not contract.get('arguments', {}).get('git_checks_only')
+            and not any(json.loads(Path(p).read_text()).get('dry_run') for p in written.values())):
         # Automatic path and pip repairs from the merged stage-1 and stage-2 evidence.
         from validation.automatic_repairs import files_from, plan
         from validation.run import apply_repairs

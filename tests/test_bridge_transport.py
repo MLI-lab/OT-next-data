@@ -347,23 +347,9 @@ def test_chunk_metadata_survives_queue_and_retry(live_bridge):
     asyncio.run(scenario())
 
 
-def test_runtime_cache_metadata_survives_queue_and_retry(live_bridge):
-    server, base, dropped, counts = live_bridge
-    assert request(base, '/status')['runtime_cache_upload_protocol'] == 1
-    transport = client.BridgeClient()
-    async def scenario():
-        created = await transport.post(base + '/env/create', {'task_name': 'example'})
-        finish_one(base, {})
-        metadata = {'id': 'a' * 64, 'archive_sha256': 'b' * 64}
-        dropped.append('/env/upload')
-        response = await transport.post(base + '/env/upload', {
-            'env_id': created['env_id'], 'target_path': '/tests/.ot-verifier-runtime-Ab12/runtime.tar.gz',
-            'is_dir': False, 'file_b64': 'AA==', 'runtime_cache_upload': metadata})
-        job = finish_one(base, {})
-        assert job['job_id'] == response['job_id']
-        assert job['payload']['runtime_cache_upload'] == metadata
-        assert request(base, '/worker/get_job?worker_id=node-0')['job_id'] is None
-    asyncio.run(scenario())
+def test_runtime_archive_transfer_protocol_is_removed(live_bridge):
+    _, base, _, _ = live_bridge
+    assert 'runtime_cache_upload_protocol' not in request(base, '/status')
 
 
 def test_result_long_poll_returns_when_the_job_finishes(live_bridge):

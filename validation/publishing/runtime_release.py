@@ -2,7 +2,9 @@
 
 Task references (`tests/ot-verifier-runtime.json`, `tests/ot-verifier-offline.json`,
 `setup_files/ot-task-runtime.json`, `setup_files/ot-task-offline.json`) carry only an ID and
-archive checksum. A per-run manifest `runtimes/manifests/<run>.json` records where each
+source archive identity and, for new references, the SquashFS image checksum.
+Releases upload and download only SquashFS images and their manifests.
+A per-run manifest `runtimes/manifests/<run>.json` records where each
 referenced artifact was published (repository and commit). `fetch` restores those artifacts
 into an empty or existing runtime cache and verifies every byte against the references.
 An artifact identity is never overwritten with different bytes, locally or remotely.
@@ -81,6 +83,17 @@ def collect(rows):
                 raise ValueError(f'Conflicting runtime references for {key}')
             if row['path'] not in entry['tasks']:
                 entry['tasks'].append(row['path'])
+        with tarfile.open(fileobj=io.BytesIO(row['task_binary']), mode='r:*') as archive:
+            for member in archive:
+                name = member.name.removeprefix('./')
+                if member.isfile() and _context_of(name) is not None:
+                    ref = json.load(archive.extractfile(member))
+                    if ref.get('storage') == 'squashfs':
+                        checksum = ref.get('image_sha256', '')
+                        entry = artifacts[ref['id']]
+                        if not _HEX.fullmatch(checksum) or entry.get('image_sha256', checksum) != checksum:
+                            raise ValueError('Conflicting or unpinned runtime image references')
+                        entry['image_sha256'] = checksum
     return artifacts
 
 
@@ -108,24 +121,26 @@ def prepare_release(tables, out, repo, *, cache=None, api=None):
     Artifacts already on the repository's main branch with identical bytes are reused
     (pinned to that commit) and not uploaded again; conflicting remote bytes are an error.
     """
-    # Without an explicit cache, use the runner's own lookup, which also reads the
-    # legacy verifier-bundles directory next to the default runtimes/ cache.
-    cache = Path(cache) if cache is not None else None
+    cache = Path(cache) if cache is not None else cache_root()
     rows = [row for _, (kept, _) in sorted(tables.items()) for row in kept]
     referenced = collect(rows)
-    manifest = {'version': 1, 'repo_id': repo, 'folder': FOLDER, 'artifacts': {}, 'missing': []}
+    manifest = {'version': 2, 'repo_id': repo, 'folder': FOLDER, 'artifacts': {}, 'missing': []}
     artifacts, local = {}, {}
     for key, entry in sorted(referenced.items()):
         try:
-            archive = verify({'id': key, 'archive_sha256': entry['archive_sha256']}, cache, entry['format'])
-            _validate(archive, entry['format'])
+            from harbor_patches.runtime_images import build, load
+            ref = {'id': key, 'archive_sha256': entry['archive_sha256']}
+            if entry.get('image_sha256'):
+                ref['image_sha256'] = entry['image_sha256']
+            image = load(ref, cache) if (cache / (key + '.squashfs')).exists() else build(ref, cache)
+            archive = Path(image['path'])
         except (OSError, ValueError, tarfile.TarError) as error:
             manifest['missing'].append({'id': key, 'tasks': entry['tasks'], 'reason': str(error)})
             continue
-        local[key] = (archive, archive.with_suffix('').with_suffix('.json'))
+        local[key] = (archive, archive.with_suffix('.squashfs.json'))
     if manifest['missing']:
         return manifest, artifacts
-    names = {f'{FOLDER}/{key}.{suffix}': key for key in local for suffix in ('tar.gz', 'json')}
+    names = {f'{FOLDER}/{key}.{suffix}': key for key in local for suffix in ('squashfs', 'squashfs.json')}
     remote, main = ({}, None)
     if api is not None and repo:
         remote, main = remote_state(api, repo, names)
@@ -134,8 +149,9 @@ def prepare_release(tables, out, repo, *, cache=None, api=None):
     for key, (archive, sidecar) in sorted(local.items()):
         entry = referenced[key]
         record = {'format': entry['format'], 'archive_sha256': entry['archive_sha256'], 'bytes': archive.stat().st_size,
-                  'manifest_sha256': digest(sidecar), 'archive': f'{FOLDER}/{key}.tar.gz',
-                  'manifest': f'{FOLDER}/{key}.json', 'tasks': len(entry['tasks'])}
+                  'storage': 'squashfs', 'image_sha256': digest(archive),
+                  'manifest_sha256': digest(sidecar), 'archive': f'{FOLDER}/{key}.squashfs',
+                  'manifest': f'{FOLDER}/{key}.squashfs.json', 'tasks': len(entry['tasks'])}
         sources = ((archive, record['archive']), (sidecar, record['manifest']))
         for source, name in sources:
             if name not in remote:
@@ -191,8 +207,13 @@ def _download(manifest, record, name, directory, download):
 
 
 def _check_record(key, record):
-    if (not _HEX.fullmatch(key) or record['archive'] != f'{FOLDER}/{key}.tar.gz'
-            or record['manifest'] != f'{FOLDER}/{key}.json' or record['format'] not in (FORMAT, OFFLINE_FORMAT, TOOLCHAIN_FORMAT)):
+    if record.get('storage') != 'squashfs':
+        raise ValueError('Archive runtime releases are no longer supported; publish SquashFS images')
+    suffix, sidecar = 'squashfs', 'squashfs.json'
+    if not _HEX.fullmatch(record.get('image_sha256', '')):
+        raise ValueError('Unpinned runtime image')
+    if (not _HEX.fullmatch(key) or record['archive'] != f'{FOLDER}/{key}.{suffix}'
+            or record['manifest'] != f'{FOLDER}/{key}.{sidecar}' or record['format'] not in (FORMAT, OFFLINE_FORMAT, TOOLCHAIN_FORMAT)):
         raise ValueError(f'Unsafe runtime record: {key}')
 
 
@@ -204,7 +225,7 @@ def verify_remote(manifest, download=None, scratch=None):
             _check_record(key, record)
             archive = _download(manifest, record, record['archive'], temporary, download)
             sidecar = _download(manifest, record, record['manifest'], temporary, download)
-            if digest(archive) != record['archive_sha256'] or digest(sidecar) != record['manifest_sha256']:
+            if digest(archive) != record['image_sha256'] or digest(sidecar) != record['manifest_sha256']:
                 raise ValueError(f'Published runtime bytes differ from the release: {key}')
             _check_manifest(json.loads(sidecar.read_text()), key, record['format'], record['archive_sha256'])
             _validate(archive, record['format'])
@@ -244,6 +265,8 @@ def fetch(manifest, cache=None, ids=None, download=None):
         try:
             archive = verify(ref, cache if explicit else None, record['format'])
             _validate(archive, record['format'])
+            if record.get('storage') == 'squashfs' and (archive.suffix != '.squashfs' or digest(archive) != record['image_sha256']):
+                raise ValueError('Published image not present in cache')
         except (OSError, ValueError, tarfile.TarError):
             pass
         else:
@@ -252,15 +275,15 @@ def fetch(manifest, cache=None, ids=None, download=None):
         with tempfile.TemporaryDirectory(prefix='.hf-runtime-', dir=cache) as temporary:
             archive = _download(manifest, record, record['archive'], temporary, download)
             sidecar = _download(manifest, record, record['manifest'], temporary, download)
-            if digest(archive) != record['archive_sha256'] or digest(sidecar) != record['manifest_sha256']:
+            if digest(archive) != record['image_sha256'] or digest(sidecar) != record['manifest_sha256']:
                 raise ValueError(f'Downloaded runtime does not match its pinned checksum: {key}')
             _check_manifest(json.loads(sidecar.read_text()), key, record['format'], record['archive_sha256'])
             _validate(archive, record['format'])
             # Archive first: an entry is only visible once its manifest exists.
-            _install(archive, cache / f'{key}.tar.gz')
-            _install(sidecar, cache / f'{key}.json')
+            _install(archive, cache / Path(record['archive']).name)
+            _install(sidecar, cache / Path(record['manifest']).name)
         verify(ref, cache, record['format'])
-        records[key] = {'status': 'downloaded', 'revision': record['revision'], 'archive': str(cache / f'{key}.tar.gz')}
+        records[key] = {'status': 'downloaded', 'revision': record['revision'], 'archive': str(cache / Path(record['archive']).name)}
     return records
 
 
@@ -293,7 +316,8 @@ def fetch_for_tasks(tasks, manifest, cache=None, download=None):
                     raise ValueError(f'Invalid runtime reference: {path}')
                 record = manifest['artifacts'].get(key)
                 if (record is None or ref.get('format') != fmt or record['format'] != fmt
-                        or ref.get('archive_sha256') != record['archive_sha256']):
+                        or ref.get('archive_sha256') != record['archive_sha256']
+                        or (ref.get('image_sha256') and ref['image_sha256'] != record.get('image_sha256'))):
                     raise ValueError(f'Runtime release does not match task reference: {path}')
                 _check_record(key, record)
                 wanted[key] = record
@@ -332,7 +356,7 @@ def load_manifest(value, cache=None):
         value = hf_hub_download(repo_id=match[1], repo_type='dataset', revision=match[2], filename=match[3],
                                 cache_dir=str(directory / 'hf-hub'))
     manifest = json.loads(Path(value).read_text())
-    if manifest.get('version') != 1 or manifest.get('folder') != FOLDER:
+    if manifest.get('version') != 2 or manifest.get('folder') != FOLDER:
         raise ValueError('Not a runtime release manifest')
     return manifest
 

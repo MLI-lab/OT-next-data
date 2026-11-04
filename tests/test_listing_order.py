@@ -275,3 +275,16 @@ def test_repeated_reference_runs_must_all_score_one(tmp_path, monkeypatch):
     from validation.run import usage
     assert usage('reference_determinism', record)['cpu_seconds'] == 6.0
     assert usage('reference_determinism', record)['memory_peak_mb'] == 100.0
+
+
+def test_repeated_failed_reference_does_not_claim_stochasticity(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from validation.stages import runner
+    monkeypatch.setattr(runner.runtime, 'assess_trials', lambda *a, **kw: {'status': 'completed'})
+    task = tmp_path / 't'
+    rows = [(tmp_path / 'repeat', {'verifier_result': {'rewards': {'reward': 0}}})]
+    result = {'status': 'failed', 'rewards': [0], 'findings': []}
+    runner.add_repeat_runs(result, {'groups': {'t': rows}, 'expected_count': 1, 'job_dir': 'repeat'},
+                           task, SimpleNamespace(reward_key='reward'))
+    assert result['listing_order']['status'] == 'incomplete'
+    assert result['listing_order']['repeat_rewards'] == [0]

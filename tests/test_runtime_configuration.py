@@ -31,6 +31,18 @@ def test_harbor_source_pin_has_one_authority():
     assert len(runtime.harbor_commit()) == 40
 
 
+@pytest.mark.parametrize('version', ['1.5.5', '1.5.4'])
+def test_helma_compute_apptainer_rollout(monkeypatch, version):
+    cluster = runtime.cluster_config('helma')
+    monkeypatch.setenv('SLURM_JOB_ID', '123')
+    monkeypatch.setattr(runtime.platform, 'python_version', lambda: cluster.python_version)
+    monkeypatch.setattr(runtime.subprocess, 'check_output', lambda *a, **k: f'apptainer version {version}-1.el9')
+    assert runtime.check(cluster, system_only=True)['cluster'] == 'helma'
+    monkeypatch.setattr(runtime.subprocess, 'check_output', lambda *a, **k: 'apptainer version 1.4.5')
+    with pytest.raises(RuntimeError, match='requires Apptainer'):
+        runtime.check(cluster, system_only=True)
+
+
 def test_cluster_shell_config_is_sourceable():
     command = [sys.executable, str(runtime.ROOT / 'config/runtime.py'), 'shell', '--cluster', 'helma']
     exports = subprocess.check_output(command, text=True)

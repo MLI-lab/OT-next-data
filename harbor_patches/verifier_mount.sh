@@ -5,7 +5,7 @@ set -eu
 runtime=$1
 mode=$2
 shift 2
-case "$mode" in readonly|writable) ;; *) echo 'Invalid verifier runtime mode' >&2; exit 125;; esac
+case "$mode" in readonly|writable|readonly-overlay) ;; *) echo 'Invalid verifier runtime mode' >&2; exit 125;; esac
 lower_mounted=0
 active_mounted=0
 cleanup() {
@@ -37,6 +37,7 @@ else
     # carries setup installs into grading, never into another trial or cache.
     mount -t overlay overlay -o "lowerdir=$runtime/python,upperdir=$runtime/upper,workdir=$runtime/work" "$runtime/active"
     active_mounted=1
+    if [ "$mode" = readonly-overlay ]; then mount -o remount,ro "$runtime/active"; fi
 fi
 
 # A verifier running as root must not be able to remount the runtime read-write.

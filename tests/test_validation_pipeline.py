@@ -132,7 +132,7 @@ def test_missing_results_and_rubric_entries_are_not_passes(tmp_path):
     rubric.write_text('[[criteria]]\nname="coverage"\n')
     result = tmp_path / 'verdicts.json'
     result.write_text('{"checks":{}}')
-    with pytest.raises(ValueError, match='missing or unexpected'):
+    with pytest.raises(ValueError, match='[Mm]issing or unexpected'):
         prepare_review_tasks.read_verdicts(result, rubric)
 
 
@@ -1480,3 +1480,64 @@ def test_failed_static_checks_never_skip_container_stages(source, tmp_path, monk
     monkeypatch.setattr(stages, 'run_trial_batch', trials)
     stages.run_stage(number, options)
     assert calls == [source]
+
+
+def test_inspection_findings_do_not_gate_reference_or_nop(source, tmp_path, monkeypatch):
+    from validation import run
+    calls = []
+    def stage(number, options):
+        calls.append(number)
+        if number in (2, 3):
+            assert str(source) not in options._build_failures
+            assert 'broken' in options._build_failures
+        items = [{'task': str(source), 'status': 'error', 'build_status': 'passed'},
+                 {'task': 'broken', 'status': 'error', 'build_status': 'error'}] if number == 1 else []
+        return tmp_path / f'stage-{number}.json', {'has_findings': number == 1, 'items': items}
+    monkeypatch.setattr(run, 'run_stage', stage)
+    options = SimpleNamespace(out=tmp_path, tasks=tmp_path, dry_run=False, trials=None,
+        contract=None, outcome_retries=0, prebuild_only=False,
+        fix_instruction_paths=False, fix_pip_pins=False)
+    assert run.run_selected(options, [1, 2, 3]) == 1
+    assert calls == [1, 2, 3]
+
+
+@pytest.mark.parametrize('number', [2, 3])
+def test_failed_baseline_and_shuffle_error_do_not_stop_other_checks(source, tmp_path, monkeypatch, number):
+    from validation.rules.dynamic.do_not_modify import stage as protected
+    a = args(source, tmp_path)
+    a.dry_run = False
+    a.attempts = 1
+    a.verifier_tamper = False
+    monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
+    out = tmp_path / 'run'
+    out.mkdir()
+    trial = tmp_path / 'trial'
+    trial.mkdir()
+    calls = []
+    async def execute(config, **kwargs):
+        calls.append('baseline')
+        return trial
+    monkeypatch.setattr(runtime, 'execute_job', execute)
+    monkeypatch.setattr(runtime, 'trial_results', lambda job: [])
+    monkeypatch.setattr(runtime, 'group_trial_results', lambda *a: ({source.name: [(trial, {})]}, []))
+    monkeypatch.setattr(runtime, 'assess_trials', lambda *a, **kw: {
+        'status': 'failed', 'rewards': [0 if number == 2 else 1], 'findings': ['wrong baseline reward']})
+    def shuffle(*args):
+        calls.append('shuffle')
+        raise RuntimeError('shuffle worker failed')
+    def repeat(*args, **kwargs):
+        calls.append('repeat')
+    def evaluate(*args, **kwargs):
+        calls.append('protected')
+    monkeypatch.setattr(stages, 'run_shuffled_reference', shuffle)
+    monkeypatch.setattr(stages, 'run_shuffled_nop', shuffle)
+    monkeypatch.setattr(stages, 'run_trials', repeat)
+    monkeypatch.setattr(protected, 'evaluate_all', evaluate)
+    result, = stages.run_trial_batch(number, [source], out, a, None)
+    assert result['normal_baseline_status'] == 'failed'
+    assert result['listing_order']['status'] == 'incomplete'
+    if number == 2:
+        assert calls == ['baseline', 'shuffle', 'repeat', 'protected']
+    else:
+        assert calls == ['baseline', 'shuffle']
+        assert result['rewards'] == [1]

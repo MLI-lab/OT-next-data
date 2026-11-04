@@ -12,7 +12,7 @@ import subprocess
 import tarfile
 import tempfile
 
-from harbor_patches.verifier_bundle import digest, spec_id, validate_archive, verify
+from harbor_patches.verifier_bundle import digest, spec_id, validate_archive, verify_source_archive
 
 FORMAT = 'ot-image-toolchain-v1'
 
@@ -59,11 +59,14 @@ def build(spec, image, cache):
     original=source_image(binding,image)
     cache=Path(cache);cache.mkdir(parents=True,exist_ok=True)
     key=spec_id(spec);manifest=cache/(key+'.json');archive=cache/(key+'.tar.gz')
+    from harbor_patches.runtime_images import finalize
+    image_manifest=cache/(key+'.squashfs.json')
+    if image_manifest.is_file():return finalize(json.loads(image_manifest.read_text()),cache)
     if manifest.exists():
         record=json.loads(manifest.read_text())
-        checked=verify({**record,'spec':spec},cache,FORMAT)
+        checked=verify_source_archive({**record,'spec':spec},cache,FORMAT)
         validate_archive(checked,('toolchain',),'toolchain/bin/go')
-        return record
+        return finalize(record,cache)
     if archive.exists():raise FileExistsError(archive)
     # Retain preparation scratch for diagnosis; never remove source/cache state.
     scratch=Path(tempfile.mkdtemp(prefix='image-toolchain-',dir=os.environ.get('TMPDIR')))
@@ -103,7 +106,7 @@ def build(spec, image, cache):
         while block:=incoming.read(1024*1024):output.write(block)
     if digest(archive)!=record['archive_sha256']:raise ValueError('Copied toolchain artifact checksum differs')
     with manifest.open('x') as output:json.dump(record,output,indent=2);output.write('\n')
-    return record
+    return finalize(record,cache)
 
 
 def main():

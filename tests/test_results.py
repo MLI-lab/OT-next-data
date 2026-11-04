@@ -132,3 +132,42 @@ def test_details_are_kept_per_check_and_other_checks_are_preserved(tmp_path):
     results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'b', 'reference': 'not_run'}])
     changed, = results.read(path)
     assert changed['nproc'] == 'not_requested' and changed['reference'] == 'unknown'
+
+
+def test_usable_build_exports_inspection_error_without_blocking_nop():
+    reports = {1: {'items': [{'task': 't', 'status': 'error', 'build_status': 'passed',
+        'environments': [{'environment': 'agent', 'leaks': {'checks': [
+            {'check': 'repository-history-leak', 'status': 'error', 'reason': 'unreadable repository'}]}}]}]},
+        3: {'items': [{'task': 't', 'status': 'passed', 'rewards': [0.0]}]}}
+    row, = results.observations(reports, {'t': 'hash'})
+    assert row['build'] == 'pass'
+    assert row['nop'] == 'pass'
+    assert row['repository_history'] == 'execution_error'
+
+
+def test_git_only_refresh_preserves_completed_checks(tmp_path):
+    path = tmp_path / 'results.parquet'
+    previous = dict(dataset='d', task_id='t', content_sha256='a', build='pass',
+                    nop='pass', declared_internet_access='pass', repository_history='execution_error')
+    results.update(path, [previous])
+    report = {1: {'items': [{'task': 't', 'build_status': 'passed', 'status': 'passed',
+        'environments': [{'environment': 'agent', 'leaks': {'checks': [
+            {'check': 'repository-history-leak', 'status': 'passed'},
+            {'check': 'repository-mtime-leak', 'status': 'passed'}]}}]}]}}
+    incoming = results.observations(report, {'t': 'a'}, 'd', {'git_checks_only': True})
+    assert set(incoming[0]) == {'dataset', 'task_id', 'content_sha256', 'details',
+                                'repository_history', 'repository_timestamps'}
+    results.update(path, incoming)
+    row, = results.read(path)
+    assert row['build'] == row['nop'] == row['declared_internet_access'] == 'pass'
+    assert row['repository_history'] == row['repository_timestamps'] == 'pass'
+
+
+def test_task_resource_metadata_round_trips_for_release_cards(tmp_path):
+    path = tmp_path / 'results.parquet'
+    results.write(path, [dict(dataset='d', task_id='t', content_sha256='a',
+                             cpus=2, memory_mb=2048, allow_internet='false', build='pass')])
+    row, = results.read(path)
+    assert row['cpus'] == 2 and row['memory_mb'] == 2048
+    from validation.publishing.readme import task_resources
+    assert ('Memory', '2 GiB', 1) in task_resources([row])

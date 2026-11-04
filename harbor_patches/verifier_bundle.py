@@ -81,23 +81,20 @@ def task_references(context):
 
 
 def verify(ref, root=None, format=FORMAT):
-    explicit_root = root is not None
-    root = Path(root) if explicit_root else cache_root()
-    key = ref['id']
-    if not re.fullmatch(r'[0-9a-f]{64}', key):
-        raise ValueError('Invalid verifier bundle identifier')
-    expected = ref.get('archive_sha256')
-    if not expected or not re.fullmatch(r'[0-9a-f]{64}', expected):
-        raise ValueError(f'Unpinned verifier bundle {key}; prepare and bind it before validation')
-    # Read legacy cache entries without moving or rewriting them. Explicit roots
-    # and either environment override never search another directory.
-    if (not explicit_root and not os.environ.get('OT_RUNTIME_CACHE')
-            and not os.environ.get('OT_VERIFIER_BUNDLE_CACHE')
-            and not (root / (key + '.json')).exists()
-            and not (root / (key + '.tar.gz')).exists()):
-        legacy = root.parent / 'verifier-bundles'
-        if (legacy / (key + '.json')).is_file():
-            root = legacy
+    """Verify a prepared SquashFS image, never an archive fallback."""
+    from harbor_patches.runtime_images import load
+    record = load(ref, root)
+    if record.get('source_format') != format:
+        raise ValueError('Runtime image format differs from reference')
+    return Path(record['path'])
+
+
+def verify_source_archive(ref, root=None, format=FORMAT):
+    """Validate an intermediate archive used only during image preparation."""
+    from harbor_patches.runtime_images import identity
+    identity(ref)
+    root = Path(root) if root is not None else cache_root()
+    key, expected = ref['id'], ref['archive_sha256']
     archive = root / (key + '.tar.gz')
     manifest = json.loads((root / (key + '.json')).read_text())
     if (manifest.get('format') != format or spec_id(manifest.get('spec')) != key
@@ -114,6 +111,11 @@ _validation_lock = RLock()
 
 def validate_archive(path, roots=('python',), required='python/bin/python3'):
     """Reject unsafe members; memoize only checksums freshly read from disk."""
+    if Path(path).suffix == '.squashfs':
+        from harbor_patches.runtime_images import load, source_manifest
+        record = source_manifest(path)
+        load(record, Path(path).parent)
+        return
     checksum = digest(path)
     key = (checksum, tuple(roots), required)
     with _validation_lock:
@@ -139,14 +141,13 @@ def validate_archive(path, roots=('python',), required='python/bin/python3'):
             _validated_archives.popitem(last=False)
 
 
-def lookup(ref, format=FORMAT, validate=validate_archive, root=None):
-    """(archive, None) for a usable cached archive, else (None, reason).
-
-    A missing, incomplete or corrupt entry is never used; the task's scripts then
-    install online as the original task did."""
+def lookup(ref, format=FORMAT, validate=validate_archive, root=None, *, preparation=False):
+    """Return a checked image, or an intermediate source archive during preparation."""
     try:
-        archive = verify(ref, root, format)
+        archive = (verify_source_archive if preparation else verify)(ref, root, format)
         validate(archive)
+        if archive.suffix == '.squashfs':
+            return archive, None  # Image preparation validates the complete source archive.
         if format == OFFLINE_FORMAT:
             manifest = json.loads(archive.with_suffix('').with_suffix('.json').read_text())
             validate_http_archive(manifest['spec'], archive)
@@ -192,11 +193,6 @@ def lookup(ref, format=FORMAT, validate=validate_archive, root=None):
 
 def cached(ref, format=FORMAT, validate=validate_archive, root=None):
     return lookup(ref, format, validate, root)[0]
-
-
-def upload_measured(upload):
-    """Ordinary transfer measurements or a worker-cache-copy acknowledgement (worker timings only)."""
-    return isinstance(upload, dict) and ('timings_seconds' in upload or upload.get('transport') == 'worker-cache-copy')
 
 
 def validate_offline_archive(path):
@@ -279,7 +275,7 @@ def toolchain_setup_recipe(context, ref):
     return spec
 
 
-def preflight(tasks, root=None):
+def preflight(tasks, root=None, *, agent_only=False):
     release = os.environ.get('OT_RUNTIME_RELEASE_MANIFEST')
     if release:
         from validation.publishing.runtime_release import fetch_for_tasks, load_manifest
@@ -289,7 +285,7 @@ def preflight(tasks, root=None):
     kinds = ((REFERENCE, FORMAT, validate_archive), (OFFLINE_REFERENCE, OFFLINE_FORMAT, validate_offline_archive),
              (TOOLCHAIN_REFERENCE, TOOLCHAIN_FORMAT, validate_toolchain_archive))
     for task in tasks:
-        contexts = [(context, kinds) for context in [Path(task) / 'tests', *Path(task).glob('steps/*/tests')]]
+        contexts = [] if agent_only else [(context, kinds) for context in [Path(task) / 'tests', *Path(task).glob('steps/*/tests')]]
         contexts.append((Path(task) / 'setup_files', (
             (TASK_REFERENCE, FORMAT, validate_archive),
             (TASK_OFFLINE_REFERENCE, OFFLINE_FORMAT, validate_offline_archive))))
@@ -318,137 +314,43 @@ async def stage(environment, context, evidence_dir, *, user=None):
     ref = reference(context)
     if ref is None:
         return None
-    archive, reason = lookup(ref)
-    if archive is None:
-        return await install_and_stage(environment, context, ref, evidence_dir, reason, user=user)
-    return await _stage(environment, archive, ref, evidence_dir, user=user)
+    return await stage_image(environment, ref, evidence_dir, user=user)
 
 
-async def install_and_stage(environment, context, ref, evidence_dir, reason, *, user=None):
-    """Install with trusted host tools into a disposable cache on a cache miss.
-
-    Read recipes from the controller's task, never the agent's container. Neither
-    rebuilt bytes nor their new checksum replace the published cache/reference.
-    """
-    import asyncio
-    import sys
-    import tempfile
-    spec = setup_recipe(context, ref)
-    if spec is None:
-        raise RuntimeError('Verifier runtime unavailable and no matching setup recipe: ' + str(reason))
-    evidence = Path(evidence_dir)
-    evidence.mkdir(parents=True, exist_ok=True)
-    record = {'id': ref['id'], 'requested_sha256': ref.get('archive_sha256'),
-              'reason': reason, 'cache_writeback': False, 'status': 'installation-required'}
-    isolated = '1' in (os.environ.get('OT_NET_ISOLATION'), os.environ.get('OT_NET_SIMULATED'))
-    record['installation_network'] = 'isolated' if isolated else 'host'
-    report = evidence / 'verifier-runtime-fallback.json'
-    report.write_text(json.dumps(record, indent=2) + '\n')
-    with tempfile.TemporaryDirectory(prefix='ot-verifier-fallback-') as directory:
-        root = Path(directory)
-        specs = root / 'specs.json'
-        specs.write_text(json.dumps([spec]))
-        builder = Path(__file__).resolve().parents[1] / 'hpc/offline_prep/verifier_bundles.py'
-        command = [sys.executable, str(builder), '--specs', str(specs), '--cache', str(root)]
-        env = os.environ.copy()
-        if ref.get('image_source') is not None:
-            from data.utils.verifier_runtime import runtime_image_source
-            env['OT_RUNTIME_IMAGE_SOURCE'] = runtime_image_source(ref['image_source'])
-        if isolated:
-            # Container isolation must not be bypassed by a host-side cache
-            # miss. Kernel isolation also covers URL inputs and native-image
-            # installers, which do not all inherit uv's offline environment.
-            command = ['unshare', '--user', '--map-current-user', '--net', '--', *command]
-            env['UV_OFFLINE'] = '1'
-        try:
-            with (evidence / 'verifier-runtime-install.log').open('wb') as log:
-                process = await asyncio.create_subprocess_exec(
-                    *command, env=env, stdout=log, stderr=log, start_new_session=True)
-                try:
-                    status = await process.wait()
-                except BaseException:
-                    import signal
-                    try:
-                        os.killpg(process.pid, signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
-                    try:
-                        await asyncio.wait_for(process.wait(), timeout=10)
-                    except asyncio.TimeoutError:
-                        os.killpg(process.pid, signal.SIGKILL)
-                        await process.wait()
-                    raise
-            if status:
-                raise RuntimeError(f'Trusted verifier runtime installation failed (exit {status}); see {log.name}')
-            built = json.loads((root / (ref['id'] + '.json')).read_text())
-            actual = {**ref, 'archive_sha256': built['archive_sha256']}
-            archive = verify(actual, root)
-            validate_archive(archive)
-            result = await _stage(environment, archive, actual, evidence_dir, user=user)
-            record.update(status='installed', actual_sha256=actual['archive_sha256'])
-            return result
-        except BaseException as error:
-            record.update(status='failed', error=str(error))
-            raise
-        finally:
-            report.write_text(json.dumps(record, indent=2) + '\n')
-
-async def _stage(environment, archive, ref, evidence_dir, *, user=None):
-    timings = {}
+async def stage_image(environment, ref, evidence_dir, *, user=None):
+    """Use the checked immutable base mounted by the bridge at startup."""
+    from harbor_patches.runtime_images import MOUNT
+    from harbor_patches.verifier_mount import prepare, release, mode
+    from harbor_patches.runtime_images import mounted
+    image = mounted(environment, ref)
     started = time.monotonic()
-    tools = json.loads(archive.with_suffix('').with_suffix('.json').read_text())['spec'].get('tools', [])
-    from data.utils.verifier_runtime import NAME
-    if any(not NAME.fullmatch(tool) for tool in tools):
-        raise ValueError('Invalid verifier tool name')
-    # /tests is backed by job-local disk in the bridge. Apptainer's default
-    # /tmp session filesystem is too small for complete Python runtimes.
     result = await environment.exec('mktemp -d /tests/.ot-verifier-runtime-XXXXXXXXXXXX', user='root')
     target = (result.stdout or '').strip()
     if result.return_code or not re.fullmatch(r'/tests/\.ot-verifier-runtime-[A-Za-z0-9]+', target):
-        raise RuntimeError('Could not allocate a fresh verifier runtime directory')
-    timings['allocate'] = time.monotonic() - started
-    from harbor_patches.verifier_mount import release
-    try:
-        started = time.monotonic()
-        remote = target + '/runtime.tar.gz'
-        from harbor_patches.runtime_transfer import upload as upload_runtime
-        upload = await upload_runtime(environment, archive, ref, remote)
-        timings['archive_upload'] = time.monotonic() - started
-        started = time.monotonic()
-        command = (f'cd {shlex.quote(target)} && '
-                   f'printf "%s  runtime.tar.gz\\n" {shlex.quote(ref["archive_sha256"])} | sha256sum -c - && '
-                   'tar --no-same-owner -xzf runtime.tar.gz && '
-                   'test -x python/bin/python3 && '
-                   + ''.join('test -x ' + shlex.quote('python/bin/' + tool) + ' && ' for tool in tools)
-                   + 'rm -f runtime.tar.gz && chmod a+rx . && chmod -R a+rX python && '
-                   'mkdir active upper work && chmod 1777 upper work && '
-                   + 'printf %s ' + shlex.quote(Path(__file__).with_name('verifier_mount.sh').read_text())
-                   + ' > mount.sh && chmod a+r mount.sh')
-        result = await environment.exec(command, user='root', timeout_sec=180)
-        timings['checksum_extract_permissions'] = time.monotonic() - started
-        if result.return_code:
-            raise RuntimeError('Verifier runtime staging failed: ' + (result.stderr or result.stdout or '')[-1000:])
-    except BaseException:
-        await release(environment, {'directory': target})
-        raise
-    from harbor_patches.verifier_mount import mode, prepare, release
+        raise RuntimeError('Could not allocate private runtime overlay')
     record = {'format': FORMAT, 'id': ref['id'], 'archive_sha256': ref['archive_sha256'],
-              'python': target + '/active/bin/python3', 'directory': target,
-              'bin': target + '/active/bin', 'mount_mode': mode(ref),
-              'phase': 'after-agent-before-verifier', 'network_downloads': False}
+              'image_sha256': image['image_sha256'], 'image_bytes': image['image_bytes'],
+              'storage': 'shared-squashfs', 'image_backed': True,
+              'directory': target, 'python': target + '/active/bin/python3', 'bin': target + '/active/bin',
+              'mount_mode': mode(ref), 'phase': 'after-agent-before-verifier', 'network_downloads': False}
     try:
-        started = time.monotonic()
+        q = shlex.quote(target)
+        base = MOUNT + ref['id'] + '/python'
+        command = (f'cd {q} && ln -s ' + shlex.quote(base) + ' python && '
+                   'test -x python/bin/python3 && mkdir active upper work && chmod a+rx . && chmod 1777 upper work && '
+                   'printf %s ' + shlex.quote(Path(__file__).with_name('verifier_mount.sh').read_text()) +
+                   ' > mount.sh && chmod a+r mount.sh')
+        result = await environment.exec(command, user='root', timeout_sec=30)
+        if result.return_code:
+            raise RuntimeError('Shared runtime image inaccessible: ' + (result.stderr or result.stdout or '')[-1000:])
         await prepare(environment, record, user=user, script_staged=True)
-        timings['mount_preparation'] = time.monotonic() - started
-        record['timings_seconds'] = timings
-        if upload_measured(upload):
-            record['archive_upload'] = upload
+        record['timings_seconds'] = {'image_overlay_preparation': time.monotonic() - started}
         Path(evidence_dir).mkdir(parents=True, exist_ok=True)
         (Path(evidence_dir) / 'verifier-runtime.json').write_text(json.dumps(record, indent=2) + '\n')
+        return record
     except BaseException:
         await release(environment, record)
         raise
-    return record
 
 
 def offline_setup_command(target):
@@ -478,9 +380,9 @@ async def stage_offline(environment, context, evidence_dir, *, task=False):
         return None
     timings = {}
     started = time.monotonic()
-    archive = cached(ref, OFFLINE_FORMAT, validate_offline_archive)
-    if archive is None:
-        return None
+    from harbor_patches.runtime_images import mounted
+    image = mounted(environment, ref)
+    archive = Path(image['path'])
     timings['verify_structure'] = time.monotonic() - started
     started = time.monotonic()
     # Apptainer binds /tmp to private node-local storage. Large package inputs
@@ -492,25 +394,19 @@ async def stage_offline(environment, context, evidence_dir, *, task=False):
         raise RuntimeError('Could not allocate a fresh verifier package directory')
     timings['allocate'] = time.monotonic() - started
     started = time.monotonic()
-    remote = target + '/packages.tar.gz'
-    from harbor_patches.runtime_transfer import upload as upload_runtime
-    upload = await upload_runtime(environment, archive, ref, remote)
-    timings['archive_upload'] = time.monotonic() - started
+    base = image['mount']
+    command = f'cd {shlex.quote(target)} && ' + ''.join(
+        f'if [ -e {shlex.quote(base + "/" + name)} ]; then ln -s {shlex.quote(base + "/" + name)} {name}; fi && '
+        for name in OFFLINE_ROOTS)
+    command += 'test -f repo/Packages && ' + offline_setup_command(target)
     started = time.monotonic()
-    from harbor_patches.upload_runtime import extraction_command
-    command = (f'cd {shlex.quote(target)} && '
-               f'printf "%s  packages.tar.gz\\n" {shlex.quote(ref["archive_sha256"])} | sha256sum -c - && '
-               + extraction_command('packages.tar.gz', '.')
-               + ' && rm -f packages.tar.gz && test -f repo/Packages && '
-               + offline_setup_command(target))
     result = await environment.exec(command, user='root', timeout_sec=300)
-    timings['checksum_extract_configuration'] = time.monotonic() - started
+    timings['image_configuration'] = time.monotonic() - started
     if result.return_code:
         raise RuntimeError('Verifier package staging failed: ' + (result.stderr or result.stdout or '')[-1000:])
     record = {'format': OFFLINE_FORMAT, 'id': ref['id'], 'archive_sha256': ref['archive_sha256'],
               'directory': target, 'phase': 'before-agent' if task else 'after-agent-before-verifier', 'network_downloads': False, 'timings_seconds': timings}
-    if upload_measured(upload):
-        record['archive_upload'] = upload
+    record.update(storage='shared-squashfs', image_sha256=image['image_sha256'])
     if evidence_dir is not None:
         Path(evidence_dir).mkdir(parents=True, exist_ok=True)
         name = 'task-offline-packages.json' if task else 'verifier-offline-packages.json'
@@ -525,10 +421,11 @@ async def stage_toolchain(environment, context, evidence_dir):
         return None
     timings = {}
     started = time.monotonic()
-    archive = cached(ref, TOOLCHAIN_FORMAT, validate_toolchain_archive)
-    if archive is None:
-        return None
-    manifest = json.loads(archive.with_suffix('').with_suffix('.json').read_text())
+    from harbor_patches.runtime_images import mounted
+    image = mounted(environment, ref)
+    archive = Path(image['path'])
+    from harbor_patches.runtime_images import source_manifest
+    manifest = source_manifest(archive)
     from hpc.offline_prep.image_toolchain import canonical, expected_version
     expected = expected_version(canonical(manifest['spec']))
     timings['verify_structure'] = time.monotonic() - started
@@ -540,19 +437,17 @@ async def stage_toolchain(environment, context, evidence_dir):
     timings['allocate'] = time.monotonic() - started
     try:
         started = time.monotonic()
-        from harbor_patches.runtime_transfer import upload as upload_runtime
-        upload = await upload_runtime(environment, archive, ref, target + '/toolchain.tar.gz')
-        timings['archive_upload'] = time.monotonic() - started
-        started = time.monotonic()
         t = shlex.quote(target)
         go = shlex.quote(target + '/toolchain/bin/go')
-        # GOENV/GOTOOLCHAIN only for this identity probe; test.sh decides its own activation.
-        command = (f'cd {t} && printf "%s  toolchain.tar.gz\\n" {shlex.quote(ref["archive_sha256"])} | sha256sum -c - && '
-                   'tar --no-same-owner -xzf toolchain.tar.gz && rm -f toolchain.tar.gz && '
+        base = shlex.quote(image['mount'] + '/toolchain')
+        # Instrumentation modifies only the private executables.
+        preparation = (f'mkdir -p toolchain && cp -a {base}/bin toolchain/bin && '
+                       f'for p in {base}/*; do [ "${{p##*/}}" = bin ] || ln -s "$p" "toolchain/${{p##*/}}"; done && ')
+        command = (f'cd {t} && ' + preparation +
                    f'test -x {go} && chmod -R a+rX,go-w toolchain && chmod a+rx . && '
                    f'env GOENV=off GOTOOLCHAIN=local GOROOT={shlex.quote(target + "/toolchain")} {go} version')
         result = await environment.exec(command, user='root', timeout_sec=300)
-        timings['checksum_extract_version'] = time.monotonic() - started
+        timings['image_configuration_version'] = time.monotonic() - started
         observed = (result.stdout or '').strip().splitlines()[-1:] or ['']
         if result.return_code or observed[0] != expected:
             raise RuntimeError('Verifier toolchain staging failed: '
@@ -565,8 +460,7 @@ async def stage_toolchain(environment, context, evidence_dir):
               'directory': target, 'goroot': target + '/toolchain', 'bin': target + '/toolchain/bin',
               'phase': 'after-agent-before-verifier', 'network_downloads': False,
               'timings_seconds': timings}
-    if upload_measured(upload):
-        record['archive_upload'] = upload
+    record.update(storage='shared-squashfs', image_sha256=image['image_sha256'])
     if evidence_dir is not None:
         Path(evidence_dir).mkdir(parents=True, exist_ok=True)
         (Path(evidence_dir) / 'verifier-toolchain.json').write_text(json.dumps(record, indent=2) + '\n')

@@ -21,7 +21,9 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
     task_dir = tmp_path/'task'
     for d in ('tests', 'environment'): (task_dir/d).mkdir(parents=True)
     (task_dir/'instruction.md').write_text('task')
-    (task_dir/'task.toml').write_text('[verifier]\n[verifier.env]\nTEST_VAR="from-config"\n')
+    (task_dir/'task.toml').write_text('[verifier]\nenvironment_mode="'
+        + ('separate' if mode.startswith('separate') else 'shared')
+        + '"\n[verifier.env]\nTEST_VAR="from-config"\n')
     (task_dir/'tests/test.sh').write_text('grade')
     if outcome != 'absent': (task_dir/'tests/setup.sh').write_text('prepare')
     task = Task(task_dir)
@@ -34,6 +36,10 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
     # Even an old reward must not turn setup failure into a successful result.
     paths.reward_text_path.write_text(stale_reward)
     events = []
+    from harbor_patches import agent_package_fallback
+    async def prepare_agent_packages(*args, **kwargs):
+        events.append(('agent-package-fallback', args))
+    monkeypatch.setattr(agent_package_fallback, 'prepare', prepare_agent_packages)
     runtime_root = '/tests/.ot-verifier-runtime-abc123'
     runtime_prefix = (f'export OT_VERIFIER_PYTHON={runtime_root}/active/bin/python3; '
                       f'export OT_VERIFIER_BIN={runtime_root}/active/bin; ')
@@ -121,6 +127,11 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
         assert result.rewards == {'reward': 0 if outcome == 'scored-failure' else 1}
         assert [e[0] for e in events if e[0] in ('setup', 'grade')] == (['setup'] if outcome == 'scored-failure' else ['setup', 'grade'])
     assert verifier.environment is env
+    assert sum(e[0] == 'agent-package-fallback' for e in events) == int(
+        prepared_runtime and not mode.startswith('separate'))
+    if prepared_runtime and not mode.startswith('separate'):
+        names = [e[0] for e in events]
+        assert names.index('agent-package-fallback') < names.index('setup')
     assert sum(e[0] == 'runtime-discard' for e in events) == int(prepared_runtime)
     if prepared_runtime:
         assert events[-1][0] == 'runtime-discard'

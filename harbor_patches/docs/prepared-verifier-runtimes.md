@@ -5,7 +5,7 @@ packages during grading. The shared builder supports Python packages, Python
 console scripts and native executables delivered by those packages (for example
 Ruff). It does not assume pytest or a particular reporting plugin.
 
-The archive contains its own Python interpreter, standard library and installed
+The runtime image contains its own Python interpreter, standard library and installed
 packages. Task files contain only a reference to it. Matching canonical specs
 share a cache key across tasks and datasources. Platform and Python version are
 part of that key; do not share incompatible runtimes.
@@ -40,7 +40,7 @@ described below. After preparation, rerun the patcher with the builder's ready
 manifests keyed by spec ID. Bound references omit the package spec; the complete
 recipe and resolved versions stay in the cache manifest. Old references containing
 `spec` remain readable. `runtime_reference` checks identity, readiness and checksum shape;
-the harness verifies the actual archive bytes.
+the harness verifies the actual image bytes.
 
 For explicitly selected `uvx` commands, the same module provides a conservative
 translator:
@@ -77,14 +77,15 @@ python hpc/offline_prep/verifier_bundles.py \
   --cache "$OT_WORKSPACE/runtimes"
 ```
 
-Each spec produces `<id>.tar.gz` and `<id>.json`. The JSON records the complete
-resolved distribution list and archive checksum. Build output on stdout is one
+Preparation produces `<id>.squashfs` and `<id>.squashfs.json` for publication. The manifest records
+the resolved distributions, image checksum, and source archive identity. Existing local
+archives are retained as preparation inputs and are not published in new releases. Build output on stdout is one
 manifest per line; assemble the patcher's catalog as `{record['id']: record}`.
 An existing ready cache entry is verified and reused without invoking the builder.
 Top-level packages and Python are pinned by the shared declaration helper;
 transitive versions are recorded in the artifact manifest. Rebuilding a spec from
 scratch can resolve different transitives, so task references also pin the exact
-archive digest.
+image digest (legacy references retain their source archive digest).
 
 If that exact Python has no standalone download, declare
 `image_python={"image_sha256": "<64 hex>", "executable": "/usr/local/bin/python3.10"}`
@@ -94,11 +95,11 @@ installs the pinned grading packages with trusted host uv inside the image, and
 checks the relocated prefix, standard library and exact Python version. The image
 checksum participates in the runtime ID. These runtimes require a compatible
 task image, including its system libraries; they are not arbitrary-host Python
-distributions. For trusted fallback, set `OT_RUNTIME_IMAGE_CACHE` to a directory
+distributions. For image-native preparation, set `OT_RUNTIME_IMAGE_CACHE` to a directory
 containing `<image_sha256>.sif`. The builder verifies bytes before copying.
 Missing source images fail preparation; no alternate Python version is selected.
 `OT_RUNTIME_WHEELHOUSE` optionally supplies a trusted local wheel directory for
-image-native preparation or fallback. It is mounted read-only and uv receives
+image-native preparation. It is mounted read-only and uv receives
 `--no-index --find-links`; incomplete inputs fail installation. This is package
 input reuse, not evidence that the whole task ran with networking disabled.
 
@@ -113,15 +114,13 @@ be available for an offline build. An index package with the same version is
 not substituted for the specified source archive.
 
 `OT_RUNTIME_CACHE` overrides `$OT_WORKSPACE/runtimes`. The old
-`OT_VERIFIER_BUNDLE_CACHE` override remains supported at lower priority. When no
-override is set, reads also find legacy `$OT_WORKSPACE/verifier-bundles` entries
-if no entry exists in the new location. Neither path is moved or rewritten. The cache must be
+`OT_VERIFIER_BUNDLE_CACHE` override remains supported at lower priority. The cache must be
 accessible to the validation controller on the target cluster. Stage both files
 when transferring a cache entry. Never put the cache in the agent's mounts.
 Hugging Face publication is opt-in: `python -m validation.publishing.publish ...
---publish-runtimes` stages every runtime, package and setup-download archive referenced
-by kept tasks (with the runner's lookup above, including legacy entries) into the artifact commit under the shared
-`runtimes/<id>.{tar.gz,json}` folder. Artifacts already on `main` with identical bytes
+--publish-runtimes` stages every runtime, package and setup-download image referenced
+by kept tasks into the artifact commit under the shared
+`runtimes/<id>.squashfs` and `runtimes/<id>.squashfs.json` paths. Preparation archives are converted once before publication; releases never upload those archives. Artifacts already on `main` with identical bytes
 are reused; different bytes for an existing ID fail. Missing or corrupt local entries fail
 publication. After the artifact commit, every artifact is downloaded at its pinned commit
 and compared before the task files are committed. `runtimes/manifests/<run>.json` records
@@ -133,11 +132,10 @@ python -m validation.publishing.runtime_release fetch \
   [--cache DIR] [--tasks tasks.parquet]
 ```
 
-`fetch` verifies the archive and manifest checksums, the manifest identity and the
-archive layout before adding an entry, and never replaces an existing entry with other bytes.
-Without `--cache`, an entry already readable through the legacy directory counts as present;
-downloads go to `cache_root()`. An explicit `--cache` is the only directory searched.
-Downloading archives does not make a task portable or offline by itself: images and
+`fetch` verifies image and manifest checksums and the runtime identity before adding an entry,
+and never replaces an existing entry with other bytes. Only version-2 SquashFS releases are supported. Downloads go to `cache_root()`
+unless `--cache` selects another directory.
+Downloading runtimes does not make a task portable or offline by itself: images and
 the remaining unprepared commands are separate prerequisites.
 
 The builder checks Python relocation and required executable presence. Run an
@@ -160,15 +158,14 @@ install_block = python_install_or_prepared(["pytest==8.4.1"], phase="task")
 # Put this explicit block in setup_files/setup.sh instead of its pip install.
 ```
 
-Before task setup, the harness checks the declared artifact and extracts a private
-writable copy. It sets `OT_TASK_PYTHON` and `OT_TASK_BIN`, and places that bin
+Before task setup, the harness checks the declared image. The image is a read-only
+container layer; the container's existing private writable overlay holds agent changes. It sets `OT_TASK_PYTHON` and `OT_TASK_BIN`, and places that bin
 directory on PATH for exec commands and login shells, including the agent's tmux
 shell. The uv-managed Python installation marker is removed only from this private
-copy so normal pip installs can modify it. Agent modifications last for that task
-environment; the stop hook removes the private runtime and activation profile
-before the environment can be reused, and restores the controller's previous
-environment variables. They never update the archive or the clean
-runtime supplied to verification later. The task manifest has no read-only mode.
+layer so normal pip installs can modify it. Agent changes stay available through grading.
+Stopping the container discards its writable overlay; the stop hook removes the activation
+profile and restores the controller's previous environment variables. Changes never update
+the image or the independent clean runtime supplied to verification. The task manifest has no read-only mode.
 
 This runs before agents, reference solutions and no-op trials, within the existing
 task preparation budget. A manifest without a setup script still triggers runtime
@@ -178,8 +175,8 @@ environments do not activate the task runtime just because they receive setup fi
 For image-specific apt packages or Python wheels that setup must install into the
 task environment, use `setup_files/ot-task-offline.json`, generated with
 `offline_package_reference(spec, catalog, phase="task")`. It uses the existing
-`hpc/offline_prep/verifier_offline.py` preparation builder and cache format. The runner stages
-the archive before task setup and supplies `OT_TASK_OFFLINE`. Apt commands must
+`hpc/offline_prep/verifier_offline.py` preparation builder and cache format. The runner mounts
+the image before task setup and supplies `OT_TASK_OFFLINE`. Apt commands must
 explicitly select `APT_CONFIG="$OT_TASK_OFFLINE/apt.conf"`; Python installs can use
 `PIP_NO_INDEX=1 PIP_FIND_LINKS="$OT_TASK_OFFLINE/wheels"`. These are cached installers,
 not a preinstalled operating-system image layer. Setup still performs those installs.
@@ -202,9 +199,8 @@ direct `package==version` pins; it rejects extras and arbitrary install commands
 rather than claiming to validate them. Other initialization stays in the script.
 
 No declaration means the existing script runs normally, without automatic rewriting
-or package inference. A runtime with a canonical matching setup recipe can recover missing, incomplete,
-or checksum-invalid bytes. Legacy references without a setup recipe and offline
-apt/wheel bundles still fail preflight when unavailable.
+or package inference. Declared runtimes require prepared SquashFS images; missing,
+incomplete or corrupt images fail preparation without per-trial installation.
 Task and verifier artifacts are checked by the same target-cluster preflight.
 Keep the shared cache outside task mounts. Task staging records
 `task-prepared-runtime.json` and, when applicable, `task-offline-packages.json`.
@@ -241,29 +237,10 @@ URL, so the helper leaves the command unchanged. Recheck other cabal versions.
 
 Setup carries `offline_recipe(request)` as an `# OT_OFFLINE_RECIPE:` comment.
 `task_offline_reference(request, record)` writes a compact
-`setup_files/ot-task-offline.json` with `request_id`. When the recipe matches,
-a missing or checksum-invalid set is reported as `installation-required` and setup
-runs the original online command. Without the recipe, preflight fails as before.
-Rebuilt sets keep their ID but can have different archive bytes, so rebind
-references from the new catalog. Terminal-Lego emits `task-offline-requests.json`
-and accepts `--task-offline-catalog`. A rebuild of two sets (CRAN and SDKMAN) into an
-empty cache (Helma 1166213) differed only in HTTP `Date` headers and gzip timestamps.
-Old references then report `installation-required` against the new bytes. Rebound
-references staged the new sets: reference 1 and no-op 0 in Helma 1166239, and setup
-matched the online run under `--network none` on CLAIX.
-
-Validation copies move `setup_files/setup.sh` behind the repository-leak repair wrapper
-(`ot-task-setup.sh`). Recipe lookup reads the wrapped original, so the fallback also works
-in validation runs. Before this fix, a missing set in a validation copy failed preflight for
-the whole batch (Helma jobs 1165135/1165137); with it, Helma jobs 1165192/1165193 ran the
-original online commands for a missing and a checksum-invalid set, reference 1 and no-op 0.
-
-When that fallback cannot download, the outcome follows the original command's own
-failure semantics. With both sets missing and the network isolated (CLAIX 5293717,
-`network-none`), the SDKMAN setup exited 1 and every trial failed as a setup error. The
-CRAN setup only warned (`install.packages` cannot open the index), so it exited 0, and
-the reference got reward 0 from 13 failing tests. Neither case was credited, and
-`task-runtime-fallback.json` attributes both to the missing set rather than to the task.
+`setup_files/ot-task-offline.json` with `request_id`. Missing or checksum-invalid
+images fail preflight. Rebuild and bind references to the resulting checksums before
+validation. Terminal-Lego emits `task-offline-requests.json` and accepts
+`--task-offline-catalog`.
 
 ## Setup-driven preparation and recovery
 
@@ -277,7 +254,7 @@ PYTHONPATH=/path/to/OT_next_data OT_RUNTIME_CACHE=/path/to/runtimes \
 ```
 
 For agent dependencies, use `setup_files/setup.sh` instead. Preparation requires
-this repository's Python environment and `uv` on PATH. It saves the archive and
+this repository's Python environment and `uv` on PATH. It prepares the SquashFS image and
 provenance, writes the compact reference next to the setup script, and exits
 before task initialization or grading. The exact original verifier Python version
 must be supplied by the datasource. This helper does not discover or upgrade it.
@@ -285,7 +262,7 @@ must be supplied by the datasource. This helper does not discover or upgrade it.
 For image-specific task apt/wheel/download inputs, prefix setup with
 `offline_preparation_command(request, image_sha256=observed_sha)` instead of its
 standalone `offline_recipe` comment. This emits that comment and a
-`--prepare-offline` branch, which builds the input archive and compact
+`--prepare-offline` branch, which builds the input image and compact
 `ot-task-offline.json`, then exits before task initialization. Supply the pristine
 SIF through `OT_RUNTIME_PREPARE_IMAGE`, or use
 `OT_RUNTIME_IMAGE_CACHE/<image_sha256>.sif`. Its bytes are verified. An optional
@@ -293,18 +270,10 @@ SIF through `OT_RUNTIME_PREPARE_IMAGE`, or use
 reuses existing recipes keyed by the source image checksum alone. This helper
 prepares package inputs, not an installed task environment or verifier runtime.
 
-The setup prefix contains a canonical recipe comment that the trusted controller
-can read from the source task. Preflight records `installation-required` when a
-runtime is unavailable, rather than reporting that the cache passed. Before the
-agent, the task's normal setup installation branch handles this case. Before
-verification, the controller rebuilds a clean standalone runtime in a private
-temporary cache and stages it with its new checksum. The verifier never invokes
-an agent-modified installer. Rebuild subprocesses are terminated on cancellation.
-The fallback's actual and requested digests are recorded; shared artifacts and
-source references remain unchanged. Offline fallback needs a complete local uv
-cache or prepared package inputs; successful ordinary installation does not prove
-network-disabled execution. Musl fallback still needs image-specific preparation
-and currently fails without that prerequisite.
+The setup prefix contains a canonical recipe comment used during preparation.
+Preflight records a missing runtime as unavailable. Prepare and verify its SquashFS
+image before starting a validation run; the runner does not rebuild or unpack
+runtime archives during a trial.
 
 Set `OT_RUNTIME_RELEASE_MANIFEST` to a local release manifest or
 `REPO@COMMIT:runtimes/manifests/RUN.json` to fetch referenced runtimes during
@@ -322,7 +291,7 @@ apt/wheel bundles remains separate work.
 
 ## Verification handoff
 
-The harness stages the checksum-verified archive into a new directory under
+The harness opens a private overlay over the checksum-verified image under
 `/tests` before `tests/setup.sh`, then supplies these variables to setup and grading:
 
 ```bash
@@ -357,11 +326,11 @@ updates = runtime_reference(spec, catalog, mount_mode="writable")
 ```
 
 This changes the task reference, not the artifact identity: both modes reuse the
-same pristine archive. Kernel OverlayFS places modifications in this verification's
+same read-only image. Kernel OverlayFS places modifications in this verification's
 own upper directory. Setup and grading reopen the same upper/work pair, so setup
 installs are available during grading. Another verification gets fresh directories.
 All private runtime files are discarded in the verifier's finally block, including
-after setup failures. Nothing is written back to the shared archive or published.
+after setup failures. Nothing is written back to the shared image or published.
 Standalone uv-managed Python may require pip's `--break-system-packages` even in
 this private writable environment. Prefer prebuilding known dependencies.
 
@@ -376,12 +345,109 @@ unprotected writable fallback. Mounts are private and explicitly detached before
 the next command; a busy runtime mount is an error. Verifier subprocesses lose
 CAP_SYS_ADMIN and cannot remount the runtime read-write.
 
-This still uploads/extracts the archive per verification, then applies actual bind
-or OverlayFS mounts. It does not yet share a pre-extracted host directory or mount
-a runtime SIF. The trusted harness can instrument the private lower copy between
-commands; the cached archive remains unchanged. Existing layout-1 TerminalLego
-archives remain supported, subject to these mount prerequisites. New layout-2
-bundles also support relocatable console scripts.
+### Agent package fallback in shared verification
+
+For a configured clean Python runtime in shared mode, both preparation review and
+normal grading discover agent package directories before activating the verifier
+runtime. Discovery probes Python from `VIRTUAL_ENV`, `CONDA_PREFIX`, `python3` and
+`python` on PATH, plus `task_python` from `ot-verifier-assets.json` when declared.
+The probe uses `-I -S` and computes site directories without processing `.pth`
+files or startup hooks. It explicitly handles virtual-environment prefixes on
+Python versions where `-S` suppresses normal venv initialization. An activation
+performed only in a different shell, or an undeclared interpreter elsewhere, is
+not automatically discovered. Agent interpreters are agent-controlled executables;
+these flags suppress normal Python startup hooks, not arbitrary executable tampering.
+
+Each clean runtime interpreter receives a private import hook, including auxiliary
+interpreters. The hook is a fallback after normal import resolution, not an addition
+to `PYTHONPATH`. It searches agent directories only for missing top-level packages
+and only from matching Python major/minor versions. It does not extend namespaces
+or supply missing submodules of packages already resolved from the clean runtime,
+retry a failed clean import using an agent copy, or load agent `sitecustomize` and
+`usercustomize` modules. Named distribution metadata queries can find fallback
+package metadata; general distribution/plugin discovery does not enumerate agent
+packages. Editable installations requiring `.pth` hooks are not activated.
+
+`agent-package-fallback.json` records discovered interpreters/directories, runtime
+sites, compatible fallback directories, incompatible interpreters, and installation
+errors. No discoverable Python is recorded as unavailable, not as a successful
+discovery. Failed probes or hook installation raise a preparation error. The hook
+is installed only in the private extraction or writable overlay, never in the
+shared artifact. Separate-mode verification does not import from the agent container.
+
+This deliberately allows agent-controlled packages absent from the runtime to
+execute during grading; it is not a complete adversarial import boundary. Clean
+grading dependencies must be included in the prepared runtime. A clean copy still
+wins over an agent-modified package of the same name, and matching Python versions
+do not guarantee native-library or dependency compatibility. Task-specific path
+changes/import hooks can also alter resolution. Audit tasks that modify installed
+packages, verify which copy is actually tested, and fix overlaps or missing paths
+without allowing agent packages to replace trusted grading tools.
+
+### Shared SquashFS bases (Apptainer)
+
+SquashFS is the default for prepared Apptainer runtimes. Direct image mounting is
+currently implemented for Apptainer; other backends are not supported for prepared
+runtime images. Download the published
+images/manifests into `OT_RUNTIME_CACHE`, on disk accessible to the controller and
+compute nodes. `OT_RUNTIME_IMAGE_CACHE` can select a separate image cache. The older
+`OT_VERIFIER_IMAGE_CACHE` name remains an alias. To convert an existing local archive
+separately before validation:
+
+```sh
+python -m harbor_patches.runtime_images TASK/tests/ot-verifier-runtime.json \
+  --cache "$OT_RUNTIME_CACHE" --processors 4
+```
+
+Preparation verifies the existing archive, extracts once on disk beside the output,
+and creates `<id>.squashfs` with a checksum manifest `<id>.squashfs.json`. It preserves
+the original runtime paths and versions; existing artifacts are verified and never
+overwritten. This mode fails on missing or corrupt images, without falling back to
+per-trial archive extraction. It does not change task memory limits.
+
+The bridge verifies the image on both sides. A v2 image stores its contents under
+`/opt/ot-runtime-bases/<id>`. For an agent runtime, this becomes a read-only lower
+container layer beneath that container's private writable overlay. An independent
+read-only bind at `/opt/ot-verifier-images/<id>` supplies the clean base for verifier
+overlays, offline package inputs and toolchains. The cache directory and backing image file are
+not exposed inside the container. Consequently the immutable dependency tree is
+visible during agent execution; private verifier overlays and instrumentation are
+created later, when verification starts. This is not a complete shared-container security boundary.
+
+Set `OT_RUNTIME_NODE_CACHE` to a node-local disk directory to copy only required
+images there once per job; otherwise they are mounted directly from shared disk.
+Do not choose RAM-backed storage when the goal is to reduce memory use. Cache files
+are never exposed as writable container files.
+
+Python runtimes use independent writable layers. Offline package inputs stay
+read-only; installers write into the task or verifier environment. Go toolchains
+keep a small private copy of `bin` for instrumentation and mount the larger
+source/library tree read-only.
+
+Each verification has its own upper/work directories. Trusted instrumentation writes
+to that private upper layer. Read-only grading remounts the merged overlay read-only;
+writable mode retains private changes across setup and grading. Changes never return
+to the image. `verifier-runtime.json` records `storage: shared-squashfs`, both artifact
+checksums, and staging timings. The worker records the shared runtime-cache mode.
+Disk-backed image pages still use memory when accessed, and private writes still
+consume trial memory; this removes the full tmpfs extraction, not all memory use.
+
+The November 4 Barnard pilot exercised runtime
+`1bb8f198cea2f20653ce8dd2d90437687f9163539d3761ca51983e83c309532f`
+on `contrastive_solver-model-training_20260604_003814_003` (job `40615537_0`).
+Its 538 MiB archive became a 220 MiB image through SquashFS compression and duplicate
+file elimination. All five preparation runs passed with the unchanged 2048 MiB task
+limit; runtime overlay preparation took 0.72 to 4.64 seconds. Normal and shuffled
+no-op trials both scored zero, with measured memory peaks of 699.5 and 684.9 MiB.
+Pytest and the auxiliary PyTorch interpreter executed from the runtime. The shared
+image checksum was unchanged afterward. There was no reference solution in this
+task snapshot, so reference correctness and reference-dependent mutation checks
+were not established. This is evidence for one runtime/task, not the full dataset.
+
+The successful job used 64 GiB for controller/bootstrap staging, separate from the
+2 GiB task limit. An initial 32 GiB allocation failed before task execution while
+unpacking the existing 17 GiB host-controller bundle. That separate bootstrap path
+still extracts to tmpfs and is not changed by verifier runtime images.
 
 These mounts protect the runtime paths during verifier execution. They are not a
 complete adversarial boundary for the shared container: PID/network namespaces

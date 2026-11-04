@@ -5,7 +5,7 @@ import re
 import shlex
 
 from harbor_patches.verifier_bundle import (
-    TASK_REFERENCE, TASK_OFFLINE_REFERENCE, OFFLINE_FORMAT, task_references, cached, stage_offline, validate_offline_archive as validate_offline,
+    TASK_REFERENCE, TASK_OFFLINE_REFERENCE, task_references, stage_offline,
 )
 
 PROFILE = '/etc/profile.d/zzzz-ot-task-runtime.sh'
@@ -71,18 +71,11 @@ async def checked_exec(environment, command, timeout=180):
 async def stage(environment, task, evidence_dir=None):
     """Stage the task's cached dependencies before setup and the agent.
 
-    A runtime missing from the cache is skipped; the task's setup.sh then
-    installs online as the original task did. The interpreter is a private
-    writable extraction, never a writable cache mount, and lasts for the task
-    environment, unlike the independently staged verifier.
+    Mounted images use the container's private writable overlay, retained through
+    grading and discarded with the container. Neither layer writes to the cache.
     """
     context = Path(task) / 'setup_files'
     ref, offline_ref = task_references(context)
-    archive = cached(ref) if ref else None
-    if archive is None:
-        ref = None
-    if offline_ref and cached(offline_ref, OFFLINE_FORMAT, validate_offline) is None:
-        offline_ref = None
     if ref is None and offline_ref is None:
         return None
     if not hasattr(environment, '_persistent_env'):
@@ -92,23 +85,19 @@ async def stage(environment, task, evidence_dir=None):
         evidence_dir = environment.trial_paths.trial_dir
     variables, runtime = {}, None
     if ref:
-        result = await checked_exec(environment, 'mktemp -d /setup_files/.ot-task-runtime-XXXXXXXXXXXX')
-        root = (result.stdout or '').strip()
-        if not re.fullmatch(r'/setup_files/\.ot-task-runtime-[A-Za-z0-9]+', root):
-            raise RuntimeError('Invalid task runtime staging directory')
-        retain(environment, root)
-        from harbor_patches.runtime_transfer import upload as upload_runtime
-        upload = await upload_runtime(environment, archive, ref, root + '/runtime.tar.gz')
+        from harbor_patches.runtime_images import mounted
+        image = mounted(environment, ref)
+        if not image.get('agent_runtime') or not image.get('image_root'):
+            raise RuntimeError('Agent runtime image has no private container overlay')
+        root = image['image_root']
         await checked_exec(environment,
-            f'cd {shlex.quote(root)} && printf "%s  runtime.tar.gz\\n" {shlex.quote(ref["archive_sha256"])} '
-            '| sha256sum -c - && tar --no-same-owner -xzf runtime.tar.gz && '
-            'test -x python/bin/python3 && rm -f runtime.tar.gz && '
-            'find python/lib -maxdepth 2 -name EXTERNALLY-MANAGED -type f -delete && '
-            'chmod a+rx . && chmod -R a+rwX python')
-        runtime = {'id': ref['id'], 'archive_sha256': ref['archive_sha256'], 'directory': root,
-                   'python': root + '/python/bin/python3', 'bin': root + '/python/bin', 'writable': True}
-        if isinstance(upload, dict):
-            runtime['archive_upload'] = upload
+            'test -x ' + shlex.quote(root + '/python/bin/python3') + ' && '
+            'find ' + shlex.quote(root + '/python/lib') + ' -maxdepth 2 -name EXTERNALLY-MANAGED -type f -delete')
+        runtime = {'id': ref['id'], 'archive_sha256': ref['archive_sha256'],
+                   'image_sha256': image['image_sha256'], 'storage': 'shared-squashfs',
+                   'directory': root, 'python': root + '/python/bin/python3',
+                   'bin': root + '/python/bin', 'writable': True,
+                   'overlay': 'private task container overlay; retained through grading, discarded at container stop'}
         variables.update(OT_TASK_PYTHON=runtime['python'], OT_TASK_BIN=runtime['bin'])
     offline = await stage_offline(environment, context, evidence_dir, task=True) if offline_ref else None
     if offline:

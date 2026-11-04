@@ -2254,7 +2254,7 @@ def environment_hash(files):
 
 def runtime_catalog(cache, spec):
     """{id: manifest} for one spec from the verifier runtime cache."""
-    path = Path(cache) / (spec_id(spec) + ".json")
+    path = Path(cache) / (spec_id(spec) + ".squashfs.json")
     if not path.is_file():
         raise FileNotFoundError(f"verifier runtime {spec_id(spec)} is not prepared in {cache}")
     manifest = json.loads(path.read_text())

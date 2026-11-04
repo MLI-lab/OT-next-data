@@ -1,0 +1,19 @@
+[[criteria]]
+name = "VERIFIER-TOO-WEAK"
+description = "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass."
+guidance = "FAIL if the defect described above is present. PASS if it is absent. Evaluate this criterion independently of the other criteria. Use pass or fail; do not use not_applicable."
+
+[[criteria]]
+name = "INSTR-VERIFIER-MISMATCH"
+description = "The verifier checks something the instruction does not imply, or contradicts it. For example, reads/writes a different path, asserts a hardcoded value that conflicts with the data, or demands a stricter format. A solution that faithfully follows the instruction still fails."
+guidance = "FAIL if the defect described above is present. PASS if it is absent. Evaluate this criterion independently of the other criteria. Use pass or fail; do not use not_applicable."
+
+[[criteria]]
+name = "INSTR-ENV-MISMATCH"
+description = "The instruction or verifier references input paths, files, dependencies, or services the environment does not actually provide, so the task cannot be completed as written (missing data/compiler/service)."
+guidance = "FAIL if the defect described above is present. PASS if it is absent. Evaluate this criterion independently of the other criteria. Use pass or fail; do not use not_applicable."
+
+[[criteria]]
+name = "INSTR-AMBIGUOUS"
+description = "The instruction alone is underspecified: a necessary specification is missing, so two equally reasonable interpretations produce different outputs and the verifier accepts only one. Merely admitting multiple valid solution paths is not enough."
+guidance = "FAIL if the defect described above is present. PASS if it is absent. Evaluate this criterion independently of the other criteria. Use pass or fail; do not use not_applicable."

@@ -84,6 +84,7 @@ def test_relocated_console_tool_ignores_agent_pythonpath_and_preserves_exit_code
 def test_setup_and_grading_receive_prepared_tool_paths(tmp_path, monkeypatch):
     import asyncio
     from types import SimpleNamespace
+    from harbor.models.task.config import TaskConfig
     from harbor_patches import verifier_bundle, verifier_setup
 
     root = '/tests/.ot-verifier-runtime-123456789abc'
@@ -105,6 +106,8 @@ def test_setup_and_grading_receive_prepared_tool_paths(tmp_path, monkeypatch):
         async def upload_dir(self, **kwargs):
             pass
     verifier = SimpleNamespace(
+        task=SimpleNamespace(config=TaskConfig()),
+        step_name=None,
         _resolve_tests=lambda: (None, tmp_path, None),
         trial_paths=SimpleNamespace(verifier_dir=tmp_path / 'evidence'))
     wrapped = verifier_setup.SetupEnvironment(Environment(), 'grade', verifier)

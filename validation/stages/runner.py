@@ -50,8 +50,8 @@ def parser():
     ap.add_argument('--backend', choices=['apptainer', 'docker', 'modal'], default='apptainer')
     ap.add_argument('--environment-kwargs', type=json.loads, default={}, help='Harbor backend kwargs as a JSON object')
     ap.add_argument('--agent', default='terminus-2', help='solver/cheat agent')
-    ap.add_argument('--review-evidence', choices=['image', 'files'], default='image',
-                    help='stage 5: inspect actual task environments (default), or explicitly review task files only')
+    ap.add_argument('--review-evidence', choices=['auto', 'image', 'files'], default='auto',
+                    help='stage 5: auto (default) uses cached task images or falls back to base file review; image requires task environments; files always uses a base environment')
     ap.add_argument('--review-max-budget-usd', type=float, default=5,
                     help='per-attempt Claude CLI budget for image-backed stage-5 review')
     ap.add_argument('--review-reasoning-effort', choices=['low', 'medium', 'high', 'xhigh'], default='medium',
@@ -67,10 +67,10 @@ def parser():
     ap.add_argument('--review-model', help='override pinned upstream rubric/trajectory judge model')
     ap.add_argument('--review-pricing', type=json.loads,
                     help='review token rates in USD per million: JSON with input/output and optional cache_read/cache_write; reported cost is retained separately')
-    ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor', 'custom', 'river', 'custom_severity'], default='terminal-bench',
-                    help='Stage 5 rubric: terminal-bench (default), harbor, custom, river, or custom_severity')
+    ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor', 'custom', 'river', 'river_selected', 'custom_severity'], default='terminal-bench',
+                    help='Stage 5 rubric: terminal-bench (default), harbor, custom, river, river_selected, or custom_severity')
     ap.add_argument('--review-format', choices=['criteria', 'classification', 'severity'],
-                    help='custom: criteria/classification; River: classification; custom_severity: severity')
+                    help='custom: criteria/classification; River: classification; river_selected: criteria; custom_severity: severity')
     ap.add_argument('--review-criteria', nargs='+', metavar='CRITERION',
                     help='Stage 5: review only these criterion names from the chosen rubric; default all')
     ap.add_argument('--review-local', action='store_true', help='judge with the served model or --api-base model in Terminus 2 (all evidence modes)')
@@ -98,10 +98,12 @@ def parser():
     ap.add_argument('--dynamic-do-not-modify', action=argparse.BooleanOptionalAction, default=True,
                     help='stage 2: check protected files in the container and mutate them after the reference '
                          '(validation/rules/dynamic/do_not_modify; default: enabled)')
+    ap.add_argument('--git-checks-only', action='store_true',
+                    help='stage 1 only: rerun repository history/timestamps and preserve other result cells')
     ap.add_argument('--review-runs', type=int, help='independent stage-5 reviews per task; defaults to --attempts')
     ap.add_argument('--review-retries', type=int, default=1, help='repair rounds for incomplete/invalid stage-5 judgments (default: 1)')
-    ap.add_argument('--review-grace-minutes', type=float, default=10,
-                    help='Terminus-2 judges: final-answer window after the 30-minute review time (default: 10)')
+    ap.add_argument('--review-grace-minutes', type=float,
+                    help='final-answer window from the finish instruction; model default (usually 10, GLM-5.3: 30)')
     ap.add_argument('--review-resume', action=argparse.BooleanOptionalAction, default=True, help='reuse matching completed/partial stage-5 review checkpoints (default: enabled)')
     ap.add_argument('--review-seed', type=int, default=42, help='local judge seed; independent review runs increment it')
     ap.add_argument('--outcome-retries', type=int, default=3,
@@ -175,8 +177,8 @@ def parser():
     ap.add_argument('--reward-key', default='reward')
     ap.add_argument('--trials', type=Path, help='Harbor job directory for stages 7 and 8; one level of trial dirs')
     ap.add_argument('--max-iterations', type=int, default=10)
-    ap.add_argument('--timeout-minutes', type=float, default=30,
-                    help='maximum wall time for each judge response in minutes (default: 30)')
+    ap.add_argument('--timeout-minutes', type=float,
+                    help='review session budget; model default (usually 30, GLM-5.3: 120)')
     ap.add_argument('--publish-repo', help='open a pull request on this Hugging Face dataset when the Helma job ends, e.g. FWeindel/validated-tasks')
     ap.add_argument('--publish-require-complete', action='store_true', help='publish only after all tasks have outcomes for stages 1,2,3,4')
     ap.add_argument('--publish-folder', action='append', default=[], metavar='PREFIX=FOLDER', help='data source folder for task IDs starting with PREFIX, or *=FOLDER for every task (see publish.py)')
@@ -265,11 +267,20 @@ def check_args(a):
     import math
     from validation.stages.judge import normalize
     normalize(a)
+    if getattr(a, 'git_checks_only', False):
+        if str(a.stages) != '1' or getattr(a, 'review_setup', None) is not None or getattr(a, 'prebuild_only', False):
+            raise ValueError('--git-checks-only requires --stages 1 without verifier review or image preparation')
+        if getattr(a, 'preparation_runs', 1) != 1:
+            raise ValueError('--git-checks-only requires one environment preparation')
     if getattr(a, 'reference_runs', 1) < 1 or getattr(a, 'nop_runs', 1) < 1:
         raise ValueError('--reference-runs and --nop-runs must be at least 1')
     if min(getattr(a, 'nop_shuffled_runs', 1), getattr(a, 'reference_shuffled_runs', 1),
            getattr(a, 'reference_repeat_runs', 2)) < 0:
         raise ValueError('--nop-shuffled-runs, --reference-shuffled-runs and --reference-repeat-runs must be nonnegative')
+    if not math.isfinite(a.review_grace_minutes) or a.review_grace_minutes <= 0:
+        raise ValueError('--review-grace-minutes must be finite and positive')
+    if not math.isfinite(a.timeout_minutes):
+        raise ValueError('--timeout-minutes must be finite')
     budget = getattr(a, "review_max_budget_usd", 5)
     if not math.isfinite(budget) or budget <= 0:
         raise ValueError("--review-max-budget-usd must be finite and positive")
@@ -282,16 +293,16 @@ def check_args(a):
         a.network_mode = cluster.network_mode if cluster else 'isolated'
     kind = getattr(a, 'review_rubric', 'terminal-bench')
     output_format = getattr(a, 'review_format', None)
-    if kind in ('custom', 'river', 'custom_severity'):
+    if kind in ('custom', 'river', 'river_selected', 'custom_severity'):
         from validation.rubrics.utils.review import load
         rubric, skipped = load(kind, output_format)
         if kind == 'custom_severity':
             a.review_format = 'severity'
     elif output_format is not None:
-        raise ValueError('--review-format is supported only for custom, river and custom_severity rubrics')
+        raise ValueError('--review-format is supported only for custom, river, river_selected and custom_severity rubrics')
     if getattr(a, 'review_criteria', None) is not None:
         from validation.rubrics import ROOT as RUBRICS, harbor_rubric, implementation_rubric, select_criteria
-        if kind not in ('custom', 'river', 'custom_severity'):
+        if kind not in ('custom', 'river', 'river_selected', 'custom_severity'):
             rubric, skipped = (harbor_rubric() if kind == 'harbor'
                                else implementation_rubric(RUBRICS / 'rubric_terminal_bench/upstream/task-implementation.toml'))
         select_criteria(rubric, skipped, a.review_criteria)
@@ -421,6 +432,21 @@ def accepted_after_timeout(result, path, validate):
 
 
 async def review_once(number, source, item_dir, args, upstream, references=None, suffixes=None):
+    if number != 5:
+        return await _review_once(number, source, item_dir, args, upstream, references, suffixes)
+    from validation.stages.review_environment import choose
+    selection = choose(source, args)
+    effective = copy.copy(args)
+    effective.review_evidence = selection['selected']
+    effective._review_auto_selected = selection['requested'] == 'auto'
+    item_dir.mkdir(parents=True, exist_ok=True)
+    save(item_dir / 'review-environment.json', selection)
+    result = await _review_once(number, source, item_dir, effective, upstream, references, suffixes)
+    result['environment_selection'] = selection
+    return result
+
+
+async def _review_once(number, source, item_dir, args, upstream, references=None, suffixes=None):
     from validation.stages.judge import review_args
     args = review_args(args)
     resolve_review_defaults(args, [number])
@@ -433,6 +459,13 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
                                                  getattr(args, 'review_criteria', None), getattr(args, 'review_format', None),
                                                  getattr(args, 'review_evidence', 'image'),
                                                  minutes=getattr(args, 'timeout_minutes', None) or 30)
+        if (getattr(args, '_review_auto_selected', False) and args.review_evidence == 'files'
+                and args.backend == 'apptainer' and not args.dry_run):
+            from validation.stages.review_environment import choose
+            probe = copy.copy(args)
+            probe.review_evidence = 'auto'
+            if choose(task, probe)['selected'] != 'image':
+                raise RuntimeError('Base review image is not cached; prebuild the file-only review image on the target cluster before running reviews')
         verdict_name, rubric_name = 'verdicts.json', 'task-implementation.toml'
     else:
         task = prepare_review_tasks.stage_analysis(source, args.current_trial, item_dir / 'input' / 'trajectory-analysis', upstream)
@@ -446,6 +479,10 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
         from validation.stages.image_review import review
         return await review(source, task, item_dir, args, agent, model)
     if number == 5 and not image:
+        if agent in ('codex', 'codex-cli', 'claude'):
+            from validation.stages.image_review import review
+            return await review(source, task, item_dir, args, agent, model,
+                                runtime_task=task, evidence_mode='files')
         from validation.rubrics.utils.review import review_files
         return await review_files(task, source, item_dir, args, agent, model)
     if number == 5 and getattr(args, 'review_rubric', None) == 'custom_severity':
@@ -465,7 +502,8 @@ async def review_once(number, source, item_dir, args, upstream, references=None,
         task = env_review.stage(source, task, item_dir / 'input' / 'task-environment-review' / source.name,
                                 files, '/app/' + verdict_name,
                                 grace_sec=env_review.grace_sec(args) if validate else None,
-                                review=env_review.review_sec(args))
+                                review=env_review.review_sec(args),
+                                delivery_wait_sec=env_review.grace_sec(args) if validate and agent == 'terminus-2' else 0)
         job_dir, results = await env_review.run(task, item_dir, args, model, validate, agent=agent)
         if args.dry_run:
             return {'status': 'previewed', 'config': str(item_dir / 'job.json'), 'automatic_skips': skipped}
@@ -658,25 +696,30 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
         if number == 9:
             item['note'] = 'Reward 1 alone does not prove cheating; review trajectories in stage 8.'
     if number == REFERENCE:
-        passing = [(task, item) for task, item in selected if item.get('status') == 'passed']
-        if passing:
-            try:
-                shuffled = run_shuffled_reference(config, passing, out / 'reference-shuffled-jobs', args)
-                if shuffled is not None:
-                    for task, item in passing:
-                        add_listing_order(item, groups[task.name], shuffled, task, args, expected_reward=1)
-                repeated = run_trials(config, passing, out / 'reference-repeat-jobs',
-                                      getattr(args, 'reference_repeat_runs', 2), shuffle=False)
-                if repeated is not None:
-                    for task, item in passing:
-                        add_repeat_runs(item, repeated, task, args)
-            except Exception as exc:
-                for _, item in passing:
-                    item.update(status='error', listing_order={'status': 'incomplete', 'reason': str(exc)})
-                    item.setdefault('findings', []).append('listing order: ' + str(exc))
+        # A reference verdict is not a prerequisite for the other checks.
+        try:
+            shuffled = run_shuffled_reference(config, selected, out / 'reference-shuffled-jobs', args)
+            if shuffled is not None:
+                for task, item in selected:
+                    add_listing_order(item, groups[task.name], shuffled, task, args, expected_reward=1)
+        except Exception as exc:
+            for _, item in selected:
+                item.update(status='error', listing_order={'status': 'incomplete', 'reason': str(exc)})
+                item.setdefault('findings', []).append('listing order: ' + str(exc))
+        try:
+            repeated = run_trials(config, selected, out / 'reference-repeat-jobs',
+                                  getattr(args, 'reference_repeat_runs', 2), shuffle=False)
+            if repeated is not None:
+                for task, item in selected:
+                    add_repeat_runs(item, repeated, task, args)
+        except Exception as exc:
+            for _, item in selected:
+                record = item.setdefault('listing_order', {})
+                record.update(status='incomplete', repeat_error=str(exc))
+                item['status'] = 'error'
+                item.setdefault('findings', []).append('reference repeats: ' + str(exc))
     if dynamic_do_not_modify:
-        do_not_modify.evaluate_all([(task, item) for task, item in selected if item.get('status') != 'error'],
-                                   groups, out, args)
+        do_not_modify.evaluate_all(selected, groups, out, args)
     return items
 
 
@@ -769,7 +812,11 @@ def run_nop(selected, out, args):
                 runtime.trial_results(job_dir), [task for task, _ in pairs])
             if dynamic_do_not_modify:
                 do_not_modify.evaluate_all(without_reference, groups, out, args, reference=False)
-            shuffled = run_shuffled_nop(config, pairs, out / f'nop-shuffled-jobs-{index}', args)
+            shuffled_error = None
+            try:
+                shuffled = run_shuffled_nop(config, pairs, out / f'nop-shuffled-jobs-{index}', args)
+            except Exception as exc:
+                shuffled, shuffled_error = None, str(exc)
             for task, item in pairs:
                 prepared = runtime.assess_trials(groups[task.name], args.attempts, 0, args.reward_key, task_path=task,
                                                  oracle_passed=task.name in oracle_passed)
@@ -785,6 +832,8 @@ def run_nop(selected, out, args):
                     prepared['status'] = 'failed'
                     prepared['findings'].append(f'unmatched NOP results: {unmatched}')
                 prepared['normal_baseline_status'] = prepared['status']
+                if shuffled_error is not None:
+                    prepared['listing_order'] = {'status': 'incomplete', 'reason': shuffled_error}
                 if shuffled is not None:
                     add_listing_order(prepared, groups[task.name], shuffled, task, args)
                 if getattr(args, 'verifier_tamper', False):
@@ -857,7 +906,12 @@ def add_repeat_runs(prepared, repeated, task, args):
     record = prepared.setdefault('listing_order', {'status': 'clean', 'reason': ''})
     record.update(repeat_runs=count, repeat_rewards=rewards, repeat_job_dir=repeated['job_dir'],
                   repeat_usage={k: assessment.get(k, []) for k in ('trial_seconds', 'resources')})
-    if assessment['status'] != 'completed' or repeated.get('unmatched') or len(trials) != count:
+    baseline = prepared.get('rewards') or []
+    if not baseline or any(reward != 1 for reward in baseline):
+        finding = 'repeated reference runs recorded, but passing clean reference baseline unavailable'
+        record['status'] = 'incomplete'
+        prepared['status'] = 'error' if prepared.get('status') != 'failed' else 'failed'
+    elif assessment['status'] != 'completed' or repeated.get('unmatched') or len(trials) != count:
         finding = 'repeated reference runs incomplete: ' + ('; '.join(assessment['findings']) or 'missing trials')
         if record.get('status') != 'flagged':
             record['status'] = 'incomplete'

@@ -38,7 +38,7 @@ def copy_asset(source, target, *, reserve=20 * GIB):
     return target, {'source': str(source), 'local': str(target), 'bytes': required}
 
 
-def stage_images(tasks, source, target, *, selected_keys=None):
+def stage_images(tasks, source, target, *, selected_keys=None, allow_missing_local=False):
     from harbor_patches.image_context import task_dockerfiles, environment_dir_hash_truncated
     target.mkdir(parents=True, exist_ok=True)
     selected = set()
@@ -83,7 +83,7 @@ def stage_images(tasks, source, target, *, selected_keys=None):
         local = restore(bundle, target)
         records.append({'source': str(bundle), 'local': str(local), 'verified_bundle': True})
     from validation.publishing.image_release import stage_published
-    records.extend(stage_published(tasks, source, target, selected_keys=selected_keys))
+    records.extend(stage_published(tasks, source, target, selected_keys=selected_keys, allow_missing_local=allow_missing_local))
     (target / 'staging.json').write_text(json.dumps(records, indent=2))
     return target
 
@@ -172,14 +172,12 @@ if __name__ == '__main__':
     print(json.dumps(stage_certificates(args.directory)))
 
 
-def stage_runtimes(tasks, source, target):
+def stage_runtimes(tasks, source, target, *, agent_only=False):
     """Copy the prepared runtimes these tasks reference into job-local storage once.
 
-    Every task and verifier preparation copies a runtime archive into its container;
-    reading it from node memory instead of the shared filesystem keeps that transfer
-    out of the measured setup time. Archives are copied unchanged (the checksum is
-    still verified at every use); files missing from the cache are left to the
-    runtime lookup, which reports them as before."""
+    Images remain compressed and are mounted directly inside containers. Prefer
+    node-local disk rather than RAM-backed storage. All bytes are copied unchanged and checked again before use;
+    missing entries are reported to the caller."""
     import json
     from validation.publishing.runtime_release import KINDS, _context_of
     source, target = Path(source), Path(target)
@@ -188,6 +186,8 @@ def stage_runtimes(tasks, source, target):
     for task in tasks:
         for name in KINDS:
             for reference in Path(task).rglob(name):
+                if agent_only and reference.parent != Path(task) / 'setup_files':
+                    continue
                 if _context_of(reference.relative_to(task).as_posix()) is None:
                     continue
                 key = json.loads(reference.read_text()).get('id')
@@ -195,7 +195,8 @@ def stage_runtimes(tasks, source, target):
                     wanted.add(key)
     records, missing = [], []
     for key in sorted(wanted):
-        for suffix in ('.json', '.tar.gz'):
+        suffixes = ('.squashfs', '.squashfs.json')
+        for suffix in suffixes:
             path = source / (key + suffix)
             if not path.is_file():
                 missing.append(path.name)

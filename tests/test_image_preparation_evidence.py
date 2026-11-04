@@ -36,7 +36,7 @@ def run_worker(tmp_path, monkeypatch, prepare):
         'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 4})
 
     def stage_images(tasks, shared, target, **kwargs):
-        Path(target).mkdir()
+        Path(target).mkdir(exist_ok=True)
         return Path(target)
     monkeypatch.setattr(hpc.local_assets, 'stage_images', stage_images)
     monkeypatch.setattr(hpc.offline_prep.image_cache, 'prepare_images', prepare)
@@ -89,3 +89,26 @@ def test_completed_preparation_archives_final_records(tmp_path, monkeypatch):
     with tarfile.open(request.parent / 'evidence.tar.gz') as archive:
         assert archive.extractfile('image-build-logs/a.build.log').read() == b'build evidence'
         assert json.load(archive.extractfile('image-preparation.json')) == final
+
+
+def test_auto_review_prepares_only_base_when_task_image_missing(tmp_path, monkeypatch):
+    seen = []
+
+    def prepare(tasks, images, shared, args):
+        seen.extend(tasks)
+        assert os.environ['OT_REQUIRE_PREBUILT_IMAGES'] == '1'
+        assert [task.name for task in tasks] == ['review-environment']
+        return []
+
+    request = run_worker(tmp_path, monkeypatch, prepare)
+    import validation.upstream
+    monkeypatch.setattr(validation.upstream, 'checkout', lambda name: Path(__file__).resolve().parents[1] / 'external' / name)
+    (tmp_path / 'source/example/instruction.md').write_text('Example task')
+    data = json.loads(request.read_text())
+    data['stages'] = [5]
+    request.write_text(json.dumps(data))
+    with pytest.raises(RuntimeError, match='stop before services'):
+        worker.main(request)
+    assert seen
+    selection = json.loads((request.parent / 'review-environments.json').read_text())
+    assert selection['example']['selected'] == 'files'

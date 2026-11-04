@@ -15,7 +15,8 @@ Judge reviews started inside ``active(policy)`` (validation/stages/env_review.py
 also get:
 
 - Review time limit: after ``review_sec`` the next model turn gets the final-answer
-  message; Harbor's hard agent limit (task.toml) is review + grace + slack.
+  message. Grace starts when that message is sent. Waiting to send it is
+  bounded by one grace period; Harbor's outer limit is review + 2*grace + slack.
 - Completion: when the model confirms completion, the verdict file is read from
   the container and validated. An invalid file refuses completion
   ``max_rejections`` times with the exact error, in the same session.
@@ -36,7 +37,8 @@ import time
 from typing import Callable
 
 MAX_CONSECUTIVE = 3
-REVIEW_EVENTS = {'time_limit_message', 'completion_rejected', 'verdict_check_failed'}
+REVIEW_EVENTS = {'time_limit_message', 'completion_rejected', 'verdict_check_failed',
+                 'finish_instruction_timeout', 'grace_timeout'}
 
 TERMINAL_RESTARTED = (
     'NOTE: The shell exited during your last command (for example after `exit`, or `set -e` '
@@ -225,6 +227,9 @@ def install():
             return await interact(self, chat, prompt, *args, **kwargs)
         if not state['grace_sent'] and time.monotonic() - state['started'] >= policy.review_sec:
             state['grace_sent'] = True
+            deadline = state.get('deadline')
+            if deadline is not None:
+                deadline.reschedule(asyncio.get_running_loop().time() + policy.grace_sec)
             _event(state, 'time_limit_message')
             prompt = prompt.rstrip('\n') + '\n\n' + TIME_LIMIT.format(
                 artifact=policy.artifact, minutes=_minutes(policy.grace_sec))
@@ -262,7 +267,23 @@ def install():
         state = new_state(policy)
         token = STATE.set(state)
         try:
-            return await run(self, instruction, environment, context)
+            if policy is None:
+                return await run(self, instruction, environment, context)
+            # Bound the wait for an in-flight call/command to yield so we can send
+            # the finish instruction. Once sent, give it a fresh full grace period.
+            async with asyncio.timeout(policy.review_sec + policy.grace_sec) as deadline:
+                state['deadline'] = deadline
+                try:
+                    return await run(self, instruction, environment, context)
+                finally:
+                    if deadline.expired():
+                        _event(state, 'grace_timeout' if state['grace_sent'] else 'finish_instruction_timeout')
+        except TimeoutError as exc:
+            if state.get('deadline') is None or not state['deadline'].expired():
+                raise
+            from harbor.trial.errors import AgentTimeoutError
+            phase = 'final-answer grace period' if state['grace_sent'] else 'wait to send finish instruction'
+            raise AgentTimeoutError(f'Judge exceeded {phase}') from exc
         finally:
             STATE.reset(token)
             metadata = dict(context.metadata or {}, terminal_session={
@@ -271,6 +292,7 @@ def install():
             if policy is not None:
                 metadata['review_session'] = {
                     'review_sec': policy.review_sec, 'grace_sec': policy.grace_sec,
+                    'finish_wait_sec': policy.grace_sec, 'grace_starts': 'finish_instruction_sent',
                     'time_limit_message': state['grace_sent'], 'completion_rejections': state['rejections'],
                     'events': [e for e in state['events'] if e['kind'] in REVIEW_EVENTS]}
             context.metadata = metadata

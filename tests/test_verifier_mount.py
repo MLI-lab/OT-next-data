@@ -98,6 +98,39 @@ def make_runtime(path):
     return path
 
 
+def test_agent_package_hook_is_private_and_works_in_readonly_overlay(namespaces, tmp_path):
+    import sys
+    from harbor_patches import agent_package_fallback as fallback
+    lower = tmp_path / 'shared-runtime'
+    subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(lower)], check=True)
+    agent_site = tmp_path / 'agent-site'
+    agent_site.mkdir()
+    (agent_site / 'agent_edit.py').write_text('value = "edited"')
+    records = [{'python': sys.executable, 'version': list(sys.version_info[:3]),
+                'directories': [str(agent_site)]}]
+    trials = []
+    for name in ('first', 'second'):
+        root = tmp_path / name
+        root.mkdir()
+        (root / 'python').symlink_to(lower, target_is_directory=True)
+        for directory in ('active', 'upper', 'work'):
+            (root / directory).mkdir()
+        trials.append(root)
+    first, second = trials
+    result = run(namespaces, first, 'writable', fallback.install_command(str(first / 'active'), records))
+    assert result.returncode == 0, result.stderr
+    command = shlex.quote(str(first / 'active/bin/python3')) + ' -I -c ' + shlex.quote(
+        'import agent_edit; print(agent_edit.value)')
+    result = run(namespaces, first, 'readonly-overlay', command)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == 'edited'
+    assert not list(lower.rglob('ot_agent_package_fallback.py'))
+    command = shlex.quote(str(second / 'active/bin/python3')) + ' -I -c ' + shlex.quote(
+        'import importlib.util; assert importlib.util.find_spec("agent_edit") is None')
+    result = run(namespaces, second, 'readonly-overlay', command)
+    assert result.returncode == 0, result.stderr
+
+
 def run(namespaces, root, mode, script):
     return subprocess.run(namespaces + ['/bin/sh', str(Path(verifier_mount.__file__).with_suffix('.sh')),
                                        str(root), mode, '/bin/sh', '-c', script],
@@ -197,3 +230,28 @@ def test_combined_prepare_runs_actual_protected_probe(namespaces, tmp_path):
     assert len(calls)==1 and bundle['namespace_mode'] in ('mount','user-mount')
     assert list((root/'active').iterdir())==[]
     assert (root/'python/bin/python3').read_bytes()==Path('/bin/true').read_bytes()
+
+
+def test_shared_lower_has_private_writes_and_readonly_overlay_view(namespaces, tmp_path):
+    lower = tmp_path / 'shared'
+    lower.mkdir()
+    (lower / 'value').write_text('pristine')
+    roots = []
+    for name in ('trial1', 'trial2'):
+        root = tmp_path / name
+        root.mkdir()
+        (root / 'python').symlink_to(lower, target_is_directory=True)
+        for folder in ('active', 'upper', 'work'):
+            (root / folder).mkdir()
+        roots.append(root)
+    first, second = roots
+    active = shlex.quote(str(first / 'active'))
+    changed = run(namespaces, first, 'writable', f'echo private > {active}/value')
+    assert changed.returncode == 0, changed.stderr
+    readonly = run(namespaces, first, 'readonly-overlay',
+                   f'cat {active}/value; if echo bad > {active}/value; then exit 99; fi')
+    assert readonly.returncode == 0, readonly.stderr
+    assert readonly.stdout == 'private\n'
+    fresh = run(namespaces, second, 'writable', 'cat ' + shlex.quote(str(second / 'active/value')))
+    assert fresh.returncode == 0 and fresh.stdout == 'pristine', fresh.stderr
+    assert (lower / 'value').read_text() == 'pristine'

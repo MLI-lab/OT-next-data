@@ -295,7 +295,7 @@ def test_reviewed_setup_inputs_preserve_original_install_order_and_failures():
 
 
 @pytest.mark.parametrize('cache_state', ['missing','incomplete','corrupt'])
-def test_setup_input_cache_failure_selects_original_installation(tmp_path, monkeypatch, cache_state):
+def test_setup_input_cache_failure_requires_prepared_image(tmp_path, monkeypatch, cache_state):
     import asyncio
     from harbor_patches import verifier_bundle, task_runtime
     spec = dict(runtime.SETUP_REQUEST, image_sha256=runtime.SETUP_IMAGE_SHA256)
@@ -311,10 +311,11 @@ def test_setup_input_cache_failure_selects_original_installation(tmp_path, monke
     if cache_state == 'corrupt':
         (cache/(record['id']+'.tar.gz')).write_bytes(b'not the checksum-bound archive')
     class Environment:
+        _persistent_env = {}
         async def exec(self,*args,**kwargs):
             pytest.fail('Invalid input cache must not be staged or executed')
-    result=asyncio.run(task_runtime.stage(Environment(),tmp_path/'task',tmp_path/'evidence'))
-    assert result is None
+    with pytest.raises(RuntimeError, match='not mounted'):
+        asyncio.run(task_runtime.stage(Environment(),tmp_path/'task',tmp_path/'evidence'))
     assert 'apt-get update && apt-get install' in files['setup_files/setup.sh'].decode()
 
 

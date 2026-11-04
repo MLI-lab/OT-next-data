@@ -103,10 +103,10 @@ def test_release_stages_each_artifact_once_and_records_tasks(tmp_path):
     key, checksum, manifest, _ = released(tmp_path)
     assert manifest['missing'] == []
     record = manifest['artifacts'][key]
-    assert record['archive'] == f'runtimes/{key}.tar.gz' and record['archive_sha256'] == checksum
+    assert record['archive'] == f'runtimes/{key}.squashfs' and record['archive_sha256'] == checksum
     assert record['uploaded'] and record['revision'] == REVISION and record['tasks'] == 2
     assert manifest['tasks'] == {'task_1': [key], 'task_2': [key]}
-    assert sorted(p.name for p in (tmp_path / 'out/runtimes').iterdir()) == [f'{key}.json', f'{key}.tar.gz']
+    assert sorted(p.name for p in (tmp_path / 'out/runtimes').iterdir()) == [f'{key}.squashfs', f'{key}.squashfs.json']
 
 
 def test_fetch_restores_fresh_cache_that_passes_preflight(tmp_path):
@@ -126,33 +126,15 @@ def test_fetch_restores_fresh_cache_that_passes_preflight(tmp_path):
     assert not [p for p in fresh.iterdir() if p.name.startswith('.')]
 
 
-def test_default_cache_reads_legacy_verifier_bundles(tmp_path, monkeypatch):
-    # Runtimes prepared before the runtimes/ cache existed stay in verifier-bundles/;
-    # the default lookup is the runner's, so release and fetch must find them too.
-    workspace = tmp_path / 'workspace'
-    key, checksum = make_runtime(workspace / 'verifier-bundles')
-    monkeypatch.delenv('OT_RUNTIME_CACHE', raising=False)
-    monkeypatch.delenv('OT_VERIFIER_BUNDLE_CACHE', raising=False)
-    monkeypatch.setenv('OT_WORKSPACE', str(workspace))
-    tables = {'demo_v1': ([task_row('task_1', key, checksum)], [])}
-    manifest, artifacts = runtime_release.prepare_release(tables, tmp_path / 'out', 'user/repo')
-    assert manifest['missing'] == [] and manifest['artifacts'][key]['archive_sha256'] == checksum
-    assert sorted(artifacts) == [f'runtimes/{key}.json', f'runtimes/{key}.tar.gz']
-    runtime_release.pin(manifest, REVISION)
-    assert runtime_release.fetch(manifest, download=None)[key]['status'] == 'present'
-    assert not (workspace / 'runtimes' / f'{key}.tar.gz').exists()
-    # An explicit cache never searches another directory.
-    missing, _ = runtime_release.prepare_release(tables, tmp_path / 'out2', 'user/repo', cache=workspace / 'runtimes')
-    assert [m['id'] for m in missing['missing']] == [key]
 
 
 def test_fetch_rejects_tampered_remote_bytes(tmp_path):
     key, _, manifest, remote = released(tmp_path)
-    (remote.root / f'runtimes/{key}.tar.gz').write_bytes(tar_bytes({'repo/Packages': b'tampered\n'}))
+    (remote.root / f'runtimes/{key}.squashfs').write_bytes(tar_bytes({'repo/Packages': b'tampered\n'}))
     fresh = tmp_path / 'fresh'
     with pytest.raises(ValueError, match='pinned checksum'):
         runtime_release.fetch(manifest, fresh, download=remote.download)
-    assert not (fresh / f'{key}.tar.gz').exists() and not (fresh / f'{key}.json').exists()
+    assert not (fresh / f'{key}.squashfs').exists() and not (fresh / f'{key}.squashfs.json').exists()
     with pytest.raises(ValueError, match='differ'):
         runtime_release.verify_remote(manifest, download=remote.download)
 
@@ -161,15 +143,31 @@ def test_fetch_never_overwrites_conflicting_cache_entry(tmp_path):
     key, _, manifest, remote = released(tmp_path)
     fresh = tmp_path / 'fresh'
     fresh.mkdir()
-    (fresh / f'{key}.tar.gz').write_bytes(b'other bytes')
+    (fresh / f'{key}.squashfs').write_bytes(b'other bytes')
     with pytest.raises(ValueError, match='not overwritten'):
         runtime_release.fetch(manifest, fresh, download=remote.download)
-    assert (fresh / f'{key}.tar.gz').read_bytes() == b'other bytes'
+    assert (fresh / f'{key}.squashfs').read_bytes() == b'other bytes'
 
 
 def test_verify_remote_accepts_identical_bytes(tmp_path):
     key, _, manifest, remote = released(tmp_path)
     assert runtime_release.verify_remote(manifest, download=remote.download) == {key: {'revision': REVISION, 'verified': True}}
+
+
+def test_legacy_archive_release_is_rejected(tmp_path):
+    cache = tmp_path / 'legacy'
+    key, checksum = make_runtime(cache)
+    remote = Remote(tmp_path / 'remote')
+    remote.publish({f'runtimes/{key}.tar.gz': cache / f'{key}.tar.gz',
+                    f'runtimes/{key}.json': cache / f'{key}.json'})
+    manifest = {'version': 1, 'folder': 'runtimes', 'repo_id': 'user/repo', 'artifacts': {
+        key: {'format': OFFLINE_FORMAT, 'archive_sha256': checksum,
+              'manifest_sha256': digest(cache / f'{key}.json'), 'revision': REVISION,
+              'archive': f'runtimes/{key}.tar.gz', 'manifest': f'runtimes/{key}.json'}}}
+    restored = tmp_path / 'restored'
+    with pytest.raises(ValueError, match='Archive runtime releases'):
+        runtime_release.fetch(manifest, restored, download=remote.download)
+    assert remote.calls == []
 
 
 def test_fetch_requires_pinned_revision(tmp_path):
@@ -209,11 +207,13 @@ def test_existing_identical_remote_artifact_is_reused_and_conflict_rejected(tmp_
     cache = tmp_path / 'cache'
     key, checksum = make_runtime(cache)
     tables = {'demo_v1': ([task_row('task_1', key, checksum)], [])}
-    same = FakeApi({f'runtimes/{key}.tar.gz': checksum, f'runtimes/{key}.json': (cache / f'{key}.json').read_bytes()})
+    from harbor_patches.runtime_images import build
+    image = build({'id': key, 'archive_sha256': checksum}, cache)
+    same = FakeApi({f'runtimes/{key}.squashfs': image['image_sha256'], f'runtimes/{key}.squashfs.json': (cache / f'{key}.squashfs.json').read_bytes()})
     manifest, artifacts = runtime_release.prepare_release(tables, tmp_path / 'out', 'user/repo', cache=cache, api=same)
     assert artifacts == {}
     assert manifest['artifacts'][key]['revision'] == 'b' * 40 and not manifest['artifacts'][key]['uploaded']
-    other = FakeApi({f'runtimes/{key}.tar.gz': 'c' * 64, f'runtimes/{key}.json': None})
+    other = FakeApi({f'runtimes/{key}.squashfs': 'c' * 64, f'runtimes/{key}.squashfs.json': None})
     with pytest.raises(ValueError, match='never overwrite'):
         runtime_release.prepare_release(tables, tmp_path / 'out2', 'user/repo', cache=cache, api=other)
 
@@ -225,7 +225,7 @@ def test_partial_remote_sidecar_conflict_never_overwritten(tmp_path, sidecar):
     tables = {'demo_v1': ([task_row('task_1', key, checksum)], [])}
     with pytest.raises(ValueError, match='never overwrite'):
         runtime_release.prepare_release(tables, tmp_path / 'out', 'user/repo', cache=cache,
-                                        api=FakeApi({f'runtimes/{key}.json': sidecar}))
+                                        api=FakeApi({f'runtimes/{key}.squashfs.json': sidecar}))
     assert not (tmp_path / 'out/runtimes').exists()
 
 
@@ -233,10 +233,12 @@ def test_partial_identical_remote_sidecar_only_uploads_archive(tmp_path):
     cache = tmp_path / 'cache'
     key, checksum = make_runtime(cache)
     tables = {'demo_v1': ([task_row('task_1', key, checksum)], [])}
+    from harbor_patches.runtime_images import build
+    build({'id': key, 'archive_sha256': checksum}, cache)
     manifest, artifacts = runtime_release.prepare_release(
         tables, tmp_path / 'out', 'user/repo', cache=cache,
-        api=FakeApi({f'runtimes/{key}.json': (cache / f'{key}.json').read_bytes()}))
-    assert set(artifacts) == {f'runtimes/{key}.tar.gz'}
+        api=FakeApi({f'runtimes/{key}.squashfs.json': (cache / f'{key}.squashfs.json').read_bytes()}))
+    assert set(artifacts) == {f'runtimes/{key}.squashfs'}
     assert manifest['source_revision'] == 'b' * 40
 
 

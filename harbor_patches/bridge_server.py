@@ -33,11 +33,13 @@ def install_transport(server):
 
     class ReliableHandler(original):
         def _handle_env_upload(self, data):
+            if 'runtime_cache_upload' in data:
+                return self._json({'error': 'Runtime archive transfer has been removed; use SquashFS mounts'}, 400)
             super()._handle_env_upload(data)
             if self._captured[1] == 200:
                 # Dispatch runs under the queue lock, so metadata is attached
                 # before any worker can claim the job.
-                for key in ('upload_chunk', 'runtime_cache_upload'):
+                for key in ('upload_chunk',):
                     if key in data:
                         server._jobs[self._captured[0]['job_id']]['payload'][key] = data[key]
 
@@ -66,8 +68,7 @@ def install_transport(server):
                 self._captured = (data, status)
                 return
             if self.path == '/status' and status == 200:
-                data = dict(data, retry_protocol=1, bridge_epoch=server._bridge_epoch,
-                            runtime_cache_upload_protocol=1)
+                data = dict(data, retry_protocol=1, bridge_epoch=server._bridge_epoch)
             super()._json(data, status)
 
         def do_POST(self):

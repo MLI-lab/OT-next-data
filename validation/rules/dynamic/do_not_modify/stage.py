@@ -4,11 +4,11 @@
 2. In each reference trial, after task setup and before the reference runs, check which of them
    exist in the agent environment (protected_paths.py).
 3. A protected file that exists and that the verifier never mentions flags the task; no mutations.
-4. Otherwise, when all reference runs scored 1, rerun the reference once per mutation of each
+4. Otherwise, rerun the reference once per mutation of each
    existing protected file (newline, empty, space; delete for "do not remove"), changing the file
    after the reference ran and before the verifier. The verifier must fail; the first accepted
-   mutation flags the task. Without a passing reference (or without any, when steps 2-3 run in
-   the no-op trials of stage 3) the result is that of step 3, noted as without mutations.
+   mutation flags the task when the clean reference passed. A missing passing baseline
+   leaves mutation interpretation incomplete. Without a reference, stage 3 runs steps 2-3.
 """
 import asyncio
 from contextvars import ContextVar
@@ -36,7 +36,10 @@ def install():
             task = self.task.paths.task_dir
             instruction = (task / 'instruction.md').read_text(errors='replace')
             if protected_artifact_matches(instruction):
-                report = await observe_original_paths(self.agent_environment, task)
+                try:
+                    report = await observe_original_paths(self.agent_environment, task)
+                except Exception as exc:
+                    report = {'status': 'incomplete', 'reason': str(exc)}
                 (self.paths.trial_dir / OBSERVATION).write_text(json.dumps(report, indent=2) + '\n')
         result = await original(self, *args, **kwargs)
         request = active_mutation.get()
@@ -87,9 +90,8 @@ async def evaluate(task, item, trials, out, args, *, reference=True):
         # fail: an existing protected file the verifier never mentions. not_evidenced: none exists.
         return result
     rewards = item.get('rewards') or []
-    if not reference or not rewards or any(r != 1 for r in rewards):
-        return dict(result, mutation_step='not run: ' + ('no reference solution' if not reference
-                                                         else 'the reference solution did not pass'))
+    if not reference:
+        return dict(result, mutation_step='not run: no reference solution')
     mutations = plan(task, observation)
 
     async def trial(index, mutation):
@@ -106,8 +108,10 @@ async def evaluate(task, item, trials, out, args, *, reference=True):
                     mutation_evidence=[json.loads(p.read_text()) for p in job.rglob(MUTATION)])
 
     record = await run_mutation_plan(mutations, trial)
-    # The passing stage-2 reference runs are the clean baseline.
-    record['baseline'] = {'assessment': {'status': 'completed', 'rewards': [1]}}
+    # Attempt probes regardless of the reference verdict; interpreting them still
+    # needs a passing clean baseline, otherwise the mutation check is incomplete.
+    record['baseline'] = {'assessment': {'status': 'completed' if rewards else 'incomplete',
+                                        'rewards': [1] if rewards and all(r == 1 for r in rewards) else rewards}}
     final = mutation_verdict(record)
     return dict(result, status=final['status'], reason=final['reason'], evidence=final['evidence'],
                 mutations=record['checks'], planned_mutations=mutations)

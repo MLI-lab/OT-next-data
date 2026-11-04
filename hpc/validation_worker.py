@@ -1,5 +1,6 @@
 """Allocation-side bridge and optional local serving, with archived task evidence."""
 import argparse
+import copy
 import errno
 import json
 import math
@@ -167,7 +168,7 @@ def free_port(start, attempts=200):
 def review_runtime_tasks(tasks, stages, scratch, evidence="files", rubric="terminal-bench",
                          review_format=None, criteria=None):
     """File-only review uses a neutral image; image review uses actual task images."""
-    if set(stages) != {5} or evidence == "image":
+    if set(stages) != {5} or evidence in ("auto", "image"):
         return tasks
     from validation.stages.prepare_review_tasks import stage_review
     from validation.upstream import checkout
@@ -191,7 +192,8 @@ def trial_capacity(tasks, args, image_review=False):
         for step in task.config.steps or []:
             envs.append(resolve_effective_verifier_env_config(task.config, step))
         agent_cpus = args.trial_cpus or envs[0].cpus or 1
-        verifier_envs = envs[2:] if image_review and task.config.steps else envs[1:]
+        verifier_envs = ([] if getattr(args, 'git_checks_only', False) else
+                         envs[2:] if image_review and task.config.steps else envs[1:])
         reservations = [args.trial_cpus or env.cpus or 1 for env in verifier_envs if env]
         verifier_cpus = sum(reservations) if image_review else max(reservations, default=0)
         per_trial = max(per_trial, agent_cpus + verifier_cpus)
@@ -305,20 +307,17 @@ def main(request):
             from validation.rules.static.task_absolute_path.path_cache import copy_cache
             copy_cache(source, args.tasks)
             tasks = discover_tasks(args.tasks)
-        if not prebuild_only:
-            from harbor_patches.verifier_bundle import preflight as bundle_preflight
-            save(request.parent / 'verifier-bundles.json', bundle_preflight(tasks))
         # Static checks do not reserve separate agent/verifier containers.
         from validation.stages.runner import static_concurrency
         args.static_concurrency = static_concurrency(args)
         static_only = not prebuild_only and set(data['stages']) == {0}
-        runtime_tasks = tasks if prebuild_only else review_runtime_tasks(
+        runtime_tasks = review_runtime_tasks(
             tasks, data['stages'], scratch, getattr(args, 'review_evidence', 'files'),
             getattr(args, 'review_rubric', 'terminal-bench'),
             getattr(args, 'review_format', None), getattr(args, 'review_criteria', None))
         budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
                    'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
-                  if static_only or prebuild_only else trial_capacity(runtime_tasks, args, image_review=5 in data['stages'] and getattr(args, 'review_evidence', 'files') == 'image'))
+                  if static_only or prebuild_only else trial_capacity(runtime_tasks, args, image_review=5 in data['stages'] and getattr(args, 'review_evidence', 'auto') in ('auto', 'image')))
         args.concurrency = min(args.concurrency, budget['max_concurrency'])
         save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency,
                                                'static_concurrency': args.static_concurrency})
@@ -329,19 +328,56 @@ def main(request):
             images.mkdir()
         else:
             image_scope = runtime_tasks
-            images = stage_images(image_scope, base / 'images', scratch / 'images')
+            selected_keys = None
+            if getattr(args, 'git_checks_only', False):
+                from harbor_patches.image_context import environment_dir_hash_truncated
+                selected_keys = {environment_dir_hash_truncated(task / 'environment') for task in image_scope}
+            images = stage_images(image_scope, base / 'images', scratch / 'images', selected_keys=selected_keys,
+                allow_missing_local=set(data['stages']) == {5} and getattr(args, 'review_evidence', 'auto') == 'auto')
+        if not prebuild_only and set(data['stages']) == {5} and getattr(args, 'review_evidence', 'auto') == 'auto':
+            from validation.stages.review_environment import choose
+            probe_args = copy.copy(args)
+            probe_args.environment_kwargs = dict(args.environment_kwargs, sif_cache=str(images))
+            selections = {task.name: choose(task, probe_args) for task in tasks}
+            runtime_tasks = [task for task in tasks if selections[task.name]['selected'] == 'image']
+            if any(choice['selected'] == 'files' for choice in selections.values()):
+                neutral = review_runtime_tasks(tasks, [5], scratch, 'files',
+                    getattr(args, 'review_rubric', 'terminal-bench'),
+                    getattr(args, 'review_format', None), getattr(args, 'review_criteria', None))
+                staging_record = images / 'staging.json'
+                previous_records = json.loads(staging_record.read_text()) if staging_record.is_file() else []
+                stage_images(neutral, base / 'images', images)
+                if staging_record.is_file():
+                    save(staging_record, previous_records + json.loads(staging_record.read_text()))
+                runtime_tasks += neutral
+            image_scope = runtime_tasks
+            os.environ['OT_REQUIRE_PREBUILT_IMAGES'] = '1'
+            save(request.parent / 'review-environments.json', selections)
         if os.environ.get('OT_LOCAL_RUNTIME'):
             shutil.copyfile(Path(os.environ['OT_LOCAL_RUNTIME']) / 'staging.json', scratch / 'runtime-staging.json')
+        if not prebuild_only:
+            from harbor_patches.verifier_bundle import preflight as bundle_preflight
+            save(request.parent / 'verifier-bundles.json', bundle_preflight(runtime_tasks, agent_only=getattr(args, 'git_checks_only', False)))
         if not prebuild_only and not static_only:
-            # Runtimes are copied into the container at every preparation: read them
-            # from node-local storage, copied once per job, not the shared filesystem.
+            # Mount shared runtime images, optionally staged to node-local disk.
             from harbor_patches.verifier_bundle import cache_root
             from hpc.local_assets import stage_runtimes
             shared_runtimes = cache_root()
-            if shared_runtimes.is_dir():
-                local_runtimes, runtime_summary = stage_runtimes(runtime_tasks, shared_runtimes, scratch / 'runtimes')
-                os.environ['OT_RUNTIME_CACHE'] = str(local_runtimes)
-                status['runtime_cache'] = runtime_summary
+            from harbor_patches.runtime_images import enabled as runtime_images_enabled
+            if runtime_images_enabled():
+                os.environ.setdefault('OT_VERIFIER_IMAGE_CACHE', str(shared_runtimes))
+                from harbor_patches.runtime_images import root as runtime_image_root
+                image_cache = runtime_image_root()
+                if os.environ.get('OT_RUNTIME_NODE_CACHE'):
+                    local, summary = stage_runtimes(runtime_tasks, image_cache, Path(os.environ['OT_RUNTIME_NODE_CACHE']), agent_only=getattr(args, 'git_checks_only', False))
+                    os.environ['OT_VERIFIER_IMAGE_CACHE'] = str(local)
+                    os.environ['OT_RUNTIME_IMAGE_CACHE'] = str(local)
+                    os.environ['OT_RUNTIME_CACHE'] = str(local)
+                    status['runtime_cache'] = dict(summary, mode='node-local-readonly-images')
+                else:
+                    status['runtime_cache'] = {'mode': 'shared-readonly-images', 'directory': str(image_cache)}
+                from harbor_patches.runtime_images import preflight as runtime_image_preflight
+                save(request.parent / 'runtime-images.json', runtime_image_preflight(runtime_tasks, agent_only=getattr(args, 'git_checks_only', False)))
         if args.trials:
             shutil.copytree(args.trials, scratch / 'input-trials')
             args.trials = scratch / 'input-trials'

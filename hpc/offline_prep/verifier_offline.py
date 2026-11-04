@@ -20,7 +20,7 @@ import tarfile
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from harbor_patches.verifier_bundle import OFFLINE_FORMAT, OFFLINE_REQUEST_KEYS, OFFLINE_ROOTS, cache_root, digest, offline_setup_command, spec_id, validate_offline_archive, validate_http_archive, verify
+from harbor_patches.verifier_bundle import OFFLINE_FORMAT, OFFLINE_REQUEST_KEYS, OFFLINE_ROOTS, cache_root, digest, offline_setup_command, spec_id, validate_offline_archive, validate_http_archive, verify_source_archive
 
 BUILD = r'''set -eu
 O=/ot-out; W=/ot-work
@@ -389,12 +389,16 @@ def build(spec, sif, cache, uv, timeout=1800):
     key = spec_id(spec)
     cache = Path(cache)
     manifest_path = cache / (key + '.json')
+    from harbor_patches.runtime_images import finalize
+    image_manifest = cache / (key + '.squashfs.json')
+    if image_manifest.is_file():
+        return finalize(json.loads(image_manifest.read_text()), cache)
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text())
         if manifest.get('status') == 'ready':
-            archive = verify({**manifest, 'spec': spec}, cache, OFFLINE_FORMAT)
+            archive = verify_source_archive({**manifest, 'spec': spec}, cache, OFFLINE_FORMAT)
             validate_http_archive(spec, archive)
-            return manifest
+            return finalize(manifest, cache)
     validate_source(spec, sif)
     with tempfile.TemporaryDirectory(prefix='verifier-offline-', dir=os.environ.get('TMPDIR')) as tmp:
         tmp = Path(tmp)
@@ -484,7 +488,7 @@ def build(spec, sif, cache, uv, timeout=1800):
                     **({'apt_prerequisite_preparation': 'unpacked prerequisite package files in a disposable image layer for wheel building; no maintainer scripts or task initialization'} if install_prerequisites else {}),
                     'build_log_tail': log[-2000:]}
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
-        return manifest
+        return finalize(manifest, cache)
 
 
 REPLAY = Path(__file__).resolve().parents[2] / 'harbor_patches/http_replay.sh'

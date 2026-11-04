@@ -40,17 +40,17 @@ def test_only_infrastructure_failures_are_retried(tmp_path, monkeypatch, retries
     assert table['tasks_built_first_try'] == 1 and table['tasks_retried'] == 1
 
 
-def test_network_mismatch_is_not_retried_and_blocks_later_stages(tmp_path, monkeypatch):
+def test_network_mismatch_is_not_retried_and_does_not_block_later_stages(tmp_path, monkeypatch):
     calls = []
     async def build(task, out, args):
         calls.append(task.name)
-        return {'status': 'error', 'environments': [{'environment': 'agent', 'status': 'failed', 'checks': [
+        return {'status': 'passed', 'build_status': 'passed', 'environments': [{'environment': 'agent', 'status': 'passed', 'checks': [
             {'check': 'declared-internet-access', 'status': 'failed', 'expected_allow_internet': False}]}]}
     monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
     monkeypatch.setattr(build_retries.runtime, 'build_task', build)
     args = SimpleNamespace(concurrency=1, backend='apptainer', outcome_retries=3)
     item = asyncio.run(build_retries.run_builds([tmp_path / 'bad'], tmp_path / 'out', args, StringIO()))[0]
-    assert calls == ['bad'] and item['status'] == 'error' and 'build_attempts' not in item
+    assert calls == ['bad'] and item['build_status'] == 'passed' and 'build_attempts' not in item
 
 
 @pytest.mark.parametrize('results, status, stability, outcome', [

@@ -75,28 +75,3 @@ def test_prepare_records_source_and_passes_it_to_builder(tmp_path, monkeypatch, 
     runtime.main()
     ref = json.loads(reference.read_text())
     assert ref['image_source'] == URL and ref['id'] == key and 'spec' not in ref
-
-
-@pytest.mark.parametrize('isolated', ['0', '1'])
-def test_fallback_passes_source_without_bypassing_network_isolation(tmp_path, monkeypatch, isolated):
-    import asyncio
-    from harbor_patches import verifier_bundle as bundle
-    spec = recipe()
-    context = tmp_path / 'tests'
-    context.mkdir()
-    (context / 'setup.sh').write_text(runtime.preparation_command(spec, phase='verifier', image_source=URL))
-    ref = json.loads(runtime.runtime_reference(spec, image_source=URL)['tests/ot-verifier-runtime.json'])
-    monkeypatch.setenv('OT_NET_ISOLATION', isolated)
-    async def create(*argv, **kwargs):
-        assert kwargs['env']['OT_RUNTIME_IMAGE_SOURCE'] == URL
-        if isolated == '1':
-            assert argv[:5] == ('unshare', '--user', '--map-current-user', '--net', '--')
-        else:
-            assert argv[0] != 'unshare'
-        class Process:
-            async def wait(self):
-                return 1
-        return Process()
-    monkeypatch.setattr(asyncio, 'create_subprocess_exec', create)
-    with pytest.raises(RuntimeError, match='installation failed'):
-        asyncio.run(bundle.install_and_stage(object(), context, ref, tmp_path / 'evidence', 'missing'))

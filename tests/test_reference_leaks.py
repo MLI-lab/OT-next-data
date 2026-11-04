@@ -144,8 +144,7 @@ def test_stale_failed_or_conflicting_reference_evidence_rejected(tmp_path):
     (task / 'solve.sh').write_text('solution')
     item['status'] = 'failed'
     save()
-    with pytest.raises(ValueError, match='No complete, matching'):
-        leaks.collect(task, out)
+    assert leaks.collect(task, out) == evidence
     item['status'] = 'passed'
     item['reference_file_fingerprints'].append({**evidence, 'deleted_files': ['/repo/deleted']})
     save()
@@ -160,7 +159,7 @@ def test_stage3_plan_gives_missing_evidence_and_no_reference_a_result(tmp_path):
     without_ref.mkdir()
     requests, results = leaks.plan_nop_scans([with_ref, without_ref], tmp_path / 'out')
     assert requests == {}
-    assert results['ref']['status'] == 'skipped' and results['ref']['blocked_by_stage'] == 2
+    assert results['ref']['status'] == 'error' and results['ref']['scan_status'] == 'incomplete'
     assert results['no-ref']['status'] == 'not_applicable'
 
 

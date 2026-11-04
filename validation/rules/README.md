@@ -55,6 +55,8 @@ Origins: **TB unchanged**, **TB patched by us**, or **Ours**.
 
 ## Static checks
 
+<a id="compose-host-binds"></a>
+
 <details>
 <summary><code>compose-host-binds</code> (TB unchanged) · Host filesystem mounts in Compose configuration.</summary>
 
@@ -71,6 +73,8 @@ Example `details`: `docker-compose.yaml mounts host path /var/run/docker.sock`
 
 </details>
 
+<a id="dockerfile-platform"></a>
+
 <details>
 <summary><code>dockerfile-platform</code> (TB unchanged) · Platform settings in Dockerfiles.</summary>
 
@@ -86,6 +90,8 @@ Example `details`: `Dockerfile:1: FROM --platform=linux/amd64 python:3.11`
 </details>
 
 </details>
+
+<a id="instruction-suffix"></a>
 
 <details>
 <summary><code>instruction-suffix</code> (TB unchanged) · Required timeout and anti-cheating instruction footer.</summary>
@@ -105,6 +111,8 @@ Column `instruction-suffix`. Status `pass` or `fail`. `repaired`: yes. No `detai
 
 </details>
 
+<a id="no-cheat-dir"></a>
+
 <details>
 <summary><code>no-cheat-dir</code> (TB unchanged) · References to cheat directories.</summary>
 
@@ -120,6 +128,8 @@ Example `details`: `Dockerfile:9: COPY solution/ /app/solution/`
 </details>
 
 </details>
+
+<a id="resource-sizes"></a>
 
 <details>
 <summary><code>resource-sizes</code> (TB unchanged) · Declared resource sizes.</summary>
@@ -137,6 +147,8 @@ Example `details`: `task.toml: memory_mb = 262144 is above the allowed size`
 
 </details>
 
+<a id="task-timeout"></a>
+
 <details>
 <summary><code>task-timeout</code> (TB unchanged) · Declared task timeouts.</summary>
 
@@ -152,6 +164,8 @@ Example `details`: `task.toml: agent timeout_sec is missing`
 </details>
 
 </details>
+
+<a id="dockerfile-references"></a>
 
 <details>
 <summary><code>dockerfile-references</code> (TB patched by us) · Files referenced by Dockerfiles.</summary>
@@ -174,6 +188,8 @@ Example `details`: `Dockerfile:6: COPY data/input.csv, but environment/data/inpu
 </details>
 
 </details>
+
+<a id="dockerfile-sanity"></a>
 
 <details>
 <summary><code>dockerfile-sanity</code> (TB patched by us) · Dockerfile configuration issues.</summary>
@@ -198,6 +214,8 @@ Example `details`: `Dockerfile:12: apt-get install without -y`
 
 </details>
 
+<a id="nproc"></a>
+
 <details>
 <summary><code>nproc</code> (TB patched by us) · Unbounded CPU parallelism.</summary>
 
@@ -220,6 +238,8 @@ Example `details`: `bare nproc, environment/Dockerfile:20: make -j$(nproc)`
 </details>
 
 </details>
+
+<a id="pip-pinning"></a>
 
 <details>
 <summary><code>pip-pinning</code> (TB patched by us) · Python dependency version pins.</summary>
@@ -246,6 +266,8 @@ Example `details`: `tests/test.sh: unpinned ['duckdb'] in pip install duckdb --q
 </details>
 
 </details>
+
+<a id="task-absolute-path"></a>
 
 <details>
 <summary><code>task-absolute-path</code> (TB patched by us) · Relative file paths in instructions.</summary>
@@ -299,6 +321,8 @@ Example `details`: `repaired: data.csv -> /app/data.csv; warning: instruction.md
 
 </details>
 
+<a id="test-file-references"></a>
+
 <details>
 <summary><code>test-file-references</code> (TB patched by us) · Files referenced by tests and the reference solution.</summary>
 
@@ -323,6 +347,8 @@ Example `details`: `tests use /app/report.json, which the instruction never ment
 </details>
 
 </details>
+
+<a id="agent_editable_test"></a>
 
 <details>
 <summary><code>agent_editable_test</code> (Ours) · Verifier code that the agent can modify.</summary>
@@ -365,6 +391,8 @@ Example `details`: `the verifier runs /app/run_tests.sh in the agent's environme
 
 </details>
 
+<a id="task-toml-schema"></a>
+
 <details>
 <summary><code>task-toml-schema</code> (Ours) · Task configuration schema.</summary>
 
@@ -381,6 +409,8 @@ Example `details`: `task.toml: [verifier] timeout_sec must be a number`
 </details>
 
 </details>
+
+<a id="do_not_modify"></a>
 
 <details>
 <summary><code>do_not_modify</code> (Ours) · Protected-file constraints in instructions.</summary>
@@ -425,6 +455,8 @@ Example `details`: `instruction protects /app/config.yaml, but the tests never c
 </details>
 
 </details>
+
+<a id="no_behavioural_tests"></a>
 
 <details>
 <summary><code>no_behavioural_tests</code> (Ours) · Behavioural restrictions enforced through tests.</summary>
@@ -471,6 +503,8 @@ Example `details`: `tests/test_outputs.py only checks that unseal.sh contains "c
 
 </details>
 
+<a id="python_missing_imports"></a>
+
 <details>
 <summary><code>python_missing_imports</code> (Ours) · Missing Python imports.</summary>
 
@@ -487,6 +521,8 @@ Example `details`: `solution/solve.py imports numpy, which the image does not in
 </details>
 
 </details>
+
+<a id="artifact_efficiency"></a>
 
 <details>
 <summary><code>artifact_efficiency</code> (Ours) · Inefficient task artifacts.</summary>
@@ -515,23 +551,43 @@ They run in the containers of stages 1-3:
 | 2: reference solution | `reference`, `reference_determinism`, `do_not_modify_dynamic` |
 | 3: no-op | `nop`, `nop_determinism`, `verifier_tamper`, `reference_leaks` |
 
-Only a failed `build` stops a task; its stage 2 and 3 checks are then `blocked`.
+Only unavailable container preparation blocks stages 2 and 3: the image cannot be
+prepared, the container cannot start, or task/verifier setup cannot complete.
+Static findings, network-policy mismatches, Git findings, setup-speed failures,
+and reference/no-op verdicts do not gate other rules. Each selected rule is
+attempted independently; a missing measurement is recorded as incomplete.
+Shuffled/repeated trials still run after a failed baseline, and a shuffled-trial
+error does not suppress repeat trials or protected-file checks. A rule may need
+specific evidence to interpret its own result, such as a clean baseline for
+mutation comparisons; unavailable evidence is never counted as a pass.
+
+<a id="build"></a>
 
 <details>
 <summary><code>build</code> (Ours) · Container preparation and task setup succeed.</summary>
 
 
-Stage 1 prepares the container and runs task setup. `build` records whether preparation succeeds.
+Stage 1 prepares the image, starts the container, and runs task setup and any
+configured verifier preparation. `build` records whether these operations
+succeed. The stage report's internal `build_status` supplies this existing
+result column; it is not another dynamic rule or a second result column.
+Inspection findings and cleanup/reporting errors remain separate from this
+preparation verdict. If a preparation succeeds on retry, later checks can run
+even when the aggregate stage report still flags instability or another rule.
 
 <details>
 <summary>Entry in <code>results.parquet</code></summary>
 
-Column `build`. Status `pass` or `fail`. No repair. `details`: for a failure, the setup error.
+Column `build`. Status `pass` or `fail`, or the recorded incomplete cause such as
+`oom`, `timeout` or `infrastructure_error`. No repair. `details` preserves
+`build_status`, preparation evidence and any startup/setup error.
 Example `details`: `backend_temporary_directories: evidence files are placed in /tmp/exploit_root by the Dockerfile; Apptainer mounts the host's /tmp over it`
 
 </details>
 
 </details>
+
+<a id="declared_workdir"></a>
 
 <details>
 <summary><code>declared_workdir</code> (Ours) · The starting directory matches the task configuration.</summary>
@@ -549,6 +605,8 @@ Example `details`: `task.toml declares /app, container starts in /root`
 
 </details>
 
+<a id="declared_internet_access"></a>
+
 <details>
 <summary><code>declared_internet_access</code> (Ours) · Observed internet access matches the declared policy.</summary>
 
@@ -564,6 +622,8 @@ Example `details`: `allow_internet = false, but https://pypi.org was reachable`
 </details>
 
 </details>
+
+<a id="reference"></a>
 
 <details>
 <summary><code>reference</code> (Ours) · The reference solution scores 1.</summary>
@@ -581,6 +641,8 @@ Example `details`: `expected reward 1, got 0.0`
 
 </details>
 
+<a id="nop"></a>
+
 <details>
 <summary><code>nop</code> (Ours) · The no-op baseline scores 0.</summary>
 
@@ -595,6 +657,8 @@ Column `nop`. Status `pass` (reward 0) or `fail` (reward 1). No repair. No `deta
 </details>
 
 </details>
+
+<a id="reference_determinism"></a>
 
 <details>
 <summary><code>reference_determinism</code> (Ours) · The reference solution still scores 1 with shuffled Python directory listings.</summary>
@@ -625,6 +689,8 @@ Example `details`: `repeated reference runs scored [1, 0]; expected 1 (stochasti
 
 </details>
 
+<a id="nop_determinism"></a>
+
 <details>
 <summary><code>nop_determinism</code> (Ours) · The no-op baseline still scores 0 with shuffled Python directory listings.</summary>
 
@@ -650,6 +716,8 @@ Example `details`: `shuffled run: reward 1, normal run: reward 0`
 </details>
 
 </details>
+
+<a id="repository_history"></a>
 
 <details>
 <summary><code>repository_history</code> (Ours) · Potential answer leaks in Git history and leftover objects.</summary>
@@ -678,19 +746,27 @@ files point to metadata elsewhere.
    of age. Also record `git log --reflog --not HEAD` results to show commits
    accessible through previous reference positions.
 
-Permission-denied directories are outside the agent’s accessible scope. Other
-discovery or inspection errors leave the check incomplete. Both checks are skipped
-when Git is unavailable.
+Ignore unreadable Git entries and empty `.git` placeholders. If no readable
+repository remains, report `not_applicable`. Otherwise, check the readable
+repositories: report `pass` when they pass, or retain their findings. Keep skipped
+paths and errors in the detailed evidence. Findings already read are retained
+if a later Git command fails. General discovery failures or interrupted
+executions remain incomplete. Missing Git is `not_applicable`.
 
 <details>
 <summary>Entry in <code>results.parquet</code></summary>
 
-Column `repository_history`. Status `pass` or `warning`. No repair. `details`: for a warning, the repositories and what was found.
+Column `repository_history`. Status `pass`, `warning`, or `not_applicable` when
+all discovered repositories are intentionally excluded; other execution errors
+retain their incomplete cause. No repair. `details` includes findings and
+per-repository exclusion evidence.
 Example `details`: `/app: 2 commits newer than the starting commit`
 
 </details>
 
 </details>
+
+<a id="repository_timestamps"></a>
 
 <details>
 <summary><code>repository_timestamps</code> (Ours) · File timestamps reveal likely solution files.</summary>
@@ -720,19 +796,26 @@ files point to metadata elsewhere.
 excluded from the timestamp check because their contents changed. Skip
 normalization without a `HEAD` commit or working files.
 
-Permission-denied directories are outside the agent’s accessible scope. Other
-discovery or inspection errors leave the check incomplete. The check is skipped
-when Git is unavailable.
+Use the same intentional exclusion for unreadable Git repositories as
+`repository_history`; there is no tracked-file timestamp comparison for those
+repositories. Continue checking readable repositories. Discovery errors and
+failures to inspect working-file timestamps remain incomplete. The check is
+skipped when Git is unavailable.
 
 <details>
 <summary>Entry in <code>results.parquet</code></summary>
 
-Column `repository_timestamps`. Status `pass` or `fail`. `repaired`: yes. `details`: the reset timestamps, e.g. `/app: 12 file timestamps reset`; for a failure, the flagged files.
+Column `repository_timestamps`. Status `pass`, `fail`, or `not_applicable` for
+intentionally excluded repositories; other execution errors retain their
+incomplete cause. `repaired`: yes. `details` includes exclusion evidence and
+reset timestamps, e.g. `/app: 12 file timestamps reset`; for a failure, the flagged files.
 Example `details`: `repaired: /app: 12 file timestamps reset; fail: /app/src/fix.py is newer than the rest of the repository`
 
 </details>
 
 </details>
+
+<a id="reference_leaks"></a>
 
 <details>
 <summary><code>reference_leaks</code> (Ours) · Exact copies of reference-solution file contents are already accessible.</summary>
@@ -749,8 +832,10 @@ are already accessible to the agent, either as ordinary files or in Git history.
 1. **Record files before and after the reference solution.** After task setup,
    record the path, size and SHA-256 content hash of each regular file under the
    agent’s starting working directory, excluding `.git`. Repeat after the
-   reference solution, before grading. From a successful run, keep the final
-   sizes and hashes of added or changed files.
+   reference solution, before grading. Keep complete, content-matching final
+   sizes and hashes independently of the reference grading verdict. Missing or
+   conflicting fingerprints make this check incomplete; they do not block no-op
+   validation or other rules.
 2. **Search a fresh starting environment.** After normal setup, search recursively from `/`, excluding `/proc`, `/sys` and `/dev`.
    This includes caches and is not limited to the workspace. For each file,
    compare its size with the added or changed files from step 1 (to save time).
@@ -780,6 +865,8 @@ Example `details`: `1/2 changed files (50.00%) already readable before solving: 
 
 </details>
 
+<a id="verifier_tamper"></a>
+
 <details>
 <summary><code>verifier_tamper</code> (Ours) · Potential manipulation of tools used by the verifier.</summary>
 
@@ -803,6 +890,8 @@ Example `details`: `/usr/bin/python3 changed during the agent run`
 
 </details>
 
+<a id="do_not_modify_dynamic"></a>
+
 <details>
 <summary><code>do_not_modify_dynamic</code> (Ours) · Protected-file constraints during execution.</summary>
 
@@ -814,13 +903,14 @@ cannot be found are skipped, since they may come from an extraction mistake. If
 none of the extracted paths are found, the task is not flagged. An existing file
 that the tests never mention flags the task immediately.
 
-Otherwise, once the reference solution passes, rerun it and make one change at a
+Otherwise, rerun the reference solution regardless of its verdict and make one change at a
 time to each protected file: add a newline, empty it, or add a space. For “do not
 remove”, delete the file instead. Each change happens after the solution finishes
 but before grading.
 
-If the verifier still gives reward 1 after a change, flag the task: it accepted a
-change the instruction forbids.
+With a passing clean reference baseline, reward 1 after a change flags the task:
+it accepted a change the instruction forbids. If the clean baseline did not pass,
+record the attempted mutations but leave their interpretation incomplete.
 
 Without a reference solution, only check whether the extracted paths exist in the
 agent environment and whether the tests mention them. The mutation checks are not run.

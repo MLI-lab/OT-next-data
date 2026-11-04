@@ -12,7 +12,7 @@ import tarfile
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from harbor_patches.verifier_bundle import FORMAT, cache_root, digest, spec_id, validate_archive, verify
+from harbor_patches.verifier_bundle import FORMAT, cache_root, digest, spec_id, validate_archive, verify_source_archive
 
 
 def relocate_scripts(runtime):
@@ -56,10 +56,14 @@ def build(spec, cache, uv='uv', test_image=None):
     cache = Path(cache)
     cache.mkdir(parents=True, exist_ok=True)
     manifest_path = cache / (key + '.json')
+    from harbor_patches.runtime_images import finalize
+    image_manifest = cache / (key + '.squashfs.json')
+    if image_manifest.is_file():
+        return finalize(json.loads(image_manifest.read_text()), cache)
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text())
-        verify({**manifest, 'spec': spec}, cache)
-        return manifest
+        verify_source_archive({**manifest, 'spec': spec}, cache)
+        return finalize(manifest, cache)
     image_native = 'image_python' in spec
     with tempfile.TemporaryDirectory(prefix='verifier-build-', dir=os.environ.get('TMPDIR')) as tmp:
         tmp = Path(tmp)
@@ -211,7 +215,7 @@ def build(spec, cache, uv='uv', test_image=None):
         if image_package_records:
             manifest['image_packages'] = image_package_records
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
-        return manifest
+        return finalize(manifest, cache)
 
 
 def main():

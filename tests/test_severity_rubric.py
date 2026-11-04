@@ -35,7 +35,8 @@ def test_loading_selection_prompt_and_cli():
     from validation.contract import profile, implementation
     text = review.load('custom_severity')[0]
     config = tomllib.loads(text)
-    assert config['review']['format'] == 'severity'
+    assert review.settings(config)['format'] == 'severity'
+    assert 'review' not in config
     assert len(config['rubrics']) == 5
     selected, skipped = select_criteria(text, {}, ['instruction_verifier_alignment'])
     definition = tomllib.loads(selected)['rubrics'][0]
@@ -48,7 +49,7 @@ def test_loading_selection_prompt_and_cli():
     assert 'Write valid JSON to `/app/verdicts.json`' in prompt
     assert 'Do not modify anything under `/app/task-under-review/`.' in prompt
     assert 'Read the rubric definitions at `/app/rubric.toml`.' in prompt
-    assert 'actual task and verifier environments are not running here' in review.prompt(text, 'example', 'files')
+    assert 'base review environment, not the task’s original environment' in review.prompt(text, 'example', 'files')
     args = parser().parse_args(['--review-rubric', 'custom_severity', '--review-criteria', 'instruction_quality'])
     check_args(args)
     assert args.review_format == 'severity'

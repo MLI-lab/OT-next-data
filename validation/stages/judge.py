@@ -6,7 +6,25 @@ from pathlib import Path
 import re
 
 
+def apply_defaults(args):
+    from config.models import judge_defaults
+    model = getattr(args, 'judge_model', None) or (
+        (getattr(args, 'serve_model', None) or getattr(args, 'model', None))
+        if getattr(args, 'review_local', False) else
+        (getattr(args, 'review_model', None) or getattr(args, 'analysis_model', None)))
+    defaults = judge_defaults(model)
+    if getattr(args, 'timeout_minutes', None) is None:
+        args.timeout_minutes = defaults.review_minutes
+    if getattr(args, 'review_grace_minutes', None) is None:
+        args.review_grace_minutes = defaults.grace_minutes
+    serving_judge = (getattr(args, 'judge_mode', None) in ('serve', 'local') or
+                     (getattr(args, 'review_local', False) and getattr(args, 'serve_model', None)))
+    if serving_judge and getattr(args, 'serve_context', None) is None and defaults.context:
+        args.serve_context = defaults.context
+
+
 def normalize(args):
+    apply_defaults(args)
     mode = getattr(args, 'judge_mode', None)
     fields = ('judge_model', 'judge_api_base', 'judge_api_key_env', 'judge_cli')
     if not mode:

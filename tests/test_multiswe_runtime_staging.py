@@ -2,16 +2,7 @@
 import asyncio
 from types import SimpleNamespace
 import pytest
-from harbor_patches.runtime_transfer import identity
 from harbor_patches import task_runtime
-
-
-def test_private_node_local_archive_transfer_identity():
-    ref={'id':'a'*64,'archive_sha256':'b'*64}
-    identity(ref,'/tmp/.ot-task-offline-Abc123/packages.tar.gz')
-    for target in ('/tmp/packages.tar.gz','/tmp/.ot-task-offline-Abc123/../../outside',
-                   '/tmp/.ot-task-offline-Abc123/runtime.tar.gz'):
-        with pytest.raises(ValueError):identity(ref,target)
 
 
 def test_node_local_input_cleanup_still_stops_environment():

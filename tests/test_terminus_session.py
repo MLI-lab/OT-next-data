@@ -354,3 +354,65 @@ def test_unexpected_probe_error_does_not_restart(timed_out_capture):
     with pytest.raises(TmuxBatchProtocolError):
         in_review(timed_out_capture, session(environment), batch())
     assert environment.commands == ['tmux has-session -t terminus-2']
+
+
+def test_delayed_finish_instruction_gets_full_grace(harbor):
+    _, Terminus2 = harbor
+    prompts = []
+    async def interact(self, chat, prompt, *args, **kwargs):
+        prompts.append(prompt)
+        await asyncio.sleep(0.35)
+        return interaction(False)
+    async def run(self, instruction, environment, context):
+        # This models an in-flight request crossing the review deadline.
+        await asyncio.sleep(0.35)
+        await Terminus2._handle_llm_interaction(self, None, 'finish')
+        return 'verdict saved'
+    Terminus2._handle_llm_interaction = interact
+    Terminus2.run = run
+    patch.install()
+    context = SimpleNamespace(metadata={})
+    with patch.active(patch.Policy(review_sec=0.1, grace_sec=0.5)):
+        result = asyncio.run(Terminus2.run(SimpleNamespace(), '', None, context))
+    # Completion at ~0.7s is after the old 0.6s deadline, but within 0.5s
+    # of sending the finish instruction at ~0.35s.
+    assert result == 'verdict saved'
+    assert 'Do not investigate further' in prompts[0]
+    review = context.metadata['review_session']
+    assert review['grace_starts'] == 'finish_instruction_sent'
+    assert [e['kind'] for e in review['events']] == ['time_limit_message']
+
+
+def test_stalled_call_before_finish_instruction_is_bounded(harbor):
+    _, Terminus2 = harbor
+    from harbor.trial.errors import AgentTimeoutError
+    async def run(self, instruction, environment, context):
+        await asyncio.sleep(10)
+    Terminus2.run = run
+    patch.install()
+    context = SimpleNamespace(metadata={})
+    with patch.active(patch.Policy(review_sec=0.01, grace_sec=0.04)):
+        with pytest.raises(AgentTimeoutError, match='wait to send finish instruction'):
+            asyncio.run(Terminus2.run(SimpleNamespace(), '', None, context))
+    review = context.metadata['review_session']
+    assert not review['time_limit_message']
+    assert review['events'][-1]['kind'] == 'finish_instruction_timeout'
+
+
+def test_final_answer_is_cancelled_when_delivered_grace_expires(harbor):
+    _, Terminus2 = harbor
+    from harbor.trial.errors import AgentTimeoutError
+    async def interact(self, chat, prompt, *args, **kwargs):
+        await asyncio.sleep(10)
+    async def run(self, instruction, environment, context):
+        await asyncio.sleep(0.02)
+        await Terminus2._handle_llm_interaction(self, None, 'finish')
+    Terminus2._handle_llm_interaction = interact
+    Terminus2.run = run
+    patch.install()
+    context = SimpleNamespace(metadata={})
+    with patch.active(patch.Policy(review_sec=0.01, grace_sec=0.05)):
+        with pytest.raises(AgentTimeoutError, match='final-answer grace period'):
+            asyncio.run(Terminus2.run(SimpleNamespace(), '', None, context))
+    assert [e['kind'] for e in context.metadata['review_session']['events']] == [
+        'time_limit_message', 'grace_timeout']

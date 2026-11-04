@@ -58,6 +58,7 @@ def test_array_plan_uses_site_resources_and_keeps_task_slices(tmp_path, monkeypa
     assert ('--gres=gpu:1' in command) == bool(expected_gpus)
     requests = [json.loads(p.read_text()) for p in sorted(out.glob('shards/*/request.json'))]
     assert [r['args']['shard'] for r in requests] == ['0/3', '1/3', '2/3']
+    assert all(r['args']['stages'] == ','.join(map(str, r['stages'])) for r in requests)
     assert all(r['args']['gpus'] == expected_gpus and r['args']['serve_model'] == model for r in requests)
     assert all(r['args']['cpus'] == (48 if site == 'helma' else 12) for r in requests)
 

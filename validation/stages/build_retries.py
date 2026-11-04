@@ -61,12 +61,6 @@ def save_preparation_review(sources, items, out):
     }, indent=2) + '\n')
 
 
-def network_mismatch(result):
-    """The container's network did not match the task's allow_internet."""
-    return any(check.get('check') == 'declared-internet-access' and check.get('status') == 'failed'
-               for environment in result.get('environments', []) for check in environment.get('checks', []))
-
-
 def task_caused(result):
     """A failure of the task's own image build or container start, not of our infrastructure."""
     return result['status'] != 'passed' and result.get('cause') == 'build-execution-error'
@@ -206,7 +200,7 @@ async def run_builds(sources, out, args, outcomes):
                     reasons.extend(verifier['reasons'])
                 # Setup speed is its own check and never blocks stages 2-3. The build
                 # passes when at least one preparation of task and verifier succeeded.
-                prepared = next((r for r in history if r['status'] == 'passed'), None)
+                prepared = next((r for r in history if r.get('build_status', r['status']) == 'passed'), None)
                 speed = 'passed' if accepted and verifier['accepted'] else 'failed'
                 # Both setups' times, so a slow task can be judged without the evidence.
                 parts = [f'task setup mean {mean:.0f} s, max {maximum:.0f} s' if seconds else 'task setup: no timing']
@@ -225,6 +219,8 @@ async def run_builds(sources, out, args, outcomes):
                     # No preparation of task and verifier succeeded in any run.
                     item['status'] = 'failed'
                     item['reason'] = history[0].get('reason') or '; '.join(reasons)
+            item['build_status'] = ('passed' if any(r.get('build_status', r['status']) == 'passed'
+                                                     for r in history) else history[-1].get('build_status', history[-1]['status']))
             outcomes.write(json.dumps(item) + '\n')
             outcomes.flush()
             items.append(item)
@@ -235,16 +231,21 @@ async def run_builds(sources, out, args, outcomes):
     # or start on every attempt is a plain build failure. A task that fails on its own and then
     # builds, or the other way round, is not robust. Failures of our infrastructure (node, bridge,
     # disk) or without a verdict that never clear say nothing about the task: it was not judged.
-    # A network that does not match allow_internet is not retried: the task is simply not run further.
+    # Only preparation availability controls retries, never inspection verdicts.
     for attempt in range(1, 4):
         failed = [index for index, history in enumerate(histories)
-                  if history[-1]['status'] != 'passed' and not network_mismatch(history[-1])]
+                  if history[-1].get('build_status', history[-1]['status']) != 'passed']
         if not failed:
             break
         await asyncio.gather(*(one(index, attempt) for index in failed))
     items = []
     for history in histories:
         item = dict(history[0])
+        item['build_status'] = ('passed' if any(r.get('build_status', r['status']) == 'passed'
+                                                 for r in history) else history[-1].get('build_status', history[-1]['status']))
+        if item['build_status'] == 'passed':
+            prepared = next(r for r in reversed(history) if r.get('build_status', r['status']) == 'passed')
+            item.update({k: prepared[k] for k in ('environments', 'verifier_preparation') if k in prepared})
         if len(history) > 1:
             stability = build_stability(history)
             item.update(build_attempts=history, build_stability=stability, build_retry_summary=retry_summary(history))

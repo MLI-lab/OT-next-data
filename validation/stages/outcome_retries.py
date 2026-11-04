@@ -18,6 +18,10 @@ STAGES = (1, 2, 3)
 
 
 def outcome_of(stage, item):
+    if stage == 1 and item.get('build_status') == 'passed':
+        # Inspection errors stay visible but rebuilding cannot resolve them.
+        # A usable environment must not prevent later trials or their retries.
+        return 'passed'
     from validation.publishing.publish import judge
     return judge(stage, item)[0]
 

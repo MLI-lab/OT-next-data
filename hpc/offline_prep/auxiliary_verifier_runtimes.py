@@ -2,7 +2,6 @@
 from pathlib import Path
 import re
 import subprocess
-import tarfile
 
 
 def canonical(value, *, architecture, libc):
@@ -24,20 +23,20 @@ def canonical(value, *, architecture, libc):
 
 def prepare(specs, runtime, scratch, cache, uv, test_image=None):
     from hpc.offline_prep.verifier_bundles import build
-    from harbor_patches.verifier_bundle import verify, validate_archive
+    from harbor_patches.runtime_images import load
     from hpc.offline_prep.image_python_runtime import source_image, stage_source, command
     records = {}
     for name, spec in specs.items():
         record = build(spec, cache, uv, test_image)
-        archive = verify(record, cache)
-        validate_archive(archive)
+        image_record = load(record, cache)
         work = scratch / ('auxiliary-' + name)
         work.mkdir()
-        with tarfile.open(archive) as stream:
-            stream.extractall(work, filter='data')
+        subtree = image_record['image_root'].lstrip('/') + '/python'
+        subprocess.run(['unsquashfs', '-processors', '1', '-d', str(work / 'tree'),
+                        image_record['path'], subtree], check=True, stdout=subprocess.DEVNULL)
         destination = runtime / 'aux' / name
         destination.parent.mkdir(exist_ok=True)
-        (work / 'python').rename(destination)
+        (work / 'tree' / subtree).rename(destination)
         python = destination / 'bin/python3'
         check = ('import platform,pathlib,sys; '
                  'assert platform.python_version() == ' + repr(spec['python']) + '; '

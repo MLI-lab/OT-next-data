@@ -120,14 +120,9 @@ def install_client(bridge):
         with open(source_path, 'rb') as stream:
             return await send_stream(bridge, self, stream, target_path, False)
 
-    async def upload_runtime_archive(self, ref, target):
-        from harbor_patches.runtime_transfer import request
-        return await request(bridge, self, ref, target)
-
     upload_dir._preserve_links = True
     bridge.ApptainerEnvironment.upload_dir = upload_dir
     bridge.ApptainerEnvironment.upload_file = upload_file
-    bridge.ApptainerEnvironment.upload_runtime_archive = upload_runtime_archive
 
 
 def receive_chunk(instance, payload, worker):
@@ -276,9 +271,6 @@ def install_worker(worker):
     def upload(self, payload):
         token = _upload.set(True)
         try:
-            if 'runtime_cache_upload' in payload:
-                from harbor_patches.runtime_transfer import receive
-                return receive(self, payload, worker)
             if 'upload_chunk' in payload:
                 return receive_chunk(self, payload, worker)
             if (payload.get('is_dir') and isinstance(payload.get('file_b64'), str)

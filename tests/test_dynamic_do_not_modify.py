@@ -76,12 +76,13 @@ def test_mentioned_file_is_mutated_after_a_passing_reference(tmp_path, monkeypat
     assert result['status'] == status and len(ran) == runs
 
 
-def test_without_passing_reference_the_mention_scan_decides(tmp_path, monkeypatch):
+def test_failed_reference_still_runs_mutations_but_cannot_prove_enforcement(tmp_path, monkeypatch):
     task = make_task(tmp_path, 'Do not modify /app/config.yaml.', 'CONFIG = "/app/config.yaml"\n')
-    ran = fake_reference(monkeypatch, [])
+    ran = fake_reference(monkeypatch, [0, 0, 0])
     result = asyncio.run(stage.evaluate(task, {'rewards': [1, 0, 1]}, trials(tmp_path, observation(task)), tmp_path, ARGS))
-    # Without a passing reference the result is that of the mention scan, without mutations.
-    assert result['status'] == 'pass' and ran == [] and 'did not pass' in result['mutation_step']
+    # Probes run independently; a failed clean baseline prevents a passing verdict.
+    assert result['status'] == 'incomplete' and len(ran) == 3
+    assert 'baseline unavailable' in result['reason']
     no_reference = asyncio.run(stage.evaluate(task, {'rewards': [0, 0, 0]}, trials(tmp_path, observation(task)), tmp_path, ARGS, reference=False))
     assert no_reference['status'] == 'pass' and no_reference['mutation_step'] == 'not run: no reference solution'
     missing = asyncio.run(stage.evaluate(task, {'rewards': [1, 1, 1]}, [], tmp_path, ARGS))

@@ -32,11 +32,11 @@ def test_missing_auxiliary_interpreter_invalidates_otherwise_checksum_valid_cach
     (tmp_path/(key+'.json')).write_text(json.dumps(record))
     ref=json.loads(runtime_reference(spec,{key:record})['tests/ot-verifier-runtime.json'])
     assert 'spec' not in ref
-    path,reason=bundle.lookup(ref,root=tmp_path)
+    path,reason=bundle.lookup(ref,root=tmp_path, preparation=True)
     assert path is None and 'python/aux/system/bin/python3' in reason
 
 
-def test_auxiliary_extraction_uses_verified_archive_and_relative_subtree(tmp_path,monkeypatch):
+def test_auxiliary_preparation_uses_verified_image_and_relative_subtree(tmp_path,monkeypatch):
     from hpc.offline_prep import auxiliary_verifier_runtimes as auxiliary,verifier_bundles
     child=runtime_spec(python='3.12.3',requirements=[])
     key=bundle.spec_id(child);cache=tmp_path/'cache';cache.mkdir()
@@ -45,12 +45,20 @@ def test_auxiliary_extraction_uses_verified_archive_and_relative_subtree(tmp_pat
         member=tarfile.TarInfo('python/bin/python3');body=b'#!/bin/sh\nexit 0\n';member.mode=0o755;member.size=len(body);stream.addfile(member,io.BytesIO(body))
     record=dict(format=bundle.FORMAT,id=key,spec=child,status='ready',archive_sha256=bundle.digest(archive))
     (cache/(key+'.json')).write_text(json.dumps(record))
-    monkeypatch.setattr(verifier_bundles,'build',lambda *args:record)
+    from harbor_patches.runtime_images import build
+    image = build(record, cache, processors=1)
+    monkeypatch.setattr(verifier_bundles,'build',lambda *args:image)
+    archive.unlink()  # Published caches contain only the image and manifest.
     runtime=tmp_path/'runtime';runtime.mkdir();scratch=tmp_path/'scratch';scratch.mkdir()
     calls=[]
-    monkeypatch.setattr(auxiliary.subprocess,'run',lambda argv,**kwargs:calls.append(argv))
+    original_run = auxiliary.subprocess.run
+    def run(argv, **kwargs):
+        if argv[0] == 'unsquashfs':
+            return original_run(argv, **kwargs)
+        calls.append(argv)
+    monkeypatch.setattr(auxiliary.subprocess,'run',run)
     records=auxiliary.prepare({'system':child},runtime,scratch,cache,'uv')
     assert calls[0][:2]==[str(runtime/'aux/system/bin/python3'),'-I']
-    assert records['system']['archive_sha256']==bundle.digest(archive)
+    assert records['system']['archive_sha256']==record['archive_sha256']
     assert (runtime/'aux/system/bin/python3').read_bytes()==body
     assert (cache/(key+'.json')).read_text()==json.dumps(record)

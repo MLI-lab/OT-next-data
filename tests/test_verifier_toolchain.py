@@ -59,9 +59,13 @@ class Shell:
         return SimpleNamespace(return_code=result.returncode, stderr=result.stderr,
                                stdout=result.stdout.replace(str(self.root), ''))
 
-    async def upload_file(self, source_path, target_path):
-        assert target_path.startswith('/tests/.ot-verifier-toolchain-') and target_path.endswith('/toolchain.tar.gz')
-        Path(self._local(target_path)).write_bytes(Path(source_path).read_bytes())
+    def mount_runtime(self, cache, record):
+        from harbor_patches.runtime_images import build
+        image = build(record, cache, processors=1)
+        tree = self.root / 'image'
+        subprocess.run(['unsquashfs', '-processors', '1', '-d', str(tree), image['path']], check=True, capture_output=True)
+        image['mount'] = str(tree / image['image_root'].lstrip('/'))
+        self._verifier_runtime_images = {record['id']: image}
 
 
 def task(tmp_path, record, recipe=False):
@@ -75,21 +79,23 @@ def task(tmp_path, record, recipe=False):
     return context
 
 
-def test_stage_extracts_verified_toolchain_read_only_and_records_exact_version(tmp_path, monkeypatch):
+def test_stage_uses_verified_toolchain_image_and_records_exact_version(tmp_path, monkeypatch):
     cache = tmp_path / 'cache'
     _, record = artifact(cache)
     monkeypatch.setenv('OT_RUNTIME_CACHE', str(cache))
     environment = Shell(tmp_path / 'container')
+    environment.mount_runtime(cache, record)
     evidence = tmp_path / 'evidence'
     result = asyncio.run(stage_toolchain(environment, task(tmp_path, record), evidence))
     assert result['observed_version'] == VERSION
     assert result['goroot'] == result['directory'] + '/toolchain' and result['network_downloads'] is False
-    assert set(result['timings_seconds']) == {'verify_structure', 'allocate', 'archive_upload', 'checksum_extract_version'}
+    assert set(result['timings_seconds']) == {'verify_structure', 'allocate', 'image_configuration_version'}
     local = environment.root / result['directory'].lstrip('/')
     go = local / 'toolchain/bin/go'
     assert go.is_file() and not (local / 'toolchain.tar.gz').exists()
     assert not go.stat().st_mode & (stat.S_IWGRP | stat.S_IWOTH)
-    assert any('sha256sum -c' in call for call in environment.calls)
+    assert not any('tar ' in call for call in environment.calls)
+    assert result['storage'] == 'shared-squashfs'
     assert json.loads((evidence / 'verifier-toolchain.json').read_text()) == result
 
 
@@ -98,6 +104,7 @@ def test_wrong_toolchain_version_fails_and_removes_staging(tmp_path, monkeypatch
     _, record = artifact(cache, version='go version go1.25.0 linux/amd64')
     monkeypatch.setenv('OT_RUNTIME_CACHE', str(cache))
     environment = Shell(tmp_path / 'container')
+    environment.mount_runtime(cache, record)
     with pytest.raises(RuntimeError, match='go1.25.0'):
         asyncio.run(stage_toolchain(environment, task(tmp_path, record), None))
     assert not list((environment.root / 'tests').glob('.ot-verifier-toolchain-*'))
@@ -111,7 +118,8 @@ def test_corrupt_cache_is_never_staged(tmp_path, monkeypatch):
     monkeypatch.delenv('OT_RUNTIME_IMAGE_CACHE', raising=False)
     environment = Shell(tmp_path / 'container')
     context = task(tmp_path, record, recipe=True)
-    assert asyncio.run(stage_toolchain(environment, context, None)) is None
+    with pytest.raises(RuntimeError, match='not mounted'):
+        asyncio.run(stage_toolchain(environment, context, None))
     assert environment.calls == []  # nothing staged
     assert preflight([context.parent], cache)[record['id']]['status'] == 'missing'
 
@@ -125,7 +133,8 @@ def test_missing_cache_is_skipped_without_building(tmp_path, monkeypatch):
     checked = preflight([context.parent], cache)
     assert checked[record['id']]['status'] == 'missing'
     environment = Shell(tmp_path / 'container')
-    assert asyncio.run(stage_toolchain(environment, context, None)) is None
+    with pytest.raises(RuntimeError, match='not mounted'):
+        asyncio.run(stage_toolchain(environment, context, None))
     assert list(cache.iterdir()) == []
 
 
@@ -151,7 +160,6 @@ def test_reference_helper_binds_only_ready_matching_builds(tmp_path):
 
 
 def test_release_and_transfer_recognize_toolchain_references(tmp_path):
-    from harbor_patches.runtime_transfer import identity
     from validation.publishing.runtime_release import task_references
     _, record = artifact(tmp_path / 'cache')
     data = json.dumps({'format': TOOLCHAIN_FORMAT, 'id': record['id'], 'archive_sha256': record['archive_sha256']}).encode()
@@ -161,9 +169,3 @@ def test_release_and_transfer_recognize_toolchain_references(tmp_path):
         member.size = len(data)
         archive.addfile(member, io.BytesIO(data))
     assert task_references(binary.getvalue()) == [(TOOLCHAIN_FORMAT, record['id'], record['archive_sha256'])]
-    ref = {'id': record['id'], 'archive_sha256': record['archive_sha256']}
-    identity(ref, '/tests/.ot-verifier-toolchain-abc123/toolchain.tar.gz')
-    for target in ('/tests/.ot-verifier-toolchain-abc/../x/toolchain.tar.gz', '/app/.ot-verifier-toolchain-a/toolchain.tar.gz',
-                   '/tests/.ot-verifier-toolchain-abc/runtime.tar.gz'):
-        with pytest.raises(ValueError):
-            identity(ref, target)

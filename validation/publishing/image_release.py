@@ -155,7 +155,7 @@ def prepare_release(tables, cache, out, repo, *, environment_paths=None):
     return manifest, artifacts
 
 
-def stage_published(tasks, cache, target, download=None, *, selected_keys=None):
+def stage_published(tasks, cache, target, download=None, *, selected_keys=None, allow_missing_local=False):
     """Restore published references carried from Parquet by materialize()."""
     from harbor_patches.image_context import environment_dir_hash
     from validation.contract import task_digest
@@ -242,6 +242,9 @@ def stage_published(tasks, cache, target, download=None, *, selected_keys=None):
                 done.add(identity)
                 records.append({'source': str(cached), 'revision': manifest['revision'],
                                 'local': str(local), 'verified_bundle': True, 'reused': True})
+                continue
+            if local_only and allow_missing_local:
+                records.append({'missing': bundle['name'], 'task': task.name, 'reason': 'local_image_cache_miss'})
                 continue
             if local_only:
                 raise ValueError('Required local-only image is missing from the verified cache: ' + bundle['name'])

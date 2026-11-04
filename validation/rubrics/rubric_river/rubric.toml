@@ -1,6 +1,3 @@
-[review]
-format = "classification"
-
 [[categories]]
 name = "CLEAN"
 description = "Instruction is clear and self-sufficient, a correct-per-instruction solution passes, AND the verifier genuinely validates correctness: it recomputes/decodes the true answer from the input (or exact-compares against a correct hardcoded answer) rather than merely checking output shape. A hard-but-fair task is still CLEAN."

@@ -2042,3 +2042,14 @@ def test_external_service_task_declares_internet_once():
     assert updated['task.toml']==b'[environment]\nallow_internet = true\ncpus = 1\n'
     with pytest.raises(ValueError,match='requires review'):
         runtime.declare_external_service(updated)
+
+
+def test_removed_installer_keeps_conditional_body_valid():
+    import subprocess
+    files = uvx_case()
+    guard = b'if [ ! -f "$HOME/.local/bin/uv" ]; then\ncurl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh\nfi\n'
+    files['tests/test.sh'] = guard + files['tests/test.sh']
+    planned = runtime.uvx_plan(files, python='3.13.16')
+    script = planned['test_script']
+    assert ': # uv installer replaced by runtime preparation' in script
+    subprocess.run(['bash', '-n'], input=script, text=True, check=True)

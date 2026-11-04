@@ -26,10 +26,43 @@ def declared_workdir(dockerfile):
     return cwd
 
 
+async def collect_inspection(environment, task, context, label, entry):
+    """Keep checker failures separate from an already prepared environment."""
+    try:
+        inspection = await inspect_environment(environment, task, context, label)
+    except Exception as exc:
+        reason = f'{type(exc).__name__}: {exc}'
+        inspection = {'status': 'error', 'checks': [
+            {'check': name, 'status': 'error', 'reason': 'Environment inspection interrupted: ' + reason}
+            for name in ('declared-workdir', 'declared-internet-access')]}
+        if label == 'agent':
+            inspection['leaks'] = {'status': 'error', 'checks': [
+                {'check': name, 'status': 'error', 'reason': reason}
+                for name in ('repository-history-leak', 'repository-mtime-leak')]}
+    entry.update({k: v for k, v in inspection.items() if k != 'status'})
+    entry['inspection_status'] = inspection['status']
+
+
+async def collect_git_inspection(environment, task, entry):
+    """Recheck only repository rules in the same prepared agent environment."""
+    try:
+        with environment.with_default_user(task.config.agent.user):
+            leaks = await inspect_leaks(environment, history_is_input=history_is_task_input(task))
+    except Exception as exc:
+        leaks = {'status': 'error', 'checks': [
+            {'check': name, 'status': 'error', 'reason': str(exc)}
+            for name in ('repository-history-leak', 'repository-mtime-leak')]}
+    entry.update(checks=[], leaks=leaks, inspection_status=leaks['status'])
+
+
 async def inspect_environment(environment, task, context, label):
     checks = []
     async def check(name, command, expected=None):
-        result = await environment.exec(command, timeout_sec=30)
+        try:
+            result = await environment.exec(command, timeout_sec=30)
+        except Exception as exc:
+            checks.append({'check': name, 'status': 'error', 'reason': str(exc)})
+            return ''
         output = (result.stdout or '').strip()
         passed = result.return_code == 0 and (expected is None or output == expected)
         checks.append({'check': name, 'status': 'passed' if passed else 'failed',
@@ -50,13 +83,21 @@ async def inspect_environment(environment, task, context, label):
                        'reason': 'No resolvable literal final-stage WORKDIR; inherited/variable paths need an explicit probe.',
                        'observed': observed})
 
-    checks.append(await inspect_network(environment, declared_policy(task, label)))
+    try:
+        checks.append(await inspect_network(environment, declared_policy(task, label)))
+    except Exception as exc:
+        checks.append({'check': 'declared-internet-access', 'status': 'error', 'reason': str(exc)})
     result = {'status': 'failed' if any(c['status'] in ('failed', 'error') for c in checks) else 'passed',
               'checks': checks}
     if label == 'agent':
         # Kept apart from the runtime checks: a leak is a task verdict, not a build to retry.
-        with environment.with_default_user(task.config.agent.user):
-            result['leaks'] = await inspect_leaks(environment, history_is_input=history_is_task_input(task))
+        try:
+            with environment.with_default_user(task.config.agent.user):
+                result['leaks'] = await inspect_leaks(environment, history_is_input=history_is_task_input(task))
+        except Exception as exc:
+            result['leaks'] = {'status': 'error', 'checks': [
+                {'check': name, 'status': 'error', 'reason': str(exc)}
+                for name in ('repository-history-leak', 'repository-mtime-leak')]}
     return result
 
 
@@ -361,12 +402,16 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=None, history_
                         'broken Git metadata with a verified empty object store'))
                     continue
             if repository in uncovered:
-                errors.append(f'{repository}: .git present but not a readable repository; empty object store not proven')
+                repo.update(status='not_checked', excluded_by_policy=True,
+                            reason='Git cannot read this repository; intentionally skipped by user policy',
+                            exit_code=result.return_code, stderr=(result.stderr or '')[-1000:])
                 continue
             if result.return_code != 0 or 'head_time' not in repo:
-                errors.append(f'{repository}: history not readable (exit {result.return_code}) '
-                              + (result.stderr or '')[-300:])
-                continue
+                repo.update(status='not_checked', excluded_by_policy=True,
+                            reason='Git history cannot be read; intentionally skipped by user policy',
+                            exit_code=result.return_code, stderr=(result.stderr or '')[-1000:])
+                if 'head_time' not in repo:
+                    continue
             found_here = []
             if repo['unreachable'].get('commit'):
                 found_here.append(f"{repo['unreachable']['commit']} unreachable commits "
@@ -378,13 +423,18 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=None, history_
             if found_here:
                 problems.append(f'{repository}: ' + ', '.join(found_here))
             if repo.get('fsck_exit'):
-                errors.append(f"{repository}: git fsck exited {repo['fsck_exit']}")
+                repo.update(status='not_checked', excluded_by_policy=True,
+                            reason=f"git fsck exited {repo['fsck_exit']}; unreadable object inspection intentionally skipped by user policy")
         history.update(
-            status='error' if errors else 'warning' if problems else 'passed',
+            status='error' if errors else 'warning' if problems else
+                   'not_checked' if all(r.get('status') == 'not_checked' for r in history['repositories'].values()) else 'passed',
             reason=('; '.join(problems) if problems else '; '.join(errors) if errors else
                     'no unreachable commits or blobs and no newer commits outside HEAD; '
-                    'any broken repositories have verified empty object stores'),
+                    'unreadable repositories are intentionally excluded by user policy'),
+            excluded_repositories=[p for p, r in history['repositories'].items() if r.get('excluded_by_policy')],
             **({'errors': errors} if errors and problems else {}))
+        if history['status'] == 'not_checked':
+            history['reason'] = 'All discovered repositories were unreadable by Git; intentionally skipped by user policy'
         problems, errors = [], []
         for repository in repositories:
             if repository in bare:
@@ -394,8 +444,9 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=None, history_
                 mtimes['repositories'][repository] = {
                     'status': 'passed', 'reason': 'verified empty object store and no index; no clean tracked files to compare'}
                 continue
-            if repository in uncovered:
-                errors.append(f'{repository}: .git present but not a readable repository; empty object store not proven')
+            if history['repositories'][repository].get('excluded_by_policy'):
+                mtimes['repositories'][repository] = {'status': 'not_checked', 'excluded_by_policy': True,
+                    'reason': 'Git repository inspection unavailable; intentionally skipped by user policy'}
                 continue
             if history['repositories'][repository].get('unborn'):
                 # No commit to compare file times with; the history check covers this repository.
@@ -412,16 +463,32 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=None, history_
                 problems.append(f"{repository}: {repo['files']['later']} of {repo['files']['count']} clean tracked "
                                 f"files are more than {MTIME_GAP_SECONDS} s newer than the rest")
         mtimes.update(
-            status='error' if errors else 'failed' if problems else 'passed',
+            status='error' if errors else 'failed' if problems else
+                   'not_checked' if all(r.get('status') == 'not_checked' for r in mtimes['repositories'].values()) else 'passed',
             reason=('; '.join(problems) if problems else '; '.join(errors) if errors else
                     'clean tracked files share one modification-time group'),
             **({'errors': errors} if errors and problems else {}))
+        if mtimes['status'] == 'not_checked':
+            mtimes['reason'] = 'No readable tracked working files to inspect; unreadable repositories intentionally excluded by user policy'
         if repaired and mtimes['status'] == 'failed':
             # Decided 2026-10-17: the repair always normalizes mtimes and its report holds the
             # flagged-and-fixed count; afterwards this is an observation, never a verdict.
             mtimes.update(status='passed', observation=mtimes['reason'],
                           reason='observation only after the automatic repair (mtimes normalized during setup): '
                                  + mtimes['reason'])
+    # Empty placeholders and unreadable entries do not establish an applicable
+    # repository. A pass requires at least one repository that was checked.
+    entries = history.get('repositories', {})
+    only_placeholders = bool(entries) and all(
+        r.get('excluded_by_policy') or r.get('empty_object_store', {}).get('status') == 'passed'
+        for r in entries.values())
+    for check in (history, mtimes):
+        if check['status'] == 'not_checked' or (only_placeholders and check['status'] == 'passed'):
+            check['status'] = 'not_applicable'
+            if only_placeholders:
+                check['reason'] = 'No readable Git repository to check; unreadable entries and empty placeholders ignored'
+            if any(r.get('excluded_by_policy') for r in check.get('repositories', {}).values()):
+                check['excluded_by_policy'] = True
     checks = [history, mtimes]
     if history_is_input:
         history['history_is_task_input'] = True
@@ -429,7 +496,7 @@ async def inspect_leaks(environment, roots=REPOSITORY_ROOTS, home=None, history_
     status = ('failed' if any(c['status'] == 'failed' for c in checks) else
               'error' if any(c['status'] == 'error' for c in checks) else
               'warning' if any(c['status'] == 'warning' for c in checks) else
-              'not_checked' if all(c['status'] == 'not_checked' for c in checks) else 'passed')
+              'not_checked' if all(c['status'] in ('not_checked', 'not_applicable') for c in checks) else 'passed')
     result = {'status': status, 'checks': checks}
     if repair is not None:
         result['repair'] = repair
@@ -468,15 +535,7 @@ def declared_policy(task, label):
     return value
 
 
-async def inspect_network(environment, expected):
-    declared = expected
-    # An explicit isolated experiment restricts a task's permission to use the
-    # network. Keep probing egress (including host fallback), and preserve the
-    # original declaration in evidence rather than rewriting task.toml.
-    isolated = os.environ.get('OT_NET_ISOLATION') == '1'
-    simulated = os.environ.get('OT_NET_SIMULATED') == '1'
-    if isolated or simulated:
-        expected = False
+async def network_observations(environment, client=None):
     observations = []
     for direct in (False, True):
         urls = ('https://1.1.1.1/',) if direct else TARGETS
@@ -492,11 +551,39 @@ async def inspect_network(environment, expected):
                 + 'try:\n opener.open(' + repr(url) + ',timeout=5).close()\n'
                 + 'except urllib.error.HTTPError:\n pass\nexcept Exception as e:\n print(type(e).__name__);sys.exit(1)\n')
             command += shlex.quote(script) + '; else exit 125; fi'
+            if client:
+                command = client + ' -sS -o /dev/null --connect-timeout 3 --max-time 5 ' + ('--noproxy \"*\" ' if direct else '') + shlex.quote(url)
             result = await environment.exec(command, timeout_sec=15)
             observations.append({'url': url, 'route': 'direct' if direct else 'configured-proxy-or-direct',
                 'exit_code': result.return_code, 'reachable': result.return_code == 0,
-                'client_available': result.return_code != 125,
+                'client_available': result.return_code not in (125, 126, 127),
                 'stderr': (result.stderr or '')[:1000]})
+    return observations
+
+
+async def inspect_network(environment, expected):
+    declared = expected
+    # An explicit isolated experiment restricts a task's permission to use the
+    # network. Keep probing egress (including host fallback), and preserve the
+    # original declaration in evidence rather than rewriting task.toml.
+    isolated = os.environ.get('OT_NET_ISOLATION') == '1'
+    simulated = os.environ.get('OT_NET_SIMULATED') == '1'
+    if isolated or simulated:
+        expected = False
+    observations = await network_observations(environment)
+    if any(not o['client_available'] for o in observations) and hasattr(environment, 'upload_file'):
+        try:
+            from .probe_runtime import staged
+            async with staged(environment) as (client, digest):
+                supplied = await network_observations(environment, client)
+                for observation in supplied:
+                    observation['client_source'] = 'validation-runtime'
+                    observation['runtime_sha256'] = digest
+            observations = supplied
+        except Exception as exc:
+            for observation in observations:
+                if not observation['client_available']:
+                    observation['runtime_error'] = str(exc)[:1000]
     # Simulated offline removes the proxy and DNS; where the site still routes
     # direct IP traffic (e.g. ZIH Barnard), only name-based egress decides.
     # The direct-IP observation is kept in the evidence.
@@ -509,7 +596,7 @@ async def inspect_network(environment, expected):
                               'explicit-simulated-run' if simulated else 'task-declaration',
         'observed_any_reachable': reachable, 'observations': observations,
         'reason': 'No explicit allow_internet declaration; observations only.' if expected is None else
-                  'Requires curl or python3; no tools are installed by validation.' if not capable else
+                  'No usable network probe client; supplied runtime unavailable or failed.' if not capable else
                   'Explicit isolated run requires all probed egress to be blocked.' if isolated else
                   'Simulated offline run (no proxy, no DNS) requires name-based egress to be blocked; '
                   'direct-IP routing is not isolated and only recorded.' if simulated else

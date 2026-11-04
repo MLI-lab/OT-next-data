@@ -195,6 +195,15 @@ class SetupEnvironment:
             _, context, _ = self.verifier._resolve_tests()
             bundle = await stage_bundle(self.environment, context, self.verifier.trial_paths.verifier_dir)
             self._runtime_bundle = bundle
+            if bundle:
+                from harbor.models.task.verifier_mode import resolve_effective_verifier_env_config
+                step = next((s for s in (self.verifier.task.config.steps or [])
+                             if s.name == self.verifier.step_name), None)
+                if resolve_effective_verifier_env_config(self.verifier.task.config, step) is None:
+                    from harbor_patches.agent_package_fallback import prepare as prepare_agent_packages
+                    await prepare_agent_packages(self.environment, bundle, context,
+                                                 self.verifier.trial_paths.verifier_dir,
+                                                 user=kwargs.get('user'))
             from harbor_patches.verifier_assets import stage as stage_assets
             await stage_assets(self.environment, context, bundle['python'] if bundle else None,
                                self.verifier.trial_paths.verifier_dir)
@@ -257,10 +266,14 @@ class SetupEnvironment:
                 f'{{ ! [ -d /etc/profile.d ] || cp {shlex.quote(shims)}/profile.sh {PROFILE_HOOK}; }}; '
                 + git_proxy_command(target), user='root')
             try:
-                installed = await self.environment.exec(install_python_hooks_command(target,
-                    roots=shlex.quote(bundle['directory'] + '/python') if bundle else PYTHON_SEARCH_ROOTS,
-                    include_path=bundle is None), user='root',
-                                                        timeout_sec=180)
+                image_backed = bundle and bundle.get('image_backed')
+                hook_command = install_python_hooks_command(target,
+                    roots=shlex.quote(bundle['directory'] + ('/active' if image_backed else '/python')) if bundle else PYTHON_SEARCH_ROOTS,
+                    include_path=bundle is None)
+                if image_backed:
+                    # Instrument only this trial's upper layer, never the shared base.
+                    hook_command = mount_command(dict(bundle, mount_mode='writable'), hook_command)
+                installed = await self.environment.exec(hook_command, user='root', timeout_sec=180)
                 hooks = parse_python_hooks(installed.stdout)
             except Exception as exc:
                 hooks = [{'status': 'fail', 'python': None, 'site': None, 'error': str(exc)[:500]}]

@@ -6,6 +6,14 @@ import shlex
 from harbor_patches.verifier_bundle import FORMAT, REFERENCE, TASK_REFERENCE, spec_id
 
 NAME = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.+-]*\Z')
+
+
+def bind_image(ref, record):
+    if record.get('storage') == 'squashfs':
+        if not re.fullmatch(r'[0-9a-f]{64}', record.get('image_sha256', '')):
+            raise ValueError('Runtime image is not checksum-pinned')
+        ref.update(storage='squashfs', image_sha256=record['image_sha256'])
+
 PIN = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*(?:\[[A-Za-z0-9_,.-]+\])?==[0-9][A-Za-z0-9_.+!-]*\Z')
 
 
@@ -138,6 +146,7 @@ def runtime_reference(spec, catalog=None, *, mount_mode='writable', image_source
                 or not re.fullmatch(r'[0-9a-f]{64}', record.get('archive_sha256', ''))):
             raise ValueError('Verifier bundle catalog does not contain a matching ready build')
         ref['archive_sha256'] = record['archive_sha256']
+        bind_image(ref, record)
         ref.pop('spec')
     return {'tests/' + REFERENCE: (json.dumps(ref, indent=2) + '\n').encode()}
 
@@ -172,6 +181,7 @@ def toolchain_reference(spec, record):
             or record.get('status') != 'ready' or not re.fullmatch(r'[0-9a-f]{64}', record.get('archive_sha256', ''))):
         raise ValueError('Toolchain record does not contain a matching ready build')
     ref = {'format': TOOLCHAIN_FORMAT, 'id': key, 'archive_sha256': record['archive_sha256']}
+    bind_image(ref, record)
     return {'tests/' + TOOLCHAIN_REFERENCE: (json.dumps(ref, indent=2) + '\n').encode()}
 
 
@@ -202,6 +212,7 @@ def offline_package_reference(spec, catalog=None, *, phase='task', task_referenc
                 or not re.fullmatch(r'[0-9a-f]{64}', record.get('archive_sha256', ''))):
             raise ValueError('Offline package catalog does not contain a matching ready build')
         value['archive_sha256'] = record['archive_sha256']
+        bind_image(value, record)
         value.pop('spec')
     name = 'setup_files/' + TASK_OFFLINE_REFERENCE if phase == 'task' else 'tests/' + OFFLINE_REFERENCE
     if task_reference:
@@ -254,6 +265,7 @@ def task_offline_reference(request, record):
         raise ValueError('Offline package catalog does not contain a matching ready build')
     value = {'format': OFFLINE_FORMAT, 'id': record['id'], 'archive_sha256': record['archive_sha256'],
              'request_id': spec_id(request)}
+    bind_image(value, record)
     return {'setup_files/' + TASK_OFFLINE_REFERENCE: (json.dumps(value, indent=2) + '\n').encode()}
 
 

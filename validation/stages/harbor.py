@@ -795,7 +795,9 @@ async def build_task(task_path, out, args):
     task = Task(task_path)
     config = environment_config(args)
     specs = [('agent', task.paths.environment_dir, task.config.environment)]
-    if task.config.steps:
+    if getattr(args, 'git_checks_only', False):
+        pass  # Only the agent environment contains the repository being rechecked.
+    elif task.config.steps:
         for step in task.config.steps:
             env = resolve_effective_verifier_env_config(task.config, step)
             if env is not None:
@@ -825,6 +827,7 @@ async def build_task(task_path, out, args):
                 type=EnvironmentType(args.backend), environment_dir=context,
                 environment_name=f'{task.short_name}-{label}', session_id=f'validate-{uuid4().hex[:12]}',
                 trial_paths=paths, task_env_config=spec, **config['kwargs'])
+            environment._ot_git_checks_only = getattr(args, 'git_checks_only', False)
             from validation.stages.task_setup import detect, prepare, upload_setup
             command = detect(task_path) if label == 'agent' else None
             from harbor_patches.start_wait import run_with_budget, status_reader
@@ -841,6 +844,7 @@ async def build_task(task_path, out, args):
                 entry['setup_command'] = command
                 entry['preparation_budget_seconds'] = spec.build_timeout_sec
             entry['timings_seconds']['start'] = time.monotonic() - started
+            entry['status'] = entry['preparation_status'] = 'passed'
             phase, started = 'inspect', time.monotonic()
             if command and getattr(args, 'preparation_runs', 1) > 1:
                 timing = await environment.exec(
@@ -852,9 +856,12 @@ async def build_task(task_path, out, args):
                         (out / label / 'setup-timing.json').write_text(timing.stdout)
                     except (ValueError, OSError) as exc:
                         entry['timing_evidence_error'] = str(exc)
-            from validation.rules.dynamic.environment.check import inspect_environment
-            inspection = await inspect_environment(environment, task, context, label)
-            entry.update(inspection)
+            from validation.rules.dynamic.environment.check import collect_inspection
+            if getattr(args, 'git_checks_only', False):
+                from validation.rules.dynamic.environment.check import collect_git_inspection
+                await collect_git_inspection(environment, task, entry)
+            else:
+                await collect_inspection(environment, task, context, label, entry)
             if label == 'agent':
                 from validation.stages.normalize_paths import capture_build_paths
                 await capture_build_paths(environment, task_path, args, entry)
@@ -885,4 +892,6 @@ async def build_task(task_path, out, args):
                     if holder['resources'].get('agent'):
                         entry['resources'] = holder['resources']['agent']
         results.append(entry)
-    return {'status': 'passed' if all(e['status'] == 'passed' for e in results) else 'error', 'environments': results}
+    return {'status': 'passed' if all(e['status'] == 'passed' for e in results) else 'error',
+            'build_status': 'passed' if all(e.get('preparation_status') == 'passed' for e in results) else 'error',
+            'environments': results}

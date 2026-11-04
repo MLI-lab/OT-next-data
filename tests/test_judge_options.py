@@ -54,6 +54,7 @@ def test_legacy_args_unchanged():
     args = arguments('--review-local', '--model', 'openai/legacy', '--api-base', 'http://legacy/v1')
     before = vars(args).copy()
     assert review_args(args) is args
+    before.update(timeout_minutes=30, review_grace_minutes=10)
     assert vars(args) == before
 
 
@@ -146,3 +147,39 @@ def test_unregistered_hf_model_passes_serving_configuration():
     assert settings['llm_call_kwargs']['max_tokens'] == 8192
     assert 'chat_template_kwargs' not in settings['extra_body']
     assert args.api_base == 'http://solver/v1'
+
+
+@pytest.mark.parametrize('model', ['glm-5.3', 'zai-org/GLM-5.3', 'openai/glm-5.3', 'hosted_vllm/zai-org/GLM-5.3'])
+def test_glm_judge_defaults(model):
+    args = arguments('--judge-mode', 'api', '--judge-model', model)
+    normalize(args)
+    assert (args.timeout_minutes, args.review_grace_minutes) == (120, 30)
+
+
+def test_judge_defaults_preserve_explicit_overrides():
+    args = arguments('--judge-mode', 'serve', '--judge-model', 'glm-5.3',
+                     '--timeout-minutes', '45', '--review-grace-minutes', '20', '--serve-context', '65536')
+    normalize(args)
+    assert (args.timeout_minutes, args.review_grace_minutes, args.serve_context) == (45, 20, 65536)
+    replay = type(args)(**json.loads(json.dumps(vars(args), default=str)))
+    normalize(replay)
+    assert (replay.timeout_minutes, replay.review_grace_minutes, replay.serve_context) == (45, 20, 65536)
+
+
+def test_legacy_local_judge_uses_model_defaults():
+    args = arguments('--review-local', '--serve-model', 'glm-5.3')
+    normalize(args)
+    assert (args.timeout_minutes, args.review_grace_minutes, args.serve_context) == (120, 30, 131072)
+
+
+@pytest.mark.parametrize('model', ['glm-5.3-flash', 'qwen38-27b'])
+def test_fast_judges_keep_short_review_budget(model):
+    args = arguments('--judge-mode', 'serve', '--judge-model', model)
+    normalize(args)
+    assert (args.timeout_minutes, args.review_grace_minutes, args.serve_context) == (30, 10, 131072)
+
+
+def test_solver_model_does_not_select_judge_defaults():
+    args = arguments('--model', 'openai/glm-5.3')
+    normalize(args)
+    assert (args.timeout_minutes, args.review_grace_minutes) == (30, 10)

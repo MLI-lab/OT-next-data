@@ -12,7 +12,7 @@ from validation.stages.runner import parser, check_args
 
 
 def test_default_and_explicit_file_mode():
-    assert parser().parse_args([]).review_evidence == 'image'
+    assert parser().parse_args([]).review_evidence == 'auto'
     assert parser().parse_args(['--review-evidence', 'files']).review_evidence == 'files'
     with pytest.raises(ValueError, match='finite and positive'):
         check_args(parser().parse_args(['--review-max-budget-usd', 'nan']))

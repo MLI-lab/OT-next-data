@@ -22,6 +22,8 @@ def command(bundle, shell_command):
     if not re.fullmatch(r'/tests/\.ot-verifier-runtime-[A-Za-z0-9]+', root):
         raise ValueError('Invalid staged verifier runtime directory')
     selected = mode(bundle)
+    if selected == 'readonly' and bundle.get('image_backed'):
+        selected = 'readonly-overlay'
     namespace = bundle.get('namespace_mode', 'user-mount')
     if namespace not in ('mount', 'user-mount'):
         raise ValueError('Invalid verifier namespace mode')

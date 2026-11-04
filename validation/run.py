@@ -68,7 +68,7 @@ def run_selected(args, numbers):
                 stage_runs[number] = (path, result)
                 if number == 1 and not args.dry_run:
                     args._build_failures = {i['task']: {'report': str(path), 'reason': i.get('reason', 'build validation failed')}
-                                            for i in result['items'] if i['status'] != 'passed'}
+                                            for i in result['items'] if i.get('build_status', i['status']) != 'passed'}
                 if number in (6, 9):
                     analysis_jobs.extend(i['job_dir'] for i in result['items'] if i.get('job_dir') and i['job_dir'] not in analysis_jobs)
             except Exception as exc:
@@ -89,8 +89,9 @@ def run_selected(args, numbers):
                               stage_report['task_content_sha256'], settings=vars(args))
         # Automatic path and pip repairs from the stage-1 and stage-2 evidence.
         from validation.automatic_repairs import files_from, plan
-        plans = plan({number: report for number, (_, report) in stage_runs.items()},
-                     lambda tasks: files_from(args.tasks, tasks))
+        plans = ({} if getattr(args, 'git_checks_only', False) else
+                 plan({number: report for number, (_, report) in stage_runs.items()},
+                      lambda tasks: files_from(args.tasks, tasks)))
         apply_repairs(args.out / 'results.parquet', plans)
         report['automatic_repairs'] = {task: {k: v for k, v in p.items() if k != 'files'} for task, p in plans.items()}
     report['complete'] = True
@@ -268,10 +269,12 @@ def observations(reports, hashes, dataset='', settings=None):
                                                    'task_id': task, 'content_sha256': digest})
             from validation.automatic_repairs import for_item
             repairs = for_item(report, item, task, digest)
-            if repairs:
+            if repairs and not settings.get('git_checks_only'):
                 from validation.automatic_repairs import combine
                 row['automatic_repairs'] = combine(row.get('automatic_repairs'), encode(repairs))
             def put(name, record, value=None):
+                if settings.get('git_checks_only') and name not in ('repository_history', 'repository_timestamps'):
+                    return
                 from validation.outcomes import normalize
                 row[name], record = normalize(name, value if value is not None else status(record.get('status')), record)
                 row['details'] = encode({**details(row), name: record})
@@ -283,6 +286,8 @@ def observations(reports, hashes, dataset='', settings=None):
                 if name:
                     value = (status(item['normal_baseline_status'])
                              if 'normal_baseline_status' in item else None)
+                    if int(stage) == 1 and 'build_status' in item:
+                        value = status(item['build_status'])
                     # Trial infrastructure can report "failed" without ever
                     # obtaining a reward. Keep that absence distinct from an
                     # observed wrong reward, preserving the original details.
@@ -330,7 +335,9 @@ def observations(reports, hashes, dataset='', settings=None):
                     put('reference_leaks', scan['result'])
             # Keep full environment evidence, including checks not yet given a registry name.
             environment_checks = {}
-            for env in item.get('environments', []):
+            for env in [*item.get('environments', []),
+                        *(dict(v.get('inspection') or {}, environment=v.get('environment'))
+                          for v in item.get('verifier_preparation', []) if v.get('inspection'))]:
                 for check in [*env.get('checks', []), *(env.get('leaks') or {}).get('checks', [])]:
                     if isinstance(check, dict) and check.get('check'):
                         environment_checks.setdefault(rule_name(check['check']), []).append(
@@ -341,7 +348,7 @@ def observations(reports, hashes, dataset='', settings=None):
                 put(name, {'checks': checks}, value)
             # A failed build blocks the dynamic checks that need its container or a trial.
             blocked = (item.get('blocked_by_stage') is not None or
-                       (int(stage) == 1 and item.get('status') not in ('passed', 'completed')))
+                       (int(stage) == 1 and item.get('build_status', item.get('status')) not in ('passed', 'completed')))
             if blocked and int(stage) in STAGE_CHECKS:
                 for name in STAGE_CHECKS[int(stage)]:
                     if row.get(name) in (None, 'not_requested'):
@@ -469,7 +476,7 @@ def write(path, rows):
         out.append(row)
     names = sorted({k for r in out for k in r} | {'dataset', 'task_id', 'content_sha256'})
     checks = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'status' in v}
-    integers = {n for n in names if n.endswith(('_solved', '_attempts'))}
+    integers = {n for n in names if n.endswith(('_solved', '_attempts')) or n in ('cpus', 'memory_mb')}
     def kind(name):
         if name in checks:
             fields = [('status', pa.string())]

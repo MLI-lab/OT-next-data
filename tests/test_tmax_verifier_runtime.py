@@ -189,10 +189,14 @@ def test_published_migration_preserves_membership_and_records_history(tmp_path):
     key = spec_id(planned['spec'])
     archive = cache / (key + '.tar.gz')
     with tarfile.open(archive, 'w:gz') as tar:
-        entry = tarfile.TarInfo('python/bin/python3'); entry.size = 1
+        entry = tarfile.TarInfo('python/bin/python3'); entry.size = 1; entry.mode = 0o755
         tar.addfile(entry, io.BytesIO(b'x'))
     (cache / (key + '.json')).write_text(json.dumps(dict(format=FORMAT, id=key, spec=planned['spec'],
         archive_sha256=digest(archive), status='ready', resolved_requirements=planned['spec']['requirements'])))
+    from harbor_patches.runtime_images import build
+    build(json.loads((cache / (key + '.json')).read_text()), cache, processors=1)
+    archive.unlink()
+    (cache / (key + '.json')).unlink()
     inventory = tmp_path / 'inventory'; inventory.mkdir()
     (inventory / 'image.json').write_text(json.dumps(observed))
     images = dict(bundles={'bundle': dict(name='image.sif', files={'image.sif': dict(sha256='a' * 64)})},

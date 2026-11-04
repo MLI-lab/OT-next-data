@@ -255,6 +255,8 @@ def start_with_anchor(self, payload):
     self._helma_save_dependencies = bool(archive and (payload.get('task_env_config') or {}).get('save_dependencies'))
     reuse_for_oracle = bool((dependency_archives() or {}).get('reuse_for_oracle', False))
     _trial.archive = archive if archive and archive.is_file() and (not self._helma_save_dependencies or reuse_for_oracle) else None
+    from harbor_patches.runtime_images import start_flags
+    _trial.runtime_image_flags = start_flags(payload)
     _trial.workspace_seeded = set()
     _trial.workdir_seed_error = None
     try:
@@ -264,6 +266,7 @@ def start_with_anchor(self, payload):
                                             else 'saved after reward 1' if self._helma_save_dependencies
                                             else 'mounted' if _trial.archive else 'none for this task')
     finally:
+        _trial.runtime_image_flags = []
         _trial.archive = None
         _trial.workspace_seeded = None
         _trial.workdir_seed_error = None
@@ -336,7 +339,14 @@ def stop_with_anchor(self, payload):
 
 def instance_start_command(cmd, net_flags):
     """Keep the tests upload mount for every image, plus isolation/archive mounts."""
-    flags = list(net_flags)
+    runtime_flags = getattr(_trial, 'runtime_image_flags', [])
+    if '--overlay' in runtime_flags:
+        writable = '--writable-tmpfs' in cmd or any(
+            arg == '--overlay' and not cmd[index + 1].endswith(':ro')
+            for index, arg in enumerate(cmd[:-1]))
+        if not writable:
+            raise RuntimeError('Agent runtime requires a private writable container overlay')
+    flags = [*net_flags, *runtime_flags]
     if '--contain' not in cmd and '--containall' not in cmd:
         flags.append('--contain')
     # Persistent fakeroot clients can leave SysV IPC behind when the instance

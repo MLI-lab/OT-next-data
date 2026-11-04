@@ -201,6 +201,8 @@ def profile(args):
     return {
         'operation': 'image-prebuild-only' if getattr(args, 'prebuild_only', False) else 'validation',
         'dependency_archives': dependency_archive_spec(args),
+        'prepared_runtime_storage': 'squashfs',
+        'git_checks_only': getattr(args, 'git_checks_only', False),
         'instruction_path_search_roots': getattr(args, 'resolve_path_root', []),
         # Agent defaults (maximum turns, parser, ...) with --agent-kwargs applied.
         'agent_settings': agent_settings(args.agent, args.agent_kwargs),
@@ -241,7 +243,7 @@ def profile(args):
         'review_grace_minutes': getattr(args, 'review_grace_minutes', 10),
         'review_resume': getattr(args, 'review_resume', True),
         'review_seed': getattr(args, 'review_seed', 42),
-        'review_evidence': getattr(args, 'review_evidence', 'files'),
+        'review_evidence': getattr(args, 'review_evidence', 'auto'),
         'review_criteria': getattr(args, 'review_criteria', None),
         'review_model': args.review_model, 'analysis_agent': getattr(args, 'analysis_agent', None),
         'analysis_model': getattr(args, 'analysis_model', None),
@@ -462,6 +464,9 @@ def verify_source(args, contract):
         raise ValueError('local serving assets differ from the frozen contract')
     if platform.machine() != contract['execution_profile']['architecture']:
         raise ValueError('execution architecture differs from the frozen contract')
+    storage = contract['execution_profile'].get('prepared_runtime_storage')
+    if storage is not None and storage != 'squashfs':
+        raise ValueError('Prepared runtime storage mode differs from the frozen contract')
 
 
 def bind(args, numbers):

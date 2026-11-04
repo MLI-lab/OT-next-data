@@ -259,4 +259,6 @@ def install():
     bridge._poll_job = client.poll_job
     from harbor_patches.command_cancellation import install_client as install_cancellation
     install_cancellation(bridge, client)
+    from harbor_patches.runtime_images import install_client as install_runtime_images
+    install_runtime_images(bridge)
     bridge._reliable_transport = True

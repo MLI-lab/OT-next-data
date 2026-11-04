@@ -76,7 +76,7 @@ def test_selected_prompt_and_verdict_only_contain_requested_criterion(tmp_path, 
         prepare_review_tasks.read_verdicts(target, rubric)
         bad = trial / 'unexpected.json'
         bad.write_text(json.dumps({'checks': {**checks, 'verifiable': {'outcome': 'pass', 'explanation': 'Unrequested.'}}}))
-        with pytest.raises(ValueError, match='missing or unexpected'):
+        with pytest.raises(ValueError, match='[Mm]issing or unexpected'):
             prepare_review_tasks.read_verdicts(bad, rubric)
         return trial.parent
 

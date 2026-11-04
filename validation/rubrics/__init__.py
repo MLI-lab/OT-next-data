@@ -139,9 +139,10 @@ def select_criteria(rubric, skipped, criteria=None):
     if not criteria or len(criteria) != len(set(criteria)):
         raise ValueError('--review-criteria requires distinct criterion names')
     config = tomllib.loads(rubric)
-    if config.get('review', {}).get('format') == 'classification':
+    from validation.rubrics.utils.review import settings
+    if settings(config)['format'] == 'classification':
         raise ValueError('--review-criteria cannot restrict a single-category classification')
-    if config.get('review', {}).get('format') == 'severity':
+    if settings(config)['format'] == 'severity':
         names = {entry['id'] for entry in config['rubrics']}
         unknown = set(criteria) - names
         if unknown:
@@ -155,7 +156,7 @@ def select_criteria(rubric, skipped, criteria=None):
     if unknown:
         raise ValueError('Unknown review criteria: ' + ', '.join(sorted(unknown))
                          + '; available: ' + ', '.join(sorted(named.keys() | skipped.keys())))
-    prefix = rubric[:rubric.index('[[criteria]]')] if '[review]' in rubric else ''
+    prefix = rubric[:rubric.index('[[criteria]]')]
     selected = prefix + ''.join(block for name, block in named.items() if name in criteria)
     if not any(name in criteria for name in named):
         raise ValueError('Selected review criteria are all automatically skipped; no LLM review is needed')

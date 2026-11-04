@@ -30,7 +30,6 @@ async def review_task(task_path, out, args):
     from harbor_patches.verifier_mount import command as mount_command, release
     from validation.stages import harbor as runtime
     from validation.stages.task_setup import detect, prepare, upload_setup, capture_setup_command, collect_setup_output
-    from validation.rules.dynamic.environment.check import inspect_environment
 
     task = Task(task_path)
     config = runtime.environment_config(args)
@@ -121,7 +120,7 @@ async def review_task(task_path, out, args):
                 timeout_sec=task_budget, force_build=False, start_environment=False,
                 upload=lambda: upload_setup(agent, task_path), timings=agent_entry['timings_seconds']),
                 timeout=task_budget)
-            agent_entry['status'] = 'passed'
+            agent_entry['status'] = agent_entry['preparation_status'] = 'passed'
             agent_entry.pop('failure_phase', None)
         except Exception as exc:
             agent_entry['error'] = f'{type(exc).__name__}: {exc}'
@@ -189,6 +188,10 @@ async def review_task(task_path, out, args):
                         user = verifier.user if verifier.user is not None else task.config.verifier.user
                         bundle = await measured(record, 'runtime_staging', lambda: stage_bundle(
                             target, context, out / name, user=user))
+                        if bundle and spec is None:
+                            from harbor_patches.agent_package_fallback import prepare as prepare_agent_packages
+                            await measured(record, 'agent_package_fallback', lambda: prepare_agent_packages(
+                                target, bundle, context, out / name, user=user))
                         from harbor_patches.verifier_assets import stage as stage_assets
                         await measured(record, 'reference_staging', lambda: stage_assets(
                             target, context, bundle['python'] if bundle else None, out / name))
@@ -203,7 +206,7 @@ async def review_task(task_path, out, args):
                                       user=user, variables=variables)
                     finally:
                         await measured(record, 'runtime_release', lambda: release(target, bundle))
-                    record['status'] = 'passed'
+                    record['status'] = record['preparation_status'] = 'passed'
 
                 # Slow preparations are judged from the recorded time by setup_speed
                 # and do not fail the build; stopped after 30 minutes (or the
@@ -212,10 +215,10 @@ async def review_task(task_path, out, args):
                 record['timings_seconds']['preparation'] = time.monotonic() - preparation_started
                 record.pop('failure_phase', None)
                 if spec is not None:
-                    inspection = await inspect_environment(target, task, context, name)
+                    from validation.rules.dynamic.environment.check import collect_inspection
+                    inspection = {}
+                    await collect_inspection(target, task, context, name, inspection)
                     record['inspection'] = inspection
-                    if inspection.get('status') != 'passed':
-                        record.update(status='error', error='separate verifier runtime checks failed')
             except Exception as exc:
                 record.update(status='error', error=f'{type(exc).__name__}: {exc}')
             finally:
@@ -231,12 +234,12 @@ async def review_task(task_path, out, args):
 
         if agent_entry['status'] == 'passed':
             try:
-                inspection = await inspect_environment(agent, task, task.paths.environment_dir, 'agent')
-                agent_entry.update(inspection)
+                from validation.rules.dynamic.environment.check import collect_inspection
+                await collect_inspection(agent, task, task.paths.environment_dir, 'agent', agent_entry)
                 from validation.stages.normalize_paths import capture_build_paths
                 await capture_build_paths(agent, task_path, args, agent_entry)
             except Exception as exc:
-                agent_entry.update(status='error', error=f'{type(exc).__name__}: {exc}')
+                agent_entry['path_inspection_error'] = f'{type(exc).__name__}: {exc}'
     finally:
         for env in reversed(environments):
             try:
@@ -245,6 +248,8 @@ async def review_task(task_path, out, args):
                 agent_entry.update(status='error', cleanup_error=str(exc))
     result = {'status': 'passed' if agent_entry['status'] == 'passed' and all(
             v['status'] == 'passed' for v in verifiers) else 'error',
+            'build_status': 'passed' if agent_entry.get('preparation_status') == 'passed' and all(
+                v.get('preparation_status') == 'passed' for v in verifiers) else 'error',
             'environments': entries, 'verifier_preparation': verifiers}
     # Keep failed preparation timings available while the full stage is running.
     # Interrupted exec calls may never return stdout/stderr to the runner.
