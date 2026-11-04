@@ -1,3 +1,5 @@
+{{REVIEW_INTRODUCTION}}
+
 The quality rubric is at `/app/rubric.toml`. For each `[[criteria]]` entry, read its description, inspect the relevant task files, and interact with the environment as needed to determine whether the criterion passes or fails. Evaluate each criterion independently:
 
 - `"pass"` if the described defect is absent.
