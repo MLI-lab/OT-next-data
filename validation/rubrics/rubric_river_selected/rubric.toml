@@ -4,7 +4,7 @@ description = "The verifier passes without the task actually being solved: it ch
 
 [[criteria]]
 name = "INSTR-VERIFIER-MISMATCH"
-description = "The verifier checks something the instruction does not imply, or contradicts it. For example, reads/writes a different path, asserts a hardcoded value that conflicts with the data, or requires specific output keys or values that cannot be inferred from the instruction. A solution that faithfully follows the instruction still fails."
+description = "The verifier checks something the instruction does not imply, or contradicts it. For example, reads/writes a different path, asserts a hardcoded value that conflicts with the data, or requires specific output keys not stated in the instruction. A solution that faithfully follows the instruction still fails."
 
 [[criteria]]
 name = "INSTR-ENV-MISMATCH"
