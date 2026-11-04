@@ -129,6 +129,29 @@ snapshot, not a substitute for querying current queues.
 
 # Cluster storage
 
+On LRZ, use `/raid/enroot/tmp` for bulk node-local staging, not the default
+`/tmp`. Explicitly set `TMPDIR=/raid/enroot/tmp` before launching the validation
+wrapper, which creates its own job-specific subdirectory. Check on the allocated
+node that this path exists, is writable and executable, and has sufficient free
+bytes and inodes for runtime extraction, images and concurrent trials. Do not
+silently fall back to `/tmp` if these checks fail. Other preparation scripts
+should also create unique job-specific scratch directories there.
+
+Before cleaning LRZ temporary files, follow the `hpc-safe-cleanup` skill and
+reconcile scheduler state, live processes, job commands and resumable-chain
+dependencies. Remove only confirmed disposable, account-owned files. Preserve
+active dependencies, source snapshots, task files, shared caches and other
+users' files. Record removed paths and recovered space; retain uncertain files.
+Identical temporary tool copies can be removed after verifying the retained
+originals and confirming that no active or future allocation needs those copies.
+
+On 2026-11-03, TMAX pilot 5899044 was found to have failed during staging on
+`cpu-005` because `/tmp` used the small 22 GiB root filesystem. Cleanup job
+5899161 removed 102 verified disposable `uv`/`uvx` copies, recovering 2.5 GiB;
+`/tmp` then had 8.9 GiB free, while `/raid/enroot/tmp` had 393 GiB free. These
+are historical measurements, not current capacity guarantees. Evidence is in
+`/dss/mcmlscratch/02/di38yur/lrz-temp-cleanup-20261103/cleanup-result.json`.
+
 On ZIH, keep large datasets, downloads, parquets, images, caches, environments,
 build scratch, and run artifacts in an available workspace under `/data/horse`,
 `/data/ws`, or `/data/cat`. Never download or generate them under `/home`.

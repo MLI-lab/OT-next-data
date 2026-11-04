@@ -52,7 +52,7 @@ def test_merge_retains_finished_shards_and_marks_only_unfinished_tasks(tmp_path,
         children.append({'job_id': f'123_{index}', 'submission': str(folder),
                          'selected_ids': ids, 'shard': [index, 2], 'contract': '/contract'})
         items = [{'task': t, 'status': 'passed'} for t in (ids if index == 0 else ids[:1])]
-        c.save(folder / 'report/stage-1-observed.json', {'stage_layout': 'environment-first-v2',
+        c.save(folder / 'report/stage-1-observed.json', {'stage_layout': 'environment-first-v3',
             'stage': 1, 'complete': index == 0, 'contract_sha256': 'frozen',
             'dry_run': False, 'items': items})
     def wait(job, *args):

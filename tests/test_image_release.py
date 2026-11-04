@@ -9,7 +9,7 @@ from hpc.offline_prep.image_cache import publish as cache_publish
 from validation.publishing import image_release as release
 from validation.contract import task_digest
 from validation.task_inputs.materialize import materialize
-from validation.publishing.publish import pack_task, write
+from validation.publishing.publish import pack_task
 from harbor.utils.container_cache import environment_dir_hash
 
 
@@ -52,9 +52,15 @@ def fixture(tmp_path, legacy=False):
 
 
 def write_parquet(tmp_path, tables, manifest, monkeypatch):
-    monkeypatch.setattr('validation.publishing.publish.description', lambda record: 'test')
-    write(tables, {}, 'runs/test.json', tmp_path / 'release', image_manifest=manifest)
-    return tmp_path / 'release/example/tasks.parquet'
+    import json
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    path = tmp_path / 'release/example/tasks.parquet'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [{k: r[k] for k in ('path', 'task_binary', 'content_sha256')} for r in tables['example'][0]]
+    table = pa.Table.from_pylist(rows).replace_schema_metadata({b'ot.images.v1': json.dumps(manifest).encode()})
+    pq.write_table(table, path)
+    return path
 
 
 @pytest.mark.parametrize('workers', [1, 2])

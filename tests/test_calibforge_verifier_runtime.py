@@ -5,6 +5,17 @@ from validation.contract import files_digest
 from harbor_patches.verifier_bundle import FORMAT,spec_id
 
 
+@pytest.fixture(autouse=True)
+def calibforge_task_fixture():
+    """Reviewed records name their task; tests convert the task named 'task'."""
+    from data.calibforge.python_roles import current_task
+    token = current_task.set('task')
+    yield
+    current_task.reset(token)
+
+
+
+
 def case(source=b'from pathlib import Path\nimport subprocess\ndef test_output(): assert Path("/tmp/solution.txt").exists()'):
     files={'tests/test.sh':runtime.SCRIPT,'tests/test_outputs.py':source,'instruction.md':b'Fix Rscript'}
     versions={'pytest':'8.4.1','iniconfig':'2.3.0','packaging':'26.3','pluggy':'1.6.0','Pygments':'2.20.0','pytest-json-ctrf':'0.3.5'}

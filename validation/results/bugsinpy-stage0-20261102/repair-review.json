@@ -1,0 +1,20 @@
+[
+  {
+    "rule": "task-absolute-path",
+    "task": "bugsinpy-original-scrapy-20",
+    "status": "withdrawn_manual_assessment",
+    "edit": [
+      {
+        "start": 142,
+        "end": 152,
+        "old": "robots.txt",
+        "new": "/app/.deps/tornado/test/static/robots.txt",
+        "phase": "after-setup",
+        "reason": "automatic unique observed path"
+      }
+    ],
+    "reason": "User requested reporting of deterministic pipeline outcomes without an additional manual review gate. Original repair records and checker outcomes remain unchanged.",
+    "original_instruction": "/tmp/y500bb12-bugsinpy-stage0-final/tasks/bugsinpy-original-scrapy-20/instruction.md",
+    "affects_pipeline_results": false
+  }
+]

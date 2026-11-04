@@ -23,7 +23,7 @@ def test_cache_pricing_preserves_reported_cost_and_reprices_offline(tmp_path):
     row = collected['trials'][0]
     assert row['estimated_cost_usd'] == pytest.approx((600*2 + 300*0.2 + 100*2.5 + 200*8)/1e6)
     assert row['cost_usd'] == row['reported_cost_usd'] == 0.04
-    report = {'stage_layout': 'environment-first-v2', 'stage': 5, 'items': [{'task': 't', 'usage': collected}]}
+    report = {'stage_layout': 'environment-first-v3', 'stage': 5, 'items': [{'task': 't', 'usage': collected}]}
     updated = usage.reprice(json.loads(json.dumps(report)), {'input': 1, 'output': 1})
     assert updated['items'][0]['usage']['trials'][0]['estimated_cost_usd'] == 0.0012
     assert updated['usage']['metrics']['cost_usd']['total'] == 0.04
@@ -40,7 +40,7 @@ def test_missing_cost_is_not_zero_and_failed_attempts_are_counted(tmp_path):
     assert metrics['cost_usd']['trials_with_data'] == 1
     assert metrics['cost_usd']['average_per_task'] is None
     # Supplied fallback pricing completes cost coverage without dropping failures.
-    report = usage.reprice({'stage_layout': 'environment-first-v2', 'stage': 5, 'items': [{'task': 't', 'usage': collected}]}, {'input': 1, 'output': 4})
+    report = usage.reprice({'stage_layout': 'environment-first-v3', 'stage': 5, 'items': [{'task': 't', 'usage': collected}]}, {'input': 1, 'output': 4})
     assert report['usage']['metrics']['cost_usd']['total'] == pytest.approx(0.0218)
 
 
@@ -90,7 +90,7 @@ def test_invalid_pricing_is_rejected(rates):
 
 def test_archive_exports_usage_and_repriceable_stage_report(tmp_path):
     collected = usage.collect([(tmp_path, result(0.03))], 'a', 'm')
-    stage = {'stage_layout': 'environment-first-v2', 'stage': 5, 'name': 'llm_rubric_review', 'complete': True,
+    stage = {'stage_layout': 'environment-first-v3', 'stage': 5, 'name': 'llm_rubric_review', 'complete': True,
              'items': [{'task': '/tasks/a', 'status': 'findings', 'usage': collected}]}
     archive = tmp_path / 'evidence.tar.gz'
     payload = json.dumps(stage).encode()
@@ -138,7 +138,7 @@ def test_stage_review_keeps_spend_when_verdict_is_missing(tmp_path, monkeypatch)
     (staged / 'environment/Dockerfile').write_text('FROM ubuntu:24.04\n')
     (staged / 'rubric-skips.json').write_text('{}')
     (staged / 'rubric.toml').write_text('[[criteria]]\nname="verifiable"\n')
-    monkeypatch.setattr(runner.prepare_review_tasks, 'stage_review', lambda *args: staged)
+    monkeypatch.setattr(runner.prepare_review_tasks, 'stage_review', lambda *args, **kwargs: staged)
     monkeypatch.setattr(runner.runtime, 'check_runtime_task', lambda *args: None)
     monkeypatch.setattr(runner.runtime, 'job_config', lambda *args: {})
     async def execute(config):
@@ -194,7 +194,7 @@ def test_analysis_gets_its_own_price_and_repricing_updates_provenance(tmp_path):
     collected = usage.collect([(tmp_path, result())], 'terminus-2', options.analysis_model,
                               resolved['rates'], pricing_source=resolved['source'])
     assert collected['trials'][0]['pricing_source']['basis'] == 'reference_api_equivalent'
-    report = usage.reprice({'stage_layout': 'environment-first-v2', 'stage': 8, 'items': [{'task': 't', 'usage': collected}]}, {'input': 1, 'output': 1})
+    report = usage.reprice({'stage_layout': 'environment-first-v3', 'stage': 8, 'items': [{'task': 't', 'usage': collected}]}, {'input': 1, 'output': 1})
     assert report['items'][0]['usage']['trials'][0]['pricing_source'] == {'basis': 'user_supplied'}
 
 

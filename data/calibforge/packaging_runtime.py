@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 from functools import lru_cache
 
+from data.calibforge.python_roles import current_task
+
 
 # This exact pristine image supplies the same managed 3.13.9 interpreter as
 # the reviewed uvx family. Wheel preparation does not use a task installation.
@@ -24,7 +26,7 @@ def role(files, source_file, image):
     records=_records(Path(__file__).with_name('task_packaging_roles.json'))
     matches=[record for record in records
              if record['source_file']==source_file
-             and hashlib.sha256(files.get('instruction.md',b'')).hexdigest()==record['instruction_sha256']
+             and record['task']==current_task.get()
              and hashlib.sha256(files.get(source_file,b'')).hexdigest()==record['source_sha256']
              and all(path in files and hashlib.sha256(files[path]).hexdigest()==digest
                      for path,digest in record['evidence_sha256'].items())]

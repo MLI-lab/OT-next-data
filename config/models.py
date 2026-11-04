@@ -152,9 +152,9 @@ def serving_agent_kwargs(spec, context, overrides):
     # explicit request kwargs reach chat.chat and the OpenAI/vLLM transport.
     call_kwargs.pop('max_completion_tokens', None)
     call_kwargs['max_tokens'] = output
-    return {'temperature': spec.sampling['temperature'],
+    return {**({'temperature': spec.sampling['temperature']} if 'temperature' in spec.sampling else {}),
             'extra_body': {**{k: v for k, v in spec.sampling.items() if k != 'temperature'},
-                           'chat_template_kwargs': {'enable_thinking': spec.thinking}},
+                           **({'chat_template_kwargs': {'enable_thinking': spec.thinking}} if spec.sampling else {})},
             **overrides, 'max_tokens': output, 'model_info': info,
             'llm_call_kwargs': call_kwargs}
 
@@ -189,6 +189,12 @@ def placement(spec: 'Model', gpus_per_node: int | None = None, replicas: int = 1
 def resolve(key: str) -> tuple[str, Model]:
     name = key
     if name not in MODELS:
+        for registered, spec in MODELS.items():
+            if key == spec.hf_repo:
+                return registered, spec
+        import re
+        if re.fullmatch(r'[\w.-]+/[\w.-]+', key):
+            return key, Model(name=key, hf_repo=key, gpus=1, sampling={}, dtype='auto')
         raise SystemExit(f'unknown model {key!r}; known: {", ".join(MODELS)}')
     return name, MODELS[name]
 

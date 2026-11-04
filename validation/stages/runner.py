@@ -21,7 +21,7 @@ from validation.stages import harbor as runtime
 from validation.task_inputs.selection import discover_tasks, select_paths
 from validation.upstream import ROOT, PINS, checkout, module
 
-from validation.stages.layout import LAYOUT, NAMES, NOP, REFERENCE
+from validation.stages.layout import LAYOUT, NAMES, NOP, REFERENCE, STATIC
 
 
 
@@ -33,16 +33,16 @@ def parser():
     ap.add_argument('--prepare-contract', type=Path, help='write a contract and protocol, then exit without running')
     ap.add_argument('--pack-image-cache', action='store_true', help='save new complete image bundles as sparse tar archives to reduce shared-cache file count')
     ap.add_argument('--fix-instruction-paths', action=argparse.BooleanOptionalAction, default=True,
-                    help='automatically apply unique path evidence to the validation copy')
+                    help='repair relative instruction paths from the stage-1 lookup at the end of the run')
     ap.add_argument('--fix-pip-pins', action=argparse.BooleanOptionalAction, default=True,
-                    help='resolve flagged pip pins from a reward-1 oracle before normal validation')
+                    help='pin unpinned pip installs to the versions of the stage-2 reference run, at the end of the run')
     ap.add_argument('--path-resolution-report', type=Path, action='append', default=[],
                     help='stage-1 build or stage-2 reference path evidence; repeat for shards/retries')
     ap.add_argument('--fix-repository-leaks', action=argparse.BooleanOptionalAction, default=True,
                     help='normalize repository timestamps after task setup in the validation copy; '
                          'preserve Git history (default: enabled)')
     ap.add_argument('--fix-instruction-suffix', action=argparse.BooleanOptionalAction, default=True,
-                    help='stage-4 fix-up: append/update timeout/anti-cheating suffix before contract hashing (default: enabled)')
+                    help='static-check fix-up: append/update timeout/anti-cheating suffix before contract hashing (default: enabled)')
     ap.add_argument('--dataset-source', help='immutable source identifier (auto-read from source.json when present)')
     ap.add_argument('--dataset-revision', help='source commit/revision; local data defaults to content hash')
     ap.add_argument('--min-tasks', type=int, help='minimum acceptable task coverage; default entire selected manifest')
@@ -56,6 +56,12 @@ def parser():
                     help='per-attempt Claude CLI budget for image-backed stage-5 review')
     ap.add_argument('--review-reasoning-effort', choices=['low', 'medium', 'high', 'xhigh'], default='medium',
                     help='Codex CLI reasoning effort for image-backed stage-5 review')
+    ap.add_argument('--judge-mode', choices=['serve', 'local', 'api', 'cli'],
+                    help='judge transport: start a server, connect to an API, or invoke a CLI (local aliases serve)')
+    ap.add_argument('--judge-model', help='judge model: HF ID/registered key for serve, provider/model for API, CLI model name')
+    ap.add_argument('--judge-api-base', help='judge-only OpenAI-compatible endpoint including /v1')
+    ap.add_argument('--judge-api-key-env', help='environment variable containing the judge API key; never the secret itself')
+    ap.add_argument('--judge-cli', choices=['claude-code', 'codex', 'codex-cli'], help='CLI used by --judge-mode cli')
     ap.add_argument('--review-agent', help='override the pinned upstream reviewer agent (also applies to analysis unless separately overridden)')
     ap.add_argument('--model', help='model for solver/cheat/hacker/fixer')
     ap.add_argument('--review-model', help='override pinned upstream rubric/trajectory judge model')
@@ -73,7 +79,7 @@ def parser():
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
     ap.add_argument('--attempts', type=int, default=1, help='agent attempts per task in stages 6 and 9 (k of pass@k)')
     ap.add_argument('--reference-leaks', action=argparse.BooleanOptionalAction, default=True,
-                    help='evaluate reference-solution leaks in stage 4 (default: enabled)')
+                    help='evaluate reference-solution leaks in the stage-3 no-op containers (default: enabled)')
     ap.add_argument('--reference-runs', type=int, default=1,
                     help='stage 2: total reference-solution runs per task (default 1), each in a fresh container; all must score 1')
     ap.add_argument('--nop-runs', type=int, default=1,
@@ -86,6 +92,9 @@ def parser():
     ap.add_argument('--reference-shuffled-runs', type=int, default=1,
                     help='extra reference runs with shuffled Python listings during the solution and grading; '
                          'final reward must remain 1 (0 disables)')
+    ap.add_argument('--reference-repeat-runs', type=int, default=2,
+                    help='stage 2: extra normal reference runs after a passing first run; all must score 1, '
+                         'so a stochastic verifier fails reference_determinism (0 disables)')
     ap.add_argument('--dynamic-do-not-modify', action=argparse.BooleanOptionalAction, default=True,
                     help='stage 2: check protected files in the container and mutate them after the reference '
                          '(validation/rules/dynamic/do_not_modify; default: enabled)')
@@ -142,7 +151,7 @@ def parser():
     ap.add_argument('--resolve-path-root', action='append', default=[], metavar='DIRECTORY',
                     help='search flagged paths after setup (stage 1) and before/after the reference solution (stage 2); absolute directory, repeatable')
     ap.add_argument('--exclude', action='append', default=[], help='static check ID/filename, optionally NAME=reason; repeat or comma-separate')
-    ap.add_argument('--submit', choices=['auto', 'helma', 'zih', 'rwth', 'never'], default='auto', help='submit stages on the selected cluster when no bridge is active')
+    ap.add_argument('--submit', choices=['auto', 'helma', 'zih', 'rwth', 'lrz', 'never'], default='auto', help='submit stages on the selected cluster when no bridge is active')
     ap.add_argument('--time', help='required Slurm time limit, HH:MM:SS')
     ap.add_argument('--partition', default='auto', help='auto selects CPU for external models, GPU for local serving; Helma CPU outages fall back to h200')
     ap.add_argument('--cpus', type=int, default=32, help='CPU cores requested per node; rounded up to the cluster allocation unit')
@@ -191,6 +200,8 @@ def resolve_review_defaults(args, numbers):
     """Freeze the defaults from the verified upstream checkout before execution."""
     if not any(n in (5, 8) for n in numbers):
         return
+    from validation.stages.judge import normalize
+    normalize(args)
     fields = ('review_agent', 'review_model', 'analysis_agent', 'analysis_model')
     if all(getattr(args, key, None) for key in fields):
         from validation.rubrics.utils.pricing import freeze
@@ -252,10 +263,13 @@ def dependency_archive_spec(a):
 
 def check_args(a):
     import math
+    from validation.stages.judge import normalize
+    normalize(a)
     if getattr(a, 'reference_runs', 1) < 1 or getattr(a, 'nop_runs', 1) < 1:
         raise ValueError('--reference-runs and --nop-runs must be at least 1')
-    if getattr(a, 'nop_shuffled_runs', 1) < 0 or getattr(a, 'reference_shuffled_runs', 1) < 0:
-        raise ValueError('--nop-shuffled-runs and --reference-shuffled-runs must be nonnegative')
+    if min(getattr(a, 'nop_shuffled_runs', 1), getattr(a, 'reference_shuffled_runs', 1),
+           getattr(a, 'reference_repeat_runs', 2)) < 0:
+        raise ValueError('--nop-shuffled-runs, --reference-shuffled-runs and --reference-repeat-runs must be nonnegative')
     budget = getattr(a, "review_max_budget_usd", 5)
     if not math.isfinite(budget) or budget <= 0:
         raise ValueError("--review-max-budget-usd must be finite and positive")
@@ -282,7 +296,7 @@ def check_args(a):
                                else implementation_rubric(RUBRICS / 'rubric_terminal_bench/upstream/task-implementation.toml'))
         select_criteria(rubric, skipped, a.review_criteria)
     if getattr(a, 'prebuild_only', False):
-        if a.submit not in ('helma', 'zih', 'rwth'):
+        if a.submit not in ('helma', 'zih', 'rwth', 'lrz'):
             raise ValueError('--prebuild-only requires --submit helma, zih, or rwth')
         if getattr(a, 'serve_model', None) or getattr(a, 'publish_repo', None):
             raise ValueError('--prebuild-only cannot serve models or publish validation results')
@@ -312,7 +326,8 @@ def check_args(a):
         a.serve_context = resolve(a.serve_model)[1].context if a.serve_model else 32768
     if a.serve_model:
         from config.models import resolve, serving_agent_kwargs
-        serving_agent_kwargs(resolve(a.serve_model)[1], a.serve_context, a.agent_kwargs)
+        serving_agent_kwargs(resolve(a.serve_model)[1], a.serve_context,
+                             {} if getattr(a, 'judge_mode', None) == 'serve' else a.agent_kwargs)
     if getattr(a, 'serve_replicas', 1) != 1 and not a.serve_model:
         raise ValueError('--serve-replicas requires --serve-model')
     for field in ('attempts', 'concurrency', 'max_iterations', 'timeout_minutes', 'serve_context', 'serve_replicas'):
@@ -335,7 +350,7 @@ def check_args(a):
         raise ValueError('--container-start-interval must be finite and nonnegative')
     if getattr(a, 'static_concurrency', None) is not None and a.static_concurrency < 1:
         raise ValueError('--static-concurrency must be positive')
-    if a.serve_model and a.api_base and not getattr(a, '_local_server_ready', False):
+    if a.serve_model and a.api_base and getattr(a, 'judge_mode', None) != 'serve' and not getattr(a, '_local_server_ready', False):
         raise ValueError('choose --serve-model or --api-base')
     if getattr(a, 'task_id_range', None) and a.limit is not None:
         raise ValueError('choose --limit or --task-id-range, not both')
@@ -406,6 +421,8 @@ def accepted_after_timeout(result, path, validate):
 
 
 async def review_once(number, source, item_dir, args, upstream, references=None, suffixes=None):
+    from validation.stages.judge import review_args
+    args = review_args(args)
     resolve_review_defaults(args, [number])
     agent, model = (args.review_agent, args.review_model) if number == 5 else (args.analysis_agent, args.analysis_model)
     if getattr(args, 'review_local', False):
@@ -585,8 +602,13 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
         return items
     diagnostic_kwargs = ({'path_search_roots': args.resolve_path_root}
                          if number == REFERENCE and getattr(args, 'resolve_path_root', None) else {})
-    if number == REFERENCE and getattr(args, '_pip_pin_findings', None):
-        diagnostic_kwargs['pip_pin_capture'] = {'tasks': args._pip_pin_findings, 'reward_key': args.reward_key}
+    if number == REFERENCE and getattr(args, 'fix_pip_pins', False):
+        # Record which versions the unpinned pip installs got; the repair at the
+        # end of the run pins them (validation/automatic_repairs.py).
+        from validation.rules.static.pip_pinning.repair import commands as pip_commands
+        findings = {task.name: found for task, _ in selected if (found := pip_commands(task))}
+        if findings:
+            diagnostic_kwargs['pip_pin_capture'] = {'tasks': findings, 'reward_key': args.reward_key}
     dynamic_do_not_modify = number == REFERENCE and getattr(args, 'dynamic_do_not_modify', True)
     if dynamic_do_not_modify:
         from validation.rules.dynamic.do_not_modify import stage as do_not_modify
@@ -611,6 +633,10 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
         if number == 6:
             from validation.metrics.passk_completion import assess
             item.update(assess(groups[task.name], args.attempts, args.reward_key))
+        if task.name in diagnostic_kwargs.get('pip_pin_capture', {}).get('tasks', {}):
+            item['pip_snapshots'] = [snapshot for trial, _ in groups[task.name]
+                                     if (trial / 'pip-freeze.json').is_file()
+                                     for snapshot in json.loads((trial / 'pip-freeze.json').read_text())]
         if 'path_search_roots' in diagnostic_kwargs:
             item['instruction_path_diagnostics'] = [
                 json.loads((trial / 'instruction-path-diagnostics.json').read_text())
@@ -639,6 +665,11 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
                 if shuffled is not None:
                     for task, item in passing:
                         add_listing_order(item, groups[task.name], shuffled, task, args, expected_reward=1)
+                repeated = run_trials(config, passing, out / 'reference-repeat-jobs',
+                                      getattr(args, 'reference_repeat_runs', 2), shuffle=False)
+                if repeated is not None:
+                    for task, item in passing:
+                        add_repeat_runs(item, repeated, task, args)
             except Exception as exc:
                 for _, item in passing:
                     item.update(status='error', listing_order={'status': 'incomplete', 'reason': str(exc)})
@@ -721,8 +752,8 @@ def run_nop(selected, out, args):
                 tamper_token = verifier_tamper.active.set(set())
             from validation.stages import reference_leaks
             reference_leaks.install()
-            scan_requests = reference_leaks.prepare_nop_scans(
-                [task for task, _ in pairs], getattr(args, 'out', out)) if getattr(args, 'reference_leaks', True) else {}
+            scan_requests, scan_results = reference_leaks.plan_nop_scans(
+                [task for task, _ in pairs], getattr(args, 'out', out)) if getattr(args, 'reference_leaks', True) else ({}, {})
             scan_runtime_token = reference_leaks.scan_runtime.set(reference_leaks.runtime_signature(args))
             scan_token = reference_leaks.scan_requests.set(scan_requests)
             try:
@@ -747,6 +778,9 @@ def run_nop(selected, out, args):
                     json.loads((trial / reference_leaks.SCAN_ARTIFACT).read_text())
                     for trial, _ in groups[task.name]
                     if (trial / reference_leaks.SCAN_ARTIFACT).is_file()]
+                if not prepared['reference_leak_scans'] and task.name in scan_results:
+                    # No scan was needed or possible in this container.
+                    prepared['reference_leak_scans'] = [{'result': scan_results[task.name]}]
                 if unmatched:
                     prepared['status'] = 'failed'
                     prepared['findings'].append(f'unmatched NOP results: {unmatched}')
@@ -774,17 +808,23 @@ def run_shuffled_reference(config, pairs, output, args):
 
 def run_shuffled_trials(config, pairs, output, runs):
     """Extra isolated trials; shuffle the reference and verifier Python processes."""
+    return run_trials(config, pairs, output, runs, shuffle=True)
+
+
+def run_trials(config, pairs, output, runs, *, shuffle):
+    """Extra isolated trials of the same tasks, optionally with shuffled Python listings."""
     if not runs:
         return None
     from harbor_patches.verifier_setup import SHUFFLE_LISTING
-    from harbor_patches.listing_order import install
-    install()
-    shuffled_config = dict(config, n_attempts=runs, jobs_dir=str(output.resolve()),
-                           tasks=[{'path': str(task.resolve())} for task, _ in pairs])
-    save(output.parent / (output.name + '.json'), shuffled_config)
-    token = SHUFFLE_LISTING.set(True)
+    if shuffle:
+        from harbor_patches.listing_order import install
+        install()
+    extra_config = dict(config, n_attempts=runs, jobs_dir=str(output.resolve()),
+                        tasks=[{'path': str(task.resolve())} for task, _ in pairs])
+    save(output.parent / (output.name + '.json'), extra_config)
+    token = SHUFFLE_LISTING.set(shuffle)
     try:
-        job_dir = asyncio.run(runtime.execute_job(shuffled_config))
+        job_dir = asyncio.run(runtime.execute_job(extra_config))
     finally:
         SHUFFLE_LISTING.reset(token)
     groups, unmatched = runtime.group_trial_results(runtime.trial_results(job_dir), [task for task, _ in pairs])
@@ -805,6 +845,34 @@ def add_verifier_tamper(prepared, rows, task, args):
         prepared['findings'].append('warning: verifier tamper: grading ran ' + ', '.join(record['tools'][:10]))
 
 
+def add_repeat_runs(prepared, repeated, task, args):
+    """Repeated normal reference runs must all score 1 like the first: a verifier
+    that scores the same solution differently is stochastic. Recorded in the
+    reference_determinism record next to the shuffled-listing result."""
+    trials = repeated['groups'].get(task.name, [])
+    count = repeated.get('expected_count', 1)
+    assessment = runtime.assess_trials(trials, count, expected_reward=None, reward_key=args.reward_key,
+                                       task_path=task, require_execution=False)
+    rewards = [((r.get('verifier_result') or {}).get('rewards') or {}).get(args.reward_key) for _, r in trials]
+    record = prepared.setdefault('listing_order', {'status': 'clean', 'reason': ''})
+    record.update(repeat_runs=count, repeat_rewards=rewards, repeat_job_dir=repeated['job_dir'],
+                  repeat_usage={k: assessment.get(k, []) for k in ('trial_seconds', 'resources')})
+    if assessment['status'] != 'completed' or repeated.get('unmatched') or len(trials) != count:
+        finding = 'repeated reference runs incomplete: ' + ('; '.join(assessment['findings']) or 'missing trials')
+        if record.get('status') != 'flagged':
+            record['status'] = 'incomplete'
+        prepared['status'] = 'error' if prepared.get('status') != 'failed' else 'failed'
+    elif any(reward != 1 for reward in rewards):
+        finding = f'repeated reference runs scored {rewards}; expected 1 (stochastic verifier)'
+        record['status'] = 'flagged'
+        prepared['status'] = 'failed'
+    else:
+        record['reason'] = '; '.join(filter(None, [record.get('reason'), f'all {count} repeated reference runs scored 1']))
+        return
+    record['reason'] = '; '.join(filter(None, [record.get('reason'), finding]))
+    prepared.setdefault('findings', []).append('reference determinism: ' + finding)
+
+
 def add_listing_order(prepared, normal, shuffled, task, args, *, expected_reward=0):
     from validation.rules.dynamic.nop_baseline.listing_order import compare
     trials = shuffled['groups'].get(task.name, [])
@@ -816,6 +884,7 @@ def add_listing_order(prepared, normal, shuffled, task, args, *, expected_reward
     if assessment['status'] != 'completed' or shuffled.get('unmatched'):
         record.update(status='incomplete', reason='; '.join(assessment['findings']) or 'unmatched shuffled results')
     record['job_dir'] = shuffled['job_dir']
+    record['shuffled_usage'] = {k: assessment.get(k, []) for k in ('trial_seconds', 'resources')}
     prepared['listing_order'] = record
     if record['status'] in ('flagged', 'incomplete'):
         if record['status'] == 'incomplete' or prepared.get('status') != 'error':
@@ -880,7 +949,9 @@ def run_stage(number, args):
     attempts = getattr(args, 'attempts', 1)
     args.attempts = stage_runs(number, args)
     try:
-        return _run_stage(number, args)
+        from validation.stages.judge import credentials
+        with credentials(args, number):
+            return _run_stage(number, args)
     finally:
         args.attempts = attempts
 
@@ -905,10 +976,6 @@ def _run_stage(number, args):
     verified_hashes = {t['task_id']: t['sha256'] for t in task_records(contract)} if contract else {}
     source_hashes = {t.name: verified_hashes[t.name] if t.name in verified_hashes else task_digest(t)
                      for t in sources}
-    static_skipped = []
-    if number in (1, 2, 3, 5, 6, 9, 10):
-        from validation.stages.static_gate import partition
-        sources, static_skipped = partition(sources, args)
     references = None
     suffixes = None
     if number == 5:
@@ -945,7 +1012,7 @@ def _run_stage(number, args):
     report_path = out / 'summary.json'
     save(report_path, report)
     clock = stage_clock()
-    if number == 4:
+    if number == STATIC:
         from validation.rules.static.terminal_bench import run_checks, load_checks
         _, selected, excluded = load_checks(args.static_profile, upstream, args.exclude)
         if not selected:
@@ -953,8 +1020,7 @@ def _run_stage(number, args):
         from validation.rules.static.terminal_bench import ADAPTATIONS
         report.update(checks=selected, excluded_checks=excluded,
                       adaptations={name: text for name, text in ADAPTATIONS.items() if name in selected})
-        from validation.stages.reference_leaks import CHECK, run_checks as run_reference_leak_checks
-        report['checks'] = [*selected, *([CHECK] if getattr(args, 'reference_leaks', True) else [])]
+        report['checks'] = selected
         if args.dry_run:
             report['items'] = [{'task': str(t), 'status': 'previewed'} for t in sources]
         else:
@@ -968,10 +1034,6 @@ def _run_stage(number, args):
                        concurrency=report['static_concurrency'], **resume_options)
             static = json.loads((out / 'static/summary.json').read_text())
             report['items'] = static['tasks']
-            eligible = {Path(i['task']).name for i in report['items']
-                        if i['status'] == 'passed' and getattr(args, 'reference_leaks', True)}
-            asyncio.run(run_reference_leak_checks([t for t in sources if t.name in eligible],
-                                                  report['items'], out / 'reference-leaks', args))
             if 'resumed_from' in static:
                 report['resumed_from'] = static['resumed_from']
     elif number == 1 and not args.dry_run:
@@ -1067,13 +1129,12 @@ def _run_stage(number, args):
                 report['usage'] = summarize_items(report['items'], args.attempts)
             save(report_path, report)
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
-    report['items'].extend(static_skipped)
     report['complete'] = True
     if number == 6 and not args.dry_run:
         report['complete'] = all(i['status'] == 'completed' for i in report['items'])
     if not args.dry_run:
         # Tasks at once: the other stages work through their tasks one by one.
-        report['timing'] = stage_timing(clock, report['static_concurrency'] if number == 4 else
+        report['timing'] = stage_timing(clock, report['static_concurrency'] if number == STATIC else
                                         args.concurrency if number in (5, 1, 2, 3, 6, 9) else 1,
                                         getattr(args, '_serving_gpu_count', None))
     if number == 5:

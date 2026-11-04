@@ -9,14 +9,14 @@ from validation import contract as contracts
 
 def contract(tasks):
     return {'tasks': [{'task_id': t, 'sha256': h} for t,h in tasks.items()],
-            'sha256': 'contract', 'stage_layout': 'environment-first-v2', 'stages': [1],
+            'sha256': 'contract', 'stage_layout': 'environment-first-v3', 'stages': [1],
             'dataset': {'source': 'source', 'revision': 'pinned'},
             'success_criteria': {'minimum_tasks': len(tasks), 'gate': 'strict'},
             **{k: {k:'same'} for k in ('execution_profile','runtime_dependencies','upstream','implementation')}}
 
 
 def report(c, states):
-    return {'stage_layout': 'environment-first-v2', 'stage':1, 'name':'build_validation',
+    return {'stage_layout': 'environment-first-v3', 'stage':1, 'name':'build_validation',
             'contract_sha256':c['sha256'], 'complete':True, 'contract_findings':[],
             'items':[{'task':'/old/'+t,'status':s} for t,s in states.items()]}
 
@@ -137,7 +137,7 @@ def test_controller_skips_pilots_when_incremental_plan_exists(tmp_path,monkeypat
     monkeypatch.setattr(core,'summarize',lambda *a,**k:outcome)
     state=core.drive(cfg,config_path,tmp_path/'loop-state.json')
     assert state['status']=='complete'
-    assert calls==['incremental',[1,2,3,4]]
+    assert calls==['incremental',[0,1,2,3]]
 
 
 def test_prebuild_uses_only_repair_subset(tmp_path,monkeypatch):

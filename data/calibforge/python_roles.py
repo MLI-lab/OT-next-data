@@ -5,6 +5,15 @@ import json
 import re
 from pathlib import Path, PurePosixPath
 from functools import lru_cache
+from contextvars import ContextVar
+
+# The task being converted. Reviewed records name their task; the file hashes
+# they also carry bind them to the exact files the decision is about.
+current_task = ContextVar('calibforge_task', default=None)
+
+
+def for_task(record):
+    return record['task'] == current_task.get()
 
 
 @lru_cache(maxsize=1)
@@ -28,8 +37,7 @@ def task_module_roles(files):
     The original grader hash is provenance; transformations of that grader do
     not change the instruction's ownership of these specific task modules.
     """
-    instruction=hashlib.sha256(files.get('instruction.md',b'')).hexdigest()
-    return [record for record in module_roles() if record['instruction_sha256']==instruction
+    return [record for record in module_roles() if for_task(record)
             and all(path in files and hashlib.sha256(files[path]).hexdigest()==digest
                     for path,digest in record['evidence_sha256'].items())]
 
@@ -55,9 +63,8 @@ def initialization_roles():
 
 
 def task_initialization_roles(files):
-    instruction=hashlib.sha256(files.get('instruction.md',b'')).hexdigest()
     script=hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()
-    return [record for record in initialization_roles() if record['instruction_sha256']==instruction
+    return [record for record in initialization_roles() if for_task(record)
             and record['test_script_sha256']==script]
 
 
@@ -132,7 +139,6 @@ def task_installation_role(call, paths, files):
     argv = call.args[0]
     if len(argv.elts) < 3 or paths(argv.elts[1]) != {'-c'}:
         return None
-    instruction = hashlib.sha256(files.get('instruction.md', b'')).hexdigest()
     digest = hashlib.sha256(ast.dump(call, include_attributes=False).encode()).hexdigest()
     for record in installation_roles():
         if record.get('requires_source_binding') and not any(
@@ -148,7 +154,7 @@ def task_installation_role(call, paths, files):
                                for path, body in files.items())):
                 continue
             executables = {'sys.executable'}
-        if (record['instruction_sha256'] == instruction and record['call_ast_sha256'] == digest
+        if (for_task(record) and record['call_ast_sha256'] == digest
                 and set(record['executables']) == executables):
             return record
     return None
@@ -310,8 +316,7 @@ def shell_task_launcher(line, files):
     import shlex
     instruction=files.get('instruction.md',b'').decode()
     service_role = next((record for record in service_roles()
-                         if record['line']==line
-                         and record['instruction_sha256']==hashlib.sha256(instruction.encode()).hexdigest()
+                         if record['line']==line and for_task(record)
                          and record['test_script_sha256']==hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()),None)
     background=line.endswith(' &')
     original_command=line[:-2] if background else line

@@ -117,7 +117,7 @@ def summarize(archive):
                     'benchmark_policy': False, 'reason': finding, 'evidence': str(path)})
             for item in items:
                 task = Path(item.get('task', '')).name
-                if number == 4:
+                if number == 0:
                     for check in item.get('checks', []):
                         if check['status'] not in ('passed', 'warning') and not (check['status'] == 'skipped' and check.get('optional')):
                             failures.append({'stage': number, 'task': task, 'status': check['status'],

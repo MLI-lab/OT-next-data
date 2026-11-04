@@ -73,7 +73,7 @@ def test_gpu_array_rejects_cpu_partition_before_writing(tmp_path, monkeypatch):
 
 def report_for(stage, shard, count, status='passed', complete=True, retries=None, contract_sha='c' * 64):
     tasks = shards.slice_of(TASKS, (shard, count), key=lambda t: t)
-    report = {'stage_layout': 'environment-first-v2', 'stage': stage, 'name': {2: 'oracle_validation', 3: 'nop_validation', 4: 'static_checks', 5: 'llm_rubric_review'}[stage], 'backend': 'apptainer', 'dry_run': False, 'complete': complete,
+    report = {'stage_layout': 'environment-first-v3', 'stage': stage, 'name': {2: 'oracle_validation', 3: 'nop_validation', 4: 'static_checks', 5: 'llm_rubric_review'}[stage], 'backend': 'apptainer', 'dry_run': False, 'complete': complete,
               'contract_sha256': contract_sha, 'shard': {'index': shard, 'count': count, 'tasks': tasks},
               'items': [{'task': f'/tasks/{t}', 'status': status, 'rewards': [1.0]} for t in tasks],
               'has_findings': status != 'passed', 'timing': {'slurm_job_id': f'{stage}{shard}', 'wall_seconds': 10}}
@@ -191,23 +191,6 @@ def test_shard_job_verifies_only_its_slice_of_the_materialized_tasks(tmp_path, m
     args.shard = None    # an unsharded job needs the whole inventory
     with pytest.raises(ValueError, match='differ from frozen contract'):
         contract_module.verify_materialized(args)
-
-
-def test_a_shard_refuses_to_derive_its_own_path_contract(tmp_path, monkeypatch):
-    from types import SimpleNamespace
-    from validation.stages import normalize_paths
-    import validation.contract, validation.task_inputs.selection
-    # Import first: a module first imported while the names below are patched would keep the patched functions.
-    import validation.stages.runner, validation.rules.static.instruction_suffix, validation.rules.static.task_absolute_path.repair  # noqa: F401
-    task = tmp_path / 'task-a'
-    task.mkdir()
-    monkeypatch.setattr(validation.contract, 'verify_materialized', lambda args: None)
-    monkeypatch.setattr(validation.task_inputs.selection, 'discover_tasks', lambda tasks: [task])
-    monkeypatch.setattr(validation.task_inputs.selection, 'select_paths', lambda tasks, args: tasks)
-    args = SimpleNamespace(fix_instruction_paths=True, dry_run=False, tasks=tmp_path, out=tmp_path / 'out',
-                           shard='0/2', _path_candidates=[task])
-    with pytest.raises(ValueError, match='resolve paths before preparing the contract of a sharded run'):
-        normalize_paths.prepare(args, [1, 4])
 
 
 def test_plan_cli_forwards_node_constraint(tmp_path, monkeypatch):

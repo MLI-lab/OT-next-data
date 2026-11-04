@@ -1,0 +1,2237 @@
+{
+  "archive": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/run-h200/submissions/d9f373311000/evidence.tar.gz",
+  "records": {
+    "results/path-normalization/68334076b544/normalization.json": {
+      "parent_contract_sha256": "39ca22f74a7dd191cced23cef4d75113891ae19ac9232f66ce627a8f03b3ee93",
+      "contract": "/tmp/1195453.helma/validation-d9f373311000/normalized-68334076b544.json",
+      "tasks": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/tasks",
+      "resolver_report": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/resolver-evidence.json"
+    },
+    "results/path-normalization/68334076b544/resolver-evidence.json": {
+      "stage": 2,
+      "stage_layout": "environment-first-v2",
+      "purpose": "path-discovery-only",
+      "items": [
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-pysnooper-1",
+          "status": "passed",
+          "instruction_path_diagnostics": [
+            {
+              "agent_baseline": {
+                "task": "bugsinpy-original-pysnooper-1",
+                "task_sha256": "ad71795020d42b3cd8dad986572918e039185b63e52c115d9e607015072593fb",
+                "instruction_sha256": "a98357ae3dbf005da9dccf9953089261cdfd210e7654d5eac736fb7ec67df1be",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "tracer.py",
+                    "status": "unique",
+                    "matches": [
+                      "/app/pysnooper/tracer.py"
+                    ],
+                    "absolute_path": "/app/pysnooper/tracer.py",
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-and-healthcheck-before-agent",
+                "healthcheck": {
+                  "status": "not-configured",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-yivklg89/path-check/bugsinpy-original-pysnooper-1/instruction.md: relative paths used (should be absolute under /app): tracer.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "tracer.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/tracer.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": "",
+                "reference_unavailable": false
+              },
+              "observations": [],
+              "reference_unavailable": false
+            }
+          ]
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-black-6",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            20.9
+          ],
+          "agent_seconds": [
+            0.8
+          ],
+          "verifier_seconds": [
+            7.2
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "b1a4a928679c3a1c306bd2ce906835d9b2c223c56068f0798aead5ab0ccd01b6",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/black.py",
+                  "size": 130499,
+                  "sha256": "0e9a98b142bdba1896799c816f788e524cd801528cc42b760ada158da52ff299"
+                },
+                {
+                  "path": "/app/blib2to3/pgen2/driver.py",
+                  "size": 7879,
+                  "sha256": "2c6cdd2fb284a915dd22d59ecc5533ca3c43516f827b4457b789582f9e14b600"
+                },
+                {
+                  "path": "/app/blib2to3/pgen2/driver.pyi",
+                  "size": 1192,
+                  "sha256": "24df6b55331391c7704c38d3f46f8b83cf507b3a7d5a7c5db55852589c836ed0"
+                },
+                {
+                  "path": "/app/blib2to3/pgen2/tokenize.py",
+                  "size": 21600,
+                  "sha256": "527b8d893401e6dbc12c6fafafb9ae4cf0c7dd4a4990259a8c0da909b2eb04f5"
+                },
+                {
+                  "path": "/app/blib2to3/pgen2/tokenize.pyi",
+                  "size": 1107,
+                  "sha256": "ec5b90cf91c5273310d092797a7579652920172b54a811549e492786bf591c92"
+                },
+                {
+                  "path": "/app/tests/test_black.py",
+                  "size": 67590,
+                  "sha256": "8a9894be0fd5829631a32722a60558910ebaf104e30bb1c1711369d65d62f4d6"
+                },
+                {
+                  "path": "/app/tests/data/async_as_identifier.py",
+                  "size": 495,
+                  "sha256": "3ddefc297ba6538d32161c36df8f6b86f657d728044fc704170bb85dc81bef04"
+                },
+                {
+                  "path": "/app/tests/data/python37.py",
+                  "size": 1170,
+                  "sha256": "3fc664b2b747fae51edc7fb1848d7e1ff4fe13cb77cb448fe6ce617414d8da84"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-black-6",
+                "task_sha256": "a4a94d4ef94658d9e130a05688a26750a4678e1ecb977ae2b5807444f3435ce6",
+                "instruction_sha256": "c743e84a58e98d925841d0159cf28d7af8df002a1c9b5d8cbb6288103261248f",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "test_asyncgen.py",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-c8f98uhr/path-check/bugsinpy-original-black-6/instruction.md: relative paths used (should be absolute under /app): test_asyncgen.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "test_asyncgen.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/test_asyncgen.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-black-6",
+                  "task_sha256": "a4a94d4ef94658d9e130a05688a26750a4678e1ecb977ae2b5807444f3435ce6",
+                  "instruction_sha256": "c743e84a58e98d925841d0159cf28d7af8df002a1c9b5d8cbb6288103261248f",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "test_asyncgen.py",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-8gkoe65g/path-check/bugsinpy-original-black-6/instruction.md: relative paths used (should be absolute under /app): test_asyncgen.py\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "test_asyncgen.py"
+                  ],
+                  "instruction_path_hints": [
+                    "/app"
+                  ],
+                  "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/test_asyncgen.py' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-black-14",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            21.6
+          ],
+          "agent_seconds": [
+            0.8
+          ],
+          "verifier_seconds": [
+            7.9
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "6b9f6ad4285790d400876e616d59f52732fd3a8a3b52793f0f72ccb2247dae35",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/black.py",
+                  "size": 117032,
+                  "sha256": "92b276dcfe2528314c554a840a92fcc4898cfe6994a53a0ebd932484b85ade3f"
+                },
+                {
+                  "path": "/app/tests/test_black.py",
+                  "size": 52463,
+                  "sha256": "1cafa668ae09eb5c594e902120005f46c4276dd733a75286eea9ea13c8fc23c3"
+                },
+                {
+                  "path": "/app/tests/data/python2_unicode_literals.py",
+                  "size": 433,
+                  "sha256": "8f34d395a645b12fd6fbf464264e45e1644bf3c94d30671f54ca3c79dd589b3d"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-black-14",
+                "task_sha256": "2b04a14e33ed2b85856f9933d1c38cf0e95f57f94ce80afd0bf49da88152e447",
+                "instruction_sha256": "f43b6b960859ba7d9bf05101a36af02a08f954882a463a4030c84fd76398019c",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "test2.py",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-_vx2bizs/path-check/bugsinpy-original-black-14/instruction.md: relative paths used (should be absolute under /app): test2.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "test2.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/test2.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-black-14",
+                  "task_sha256": "2b04a14e33ed2b85856f9933d1c38cf0e95f57f94ce80afd0bf49da88152e447",
+                  "instruction_sha256": "f43b6b960859ba7d9bf05101a36af02a08f954882a463a4030c84fd76398019c",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "test2.py",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-grw09gsa/path-check/bugsinpy-original-black-14/instruction.md: relative paths used (should be absolute under /app): test2.py\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "test2.py"
+                  ],
+                  "instruction_path_hints": [
+                    "/app"
+                  ],
+                  "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/test2.py' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-black-20",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            20.6
+          ],
+          "agent_seconds": [
+            0.8
+          ],
+          "verifier_seconds": [
+            7.0
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "c827bb8edcd787bd982b9b3290bda71cbc624ca956d4d4a5845fce8351d5ac5d",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/README.md",
+                  "size": 24615,
+                  "sha256": "46ca67ac62816f35deadb5b5ab54e8d5689a93896a7f8a59c59bfa6e9c0d4d9a"
+                },
+                {
+                  "path": "/app/black.py",
+                  "size": 83519,
+                  "sha256": "0d69b79a8352f3bf628057fd12e79b26c72144f780a4ca34ea0a57dbdf22d335"
+                },
+                {
+                  "path": "/app/tests/test_black.py",
+                  "size": 24986,
+                  "sha256": "5beb5dab86933fb669d6b36dbfda679120f1e141bf8aaabbb874fd051341d29e"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-black-20",
+                "task_sha256": "dfba33d23defa2cacae4c44057a771f35381850b0a8f5b5621b8f6256a4f2f5b",
+                "instruction_sha256": "ab6f80cb4e0ef4cb86f15f3fcdb8b7ac8601828813d36d79eca2343a80101f07",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "path/to/foo.py",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-c15qwv8i/path-check/bugsinpy-original-black-20/instruction.md: relative paths used (should be absolute under /app): path/to/foo.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "path/to/foo.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/path/to/foo.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-black-20",
+                  "task_sha256": "dfba33d23defa2cacae4c44057a771f35381850b0a8f5b5621b8f6256a4f2f5b",
+                  "instruction_sha256": "ab6f80cb4e0ef4cb86f15f3fcdb8b7ac8601828813d36d79eca2343a80101f07",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "path/to/foo.py",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-syme847z/path-check/bugsinpy-original-black-20/instruction.md: relative paths used (should be absolute under /app): path/to/foo.py\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "path/to/foo.py"
+                  ],
+                  "instruction_path_hints": [
+                    "/app"
+                  ],
+                  "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/path/to/foo.py' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-luigi-9",
+          "status": "passed",
+          "instruction_path_diagnostics": [
+            {
+              "agent_baseline": {
+                "task": "bugsinpy-original-luigi-9",
+                "task_sha256": "62f69b3776ca56bd79524f44a6c52d00c1ae505e547768b67e7739f13c5c5f75",
+                "instruction_sha256": "4a0a98a62d1f8c9fb781db8b635df8571ce5ba5561a6ff75277060f8c70e139b",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "examples/foo.py",
+                    "status": "unique",
+                    "matches": [
+                      "/app/examples/foo.py"
+                    ],
+                    "absolute_path": "/app/examples/foo.py",
+                    "resolves_from_start": true
+                  },
+                  {
+                    "relative_path": "luigi.cfg",
+                    "status": "unique",
+                    "matches": [
+                      "/app/test/testconfig/luigi.cfg"
+                    ],
+                    "absolute_path": "/app/test/testconfig/luigi.cfg",
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-and-healthcheck-before-agent",
+                "healthcheck": {
+                  "status": "not-configured",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-ox7cpwo3/path-check/bugsinpy-original-luigi-9/instruction.md: relative paths used (should be absolute under /app): luigi.cfg, examples/foo.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "examples/foo.py",
+                  "luigi.cfg"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/examples/foo.py' -o -path '*/luigi.cfg' ')' -print0",
+                "exit_code": 0,
+                "stderr": "",
+                "reference_unavailable": false
+              },
+              "observations": [],
+              "reference_unavailable": false
+            }
+          ]
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-scrapy-19",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            53.8
+          ],
+          "agent_seconds": [
+            2.6
+          ],
+          "verifier_seconds": [
+            13.1
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "6b6853a2b25b106281fd19af3de16a5b50e023c78fed79ccf71a4997647f53b0",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/scrapy/http/cookies.py",
+                  "size": 5789,
+                  "sha256": "5bb4b5948952aeb9399dd4293f6025080ede365ea0df96541f3ffc226c5074c8"
+                },
+                {
+                  "path": "/app/tests/test_http_cookies.py",
+                  "size": 2797,
+                  "sha256": "3e7e89481044d8460de3d69230ef88a972f804aab52288b250870b3962aa508c"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-scrapy-19",
+                "task_sha256": "1e17b70cc01ae62249ab6cfb6718d526137c5421ef205d9ad281836470ce7f84",
+                "instruction_sha256": "b82e26d5a4ec88fa8273f6775550b9059b7aab057d991258d3608bf2c30d118c",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "secure_cookie_spider.py",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-xrcx6j0a/path-check/bugsinpy-original-scrapy-19/instruction.md: relative paths used (should be absolute under /app): secure_cookie_spider.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "secure_cookie_spider.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/secure_cookie_spider.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-scrapy-19",
+                  "task_sha256": "1e17b70cc01ae62249ab6cfb6718d526137c5421ef205d9ad281836470ce7f84",
+                  "instruction_sha256": "b82e26d5a4ec88fa8273f6775550b9059b7aab057d991258d3608bf2c30d118c",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "secure_cookie_spider.py",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-va6_2521/path-check/bugsinpy-original-scrapy-19/instruction.md: relative paths used (should be absolute under /app): secure_cookie_spider.py\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "secure_cookie_spider.py"
+                  ],
+                  "instruction_path_hints": [
+                    "/app"
+                  ],
+                  "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/secure_cookie_spider.py' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-scrapy-20",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            53.3
+          ],
+          "agent_seconds": [
+            2.8
+          ],
+          "verifier_seconds": [
+            12.6
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "a32064d1429d11ac893de3adfb508b3233e2c0a82167c9e53c24e8374218c847",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/scrapy/spiders/sitemap.py",
+                  "size": 2736,
+                  "sha256": "18edfdba87e941f2720764eb4400a5cb896ea01c5e5a80468c35a68d07f38dc5"
+                },
+                {
+                  "path": "/app/tests/test_spider.py",
+                  "size": 14683,
+                  "sha256": "9b886dd79c58b7b0f6f0ff295f335eef628b477ee5714b2d6d3abd2cf007fe2f"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-scrapy-20",
+                "task_sha256": "20b043cd1645e7580ef7893b6b1cbf841a1c97f22ef10b9ad3a9b53100713985",
+                "instruction_sha256": "b63cdb1c7d75dcfc7183a0d66fd78a5752e99f7f4255ee32cd5a56098b787a38",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "robots.txt",
+                    "status": "unique",
+                    "matches": [
+                      "/app/.deps/tornado/test/static/robots.txt"
+                    ],
+                    "absolute_path": "/app/.deps/tornado/test/static/robots.txt",
+                    "resolves_from_start": false
+                  },
+                  {
+                    "relative_path": "sitemap_spider.py",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-j2frf0l9/path-check/bugsinpy-original-scrapy-20/instruction.md: relative paths used (should be absolute under /app): robots.txt, sitemap_spider.py, robots.txt\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "robots.txt",
+                  "sitemap_spider.py"
+                ],
+                "instruction_path_hints": [
+                  "/2016",
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /2016 /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/robots.txt' -o -path '*/sitemap_spider.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-scrapy-20",
+                  "task_sha256": "20b043cd1645e7580ef7893b6b1cbf841a1c97f22ef10b9ad3a9b53100713985",
+                  "instruction_sha256": "b63cdb1c7d75dcfc7183a0d66fd78a5752e99f7f4255ee32cd5a56098b787a38",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "robots.txt",
+                      "status": "unique",
+                      "matches": [
+                        "/app/.deps/tornado/test/static/robots.txt"
+                      ],
+                      "absolute_path": "/app/.deps/tornado/test/static/robots.txt",
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    },
+                    {
+                      "relative_path": "sitemap_spider.py",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-cfi40zki/path-check/bugsinpy-original-scrapy-20/instruction.md: relative paths used (should be absolute under /app): robots.txt, sitemap_spider.py, robots.txt\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "robots.txt",
+                    "sitemap_spider.py"
+                  ],
+                  "instruction_path_hints": [
+                    "/2016",
+                    "/app"
+                  ],
+                  "hint_roots_command": "for p in /2016 /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/robots.txt' -o -path '*/sitemap_spider.py' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-tornado-1",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            31.4
+          ],
+          "agent_seconds": [
+            2.6
+          ],
+          "verifier_seconds": [
+            8.6
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "6cb8f871baa777cfc43d8dc911a730f6d4c3b5e4320532e185b835d7eb0ec937",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/tornado/websocket.py",
+                  "size": 61125,
+                  "sha256": "d0108fda9a938afc4e483cecaf9c6f9d25ad0df7f2e4dc0578ef8c46a003043f"
+                },
+                {
+                  "path": "/app/tornado/test/websocket_test.py",
+                  "size": 27509,
+                  "sha256": "9678331d294b7ef3137ddbca0a94c73c16366b04112cefdeacae42380c00fb53"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-tornado-1",
+                "task_sha256": "6b5884429fee01af6c10a5439c1de247bc77006aeebf144106be393db1f1ee60",
+                "instruction_sha256": "ac69409ba89b08a3b295f52aa0b1ab94d170e3b9ecfd8317285cc079604c3b5b",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "../tornado/websocket.py",
+                    "status": "unsupported",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-zz53v2o8/path-check/bugsinpy-original-tornado-1/instruction.md: relative paths used (should be absolute under /app): ../tornado/websocket.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "../tornado/websocket.py"
+                ],
+                "instruction_path_hints": []
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-tornado-1",
+                  "task_sha256": "6b5884429fee01af6c10a5439c1de247bc77006aeebf144106be393db1f1ee60",
+                  "instruction_sha256": "ac69409ba89b08a3b295f52aa0b1ab94d170e3b9ecfd8317285cc079604c3b5b",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "../tornado/websocket.py",
+                      "status": "unsupported",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-yv9a34e5/path-check/bugsinpy-original-tornado-1/instruction.md: relative paths used (should be absolute under /app): ../tornado/websocket.py\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "../tornado/websocket.py"
+                  ],
+                  "instruction_path_hints": []
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-tornado-10",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            32.1
+          ],
+          "agent_seconds": [
+            2.8
+          ],
+          "verifier_seconds": [
+            8.3
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "5f58fe33e56a711d7a8c7133cf376fa8b333a5620efc39080ad23bfe27dc8a23",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/maint/test/appengine/py27/tornado/web.py",
+                  "size": 129425,
+                  "sha256": "2bf72996fa68d8876a6899722091d2b3161340e4e5d28257473a88bf279fd231"
+                },
+                {
+                  "path": "/app/maint/test/appengine/py27/tornado/websocket.py",
+                  "size": 47684,
+                  "sha256": "5322ce0787b6f14d8a4c49177eaa64696ca62e65756e9f5e440223be1d1ded24"
+                },
+                {
+                  "path": "/app/maint/test/appengine/py27/tornado/test/websocket_test.py",
+                  "size": 22458,
+                  "sha256": "24763895e75a2fdcbc74090f8e612976790a41332b52f930ef14d55f0a0ce1d1"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-tornado-10",
+                "task_sha256": "42a9ec9138f3bc308d2c5e5a45d456a09aac4e447aa3d2e8ee7c4e1b758b3ec0",
+                "instruction_sha256": "5a53be10e3d9c1a7c9db625cbbb18f7d4ca89f94f1ec3209301b5b070535f763",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "tornado/demos/websocket/chatdemo.py",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-kc_1ohta/path-check/bugsinpy-original-tornado-10/instruction.md: relative paths used (should be absolute under /app): tornado/demos/websocket/chatdemo.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "tornado/demos/websocket/chatdemo.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/tornado/demos/websocket/chatdemo.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-tornado-10",
+                  "task_sha256": "42a9ec9138f3bc308d2c5e5a45d456a09aac4e447aa3d2e8ee7c4e1b758b3ec0",
+                  "instruction_sha256": "5a53be10e3d9c1a7c9db625cbbb18f7d4ca89f94f1ec3209301b5b070535f763",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "tornado/demos/websocket/chatdemo.py",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-2514ntiq/path-check/bugsinpy-original-tornado-10/instruction.md: relative paths used (should be absolute under /app): tornado/demos/websocket/chatdemo.py\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "tornado/demos/websocket/chatdemo.py"
+                  ],
+                  "instruction_path_hints": [
+                    "/app"
+                  ],
+                  "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/tornado/demos/websocket/chatdemo.py' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-tornado-14",
+          "status": "passed",
+          "instruction_path_diagnostics": [
+            {
+              "agent_baseline": {
+                "task": "bugsinpy-original-tornado-14",
+                "task_sha256": "254414c22d9b9a188931de35673d992b269575c035be2ac00191fc6a4a2c29ea",
+                "instruction_sha256": "f6c7f4748a09c7ec887a8c581cec48fb69de944445ac16eda59afd2bf7252b76",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "ioloop.py",
+                    "status": "unique",
+                    "matches": [
+                      "/app/tornado/ioloop.py"
+                    ],
+                    "absolute_path": "/app/tornado/ioloop.py",
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-and-healthcheck-before-agent",
+                "healthcheck": {
+                  "status": "not-configured",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-88vpmtdc/path-check/bugsinpy-original-tornado-14/instruction.md: relative paths used (should be absolute under /app): ioloop.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "ioloop.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/ioloop.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": "",
+                "reference_unavailable": false
+              },
+              "observations": [],
+              "reference_unavailable": false
+            }
+          ]
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-youtube-dl-2",
+          "status": "passed",
+          "instruction_path_diagnostics": [
+            {
+              "agent_baseline": {
+                "task": "bugsinpy-original-youtube-dl-2",
+                "task_sha256": "be4e36febccdb4340bff44ec2dcd52fc0419c2b03b679a6b29d32276a323280b",
+                "instruction_sha256": "df0e79fe41bd29b1d2973b12fdb5461f7575ecb29c3b76c5e2ad43da73a63719",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "YoutubeDL.py",
+                    "status": "unique",
+                    "matches": [
+                      "/app/youtube_dl/YoutubeDL.py"
+                    ],
+                    "absolute_path": "/app/youtube_dl/YoutubeDL.py",
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-and-healthcheck-before-agent",
+                "healthcheck": {
+                  "status": "not-configured",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-snz08z1p/path-check/bugsinpy-original-youtube-dl-2/instruction.md: relative paths used (should be absolute under /app): YoutubeDL.py, YoutubeDL.py, YoutubeDL.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "YoutubeDL.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/YoutubeDL.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": "",
+                "reference_unavailable": false
+              },
+              "observations": [],
+              "reference_unavailable": false
+            }
+          ]
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-youtube-dl-16",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            21.3
+          ],
+          "agent_seconds": [
+            0.7
+          ],
+          "verifier_seconds": [
+            5.8
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "f04ce8cbc5834cfc26ce93287ccb7c563593884dd7a0a57e9d52750e5777b34e",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/ChangeLog",
+                  "size": 82484,
+                  "sha256": "6d4064dc28521660c0c8a22307284a35a25916f34b00a4ad70fb65f41d2fb7e4"
+                },
+                {
+                  "path": "/app/test/test_utils.py",
+                  "size": 59410,
+                  "sha256": "95e073b6e562d1b9ad34d91e3dd216c62ec592a837a606e04e059cd68c587fc3"
+                },
+                {
+                  "path": "/app/youtube_dl/utils.py",
+                  "size": 126864,
+                  "sha256": "b4273a1be2eac54ebabf4f7db53b3d28059391c20f41e2ba82231114de691177"
+                },
+                {
+                  "path": "/app/youtube_dl/postprocessor/ffmpeg.py",
+                  "size": 23825,
+                  "sha256": "038d49b79df2d78b5b9aeff2f3283282861369fd8809c4daa7ee198ba3755109"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-youtube-dl-16",
+                "task_sha256": "a0ef653713231f882f85ce43e8682fbddb4a6a9912d623956fb8dd1ead83e6dc",
+                "instruction_sha256": "03170998ae9031b04a5ebd1d253bd8602a2144045258a73e9663a7a461ee4424",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "ITVHub_VLog.txt",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  },
+                  {
+                    "relative_path": "youtube-dl.exe",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-5x1yyyvv/path-check/bugsinpy-original-youtube-dl-16/instruction.md: relative paths used (should be absolute under /app): youtube-dl.exe, ITVHub_VLog.txt\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "ITVHub_VLog.txt",
+                  "youtube-dl.exe"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/ITVHub_VLog.txt' -o -path '*/youtube-dl.exe' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-youtube-dl-16",
+                  "task_sha256": "a0ef653713231f882f85ce43e8682fbddb4a6a9912d623956fb8dd1ead83e6dc",
+                  "instruction_sha256": "03170998ae9031b04a5ebd1d253bd8602a2144045258a73e9663a7a461ee4424",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "ITVHub_VLog.txt",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    },
+                    {
+                      "relative_path": "youtube-dl.exe",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-_hgw9d7p/path-check/bugsinpy-original-youtube-dl-16/instruction.md: relative paths used (should be absolute under /app): youtube-dl.exe, ITVHub_VLog.txt\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "ITVHub_VLog.txt",
+                    "youtube-dl.exe"
+                  ],
+                  "instruction_path_hints": [
+                    "/app"
+                  ],
+                  "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/ITVHub_VLog.txt' -o -path '*/youtube-dl.exe' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-youtube-dl-36",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            20.6
+          ],
+          "agent_seconds": [
+            0.7
+          ],
+          "verifier_seconds": [
+            6.5
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "fc1d5c84ac395b4f771dcb8d859ebaf8d079caf3c8f10978aba2653e465c747c",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/test/test_all_urls.py",
+                  "size": 9156,
+                  "sha256": "2dbb5691a894b70c159f5bd0789b3b3ec573f3300b3613c61eeb240819560a22"
+                },
+                {
+                  "path": "/app/youtube_dl/extractor/facebook.py",
+                  "size": 5416,
+                  "sha256": "5119a4c8b8ed99e9d788d8a52c701415dcf78ae0948c71a2feee9548e56f6593"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-youtube-dl-36",
+                "task_sha256": "1c8b7d823df110c8df60483b06fbb52286253ca08791c71d9b2f7f9bce7977ab",
+                "instruction_sha256": "af50c1d810d72edecae63c5894c3dab385fe794e1162c0c2f2f916dcf1166412",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "1792-2/10536074_10152184002010793_1325312948_n.mp4",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  },
+                  {
+                    "relative_path": "_-10152183998945793.mp4",
+                    "status": "missing",
+                    "matches": [],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-trvvpz1f/path-check/bugsinpy-original-youtube-dl-36/instruction.md: relative paths used (should be absolute under /app): _-10152183998945793.mp4, 1792-2/10536074_10152184002010793_1325312948_n.mp4\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "1792-2/10536074_10152184002010793_1325312948_n.mp4",
+                  "_-10152183998945793.mp4"
+                ],
+                "instruction_path_hints": [
+                  "/app",
+                  "/edit",
+                  "/ph",
+                  "/photo.ph",
+                  "/photo.php"
+                ],
+                "hint_roots_command": "for p in /app /edit /ph /photo.ph /photo.php; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/1792-2/10536074_10152184002010793_1325312948_n.mp4' -o -path '*/_-10152183998945793.mp4' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-youtube-dl-36",
+                  "task_sha256": "1c8b7d823df110c8df60483b06fbb52286253ca08791c71d9b2f7f9bce7977ab",
+                  "instruction_sha256": "af50c1d810d72edecae63c5894c3dab385fe794e1162c0c2f2f916dcf1166412",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "1792-2/10536074_10152184002010793_1325312948_n.mp4",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    },
+                    {
+                      "relative_path": "_-10152183998945793.mp4",
+                      "status": "missing",
+                      "matches": [],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-89_eph2v/path-check/bugsinpy-original-youtube-dl-36/instruction.md: relative paths used (should be absolute under /app): _-10152183998945793.mp4, 1792-2/10536074_10152184002010793_1325312948_n.mp4\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "1792-2/10536074_10152184002010793_1325312948_n.mp4",
+                    "_-10152183998945793.mp4"
+                  ],
+                  "instruction_path_hints": [
+                    "/app",
+                    "/edit",
+                    "/ph",
+                    "/photo.ph",
+                    "/photo.php"
+                  ],
+                  "hint_roots_command": "for p in /app /edit /ph /photo.ph /photo.php; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/1792-2/10536074_10152184002010793_1325312948_n.mp4' -o -path '*/_-10152183998945793.mp4' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        },
+        {
+          "task": "/tmp/1195453.helma/validation-d9f373311000/tasks/bugsinpy-original-youtube-dl-41",
+          "status": "passed",
+          "findings": [],
+          "rewards": [
+            1.0
+          ],
+          "trial_seconds": [
+            20.6
+          ],
+          "agent_seconds": [
+            0.7
+          ],
+          "verifier_seconds": [
+            6.8
+          ],
+          "reference_file_fingerprints": [
+            {
+              "version": 1,
+              "task_sha256": "1e648a0a2b0b770ea56d5332cc08a1d87881c596758416cf05cf0a0c459ab944",
+              "status": "completed",
+              "phase": "after-setup-before-verifier",
+              "scope": "Regular-file contents under the initial agent working directory; .git excluded.",
+              "files": [
+                {
+                  "path": "/app/test/test_utils.py",
+                  "size": 9658,
+                  "sha256": "0c4a3ba6246b7b9ea36401c81454ab6e9cb9718ca9c4cfe7d16788afd61487ca"
+                },
+                {
+                  "path": "/app/youtube_dl/utils.py",
+                  "size": 39639,
+                  "sha256": "20b28205042058cef9238843ef00948248a814cc5486567b27468e8d073269d0"
+                }
+              ],
+              "deleted_files": [],
+              "workspace": "/app",
+              "errors": []
+            }
+          ],
+          "instruction_path_diagnostics": [
+            {
+              "agent": "oracle",
+              "agent_baseline": {
+                "task": "bugsinpy-original-youtube-dl-41",
+                "task_sha256": "6c9f0c28c3ea9f434a786470101f6490384d0d4dc0e46baa4ebd9a1e5117c5c0",
+                "instruction_sha256": "d36bf9781ace6000edada96620d54e03688ca949acbb1c4133d9a960c4d3fc89",
+                "search_roots": [
+                  "/app",
+                  "/workspace"
+                ],
+                "status": "completed",
+                "findings": [
+                  {
+                    "relative_path": "utils.py",
+                    "status": "ambiguous",
+                    "matches": [
+                      "/app/.deps/pkg_resources/_vendor/packaging/utils.py",
+                      "/app/.deps/setuptools/_vendor/packaging/utils.py",
+                      "/app/youtube_dl/utils.py"
+                    ],
+                    "absolute_path": null,
+                    "resolves_from_start": false
+                  }
+                ],
+                "observation_phase": "after-task-setup-before-reference-solution",
+                "healthcheck": {
+                  "status": "not-rerun-lifecycle-owned",
+                  "command": null
+                },
+                "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                "checker": {
+                  "check": "check-task-absolute-path.sh",
+                  "exit_code": 1,
+                  "stdout": "FAIL /tmp/1195453.helma/resolve-paths-wp0a14gl/path-check/bugsinpy-original-youtube-dl-41/instruction.md: relative paths used (should be absolute under /app): utils.py\n",
+                  "stderr": ""
+                },
+                "candidates": [
+                  "utils.py"
+                ],
+                "instruction_path_hints": [
+                  "/app"
+                ],
+                "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                "working_directory": "/app",
+                "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/utils.py' ')' -print0",
+                "exit_code": 0,
+                "stderr": ""
+              },
+              "automatic_replacement_allowed": false,
+              "observations": [
+                {
+                  "task": "bugsinpy-original-youtube-dl-41",
+                  "task_sha256": "6c9f0c28c3ea9f434a786470101f6490384d0d4dc0e46baa4ebd9a1e5117c5c0",
+                  "instruction_sha256": "d36bf9781ace6000edada96620d54e03688ca949acbb1c4133d9a960c4d3fc89",
+                  "search_roots": [
+                    "/app",
+                    "/workspace"
+                  ],
+                  "status": "completed",
+                  "findings": [
+                    {
+                      "relative_path": "utils.py",
+                      "status": "ambiguous",
+                      "matches": [
+                        "/app/.deps/pkg_resources/_vendor/packaging/utils.py",
+                        "/app/.deps/setuptools/_vendor/packaging/utils.py",
+                        "/app/youtube_dl/utils.py"
+                      ],
+                      "absolute_path": null,
+                      "resolves_from_start": false,
+                      "new_matches": [],
+                      "classification": "unchanged-from-agent-baseline",
+                      "automatic_replacement_allowed": false
+                    }
+                  ],
+                  "observation_phase": "after-reference-solution-before-verifier",
+                  "healthcheck": {
+                    "status": "not-rerun-lifecycle-owned",
+                    "command": null
+                  },
+                  "scope": "Filesystem observation at the recorded phase and environment; inspect healthcheck status. Unique means unique regular-file suffix within these roots, not unique in the entire image. Symlink directories are not followed. No instruction is rewritten.",
+                  "checker": {
+                    "check": "check-task-absolute-path.sh",
+                    "exit_code": 1,
+                    "stdout": "FAIL /tmp/1195453.helma/resolve-paths-e3a0xh9s/path-check/bugsinpy-original-youtube-dl-41/instruction.md: relative paths used (should be absolute under /app): utils.py\n",
+                    "stderr": ""
+                  },
+                  "candidates": [
+                    "utils.py"
+                  ],
+                  "instruction_path_hints": [
+                    "/app"
+                  ],
+                  "hint_roots_command": "for p in /app; do if [ -d \"$p\" ]; then printf \"%s\\n\" \"$p\"; elif [ -f \"$p\" ]; then dirname -- \"$p\"; fi; done",
+                  "working_directory": "/app",
+                  "command": "test -d /app && test -d /workspace && find -P /app /workspace -type d -name .git -prune -o -type f '(' -path '*/utils.py' ')' -print0",
+                  "exit_code": 0,
+                  "stderr": ""
+                }
+              ]
+            }
+          ],
+          "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/jobs/job",
+          "normal_baseline_status": "passed",
+          "listing_order": {
+            "normal_trials": 1,
+            "shuffled_trials": 1,
+            "shuffled_rewards": [
+              1.0
+            ],
+            "expected_reward": 1,
+            "status": "clean",
+            "reason": "all shuffled reference solution runs scored 1",
+            "job_dir": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/reference-shuffled-jobs/job"
+          },
+          "do_not_modify": {
+            "status": "not_applicable",
+            "reason": "no protected file in the instruction"
+          }
+        }
+      ]
+    },
+    "results/path-normalization/68334076b544/tasks/instruction-path-edits.json": {
+      "enabled": true,
+      "evidence_reports": [
+        "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/resolver-evidence.json"
+      ],
+      "tasks": [
+        {
+          "task": "bugsinpy-original-black-14",
+          "oracle_status": "passed",
+          "edits": []
+        },
+        {
+          "task": "bugsinpy-original-black-20",
+          "oracle_status": "passed",
+          "edits": []
+        },
+        {
+          "task": "bugsinpy-original-black-6",
+          "oracle_status": "passed",
+          "edits": []
+        },
+        {
+          "task": "bugsinpy-original-luigi-9",
+          "oracle_status": "passed",
+          "edits": [
+            {
+              "start": 194,
+              "end": 203,
+              "old": "luigi.cfg",
+              "new": "/app/test/testconfig/luigi.cfg",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            },
+            {
+              "start": 529,
+              "end": 544,
+              "old": "examples/foo.py",
+              "new": "/app/examples/foo.py",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            }
+          ]
+        },
+        {
+          "task": "bugsinpy-original-pysnooper-1",
+          "oracle_status": "passed",
+          "edits": [
+            {
+              "start": 405,
+              "end": 414,
+              "old": "tracer.py",
+              "new": "/app/pysnooper/tracer.py",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            }
+          ]
+        },
+        {
+          "task": "bugsinpy-original-scrapy-19",
+          "oracle_status": "passed",
+          "edits": []
+        },
+        {
+          "task": "bugsinpy-original-scrapy-20",
+          "oracle_status": "passed",
+          "edits": [
+            {
+              "start": 142,
+              "end": 152,
+              "old": "robots.txt",
+              "new": "/app/.deps/tornado/test/static/robots.txt",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            }
+          ]
+        },
+        {
+          "task": "bugsinpy-original-tornado-1",
+          "oracle_status": "passed",
+          "edits": []
+        },
+        {
+          "task": "bugsinpy-original-tornado-10",
+          "oracle_status": "passed",
+          "edits": []
+        },
+        {
+          "task": "bugsinpy-original-tornado-14",
+          "oracle_status": "passed",
+          "edits": [
+            {
+              "start": 90,
+              "end": 99,
+              "old": "ioloop.py",
+              "new": "/app/tornado/ioloop.py",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            }
+          ]
+        },
+        {
+          "task": "bugsinpy-original-youtube-dl-16",
+          "oracle_status": "passed",
+          "edits": []
+        },
+        {
+          "task": "bugsinpy-original-youtube-dl-2",
+          "oracle_status": "passed",
+          "edits": [
+            {
+              "start": 2415,
+              "end": 2427,
+              "old": "YoutubeDL.py",
+              "new": "/app/youtube_dl/YoutubeDL.py",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            },
+            {
+              "start": 2551,
+              "end": 2563,
+              "old": "YoutubeDL.py",
+              "new": "/app/youtube_dl/YoutubeDL.py",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            },
+            {
+              "start": 2692,
+              "end": 2704,
+              "old": "YoutubeDL.py",
+              "new": "/app/youtube_dl/YoutubeDL.py",
+              "phase": "after-setup",
+              "reason": "automatic unique observed path"
+            }
+          ]
+        },
+        {
+          "task": "bugsinpy-original-youtube-dl-36",
+          "oracle_status": "passed",
+          "edits": []
+        },
+        {
+          "task": "bugsinpy-original-youtube-dl-41",
+          "oracle_status": "passed",
+          "edits": []
+        }
+      ]
+    },
+    "results/path-normalization/68334076b544/tasks/source.json": {
+      "automation_changes": {
+        "bugsinpy-original-luigi-9": [
+          "relative-path-fix"
+        ],
+        "bugsinpy-original-pysnooper-1": [
+          "relative-path-fix"
+        ],
+        "bugsinpy-original-scrapy-20": [
+          "relative-path-fix"
+        ],
+        "bugsinpy-original-tornado-14": [
+          "relative-path-fix"
+        ],
+        "bugsinpy-original-youtube-dl-2": [
+          "relative-path-fix"
+        ]
+      },
+      "normalization": {
+        "operation": "automatic-instruction-normalization-v1",
+        "original_path": "/tmp/1195453.helma/validation-d9f373311000/tasks",
+        "description": "Our extension to the upstream Terminal-Bench suffix check appends the sentence when missing and overwrites the saved instruction.md in the validation copy; an existing canonical suffix is updated without duplication. Original inputs are unchanged.",
+        "sentence_template": "You have N seconds to complete this task. Do not cheat by using online solutions or hints specific to this task.",
+        "timeout_source": "[agent].timeout_sec",
+        "saved_dataset": "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/tasks",
+        "original_manifest_sha256": "0aaaa33c5615c4139b43bfec26d0da5c5663e8a93ee1a493001c17d1e97f9694",
+        "original_source_files": [],
+        "original_selection": {
+          "limit": null,
+          "task_id_range": null
+        },
+        "instruction_paths": {
+          "enabled": true,
+          "evidence_reports": [
+            "/tmp/1195453.helma/validation-d9f373311000/results/path-normalization/68334076b544/resolver-evidence.json"
+          ],
+          "tasks": [
+            {
+              "task": "bugsinpy-original-black-14",
+              "oracle_status": "passed",
+              "edits": []
+            },
+            {
+              "task": "bugsinpy-original-black-20",
+              "oracle_status": "passed",
+              "edits": []
+            },
+            {
+              "task": "bugsinpy-original-black-6",
+              "oracle_status": "passed",
+              "edits": []
+            },
+            {
+              "task": "bugsinpy-original-luigi-9",
+              "oracle_status": "passed",
+              "edits": [
+                {
+                  "start": 194,
+                  "end": 203,
+                  "old": "luigi.cfg",
+                  "new": "/app/test/testconfig/luigi.cfg",
+                  "phase": "after-setup",
+                  "reason": "automatic unique observed path"
+                },
+                {
+                  "start": 529,
+                  "end": 544,
+                  "old": "examples/foo.py",
+                  "new": "/app/examples/foo.py",
+                  "phase": "after-setup",
+                  "reason": "automatic unique observed path"
+                }
+              ]
+            },
+            {
+              "task": "bugsinpy-original-pysnooper-1",
+              "oracle_status": "passed",
+              "edits": [
+                {
+                  "start": 405,
+                  "end": 414,
+                  "old": "tracer.py",
+                  "new": "/app/pysnooper/tracer.py",
+                  "phase": "after-setup",
+                  "reason": "automatic unique observed path"
+                }
+              ]
+            },
+            {
+              "task": "bugsinpy-original-scrapy-19",
+              "oracle_status": "passed",
+              "edits": []
+            },
+            {
+              "task": "bugsinpy-original-scrapy-20",
+              "oracle_status": "passed",
+              "edits": [
+                {
+                  "start": 142,
+                  "end": 152,
+                  "old": "robots.txt",
+                  "new": "/app/.deps/tornado/test/static/robots.txt",
+                  "phase": "after-setup",
+                  "reason": "automatic unique observed path"
+                }
+              ]
+            },
+            {
+              "task": "bugsinpy-original-tornado-1",
+              "oracle_status": "passed",
+              "edits": []
+            },
+            {
+              "task": "bugsinpy-original-tornado-10",
+              "oracle_status": "passed",
+              "edits": []
+            },
+            {
+              "task": "bugsinpy-original-tornado-14",
+              "oracle_status": "passed",
+              "edits": [
+                {
+                  "start": 90,
+                  "end": 99,
+                  "old": "ioloop.py",
+                  "new": "/app/tornado/ioloop.py",
+                  "phase": "after-setup",
+                  "reason": "automatic unique observed path"
+                }
+              ]
+            },
+            {
+              "task": "bugsinpy-original-youtube-dl-16",
+              "oracle_status": "passed",
+              "edits": []
+            },
+            {
+              "task": "bugsinpy-original-youtube-dl-2",
+              "oracle_status": "passed",
+              "edits": [
+                {
+                  "start": 2415,
+                  "end": 2427,
+                  "old": "YoutubeDL.py",
+                  "new": "/app/youtube_dl/YoutubeDL.py",
+                  "phase": "after-setup",
+                  "reason": "automatic unique observed path"
+                },
+                {
+                  "start": 2551,
+                  "end": 2563,
+                  "old": "YoutubeDL.py",
+                  "new": "/app/youtube_dl/YoutubeDL.py",
+                  "phase": "after-setup",
+                  "reason": "automatic unique observed path"
+                },
+                {
+                  "start": 2692,
+                  "end": 2704,
+                  "old": "YoutubeDL.py",
+                  "new": "/app/youtube_dl/YoutubeDL.py",
+                  "phase": "after-setup",
+                  "reason": "automatic unique observed path"
+                }
+              ]
+            },
+            {
+              "task": "bugsinpy-original-youtube-dl-36",
+              "oracle_status": "passed",
+              "edits": []
+            },
+            {
+              "task": "bugsinpy-original-youtube-dl-41",
+              "oracle_status": "passed",
+              "edits": []
+            }
+          ]
+        },
+        "suffix_enabled": true,
+        "repository_leak_repair": {
+          "enabled": true,
+          "operation": "repository-timestamp-normalization-v3",
+          "description": "At every container start, after task setup, normalize tracked-file and directory timestamps to the HEAD commit time in working repositories discovered across the container filesystem. Preserve all Git refs, reflogs, objects, index contents and working-file contents. History findings are advisory; reference_leaks checks exact solution copies separately. Applies even when metadata.git_history_is_task_input is true. Original inputs and image definitions are unchanged.",
+          "cleanup_setup": "#!/bin/bash\n# ot-validation: repository-leak repair after task setup (generated)\nset -e\n/bin/sh -ec 'GIT_OPTIONAL_LOCKS=0; export GIT_OPTIONAL_LOCKS; out=${OT_REPOSITORY_REPAIR_REPORT:-/var/lib/ot-repository-repair.json}; mkdir -p \"$(dirname \"$out\")\"; command -v git >/dev/null 2>&1 || { echo \"repository leak repair: no git, nothing to do\"; printf '\"'\"'{\"version\":3,\"git\":false,\"repositories\":[]}\\n'\"'\"' > \"$out\"; exit 0; }; R=$(mktemp -d 2>/dev/null || { mkdir -p /tmp/ot-repair.$$ && echo /tmp/ot-repair.$$; }); i=0; seen=\"\"; discovery_status=completed; if ( export LC_ALL=C; ot_discovery=$(mktemp -d) || exit 2; trap '\"'\"'rm -rf -- \"$ot_discovery\"'\"'\"' EXIT; have=0; command -v git >/dev/null 2>&1 && have=1; echo \"git $have\"; find -L \"${OT_REPOSITORY_SCAN_ROOT:-/}\" \\( -samefile /proc -o -samefile /sys -o -samefile /dev \\) -prune -o \\( -type d -xtype l -exec sh -c '\"'\"'case \"$(readlink -f -- \"$1\")\" in /proc|/proc/*|/sys|/sys/*|/dev|/dev/*) exit 0;; *) exit 1;; esac'\"'\"' sh {} \\; \\) -prune -o \\( -name .git -print -prune \\) -o \\( -type f -name HEAD -print \\) > \"$ot_discovery/candidates\" 2> \"$ot_discovery/errors\"; ot_find_status=$?; ot_discovery_status=0; if [ \"$ot_find_status\" != 0 ]; then grep -v -E \"Permission denied|File system loop detected\" \"$ot_discovery/errors\" > \"$ot_discovery/fatal\" || true; if [ -s \"$ot_discovery/fatal\" ] || [ ! -s \"$ot_discovery/errors\" ]; then cat \"$ot_discovery/fatal\" >&2; ot_discovery_status=1; fi; fi; { pwd -P; while IFS= read -r candidate; do case \"$candidate\" in */.git) dirname -- \"$candidate\";; */HEAD) d=$(dirname -- \"$candidate\"); if [ -d \"$d/objects\" ] || [ -f \"$d/commondir\" ]; then printf \"%s\\n\" \"$d\"; fi;; esac; done < \"$ot_discovery/candidates\"; } | sort -u > \"$ot_discovery/roots\"; while IFS= read -r d; do [ -d \"$d\" ] || continue; d=$(cd \"$d\" && pwd -P) || continue; if [ -e \"$d/.git\" ]; then printf \"gitdir %s\\n\" \"$d\"; fi; if [ \"$have\" = 1 ]; then t=$(cd \"$d\" && git -c safe.directory='\"'\"'*'\"'\"' rev-parse --show-toplevel 2>/dev/null) && { printf \"repo %s\\n\" \"$t\"; continue; }; if [ \"$(cd \"$d\" && git -c safe.directory='\"'\"'*'\"'\"' rev-parse --is-bare-repository 2>/dev/null)\" = true ]; then printf \"bare %s\\n\" \"$d\"; elif [ -f \"$d/HEAD\" ] && [ -d \"$d/objects\" ]; then printf \"gitdir %s\\n\" \"$d\"; fi; fi; done < \"$ot_discovery/roots\" | sort -u; exit \"$ot_discovery_status\" ) > \"$R/discovery\" 2> \"$R/discovery-errors\"; then :; else discovery_status=incomplete; fi; sed -n '\"'\"'s/^repo //p'\"'\"' \"$R/discovery\" > \"$R/roots\"; while IFS= read -r d <&3; do [ -d \"$d\" ] || continue; top=$(cd \"$d\" && git -c safe.directory='\"'\"'*'\"'\"' rev-parse --show-toplevel 2>/dev/null) || continue; case \"$seen\" in *\"|$top|\"*) continue;; esac; seen=\"$seen|$top|\"; hv=1; (cd \"$top\" && git -c safe.directory='\"'\"'*'\"'\"' rev-parse -q --verify HEAD >/dev/null) || { (cd \"$top\" && git -c safe.directory='\"'\"'*'\"'\"' symbolic-ref -q HEAD >/dev/null) || continue; hv=0; }; i=$((i+1)); ( cd \"$top\" || exit 0; head=$(git -c safe.directory='\"'\"'*'\"'\"' rev-parse -q --verify HEAD || true); if [ $hv = 1 ]; then ( ( cd . || exit 3; ot_mtime_index=$(mktemp) || exit 4; trap '\"'\"'rm -f -- \"$ot_mtime_index\" \"$ot_mtime_index.lock\"'\"'\"' EXIT; ot_source_index=$(git -c safe.directory='\"'\"'*'\"'\"' rev-parse --git-path index) || exit 4; if [ -f \"$ot_source_index\" ]; then cp -- \"$ot_source_index\" \"$ot_mtime_index\" || exit 4; else rm -f -- \"$ot_mtime_index\"; fi; GIT_INDEX_FILE=$ot_mtime_index; export GIT_INDEX_FILE; { git -c safe.directory='\"'\"'*'\"'\"' diff --no-ext-diff --no-textconv --name-only -z HEAD -- 2>/dev/null | tr \"\\0\" \"\\n\" | sed \"s/^/D /\"; git -c safe.directory='\"'\"'*'\"'\"' ls-files -z | xargs -0 stat -c \"F %Y %n\" 2>/dev/null; git -c safe.directory='\"'\"'*'\"'\"' ls-tree -r -d -z --name-only HEAD | xargs -0 stat -c \"R %Y %n\" 2>/dev/null; } | awk '\"'\"'$1==\"D\"{d[substr($0,3)]=1; next} {n=substr($0, length($1)+length($2)+3)} $1==\"F\" && (n in d){dirty++; next} {print} END{print \"N\", dirty+0}'\"'\"' | sort -k2,2n | awk -v GAP=600 -v MAX=50 '\"'\"'$1==\"N\"{print; next} {k=$1; t=$2+0; n=substr($0, length($1)+length($2)+3); c[k]++; i=c[k]; tm[k,i]=t; nm[k,i]=n} END{for (k in c) { g=1; gs[k,1]=1; size[k,1]=1; for (i=2; i<=c[k]; i++) { if (tm[k,i]-tm[k,i-1] > GAP) { g++; gs[k,g]=i; size[k,g]=0 } size[k,g]++ } b=1; for (j=2; j<=g; j++) if (size[k,j] > size[k,b]) b=j; end=(b<g)?gs[k,b+1]-1:c[k]; later=c[k]-end; earlier=gs[k,b]-1; print \"S\", k, c[k], g, tm[k,1], tm[k,c[k]], tm[k,gs[k,b]], tm[k,end], earlier, later; shown=0; for (i=end+1; i<=c[k] && shown<MAX; i++) { print \"L\", k, tm[k,i], nm[k,i]; shown++ } } }'\"'\"') ) > \"$R/mt.$i\" 2>/dev/null; else : > \"$R/mt.$i\"; fi; mf=$(awk '\"'\"'$1==\"S\" && $2==\"F\"{print $3}'\"'\"' \"$R/mt.$i\"); ml=$(awk '\"'\"'$1==\"S\" && $2==\"F\"{print $10}'\"'\"' \"$R/mt.$i\"); mf=${mf:-0}; ml=${ml:-0}; mo=$(awk -v l=\"$ml\" -v c=\"$mf\" -v p=20 '\"'\"'BEGIN{print (l>0 && l*100<=p*c)?\"true\":\"false\"}'\"'\"'); st=done; if [ $hv = 1 ]; then T=$(git -c safe.directory='\"'\"'*'\"'\"' log -1 --format=%ct HEAD) && { printf \".\\0\"; git -c safe.directory='\"'\"'*'\"'\"' ls-files -z; git -c safe.directory='\"'\"'*'\"'\"' ls-tree -r -d -z --name-only HEAD; } | xargs -0 touch -c -h -d \"@$T\" || st=incomplete; fi; printf '\"'\"'{\"path\":%s,\"head\":\"%s\",\"status\":\"%s\",\"refs_deleted\":0,\"refs_deleted_examples\":[],\"history_preserved\":true,\"mtime_files\":%s,\"mtime_later\":%s,\"mtime_outlier\":%s,\"mtime_examples\":[%s]}'\"'\"' \"$(printf \"%s\\n\" \"$top\" | awk -v N=1 '\"'\"'NR<=N{gsub(/\\\\/,\"\\\\\\\\\"); gsub(/\"/,\"\\\\\\\"\"); printf \"%s\\\"%s\\\"\", (NR>1?\",\":\"\"), $0}'\"'\"')\" \"$head\" \"$st\" \"$mf\" \"$ml\" \"$mo\" \"$(awk '\"'\"'$1==\"L\" && $2==\"F\"{print substr($0, length($1)+length($2)+length($3)+4)}'\"'\"' \"$R/mt.$i\" | awk -v N=50 '\"'\"'NR<=N{gsub(/\\\\/,\"\\\\\\\\\"); gsub(/\"/,\"\\\\\\\"\"); printf \"%s\\\"%s\\\"\", (NR>1?\",\":\"\"), $0}'\"'\"')\" > \"$R/repo.$i.json\"; echo \"repository leak repair: $top $st\" ) || echo \"repository leak repair: $top incomplete\"; done 3< \"$R/roots\"; { printf '\"'\"'{\"version\":3,\"git\":true,\"discovery_status\":\"%s\",\"repositories\":['\"'\"' \"$discovery_status\"; sep=\"\";  for f in \"$R\"/repo.*.json; do [ -f \"$f\" ] || continue; printf \"%s\" \"$sep\"; cat \"$f\"; sep=\",\"; done; printf '\"'\"']}\\n'\"'\"'; } > \"$out\"; rm -rf \"$R\"; true'\n",
+          "setup_wrapper": "#!/bin/bash\n# ot-validation: repository-leak repair after task setup (generated)\nset -e\nbash /setup_files/ot-task-setup.sh \"$@\"\n/bin/sh -ec 'GIT_OPTIONAL_LOCKS=0; export GIT_OPTIONAL_LOCKS; out=${OT_REPOSITORY_REPAIR_REPORT:-/var/lib/ot-repository-repair.json}; mkdir -p \"$(dirname \"$out\")\"; command -v git >/dev/null 2>&1 || { echo \"repository leak repair: no git, nothing to do\"; printf '\"'\"'{\"version\":3,\"git\":false,\"repositories\":[]}\\n'\"'\"' > \"$out\"; exit 0; }; R=$(mktemp -d 2>/dev/null || { mkdir -p /tmp/ot-repair.$$ && echo /tmp/ot-repair.$$; }); i=0; seen=\"\"; discovery_status=completed; if ( export LC_ALL=C; ot_discovery=$(mktemp -d) || exit 2; trap '\"'\"'rm -rf -- \"$ot_discovery\"'\"'\"' EXIT; have=0; command -v git >/dev/null 2>&1 && have=1; echo \"git $have\"; find -L \"${OT_REPOSITORY_SCAN_ROOT:-/}\" \\( -samefile /proc -o -samefile /sys -o -samefile /dev \\) -prune -o \\( -type d -xtype l -exec sh -c '\"'\"'case \"$(readlink -f -- \"$1\")\" in /proc|/proc/*|/sys|/sys/*|/dev|/dev/*) exit 0;; *) exit 1;; esac'\"'\"' sh {} \\; \\) -prune -o \\( -name .git -print -prune \\) -o \\( -type f -name HEAD -print \\) > \"$ot_discovery/candidates\" 2> \"$ot_discovery/errors\"; ot_find_status=$?; ot_discovery_status=0; if [ \"$ot_find_status\" != 0 ]; then grep -v -E \"Permission denied|File system loop detected\" \"$ot_discovery/errors\" > \"$ot_discovery/fatal\" || true; if [ -s \"$ot_discovery/fatal\" ] || [ ! -s \"$ot_discovery/errors\" ]; then cat \"$ot_discovery/fatal\" >&2; ot_discovery_status=1; fi; fi; { pwd -P; while IFS= read -r candidate; do case \"$candidate\" in */.git) dirname -- \"$candidate\";; */HEAD) d=$(dirname -- \"$candidate\"); if [ -d \"$d/objects\" ] || [ -f \"$d/commondir\" ]; then printf \"%s\\n\" \"$d\"; fi;; esac; done < \"$ot_discovery/candidates\"; } | sort -u > \"$ot_discovery/roots\"; while IFS= read -r d; do [ -d \"$d\" ] || continue; d=$(cd \"$d\" && pwd -P) || continue; if [ -e \"$d/.git\" ]; then printf \"gitdir %s\\n\" \"$d\"; fi; if [ \"$have\" = 1 ]; then t=$(cd \"$d\" && git -c safe.directory='\"'\"'*'\"'\"' rev-parse --show-toplevel 2>/dev/null) && { printf \"repo %s\\n\" \"$t\"; continue; }; if [ \"$(cd \"$d\" && git -c safe.directory='\"'\"'*'\"'\"' rev-parse --is-bare-repository 2>/dev/null)\" = true ]; then printf \"bare %s\\n\" \"$d\"; elif [ -f \"$d/HEAD\" ] && [ -d \"$d/objects\" ]; then printf \"gitdir %s\\n\" \"$d\"; fi; fi; done < \"$ot_discovery/roots\" | sort -u; exit \"$ot_discovery_status\" ) > \"$R/discovery\" 2> \"$R/discovery-errors\"; then :; else discovery_status=incomplete; fi; sed -n '\"'\"'s/^repo //p'\"'\"' \"$R/discovery\" > \"$R/roots\"; while IFS= read -r d <&3; do [ -d \"$d\" ] || continue; top=$(cd \"$d\" && git -c safe.directory='\"'\"'*'\"'\"' rev-parse --show-toplevel 2>/dev/null) || continue; case \"$seen\" in *\"|$top|\"*) continue;; esac; seen=\"$seen|$top|\"; hv=1; (cd \"$top\" && git -c safe.directory='\"'\"'*'\"'\"' rev-parse -q --verify HEAD >/dev/null) || { (cd \"$top\" && git -c safe.directory='\"'\"'*'\"'\"' symbolic-ref -q HEAD >/dev/null) || continue; hv=0; }; i=$((i+1)); ( cd \"$top\" || exit 0; head=$(git -c safe.directory='\"'\"'*'\"'\"' rev-parse -q --verify HEAD || true); if [ $hv = 1 ]; then ( ( cd . || exit 3; ot_mtime_index=$(mktemp) || exit 4; trap '\"'\"'rm -f -- \"$ot_mtime_index\" \"$ot_mtime_index.lock\"'\"'\"' EXIT; ot_source_index=$(git -c safe.directory='\"'\"'*'\"'\"' rev-parse --git-path index) || exit 4; if [ -f \"$ot_source_index\" ]; then cp -- \"$ot_source_index\" \"$ot_mtime_index\" || exit 4; else rm -f -- \"$ot_mtime_index\"; fi; GIT_INDEX_FILE=$ot_mtime_index; export GIT_INDEX_FILE; { git -c safe.directory='\"'\"'*'\"'\"' diff --no-ext-diff --no-textconv --name-only -z HEAD -- 2>/dev/null | tr \"\\0\" \"\\n\" | sed \"s/^/D /\"; git -c safe.directory='\"'\"'*'\"'\"' ls-files -z | xargs -0 stat -c \"F %Y %n\" 2>/dev/null; git -c safe.directory='\"'\"'*'\"'\"' ls-tree -r -d -z --name-only HEAD | xargs -0 stat -c \"R %Y %n\" 2>/dev/null; } | awk '\"'\"'$1==\"D\"{d[substr($0,3)]=1; next} {n=substr($0, length($1)+length($2)+3)} $1==\"F\" && (n in d){dirty++; next} {print} END{print \"N\", dirty+0}'\"'\"' | sort -k2,2n | awk -v GAP=600 -v MAX=50 '\"'\"'$1==\"N\"{print; next} {k=$1; t=$2+0; n=substr($0, length($1)+length($2)+3); c[k]++; i=c[k]; tm[k,i]=t; nm[k,i]=n} END{for (k in c) { g=1; gs[k,1]=1; size[k,1]=1; for (i=2; i<=c[k]; i++) { if (tm[k,i]-tm[k,i-1] > GAP) { g++; gs[k,g]=i; size[k,g]=0 } size[k,g]++ } b=1; for (j=2; j<=g; j++) if (size[k,j] > size[k,b]) b=j; end=(b<g)?gs[k,b+1]-1:c[k]; later=c[k]-end; earlier=gs[k,b]-1; print \"S\", k, c[k], g, tm[k,1], tm[k,c[k]], tm[k,gs[k,b]], tm[k,end], earlier, later; shown=0; for (i=end+1; i<=c[k] && shown<MAX; i++) { print \"L\", k, tm[k,i], nm[k,i]; shown++ } } }'\"'\"') ) > \"$R/mt.$i\" 2>/dev/null; else : > \"$R/mt.$i\"; fi; mf=$(awk '\"'\"'$1==\"S\" && $2==\"F\"{print $3}'\"'\"' \"$R/mt.$i\"); ml=$(awk '\"'\"'$1==\"S\" && $2==\"F\"{print $10}'\"'\"' \"$R/mt.$i\"); mf=${mf:-0}; ml=${ml:-0}; mo=$(awk -v l=\"$ml\" -v c=\"$mf\" -v p=20 '\"'\"'BEGIN{print (l>0 && l*100<=p*c)?\"true\":\"false\"}'\"'\"'); st=done; if [ $hv = 1 ]; then T=$(git -c safe.directory='\"'\"'*'\"'\"' log -1 --format=%ct HEAD) && { printf \".\\0\"; git -c safe.directory='\"'\"'*'\"'\"' ls-files -z; git -c safe.directory='\"'\"'*'\"'\"' ls-tree -r -d -z --name-only HEAD; } | xargs -0 touch -c -h -d \"@$T\" || st=incomplete; fi; printf '\"'\"'{\"path\":%s,\"head\":\"%s\",\"status\":\"%s\",\"refs_deleted\":0,\"refs_deleted_examples\":[],\"history_preserved\":true,\"mtime_files\":%s,\"mtime_later\":%s,\"mtime_outlier\":%s,\"mtime_examples\":[%s]}'\"'\"' \"$(printf \"%s\\n\" \"$top\" | awk -v N=1 '\"'\"'NR<=N{gsub(/\\\\/,\"\\\\\\\\\"); gsub(/\"/,\"\\\\\\\"\"); printf \"%s\\\"%s\\\"\", (NR>1?\",\":\"\"), $0}'\"'\"')\" \"$head\" \"$st\" \"$mf\" \"$ml\" \"$mo\" \"$(awk '\"'\"'$1==\"L\" && $2==\"F\"{print substr($0, length($1)+length($2)+length($3)+4)}'\"'\"' \"$R/mt.$i\" | awk -v N=50 '\"'\"'NR<=N{gsub(/\\\\/,\"\\\\\\\\\"); gsub(/\"/,\"\\\\\\\"\"); printf \"%s\\\"%s\\\"\", (NR>1?\",\":\"\"), $0}'\"'\"')\" > \"$R/repo.$i.json\"; echo \"repository leak repair: $top $st\" ) || echo \"repository leak repair: $top incomplete\"; done 3< \"$R/roots\"; { printf '\"'\"'{\"version\":3,\"git\":true,\"discovery_status\":\"%s\",\"repositories\":['\"'\"' \"$discovery_status\"; sep=\"\";  for f in \"$R\"/repo.*.json; do [ -f \"$f\" ] || continue; printf \"%s\" \"$sep\"; cat \"$f\"; sep=\",\"; done; printf '\"'\"']}\\n'\"'\"'; } > \"$out\"; rm -rf \"$R\"; true'\n",
+          "applied_after_setup": 498,
+          "applied": 498,
+          "not_applied": {}
+        },
+        "parent_contract_sha256": "39ca22f74a7dd191cced23cef4d75113891ae19ac9232f66ce627a8f03b3ee93"
+      }
+    }
+  }
+}

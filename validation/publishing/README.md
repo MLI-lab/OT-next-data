@@ -12,34 +12,25 @@ All views include recorded timing and allocated resources. Unknown measurements 
 
 The v1 rule table shows total tasks, passed, failed, warnings, automatically repaired,
 unresolved, not applicable, and missing repair records. Counts and percentages use
-all latest task revisions in the dataset, including excluded tasks. Unresolved combines
+all tasks in the dataset, including excluded tasks. Unresolved combines
 infrastructure errors, incomplete checks and checks not run. Automatic repairs are
 recorded separately from final outcomes: a repaired task can still warn or fail.
 Only deterministic pipeline repairs count, never manual datasource repairs. Timestamp
 repairs require execution evidence; installing their setup script is not sufficient.
 The same counts are saved in `v1/rule-stats.json`.
 
-`results.parquet` stores revision-bound repair evidence in `automatic_repairs` as JSON
-keyed by rule name. Partial reruns preserve that evidence without double counting;
-changed revisions do not inherit it unless the pipeline records their provenance.
-Legacy contracts can recover recorded positive repair labels during result export;
-missing history remains unknown, not zero. This does not change check verdicts or
-add a manual approval step.
+`results.parquet` has one row per task and one column per check. Each cell holds
+the check's `status`, `repaired` for checks with an automatic repair, and one short
+`details` text; see the [rules README](../rules/README.md) for the fields and an
+example row. Partial reruns replace only the rerun checks' cells. When task files
+change, the row is replaced and checks not rerun become `not_requested`. The reader
+also accepts the earlier revision format, keeps its latest rows and converts
+`not_run`. A repair that was not recorded stays unknown, not `false`.
 
-Check verdicts remain separate columns. Schema version 2 stores their supporting
-reports in one JSON `details` column, keyed by check name (for example,
-`details["reference"]`). The reader also accepts older `<check>_details` columns;
-writing or merging those results converts them to the shared field. Partial reruns
-replace only the selected checks' details, and new task revisions start without
-the previous revision's evidence.
-
-Unresolved check records use `category`, `reason_code`, `phase` and
-`classification_version: 1`. The six categories are `skipped`,
-`infrastructure_error`, `timeout`, `oom`, `execution_error` and `unknown`.
-The exporter, publisher and retry controller share the classification in
-`validation/outcomes.py`. Original evidence is retained; historical retry
-exhaustion alone does not establish an infrastructure failure. See the
-[category descriptions](../rules/README.md).
+A check without a result has the reason as its status: `not_requested`,
+`not_applicable`, `blocked`, `infrastructure_error`, `timeout`, `oom`,
+`execution_error` or `unknown`. The exporter, publisher and retry controller share
+this classification in `validation/outcomes.py`.
 
 ## Generate locally
 
@@ -51,7 +42,7 @@ python -m validation.publishing.readme DATASET/results.parquet \
 
 Use `--view v2 --evaluation-key COLUMN` for the student evaluation. For v3, also supply `--student-key STUDENT_COLUMN`. Keys are the exact `passk_...` columns in the results table. V3 includes only newly solved tasks whose complete student evaluation had no success. Missing student attempts stay unresolved.
 
-Each command writes `vN/README.md`, `vN/selection.parquet` and its input metadata. Selections point to existing task revisions; tasks are not copied. The results index must contain published `task_file` pointers before generating selections. The publisher reads `allow_internet` from each task’s `task.toml` and saves it in the results index. V1 reports true, false, unspecified and unrecorded counts separately; these describe configuration, not verified network isolation. Only latest revisions are selected, so changing task content requires new validation evidence.
+Each command writes `vN/README.md`, `vN/selection.parquet` and its input metadata. Selections list task IDs and content hashes; tasks are not copied. Payloads are found by task ID and content hash in the folder's `tasks/` files. The publisher reads `allow_internet` from each task’s `task.toml` and saves it in the results index. V1 reports true, false, unspecified and unrecorded counts separately; these describe configuration, not verified network isolation. Changing task content replaces the task's row, so it requires new validation evidence.
 
 `run.json` supplies measured metadata and the required checks, for example:
 
@@ -89,4 +80,4 @@ The existing [publisher](publish.py) accepts `--release-spec releases.json` with
 }
 ```
 
-For v2 or v3 add `evaluation_key`, and for v3 `student_key`. Each folder gets a versioned card and selection, and its main README displays that release. Classification can come from the supplied file, `--readme` generation, or the existing published `annotation.json`. No payload history is deleted. The older `publish_pass_counts.py` remains for existing consumers; new release cards use this workflow.
+For v2 or v3 add `evaluation_key`, and for v3 `student_key`. Each folder gets a versioned card and selection, and its main README displays that release. Classification can come from the supplied file, `--readme` generation, or the existing published `annotation.json`. No payload history is deleted.

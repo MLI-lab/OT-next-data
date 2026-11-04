@@ -49,11 +49,7 @@ def category(record, verdict='not_run', phase='unknown'):
         return found('timeout', 'time_limit_reached')
     if INFRA.search(text):
         return found('infrastructure_error', 'infrastructure_failure')
-    # The old retry controller used this marker for *any* exhausted retry chain.
-    # That is missing evidence, not proof of infrastructure failure.
-    legacy_retry = record.get('infrastructure_error')
-    legacy_retry = isinstance(legacy_retry, dict) and set(legacy_retry) == {'observed'}
-    if (record.get('infrastructure_error') and not legacy_retry or
+    if (record.get('infrastructure_error') or
             record.get('failure_kind') == 'infrastructure' or
             status in ('infrastructure_error', 'infra_error')):
         return found('infrastructure_error', 'infrastructure_failure')
@@ -83,7 +79,7 @@ def category(record, verdict='not_run', phase='unknown'):
     if status in ('error', 'incomplete', 'failed', 'not_checked') and verdict == 'not_run':
         return found('execution_error' if text or status in ('error', 'incomplete') else 'unknown',
                      'execution_incomplete' if text or status in ('error', 'incomplete') else 'missing_evidence')
-    if verdict == 'not_run' or legacy_retry or record.get('unresolved_after_retries'):
+    if verdict == 'not_run' or record.get('unresolved_after_retries'):
         return found('unknown', 'missing_evidence')
     return None
 
@@ -100,10 +96,27 @@ def check_phase(name):
     return 'checker'
 
 
+RESULTS = ('pass', 'fail', 'warning')
+# A check without a result has its reason as its status.
+NO_RESULT = ('not_requested', 'not_applicable', 'blocked', 'infrastructure_error', 'timeout', 'oom',
+             'execution_error', 'unknown')
+SKIPPED = {'not_requested': 'not_requested', 'not_applicable': 'not_applicable',
+           'blocked_by_previous_check': 'blocked'}
+
+
+def status_of(issue):
+    if issue['category'] == 'skipped':
+        return SKIPPED.get(issue['reason_code'], 'not_requested')
+    return issue['category']
+
+
 def normalize(name, verdict, record):
+    """Final status of a check: pass, fail, warning, or the reason it has no result."""
     record = dict(record)
+    if verdict in NO_RESULT:
+        return verdict, record
     issue = category(record, verdict, check_phase(name))
     if issue:
         record.update(issue)
-        return 'not_run', record
+        return status_of(issue), record
     return verdict, record

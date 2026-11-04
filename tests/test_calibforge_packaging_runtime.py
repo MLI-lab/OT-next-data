@@ -10,6 +10,17 @@ import pytest
 from data.calibforge import packaging_runtime
 
 
+@pytest.fixture(autouse=True)
+def calibforge_task_fixture():
+    """Reviewed records name their task; tests convert the task named 'task'."""
+    from data.calibforge.python_roles import current_task
+    token = current_task.set('task')
+    yield
+    current_task.reset(token)
+
+
+
+
 def test_packaging_children_are_private_and_use_clean_pip(tmp_path,monkeypatch):
     calls=[]
     def allocate(**kwargs):
@@ -66,7 +77,7 @@ def test_packaging_adaptation_binds_instruction_source_and_project(tmp_path,monk
     files={'instruction.md':b'Fix the submitted package','tests/test_outputs.py':source,'environment/setup.py':b'package source'}
     digest=lambda body:hashlib.sha256(body).hexdigest()
     call=next(n for n in ast.walk(ast.parse(source)) if isinstance(n,ast.Call))
-    record=dict(source_file='tests/test_outputs.py',instruction_sha256=digest(files['instruction.md']),source_sha256=digest(source),evidence_sha256={'environment/setup.py':digest(files['environment/setup.py'])},calls=[digest(ast.dump(call).encode())],build_requirements=['setuptools','wheel'])
+    record=dict(source_file='tests/test_outputs.py',task='task',source_sha256=digest(source),evidence_sha256={'environment/setup.py':digest(files['environment/setup.py'])},calls=[digest(ast.dump(call).encode())],build_requirements=['setuptools','wheel'])
     (tmp_path/'task_packaging_roles.json').write_text(json.dumps([record]))
     monkeypatch.setattr(packaging_runtime,'__file__',str(tmp_path/'packaging_runtime.py'))
     image=dict(python='3.13.9',original_uvx_path=True)

@@ -52,6 +52,60 @@ the task's tests or demonstrate an exploit.
 
 ## Judge configuration
 
+Choose the judge independently of the solver with `--judge-mode` and
+`--judge-model`. These options apply to stages 5 and 8:
+
+```bash
+# Start a local server in the cluster allocation, using Terminus 2.
+--judge-mode serve --judge-model Qwen/Qwen3-Coder-30B-A3B-Instruct
+
+# Connect to an already running server, local or remote, using Terminus 2.
+--judge-mode api --judge-model openai/my-model --judge-api-base http://HOST:8000/v1
+
+# Provider API, using Terminus 2 and ANTHROPIC_API_KEY.
+--judge-mode api --judge-model anthropic/MODEL_ID
+
+# Optional custom credential variable (the name, never the secret).
+--judge-mode api --judge-model openai/MODEL_ID --judge-api-key-env MY_JUDGE_KEY
+
+# Supported CLI, using that CLI's own agent and authentication.
+--judge-mode cli --judge-cli claude-code --judge-model MODEL_ID
+--judge-mode cli --judge-cli codex --judge-model MODEL_ID
+```
+
+Append these arguments to `python validation/run.py /path/to/tasks --stages 5
+--out /path/to/results`, with the usual runtime and cluster options. Existing
+image-cache prerequisites still apply. `local` is accepted as an alias for
+`serve`. For an existing endpoint, the model ID must match the name exposed by
+that endpoint (with the API adapter prefix, such as `openai/`).
+
+Serve mode accepts registered model keys and Hugging Face IDs. Known IDs reuse
+registered hardware and sampling settings. Unregistered IDs use a generic
+one-GPU, auto-dtype configuration; the model must be supported by vLLM and its
+chat template. Prepare weights before submission, using `--serve-weights` for
+an existing directory; the default location is `$OT_MODELS/ORG/MODEL` for an
+unregistered ID. Existing `--serve-context`, `OT_SERVE_GPUS` and serving options
+control resource configuration. This does not automatically download weights
+or determine family-specific reasoning parsers.
+
+API credentials use exported environment variables first, then `.env` in the
+working directory, then `~/.env`. Set `OT_SECRETS_FILE` to select a different
+file instead. `--judge-api-key-env` selects a custom variable instead of the
+provider's standard variable. Missing custom credentials fail before review.
+Only the variable name is stored in arguments and contracts. The custom-key
+mapping supports OpenAI, hosted_vllm, Anthropic, Gemini, Together AI, Groq,
+DeepSeek, Mistral, Cohere and OpenRouter; other adapters use their standard
+credential environment variables. CLI authentication remains managed by the
+CLI; Claude Code requires subscription OAuth in this pipeline.
+
+`--model`, `--api-base` and `--agent` remain solver settings. New judge flags
+cannot be mixed with conflicting legacy reviewer flags. Existing
+`--review-local`, `--review-agent`, `--review-model`, `--analysis-agent` and
+`--analysis-model` commands remain supported. With the legacy interface,
+`--review-local` still reads `--model`. Rubric, evidence, timeout and retry
+options are unchanged.
+
+
 All judges run inside the reviewed task's own container, with the same prompt,
 time limit and retries.
 

@@ -34,7 +34,8 @@ def save_preparation_review(sources, items, out):
     review.mkdir(parents=True, exist_ok=True)
     flagged = []
     for index, (source, item) in enumerate(zip(sources, items)):
-        if item['status'] == 'passed':
+        speed = item.get('setup_speed') or {'status': item['status'], 'reason': item.get('reason')}
+        if speed['status'] == 'passed':
             continue
         name = f'{index:05d}-{source.name}'
         evidence = review / f'{name}.json'
@@ -42,7 +43,7 @@ def save_preparation_review(sources, items, out):
         with tarfile.open(payload, 'w:gz') as archive:
             archive.add(source, arcname=source.name)
         evidence.write_text(json.dumps(item, indent=2) + '\n')
-        flagged.append({'task_id': source.name, 'reason': item['reason'],
+        flagged.append({'task_id': source.name, 'reason': speed['reason'],
                         'evidence': evidence.name, 'task_archive': payload.name})
     for bucket in ('task-setup-needs-review', 'verifier-setup-needs-review'):
         directory = out / 'review' / bucket
@@ -62,7 +63,7 @@ def save_preparation_review(sources, items, out):
 
 def network_mismatch(result):
     """The container's network did not match the task's allow_internet."""
-    return any(check.get('check') == 'declared-network-egress' and check.get('status') == 'failed'
+    return any(check.get('check') == 'declared-internet-access' and check.get('status') == 'failed'
                for environment in result.get('environments', []) for check in environment.get('checks', []))
 
 
@@ -189,25 +190,41 @@ async def run_builds(sources, out, args, outcomes):
             if maximum is not None and maximum_limit is not None and maximum > maximum_limit:
                 reasons.append(f'maximum preparation {maximum:.3f}s exceeds {maximum_limit:g}s')
             item = dict(history[0])
-            item.update(status='passed' if accepted else 'failed',
-                        preparation_runs=history, preparation_timing={
-                            'seconds': seconds, 'mean_seconds': mean, 'median_seconds': median, 'max_seconds': maximum,
-                            'mean_target_seconds': mean_limit,
-                            'required_runs': repetitions, 'all_runs_successful': complete,
-                            'median_target_seconds': median_limit, 'max_limit_seconds': maximum_limit,
-                            'accepted': accepted},
+            timing = {'seconds': seconds, 'mean_seconds': mean, 'median_seconds': median, 'max_seconds': maximum,
+                      'mean_target_seconds': mean_limit,
+                      'required_runs': repetitions, 'all_runs_successful': complete,
+                      'median_target_seconds': median_limit, 'max_limit_seconds': maximum_limit,
+                      'accepted': accepted}
+            item.update(status='passed' if accepted else 'failed', preparation_runs=history, preparation_timing=timing,
                         reason='Preparation timing rule passed' if accepted else '; '.join(reasons))
             if review:
                 verifier = verifier_summary(history, repetitions)
                 item['verifier_preparation_timing'] = verifier
-                item['review_buckets'] = []
-                if not accepted:
-                    item['review_buckets'].append('task-setup-needs-review')
+                item['review_buckets'] = ((['task-setup-needs-review'] if not accepted else [])
+                                          + (['verifier-setup-needs-review'] if not verifier['accepted'] else []))
                 if not verifier['accepted']:
-                    item['review_buckets'].append('verifier-setup-needs-review')
                     reasons.extend(verifier['reasons'])
-                item['status'] = 'failed' if item['review_buckets'] else 'passed'
-                item['reason'] = '; '.join(reasons) if reasons else 'Task and verifier preparation rules passed'
+                # Setup speed is its own check and never blocks stages 2-3. The build
+                # passes when at least one preparation of task and verifier succeeded.
+                prepared = next((r for r in history if r['status'] == 'passed'), None)
+                speed = 'passed' if accepted and verifier['accepted'] else 'failed'
+                # Both setups' times, so a slow task can be judged without the evidence.
+                parts = [f'task setup mean {mean:.0f} s, max {maximum:.0f} s' if seconds else 'task setup: no timing']
+                for entry in verifier['environments']:
+                    if entry['max_seconds'] is not None:
+                        parts.append(f"verifier setup ({entry['environment']}) mean {entry['mean_seconds']:.0f} s, "
+                                     f"max {entry['max_seconds']:.0f} s")
+                summary = (', '.join(parts) + f' over {repetitions} preparations '
+                           f'(limits {mean_limit:g} s mean task setup, {maximum_limit:g} s each)')
+                item['setup_speed'] = {'status': speed, 'reason': summary if speed == 'passed' else
+                                       summary + '; ' + '; '.join(dict.fromkeys(reasons))}
+                if prepared is not None:
+                    item.update({k: v for k, v in prepared.items() if k in ('environments', 'verifier_preparation')},
+                                status='passed', reason='Task and verifier prepared')
+                else:
+                    # No preparation of task and verifier succeeded in any run.
+                    item['status'] = 'failed'
+                    item['reason'] = history[0].get('reason') or '; '.join(reasons)
             outcomes.write(json.dumps(item) + '\n')
             outcomes.flush()
             items.append(item)

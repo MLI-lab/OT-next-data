@@ -1,5 +1,5 @@
 """Machine-readable validation findings, independent of the stage where observed."""
-from validation.stages.layout import NOP, REFERENCE
+from validation.stages.layout import NOP, REFERENCE, STATIC
 import re
 
 
@@ -23,17 +23,11 @@ def execution_label(item):
 def labels(stage, item, not_required=()):
     if item.get('infrastructure_error'):
         return ['infrastructure-error']
-    static = item.get('environment_static') if stage == 1 else None
-    if static:
-        found = _labels(4, static, not_required)
-        if static.get('status') != 'passed':
-            return found
-        return sorted(set(found + _labels(stage, item, not_required)))
     return _labels(stage, item, not_required)
 
 
 def _labels(stage, item, not_required=()):
-    if stage == 4:
+    if stage == STATIC:
         warning_labels = {'check-task-absolute-path.sh': 'warning:relative-instruction-path',
                           'reference-solution-leak': 'warning:reference-solution-leak',
                           'check-pip-pinning.sh': 'warning:unpinned-dependency',
@@ -80,4 +74,12 @@ def _labels(stage, item, not_required=()):
         return ['dynamic:do-not-modify']
     if stage == NOP and any(r != 0 for r in rewards):
         return ['no-op-reward-one' if any(r == 1 for r in rewards) else 'no-op-unexpected-reward']
+    if stage == NOP:
+        # The reference-leak scan runs in the no-op container.
+        leaks = [scan['result'] for scan in item.get('reference_leak_scans', [])
+                 if isinstance(scan.get('result'), dict)]
+        if any(r.get('status') == 'failed' and 'reference-solution-leak' not in not_required for r in leaks):
+            return ['static:reference-solution-leak']
+        if any(r.get('status') == 'warning' for r in leaks):
+            return ['warning:reference-solution-leak']
     return []

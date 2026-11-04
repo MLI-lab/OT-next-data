@@ -24,7 +24,7 @@ depends on the shared mode. No task code is executed.
 from __future__ import annotations
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[4]))  # run as a stage-4 script
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))  # run as a stage-0 script
 import ast
 import json
 import shlex
@@ -437,7 +437,7 @@ def analyze_task(task):
 
 
 def check(task):
-    """Stage-4 rule: 'flagged' when grading only reads the submitted code's text."""
+    """Static rule: 'flagged' when grading only reads the submitted code's text."""
     result = analyze_task(task)
     return ('flagged' if result['status'] == 'review' else 'passed'), result
 

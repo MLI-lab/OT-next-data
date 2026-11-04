@@ -35,22 +35,7 @@ def test_initial_unchanged_and_changed_payloads(tmp_path, monkeypatch):
     assert 'd/tasks/r2.parquet' in files
     payload = pq.read_table(tmp_path / 'third/d/tasks/r2.parquet').to_pylist()
     assert [r['path'] for r in payload] == ['a']
-    assert len(rows) == 3
-    assert {r['task_id'] for r in rows if r['latest']} == {'a', 'b'}
-    assert next(r for r in rows if r['content_sha256'] == 'a1')['latest'] is False
-
-
-def test_migration_preserves_unselected_legacy_tasks_and_unknown_results(tmp_path, monkeypatch):
-    legacy = tmp_path / 'legacy/d'
-    legacy.mkdir(parents=True)
-    pq.write_table(pa.Table.from_pylist([task('a', 'a1'), task('b', 'b1')]), legacy / 'tasks.parquet')
-    files, rows = write(tmp_path / 'new', {'d': ([task('a', 'a2')], [])},
-                        revisions.History(root=legacy.parent), monkeypatch)
-    assert {'d/tasks/r1.parquet', 'd/tasks/r2.parquet'} <= set(files)
-    old = next(r for r in rows if r['task_id'] == 'b')
-    assert old['latest'] and old['nproc'] == 'not_recorded'
-    new = next(r for r in rows if r['content_sha256'] == 'a2')
-    assert new['nproc'] == 'not_run'
+    assert {(r['task_id'], r['content_sha256']) for r in rows} == {('a', 'a2'), ('b', 'b1')}
 
 
 def test_latest_revision_roundtrips_through_contract_and_materialization(tmp_path, monkeypatch):
@@ -78,10 +63,8 @@ def test_latest_revision_roundtrips_through_contract_and_materialization(tmp_pat
 def test_missing_revision_payload_is_rejected(tmp_path):
     import pytest
     from validation.task_inputs.revisions import selection
-    results.write(tmp_path / 'results.parquet', [{
-        'dataset': 'd', 'task_id': 'a', 'content_sha256': 'a', 'latest': True,
-        'revision': 1, 'task_file': 'd/tasks/r1.parquet'}])
-    with pytest.raises(ValueError, match='Missing'):
+    results.write(tmp_path / 'results.parquet', [{'dataset': 'd', 'task_id': 'a', 'content_sha256': 'a'}])
+    with pytest.raises(ValueError, match='No payload'):
         selection(tmp_path)
 
 
@@ -102,7 +85,7 @@ def test_release_card_uses_revision_index_and_saved_classification(tmp_path, mon
     assert 'd/v1/annotation.json' in files
     assert '| Kept tasks | 1 |' in (tmp_path / 'out/d/README.md').read_text()
     selected = pq.read_table(tmp_path / 'out/d/v1/selection.parquet').to_pylist()
-    assert selected[0]['task_file'] == 'd/tasks/r1.parquet'
+    assert selected == [{'dataset': 'd', 'task_id': 'a', 'content_sha256': 'a1'}]
 
 
 def test_internet_setting_reads_task_config():

@@ -624,13 +624,13 @@ def test_native_package_subdirectory_is_covered_by_its_import_root():
     assert {'beniget==0.4.1', 'gast==0.5.2', 'ply==3.11'} <= set(planned['spec']['requirements'])
 
 
-def test_no_repairs_keeps_the_upstream_prober_target():
+def test_no_repairs_retains_offline_prober_adaptation():
     source = ('import subprocess\nserver = "https://127.0.0.1:8443/health"\n'
               'def probe(prober_path):\n'
               '    return subprocess.run([prober_path, "https://google.com"], timeout=10)\n')
     files = task(source)
     planned = vr.plan(files, image(), with_repairs=False)
-    assert not planned.get('local_prober')
+    assert planned.get('local_prober')
     vr.apply(files, planned, None)
-    assert b'subprocess.run([prober_path, "https://google.com"]' in files['tests/test_final_state.py'][0]
-    assert 'Google' not in vr.reason(planned)
+    assert b'subprocess.run([prober_path, "https://127.0.0.1:8443/health"]' in files['tests/test_final_state.py'][0]
+    assert 'HTTPS health endpoint' in vr.reason(planned)

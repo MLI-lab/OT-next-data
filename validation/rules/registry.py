@@ -11,7 +11,7 @@ class Rule:
     severity: str  # 'fail' or 'warning'
     module: str    # our code; TB rules run from validation/upstream/terminal_bench via static/terminal_bench.py
     status: str = 'active'  # 'active' (run by the default training profile) or 'adopted' (not yet run by a stage)
-    # Static rules run in stage 4; dynamic rules run where their evidence is available.
+    # Static rules run in stage 0; dynamic rules run in stages 1-3, where their evidence is.
     repair: str | None = None  # automatic repair applied before the check
 
 

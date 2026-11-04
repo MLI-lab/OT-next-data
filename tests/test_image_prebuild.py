@@ -31,8 +31,6 @@ def test_worker_prebuild_archives_without_bridge_or_validation(tmp_path, monkeyp
     import hpc.local_assets
     import hpc.validation_submit
     import validation.run
-    import validation.stages.normalize_paths
-    import validation.rules.static.pip_pinning.repair
     source = tmp_path / 'source'
     task = source / 'example'
     task.mkdir(parents=True)
@@ -62,8 +60,6 @@ def test_worker_prebuild_archives_without_bridge_or_validation(tmp_path, monkeyp
     monkeypatch.setattr(worker, 'free_port', forbidden)
     monkeypatch.setattr(worker, 'trial_capacity', forbidden)
     monkeypatch.setattr(validation.run, 'run_selected', forbidden)
-    monkeypatch.setattr(validation.stages.normalize_paths, 'candidates', forbidden)
-    monkeypatch.setattr(validation.rules.static.pip_pinning.repair, 'check', forbidden)
     args = runner.parser().parse_args([str(source), '--prebuild-only', '--submit', 'helma', '--cpus', '4'])
     request = tmp_path / 'submission/request.json'
     request.parent.mkdir()

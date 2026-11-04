@@ -122,9 +122,12 @@ def test_patch_columns_and_labels_survive_publishing(tmp_path):
     tables, record, run_file = publish.build(contract, reports, {}, run_id='r')
     row = tables['set-python'][0][0]
     row.update(patch_labels=['instruction-clarified'], patch_changed=True, source_task_id=row['path'])
-    publish.write(tables, record, run_file, tmp_path / 'out')
-    rows = pq.read_table(tmp_path / 'out/set-python/tasks.parquet').to_pylist()
-    assert rows[0]['patch_labels'] == ['instruction-clarified']
+    from validation.publishing import revisions
+    (tmp_path / 'history').mkdir()
+    revisions.write(tables, record, run_file, tmp_path / 'out', {}, {}, revisions.History(root=tmp_path / 'history'))
+    import json
+    rows = {r['task_id']: r for r in pq.read_table(tmp_path / 'out/set-python/results.parquet').to_pylist()}
+    assert json.loads(rows[row['path']]['publication_details'])['patch_labels'] == ['instruction-clarified']
     text = (tmp_path / 'out/pull-request.md').read_text()
     assert 'reference-solution-reward-zero' in text
 

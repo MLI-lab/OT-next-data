@@ -1,4 +1,4 @@
-"""Stage-4 suffix fix-up, applied before contract hashing; originals stay unchanged."""
+"""Suffix fix-up for the static checks, applied before contract hashing; originals stay unchanged."""
 import copy
 from contextlib import nullcontext
 import gzip
@@ -88,7 +88,7 @@ def record_resolved_paths(path, args):
 def prepare(args, destination, instructions=True):
     """Persist selected derived tasks and original provenance before contract hashing.
 
-    instructions=False keeps instruction.md as it is (stage 4 not selected); the
+    instructions=False keeps instruction.md as it is (stage 0 not selected); the
     repository-leak repair follows --fix-repository-leaks either way.
     """
     from validation.contract import inventory, digest
@@ -204,6 +204,8 @@ def prepare(args, destination, instructions=True):
             'original_manifest_sha256': digest(records), 'original_source_files': files,
             'original_selection': {'limit': args.limit, 'task_id_range': args.task_id_range}}
         meta['normalization']['instruction_paths'] = paths.report
+        from validation.automatic_repairs import path_details, record_details
+        record_details(meta, 'task-absolute-path', path_details(paths.report))
         if paths.report['evidence_reports']:
             meta['normalization']['operation'] = 'automatic-instruction-normalization-v1'
         if not getattr(args, 'fix_instruction_suffix', True):
@@ -211,7 +213,7 @@ def prepare(args, destination, instructions=True):
         meta['normalization']['suffix_enabled'] = instructions and getattr(args, 'fix_instruction_suffix', True)
         if not instructions:
             meta['normalization']['operation'] = 'no-instruction-normalization'
-            meta['normalization']['description'] = 'Stage 4 not selected: instruction.md unchanged in the validation copy.'
+            meta['normalization']['description'] = 'Stage 0 not selected: instruction.md unchanged in the validation copy.'
         applied = sorted(t for t, r in repairs.items() if r['status'] == 'applied')
         meta['normalization']['repository_leak_repair'] = (
             {'enabled': True, 'operation': repository_repair.OPERATION, 'description': repository_repair.DESCRIPTION,

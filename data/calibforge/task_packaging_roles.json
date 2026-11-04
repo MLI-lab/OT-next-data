@@ -2,7 +2,6 @@
   {
     "task": "contrastive_solver-debugging_20260503_182123_003",
     "source_file": "tests/test_outputs.py",
-    "instruction_sha256": "0913edf2bccb6a13a8dc172d4c887e3c7ee61f8b4bf1c2a8b02cc11c3899a2af",
     "source_sha256": "d6871ca66c29db34ba3ea10ffaec6f3844339938f3dc6b78d7a003f8c4e5bed8",
     "evidence_sha256": {
       "environment/Dockerfile": "ad00447ebd76cacfefd36737f9ed43b426b8729f61cdbc6c1379db7f545f8729",
@@ -28,7 +27,6 @@
   {
     "task": "contrastive_solver-software-engineering_20260422_235124_007",
     "source_file": "tests/test_outputs.py",
-    "instruction_sha256": "58ebdb685fdcea828b70f8ec7b6d6d24a94c2c5697e3bbac2ff604ffe59834cc",
     "source_sha256": "702c5b8b0b584ba7d8e968f08f710cd784fe058c8cda71c3317d7643caebf009",
     "evidence_sha256": {
       "environment/Dockerfile": "6ccd1b81514959a9010edbce8223f271b03e409028c34a160611f1881622ce09",
@@ -61,7 +59,6 @@
   {
     "task": "multi_solver-software-engineering_20260417_145736_005",
     "source_file": "tests/test_outputs.py",
-    "instruction_sha256": "2870ba275a17d1bb3ca65fea13ac2e6a1b4a3cf6c56f740344941d73ff292bc5",
     "source_sha256": "290ca76f80402d6fb24e154521743d4f9389ff30912ee2dae803739c013b9e43",
     "evidence_sha256": {
       "environment/Dockerfile": "c15a3e020e12f02946fa0b3761925d470264d7e4e84be3252f0ac50a6d9836c0",
@@ -106,7 +103,6 @@
   {
     "task": "contrastive_solver-software-engineering_20260514_134238_004",
     "source_file": "tests/test_outputs.py",
-    "instruction_sha256": "68b3a1705458996e6469c3e2ce643993281ba1e82236e3ddc922592b21baebad",
     "source_sha256": "e30f76d29fa44ea62d7b5d9ced9a687e68e108c2a085b0e439130ec2fd0a20cb",
     "evidence_sha256": {
       "environment/Dockerfile": "b7bde9521cb73d8c1a838e9e01545406182bfb443336f16dcffba7a7987e45cc",
@@ -133,7 +129,6 @@
   {
     "task": "multi_solver-software-engineering_20260416_172928_007",
     "source_file": "tests/test_outputs.py",
-    "instruction_sha256": "13f3a231927f8f516a1cf164ddf35738a438eef54961ef150bc3adb42b641c45",
     "source_sha256": "bcc657104f814451b12e87a1c954c397d4c750e7871a6ca8fed34ca35439cb9a",
     "evidence_sha256": {
       "environment/Dockerfile": "f67bbcb1f912f01403b25bf592f86f3ac880a55a45e9a0b16a83baec9580d0ca",
@@ -161,7 +156,6 @@
   {
     "task": "multi_solver-software-engineering_20260414_211453_024",
     "source_file": "tests/test_outputs.py",
-    "instruction_sha256": "c58b91c8dcefe739dc66983c5e09a870a6406f7cb1fb3ce5ff7df06311bbd9d9",
     "source_sha256": "d9566e04c06dbd288f6513372cc01b2bd84a7ed031d73bc9eb09a9366b70f766",
     "evidence_sha256": {
       "environment/Dockerfile": "32fe6e8969c586304d16c8cb1935c747b40050d1a16a1802fc9f278d491e6bc4",
@@ -191,7 +185,6 @@
     "task": "multi_solver-software-engineering_20260413_173854_020",
     "source_file": "tests/test_outputs.py",
     "source_sha256": "bb0bcc079ddb6d2c126f46b705642f2fbcf3c2b2cbaf3c43dad1160951f2d15c",
-    "instruction_sha256": "c7c01fa6c0f30499dfcd2446425f80ad080d8a833ed822afbea64dbd98710f64",
     "evidence_sha256": {
       "environment/Dockerfile": "f06decefc9be6f5d13e737ebe8bf6c9265d498e271197b768295efda8f3c7b24",
       "environment/files/myproject/pyproject.toml": "32cd20f7ed7ca7d80360592d65b5b09eb67e2dc60795ea26ba982280fb0235df",
@@ -225,7 +218,6 @@
     "task": "contrastive_solver-software-engineering_20260509_205636_020",
     "source_file": "tests/test_outputs.py",
     "source_sha256": "cd903870d184ab3c16640d1e9399b70cd14102ffb1ef0ab2adf7f6c2ea75c147",
-    "instruction_sha256": "9c9b05d763eacbad9d4eedebc75cb6b01e59fe4d8584fcc327f5b09528e6072e",
     "evidence_sha256": {
       "environment/Dockerfile": "a633765cb2003f8936d0ae656b6d9d3c20287febe6bcfacf71089e3c888b2de3",
       "environment/files/pyproject.toml": "3728ec1742dfd0b5d1e0c59cfde5ed5159bd43cba848c28d1854cb7b19c65c53",
@@ -262,7 +254,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260414_091921_020",
-    "instruction_sha256": "afe3302750c91078c565456ae111fed0ac7b062ac805d85c6874b62c488e2051",
     "source_file": "tests/test_outputs.py",
     "source_sha256": "d0cd828587780b69393f9aec0c349fc2019f6150a4d6c55cfe1a48d07fb48daa",
     "evidence_sha256": {
@@ -306,7 +297,6 @@
     "task": "multi_solver-software-engineering_20260414_211532_005",
     "source_file": "tests/test_outputs.py",
     "source_sha256": "798aec3758e98e0e21d1e55126fba52cac6760fa84d069c14bc1a67e76b210ef",
-    "instruction_sha256": "683077e8a73d9941a9383ba182004e9038b99ff63940780f5af5c2640c81e82f",
     "evidence_sha256": {
       "environment/Dockerfile": "9873378bef5523a63804c43ec46dad92e4de92eaea9ae4ab1e2291c62d6b4059",
       "environment/files/setup.py": "2061c52cb3f58a0284c790f1d6911044ed63170047649ef1605ace7f3469316e"
@@ -348,7 +338,6 @@
     "task": "multi_solver-software-engineering_20260416_020953_020",
     "source_file": "tests/test_outputs.py",
     "source_sha256": "605276cdce94eb1374ae0b6b13d4b9c34a0fbef9660e8876a2a6f2896f122880",
-    "instruction_sha256": "0b7e0e03423a4a54687ad69ffc9f4ea6539b01e77a7cb5e10527188aaf183116",
     "evidence_sha256": {
       "environment/Dockerfile": "848f8499a4bdc4206a6d3f3a3db6623e38c32e92f97f0222e51ad62d03fff49d",
       "environment/files/acme-auth-plugin/pyproject.toml": "cb5c759fcdd954bab75333554b157c331d16e1c4b99b078c1ccaeaa0b4b2cc7d",

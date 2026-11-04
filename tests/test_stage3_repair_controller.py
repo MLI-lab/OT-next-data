@@ -51,7 +51,7 @@ def test_workflow(tmp_path, monkeypatch, consolidate, failure, pilot_sizes):
         failed = not repaired and failure == len(calls)
         return {'passed_all': len(selected) - int(failed),
                 'passed_task_ids': selected[1:] if failed else selected, 'contract_sha256': 'frozen',
-                'failures': [{'stage_layout': 'environment-first-v2', 'task_id': ids[0], 'stage': required_stages[0], 'detail': 'verifier timeout'}] if failed else []}
+                'failures': [{'stage_layout': 'environment-first-v3', 'task_id': ids[0], 'stage': required_stages[0], 'detail': 'verifier timeout'}] if failed else []}
 
     monkeypatch.setattr(c, 'call', agent)
     monkeypatch.setattr(c, 'materialize_source', lambda cfg, directory: directory / 'source')
@@ -66,7 +66,7 @@ def test_workflow(tmp_path, monkeypatch, consolidate, failure, pilot_sizes):
     assert roles == expected_roles
     success = calls[failure:] if failure else calls
     assert [len(selected) for selected, _ in success] == [*pilot_sizes, 229 if failure else 230, 229 if failure else 230]
-    assert [options['stages'] for _, options in success] == [[1]] * (len(pilot_sizes) + 1) + [[1, 2, 3, 4]]
+    assert [options['stages'] for _, options in success] == [[1]] * (len(pilot_sizes) + 1) + [[0, 1, 2, 3]]
     assert all(options['reuse_stage3'] is None for _, options in success[:-1])
     assert success[-1][1]['reuse_stage3'] == tmp_path / 'stage3-passing-subset.json'
     assert [options['review_setup'] for _, options in success] == [bool(consolidate or failure)] * (len(pilot_sizes) + 2)
@@ -153,7 +153,7 @@ def test_publication_requires_explicit_destination():
 def retry_fixture(tmp_path, monkeypatch):
     from copy import deepcopy
     from data.patch_repair_loop import retries
-    contract = {'sha256': 'original', 'stages': [1, 2, 3, 4], 'execution_profile': {},
+    contract = {'sha256': 'original', 'stages': [0, 1, 2, 3], 'execution_profile': {},
                 'runtime_dependencies': {}, 'implementation': {}, 'upstream': {},
                 'success_criteria': {'minimum_tasks': 2},
                 'dataset': {'source': 'example', 'revision': 'pinned'},
@@ -169,10 +169,10 @@ def retry_fixture(tmp_path, monkeypatch):
     for stage in contract['stages']:
         items = [{'task': task, 'status': 'error' if task == 'b' and stage == 3 else 'passed',
                   'checks': [{'check': 'test', 'status': 'passed'}]} for task in ('a', 'b')]
-        (initial / f'stage-{stage}-original.json').write_text(json.dumps({'stage_layout': 'environment-first-v2',
+        (initial / f'stage-{stage}-original.json').write_text(json.dumps({'stage_layout': 'environment-first-v3',
             'stage': stage, 'contract_sha256': 'original', 'complete': True,
             'timing': {'wall_seconds': 10}, 'items': items}))
-        (rerun / f'stage-{stage}-retry.json').write_text(json.dumps({'stage_layout': 'environment-first-v2',
+        (rerun / f'stage-{stage}-retry.json').write_text(json.dumps({'stage_layout': 'environment-first-v3',
             'stage': stage, 'contract_sha256': 'retry', 'complete': True,
             'items': [{'task': 'b', 'status': 'passed', 'checks': [{'check': 'test', 'status': 'passed'}]}]}))
     return retries, contract, retry, initial, rerun
@@ -187,7 +187,7 @@ def test_successful_retry_supersedes_failure_for_publication(tmp_path, monkeypat
     assert outcome['passed_all'] == 2 and outcome['failures'] == []
     reports = publisher.stage_reports(destination)
     assert publisher.decide(reports, {'a', 'b'})['b']['archive'] is None
-    assert publisher.decide(reports, {'a', 'b'})['b']['passed'] == [1, 2, 3, 4]
+    assert publisher.decide(reports, {'a', 'b'})['b']['passed'] == [0, 1, 2, 3]
     assert reports[3]['report_kind'] == 'retry_aggregate'
     assert reports[3]['items'][1]['retry_provenance']['contract_sha256'] == 'retry'
     assert 'timing' not in reports[3]
@@ -424,16 +424,16 @@ def test_loop_summary_counts_sessions_and_renders_pr(tmp_path):
 
 def test_explicit_missing_oracle_publication_keeps_other_gates(tmp_path, monkeypatch):
     from validation.publishing import publish as p
-    frozen = {'sha256': 'abc', 'stages': [1, 3, 4]}
+    frozen = {'sha256': 'abc', 'stages': [0, 1, 3]}
     monkeypatch.setattr(p, 'read', lambda path: frozen)
     monkeypatch.setattr(p, 'task_records', lambda contract: [{'task_id': 'task'}])
-    reports = {stage: {'stage_layout': 'environment-first-v2', 'complete': True, 'contract_sha256': 'abc',
-                      'items': [{'task': 'task', 'status': 'passed'}]} for stage in [1, 3, 4]}
+    reports = {stage: {'stage_layout': 'environment-first-v3', 'complete': True, 'contract_sha256': 'abc',
+                      'items': [{'task': 'task', 'status': 'passed'}]} for stage in [0, 1, 3]}
     monkeypatch.setattr(p, 'stage_reports', lambda path: reports)
     with pytest.raises(ValueError, match='stage 2'):
         p.require_complete(tmp_path, 'contract')
     p.require_complete(tmp_path, 'contract', skipped_stages={'2': 'No reference solutions supplied'})
-    assert p.decide(reports, ['task'])['task']['passed'] == [1, 3, 4]
+    assert p.decide(reports, ['task'])['task']['passed'] == [0, 1, 3]
     reports[3]['items'] = []
     with pytest.raises(ValueError, match='stage 3'):
         p.require_complete(tmp_path, 'contract', skipped_stages={'2': 'No reference solutions supplied'})

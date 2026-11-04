@@ -1,33 +1,55 @@
 # Validation rules
 
-Here we describe the checks in stages 0-4, which select the first datasource
+Here we describe the checks in stages 0-3, which select the first datasource
 version (v1) using rules without an LLM. There are **30 checks**: **18 static
 checks** that read only the task files, and **12 dynamic checks** that use
-containers and execute commands. The validation pipeline outputs `results.parquet`,
-which records a verdict for each task and check: `pass`, `fail`, `warning` or `not_run`.
+containers and execute commands.
 
-For `not_run`, the `details` field records a category and reason for that check:
+The validation pipeline writes `results.parquet`. Each row is one task, identified
+by `task_id`. The columns are:
 
-| Category | Meaning |
+| Column | Content |
 | --- | --- |
-| `skipped` | Blocked by an earlier check, not applicable, or not requested. `reason_code` distinguishes these. |
-| `infrastructure_error` | Recognized infrastructure failure, such as a failed node, bridge outage or full disk. |
-| `timeout` | A recorded time limit was reached. |
-| `oom` | Recorded evidence of memory exhaustion. Exit code 137 alone is not enough. |
-| `execution_error` | Execution crashed or did not produce a valid result or reward. |
-| `unknown` | There is not enough evidence to classify the missing result. |
+| `task_id` | Task name |
+| `dataset` | Datasource name |
+| `content_sha256` | Hash of the task files, after automatic repairs |
+| 18 static checks | `compose-host-binds`, `dockerfile-platform`, `instruction-suffix`, `no-cheat-dir`, `resource-sizes`, `task-timeout`, `dockerfile-references`, `dockerfile-sanity`, `nproc`, `pip-pinning`, `task-absolute-path`, `test-file-references`, `agent_editable_test`, `task-toml-schema`, `do_not_modify`, `no_behavioural_tests`, `python_missing_imports`, `artifact_efficiency` |
+| 12 dynamic checks | `build`, `declared_workdir`, `declared_internet_access`, `reference`, `nop`, `reference_determinism`, `nop_determinism`, `repository_history`, `repository_timestamps`, `reference_leaks`, `verifier_tamper`, `do_not_modify_dynamic` |
 
-The original error and execution phase are kept for inspection. These categories
-use recorded statuses, exceptions and error messages; they do not decide whether
-a timeout, OOM or execution error was caused by the task or how we ran it.
-Exhausting retries does not turn an error into an infrastructure failure.
-Not-applicable checks do not count as unresolved requirements.
+Each check column has these fields:
 
-Some checks also have an automatic repair. When a repair is applied, it is
-recorded under that check’s name in `automatic_repairs` with `applied: true`,
-alongside the final verdict. A task can therefore count as repaired and passed,
-warned or failed. The names below match the result columns and automatic README
-rows. Open a check for its description.
+| Field | Present | Meaning |
+| --- | --- | --- |
+| `status` | always | the result for the task files after automatic repairs |
+| `repaired` | checks with an automatic repair | `true` if the pipeline fixed the task, `false` if nothing needed fixing |
+| `details` | when there is something to report | the finding, the original error, or what a task-specific repair changed |
+| `wall_seconds`, `cpu_seconds`, `memory_peak_mb` | checks that run containers (`build`, `reference`, `reference_determinism`, `do_not_modify_dynamic`, `nop`, `nop_determinism`) | wall-clock and container CPU time summed over the check's runs, and the largest container memory |
+
+`check_resources.json` next to `results.parquet` gives mean and median per check and for the whole validation per task.
+
+`status` is `pass`, `fail` or `warning`, or, when the check has no result, the reason:
+`not_requested`, `not_applicable`, `blocked`, `infrastructure_error`, `timeout`, `oom`,
+`execution_error` or `unknown`.
+
+
+
+<details>
+<summary>Example row</summary>
+
+| Column | Value |
+| --- | --- |
+| `dataset` | `calibforge_v1` |
+| `task_id` | `contrastive_solver-data-querying_20260602_105139_001` |
+| `content_sha256` | `9c41…e7` |
+| `instruction-suffix` | `{"status": "pass", "repaired": true}` |
+| `task-absolute-path` | `{"status": "pass", "repaired": true, "details": "data.csv -> /app/data.csv"}` |
+| `dockerfile-sanity` | `{"status": "fail", "details": "FAIL Dockerfile line 12: apt-get install without -y"}` |
+| `nproc` | `{"status": "pass"}` |
+| `build` | `{"status": "not_requested"}` |
+
+</details>
+
+Each check below lists its entry in `results.parquet`. Open a check for its description.
 
 Origins: **TB unchanged**, **TB patched by us**, or **Ours**.
 
@@ -39,6 +61,14 @@ Origins: **TB unchanged**, **TB patched by us**, or **Ours**.
 Rejects host bind mounts in environment Docker Compose files so tasks do not depend on host filesystem paths.
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `compose-host-binds`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `docker-compose.yaml mounts host path /var/run/docker.sock`
+
+</details>
+
 </details>
 
 <details>
@@ -46,6 +76,14 @@ Rejects host bind mounts in environment Docker Compose files so tasks do not dep
 
 Rejects `FROM --platform=...` in agent or verifier Dockerfiles so tasks are not explicitly tied to one CPU architecture.
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `dockerfile-platform`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `Dockerfile:1: FROM --platform=linux/amd64 python:3.11`
+
+</details>
 
 </details>
 
@@ -58,6 +96,13 @@ We extended it with an automatic repair that appends or updates the timeout and
 anti-cheating sentence using the task’s configured timeout.
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `instruction-suffix`. Status `pass` or `fail`. `repaired`: yes. No `details`: the check and its repair are always about the same sentence.
+
+</details>
+
 </details>
 
 <details>
@@ -65,6 +110,14 @@ anti-cheating sentence using the task’s configured timeout.
 
 Rejects a top-level `cheat/` directory in the task package.
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `no-cheat-dir`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `Dockerfile:9: COPY solution/ /app/solution/`
+
+</details>
 
 </details>
 
@@ -74,6 +127,14 @@ Rejects a top-level `cheat/` directory in the task package.
 Requires configured CPU counts of 1, 2, 4, 8 or 16 and memory sizes of 1024, 2048, 4096, 8192, 16384 or 32768 MB for agent and verifier environments.
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `resource-sizes`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `task.toml: memory_mb = 262144 is above the allowed size`
+
+</details>
+
 </details>
 
 <details>
@@ -81,6 +142,14 @@ Requires configured CPU counts of 1, 2, 4, 8 or 16 and memory sizes of 1024, 204
 
 Limits agent and verifier timeouts to 8 hours each.
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `task-timeout`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `task.toml: agent timeout_sec is missing`
+
+</details>
 
 </details>
 
@@ -95,6 +164,14 @@ and heredoc contents remain checked.
 
 Implementation: [check adaptations](static/dockerfile_references.py).
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `dockerfile-references`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `Dockerfile:6: COPY data/input.csv, but environment/data/input.csv does not exist`
+
+</details>
 
 </details>
 
@@ -111,6 +188,14 @@ version pin.
 Implementation: [check adaptations](static/dockerfile_sanity.py).
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `dockerfile-sanity`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `Dockerfile:12: apt-get install without -y`
+
+</details>
+
 </details>
 
 <details>
@@ -125,6 +210,14 @@ worker-count uses remain checked.
 
 Implementation: [check adaptations](static/nproc.py).
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `nproc`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `bare nproc, environment/Dockerfile:20: make -j$(nproc)`
+
+</details>
 
 </details>
 
@@ -143,6 +236,14 @@ successful reference run.
 
 Implementation: [check adaptations](static/pip_pinning/check.py).
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `pip-pinning`. Status `pass` or `warning`. `repaired`: yes. The repair is applied at the end of the run from the stage-2 reference run. `details`: the added pins, e.g. `numpy -> numpy==1.26.4`; for a warning, the unpinned packages.
+Example `details`: `tests/test.sh: unpinned ['duckdb'] in pip install duckdb --quiet`
+
+</details>
 
 </details>
 
@@ -188,6 +289,14 @@ Implementation: [path-check adaptations](static/task_absolute_path/check.py).
 </details>
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `task-absolute-path`. Status `pass` or `warning`. `repaired`: yes. The repair is applied at the end of the run from the stage-1 path lookup; static checks judge the instruction as it was before the path repair. `details`: the replaced paths, e.g. `data.csv -> /app/data.csv`; for a warning, the flagged paths.
+Example `details`: `repaired: data.csv -> /app/data.csv; warning: instruction.md: relative paths used (should be absolute under /app): worker_service.py`
+
+</details>
+
 </details>
 
 <details>
@@ -205,13 +314,21 @@ by the task’s setup scripts do not need to be named individually in the instru
 Implementation: [check adaptations](static/test_file_references/check.py).
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `test-file-references`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `tests use /app/report.json, which the instruction never mentions`
+
+</details>
+
 </details>
 
 <details>
 <summary><code>agent_editable_test</code> (Ours) · Verifier code that the agent can modify.</summary>
 
-Flags tasks where the verifier executes tests or scripts the agent could modify,
-without restoring or protecting them. Fails the task in stage 4.
+Flags tasks where the verifier runs tests or scripts that the agent could have
+changed, without restoring them first. A finding is `fail`, not a warning.
 
 <details>
 <summary>Implementation</summary>
@@ -238,6 +355,14 @@ flagged. To mitigate this, paths that appear in the instruction are not flagged.
 </details>
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `agent_editable_test`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `the verifier runs /app/run_tests.sh in the agent's environment without restoring or checksumming it first`
+
+</details>
+
 </details>
 
 <details>
@@ -246,6 +371,14 @@ flagged. To mitigate this, paths that appear in the instruction are not flagged.
 `task.toml` must validate against the pinned Harbor models, with no
 unknown fields.
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `task-toml-schema`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `task.toml: [verifier] timeout_sec must be a number`
+
+</details>
 
 </details>
 
@@ -282,6 +415,14 @@ stage 2 (see below).
 
 </details>
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `do_not_modify`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `instruction protects /app/config.yaml, but the tests never check it`
+
+</details>
 
 </details>
 
@@ -320,6 +461,14 @@ but read code. Whenever we are unsure, the task passes.
 </details>
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `no_behavioural_tests`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `tests/test_outputs.py only checks that unseal.sh contains "curl" and "/v1/sys/unseal"; it never runs the script`
+
+</details>
+
 </details>
 
 <details>
@@ -328,6 +477,14 @@ but read code. Whenever we are unsure, the task passes.
 a test file, or a solution file that `solve.sh` runs, does not
 parse or uses `np`, `pd`, `plt`, ... without importing it.
 
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `python_missing_imports`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Example `details`: `solution/solve.py imports numpy, which the image does not install`
+
+</details>
 
 </details>
 
@@ -338,15 +495,41 @@ a task file larger than 100 MB, which slows uploads into
 the environment.
 
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `artifact_efficiency`. Status `pass` or `warning`. No repair. `details`: for a warning, the inefficient artifacts.
+Example `details`: `environment/data/model.bin is 1.8 GB`
+
+</details>
+
 </details>
 
 ## Dynamic checks
+
+They run in the containers of stages 1-3:
+
+| Stage | Checks |
+| --- | --- |
+| 1: build and setup | `build`, `declared_workdir`, `declared_internet_access`, `repository_history`, `repository_timestamps` |
+| 2: reference solution | `reference`, `reference_determinism`, `do_not_modify_dynamic` |
+| 3: no-op | `nop`, `nop_determinism`, `verifier_tamper`, `reference_leaks` |
+
+Only a failed `build` stops a task; its stage 2 and 3 checks are then `blocked`.
 
 <details>
 <summary><code>build</code> (Ours) · Container preparation and task setup succeed.</summary>
 
 
 Stage 1 prepares the container and runs task setup. `build` records whether preparation succeeds.
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `build`. Status `pass` or `fail`. No repair. `details`: for a failure, the setup error.
+Example `details`: `backend_temporary_directories: evidence files are placed in /tmp/exploit_root by the Dockerfile; Apptainer mounts the host's /tmp over it`
+
+</details>
 
 </details>
 
@@ -356,13 +539,29 @@ Stage 1 prepares the container and runs task setup. `build` records whether prep
 
 During stage 1, check that the starting directory matches the task configuration. This is recorded separately from `build`.
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `declared_workdir`. Status `pass` or `fail`. No repair. `details`: for a failure, the declared and observed directory.
+Example `details`: `task.toml declares /app, container starts in /root`
+
+</details>
+
 </details>
 
 <details>
-<summary><code>declared_network_egress</code> (Ours) · Observed internet access matches the declared policy.</summary>
+<summary><code>declared_internet_access</code> (Ours) · Observed internet access matches the declared policy.</summary>
 
 
 During stage 1, probe internet access and compare observed reachability with the task’s declared policy. This is recorded separately from `build`.
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `declared_internet_access`. Status `pass` or `fail`. No repair. `details`: for a failure, the declared policy and observed access.
+Example `details`: `allow_internet = false, but https://pypi.org was reachable`
+
+</details>
 
 </details>
 
@@ -372,6 +571,14 @@ During stage 1, probe internet access and compare observed reachability with the
 
 Stage 2 runs the reference solution and verifier. The check passes when the reward is 1. Execution errors and missing rewards remain unresolved. Shuffled-listing runs are reported separately as `reference_determinism`.
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `reference`. Status `pass` (reward 1) or `fail` (reward 0). No repair. No `details`: rewards are 0 or 1.
+Example `details`: `expected reward 1, got 0.0`
+
+</details>
+
 </details>
 
 <details>
@@ -379,6 +586,13 @@ Stage 2 runs the reference solution and verifier. The check passes when the rewa
 
 
 Stage 3 runs the verifier without an agent solving the task. The check passes when the reward is 0. Execution errors and missing rewards remain unresolved. Shuffled-listing runs are reported separately as `nop_determinism`.
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `nop`. Status `pass` (reward 0) or `fail` (reward 1). No repair. No `details`: rewards are 0 or 1.
+
+</details>
 
 </details>
 
@@ -398,6 +612,17 @@ Set normal run counts with `--nop-runs N` and `--reference-runs N` (default 1 ea
 and extra shuffled runs with `--nop-shuffled-runs N` and
 `--reference-shuffled-runs N` (default 1 each; 0 disables shuffling).
 
+After a passing first run, the reference solution runs twice more normally (`--reference-repeat-runs N`, default 2). Every run must score 1; a different reward means the verifier is stochastic.
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `reference_determinism`. Status `pass` or `fail`. No repair. `details`: for a failure, which run gave which reward.
+Example `details`: `shuffled run: reward 0, normal run: reward 1`
+Example `details`: `repeated reference runs scored [1, 0]; expected 1 (stochastic verifier)`
+
+</details>
+
 </details>
 
 <details>
@@ -415,6 +640,14 @@ the check incomplete.
 Set normal run counts with `--nop-runs N` and `--reference-runs N` (default 1 each),
 and extra shuffled runs with `--nop-shuffled-runs N` and
 `--reference-shuffled-runs N` (default 1 each; 0 disables shuffling).
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `nop_determinism`. Status `pass` or `fail`. No repair. `details`: for a failure, which run gave which reward.
+Example `details`: `shuffled run: reward 1, normal run: reward 0`
+
+</details>
 
 </details>
 
@@ -449,6 +682,14 @@ Permission-denied directories are outside the agent’s accessible scope. Other
 discovery or inspection errors leave the check incomplete. Both checks are skipped
 when Git is unavailable.
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `repository_history`. Status `pass` or `warning`. No repair. `details`: for a warning, the repositories and what was found.
+Example `details`: `/app: 2 commits newer than the starting commit`
+
+</details>
+
 </details>
 
 <details>
@@ -482,6 +723,14 @@ normalization without a `HEAD` commit or working files.
 Permission-denied directories are outside the agent’s accessible scope. Other
 discovery or inspection errors leave the check incomplete. The check is skipped
 when Git is unavailable.
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `repository_timestamps`. Status `pass` or `fail`. `repaired`: yes. `details`: the reset timestamps, e.g. `/app: 12 file timestamps reset`; for a failure, the flagged files.
+Example `details`: `repaired: /app: 12 file timestamps reset; fail: /app/src/fix.py is newer than the rest of the repository`
+
+</details>
 
 </details>
 
@@ -521,6 +770,14 @@ scans leave the check incomplete. Tasks without a reference solution are not
 applicable.
 </details>
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `reference_leaks`. Status `pass`, `warning` or `fail`. No repair. `details`: for a finding, the files with copied solution content.
+Example `details`: `1/2 changed files (50.00%) already readable before solving: /app/fix.py (at /tmp/fix.py); flagged without rejection`
+
+</details>
+
 </details>
 
 <details>
@@ -535,6 +792,14 @@ ran is reported as a warning.
 
 We leave out `bash`, `sh` and coreutils, because grading uses them on every task (see
 verifier execution in the root README).
+
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `verifier_tamper`. Status `pass` or `warning`. No repair. `details`: for a warning, the changed tools.
+Example `details`: `/usr/bin/python3 changed during the agent run`
+
+</details>
 
 </details>
 
@@ -560,6 +825,14 @@ change the instruction forbids.
 Without a reference solution, only check whether the extracted paths exist in the
 agent environment and whether the tests mention them. The mutation checks are not run.
 
+<details>
+<summary>Entry in <code>results.parquet</code></summary>
+
+Column `do_not_modify_dynamic`. Status `pass` or `fail`. No repair. `details`: for a failure, the protected file and change.
+Example `details`: `/app/config.yaml was changed and the verifier still gave reward 1`
+
+</details>
+
 </details>
 
 <details>
@@ -568,7 +841,7 @@ agent environment and whether the tests mention them. The mutation checks are no
 Checks whether task and verifier setup is consistently fast and successful.
 Enable with `--review-setup` for five preparations in fresh containers, or
 `--review-setup N` to choose the count. By default, task setup must average at most
-30 seconds, and each task or verifier preparation must finish within 60 seconds. Failed preparations or exceeded limits flag the task.
+30 seconds, and each task or verifier preparation must finish within 60 seconds. Slow preparations fail `setup_speed` only; they do not block later stages. They continue for up to 30 minutes, and `details` records how long task and verifier setup took. `build` fails only when no preparation succeeds within that time.
 Uses cached images; image builds and container startup are not included in these
 timing limits.
 
@@ -1130,16 +1403,11 @@ Names accepted by `--rules` are in `registry.py`. The result names listed above
 also include checks implemented by the pipeline runner; they are not all
 standalone `--rules` selectors. Arguments after `--` go to `validation/run.py`.
 
-Before starting containers for dynamic checks, we run static checks on the task
-files. If those fail, we do not start containers for that task. This saves time
-because starting containers takes longer. Warnings do not stop the run.
+Static checks run first (stage 0), but they never stop a task: dynamic checks run
+for every task whose build succeeds.
 
-**How results are saved:** Results go to `DIR/results.parquet`, with a status for
-each check and detailed JSON evidence alongside it.
+**How results are saved:** Results go to `DIR/results.parquet`, one row per task.
 
-- If you rerun a check on the same task, its result is replaced and the other
-  check results are kept.
-- If the task files change, we create a new revision. Previous check results do
-  not carry over to the changed task.
-- Published results can contain older revisions. Filter on `latest = true` to
-  see only the current revision of each task.
+- If you rerun a check on the same task, only that check's cell is replaced.
+- If the task files change, the row is replaced: checks not rerun on the new
+  files become `not_requested`.

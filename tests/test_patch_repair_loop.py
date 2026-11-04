@@ -39,8 +39,8 @@ def test_agent_json_parser_accepts_one_fenced_object_after_prose():
 def test_skipped_oracle_is_not_a_pass_and_counts_are_comparable(tmp_path: Path):
     def report(root, stage, statuses):
         root.mkdir()
-        for number in (1, 2, 3, 4):
-            payload = {'stage_layout': 'environment-first-v2', 'stage': number, "complete": True, "contract_sha256": "abc",
+        for number in (0, 1, 2, 3):
+            payload = {'stage_layout': 'environment-first-v3', 'stage': number, "complete": True, "contract_sha256": "abc",
                        "items": [{"task": task, "status": status if number == stage else "passed",
                                   "checks": [{"check": "example", "status": "passed"}]}
                                  for task, status in statuses.items()]}
@@ -60,15 +60,15 @@ def test_skipped_oracle_is_not_a_pass_and_counts_are_comparable(tmp_path: Path):
 
 
 def test_skipped_static_check_is_not_a_pass(tmp_path: Path):
-    for stage in (1, 2, 3, 4):
-        (tmp_path / f"stage-{stage}-a.json").write_text(json.dumps({'stage_layout': 'environment-first-v2',
+    for stage in (0, 1, 2, 3):
+        (tmp_path / f"stage-{stage}-a.json").write_text(json.dumps({'stage_layout': 'environment-first-v3',
             "stage": stage, "complete": True, "contract_sha256": "abc",
             "items": [{"task": "a", "status": "passed",
                        "checks": [{"check": "policy", "status": "skipped", "optional": True}]
-                       if stage == 4 else []}]}))
+                       if stage == 0 else []}]}))
     result = summarize(tmp_path, ["a"])
     assert result["passed_all"] == 0
-    assert result["stage_counts"]["4"]["missing_or_skipped_check"] == 1
+    assert result["stage_counts"]["0"]["missing_or_skipped_check"] == 1
 
 
 
@@ -92,10 +92,10 @@ def test_missing_gptzero_key_does_not_prevent_slurm_submission(tmp_path, monkeyp
            "concurrency": 1, "time": "00:10:00", "network_mode": "host",
            "dataset": "example", "source_revision": "pinned", "workspace": str(tmp_path)}
     if without_oracle:
-        cfg.update(required_stages=[1, 3, 4], validation_policy_reason="human approval",
+        cfg.update(required_stages=[0, 1, 3], validation_policy_reason="human approval",
                    static_exclusions={"check-test-file-references.sh": "no reference solution"})
     result = controller.submit(cfg, tmp_path, ["task"], tmp_path, full=True)
-    assert calls[0][calls[0].index("--stages") + 1] == ("0,1,3,4" if without_oracle else "0,1,2,3,4")
+    assert calls[0][calls[0].index("--stages") + 1] == ("0,1,3" if without_oracle else "0,1,2,3")
     if without_oracle:
         assert "check-test-file-references.sh=no reference solution" in calls[0]
     assert result["job_id"] == "123"
@@ -106,13 +106,13 @@ def test_missing_gptzero_key_does_not_prevent_slurm_submission(tmp_path, monkeyp
 @pytest.mark.parametrize("ai_status,optional,accepted", [
     ("skipped", True, True), ("skipped", False, False), ("failed", True, False)])
 def test_only_optional_gptzero_skip_is_non_failing(tmp_path, ai_status, optional, accepted):
-    for stage in (1, 2, 3, 4):
+    for stage in (0, 1, 2, 3):
         checks = [{"check": "required", "status": "passed"},
                   {"check": "check_ai_detection.py", "status": ai_status,
                    "optional": optional, "reason": "no GPTZERO_API_KEY configured"}]
-        (tmp_path / f"stage-{stage}-test.json").write_text(json.dumps({'stage_layout': 'environment-first-v2',
+        (tmp_path / f"stage-{stage}-test.json").write_text(json.dumps({'stage_layout': 'environment-first-v3',
             "stage": stage, "complete": True, "contract_sha256": "abc",
-            "items": [{"task": "a", "status": "passed", "checks": checks if stage == 4 else []}]}))
+            "items": [{"task": "a", "status": "passed", "checks": checks if stage == 0 else []}]}))
     outcome = summarize(tmp_path, ["a"])
     assert outcome["passed_all"] == int(accepted)
     if accepted:
@@ -271,26 +271,26 @@ t.mkdir()
 
 
 def test_oracle_omission_is_explicit_and_nop_still_required(tmp_path):
-    for stage in (1, 3, 4):
-        (tmp_path / f'stage-{stage}-test.json').write_text(json.dumps({'stage_layout': 'environment-first-v2',
+    for stage in (0, 1, 3):
+        (tmp_path / f'stage-{stage}-test.json').write_text(json.dumps({'stage_layout': 'environment-first-v3',
             'stage': stage, 'complete': True, 'contract_sha256': 'abc',
             'items': [{'task': 'a', 'status': 'passed',
-                       'checks': [{'check': 'required', 'status': 'passed'}] if stage == 4 else []}]}))
+                       'checks': [{'check': 'required', 'status': 'passed'}] if stage == 0 else []}]}))
     with pytest.raises(ValueError, match='stage 2'):
         summarize(tmp_path, ['a'])
-    outcome = summarize(tmp_path, ['a'], required_stages=[1, 3, 4])
+    outcome = summarize(tmp_path, ['a'], required_stages=[0, 1, 3])
     assert outcome['passed_all'] == 1 and not outcome['oracle_validated']
     assert outcome['stage_counts']['2'] == {'not_evaluated': 1}
     assert outcome['per_task']['a']['2'] == 'not_evaluated'
     (tmp_path / 'stage-3-test.json').unlink()
     with pytest.raises(ValueError, match='stage 3'):
-        summarize(tmp_path, ['a'], required_stages=[1, 3, 4])
+        summarize(tmp_path, ['a'], required_stages=[0, 1, 3])
 
 
 
 def test_custom_validation_policy_requires_recorded_human_reason():
     with pytest.raises(ValueError, match='validation_policy_reason'):
-        controller.validation_policy({'required_stages': [1, 3, 4]})
+        controller.validation_policy({'required_stages': [0, 1, 3]})
     with pytest.raises(ValueError, match='required_stages'):
         controller.validation_policy({'required_stages': [1]})
     assert controller.validation_policy({})['oracle_validated']

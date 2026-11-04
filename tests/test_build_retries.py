@@ -45,7 +45,7 @@ def test_network_mismatch_is_not_retried_and_blocks_later_stages(tmp_path, monke
     async def build(task, out, args):
         calls.append(task.name)
         return {'status': 'error', 'environments': [{'environment': 'agent', 'status': 'failed', 'checks': [
-            {'check': 'declared-network-egress', 'status': 'failed', 'expected_allow_internet': False}]}]}
+            {'check': 'declared-internet-access', 'status': 'failed', 'expected_allow_internet': False}]}]}
     monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
     monkeypatch.setattr(build_retries.runtime, 'build_task', build)
     args = SimpleNamespace(concurrency=1, backend='apptainer', outcome_retries=3)
@@ -103,8 +103,8 @@ def test_complete_publication_accepts_only_evidenced_build_skips(tmp_path, monke
     skipped = {'task': 'bad', 'status': 'skipped', 'blocked_by_stage': 1}
     build = {'task': 'bad', 'status': 'failed', 'build_stability': 'unstable_build',
              'build_attempts': [{'status': 'error'}] * 4, 'reason': '0/3 retries passed'}
-    reports = {n: {'stage_layout': 'environment-first-v2', 'complete': True, 'contract_sha256': 'hash', 'items': [item]}
-               for n, item in [(4, {'task': 'bad', 'status': 'passed'}), (1, build), (2, skipped), (3, skipped)]}
+    reports = {n: {'stage_layout': 'environment-first-v3', 'complete': True, 'contract_sha256': 'hash', 'items': [item]}
+               for n, item in [(0, {'task': 'bad', 'status': 'passed'}), (1, build), (2, skipped), (3, skipped)]}
     monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
     publish.require_complete(tmp_path, tmp_path / 'contract')
     assert publish.decide(reports, {'bad'})['bad']['archive'][0] == 1
@@ -173,7 +173,9 @@ def test_setup_review_defaults_and_portable_evidence(tmp_path, monkeypatch, opti
     assert 'exceeds 60s' in record['reason']
     with tarfile.open(review/record['task_archive']) as archive:
         assert archive.extractfile('slow/instruction.md').read() == b'task payload'
-    assert json.loads((review/record['evidence']).read_text())['status'] == 'failed'
+    assert json.loads((review/record['evidence']).read_text())['setup_speed']['status'] == 'failed'
+    # A slow setup does not fail the build or block later stages.
+    assert json.loads((review/record['evidence']).read_text())['status'] == 'passed'
 
 
 @pytest.mark.parametrize('values', [dict(review_setup=0), dict(review_setup=-1),
@@ -208,6 +210,9 @@ def test_review_has_independent_mean_budgets_and_buckets(tmp_path, monkeypatch, 
     args = parser().parse_args([str(source), '--review-setup'])
     result = asyncio.run(build_retries.run_builds([source], tmp_path/'out', args, StringIO()))[0]
     assert result['review_buckets'] == buckets
+    # Setup speed is its own check; the build fails only if no preparation succeeded.
+    assert result['setup_speed']['status'] == ('failed' if buckets else 'passed')
+    assert result['status'] == ('failed' if verifier_status == 'error' else 'passed')
     assert len(calls) == 5
     for bucket in ('task-setup-needs-review', 'verifier-setup-needs-review'):
         index = json.loads((tmp_path/'out/review'/bucket/'index.json').read_text())

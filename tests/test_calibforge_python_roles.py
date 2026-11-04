@@ -9,6 +9,30 @@ from data.calibforge import verifier_runtime as runtime
 from validation.contract import files_digest
 
 
+from contextlib import contextmanager
+
+
+@contextmanager
+def as_task(name):
+    """Convert another task than the one the reviewed record names."""
+    from data.calibforge.python_roles import current_task
+    token = current_task.set(name)
+    try:
+        yield
+    finally:
+        current_task.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def calibforge_task_fixture():
+    """Reviewed records name their task; tests convert the task named 'task'."""
+    from data.calibforge.python_roles import current_task
+    token = current_task.set('task')
+    yield
+    current_task.reset(token)
+
+
+
 def fixture():
     source='''import sys,subprocess
 
@@ -164,12 +188,12 @@ def test_literal_package_presence_probe_is_not_automatically_a_clean_grader():
     assert not modules  # The submitted package must not enter the dependency cache.
 
 
-def test_installation_role_is_bound_to_instruction_call_and_interpreter(monkeypatch):
+def test_installation_role_is_bound_to_task_call_and_interpreter(monkeypatch):
     from data.calibforge import python_roles
     source='import subprocess\nPYTHON="python3"\nsubprocess.run([PYTHON,"-c","import target_package"],check=False)\n'
     call=next(n for n in ast.walk(ast.parse(source)) if isinstance(n,ast.Call))
     files={'instruction.md':b'Fix the target_package installation.'}
-    record=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),
+    record=dict(task='task',
                 call_ast_sha256=hashlib.sha256(ast.dump(call,include_attributes=False).encode()).hexdigest(),
                 executables=['python3'],role='Evaluate the task installation')
     monkeypatch.setattr(python_roles,'installation_roles',lambda:[record])
@@ -179,8 +203,8 @@ def test_installation_role_is_bound_to_instruction_call_and_interpreter(monkeypa
                     source.replace('check=False','check=True')):
         with pytest.raises(ValueError,match='literal nested Python'):
             runtime.task_python_calls(changed,files=files)
-    with pytest.raises(ValueError,match='literal nested Python'):
-        runtime.task_python_calls(source,files={'instruction.md':b'Different task'})
+    with as_task('other'), pytest.raises(ValueError,match='literal nested Python'):
+        runtime.task_python_calls(source,files=files)
     # An unrelated child rewrite does not broaden the reviewed call's scope.
     assert runtime.task_python_calls(source+'\n# another reviewed child\n',files=files)[0].startswith(source)
 
@@ -252,29 +276,31 @@ def test_service_launch_exception_requires_both_original_source_bindings(monkeyp
     from data.calibforge import python_roles
     files={'instruction.md':b'Test the running HTTP service.', 'tests/test.sh':b'python3 /app/service.py &\n'}
     line='python3 /app/service.py &'
-    record=dict(line=line,instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),
+    record=dict(line=line,task='task',
                 test_script_sha256=hashlib.sha256(files['tests/test.sh']).hexdigest(),role='Task service')
     monkeypatch.setattr(python_roles,'service_roles',lambda:[record])
     result=python_roles.shell_task_launcher(line,files)
     assert result and 'os.execvp' in result[1] and result[3]['service_role']==record
-    assert python_roles.shell_task_launcher(line,{**files,'instruction.md':b'Other task'}) is None
+    with as_task('other'):
+        assert python_roles.shell_task_launcher(line,files) is None
     assert python_roles.shell_task_launcher(line,{**files,'tests/test.sh':b'Changed script'}) is None
 
 
-def test_named_task_module_role_requires_unchanged_instruction_and_source(monkeypatch):
+def test_named_task_module_role_requires_its_task_and_unchanged_source(monkeypatch):
     import ast
     import hashlib
     from data.calibforge import python_roles, verifier_runtime
     files={'instruction.md':b'Recover the task repository.', 'environment/files/init.sh':b'create module'}
-    record={'instruction_sha256':hashlib.sha256(files['instruction.md']).hexdigest(),
+    record={'task':'task',
             'modules':['recovered'], 'evidence_sha256':{'environment/files/init.sh':hashlib.sha256(files['environment/files/init.sh']).hexdigest()}}
     monkeypatch.setattr(python_roles,'module_roles',lambda:[record])
     source=ast.parse('import recovered')
     image={'stdlib':[],'implicit_task_root':'/app'}
     assert verifier_runtime.review_imports(source,files,image)[1]==['recovered']
-    for change in [{'instruction.md':b'Unrelated task'}, {'environment/files/init.sh':b'changed'}]:
-        with pytest.raises(ValueError,match='recovered'):
-            verifier_runtime.review_imports(source,{**files,**change},image)
+    with as_task('other'), pytest.raises(ValueError,match='recovered'):
+        verifier_runtime.review_imports(source,files,image)
+    with pytest.raises(ValueError,match='recovered'):
+        verifier_runtime.review_imports(source,{**files,'environment/files/init.sh':b'changed'},image)
     with pytest.raises(ValueError,match='unrelated'):
         verifier_runtime.review_imports(ast.parse('import unrelated'),files,image)
 
@@ -284,27 +310,29 @@ def test_service_module_launcher_requires_complete_source_binding(monkeypatch):
     from data.calibforge import python_roles
     line='cd /app && python3 -m service.app &'
     files={'instruction.md':b'Repair service', 'tests/test.sh':line.encode()}
-    role={'line':line,'instruction_sha256':hashlib.sha256(files['instruction.md']).hexdigest(),
+    role={'line':line,'task':'task',
           'test_script_sha256':hashlib.sha256(files['tests/test.sh']).hexdigest()}
     monkeypatch.setattr(python_roles,'service_roles',lambda:[role])
     result=python_roles.shell_task_launcher(line,files)
     assert result and "['python3', '-m', 'service.app']" in result[1]
     assert result[2].endswith(' &')
-    assert python_roles.shell_task_launcher(line,{**files,'instruction.md':b'changed'}) is None
+    with as_task('other'):
+        assert python_roles.shell_task_launcher(line,files) is None
     assert python_roles.shell_task_launcher(line.replace('service.app','unrelated'),files) is None
 
 
-def test_task_initialization_does_not_authorize_other_script_or_instruction(monkeypatch):
+def test_task_initialization_does_not_authorize_other_script_or_task(monkeypatch):
     import hashlib
     from data.calibforge import python_roles
     files={'instruction.md':b'Repair nginx', 'tests/test.sh':b'nginx -g "daemon off;" &'}
-    role={'instruction_sha256':hashlib.sha256(files['instruction.md']).hexdigest(),
+    role={'task':'task',
           'test_script_sha256':hashlib.sha256(files['tests/test.sh']).hexdigest(),
           'lines':['nginx -g "daemon off;" &']}
     monkeypatch.setattr(python_roles,'initialization_roles',lambda:[role])
     assert python_roles.task_initialization_roles(files)==[role]
     assert python_roles.task_initialization_roles({**files,'tests/test.sh':files['tests/test.sh']+b'\nextra'})==[]
-    assert python_roles.task_initialization_roles({**files,'instruction.md':b'Other task'})==[]
+    with as_task('other'):
+        assert python_roles.task_initialization_roles(files)==[]
 
 
 def test_source_bound_service_virtualenv_uses_environment_without_activate(monkeypatch):
@@ -314,7 +342,7 @@ def test_source_bound_service_virtualenv_uses_environment_without_activate(monke
     from data.calibforge import python_roles
     line='cd /app && source /app/venv/bin/activate && python /app/app.py &'
     files={'instruction.md':b'Repair Flask app', 'tests/test.sh':line.encode()}
-    role={'line':line,'virtualenv':'/app/venv','instruction_sha256':hashlib.sha256(files['instruction.md']).hexdigest(),
+    role={'line':line,'virtualenv':'/app/venv','task':'task',
           'test_script_sha256':hashlib.sha256(files['tests/test.sh']).hexdigest()}
     monkeypatch.setattr(python_roles,'service_roles',lambda:[role])
     result=python_roles.shell_task_launcher(line,files)
@@ -376,7 +404,7 @@ def test_task_installation_check_keeps_original_python_with_full_source_binding(
     source='import sys,subprocess\nsubprocess.run([sys.executable,"-c","import submitted; print(submitted.__version__)"])\n'
     files={'instruction.md':b'Install submitted.', 'tests/test_outputs.py':source.encode()}
     call=next(n for n in ast.walk(ast.parse(source)) if isinstance(n,ast.Call))
-    record=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),
+    record=dict(task='task',
         source_sha256=hashlib.sha256(source.encode()).hexdigest(),
         call_ast_sha256=hashlib.sha256(ast.dump(call,include_attributes=False).encode()).hexdigest(),
         executables=['sys.executable'])
@@ -393,7 +421,7 @@ def test_dynamic_extension_loader_binds_the_entire_directory_search(monkeypatch)
     source='import importlib.util,glob\ndef load():\n    paths=glob.glob("/app/solver*.so")\n    return importlib.util.spec_from_file_location("solver",paths[0])\n'
     function=ast.parse(source).body[1]
     files={'instruction.md':b'Build solver in /app.', 'tests/test_outputs.py':source.encode()}
-    role=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),evidence_sha256={},modules=['solver'],
+    role=dict(task='task',evidence_sha256={},modules=['solver'],
         extension_loader_functions=[hashlib.sha256(ast.dump(function,include_attributes=False).encode()).hexdigest()])
     monkeypatch.setattr(python_roles,'module_roles',lambda:[role])
     runtime.review_imports(ast.parse(source),files,{'stdlib':['importlib','glob']})
@@ -443,14 +471,15 @@ def test_dynamic_submitted_import_is_source_bound_and_keeps_dependencies_clean(t
     source = 'import importlib\nname="submitted"\nmod=importlib.import_module(name)\nassert mod.answer==42\n'
     files = {'instruction.md': b'Create the ctypes binding in /app'}
     call = next(n for n in ast.walk(ast.parse(source)) if isinstance(n,ast.Call))
-    record = dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),
+    record = dict(task='task',
                   evidence_sha256={}, modules=[],test_source_sha256=hashlib.sha256(source.encode()).hexdigest(),
                   dynamic_import_calls=[hashlib.sha256(ast.dump(call,include_attributes=False).encode()).hexdigest()])
     monkeypatch.setattr(roles,'module_roles',lambda:[record])
     adapted, helper = roles.adapt_dynamic_task_imports(source,files)
     assert 'mod=_ot_import_submitted_module(name)' in adapted
     assert roles.adapt_dynamic_task_imports(source+'\n',files)==(source+'\n','')
-    assert roles.adapt_dynamic_task_imports(source,{'instruction.md':b'different'})==(source,'')
+    with as_task('other'):
+        assert roles.adapt_dynamic_task_imports(source,files)==(source,'')
     (tmp_path/'submitted.py').write_text('import json\nanswer=json.loads("42")\n')
     (tmp_path/'json.py').write_text('raise RuntimeError("agent dependency poison")\n')
     helper=helper.replace("'/app'",repr(str(tmp_path)))
@@ -471,6 +500,7 @@ def test_generated_grader_uses_clean_python_and_checks_written_content(tmp_path,
     from data.calibforge import python_roles as roles
     source = '''import tempfile, subprocess
 from pathlib import Path
+
 def run_script(content, timeout=10):
     with tempfile.NamedTemporaryFile(mode='w',suffix='.py',delete=False) as f:
         f.write(content)
@@ -489,7 +519,7 @@ def test_script():
     writes=[digest(n) for n in ast.walk(tree) if isinstance(n,ast.Call) and ast.unparse(n.func)=='f.write']
     runs=[digest(n) for n in ast.walk(tree) if isinstance(n,ast.Call) and ast.unparse(n.func)=='subprocess.run']
     files={'instruction.md':b'Repair the worker pool'}
-    record=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),evidence_sha256={},
+    record=dict(task='task',evidence_sha256={},
                 test_source_sha256=hashlib.sha256(source.encode()).hexdigest(),modules=[],
                 generated_script_write_calls=writes,generated_script_run_calls=runs,generated_script_cwd='/app')
     monkeypatch.setattr(roles,'module_roles',lambda:[record])
@@ -513,7 +543,7 @@ def test_project_suite_is_restored_to_private_tests_and_uses_clean_pytest(tmp_pa
     body=b'import json\ndef test_correct(): assert json.loads("42")==42\n'
     files={'instruction.md':b'Fix the library','environment/files/test_project.py':body}
     call=next(n for n in ast.walk(ast.parse(source)) if isinstance(n,ast.Call))
-    record=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),
+    record=dict(task='task',
                 test_source_sha256=hashlib.sha256(source.encode()).hexdigest(),modules=[],
                 evidence_sha256={'environment/files/test_project.py':hashlib.sha256(body).hexdigest()},
                 project_test_calls=[hashlib.sha256(ast.dump(call,include_attributes=False).encode()).hexdigest()],
@@ -539,7 +569,7 @@ def test_literal_extension_environment_is_bound_to_source_image_and_python(monke
     call=next(n for n in ast.walk(ast.parse(source)) if isinstance(n,ast.Call))
     record=dict(sha256='a'*64,source_file='tests/test_outputs.py',source_sha256=hashlib.sha256(source.encode()).hexdigest(),probe_invocation='/app/venv/bin/python',
                 uses=[dict(line=call.lineno,column=call.col_offset,role='grading',call_sha256=hashlib.sha256(ast.get_source_segment(source,call).encode()).hexdigest())])
-    role=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),test_source_sha256=record['source_sha256'],evidence_sha256={},modules=['solver'],
+    role=dict(task='task',test_source_sha256=record['source_sha256'],evidence_sha256={},modules=['solver'],
               literal_environment=dict(image_sha256='a'*64,python='3.12.3',executable='/app/venv/bin/python',variable='env',task_root='/app',modules=['solver'],roots=['/app','/app/venv/lib/python3.12/site-packages']))
     monkeypatch.setattr(roles,'module_roles',lambda:[role])
     measured=dict(python='3.12.3',executable='/app/venv/bin/python',prefix='/app/venv',stdlib=[])
@@ -575,7 +605,7 @@ def test_copied_helpers_restore_only_bound_bytes_and_preserve_clean_imports(monk
     helper=b'import json\nassert json.loads("42")==42\n'
     files={'instruction.md':b'Repair worker', 'tests/test_outputs.py':source,
            'environment/files/worker_check.py':helper}
-    record=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),
+    record=dict(task='task',
                 evidence_sha256={'environment/files/worker_check.py':hashlib.sha256(helper).hexdigest()},
                 modules=[],verifier_helper_sources={'tests/worker_check.py':'environment/files/worker_check.py'})
     monkeypatch.setattr(roles,'module_roles',lambda:[record])
@@ -595,7 +625,7 @@ def test_valgrind_child_is_reviewed_as_clean_grading_python(monkeypatch):
     text='import subprocess, sys\nsubprocess.run(["valgrind", "--leak-check=full", "--error-exitcode=99", sys.executable, "-c", "import json; assert json.loads(\'42\')==42"], capture_output=True)\n'
     call=next(n for n in ast.walk(ast.parse(text)) if isinstance(n,ast.Call))
     files={'instruction.md':b'Fix memory management','tests/test_outputs.py':text.encode()}
-    role=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),evidence_sha256={},modules=[],
+    role=dict(task='task',evidence_sha256={},modules=[],
               test_source_sha256=hashlib.sha256(text.encode()).hexdigest(),valgrind_call_ast_sha256=hashlib.sha256(ast.dump(call).encode()).hexdigest())
     monkeypatch.setattr(roles,'module_roles',lambda:[role])
     adapted,helper=roles.adapt_wrapped_grading(text,files)
@@ -678,7 +708,7 @@ def test_embedded_project_group_requires_image_and_runs_every_member(tmp_path, m
     files={'instruction.md':b'Merge both features'}
     call=next(n for n in ast.walk(ast.parse(source)) if isinstance(n,ast.Call))
     bodies={'tests/test_one.py':'def test_one(): assert True\n','tests/test_two.py':'def test_two(): assert False, "second feature checked"\n'}
-    record=dict(instruction_sha256=hashlib.sha256(files['instruction.md']).hexdigest(),test_source_sha256=hashlib.sha256(source.encode()).hexdigest(),evidence_sha256={},modules=[],project_image_sha256='a'*64,
+    record=dict(task='task',test_source_sha256=hashlib.sha256(source.encode()).hexdigest(),evidence_sha256={},modules=[],project_image_sha256='a'*64,
                 project_test_calls=[hashlib.sha256(ast.dump(call).encode()).hexdigest()],project_test_groups={'tests/':list(bodies)},
                 project_test_sources={name:dict(text=body,sha256=hashlib.sha256(body.encode()).hexdigest(),import_root='/app') for name,body in bodies.items()})
     monkeypatch.setattr(roles,'module_roles',lambda:[record])

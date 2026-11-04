@@ -79,7 +79,7 @@ CHECKER_UNIT_TESTS = ('test-author-github.py', 'test-instruction-headings.sh',
                       'test-resource-sizes.sh', 'test-task-changelog.sh')
 AI_CHECK = 'check_ai_detection.py'
 # Our static rules, run as scripts on the task (validation/rules/static/script.py): exit 0 passed,
-# 1 finding, 2 the rule crashed. None are environment checks, so they run in stage 4.
+# 1 finding, 2 the rule crashed. None are environment checks, so they run in stage 0.
 _STATIC = Path(__file__).parent
 LOCAL_CHECKS = {'check-agent-editable-test.py': _STATIC / 'agent_editable_test.py',
                 'check-task-toml-schema.py': _STATIC / 'task_toml_schema.py',
@@ -268,6 +268,18 @@ def rebuild_summary(out):
     return report
 
 
+def finding(output, target, name, limit=1000):
+    """The check's own finding lines, with scratch paths shown as the task name."""
+    text = output.replace(str(target) + '/', '').replace(str(target) + ': ', '').replace(str(target), '.')
+    # The row already names the task: drop "<task>: " and "<task>/" prefixes.
+    text = re.sub(rf'(?<![\w.-]){re.escape(name)}(?::\s*|/)', '', text)
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    marked = [re.sub(r'^(FAIL|WARN|WARNING|ERROR)\b:?\s*', '', l) for l in lines
+              if re.match(r'(FAIL|WARN|WARNING|ERROR|Error)\b', l)]
+    text = '\n'.join(l for l in (marked or lines[-5:]) if l)
+    return text if len(text) <= limit else text[:limit - 3] + '...'
+
+
 def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclude=(), concurrency=1,
                resume=None, resume_record=None, accept_previous_path_check=False, group=None):
     if concurrency < 1:
@@ -397,6 +409,9 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             if 'skipped' in text.lower() or 'No files to check' in text:
                                 status = 'incomplete'
                             stream.seek(0)
+                        stream.seek(0)
+                        output = stream.read() if status != 'passed' else ''
+                        stream.seek(0)
                         with log_lock:
                             combined_log.write(f'\n=== {entry["task"]} / {name} ===\n')
                             shutil.copyfileobj(stream, combined_log)
@@ -404,6 +419,8 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             combined_log.flush()
                     entry['checks'].append({'check': name, 'status': status, 'optional': False, 'exit_code': rc,
                                             'log': str(log.resolve()), 'duration_seconds': round(time.monotonic() - started, 3)})
+                    if output:
+                        entry['checks'][-1]['reason'] = finding(output, target, task.name)
                     if status == 'error' and rc is None:
                         entry['checks'][-1].update(category='timeout', reason_code='time_limit_reached',
                                                   phase='checker', classification_version=1)

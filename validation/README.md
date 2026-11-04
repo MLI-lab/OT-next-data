@@ -12,7 +12,7 @@ Before submitting validation, prepare and verify all required images in the targ
 export OT_REQUIRE_PREBUILT_IMAGES=1
 
 python validation/run.py /path/to/tasks \
-  --stages 0,1,2,3,4 \
+  --stages 0,1,2,3 \
   --submit helma --partition cpu --cpus 48 \
   --concurrency 4 --time 02:00:00 \
   --out "$OT_WORKSPACE/validation" \
@@ -28,9 +28,9 @@ python validation/run.py \
   --contract "$OT_WORKSPACE/contracts/validation.json"
 ```
 
-The example runs the full task-filtering pipeline, stages 0 through 4.
+The example runs the full task-filtering pipeline, stages 0 through 3.
 
-To run a single stage, prepare a separate contract with, for example, `--stages 4`. For several stages, use a comma-separated list. Model stages also need their model settings; stages that analyse saved trajectories need `--trials`.
+To run a single stage, prepare a separate contract with, for example, `--stages 0`. For several stages, use a comma-separated list. Model stages also need their model settings; stages that analyse saved trajectories need `--trials`.
 
 `--stages all` includes the experimental stages 9 and 10, so use an explicit stage list for normal validation.
 
@@ -44,41 +44,43 @@ See [publishing](publishing/README.md) for how READMEs are generated.
 
 ### Stage 0: static checks
 
-First, run all selected rules that only need task files. This is a cheap prefilter before starting containers. Tasks with failed or incomplete checks do not continue; warnings are allowed.
-
-Request it with stage 0 in `--stages`. Without it, tasks go straight to the stages you selected. See [static rules](rules/README.md).
+Run the 18 rules that only read task files. They never stop a task: every task continues to stage 1, whatever its static results. See [static rules](rules/README.md).
 
 ### Stage 1: build, setup and runtime checks
 
-Start and set up each task in an Apptainer container. Check that its working directory and internet access match the task configuration.
+Build and set up each task in an Apptainer container. In that container:
 
-Failed builds are retried up to three times. Consistent task failures are archived; mixed success and failure is marked as not robust. Infrastructure failures remain unresolved. Tasks that do not pass skip the reference and no-op stages.
+- `declared_workdir`: the starting directory matches `task.toml`.
+- `declared_internet_access`: internet access matches `allow_internet`.
+- `repository_history` and `repository_timestamps`: the Git repository does not give away the solution. Timestamps are repaired automatically.
+- The lookup for `task-absolute-path`: where the instruction's relative paths really are.
+
+Failed builds are retried up to three times. Only a failed build stops a task: its stage 2 and 3 checks become `blocked`.
 
 ### Stage 2: reference solution
 
 Run `solution/solve.sh`, then the verifier. The reference solution must score **1**.
 
-Execution errors or missing rewards remain incomplete and may be retried. Tasks without a reference solution are not applicable here.
+- `do_not_modify_dynamic`: change a protected file after the solution; the verifier must then not give reward 1.
+- `reference_determinism`: repeat the run with shuffled Python directory listings; it must still score 1.
+
+Tasks without a reference solution are not applicable here.
 
 ### Stage 3: no-op baseline
 
-Run setup and verification without an agent. The no-op baseline must score **0**; a positive reward flags the task.
+Run the verifier without a solution. It must score **0**.
 
-Infrastructure errors remain unresolved. Verifier failures caused by missing agent-created files follow the no-op checker’s documented handling.
+- `reference_leaks`: before the no-op starts, scan the clean container for copies of the files the reference solution changed.
+- `verifier_tamper`: check that the tools the verifier uses were not changed.
+- `nop_determinism`: repeat the run with shuffled Python directory listings; it must still score 0.
 
-### Stage 4: final checks
-
-Recheck task files after automatic repairs and collect the dynamic-check results.
-
-[Dynamic checks](rules/README.md#dynamic-rules) run across stages 1 through 3 where they can reuse containers and evidence. The rules documentation describes their behavior, repairs and exclusions.
-
-Tasks that pass the required validation checks form **v1**.
+Tasks that pass the required checks form **v1**. The [rules documentation](rules/README.md) describes each check, its repairs and exclusions.
 
 ### Stage 5: LLM task-quality review
 
 A judge reviews the instructions, task implementation and, by default, the task image against a rubric.
 
-See [rubrics](rubrics/README.md) for available rubrics, calibration and execution options. These reviews provide additional findings; stage 6 uses stage-4 kept tasks.
+See [rubrics](rubrics/README.md) for available rubrics, calibration and execution options. These reviews provide additional findings; stage 6 uses the v1 tasks.
 
 ### Stage 6: pass@k
 

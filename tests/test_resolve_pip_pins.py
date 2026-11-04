@@ -9,6 +9,15 @@ from validation.rules.static.pip_pinning import repair as pins
 from validation.stages.runner import parser
 
 
+def apply_pins(root, observations):
+    """Pin in the task's files and write the result back, as the end-of-run repair does."""
+    files = {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    repaired, edits = pins.pin(files, observations)
+    for name, data in repaired.items():
+        (root / name).write_bytes(data)
+    return edits
+
+
 def task(tmp_path, script='python3 -m pip install pytest "requests>=2.31"\n'):
     root = tmp_path / 'input' / 'sample'
     (root / 'tests').mkdir(parents=True)
@@ -26,7 +35,7 @@ def test_literal_commands_target_continuations_and_constraints(tmp_path):
     findings = pins.commands(root)
     assert len(findings) == 1
     assert findings[0]['freeze'] == 'python3 -m pip freeze --all --path /tmp/grader'
-    edits = pins.apply(root, [{**findings[0], 'exit_code': 0,
+    edits = apply_pins(root, [{**findings[0], 'exit_code': 0,
                              'stdout': 'pytest==8.3.5\nrequests==2.32.3\nalready==1.0\n'}])
     text = (root / 'tests/test.sh').read_text()
     assert len(edits) == 2
@@ -41,7 +50,7 @@ def test_user_install_captures_already_satisfied_system_packages(tmp_path):
     finding, = pins.commands(root)
     # pip install --user may be satisfied by an existing system distribution.
     assert finding['freeze'] == 'python3 -m pip freeze --all'
-    edits = pins.apply(root, [{**finding, 'exit_code': 0, 'stdout': 'psutil==7.2.2\n'}])
+    edits = apply_pins(root, [{**finding, 'exit_code': 0, 'stdout': 'psutil==7.2.2\n'}])
     assert len(edits) == 1
     assert '--user --quiet psutil==7.2.2' in (root / 'tests/test.sh').read_text()
 
@@ -82,7 +91,7 @@ def test_missing_conflicting_incompatible_and_failed_freezes_do_not_pin(tmp_path
     root = task(tmp_path)
     before = (root / 'tests/test.sh').read_bytes()
     finding, = pins.commands(root)
-    assert pins.apply(root, [{**finding, 'stdout': stdout, 'exit_code': code}]) == []
+    assert apply_pins(root, [{**finding, 'stdout': stdout, 'exit_code': code}]) == []
     assert (root / 'tests/test.sh').read_bytes() == before
 
 
@@ -91,17 +100,7 @@ def test_stale_command_evidence_rejected(tmp_path):
     finding, = pins.commands(root)
     (root / 'tests/test.sh').write_text('# changed\npip install pytest\n')
     with pytest.raises(ValueError, match='stale'):
-        pins.apply(root, [{**finding, 'exit_code': 0, 'stdout': 'pytest==8.3.5\n'}])
-
-
-def test_real_checker_passes_only_flagged_tasks_to_resolver(tmp_path):
-    root = task(tmp_path, 'python3 -m pip install pytest\n')
-    args = parser().parse_args([])
-    findings = pins.check([root], args, tmp_path / 'check')
-    assert set(findings) == {'sample'}
-    assert findings['sample'][0]['requirements'][0]['requirement'] == 'pytest'
-    (root / 'tests/test.sh').write_text('python3 -m pip install pytest==8.3.5\n')
-    assert pins.check([root], args, tmp_path / 'pinned-check') == {}
+        apply_pins(root, [{**finding, 'exit_code': 0, 'stdout': 'pytest==8.3.5\n'}])
 
 
 def test_capture_only_after_reward_one_and_scoped_to_discovery(tmp_path, monkeypatch):
@@ -137,74 +136,14 @@ def test_capture_only_after_reward_one_and_scoped_to_discovery(tmp_path, monkeyp
     assert json.loads((tmp_path / 'pip-freeze.json').read_text())[0]['exit_code'] == 0
 
 
-@pytest.mark.parametrize('passed', [True, False])
-def test_preparation_preserves_original_and_freezes_only_successful_edits(tmp_path, monkeypatch, passed):
-    from validation.contract import create, verify_materialized
-    root = task(tmp_path, 'python3 -m pip install pytest\n')
-    args = parser().parse_args([str(root.parent), '--out', str(tmp_path / 'results')])
-    stages = [1, 2, 3, 4]
-    create(args, stages, tmp_path / 'original.json')
-    args.contract = tmp_path / 'original.json'
-    original_contract = args.contract.read_bytes()
-    findings = pins.commands(root)
-    monkeypatch.setattr(pins, 'check', lambda *a: {'sample': findings})
-    def resolve(tasks, selected, out, discovery):
-        return [{'task': str(root), 'status': 'passed' if passed else 'failed',
-                 'pip_snapshots': [{**findings[0], 'exit_code': 0, 'stdout': 'pytest==8.3.5\n'}] if passed else []}]
-    monkeypatch.setattr(pins, 'resolve', resolve)
-    pins.prepare(args, stages)
-    assert (root / 'tests/test.sh').read_text() == 'python3 -m pip install pytest\n'
-    assert (tmp_path / 'original.json').read_bytes() == original_contract
-    if passed:
-        assert (args.tasks / 'sample/tests/test.sh').read_text() == 'python3 -m pip install pytest==8.3.5\n'
-        frozen = verify_materialized(args)
-        assert frozen['stages'] == stages
-        assert frozen['dataset']['automation_changes']['sample'] == [
-            'anti-cheat-instruction', 'dependency-pinning', 'repository-leak-repair']
-    else:
-        assert args.tasks == root.parent
-        assert args.contract == tmp_path / 'original.json'
-
-
-def test_default_optout_and_stage_selection():
-    assert pins.enabled(parser().parse_args([]), [1, 2, 3, 4])
-    assert not pins.enabled(parser().parse_args(['--no-fix-pip-pins']), [1])
-    assert not pins.enabled(parser().parse_args([]), [3, 4])
-
-
-def test_failed_discovery_continues_without_changing_tasks(tmp_path, monkeypatch):
-    root = task(tmp_path)
-    args = parser().parse_args([str(root.parent), '--out', str(tmp_path / 'out')])
-    monkeypatch.setattr(pins, 'check', lambda *a: {'sample': pins.commands(root)})
-    def fail(*args):
-        raise RuntimeError('container start failed')
-    monkeypatch.setattr(pins, 'resolve', fail)
-    pins.prepare(args, [1, 2, 3, 4])
-    assert args.tasks == root.parent
-    evidence, = (args.out / 'pip-normalization').glob('*/resolver-evidence.json')
-    assert json.loads(evidence.read_text())['items'][0]['reason'] == 'container start failed'
-
-
-def test_pipeline_runs_all_normal_stages_after_preparation(tmp_path, monkeypatch):
+def test_pipeline_runs_stages_in_order_without_a_pip_pass(tmp_path, monkeypatch):
     from validation.run import run_selected
     events = []
     args = parser().parse_args(['--out', str(tmp_path / 'out')])
-    monkeypatch.setattr('validation.stages.normalize_paths.prepare', lambda *a: events.append('paths'))
-    monkeypatch.setattr(pins, 'prepare', lambda *a: events.append('pip'))
     def run_stage(number, options):
         events.append(number)
         return tmp_path / f'stage-{number}.json', {'has_findings': False, 'items': []}
     monkeypatch.setattr('validation.run.run_stage', run_stage)
-    assert run_selected(args, [1, 2, 3, 4]) == 0
-    # Path evidence is collected during stage 1; normalization is applied once
-    # stages 1-3 settle, before stage 4 (validation/run.py defer_paths).
-    assert events == ['pip', 1, 2, 3, 'paths', 4]
-
-
-def test_separate_verifier_and_unsupported_commands_do_not_run_oracle(tmp_path, monkeypatch):
-    root = task(tmp_path)
-    (root / 'task.toml').write_text('[verifier]\nenvironment_mode = "separate"\n')
-    monkeypatch.setattr('validation.stages.runner.run_trial_batch', lambda *a: pytest.fail('must not run oracle'))
-    args = parser().parse_args([])
-    result = pins.resolve([root], {'sample': pins.commands(root)}, tmp_path / 'out', args)
-    assert result[0]['status'] == 'unresolved'
+    assert run_selected(args, [0, 1, 2, 3]) == 0
+    # Pip versions come from the stage-2 reference run; no separate pass runs first.
+    assert events == [0, 1, 2, 3]

@@ -869,11 +869,20 @@ async def build_task(task_path, out, args):
             entry['timings_seconds'][phase] = time.monotonic() - started
             if environment is not None:
                 stopped = time.monotonic()
+                # The worker returns the container's cgroup CPU time and peak memory
+                # when it stops (harbor_patches/resource_usage.py); keep them for build.
+                from types import SimpleNamespace
+                from harbor_patches.resource_usage import TRIAL
+                holder = {'trial': SimpleNamespace(agent_environment=environment), 'resources': {}}
+                token = TRIAL.set(holder)
                 try:
                     await environment.stop(delete=True)
                 except Exception as exc:
                     entry.update(status='error', cleanup_error=str(exc))
                 finally:
+                    TRIAL.reset(token)
                     entry['timings_seconds']['stop'] = time.monotonic() - stopped
+                    if holder['resources'].get('agent'):
+                        entry['resources'] = holder['resources']['agent']
         results.append(entry)
     return {'status': 'passed' if all(e['status'] == 'passed' for e in results) else 'error', 'environments': results}

@@ -137,7 +137,7 @@ def collect(config, job, selected, stages, directory):
             if not item or item.get('status') == 'previewed':
                 item = {'task': task, 'status': 'error', 'reason': 'No completed execution: ' + error,
                         'execution_missing': True, 'submission': job['submission']}
-                if stage == 4:
+                if stage == 0:
                     item['checks'] = [{'check': 'execution', 'status': 'error', 'error': item['reason']}]
             items.append(item)
         core.save(recovered / f'stage-{stage}-incomplete.json', {

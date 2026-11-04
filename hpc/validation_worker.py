@@ -311,16 +311,7 @@ def main(request):
         # Static checks do not reserve separate agent/verifier containers.
         from validation.stages.runner import static_concurrency
         args.static_concurrency = static_concurrency(args)
-        from validation.stages.normalize_paths import enabled as path_normalization_enabled, candidates as path_candidates
-        if not prebuild_only and path_normalization_enabled(args, data['stages']):
-            args._path_candidates = path_candidates(args, tasks)
-        from validation.rules.static.pip_pinning.repair import enabled as pip_enabled, check as pip_check
-        if not prebuild_only and pip_enabled(args, data['stages']):
-            args._pip_findings = pip_check(tasks, args, scratch / 'pip-precheck')
-        preparation_tasks = [task for task in tasks if task in getattr(args, '_path_candidates', [])
-                             or getattr(args, '_pip_findings', {}).get(task.name)
-                             or (4 in data['stages'] and (task / 'solution/solve.sh').is_file())]
-        static_only = not prebuild_only and set(data['stages']) == {4} and not preparation_tasks
+        static_only = not prebuild_only and set(data['stages']) == {0}
         runtime_tasks = tasks if prebuild_only else review_runtime_tasks(
             tasks, data['stages'], scratch, getattr(args, 'review_evidence', 'files'),
             getattr(args, 'review_rubric', 'terminal-bench'),
@@ -338,15 +329,19 @@ def main(request):
             images.mkdir()
         else:
             image_scope = runtime_tasks
-            if data.get('shard_plan'):
-                # Array preparation only starts containers for path candidates, and
-                # no node holds a whole dataset's images: discovery swaps them in batches.
-                from hpc.local_assets import IMAGE_BATCH, replace_images
-                image_scope = list(getattr(args, '_path_candidates', []))[:IMAGE_BATCH]
-                args._image_batch = lambda batch: replace_images(batch, base / 'images', scratch / 'images', args)
             images = stage_images(image_scope, base / 'images', scratch / 'images')
         if os.environ.get('OT_LOCAL_RUNTIME'):
             shutil.copyfile(Path(os.environ['OT_LOCAL_RUNTIME']) / 'staging.json', scratch / 'runtime-staging.json')
+        if not prebuild_only and not static_only:
+            # Runtimes are copied into the container at every preparation: read them
+            # from node-local storage, copied once per job, not the shared filesystem.
+            from harbor_patches.verifier_bundle import cache_root
+            from hpc.local_assets import stage_runtimes
+            shared_runtimes = cache_root()
+            if shared_runtimes.is_dir():
+                local_runtimes, runtime_summary = stage_runtimes(runtime_tasks, shared_runtimes, scratch / 'runtimes')
+                os.environ['OT_RUNTIME_CACHE'] = str(local_runtimes)
+                status['runtime_cache'] = runtime_summary
         if args.trials:
             shutil.copytree(args.trials, scratch / 'input-trials')
             args.trials = scratch / 'input-trials'
@@ -395,8 +390,7 @@ def main(request):
             for name, default in [('memory_mb', 8192), ('cpus', 4), ('concurrency', 2), ('timeout_sec', 3600)]:
                 if not hasattr(args, 'image_build_' + name):
                     setattr(args, 'image_build_' + name, default)
-            image_tasks = runtime_tasks if prebuild_only else (
-                preparation_tasks if set(data['stages']) == {4} else image_scope)
+            image_tasks = runtime_tasks if prebuild_only else image_scope
             try:
                 preparation = prepare_images(image_tasks, images, base / 'images', args)
             finally:
@@ -509,19 +503,22 @@ def main(request):
                        '--format=csv,noheader,nounits', '-l', '10'], 'gpu-usage')
             except OSError as exc:
                 print(f'GPU usage is not sampled: {exc}', flush=True)
-            args.model = 'openai/' + key
-            args.api_base = f'http://127.0.0.1:{serving_port}/v1'
+            if getattr(args, 'judge_mode', None) in ('serve', 'local'):
+                args.judge_api_base = f'http://127.0.0.1:{serving_port}/v1'
+            else:
+                args.model = 'openai/' + key
+                args.api_base = f'http://127.0.0.1:{serving_port}/v1'
             args._local_server_ready = True
             args._serving_gpu_count = plan['gpus']
-            os.environ['OPENAI_API_KEY'] = 'EMPTY'
+            if getattr(args, 'judge_mode', None) not in ('serve', 'local'):
+                os.environ.setdefault('OPENAI_API_KEY', 'EMPTY')
             from config.models import serving_agent_kwargs
-            args.agent_kwargs = serving_agent_kwargs(spec, args.serve_context, args.agent_kwargs)
-        if data.get('shard_plan'):
-            from hpc.shard_normalization import prepare_and_submit
-            code = prepare_and_submit(args, data['stages'], data['shard_plan'])
-        else:
-            from validation.run import run_selected
-            code = run_selected(args, data['stages'])
+            if getattr(args, 'judge_mode', None) in ('serve', 'local'):
+                args.judge_agent_kwargs = serving_agent_kwargs(spec, args.serve_context, {})
+            else:
+                args.agent_kwargs = serving_agent_kwargs(spec, args.serve_context, args.agent_kwargs)
+        from validation.run import run_selected
+        code = run_selected(args, data['stages'])
         if getattr(args, 'contract', None):
             status['validation_contract'] = str(args.contract)
             status['contract_sha256'] = read(args.contract)['sha256']

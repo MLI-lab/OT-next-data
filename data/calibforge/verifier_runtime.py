@@ -642,10 +642,10 @@ def downloaded_native_dependencies(files,image_sha256):
     from pathlib import Path
     from hpc.offline_prep.image_verifier_tools import canonical
     for record in json.loads(Path(__file__).with_name('task_native_dependencies.json').read_text()):
-        if hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()!=record['source_sha256']:
+        from data.calibforge.python_roles import for_task
+        if not for_task(record) or hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()!=record['source_sha256']:
             continue
         if (image_sha256!=record['image_sha256']
-                or hashlib.sha256(files.get('instruction.md',b'')).hexdigest()!=record['instruction_sha256']
                 or files['tests/test.sh'].decode().count(record['command'])!=1):
             raise ValueError('CalibForge native download source binding differs')
         canonical({key:record[key] for key in ('image_sha256','executables','debian','node_modules') if key in record})
@@ -1544,16 +1544,17 @@ def task_distributions(files):
     import hashlib
     # This task requires cloning/building XGBoost and installing its Python
     # package. No package sources exist in the initial payload.
-    source_builds = {'4a80588f3c14a4e4a1316a8fbbda4d498f54978a0219b50c664b58e3eedbf28a': 'xgboost', '7f68fbcc4d69bd9c0d172815ca36716d60ba57b4c2a5e3a755c427c9ca7734c7': 'xgboost', '011b352a5083af4cac6466838e7ceceb03a92dbe458ad0ab15067fba241b4ea9': 'xgboost', 'b54c17b09600e3a491effdb07120ad88ac910b4e331521e3f0ec61b9efc07d94': 'pysqlite3', 'c89451d0dc1eacc88535d747717b1b879a46609a0363dfbdf8acbae14a62bf39': 'xgboost'}
-    project = source_builds.get(hashlib.sha256(files.get('instruction.md',b'')).hexdigest())
+    source_builds = {'contrastive_solver-machine-learning_20260601_053159_001': 'xgboost', 'contrastive_solver-machine-learning_20260607_104421_001': 'xgboost', 'contrastive_solver-machine-learning_20260611_205750_001': 'xgboost', 'contrastive_solver-system-administration_20260509_111805_001': 'pysqlite3', 'contrastive_solver-machine-learning_20260602_105139_001': 'xgboost'}
+    from data.calibforge.python_roles import current_task
+    project = source_builds.get(current_task.get())
     if project:
         names.add(project)
     installation_subjects = {
-        '0a74c6b53c77a78a0b7921973c3236576359ed561bffa9e8f9f7569fc2145546': {'xgboost'},
-        '2bacae8ea6cf41a50fe4cd66a98753eb1cbaacb42c2ffed1122e8dc3966815e6': {'hmmlearn'},
-        '7dc59b1bbfc8bbed8795bbb3fa87fab230c6750b43aa3d1bad331a7125f9818f': {'ta-lib','talib','numpy','pandas'},
+        'contrastive_solver-machine-learning_20260612_191200_001': {'xgboost'},
+        'contrastive_solver-data-science_20260613_152233_002': {'hmmlearn'},
+        'multi_solver-debugging_20260416_184513_001': {'ta-lib','talib','numpy','pandas'},
     }
-    names.update(installation_subjects.get(hashlib.sha256(files.get('instruction.md',b'')).hexdigest(),set()))
+    names.update(installation_subjects.get(current_task.get(),set()))
     for path, body in files.items():
         if not path.startswith('environment/'):
             continue
@@ -3528,6 +3529,8 @@ def migrate_published(source, output, *, revision, subset, image, probe, cache, 
             rows = batch.to_pylist()
             for row in rows:
                 name = row['path']
+                from data.calibforge.python_roles import current_task
+                current_task.set(name)
                 runtime_details = {}
                 # Historical row labels describe the previous patch. Override
                 # report labels even for unchanged members of this migration.

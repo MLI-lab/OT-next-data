@@ -7,7 +7,7 @@ from validation.publishing.report import write_report
 
 def test_nested_preflight_summary_is_not_a_pipeline_stage(tmp_path):
     archive = tmp_path / 'evidence.tar.gz'
-    stage = {'stage_layout': 'environment-first-v2', 'stage': 1,
+    stage = {'stage_layout': 'environment-first-v3', 'stage': 1,
              'name': 'build_validation', 'complete': True,
              'items': [{'task': 'sample', 'status': 'passed'}]}
     with tarfile.open(archive, 'w:gz') as tar:

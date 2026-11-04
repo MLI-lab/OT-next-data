@@ -81,10 +81,11 @@ def test_publication_preserves_flags_and_rejects_only_above_half(matched, status
     result = leaks.verdict({'workspace': '/repo', 'deleted_files': []},
                           {'status': 'completed', 'files': [{'matches': ['/copy'] if i < matched else []}
                                                            for i in range(4)]})
-    item = {'status': status, 'checks': [result]}
-    assert judge(4, item)[0] == decision
+    # The scan runs in the stage-3 no-op container; the no-op itself passed.
+    item = {'status': 'passed', 'rewards': [0.0], 'reference_leak_scans': [{'result': result}]}
+    assert judge(3, item)[0] == decision
     expected = 'static:reference-solution-leak' if matched > 2 else 'warning:reference-solution-leak'
-    assert expected in labels(4, item)
+    assert expected in labels(3, item)
 
 
 @pytest.mark.parametrize('matches,status', [([], 'passed'), (['/copy'], 'failed')])
@@ -152,36 +153,29 @@ def test_stale_failed_or_conflicting_reference_evidence_rejected(tmp_path):
         leaks.collect(task, out)
 
 
-def test_stage4_missing_evidence_is_incomplete_no_reference_not_applicable(tmp_path):
+def test_stage3_plan_gives_missing_evidence_and_no_reference_a_result(tmp_path):
     with_ref, without_ref = tmp_path / 'ref', tmp_path / 'no-ref'
     (with_ref / 'solution').mkdir(parents=True)
     (with_ref / 'solution/solve.sh').write_text('true')
     without_ref.mkdir()
-    items = [{'task': str(t), 'status': 'passed', 'checks': []} for t in (with_ref, without_ref)]
-    asyncio.run(leaks.run_checks([with_ref, without_ref], items, tmp_path / 'scan',
-                                SimpleNamespace(out=tmp_path / 'out', concurrency=2)))
-    assert items[0]['status'] == 'error'
-    assert items[0]['reference_leak_incomplete']
-    assert items[1]['checks'][0]['status'] == 'not_applicable'
+    requests, results = leaks.plan_nop_scans([with_ref, without_ref], tmp_path / 'out')
+    assert requests == {}
+    assert results['ref']['status'] == 'skipped' and results['ref']['blocked_by_stage'] == 2
+    assert results['no-ref']['status'] == 'not_applicable'
 
 
-def test_deletion_only_reference_is_not_applicable_without_starting_scan(tmp_path, monkeypatch):
+def test_deletion_only_reference_is_not_applicable_without_scan(tmp_path, monkeypatch):
     task = tmp_path / 'task'
     (task / 'solution').mkdir(parents=True)
     (task / 'solution/solve.sh').write_text('rm obsolete')
     monkeypatch.setattr(leaks, 'collect', lambda *args: {
         'workspace': '/repo', 'files': [], 'deleted_files': ['/repo/obsolete']})
-    async def unexpected(*args):
-        pytest.fail('deletion-only reference must not start a content scan')
-    monkeypatch.setattr(leaks, 'scan_task', unexpected)
-    items = [{'task': str(task), 'status': 'passed', 'checks': []}]
-    asyncio.run(leaks.run_checks([task], items, tmp_path / 'scan',
-                                SimpleNamespace(out=tmp_path / 'out', concurrency=1)))
-    check = items[0]['checks'][0]
+    requests, results = leaks.plan_nop_scans([task], tmp_path / 'out')
+    assert requests == {}
+    check = results['task']
     assert check['status'] == check['evaluation_status'] == 'not_applicable'
     assert check['skipped_deleted_files'] == ['/repo/obsolete']
     assert not check['all_changed_files_found']
-    assert not items[0].get('reference_leak_incomplete')
 
 
 def test_empty_reference_without_deletions_is_still_incomplete():
@@ -217,53 +211,6 @@ def test_oracle_hook_captures_before_upload_and_before_verifier(tmp_path, monkey
     evidence = json.loads((tmp_path / leaks.ARTIFACT).read_text())
     assert evidence['status'] == 'completed'
     assert evidence['files'] == [{'path': '/repo/fixed', 'size': 3, 'sha256': 'hash'}]
-
-
-def test_scan_refuses_unprepared_backend_before_start(tmp_path, monkeypatch):
-    monkeypatch.delenv('OT_IMAGES_PREPARED', raising=False)
-    with pytest.raises(ValueError, match='prepare cached images'):
-        asyncio.run(leaks.scan_task(tmp_path, tmp_path, SimpleNamespace(backend='apptainer'), {}))
-
-
-def test_stage4_fresh_cached_container_healthcheck_user_and_cleanup(tmp_path, monkeypatch):
-    from contextlib import contextmanager
-    from harbor.environments.factory import EnvironmentFactory
-    from harbor.models.task import task as task_module
-    from validation.stages import harbor as runtime
-    monkeypatch.setenv('OT_IMAGES_PREPARED', '1')
-    monkeypatch.setattr(runtime, 'install_runtime_patches', lambda: None)
-    monkeypatch.setattr(runtime, 'check_runtime_task', lambda *args: None)
-    monkeypatch.setattr(runtime, 'environment_config', lambda args: {'kwargs': {}})
-    spec = SimpleNamespace(build_timeout_sec=10)
-    spec.model_copy = lambda **kwargs: spec
-    task = SimpleNamespace(short_name='task', paths=SimpleNamespace(environment_dir=tmp_path),
-                           config=SimpleNamespace(environment=spec, agent=SimpleNamespace(user='solver')))
-    monkeypatch.setattr(task_module, 'Task', lambda path: task)
-    events = []
-    class Environment:
-        async def start(self, force_build):
-            events.append(('start', force_build))
-        async def run_healthcheck(self):
-            events.append('healthcheck')
-        @contextmanager
-        def with_default_user(self, user):
-            assert user == 'solver'
-            events.append(('user', user))
-            yield
-        async def stop(self, delete):
-            events.append(('stop', delete))
-    monkeypatch.setattr(EnvironmentFactory, 'create_environment', lambda **kwargs: Environment())
-    async def probe(env, request):
-        assert request == {'mode': 'scan', 'root': '/', 'files': [{'path': '/repo/fix', 'size': 3, 'sha256': 'hash'}]}
-        events.append('scan')
-        return {'status': 'completed', 'files': [{'matches': ['/installed/fix']}]}
-    monkeypatch.setattr(leaks, 'probe', probe)
-    args = SimpleNamespace(backend='apptainer', force_build=False, trial_cpus=None, trial_memory_mb=None)
-    evidence = {'files': [{'path': '/repo/fix', 'size': 3, 'sha256': 'hash'}],
-                'workspace': '/repo', 'deleted_files': []}
-    result = asyncio.run(leaks.scan_task(tmp_path, tmp_path / 'trial', args, evidence))
-    assert events == [('start', False), 'healthcheck', ('user', 'solver'), 'scan', ('stop', True)]
-    assert result['all_changed_files_found'] and result['status'] == 'failed'
 
 
 def test_probe_executes_standalone_scanner_without_uploads(tmp_path):
@@ -416,7 +363,7 @@ def test_real_linked_worktree_reads_common_object_store(tmp_path):
         'git-blob:' + git('rev-parse', '--absolute-git-dir') + '/worktrees/linked:' + oid]
 
 
-def test_nop_scans_once_before_agent_and_stage4_reuses_it(tmp_path, monkeypatch):
+def test_nop_scans_once_before_agent(tmp_path, monkeypatch):
     from harbor.trial.trial import Trial
     events = []
     task = tmp_path / 'task'
@@ -451,19 +398,7 @@ def test_nop_scans_once_before_agent_and_stage4_reuses_it(tmp_path, monkeypatch)
         leaks.scan_runtime.reset(runtime_token)
     assert events == ['scan', 'agent', 'agent']
     scan = json.loads((trial / leaks.SCAN_ARTIFACT).read_text())
-    summary = tmp_path / 'stage_3_nop_validation/run/summary.json'
-    summary.parent.mkdir(parents=True)
-    summary.write_text(json.dumps({'items': [{'reference_leak_scans': [scan]}]}))
-    monkeypatch.setattr(leaks, 'read_evidence', lambda out: {task.name: [evidence]})
-    async def forbidden(*args):
-        raise AssertionError('Matching NOP scan should avoid another container')
-    monkeypatch.setattr(leaks, 'scan_task', forbidden)
-    items = [{'task': str(task), 'status': 'passed'}]
-    asyncio.run(leaks.run_checks([task], items, tmp_path / 'scan', args))
-    assert items[0]['checks'][0]['status'] == 'passed'
-    assert leaks.read_scans(tmp_path, 'different-runtime') == {}
-    evidence['files'][0]['sha256'] = 'different'
-    assert leaks.evidence_signature(evidence) not in leaks.read_scans(tmp_path)
+    assert scan['result']['status'] == 'passed'
 
 
 def test_packaged_submodule_pointer_to_absent_store_is_recorded(tmp_path):

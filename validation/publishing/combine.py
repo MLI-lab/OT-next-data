@@ -192,7 +192,7 @@ def combine(runs, tasks, out):
         if len(values) != 1:
             raise ValueError(f"runs differ in {'.'.join(path)}; results were not judged the same way")
     # A contract lists only the checks of the stages it runs, so compare what ran.
-    for stage in (1, 4):
+    for stage in (0, 1):
         ran = {}
         for index, (_, reports, _) in enumerate(loaded):
             if stage in reports:

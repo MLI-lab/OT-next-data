@@ -134,6 +134,11 @@ CLUSTERS = [
                 Storage('SCRATCH', '$TMPDIR', 'Temporary job-local files; set by the launcher.'),
             ),
             note='RWTH Aachen CLAIX; CPU validation only, GPU serving not configured'),
+    Cluster(name='lrz', hostname_pattern=r'login-\d+', apptainer_login_version='1.5.4',
+            cpu_partition='lrz-cpu', gpu_partition='', cpu_allocation_step=1, max_cpus_per_gpu=0,
+            # Network namespaces work on the lrz-cpu nodes, so tasks run isolated.
+            network_mode='isolated',
+            note='LRZ CPU nodes (lrz-cpu); CPU validation only'),
 ]
 
 def detect_cluster(hostname: str | None = None) -> Cluster | None:

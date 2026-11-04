@@ -1,8 +1,6 @@
 """Run one frozen contract as an array of shards and merge the shard reports back into one run.
 
-A contract freezes the full task list. With automatic paths enabled, ``plan`` first
-submits normalization and freezes a common derived contract. It then writes one
-request per shard; each job
+A contract freezes the full task list. ``plan`` writes one request per shard; each job
 validates slice INDEX of COUNT (tasks sorted by ID, taken round-robin) under the same
 contract and marks its reports with the slice. ``merge`` checks that the shard reports
 belong to that contract and cover every frozen task exactly once, then writes one
@@ -59,7 +57,7 @@ def snapshot_matches(contract_path, code_root):
                           env={**__import__('os').environ, 'PYTHONPATH': str(code_root)}).returncode == 0
 
 
-def plan(contract_path, count, out, *, time, cpus, memory, partition, array_concurrency, submit, exclusive=False, cluster=None, nodelist=None, _paths_prepared=False):
+def plan(contract_path, count, out, *, time, cpus, memory, partition, array_concurrency, submit, exclusive=False, cluster=None, nodelist=None):
     from validation.contract import read, task_records
     from hpc.validation_submit import snapshot_code, choose_allocation, selected_cluster
     from config.models import placement, resolve
@@ -72,7 +70,7 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
         raise ValueError('array concurrency and CPU count must be positive')
     arguments = contract['arguments']
     site = cluster or arguments.get('submit')
-    if site not in ('helma', 'zih', 'rwth'):
+    if site not in ('helma', 'zih', 'rwth', 'lrz'):
         site = os.environ.get('OT_CLUSTER', 'helma')
     allocation_args = SimpleNamespace(submit=site, partition=partition,
                                      serve_model=arguments.get('serve_model'), gpus=arguments.get('gpus'))
@@ -95,8 +93,6 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
     else:
         cpus = -(-cpus // config.cpu_allocation_step) * config.cpu_allocation_step
     out = Path(out).resolve()
-    if (out / 'normalization').exists():
-        raise ValueError(f'{out / "normalization"} exists; reconcile its preparation/array submission before retrying')
     if (out / 'shards').exists():
         raise ValueError(f'{out / "shards"} exists; use a new directory')
     out.mkdir(parents=True, exist_ok=True)
@@ -106,12 +102,6 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
     code_root = snapshot_code(out, frozen) if frozen.is_file() else snapshot_code(out)
     if not snapshot_matches(Path(contract_path).resolve(), code_root):
         raise ValueError('the checkout changed since the contract was prepared; prepare a new contract, then plan again')
-    if 4 in contract['stages'] and arguments.get('fix_instruction_paths', False) and not _paths_prepared:
-        from hpc.shard_normalization import plan_preparation
-        return plan_preparation(contract_path, contract, out, code_root, config,
-            count=count, time=time, cpus=cpus, memory=memory, partition=partition,
-            array_concurrency=array_concurrency, submit=submit, exclusive=exclusive,
-            cluster=config.name, gpus=gpus, nodelist=nodelist)
     for index in range(count):
         folder = out / 'shards' / f'{index:04d}'
         folder.mkdir(parents=True)
@@ -180,11 +170,6 @@ def merge_summaries(summaries):
 def merge(contract_path, root, out):
     from validation.contract import read, task_records
     contract = read(contract_path)
-    continuation = Path(root) / 'normalization' / 'prepared.json'
-    if continuation.exists():
-        from hpc.shard_normalization import resolve_prepared
-        contract_path, root = resolve_prepared(contract, continuation)
-        contract = read(contract_path)
     expected = sorted(t['task_id'] for t in task_records(contract))
     out = Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -261,6 +246,13 @@ def merge(contract_path, root, out):
                           {t['task_id']: t['sha256'] for t in task_records(contract)},
                           settings=contract.get('arguments', {}))
         written[stage] = str(target)
+    if written and not any(json.loads(Path(p).read_text()).get('dry_run') for p in written.values()):
+        # Automatic path and pip repairs from the merged stage-1 and stage-2 evidence.
+        from validation.automatic_repairs import files_from, plan
+        from validation.run import apply_repairs
+        merged_reports = {int(stage): json.loads(Path(p).read_text()) for stage, p in written.items()}
+        apply_repairs(out / 'results.parquet', plan(
+            merged_reports, lambda tasks: files_from(contract['arguments']['tasks'], tasks)))
     executions = [json.loads(p.read_text()) for p in sorted(Path(root).glob('shards/*/execution.json'))]
     first = executions[0] if executions else {}
     (out.parent / 'execution.json').write_text(json.dumps({
@@ -287,7 +279,7 @@ def main(argv=None):
     p.add_argument('--time', required=True, help='Slurm time limit per shard, HH:MM:SS')
     p.add_argument('--cpus', type=int, default=48)
     p.add_argument('--memory', default='128G', help='Slurm memory; use an empty value for automatic GPU memory')
-    p.add_argument('--cluster', choices=['helma', 'zih', 'rwth'], help='default: contract submission site or OT_CLUSTER')
+    p.add_argument('--cluster', choices=['helma', 'zih', 'rwth', 'lrz'], help='default: contract submission site or OT_CLUSTER')
     p.add_argument('--partition', default='cpu')
     p.add_argument('--array-concurrency', type=int, default=16)
     p.add_argument('--nodelist', help='Slurm node list for preparation and every array shard')

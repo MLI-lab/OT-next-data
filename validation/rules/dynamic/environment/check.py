@@ -497,10 +497,13 @@ async def inspect_network(environment, expected):
                 'exit_code': result.return_code, 'reachable': result.return_code == 0,
                 'client_available': result.return_code != 125,
                 'stderr': (result.stderr or '')[:1000]})
-    reachable = any(o['reachable'] for o in observations)
+    # Simulated offline removes the proxy and DNS; where the site still routes
+    # direct IP traffic (e.g. ZIH Barnard), only name-based egress decides.
+    # The direct-IP observation is kept in the evidence.
+    reachable = any(o['reachable'] for o in observations if not (simulated and o['route'] == 'direct'))
     capable = all(o['client_available'] for o in observations)
     status = 'not_checked' if expected is None else ('error' if not capable else ('passed' if reachable == expected else 'failed'))
-    return {'check': 'declared-network-egress', 'status': status, 'expected_allow_internet': expected,
+    return {'check': 'declared-internet-access', 'status': status, 'expected_allow_internet': expected,
         'declared_allow_internet': declared,
         'expectation_source': 'explicit-isolated-run' if isolated else
                               'explicit-simulated-run' if simulated else 'task-declaration',
@@ -508,5 +511,6 @@ async def inspect_network(environment, expected):
         'reason': 'No explicit allow_internet declaration; observations only.' if expected is None else
                   'Requires curl or python3; no tools are installed by validation.' if not capable else
                   'Explicit isolated run requires all probed egress to be blocked.' if isolated else
-                  'Simulated offline run requires probed egress to be blocked; routing is not isolated.' if simulated else
+                  'Simulated offline run (no proxy, no DNS) requires name-based egress to be blocked; '
+                  'direct-IP routing is not isolated and only recorded.' if simulated else
                   'Compare observed reachability with declared policy; endpoint outages can cause false negatives.'}

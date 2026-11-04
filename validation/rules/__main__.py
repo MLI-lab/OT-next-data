@@ -46,7 +46,7 @@ def selection(value):
     return [r for r in chosen if r.kind == 'static'], [r for r in chosen if r.kind == 'dynamic']
 
 
-def run_static(tasks, rules, out, profile):
+def run_static(tasks, rules, out, profile, dataset=''):
     from validation.task_inputs.materialize import materialize, parquet_files
     from validation.task_inputs.selection import discover_tasks
     from validation.rules.static.terminal_bench import load_checks, run_checks
@@ -65,7 +65,7 @@ def run_static(tasks, rules, out, profile):
         from validation.contract import task_digest
         from validation.run import export_report
         export_report(out / 'results.parquet', json.loads((report_dir / 'summary.json').read_text()),
-                      {t.name: task_digest(t) for t in selected_tasks})
+                      {t.name: task_digest(t) for t in selected_tasks}, dataset)
         return code
 
 
@@ -75,6 +75,7 @@ def main():
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--rules', default='all', help="'all' (default), 'static', 'dynamic' or rule names from registry.py")
     ap.add_argument('--static-profile', default='training')
+    ap.add_argument('--dataset', default='', help='dataset name for results.parquet (default: the input name)')
     argv = sys.argv[1:]
     # Arguments after `--` are for validation/run.py (dynamic rules).
     run_args = argv[argv.index('--') + 1:] if '--' in argv else []
@@ -83,10 +84,12 @@ def main():
     code = 0
     if static and not dynamic:
         print(f'Static rules: {", ".join(r.name for r in static)}', flush=True)
-        code = run_static(a.tasks, static, a.out, a.static_profile)
+        dataset = a.dataset or (a.tasks.stem if a.tasks.is_file() else a.tasks.name)
+        code = run_static(a.tasks, static, a.out, a.static_profile, dataset)
     if dynamic:
-        from validation.stages.layout import NOP, REFERENCE
-        stages = ','.join(str(n) for n in sorted({1, REFERENCE, NOP, 4}))
+        from validation.stages.layout import BUILD, NOP, REFERENCE, STATIC
+        # Dynamic rules run inside stages 1-3; static rules (if selected) in stage 0.
+        stages = ','.join(str(n) for n in sorted({BUILD, REFERENCE, NOP} | ({STATIC} if static else set())))
         extra = ['--static-profile', a.static_profile, *run_args]
         names = {r.name for r in dynamic}
         if 'do_not_modify_dynamic' not in names:
@@ -102,7 +105,7 @@ def main():
                 if check not in wanted:
                     extra.extend(['--exclude', check + '=not selected with --rules'])
         command = [sys.executable, str(ROOT / 'validation/run.py'), str(a.tasks),
-                   '--stages', '0,' + stages if '4' in stages.split(',') else stages,
+                   '--stages', stages,
                    '--out', str(a.out), *extra]
         print('Dynamic rules: ' + ', '.join(sorted(names)) + '\n' + ' '.join(command), flush=True)
         code = subprocess.call(command) or code

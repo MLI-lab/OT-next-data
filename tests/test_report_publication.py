@@ -11,7 +11,7 @@ from validation.publishing import report
 
 
 def stage():
-    return {'stage_layout': 'environment-first-v2', 'stage': 1, 'complete': True, 'contract_sha256': 'frozen',
+    return {'stage_layout': 'environment-first-v3', 'stage': 1, 'complete': True, 'contract_sha256': 'frozen',
             'items': [{'task': 'a', 'status': 'passed'}]}
 
 

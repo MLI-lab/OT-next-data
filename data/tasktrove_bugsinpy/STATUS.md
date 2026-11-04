@@ -9,18 +9,36 @@ Root: `/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101`
 
 ## Runs
 
-All use stages 0-4, `--outcome-retries 0`, `--network-mode simulated`, Helma.
+The saved contracts requested stages 1-4, not 0-4. The earlier description of
+stage 0 as completed was incorrect. All runs use `--outcome-retries 0`,
+`--network-mode simulated`, Helma.
+
+November 2 follow-up: standalone stage 0 completed on all 500 tasks on the login
+node. All passed the 18 default training-profile static checks, with instruction-path
+warnings only. AI detection was intentionally excluded by user policy. Reports:
+`validation/results/bugsinpy-stage0-20261102/`. Inputs were the 499 saved prepared
+validation tasks plus a reconstructed prepared copy of thefuck-3; see provenance.
+
+The missing thefuck-3 evidence was replaced by job 1199983 on November 2.
+Stages 1-4 passed; full reports are saved under
+`thefuck3-rerun-20261102/run/submissions/171516c65d60/report/` in the audit root.
+The image cache was checksum-verified before submission, with prebuilt images
+required, stage-1 path discovery and reference-leak checks enabled. AI detection
+remained intentionally excluded.
 
 | Job | Tasks | State when written | Folder |
 |---|---|---|---|
-| 1195453 (h200) | 498 from `offline-v1` | Running, stage 2 | `run-h200` |
-| 1196246 (h200) / 1196247 (preempt) | 171: pandas + 2 spaCy, with headers | Pending; tmux `bugsinpy-audit` cancels the copy that does not start first | `run-r1-h200`, `run-r1-preempt` |
-| 1195462 | httpie-4, thefuck-3 | thefuck-3 passed all; httpie-4 superseded below | removed |
+| 1195453 (h200) | 498 from `offline-v1` | Finished with findings | `run-h200` |
+| 1196246 (h200) / 1196247 (preempt) | 171: pandas + 2 spaCy, with headers | 1196246 passed stages 1-4 for all 171; redundant 1196247 cancelled | `run-r1-h200`, `run-r1-preempt` |
+| 1195462 | httpie-4, thefuck-3 | Saved session tool output supports thefuck-3 passing stages 1-4; full report unavailable; httpie-4 superseded below | removed by earlier session during httpie retry preparation |
 | 1195559 | httpie-4 | Reference 0 on DNS failure: real network dependency | `run-httpie` |
 | 1196053 | httpie-2, 3, 5 | Passed all | `run-httpie235` |
 
 Online test 1195617: httpie-4 passes with `allow_internet = true`. Decided: stays
 false and is archived at upload with the network reason.
+User reconfirmed exclusion on November 2: the verifier depends on live DNS and
+an external HTTP service. This is a task limitation, not a validation prerequisite
+to bypass.
 
 ## To do
 

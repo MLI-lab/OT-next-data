@@ -1,0 +1,2502 @@
+[
+  {
+    "task": "bugsinpy-original-pysnooper-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c55560422a73ee85ebe0d5799708a0cc21753c5ab958979f5ea0647dcce1284a"
+  },
+  {
+    "task": "bugsinpy-original-pysnooper-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b5d92ec25dec7741c213e5d8e060f49345424227705459e0e4af269590aecf11"
+  },
+  {
+    "task": "bugsinpy-original-pysnooper-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "de7ec6e1aafe69b4adf147493c42f9e79111091e23b9cd850ed9226cf38e32d1"
+  },
+  {
+    "task": "bugsinpy-original-ansible-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7a11e48e0ba515979644420abb1425e701a48a5e65fe029503dffc774b87d4fe"
+  },
+  {
+    "task": "bugsinpy-original-ansible-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e9c2b1c4ef154b535869b18fa8bea755b360c53a7d89aaaed4862e8a4168440d"
+  },
+  {
+    "task": "bugsinpy-original-ansible-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e953f706e6e16d34204d772ffbcfb63f4a8ad6cf08ae590a65d91c491d7d0efa"
+  },
+  {
+    "task": "bugsinpy-original-ansible-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3d0366df24519f39caeb573be38534482deb07cf31531eea1116f7904291f7fd"
+  },
+  {
+    "task": "bugsinpy-original-ansible-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e5058e2a8b2554514fc86d0eb01df750960a86990a3291de7da698fc99ee7bd0"
+  },
+  {
+    "task": "bugsinpy-original-ansible-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "32a907340b82b8ef6d35557e7dd243310d181d10aea547453e843be82e0017ca"
+  },
+  {
+    "task": "bugsinpy-original-ansible-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b7566784d0e03be08cfd164a91c128b9d82430094bb269ac1418beb2cb59f2d8"
+  },
+  {
+    "task": "bugsinpy-original-ansible-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "10629066dcf63c840f020a5d72c3bd9f7553d97748286cc8a4b31f35549d07e4"
+  },
+  {
+    "task": "bugsinpy-original-ansible-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "a22a421645839e06728e9ae31b98ac6744eb1a7be2782e02b215865938b69421"
+  },
+  {
+    "task": "bugsinpy-original-ansible-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "44bdc10b1bd762b04e62d7426ac6b690d26919a41d5a798ea5c1653df7fb0a9f"
+  },
+  {
+    "task": "bugsinpy-original-ansible-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0a7881e1904c24cf6c2b6f37b9958a3a968515f0521649e200f78d4f4f80f9e5"
+  },
+  {
+    "task": "bugsinpy-original-ansible-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "adce9c5b8fe1ec7e4674fbce0532fa50ed8f439e5c23f4d9164391fca64ee42b"
+  },
+  {
+    "task": "bugsinpy-original-ansible-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "183786819d80f1520893c9b5763c1eb0749930c6653e43ca4abadacf8a7b1a7f"
+  },
+  {
+    "task": "bugsinpy-original-ansible-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "fb80da4c68f966c34f41b540e3782856bf1907a252389322b092c06810e0aaae"
+  },
+  {
+    "task": "bugsinpy-original-ansible-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9796d2453ead140173466d470788b81c9441b5e42082924b4115400eb6fba80f"
+  },
+  {
+    "task": "bugsinpy-original-ansible-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "4b8c9ddbcd7a5c2a229cf522572c8ec5ea61df37d8329e1b1070b7337b8d915f"
+  },
+  {
+    "task": "bugsinpy-original-ansible-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "72b04523eb9a5cc4a73f039ba492c2e5dc4c2594c4387e4538c6a953ce5e4ae8"
+  },
+  {
+    "task": "bugsinpy-original-ansible-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "4c1c059004070184a4c05cf27f827690eb4013a561ff51bc981f968326771cc9"
+  },
+  {
+    "task": "bugsinpy-original-black-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "06728fd09ca63882c6001d1c867c76f56c739475023fe1bae6148dbca1252ad5"
+  },
+  {
+    "task": "bugsinpy-original-black-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7d3a34db15f41689030c327ec10e6e2338641de289ac797a8bc7ff15f6d1e80d"
+  },
+  {
+    "task": "bugsinpy-original-black-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "13faae0cdd9e19d0798fc5ce858cc79544eba0c9547e8b4894bc14819e48cc4e"
+  },
+  {
+    "task": "bugsinpy-original-black-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1fda1a3644192c66a824d19fa88da9c57e433ce13c76f6acfe9a39039c2b94bc"
+  },
+  {
+    "task": "bugsinpy-original-black-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ffddc20640267541d4a91bba8f18eabd9c22bf4480890220b21c26ed26938130"
+  },
+  {
+    "task": "bugsinpy-original-black-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c1b1f75a215928c2226400538e46fdffa42ce9008e2e8c48bdde1253c29b8250"
+  },
+  {
+    "task": "bugsinpy-original-black-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2aba326cec17fa8dabbb81536d3eccb0905c739f706bf9610c0ad3cc123510c8"
+  },
+  {
+    "task": "bugsinpy-original-black-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b04f9aa38435b4cebc87e27835157ef3298e15a025416ea9ad02b5ebece9f0da"
+  },
+  {
+    "task": "bugsinpy-original-black-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1fefa37dd7a51acfd72a35cbf2682e385e3440724399a0ccc9ba452739a99604"
+  },
+  {
+    "task": "bugsinpy-original-black-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2030fc7b17908c9ade93fad81c8530ddaabccc1f5f87fd465e55959553b833d0"
+  },
+  {
+    "task": "bugsinpy-original-black-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6b0d1b263362ad7b355c77b157321d961a2588a2e62d69defb9f3aef32cac001"
+  },
+  {
+    "task": "bugsinpy-original-black-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "28160b4198812d6a1fe701cb5786993d2cd392bf841a24c3d03fb8a44bc1f4ee"
+  },
+  {
+    "task": "bugsinpy-original-black-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7e28477635ddea109d149e429940973c624451f6d40a60d0fe79294d04a9260a"
+  },
+  {
+    "task": "bugsinpy-original-black-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "078b13f0acc41800d55da0a62545a73b293c56b1e036e8e099401deb86ebbea3"
+  },
+  {
+    "task": "bugsinpy-original-black-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "55dc55beecd93c731a2ff8cd6226d35ba68f05f119722754f5fe907b097ae4ee"
+  },
+  {
+    "task": "bugsinpy-original-black-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8b9d95af6ed48276fcb2cafa62f9e02652fb7b0d217be696f12a5a661ae3431c"
+  },
+  {
+    "task": "bugsinpy-original-black-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "34f0a1029dcd6aeeefca8dd4738d68d8f3a72fd38604f705a1612822a8707176"
+  },
+  {
+    "task": "bugsinpy-original-black-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "bfd0de597394a8ada3dcb2638ac8638b739279e876f7cf25dc5ccfb4d4e8055d"
+  },
+  {
+    "task": "bugsinpy-original-black-19",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "430b64c60fac1e2fe29c0bcf736f1b8ad419311a04d07ead7cb6732bbf85e429"
+  },
+  {
+    "task": "bugsinpy-original-black-20",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7e5e136f5b7d22ab0bb9ec3206c3badb437c8e55a88cd870e383476b5c3a053d"
+  },
+  {
+    "task": "bugsinpy-original-black-21",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "dd56eea5ba0cd56283e6107aa324cb202112dfa8260f20d60cbb392c670f26cb"
+  },
+  {
+    "task": "bugsinpy-original-black-22",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "81d1a5e63724986dfdfac86556f012793502d3fa9830c42c9d6b9522543561b5"
+  },
+  {
+    "task": "bugsinpy-original-black-23",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "eccb15535ba538420d91ecde45d05a018bd5d072364d4534e1eafe98dbc97fb5"
+  },
+  {
+    "task": "bugsinpy-original-cookiecutter-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "99023a8902e6825f880fa33bb314abf1edd5dea6301384e9a8b66c14206a242e"
+  },
+  {
+    "task": "bugsinpy-original-cookiecutter-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "98ce3524f21c05f587cc648d73f3f074edb494a209dd99fe2bbb6679328ae700"
+  },
+  {
+    "task": "bugsinpy-original-cookiecutter-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "be84a5c6deeb7c462c04efd037d62adc5cbd87f26f97b8ae567416ce7114aaf1"
+  },
+  {
+    "task": "bugsinpy-original-cookiecutter-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "15d0934365e203ff71dcc9cfe78f3c26672c26cbe18f2774a305a859397eb615"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "eb4329e9daa59acc896774318f8d827ca68161ba49d7e93fa0bbe77c796a7ee5"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0e2bb8bba8f7019d6335cb0720245c351ecc0be4c324e41f2d6f180c47884d07"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d5cee9fa3e2812454daf9d6377e3e6f92c08f312f030d7f4133d7e8da8c73487"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ba4c04376bbbc22c22a289a3114b9ffeb43b9d5771ccdb09e7820171e831a7a6"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ff202a777dd8e442e45960a8f203b7e23622f2a2f6ca9292f3b6776154101193"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "dbb9fc6e283c6fd1cf0bfa8afa3e5d6c344d3c965a40e3f247133bba98116821"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "22278389fe9710d725462d1e2d7999f5939a39c2d5ba6bcd2cd6879ee44933db"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e48d682d7f2d93fe7453b3e5c7969e60c7e4d9d8b3e9d8f4931e4b97e79113a4"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b046b67de98c726da6c523a7fd1a118c4122d095ff338415748b0889367217c6"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e548c706633004622fc334a2aff1d785c610260f9cc23da7109833c4db11ced7"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "cefa02875edc95f674ebc07ebe499fea2d0f9ebca9dd0c97d143d7ebb1e7a5d3"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ebae8deae9f56cddce3fabffc27386ce22f12cbfbf3578d8ee35fe35d055388f"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ee33dc0abde22133813f528d449cb1758c48cd960db24bc53c6489c030d632cd"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "36a3ba1e25ff9f0f18bd14bfcffcbe5a25fea80a7db349fcca030e8dba9bee82"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7bb73523860658e85043bb7ba361f3e0b8bd9fa3c5fa897d32dd936ad3eae0fe"
+  },
+  {
+    "task": "bugsinpy-original-fastapi-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3e8285a9e660a20a372c60378513ec3b6160b34f9fba02a7bde397188badeb5c"
+  },
+  {
+    "task": "bugsinpy-original-httpie-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "162e0d0851f5bc2390a2f789a304279fa41c5036781b9d22571c828fe514aabe"
+  },
+  {
+    "task": "bugsinpy-original-keras-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "bed214a633d3508d29a88235da4769270e7cecf932eff01fe569db8b02ffd8ff"
+  },
+  {
+    "task": "bugsinpy-original-keras-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "998226c0799c988b15a5503ca186e77a92ed7f58ff431be5aea240747615b374"
+  },
+  {
+    "task": "bugsinpy-original-keras-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8778b5714b6eb579403283f39b0041f732a84e5a2b91f58ed959d19cc4ba46de"
+  },
+  {
+    "task": "bugsinpy-original-keras-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c9a883ffdc05f2368a8ce743e54ecd440847641ed4b90b1ff6fa60b50122decb"
+  },
+  {
+    "task": "bugsinpy-original-keras-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "88d97ffb83f86f0f96cb9f977100e4dfd794912ac57ef4963000118d70f1ce54"
+  },
+  {
+    "task": "bugsinpy-original-keras-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9b4d567faa6d2fb3a1029c4411ae19e7aaac91bcc0af92e831b5a54fd1a955b4"
+  },
+  {
+    "task": "bugsinpy-original-keras-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c3c4cfb9ee2e357482d4e2c4eb03ede927e0e4e3ed0c7f378485a8434058ff7b"
+  },
+  {
+    "task": "bugsinpy-original-keras-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d52a86d1287333fce88005784f53c8de0069078479e2eaea7ef6ae9434bb28c7"
+  },
+  {
+    "task": "bugsinpy-original-keras-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "619959232c762553cf8287b63b7d42ebc4492ebd1a5671787bdc0e706e76e126"
+  },
+  {
+    "task": "bugsinpy-original-keras-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "86c116c37329237a74e5c36d86eec3a09292a5e21feb35acaa28a42c4da016e7"
+  },
+  {
+    "task": "bugsinpy-original-keras-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "68a307e2c90bce8ebfedc1a0a4b7d452d6980f60da3e4e253c2bd77573a6ea8c"
+  },
+  {
+    "task": "bugsinpy-original-keras-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "947ac0ac09ed224c4e4b5e7ea1713e159c9e34a2b3a57c69464a270aa273c503"
+  },
+  {
+    "task": "bugsinpy-original-keras-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e1679c9e113d38d08e4a2fa9b707ce6af0cf12b185d11f570c9ab0fd92fb1d0d"
+  },
+  {
+    "task": "bugsinpy-original-keras-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c004def17154cc358b9b778b64ea36dbbe0ce190a66b9fc776d3043319616682"
+  },
+  {
+    "task": "bugsinpy-original-keras-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d767aaa4a90441da176dbb5f6887ca4ed82c7f01066bcf4e8151140ff80f9b80"
+  },
+  {
+    "task": "bugsinpy-original-keras-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9437c58b8c729ca737e6039eaaec6adae8614cd8c0d2e17ed34239e400826672"
+  },
+  {
+    "task": "bugsinpy-original-keras-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6ee1f6463f3c7611012719c51d8424ca6aa2f386bba2919d2993759f1d46d945"
+  },
+  {
+    "task": "bugsinpy-original-keras-19",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "92633120347499b5e2c1f0fc2b458f0e5063ee96001285fa6ddf8ccd0642bcd7"
+  },
+  {
+    "task": "bugsinpy-original-keras-20",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7cc76609b68c2334fc554755b78f54d06808e01af42ff78972a419a90c74f546"
+  },
+  {
+    "task": "bugsinpy-original-keras-21",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f9793ac46f5540100f86c5f244df8b05442d3aa048f20efe6513d18e1c9a85f0"
+  },
+  {
+    "task": "bugsinpy-original-keras-22",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "06ca95e4aaa5162c5726808dab86101fad91af2f46f08b492f0bfc2a6948426c"
+  },
+  {
+    "task": "bugsinpy-original-keras-23",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "4d6475d2b5ba0eb47a4e3fd2f1f3edc891dc42a382d99c950e8b1c0012db521b"
+  },
+  {
+    "task": "bugsinpy-original-keras-24",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "14bbbe644406f79bff07ad9fcc54524954f2cc204fbc7e4d1db6e29c6f275ef8"
+  },
+  {
+    "task": "bugsinpy-original-keras-25",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0445151c315d48c3dbeb360abb24a149a33cd136bba0cc39d19d792cf7c433dc"
+  },
+  {
+    "task": "bugsinpy-original-keras-26",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d1f31753dee6945a6c5b19021cfa3738459333bfef096a52427ce9b41e65faab"
+  },
+  {
+    "task": "bugsinpy-original-keras-27",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1085d4a8e766ccc6ca83238d47ac25451a5c513d585569fe72ecfec2fa896e97"
+  },
+  {
+    "task": "bugsinpy-original-keras-28",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3e22648f7bb3d3262137050b83d74aa76aee044731ea3d9c766c86fbc28647de"
+  },
+  {
+    "task": "bugsinpy-original-keras-29",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ee0f00adf05a80bce230cd1324c94f400fa99852abf570b234db65e470968374"
+  },
+  {
+    "task": "bugsinpy-original-keras-30",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "a4ee1d2e133967d618fc83ef83765590382485cce59e80bd6aa494dd14bdd3e0"
+  },
+  {
+    "task": "bugsinpy-original-keras-31",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d9b2f71258232aef67b7d329735d7e57b34ae6d1fc73070738345cd2dc8e3ae5"
+  },
+  {
+    "task": "bugsinpy-original-keras-32",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "811e10dd3c7ec50a6f24dc3f08028a21742f513aa79522b137ec006fe160dc08"
+  },
+  {
+    "task": "bugsinpy-original-keras-33",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "701057c2e504e2ee817a303d0becb3a715904e5fc3d94e052685dd52606d6ca0"
+  },
+  {
+    "task": "bugsinpy-original-keras-34",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "056063e00e54b4501c5a452ecfb77f93266395a0d1b9a7ee2aadb6ad25e2df94"
+  },
+  {
+    "task": "bugsinpy-original-keras-35",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2925246b68fe51325e165bf5fedb2b257230e54faf150df335fdc0603175cd24"
+  },
+  {
+    "task": "bugsinpy-original-keras-36",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3d64f44eeb2f5e16c63b1a96016f6ebcd23acb3a76f17831315db814f3fbbbc8"
+  },
+  {
+    "task": "bugsinpy-original-keras-37",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2fed5e790817425d45d0bdd50c410e7a894fe3215a120267fa2a09055b01fe49"
+  },
+  {
+    "task": "bugsinpy-original-keras-38",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e085cfd4ae1329d9d8906f5ae5b669352160eae11859887308d2d3ff8ee56720"
+  },
+  {
+    "task": "bugsinpy-original-keras-39",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d60336829087243081e944d574b7e36eb7d30425d691f5d7f4c2ae20b7da1d6a"
+  },
+  {
+    "task": "bugsinpy-original-keras-40",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "5806996efd51bc5a423c696cfd62336dc399deb2b01ac7bf9cc961fbf43ade8e"
+  },
+  {
+    "task": "bugsinpy-original-keras-41",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "db97629b1f3c7e09fe60edeb5abebb6163b4a2138562bdaec13deaa557f4d2f0"
+  },
+  {
+    "task": "bugsinpy-original-keras-42",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8ecd8dd6ae9f0273e3027e918ee3f18e086c2df4ede47b46c7e505f08483d31a"
+  },
+  {
+    "task": "bugsinpy-original-keras-43",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6d794edf29ca99c4e9673e7e958baa0c3cfa3f80ddd42048b0c26fd4dd73d725"
+  },
+  {
+    "task": "bugsinpy-original-keras-44",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "44b427086c2778fc9fcbd3ce25e2e1e746bec9de5a7bb8b62f2c5508ce2e0399"
+  },
+  {
+    "task": "bugsinpy-original-keras-45",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "95f2f80c7c806617ccaa1f6753227cfd2df773742f3223208ded2b3435218abe"
+  },
+  {
+    "task": "bugsinpy-original-luigi-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8eea04b7c53532af7dbb97894de9439dc9a6ae9e59d7d758f763c837cfc61681"
+  },
+  {
+    "task": "bugsinpy-original-luigi-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f4b6f39d25d0f947e5496cc9b9285e61fe220e2371598179b961e9d951e2dfcc"
+  },
+  {
+    "task": "bugsinpy-original-luigi-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6d136da5272d4d71e29b20cb861abcc1a73843213a464262c77fef492edcee69"
+  },
+  {
+    "task": "bugsinpy-original-luigi-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3511fbde079b559c245ff890910eefffdb095db67a156f05c25a67c02365e2d6"
+  },
+  {
+    "task": "bugsinpy-original-luigi-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "bb2cd1d6bbd582b1fbcef3eddd0857878db34f24fd474fd946e25d2f0bf009d9"
+  },
+  {
+    "task": "bugsinpy-original-luigi-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ef9a117a20432e8cc6a9b349db5f22821482b2b2f264097b7a3519a54d3c950e"
+  },
+  {
+    "task": "bugsinpy-original-luigi-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "439fc50e97a8f6ec51c90b35c57f73fac1d9d592abf52023cff9ba1dcbf50e00"
+  },
+  {
+    "task": "bugsinpy-original-luigi-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ee0cf691cd5e6cb0b8b478f88ef293f2503f4a808afcb91fc22e5c012fd61912"
+  },
+  {
+    "task": "bugsinpy-original-luigi-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c2a94470d80fdc99f8a0186e6988d9260a89fecfba5bbe54b648d67a32fae887"
+  },
+  {
+    "task": "bugsinpy-original-luigi-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c33d00b814a44d0f53da33b874baccba4533a69c2305cc2f5fee1cc5da8e89c0"
+  },
+  {
+    "task": "bugsinpy-original-luigi-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "266c81b5cb4bd36ec7b99346901377a5663098d01575aa1e3414bdce3d31d202"
+  },
+  {
+    "task": "bugsinpy-original-luigi-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "33b2a87b3364c92831cb5d48d4120d716676f548974074e8b6a9fdc656ea9360"
+  },
+  {
+    "task": "bugsinpy-original-luigi-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9723e95baec134f45f5a7cfdd641c804722d48c81d03fd95590de1ae0c40a0ec"
+  },
+  {
+    "task": "bugsinpy-original-luigi-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b2fa5c29137f9e71774e6a89ecd8f9f6c79d2ad9437be78cea45e5aa19a7e0f8"
+  },
+  {
+    "task": "bugsinpy-original-luigi-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3bc2a84b6c9f81523837f32f2286e7df1549b9a34245d01eef1156c4ee38ee68"
+  },
+  {
+    "task": "bugsinpy-original-luigi-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1f4662b32dcdb2a8f0bac0d263fda813b3dbcd6ddc51fac783a4d9896816aa20"
+  },
+  {
+    "task": "bugsinpy-original-luigi-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6bdd790c94ca69ea5d1fc7002e0677f921dd26cf588ef9f8b66ac95872b0f79a"
+  },
+  {
+    "task": "bugsinpy-original-luigi-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "310fb9a89fe47ecc64555dc481f185fa6b55878245bdd3b2894013ab0b14e0aa"
+  },
+  {
+    "task": "bugsinpy-original-luigi-19",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8d90fce4007cdd38bddf158d539fbb468ace13e29212d76a772bfd05d911685e"
+  },
+  {
+    "task": "bugsinpy-original-luigi-20",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c30b5d2c1ab4301b8acd7c81fc9ae3dd1d30fe6d4369bcf185391282e16bf17d"
+  },
+  {
+    "task": "bugsinpy-original-luigi-21",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ad9dce3821e7b591b015948b599a6adfd3204dffb05ebc267b517335309459e9"
+  },
+  {
+    "task": "bugsinpy-original-luigi-22",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ca106c5455f942f78984a190f1a7e1f5d18d80a7402a6e3be3c1794a28551da9"
+  },
+  {
+    "task": "bugsinpy-original-luigi-23",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c7808060c0e5be19834c50c17757a62fd830681dbdb0ffa4bbd846cbd4044f61"
+  },
+  {
+    "task": "bugsinpy-original-luigi-24",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "95a13e2f367f15d28d854b48fa7d02e516e2c47ab5af602fa97dec2ce35d9b0c"
+  },
+  {
+    "task": "bugsinpy-original-luigi-25",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "01480e4189e018379ec9cb56642b5162aa995ac270f25d6765706555b9fe38af"
+  },
+  {
+    "task": "bugsinpy-original-luigi-26",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6939fbacdd64fb4b258c6925d97c8227cb47e7fa99d70fd60738b3529ec54244"
+  },
+  {
+    "task": "bugsinpy-original-luigi-27",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "165e7b2be8eab18fedf4bbd360ae2366a826390fa7eb5e580c1b9796c0a8b32f"
+  },
+  {
+    "task": "bugsinpy-original-luigi-28",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "abd39a8885d8ae87c914ef9fad640b156b598bd1377f419cf6f8499496d278cb"
+  },
+  {
+    "task": "bugsinpy-original-luigi-29",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "51cd09f5d96e3973dc1b0ec708449077e1fe06c2c1e1e31ab149388f92042ff6"
+  },
+  {
+    "task": "bugsinpy-original-luigi-30",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "fe95f05766996f80b073fb807804875cc08d0eb52b75a4712709125113036d0d"
+  },
+  {
+    "task": "bugsinpy-original-luigi-31",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ad970478665c5abbdc870fa9b3a525e9fe12c3c7c3672c79adeab8200d18098e"
+  },
+  {
+    "task": "bugsinpy-original-luigi-32",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "bb7fa5cba38dbd6d55918063d67fd437ffaa3863bc00c4ef178209e8d2773c4b"
+  },
+  {
+    "task": "bugsinpy-original-luigi-33",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "fc06763e567e4b0703d18a8fc781c952b9219335258b0f51dab4bbb41bc0bc3a"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "316b22727c4f8a7932c9e32be8c962bf48d570933a25e30d3133d20e04fbe482"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "569da2c8bb63162fbb38fb2ad6f11377c3a68a44e8dafb381e79fabbfb8eaa94"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "658d02c05c70b6afde849dcc5bd81b1ef602d5e0f7d46dd3ddadf57bc2c96109"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f9b2aaede5493d31d012f801d97a553897569c4b4c7b6db567dc38e71fe29c11"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9f206564e95d2b211ff39c6de978bc93de72343d51205f1e9f115033cc729cb5"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "cf7c6d6dd6fe9b66e542d81bf9d5dfd3b24ae337a5310ccf96584b2d9f8f5303"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7cbb8f9e343dbd698accc7252985d5e4f05affb70c42020fa6d9350096c88303"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "675009583beebee1ae8f917267ea99756888a14d1c9e5e5470527b1d38566c93"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b3cff629f1661e94eb0c5de16c92affa831b782c6a7abbafb129c2fefe82d4ed"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "84ab306131e32f89b24856c15249ee2ec67482cf8a473e6f8fb8803d39f66e09"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2f1dcf925e44bc81e205098366c51992e5afa9363b6d21864effc519ff8b4ed5"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "65aed7bb43405ae667298050c2e9a377d21a6e064affaa7692e552f0cded14fe"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b2ebeab62afeb4cb27be562191b8345364dee34ca5f4f570ef3f3c26734a060e"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2c7392f4cfee394a044b308913c2f7615d3328ebc0f0824773a7aec63a3536bc"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1a319621cda69790fe74bda3739729ec6705ce6e48fe28e2f6df1f43ada7d1be"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "db7335e4dcd7982f85386e7182ad14105686669f7b229aab9bc0b3cd9c5a89ff"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b29f922dfe2f8a86c2f58f998e13815068509e327152c3c479f6589de1a81598"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "cdd30e54dc911d5abecfbc03da248b89611cbe0b093fc3ba535a2fc734c7ca7c"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-19",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "724ea1c4e7dd875e0a73b7e539a8193149b5b4f5600b60b9c310eb1e880c89e2"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-20",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "df7f34ef366fe08ab74e8af683363d868a76796c26bb0590f6ece30c809cfa5d"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-21",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e249168fcdf2623c62866eb3481fc437b3964953abcb7f3918808a354b457e48"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-22",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "a242f524c31bacac2f3d870e20e7f53b13dca9ef670635b7c986bdfd0e7f3a71"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-23",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7eedab340219029a03b0a6516656c7a2ac1211e4d2315f3acd56cf001a3ac2c1"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-24",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "5cd9c044bc21aac618c8d771634908b49f96376036a129b73cd91f96d6a9b15a"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-25",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "aa277a9ebfa7aa2260603cda0f7f446c74f15ee6c295c625c0dbe0de68659aff"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-26",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "01fea154a54c7a94d2c050b5f9465af20095bd0f35e0bc0bac077c7d7a1f14fa"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-27",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6b87d3e8ea056f79cad777af8f828aff2c04ff719e4b86052fd399fe754f3f5f"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-28",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "87205bffbdf3856f7b51ab5c20fbb4182a5ab0f328f8068701105637a561cf74"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-29",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "479c69bbf09e61d76592c83ba0e8d33957a6688860961408eebdc3e126b24d77"
+  },
+  {
+    "task": "bugsinpy-original-matplotlib-30",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "4c2125f9e4e56690923626015250fb690e3e3b7ada0ab850ac13b808763a42df"
+  },
+  {
+    "task": "bugsinpy-original-sanic-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6f438cec872a48ecfec64d03817ce967e4bea72c161c143d986d0ef008bd3f7a"
+  },
+  {
+    "task": "bugsinpy-original-sanic-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "4e839d604d6937d49851674f31d8443529d70986096cd2339ba2ec8e17038cec"
+  },
+  {
+    "task": "bugsinpy-original-sanic-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "26f9b85db887e90bc2fea9cf68a48425e8e6a824025b074c1262302a41e71a6b"
+  },
+  {
+    "task": "bugsinpy-original-sanic-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "686b2b880474795ef1abc4c21f7f89a25189535729bf3736af912c8473b415b3"
+  },
+  {
+    "task": "bugsinpy-original-sanic-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "a6d2b96e30b63b39aa551eea9954d4e8e048e0f2487c88b80438f316331f9e71"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "880786dd3a7c145249375a9aa661671222f56c4ab1c2fa6a7fe3a8cd4cf6a129"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e59720391670437236894b3c294573fd03467e864ab60372f53c752967e9671c"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9c0d19f428016d309809c08141b6a63af06ff290a9600ad5da29a31d36d5595b"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8cd5b65d531913fc97965756502346c149c7d282e2ba7c60af509e4873f96a76"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "42d0623b4125f9f605d3b0125ce912f40cc5ed6f69aa880e2b2f557d5ccda6cc"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b2da9b42f82583b588e119b95e131850f82c47e62b616c0ad6c4ef5900b31c99"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "a83d5c0ae3a43c683d6daede413b3a63b5ea254267f7e69b022503c039e5192a"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b413989eeb4ea70385fef2aa429bde9bd954aff4acbc187f94a024241c8fd320"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "797a07c6bc3690c91aac918f4fe7bce9d75c41792c139cda18d3855b2c5f0451"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0db2b361b512ce8b895829dc7dbfce4da2a479d9303ddcab1238272d6da73b0a"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d167cd597a534706c8bae5878ce0991fb938c1769ac48f3b3f735ed659195f3f"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9841ee6a061abf0f9abb7aae61c72ef52400476556e2903d564bcca6775f5064"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9a6bb4b8d425a8b54ac26e1e1d1d04eda2c19272bc7f14e47ec13fd05d2900d8"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "53466206015508afa501289ed1de9a6198f04cf336dc79de344ea258c6d7dd24"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "18f36619d7ba31fefef2a37c78a82792aa04676b4e7ef49f2edd7c5014ad9597"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "849cd002bf595fb8e195e68d7da27a3867cd8f7a4b6508e857ed8ecc3c133a61"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "a62826344addf0f9b25f192f7ce539ef224b4ddd77345691c54e9fb6fa854afc"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "81fddbc82b00cfd3df1100a557c83dcdd410fd8e1b85c26e088e79c680c078a6"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-19",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8eea1f9f8939d748a49f4429b7cd860212be4d6b3df2c2ce79991fd537ffd062"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-20",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d335cb467d0740c37ad697293b96e1a8ea565929232d8ddbe2d5102c6be4849a"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-21",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2a0919d767dee1f0275af68c8925ee404cf47a466a24130634f9808856c9ab80"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-22",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "eefb9791475824c2bd50145f595e0cded172a68d7087527d339b1b8d07f7857e"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-23",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3f7ef806129f80712ebcf8cf79db226ba5a5f3f253f506bac69f3f24f0283c1f"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-24",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "83eea799a3830e0c5e8a3d680b3e5c94b7357f982a9a094762969689add088dd"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-25",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e38ed287d26d4046961955def834f5c3c97da9243d28ea64dfb82580fb20abec"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-26",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0c95d39114a3a35175ce976e6159b38558cfc98fd0685f29b21bd6835f7d2031"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-27",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "bf92fb316b6a669fd1e376c1b3276a2c3b9b5aa32d514ac5680b0f2fb73f629e"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-28",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ecd4ecf3bd3d77db4301bb2faa9bb4bbb351640bb214115f25667185118a7148"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-29",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ad49749543b1866687e9556f4e609ed5719bf3d541a6e2cd5d7efb98100b229a"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-30",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3387dae7467c86e92266b4d9b9ed72daf3ee890325557f27026da1703ad10308"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-31",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ede2d25e23bf843dc08db43686b13be731326b20a254ee6ea612440f6a47f750"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-32",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c277f1cd5055460b9b0f39d1075b21c832c743f0c3e63b89cfd85dcb443e204a"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-33",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "bf2f2c4fabf9037762b3c3a1e93bd2b3731f95ce4b0acfbb602826756ba0dc39"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-34",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "fe17ca771242e7ba7398d5db60412708073e53b6427d09aa34a08592b14b06af"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-35",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "33dba80065267c33b77996f2e905b743d76d34f28ad95282a213e095f2157537"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-36",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "14d0fcd90ced381cbeed9edcc61fbf4b53f70e5e04769a5d797ddf30fdad5e7d"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-37",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b772d80a089b7bbf2ba95d2c3db9be44e720258523211c09ee5d413e0dea090c"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-38",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b9cdea8ad78de7b659f1c373f579752cf4681d4dffb680bbc9716e2fcabc9e93"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-39",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "fc693b5f29383917b51e1067763f38ab5da4cb05940734cd5df2bcf3b842054c"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-40",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3fb72effe89f12bcd8f1350e541dfa87a2f223bcc56df94e2e5d696cd0e5992c"
+  },
+  {
+    "task": "bugsinpy-original-spacy-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6ee1162cdf6e8fb014e4a3a3a6eab5a36185ec3fa991593fa296428f8231cab6"
+  },
+  {
+    "task": "bugsinpy-original-spacy-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f8dac03733836c4bb88471a61d2fd99b141adfc288b89f3fdf6a9adb836bffdf"
+  },
+  {
+    "task": "bugsinpy-original-spacy-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "521aa59a5aa9e3b8abbb54d8cf2f8a8bc0180f0529a7bada7effc64508e62d0d"
+  },
+  {
+    "task": "bugsinpy-original-spacy-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b58e1c7a8ecf08f1d1d8f36cb319e2c46f1ff44853b53ed325cef4ce8d262d95"
+  },
+  {
+    "task": "bugsinpy-original-spacy-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0563857524c02fc54dacc8140fc3d0c9a9a53dd216d01a7a9ed9f4e23983788a"
+  },
+  {
+    "task": "bugsinpy-original-spacy-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f7305afd8cbdb238fb3998ac982e494255070ddca486e50b4c10fb78cd88415a"
+  },
+  {
+    "task": "bugsinpy-original-spacy-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0e74358251a55bc851c27c5d2145b780b42525ca56b4c2b1283418efbf338194"
+  },
+  {
+    "task": "bugsinpy-original-spacy-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d8bf39bdf38718ed49c85409bed030cbe279597fd2667484ba24c39b1db9ca3d"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "6ec5a8409f48e51f548dc40d1a3fe2756076bf0977579aa4b80d3e7693ebbe69"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8a469c14eafaab86c52f961ee7c3f6e13e6a987061db23bd1ffe9bdfc0536d9b"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f0768020f05fa0a904c8a5f4bc5afdce9d159ab724620fa4dccd8bb27d7f045d"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "79983182a62a3d99ece1fac471ec147132c3fbcc15849b1006d0c423699cfbb7"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d2105cec7e920f2112979606af92d83702394618d2abe6456c789907666d0eac"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8cec276ed979a229492294f6dad0d255efa4f807a96276340194ebf063af0414"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d341c284aa70c02b716f838ad4deb941b40ac884e65f38e330c9cd52746f519b"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "694db9acd375fa062bcf9b1c234569c6974a9e336afeb6930bd4d7199ad1c67b"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "af9f2e79646945bc650496ec52c91fdd4efc15fab59d5b4b547c74e16f5d647c"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ef21f03510194012e788e3b4aad2fc04e77904f7e5a7ccfd99da975b49688025"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "be81105983a924b02cb5a7eb6f307f6568364db5cc7f9b5ea435847087361c8e"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c25e6abbe09907150be31314ae7b383f02900e5906108d02de593a3f82917e8b"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "53d2c3f5802c6efcebb74f8c6f6f92b72ece49beb36dc8600baefc9f8590fa64"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "223808dcd812c4059bb10e21a67828bd10933c7d6d2e49a4bc3a7d8c46b3397a"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c96997644f1bbc7ff15ff49398538568785d418ec52e500709039696c50a6106"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "abac2f6bd28e9aae7bc231b56c3aec4dfffc80b3753fb100a924ccc15aa1cd99"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e2adc647c7293f534439fd1b4613312c557b9a0b1925402a8df2dd73b784abc9"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-19",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2a978417cfb18bfa213b9b18a69aa4c5c4222046d98936d2409b1b0368b01e23"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-20",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "42200a3bbaaeba206101c0c709e6ea2e69250c286eed45005f6448fd41fa35f3"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-21",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "446b5e33153be3e59a66b4329cac30794c7ba802a9d0bac0bae73e7024e129cf"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-22",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3eea577c63cc7ff3f64a1da67e692be1cf2c55e6f100d470ecd4c609a46eeb8e"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-23",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "bf627fd0605d7153256e0463fbfd9523b01d1bf5f8cf5c753f37ee3faf67cdd8"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-24",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "befce010822f48e2ca5222a1d3e88fbbe81cca138ff9f32ad14839cf9433d8d8"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-25",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "fdc08c9934ff7211804e89748a982cc9acead70543c30636d8a72b2af934fe00"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-26",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "881e44f63a9d57cbecda1f2dc03172c3c697bce02b0fa86cb9c1bebcced8e39f"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-27",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8d2833a1821dea7d443ffdba1ee0d5be26cdbeb89962f1b8b3fd9f15a4763191"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-28",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9576e3022882959145b1f9a83879a2c5528663e1c17a7dea43f3161922950a10"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-29",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f0f653ddf81fde7fe0ca7a1bc5e4abd3b900c64aa799584297fc02b06ed846e7"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-30",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2f42f300f877e4febbf6b79ed3fdef9f293324a02131732dec9ac74b6623e018"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-31",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "da408758b601ffe22358c8f396a5c225170355fd56809a6765ff744142a3ba67"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-32",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9259e2c71dcfda6e7e0485bd65c9e2d1c5636cdc61e70f4a8a0a30fde7b2839d"
+  },
+  {
+    "task": "bugsinpy-original-tornado-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "130735cdbc2200e65b32265ce162cf9dd7e57536c5e54d8017992c61d1d80d32"
+  },
+  {
+    "task": "bugsinpy-original-tornado-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "71c04fe02ac118772d7f5196e9e2f36b810f6ad81a7ced56703c70dbc7f5f3f2"
+  },
+  {
+    "task": "bugsinpy-original-tornado-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "cebcaccd6d50de7c9775323a5687a45d56b3549510a80646db1f92850afab830"
+  },
+  {
+    "task": "bugsinpy-original-tornado-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2d787c61f9077efb42979c3afd6bbe8f37a64ad61f263fdf2cb0971286964d5a"
+  },
+  {
+    "task": "bugsinpy-original-tornado-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "fb29f0dd610dbd8e35d79af29ec396c4a69ffc9dd1c1ce68a0baa8feaa2a6795"
+  },
+  {
+    "task": "bugsinpy-original-tornado-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f6363e64e3cee3b034449c5c306b9601b8cc14e00fcf0a7e0d3513c90fbcb3e4"
+  },
+  {
+    "task": "bugsinpy-original-tornado-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "4e41b0072da6d84bd1adfc67f1d1d17244c7d4bf115d9094b5aa6e4d1d69d04a"
+  },
+  {
+    "task": "bugsinpy-original-tornado-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "afd4a6386d66ed9949df24fd481e825680a066232eb7d94d8382c9c7034e3808"
+  },
+  {
+    "task": "bugsinpy-original-tornado-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "110b7c01af577cbdc49f3c5d74048e985f5d3946f825f7e4966e67ffdc9e47c4"
+  },
+  {
+    "task": "bugsinpy-original-tornado-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "8b06788db991dabfa3ebb53edcc108347e459274cef8fa426a31150d4fbc1690"
+  },
+  {
+    "task": "bugsinpy-original-tornado-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "97ec06dd8f5f6172a35072be69e1a812cae069447eeb81daaee0f138edb979de"
+  },
+  {
+    "task": "bugsinpy-original-tornado-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f58eb6a8963a3766fd77dd1083eb49f727174b2de76423d48c85e2a78cfa3cf7"
+  },
+  {
+    "task": "bugsinpy-original-tornado-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "407e34c01d6761c3579aff1c3cd3163f31b48ce594710af0594b2dc34f73c13f"
+  },
+  {
+    "task": "bugsinpy-original-tornado-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9c48a96736fd128f233c25aa2180e209971295a04ec718f3dcfc71ea716a87c6"
+  },
+  {
+    "task": "bugsinpy-original-tornado-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "35ae8c4c7f4a36b7b0dcf8c73b709df2e9e7ad5fef3248536b0d55ed48d3ee49"
+  },
+  {
+    "task": "bugsinpy-original-tornado-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7b13bf0a539fea070083560feac3ff33f7ffeaf61696d8de4bceb326ba635249"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1d7cf3cf20804891bd9bfbe430f2e5d9b4b34c23545a7b357118fda4f401b55f"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "a871a0041dbe5770d9876d0d4ff1350da28f72beeb5ec0d6cf5dbd0ad3476b18"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "dd281f58b180271f8fdf534b25847b22bea8a4f36bc8219af4c93ba8e3b52609"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b9d4f7c0327bf5c09c0ad8841ccb776150f204dd3b571fef120518d0317148b3"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f6ac2f2ff64b28ea5c8526d5eea4db10080fa8286687a654f4a1d05a741477ff"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "10dbfaa02862432f127fac7a213377ded8f070640e1ce8ffdd91831e1f94c50f"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "a9102257e03cb1e71c9adfdece09f1b665e32bfbe4b74d9f880c35536ff6ffdb"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e4ffe48db864be2f0fb3af20dbc010218dffc0ced97997c9d3824c1086835e91"
+  },
+  {
+    "task": "bugsinpy-original-tqdm-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2d48b03e5c8723aba299cd4db8107b9c2c1790daa7bbb8ee59ac9187fe3c775b"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b9444c1ba689895fe45e194c67b34f8afd1f2c266a5086274990364368f78354"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9933fb8169bd6643186f9afcce8276498ca3da425b7f7769dc93289e64a9a89e"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "aee3c858fa9a824eba42bb19fd9b61bbf6b869b36774180230915abf8d356a9a"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "71a0629e1cc73c44bfe8e6fc347e6c6e46597b1ec3b99136d13618fafe8914ba"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f0423e80a07249d8686b8e6ceaa7e456e1cdc7f7cecb48924e4fd44108697c26"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1fdd3552a96249aba5a2605501d97cb51d6d767aaa148bede63930b0de86acc3"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "876ed92185a6c433c64826966b3e4b0d5be88333606de5291640f1ef334f42d0"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "9b4a53a86dc996dac5569c94c561cf866816fc15a202b161d77e4354fdd9381d"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3e3e46a4426e77acecf623093c2b8cbd278b2590949c1e39b624580d00b0c684"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0826c8b4973bafb03499d4703cfeccb7bde92ea702d9af565a116f64c530e380"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "44bee80348c06f1cbddb138c587d741ae0b110fac5f8782bbbd62f6b9c7c4605"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1b86c6be784925ccc4da714550ac9b4e476df720cc9d641f0582bb1bba35af75"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "00a9cf955697f877f8e550c03751e87cd843a5029567cc50d0cf133a261692c9"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "baf6dcf38598dd8c19a971f68db80adacc4204de224f3780be8900c9a72e38ef"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3ab6ee7194297fc934dc9542c43c2c6afb5c6be6a80d7e994a3a6823116f6229"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b2dc19b81e42f02482906c117e7223fe56afb4a000fb945d0125e015a1722483"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1fea32ac02ad0471ef0f8274b442381eadf6bbe879c69de4b8faf6b599fa52c3"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c0c8b457bbfa9c57e9ef3b3e0291048476c28355a235c338b11d3d00329ce5a0"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-19",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "45886aa79540c49f0c717380445f7bbce671dc48898c23bdb00d5c92653b4be4"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-20",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "45554441073a4b8f046a287272a94c82a7862f7b4d9cb9574f1560bbe7b8dc80"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-21",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b91e7722098b41b7a6f23d62d40ebfa66a7d09911c19799750d0a85251739217"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-22",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "cb174808e7f3adce080bc070b17c311d29a09ee73b56bbd8f4649201b3c9a755"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-23",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f63321d7c6fa5170c0dd19b9744ff17926d42ef73bea6d4846d47a38cbc9ffbd"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-24",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "98c909f491fc24ae187cc631782da37634b6666b87923f3c52fcd911ae49ee1a"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-25",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "87e748fc199c43b4807f131f8d21719fa23d24ed4195f766de9eeb9741db2512"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-26",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0ab180c46e8e2a6f525b639c9a39102b33b9f2d709928903ecfb0c35d8d9b1f5"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-27",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "e138f9cd4c1b7116cf264d7c1a64fe9203baaefaa667e5bfc274e7b275d3b7dd"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-28",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "4f345d9d0a4793f284b7732fc99e9111df7a6444f58f3d52eddeaa2031bee7b7"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-29",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "ae3fad7198606c1d56587f5bad87a8f5492859efcdb555b61fdfb58e19f7bde1"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-30",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "3de520108afc315de4c5ffabc16a16d201f2e5a289d94e5b55831b1bb571324a"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-31",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "f1643d02da960cf0ed059e03a46d83627bac5656d33989164fb0eb8b710597ea"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-32",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "0f9ea0b2a7c7c915ac276248b536d42857fb46bea41f80bbbcf4a3ec870cba23"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-33",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "90614dc95356e97af17c466ab8737e267f6084226fe582f01da0475d6e5727d9"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-34",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "d044bf91255e88c1d20af4c5bf839e26ac1fe7a4dc7dca885fa364e8537943d7"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-35",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "38831eea674ed3cd3f9eb546d4d126e66fef53d01ff2d2e657d0dfde44c32a8f"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-36",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "c85697e09de7ecc0fa15b277fb1a6257f8176b47056cb2bd7735f2a76291525c"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-37",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "61851aa22d36fba68f25c60e7ac768cd967a079936d16e0489327ab7119a2277"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-38",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "742d45c1517ebaf84eef567f1f7f59990c13e3ece57706d0d4eae2c3324f3167"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-39",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "b7a0beaad24f8021538f235c82380dd87daaa8b372dd2b2e29ac491cc9b59546"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-40",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "7821521fd30993cdca5f12e9233fcc2140b6f7f04c846ba4317c2e64b99326e2"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-41",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "2f17d815bbddb49d965db9569a5870f53722d62a5730867d174278533aa6fca4"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-42",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "1c2f2a059ad259a05be12a44f9933e75e8ba279c7613d42df405258f8d1d0ac8"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-43",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/audit-h200.stage4-tasks/0000.parquet",
+    "sha256": "35e39d039231dac0807aafba779ad4fd86cc8f1009a7c4f290d745f771152b67"
+  },
+  {
+    "task": "bugsinpy-original-pandas-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "fe043f2d4382008c20c92ab67e45087471ce80846e9cf7d066dec0db69309778"
+  },
+  {
+    "task": "bugsinpy-original-pandas-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "a6d0689c47de18e6460380158900b547f6b16b6fd38cfd43ef790285a566cdff"
+  },
+  {
+    "task": "bugsinpy-original-pandas-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "279a30dfeca09849484057a679a2f071d73b53b6ef4c92ac709d1614c16ec163"
+  },
+  {
+    "task": "bugsinpy-original-pandas-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "6f684997f4fee0a932a47dfa2d878302e8797402e869766ab1c4540c159be36a"
+  },
+  {
+    "task": "bugsinpy-original-pandas-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "9e003814c84828a4ab32c23989fac532620f3a0251540576d4e257aa0b4eb66b"
+  },
+  {
+    "task": "bugsinpy-original-pandas-6",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7785f89445c6767e4fb6377ea26f7234d5f37274b6c62376d5e4afc27918cc3d"
+  },
+  {
+    "task": "bugsinpy-original-pandas-7",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "099093498ce615567f8486f54645c59e083fe2eb80bf4bc02d54f153af1336be"
+  },
+  {
+    "task": "bugsinpy-original-pandas-8",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "0a3228a91551504814eadd72d97e745306e9de1ca26919176790b99b0fcc899b"
+  },
+  {
+    "task": "bugsinpy-original-pandas-9",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e1313e21a49140ce53f6ce0ccf119f4fe13b1f34a93794dfa03f3bca2ba6dc46"
+  },
+  {
+    "task": "bugsinpy-original-pandas-10",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "54fd4495842bf74f4d5afe8f210ef18df27bf4a19e7c6944c9b8b0a3fff89739"
+  },
+  {
+    "task": "bugsinpy-original-pandas-11",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "925502122cedf52a84606feb05d927ac068f23407f0356e7b2db4c4dd1d1d560"
+  },
+  {
+    "task": "bugsinpy-original-pandas-12",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "9f1c355b7c561a3d8eac17a87d74aa1faae513a9135cb0eac448001b15e493bd"
+  },
+  {
+    "task": "bugsinpy-original-pandas-13",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "5b4f0f1ca89ff9a5544d8cdce694c74e9ce70b227c71f8922414a890bd243c49"
+  },
+  {
+    "task": "bugsinpy-original-pandas-14",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "654cb08a9182cfd4fbd846c89365ee46303832624c207256327536764fbc9220"
+  },
+  {
+    "task": "bugsinpy-original-pandas-15",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "4c1bc48110a2489421bd05c9ae989ffc80d80cc5716b5e4e6ce86389f4ecd901"
+  },
+  {
+    "task": "bugsinpy-original-pandas-16",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "71cbe8e4c1c9e57a878c2f43d73097a5eff166682b55d3417813fbc84fac01ab"
+  },
+  {
+    "task": "bugsinpy-original-pandas-17",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e9cbc21d7bdfbb6e49eecde0f4089e43805420c0cad5c3296e047506a9da338a"
+  },
+  {
+    "task": "bugsinpy-original-pandas-18",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "01bc5091b1e949df27260d743aa537418729d183ba291879e8b2a2a2b4860066"
+  },
+  {
+    "task": "bugsinpy-original-pandas-19",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "6983421754423dc97626f3bf96a517893657a8e0e49268ea7573b77252c46249"
+  },
+  {
+    "task": "bugsinpy-original-pandas-20",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7e8349f19c9bfc27bcaa0eeda3b4ec9dcdfaca63a4b36a323d070a8ccd6481ee"
+  },
+  {
+    "task": "bugsinpy-original-pandas-21",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7622cd3421cee0e1be5b63f796ca76d297a77009a2b5c91c4e19dda45dd0af9c"
+  },
+  {
+    "task": "bugsinpy-original-pandas-22",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "048f508dbf003afbcac25e1da33c58cc69a02f03e97da0c39a66f6ac4a47fbe4"
+  },
+  {
+    "task": "bugsinpy-original-pandas-23",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "d757359e34124a9e2d21b17159c5253e1baeb83e948d72b78d524ecced1ed01a"
+  },
+  {
+    "task": "bugsinpy-original-pandas-24",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "4f3f98397702e68968813d586020d09d1f3f2e026a99fc9db5422f9e10c2264a"
+  },
+  {
+    "task": "bugsinpy-original-pandas-25",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ec244fcac134679e3c5315061b26c178f1acef00213709a3fbf344b106f94e2c"
+  },
+  {
+    "task": "bugsinpy-original-pandas-26",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7511aee1911b3a2c48f9148ac399f1be0600ee85cf76ba86e77d6c918639700c"
+  },
+  {
+    "task": "bugsinpy-original-pandas-27",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ed7cf1af8088694f7a77f96bbac7a2b9298485668c7dd293794ae78ba98138cf"
+  },
+  {
+    "task": "bugsinpy-original-pandas-28",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "90f750d004a6123d76d2e036281a1fd4d088c90a9c2e79cd1da0cf7d3bed5ed8"
+  },
+  {
+    "task": "bugsinpy-original-pandas-29",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "6ddc58d8a7a466d1a020825297346bd3b5ba468f6e2af9d6ca47ee1ef7865b12"
+  },
+  {
+    "task": "bugsinpy-original-pandas-30",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "cf8f729a3ec8d006eced15026024d5b5b4124cd6e43323790e6f2550ff0db4b2"
+  },
+  {
+    "task": "bugsinpy-original-pandas-31",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "c792b9300c163b01c5b928569fa48323cf39a99fa32d510238f86b2ddc4a6e6f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-32",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "dea7c2a7011fe240df42df5041ff94655590738fa143a12964e545b4922a2076"
+  },
+  {
+    "task": "bugsinpy-original-pandas-33",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "802184bede23b41dde64aee5e7fd942b4644472832707c16f59c31dcd1f82207"
+  },
+  {
+    "task": "bugsinpy-original-pandas-34",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "9122bf7c445daeeb2731930f5bf05c0144e20fa35cabb86f27b7a73fa53d5507"
+  },
+  {
+    "task": "bugsinpy-original-pandas-35",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "dfdff2997543d35fca51119dc40f458a140835294a593f14991184df6b213c87"
+  },
+  {
+    "task": "bugsinpy-original-pandas-36",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "928bba2243b853ad0a004b9e10c42e7b4c03204e010568ae2e0fe6c1112da7b8"
+  },
+  {
+    "task": "bugsinpy-original-pandas-37",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "db5f5feacd9e05e1192ef9dfedce2aa58b32ddf3bd4a0931514d8e3742b4b25a"
+  },
+  {
+    "task": "bugsinpy-original-pandas-38",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7f49810ae2d091d05c0143e09492ffc98ef5c2a81d9b6d0eb660e2eb09853a7a"
+  },
+  {
+    "task": "bugsinpy-original-pandas-39",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "0e3d556bb571cb0d43ae64ebb9e068f83ff346ab0ed8bcab0f159c19f3ea5619"
+  },
+  {
+    "task": "bugsinpy-original-pandas-40",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "6de8d0e3f0f0fdc5970fe487ed5696df55251ab4d54b5a95470b82603b445b02"
+  },
+  {
+    "task": "bugsinpy-original-pandas-41",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "802bbb8136be5e7113fac70a756ec536a7e2f13f4a55ba05fa249b049a3b8477"
+  },
+  {
+    "task": "bugsinpy-original-pandas-42",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7392dcd3ef12ed04a5878ee87b722ff047aca6774450ba06d98fb01801a29f3e"
+  },
+  {
+    "task": "bugsinpy-original-pandas-43",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "56a24914078d9ac15d78e77c61a8d1d68cef8778af5a3bc29aec61b1bee8a8cc"
+  },
+  {
+    "task": "bugsinpy-original-pandas-44",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "70036f4f19e20a57a42cf4bf6970d14d298be88b1532fa3fdcde40133c14ca64"
+  },
+  {
+    "task": "bugsinpy-original-pandas-45",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e5b764fd194f10199b339194bcc561979a454c0d516ccf8a120d99317be15aad"
+  },
+  {
+    "task": "bugsinpy-original-pandas-46",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e727199be4d0800090d87a73fc1bda60131bc3226d608bf98dcdd05d91c6168a"
+  },
+  {
+    "task": "bugsinpy-original-pandas-47",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "6f13d4f0c347a1e9f84a5c02fff4ba1042ab4d012da24e0bf4572a8ade9ed283"
+  },
+  {
+    "task": "bugsinpy-original-pandas-48",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "3e15ec80a74329a59c4656bebcae28a1e4efddc2fa08c12837d8ea6ddcb1b516"
+  },
+  {
+    "task": "bugsinpy-original-pandas-49",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "88b3a6a45b3a2c667fc41474a6e8434855c38341f214c5e4c9cce0cb69675577"
+  },
+  {
+    "task": "bugsinpy-original-pandas-50",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "dfe1a4036255a0c6b98c9d1598fee403adddd2b37b07408e968cc2b7bad5d238"
+  },
+  {
+    "task": "bugsinpy-original-pandas-51",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "182fd3c7df48ffc84dd945df772047ec395260d4cb20c1969fe37c3d2d3f9620"
+  },
+  {
+    "task": "bugsinpy-original-pandas-52",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "90cd04ed25d72b2e32757d7285122dc4c77e2528e4c3b218328ca78cd8fa6a17"
+  },
+  {
+    "task": "bugsinpy-original-pandas-53",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "1738f55685f717d216666a6cbc87c825eb87b31d089a85ece202d3be9052bc75"
+  },
+  {
+    "task": "bugsinpy-original-pandas-54",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "755064d55257ddab2153ce422ebfac4d7ccec1076b01e4e742451e5e3b6d8859"
+  },
+  {
+    "task": "bugsinpy-original-pandas-55",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "a277b1483d551a458d0425910ca9458374b9dd19e2ba77025bc04fca5a7eec24"
+  },
+  {
+    "task": "bugsinpy-original-pandas-56",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "978ce6cc8cdba2a91cf1b4300bb1d94af014a328d08fb883376d7fb29e651c8b"
+  },
+  {
+    "task": "bugsinpy-original-pandas-57",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "8b251c1893ddc77964ef56327ed0b67654a93051220dd863a54d937c19b0936b"
+  },
+  {
+    "task": "bugsinpy-original-pandas-58",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "730c5f8f529263fcc7d08aec7b56dcc48e7023969e0c9ace31fe606b656afebb"
+  },
+  {
+    "task": "bugsinpy-original-pandas-59",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "62e9577b8b09ba39d3160dd6eca858b4dcf7152d7278daa2cee9a80f15935dd2"
+  },
+  {
+    "task": "bugsinpy-original-pandas-60",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "896bfa76e8249dda17bbf0217984d2f84a75510fca89d6ee02bb3f8008bc8587"
+  },
+  {
+    "task": "bugsinpy-original-pandas-61",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ee3883777a87436184b24987773c54a1e039aba31821321217cd6db7ecfd9b31"
+  },
+  {
+    "task": "bugsinpy-original-pandas-62",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "5a1f64fff9a8a02841a75d8dea2bd5b781d16b49a637094d99ca93193160fe67"
+  },
+  {
+    "task": "bugsinpy-original-pandas-63",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e0a1fb4448a10c981aa17e4636f632e48b8e0adf77cd6755c2774178ecdc5cf3"
+  },
+  {
+    "task": "bugsinpy-original-pandas-64",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7f3bfff458670ed43249e9724d345fb3a55394380d43fbaaed03127fb8daa0c9"
+  },
+  {
+    "task": "bugsinpy-original-pandas-65",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "92ce2f24d0c1d08ecbadd91fd64fbd16e8eda34da4eeb77430dc6126f64b7a7f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-66",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "dcaef3b54a9c7aef3e42ce79b90f641f50c76a3ee40301f26d29b5427413d63c"
+  },
+  {
+    "task": "bugsinpy-original-pandas-67",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "4e1b665aeccf7756027bfd31a794a7945ffdc677c34db379ae294c5e57584850"
+  },
+  {
+    "task": "bugsinpy-original-pandas-68",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "fb213cf218b652b350698b08bd594091c10962fedf848de66aa354647f56675f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-69",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "2e5fe0f8a1738dd2c622be9c9ab97242fa1cf1ce3171017ce4c663a159ba1c9e"
+  },
+  {
+    "task": "bugsinpy-original-pandas-70",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7e33b19618acbc7551401aee4b7bc8adf3fba22a8123ab04bd52a7fa5fd1be21"
+  },
+  {
+    "task": "bugsinpy-original-pandas-71",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "2a27996b3ba100c525ef475fc4dffaa46922cc4f8315e2e493313796ea95e1a4"
+  },
+  {
+    "task": "bugsinpy-original-pandas-72",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "d0ba7fd6281ce361cd2463511bdd216379634e5f954cdec23d5fb61fa274d4c8"
+  },
+  {
+    "task": "bugsinpy-original-pandas-73",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "89fa9afff938fb342a234384ac198d75eadd0fb4cb61c201a0f6d6cdc0f38eba"
+  },
+  {
+    "task": "bugsinpy-original-pandas-74",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "07a3449fb1e1ac9305ca327380107970b15a1b8a0d80aa0a6802a76e2f4bbb23"
+  },
+  {
+    "task": "bugsinpy-original-pandas-75",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "da1a2a40e44a604c3ec46213fdc68d2d43d8028d17c7e95a06deb16137b7f27b"
+  },
+  {
+    "task": "bugsinpy-original-pandas-76",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "4a0b113eb410e3629d86a269a9e18a4a4c962feb8b4923f97aa943a2b918aa30"
+  },
+  {
+    "task": "bugsinpy-original-pandas-77",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "edc784f6ea0e15e197b138cd141563f52818896af4210519e7c1ca3649894e54"
+  },
+  {
+    "task": "bugsinpy-original-pandas-78",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "aae05425c4a764651ecc4fc9e38d880a2aa043adae1bf497c76fecfeccd42a5c"
+  },
+  {
+    "task": "bugsinpy-original-pandas-79",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "b450770a38c52a9cc59b68e53d7c1ef7f5589967465b3712fcee02c3866c53aa"
+  },
+  {
+    "task": "bugsinpy-original-pandas-80",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "24435cda46f8953228d0275de7c8cfa8f7575c2282f988d8b96cba2f33cc7256"
+  },
+  {
+    "task": "bugsinpy-original-pandas-81",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "dacb13eca656687402bc010efa4cccb27b12ce99e7cf72f219fc9a6251427344"
+  },
+  {
+    "task": "bugsinpy-original-pandas-82",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "9e6f13f0efe55655d8d722f932e52c0b1dd3540e5b0f51f8a420d764f4fb669e"
+  },
+  {
+    "task": "bugsinpy-original-pandas-83",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "9bcb49e39ebf98af3fc05b4c6fe04cc4bbe74840413edb3202b359664947963b"
+  },
+  {
+    "task": "bugsinpy-original-pandas-84",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "8d47e1c3c22c584505cbe683823c0f50367e86234badec3635358f2c61cbd0a9"
+  },
+  {
+    "task": "bugsinpy-original-pandas-85",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "bde5a3d1bfe978e650712aa9ba5e726da2d8dd855795c919beb78d79bf56b6c0"
+  },
+  {
+    "task": "bugsinpy-original-pandas-86",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "20c0e07570d7ec25d8dec0318db0208094f6e3c14bc8c768f10a473bd69a6b86"
+  },
+  {
+    "task": "bugsinpy-original-pandas-87",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "93ef35d61196d851f983b9a78a371eaab49c3b4bb4aefeacbafd4b63f0ba3eb7"
+  },
+  {
+    "task": "bugsinpy-original-pandas-88",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e9c58c8c6209bfc2a3f512839916a9fb310defc9aedd871c99560490025a6c31"
+  },
+  {
+    "task": "bugsinpy-original-pandas-89",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e46b42e61264d677512e9c2d05c78ea45ec60e3c0078e4802de66339976c3fc9"
+  },
+  {
+    "task": "bugsinpy-original-pandas-90",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "6fbb76c2d1d3d21bf152390c1117048daca780f1005823d4465ffc897588cd5e"
+  },
+  {
+    "task": "bugsinpy-original-pandas-91",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "5b170c687784d0f09f1687bdc48250f77d75c805179ac76b1e416e27c1f0f83e"
+  },
+  {
+    "task": "bugsinpy-original-pandas-92",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "d93d7a74935551afd96bb1e5f091ccde31be082206f47485435fa570b9a04924"
+  },
+  {
+    "task": "bugsinpy-original-pandas-93",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "4e5f4bb5dc339531a12bc612aefdaf47870d9028739a72d09fc62c52fa5f2600"
+  },
+  {
+    "task": "bugsinpy-original-pandas-94",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "9ea15108db73c9400c3c992a65db855ee8ad22e4ed9980b5c4791bf1acd89e30"
+  },
+  {
+    "task": "bugsinpy-original-pandas-95",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "faaea1aeb3e4775325891c74e844cb281070db33eae77c2bba006adba5b8e940"
+  },
+  {
+    "task": "bugsinpy-original-pandas-96",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "73e3c9be5934d1a5162460807806e31a174d94e4fbad6898c8a58180843298e6"
+  },
+  {
+    "task": "bugsinpy-original-pandas-97",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "c39c96cd5bab5d617e9cc0742894ac94fab3217148e1e11478bff3e3fa1f7afe"
+  },
+  {
+    "task": "bugsinpy-original-pandas-98",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "b41ed4cdb3d1a1edf10aba473ac497dd4bbf4c6dea2549fa4c702c4a78fa5072"
+  },
+  {
+    "task": "bugsinpy-original-pandas-99",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "836c0701680faa9e4e38f30f8208006bcaf166ec4e8552a04a91d1e10a630c7f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-100",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "75a29a39757596502b510075caed78a75f558bc525bfed85f8b36442036fbbe8"
+  },
+  {
+    "task": "bugsinpy-original-pandas-101",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "50955539d3b974f8037fb121430098f924cb9d88610b38002ccb203759f7bc51"
+  },
+  {
+    "task": "bugsinpy-original-pandas-102",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "5e1955f3d9f1851c9178011938b4b0071f71e37ad9589473a6c5f61243394cdd"
+  },
+  {
+    "task": "bugsinpy-original-pandas-103",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "6a47bf78e43995cbbf9f6b95564d33edc4cc373ddec97aded9e65d7e2d4de27f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-104",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "2b4e1fa88a8e44ec3775008a3fe48adb99eb1e8ad107c25f44ce60d6dcb3d27b"
+  },
+  {
+    "task": "bugsinpy-original-pandas-105",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e27e3dff73d399a501ea57d36413c47bad49ff0647846ed56823c97a562f5315"
+  },
+  {
+    "task": "bugsinpy-original-pandas-106",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "37b6639149b3562ff3beb57cbb5e16df1d8b40a9829e425821f226f727a106a5"
+  },
+  {
+    "task": "bugsinpy-original-pandas-107",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "f7dc9f7f7b944f470bc876271aa559fc801861e90c2735c70ed1fd712fd54bb3"
+  },
+  {
+    "task": "bugsinpy-original-pandas-108",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7bd6ece1ea441306679da253566b47d1814a42765e15e24fc0f6db1bc12a3957"
+  },
+  {
+    "task": "bugsinpy-original-pandas-109",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "2e7497543ea96bfe650ba5a01de522ceab0d858d8e9ea00fcab947071d5bdf15"
+  },
+  {
+    "task": "bugsinpy-original-pandas-110",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "f894e8199ba6d56fbf145547cb39dee91a65ca205abbb949698489c3ee56f564"
+  },
+  {
+    "task": "bugsinpy-original-pandas-111",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "d85b7cd579ed1ad20f422889a7a1123a684edd163f56828b090fbbb4dbb05c45"
+  },
+  {
+    "task": "bugsinpy-original-pandas-112",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "aa7b9dce876ecbf8cc2795eba2d0e37e0be4cb3ef052dbb69f572a325b7ec0a3"
+  },
+  {
+    "task": "bugsinpy-original-pandas-113",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "36f8fd54db5fbf346251d2454156c7e4f89307bbbfb679e06afbbaa612e1f827"
+  },
+  {
+    "task": "bugsinpy-original-pandas-114",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ef83d8a717bea2dbf5ff52ba518d4feb718cdcbeb1f94f571f35c5ee7d077312"
+  },
+  {
+    "task": "bugsinpy-original-pandas-115",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "005e302079fb882a9fd46049a99865cb138398178d67f7e0ad732b28526e2e54"
+  },
+  {
+    "task": "bugsinpy-original-pandas-116",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "bcd179875ff1d2b9592914369f1241730c34a4e67bf3e243262ee426170ab587"
+  },
+  {
+    "task": "bugsinpy-original-pandas-117",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "8851e61f35041eb3d1120a8cdb2111b20090df957bc679d017554f02dc923012"
+  },
+  {
+    "task": "bugsinpy-original-pandas-118",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "05351d55eb4414ff2f1d0968797576e50870573443c00e955231f9da75dee260"
+  },
+  {
+    "task": "bugsinpy-original-pandas-119",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "025ebf7a4f167bb8ac5cf83e7c35439529717747769cf7bd6af1569082b2fc1c"
+  },
+  {
+    "task": "bugsinpy-original-pandas-120",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7abc388c2c496cd8a46a56560281dafe240e90046fe02f391420a5ef36333b79"
+  },
+  {
+    "task": "bugsinpy-original-pandas-121",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "33d132482454d84a027ee6f4cc1366f114b2bf783fd0cb3ae376bffa26258602"
+  },
+  {
+    "task": "bugsinpy-original-pandas-122",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ee65ac16600da63f750d5a8e75567ac63f1cb5fb4fdd98a4731f8d7a55640159"
+  },
+  {
+    "task": "bugsinpy-original-pandas-123",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "d5800fdb4b025e9eba486b5e7888437d1c2c83951e563e1965406330b469a576"
+  },
+  {
+    "task": "bugsinpy-original-pandas-124",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7ae29bb2b0f44ccc867c53c3e85d3a0cc4723cd0b7a40d7917e62db54be71625"
+  },
+  {
+    "task": "bugsinpy-original-pandas-125",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "cb13deec04689270195b8cce256426e41e02184c876d64497d9bbec1ba3c8602"
+  },
+  {
+    "task": "bugsinpy-original-pandas-126",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "060dafdf789158d8833a5b3efaf3d2421aaf265c7f9584eba6667493f65a148f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-127",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "a1c6e64a8ad21b6083f970ad66a18c4cbcbead3a5a3fd7843b69d7f253804997"
+  },
+  {
+    "task": "bugsinpy-original-pandas-128",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "3b79f642f7fd1326d0bc22d6c87060bfc882ac6ce968b3006bd095277b135226"
+  },
+  {
+    "task": "bugsinpy-original-pandas-129",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "309949afaaeb6c4a9cb0a59415c091acca3b9169bafa2a3201f7e1914753bcae"
+  },
+  {
+    "task": "bugsinpy-original-pandas-130",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "1886baba9eef2e222475a8f2e52feef001cb2341b335eda76b7a8a708dca09cc"
+  },
+  {
+    "task": "bugsinpy-original-pandas-131",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "24f1c6afc890d1ce1359b9825a2eeb42f61a30b70831fd8914d9ffb06bf231e1"
+  },
+  {
+    "task": "bugsinpy-original-pandas-132",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "5218bffd9f6d76cc55ec88b13a53a33a70ee4b838a95c6bd7255ca949e9c66b4"
+  },
+  {
+    "task": "bugsinpy-original-pandas-133",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ac86df2804378609d0fc7bebb61c306958793b4a1f038fc51cc69f26ce97664d"
+  },
+  {
+    "task": "bugsinpy-original-pandas-134",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "cc73100e1e581baaf0c586f30106e7f228ad79b88a1df37e9c21712b79f2a3fb"
+  },
+  {
+    "task": "bugsinpy-original-pandas-135",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "375612777adc6e9071074cece7117d17060c3004df950422c3ef3bccfb8429a4"
+  },
+  {
+    "task": "bugsinpy-original-pandas-136",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "99ed1325381c3270e0585ebe0d116444ebc74dfae0c312e93cd85a702264ad38"
+  },
+  {
+    "task": "bugsinpy-original-pandas-137",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ae6badada61bd5ac7f476889ee5e489896738ce19c3a771a1519eee604ccac69"
+  },
+  {
+    "task": "bugsinpy-original-pandas-138",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "95146308e6228304bacc6768a35879d993a693bcfa4231b6eaa02b52f7737720"
+  },
+  {
+    "task": "bugsinpy-original-pandas-139",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "f4d485880f4f5d70a4d3521a4cca75e53bee5906d955ef4f7a93cf2cd0e5cde6"
+  },
+  {
+    "task": "bugsinpy-original-pandas-140",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ff6137acc5dd39e5fb99357ccad910c1a0f6a7ff7133e34b599b9c3ddd08abfe"
+  },
+  {
+    "task": "bugsinpy-original-pandas-141",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "7498fd1e72b07496d79617d23663c33d6e53dd38255c92ce4056536a270706c5"
+  },
+  {
+    "task": "bugsinpy-original-pandas-142",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "57f9542af70953c0e64d51c959ed5b572fad33cc5353eeb2faf277218d8b8e41"
+  },
+  {
+    "task": "bugsinpy-original-pandas-143",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "5391eeb77fcf9143d44ccf63dab662aa8d428977fd80f4b2b30ddf4fbcb3c9eb"
+  },
+  {
+    "task": "bugsinpy-original-pandas-144",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "8e58ed5be8771c05593715fa4824ddec9d9c6dcfd94fb262eff91435c1d9bf7f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-145",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "f5068a9591c237819cde24f9956bc535bf1675f1b4bea471f6e8ad31f8f6349f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-146",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "38a0499c00f5d988e32156fd98ae725f53d229535601d98750bbc125e8037639"
+  },
+  {
+    "task": "bugsinpy-original-pandas-147",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "06e63f01643a4e1c2561965a5ff06814d456d9a3b739f050879e70e0ff578636"
+  },
+  {
+    "task": "bugsinpy-original-pandas-148",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "b3e88b10ec1bc607289e57039cb92b329edeb34978f769f50d470b5eea00790f"
+  },
+  {
+    "task": "bugsinpy-original-pandas-149",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "66e070d071e7f560c483a3489d661354ee9c92efe04dcddb9dcf202f68b16c90"
+  },
+  {
+    "task": "bugsinpy-original-pandas-150",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "21246938eb7086d665e1caab0677d981c3f3611813ddf31300d4351955d39230"
+  },
+  {
+    "task": "bugsinpy-original-pandas-151",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "52ae678d2bef804435a87a66487d078a8276e1e9d8ab226aafdb301924f8eaf2"
+  },
+  {
+    "task": "bugsinpy-original-pandas-152",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "09e8170c519d40874ee30c0d51058739f25b00e4e31fc1676f9cf0e596f771b7"
+  },
+  {
+    "task": "bugsinpy-original-pandas-153",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "32b3981768be695618b9eb5eba4457ff473fb38929fb1a891f80a9cf62a761ae"
+  },
+  {
+    "task": "bugsinpy-original-pandas-154",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "3c26eb8040228d177615aabca04495505bb20e6ad06244a883a6c75fa24d9af9"
+  },
+  {
+    "task": "bugsinpy-original-pandas-155",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e582d3b37d21263b43755dc33db44de6fd101187771e7c475f32abe668d51355"
+  },
+  {
+    "task": "bugsinpy-original-pandas-156",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "1fb50d9cd3b20797b00ad4513f62cdac3499797f1a36e57f68b1593ada810c0d"
+  },
+  {
+    "task": "bugsinpy-original-pandas-157",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "684163f8496eabdec4406012b7188a550d61654d922e0d7cbab2e778369043cb"
+  },
+  {
+    "task": "bugsinpy-original-pandas-158",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "6ac03c5af68b37a8e1bd03a45baa6358272233e47cf615d049a8be4083267b80"
+  },
+  {
+    "task": "bugsinpy-original-pandas-159",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "d465e211719f97175db5a75946b076f9e407e835a1da6ab09ed9c37430bfd873"
+  },
+  {
+    "task": "bugsinpy-original-pandas-160",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "e82d34c19a22f0325537ea1eca74294f00f4bb98ea76a6ec502ca908c2a9a132"
+  },
+  {
+    "task": "bugsinpy-original-pandas-161",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "8efa5d07aae4ed919d9fce5798ff1fdfed7818b92d21e06967da1bb693d92d57"
+  },
+  {
+    "task": "bugsinpy-original-pandas-162",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "26cfbe27c5d2367f55a82fa291b335429386f67c5439991c6a39814f975aa4b8"
+  },
+  {
+    "task": "bugsinpy-original-pandas-163",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ab1922065085f28f42adb7b8c6bcebd52af903a570d8393f8d76338754a9a4a4"
+  },
+  {
+    "task": "bugsinpy-original-pandas-164",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "d4ce1c5bc5fff7830375eb029e71d95ef3a298efe2990050c99c74ea68cf1498"
+  },
+  {
+    "task": "bugsinpy-original-pandas-165",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ae4e3a4468004502f2008ae6c0093f822aca031395ad2e6c10bbed33399847ca"
+  },
+  {
+    "task": "bugsinpy-original-pandas-166",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "2f1b0b1f9119f8aab7590b7e7bdf3e0f4b6361493eafa2d9df07fc0f93c66052"
+  },
+  {
+    "task": "bugsinpy-original-pandas-167",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "c7ac516f18476a4eee44394f4afecd28f55f9fb723d9d79dafac329c68fecb29"
+  },
+  {
+    "task": "bugsinpy-original-pandas-168",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "5a3357af96ec9843b7d4b63fd901c17d685a26aa5d990c7655b97c26622bc27b"
+  },
+  {
+    "task": "bugsinpy-original-pandas-169",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "45c984e8b3d95358fdae746afed64d457b76752f71248d8f9db151db68addd3d"
+  },
+  {
+    "task": "bugsinpy-original-spacy-1",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "ba060b1c1a9562bf37f48676a4ee8fc30fd0457bc473b4b35a10e7dad91586ce"
+  },
+  {
+    "task": "bugsinpy-original-spacy-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/r1-h200.stage4-tasks/0000.parquet",
+    "sha256": "c1305334e941e6c773124c39a2b8116bae587e681dce39bfb5fd5645d8b74856"
+  },
+  {
+    "task": "bugsinpy-original-httpie-2",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/httpie235.stage4-tasks/0000.parquet",
+    "sha256": "6fbdf9fb7199b13bff39ebd908614d05a407e79f307f9f711b234787a76cfd35"
+  },
+  {
+    "task": "bugsinpy-original-httpie-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/httpie235.stage4-tasks/0000.parquet",
+    "sha256": "60a7a7893a8d5aa61904a6b6aff741b0bf86fe746a2d83e2c16c775ec36b0891"
+  },
+  {
+    "task": "bugsinpy-original-httpie-5",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/httpie235.stage4-tasks/0000.parquet",
+    "sha256": "d05c5d3298bf52dce04f8509753626afa1afe7552e5c36d8ebe1e447eb471f58"
+  },
+  {
+    "task": "bugsinpy-original-httpie-4",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/httpie.stage4-tasks/0000.parquet",
+    "sha256": "a66c5895fced418b850c4742ad59f256320ce81e4a6132ca48eecdcce096752c"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-3",
+    "parquet": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/two/tasks.parquet",
+    "sha256": "57fae65c33cf2e54624249fcdee290862c1682e1b34d8980c255dc047373c2a5"
+  }
+]

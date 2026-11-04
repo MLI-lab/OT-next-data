@@ -1,7 +1,6 @@
 [
   {
     "task": "contrastive_solver-file-operations_20260601_053159_003",
-    "instruction_sha256": "38c46d4390adf9089c63044b81932737a01e686574e65659b6bf1105d25f8be8",
     "modules": [
       "process_data"
     ],
@@ -11,7 +10,6 @@
   },
   {
     "task": "contrastive_solver-mathematics_20260604_194036_001",
-    "instruction_sha256": "28535d28d5071c9917cf564ade15adebe68a75877d40709426b7156be1e872dd",
     "modules": [
       "lll"
     ],
@@ -23,7 +21,6 @@
   },
   {
     "task": "contrastive_solver-optimization_20260618_093107_001",
-    "instruction_sha256": "11dc02a5bc82de270f0c951ace042d494e91d007564bbea1479c6230c333f87e",
     "modules": [
       "cg_solver_c"
     ],
@@ -38,7 +35,6 @@
   },
   {
     "task": "contrastive_solver-security_20260510_125534_003",
-    "instruction_sha256": "15cdf263b2f73439fa0462bb5597cc4aa7c170e6f3943734078a1415b70846fa",
     "modules": [
       "security_utils"
     ],
@@ -51,7 +47,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260508_153434_007",
-    "instruction_sha256": "e9bc5f75c2330e5c44577759ad29fb05eb502d16a0174c6bdae0781fd7dc8327",
     "modules": [
       "percentile"
     ],
@@ -63,7 +58,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260514_134238_009",
-    "instruction_sha256": "2cdac69c5c5b1ce3370f57b483a026428db917333cc797209e2da42310bcdb26",
     "modules": [
       "src"
     ],
@@ -75,7 +69,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260605_015435_012",
-    "instruction_sha256": "2166eb4936ffedeae69c7162f602734ff6c036cb4adbc92b5069f7ebb5e56fed",
     "modules": [
       "editdistance"
     ],
@@ -85,7 +78,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260413_174325_022",
-    "instruction_sha256": "fdd2501441802f4dc259ce8bcecccad1f3c4347dc2bd8e16ae0e8e59563c163a",
     "modules": [
       "virtual_modules",
       "simple_greeting",
@@ -101,7 +93,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260611_205750_012",
-    "instruction_sha256": "2cb04a2c0fd7a260e12b36b3d0eb58cd3bedde163f31dc48a51dac7713988007",
     "modules": [
       "fasthash"
     ],
@@ -114,7 +105,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260618_093107_024",
-    "instruction_sha256": "24e764e787fd21d1f4cf0579a8f325c865bb1950a26ad80c5ed8a6b0479dca51",
     "modules": [
       "bloomfilter"
     ],
@@ -127,7 +117,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260416_020953_012",
-    "instruction_sha256": "3172819996a98e29ecb483635df73c6a7c56ef98460734791307c808bd712547",
     "modules": [
       "mypkg"
     ],
@@ -151,7 +140,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260416_172928_020",
-    "instruction_sha256": "368e7d5fb4c99b076cf94a414b666ccb202e27e740044eea3a7fc073c98e5708",
     "modules": [
       "mathkit"
     ],
@@ -174,7 +162,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260413_174325_006",
-    "instruction_sha256": "14d53dca43c4985001f20909c50e37de5a3496d9702866b7e47b888c1b210d2a",
     "modules": [
       "datatools"
     ],
@@ -198,7 +185,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260615_143301_003",
-    "instruction_sha256": "616acb99a34253b8015183a4495a42d3c805205b36bab85abd4fc250d1eacf9b",
     "test_source_sha256": "0ef0bfa22defe48a36fe7e9030a356f26e50edcdfd25228af4096006405128c0",
     "modules": [],
     "evidence_sha256": {},
@@ -210,7 +196,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260604_194036_020",
-    "instruction_sha256": "b31d4bba3b32f1e60788b8de2ed6ccb51be905da0047dd1cd599cdd288c45490",
     "test_source_sha256": "1851014e5f3d8e40bfed9f88ec891f245f8d4a3b8c2fd3533cc9dc88e37b531e",
     "modules": [],
     "evidence_sha256": {},
@@ -221,7 +206,6 @@
   },
   {
     "task": "contrastive_solver-debugging_20260510_125534_005",
-    "instruction_sha256": "4f1fed90c67ae7484db690bcef065bcf961e5c919d3fb846f2d6fa5b20034e10",
     "test_source_sha256": "650609c7c88517c0ae97fcddfca5d91d1c897ead28443a0405edcd49b4570ffc",
     "modules": [],
     "evidence_sha256": {},
@@ -232,7 +216,6 @@
   },
   {
     "task": "contrastive_solver-model-training_20260509_154924_001",
-    "instruction_sha256": "9515348095e7797306ea4c5b02dfc686652b9a279521b12a338bdcb22086a06f",
     "test_source_sha256": "3a1247b9418b7b6289d15154a3058a0ffaa0fff68a4d6aa27b5405341dcea839",
     "modules": [],
     "evidence_sha256": {},
@@ -249,7 +232,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260510_125534_023",
-    "instruction_sha256": "73e13bb899f722aa52742303e145202e423725edf803ebaf386b286d3eca3e75",
     "test_source_sha256": "2f3018c729df565400e51a7d89c4c787365de306f031a19dcb7ace39413ec8d6",
     "modules": [
       "taskrunner"
@@ -266,7 +248,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260514_010833_003",
-    "instruction_sha256": "03f63af59b90138b9daab3c4d9e69f14e65cb3f23372d7501e40f3e47d5914d7",
     "test_source_sha256": "94fe62ea9acb3ead850f9a1700215d90ffe6ca92ab9103082e1193960f170d9d",
     "modules": [
       "pool"
@@ -283,7 +264,6 @@
   },
   {
     "task": "multi_solver-debugging_20260414_091921_003",
-    "instruction_sha256": "9fddd5ff89fd7294aa9b38015a5e922726007579487c6dfdd90877e2eae7a841",
     "test_source_sha256": "3b2c8cc6377c2167b7991c2ecdbcd9c6c52c56176c2bc21de9db3db2ed1269f2",
     "modules": [
       "pipeline"
@@ -305,7 +285,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260417_112147_022",
-    "instruction_sha256": "8732a9446459bcb036f2d0f706caeed77ecfc305b5e8c120b2dbebbd57267dcd",
     "test_source_sha256": "267d864f801e211c0954102bc7958f69e9677c174ba6b477d2ea5164b33b2f53",
     "modules": [
       "miniyacc",
@@ -328,7 +307,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260604_002443_009",
-    "instruction_sha256": "0df8740d855732a927c3357e1110de96b04ecaf302e0e7936ddc4c2fadbd179d",
     "test_source_sha256": "ebdcb04da36ffa900ec52d801ac1b5d334aa6b2d58a7ecb8bb3c31e4c5143d49",
     "modules": [
       "wrapper"
@@ -350,7 +328,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260508_204815_021",
-    "instruction_sha256": "7c3951d03cf8c1cfd9c5b0764e5c07705059fbe483e8a9bc43b04c90b5b7934d",
     "test_source_sha256": "a0f616f52d449ffd23c82334f22b19ffa3fff8b9e16df2cd87dd375c991aad17",
     "modules": [
       "_fastmath"
@@ -376,7 +353,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260606_153537_020",
-    "instruction_sha256": "14d4ebb5b3b19eac4fc9c85548651e248fb8a4305057226bd1341e9b49637331",
     "test_source_sha256": "51da06f56fe278ca4ceead087a490ca535e43629ffcf42c424b189da16ba0e39",
     "evidence_sha256": {
       "environment/Dockerfile": "0b9590eead6faecd127f644586708dd372dcdaa2a0223076e721f894cf29eeb1"
@@ -391,7 +367,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260604_004411_020",
-    "instruction_sha256": "59f69e1bd34e4920aba3a9c463711127755794db5d034abc7925461b70b754e2",
     "test_source_sha256": "f4cadd579927d94e7ae3a3a304aca2b0c6e51e4fe92b774dbd11a4f3fc1ef460",
     "evidence_sha256": {
       "environment/Dockerfile": "39373394fc05c009285f3811fd1c8f9543b24ce5469b21dac9c2ec93daeba852"
@@ -420,7 +395,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260507_093408_003",
-    "instruction_sha256": "891e9bc13003aaf40ef7921afeb52d3e6d603221c2de9e506230d95c2ecadfb8",
     "test_source_sha256": "a19c04b7595d93927deff4b1f2f7b7b83c4a4fc24ee6fe9b82ef71be54e33a03",
     "evidence_sha256": {
       "environment/Dockerfile": "8cf4d8b2170fd3a74bc2dce698ce079e3777c3c0bc7974563d8b7587b9cc605b",
@@ -446,7 +420,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260508_045740_001",
-    "instruction_sha256": "08ee0399a00398d63cc46901e922c0deb383ca33f692ca0f10341ef3fd8bda17",
     "test_source_sha256": "61c1bfb0d34fcdd2c1bc8a9a1a7442f91b3bdd5f98c28fbeb09ca9a75ca5eca6",
     "evidence_sha256": {
       "environment/Dockerfile": "6ad72878c0459fc40f8b1f6063b65433ceb77adb5cc008bb92abc2e204726961"
@@ -466,7 +439,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260511_015840_020",
-    "instruction_sha256": "837de0c71876fa70e534146d333e91edcd9969a7154ac3a9f3566eab5cdc67dd",
     "test_source_sha256": "b75830c4927fa3bb701daa3692b00891973e1d2efcf2dcaa8c7b19bbe1346dc4",
     "evidence_sha256": {
       "environment/Dockerfile": "702470a683dc29fa371580ff097d40e8b881016f64693930954c798d0aae87a1"
@@ -489,7 +461,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260607_104421_003",
-    "instruction_sha256": "a4dfe90d846d2c3a589ea58b90d3dc0a3761b5a21608f1e13a6c1e0438d631cf",
     "test_source_sha256": "dda2c1f0aef1b584a01633e464e0774da86b00200a8f16bad147fc7f219e37a8",
     "evidence_sha256": {
       "environment/Dockerfile": "901812b5fbe8ac92f222514fd8969b78d859d4a3b8cd08dde1942586e1a7f425"
@@ -511,7 +482,6 @@
   },
   {
     "task": "contrastive_solver-system-administration_20260513_205011_001",
-    "instruction_sha256": "2e1dd26ec6492a3ac92f0b03475bb836cc55f11e0d513185fa6b470938d40b31",
     "test_source_sha256": "b59a47d1fce3dab12fcf3a42156b950cd3790c9821de6a79d9c7e890f91d725f",
     "evidence_sha256": {
       "environment/Dockerfile": "68315d638403d1e4fea1b913d0a4541d56a339a82c85d4cc9c91f5fc4456d4f0",
@@ -528,7 +498,6 @@
   },
   {
     "task": "contrastive_solver-debugging_20260506_213248_001",
-    "instruction_sha256": "37319432aa65d269c744391188da9e614e09e8d23f782bbdb8470405fed31589",
     "test_source_sha256": "6a4c994d4bea1b24ed2103f83f86568b597b515f448d13af132b3f9ad1bd9b03",
     "evidence_sha256": {
       "environment/Dockerfile": "25097aae1bb9f7fc2f9b0bd6de2fa39657000cee84934484dc07d1ed1c953ff0",
@@ -554,7 +523,6 @@
   },
   {
     "task": "contrastive_solver-debugging_20260606_172554_001",
-    "instruction_sha256": "6cfe49f802218f960f6e31324cd8af474988363bbe9498a57bbe931844eb8b60",
     "test_source_sha256": "30f811c25fe4d4a1c5582b7407f748d27a588de7506ff7bf73d4005cf4d7f486",
     "evidence_sha256": {
       "environment/Dockerfile": "e473bfa153777f87641d95ebf6f621ac35b91e43560e7e139ebe20d981a3ad2c"
@@ -638,7 +606,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260511_015840_009",
-    "instruction_sha256": "971af3f58c56edd740043aef19ebd03087dbd48f988c9a5ed67f36e678e9eed9",
     "test_source_sha256": "501b4f55fcb3f4ad30b2f10b6feaee5b9b29af2ca47247c7d84ff693c1ab7846",
     "evidence_sha256": {
       "environment/Dockerfile": "bd5e1923a686ef13a4903aa638eb7b011ede1d79e6949fdd3d14c55da9788600"
@@ -699,7 +666,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260419_065313_007",
-    "instruction_sha256": "b2d530ba2bc04b81104d79431e99b0f594d33d3c2a0b74ee4e9f9030fb634e87",
     "test_source_sha256": "bb489ce97b1712d33c44151357afb7d52dd3c9c7acb7d9c75b7fb6b4b15c73fe",
     "modules": [
       "mylib"
@@ -745,7 +711,6 @@
   },
   {
     "task": "contrastive_solver-model-training_20260606_172606_004",
-    "instruction_sha256": "c89e0e95824a7e4c590ca9aa72800236920a6b1ed135550ac37795ce6a0821fe",
     "test_source_sha256": "54f68fd4f32a53c898e2e0e08138c57846a60bb3f3f93e389d947937184692a8",
     "evidence_sha256": {
       "environment/Dockerfile": "a410a4261cba482a411d3e9b3f18e0d12b9f8d9bf8327eac6c49f847391c0b66"
@@ -799,7 +764,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260414_091921_020",
-    "instruction_sha256": "afe3302750c91078c565456ae111fed0ac7b062ac805d85c6874b62c488e2051",
     "test_source_sha256": "d0cd828587780b69393f9aec0c349fc2019f6150a4d6c55cfe1a48d07fb48daa",
     "evidence_sha256": {
       "environment/Dockerfile": "89532f49b3975f24350c36d7a3da619c554300e966dc73e5201661a40347107b",
@@ -835,7 +799,6 @@
   },
   {
     "task": "contrastive_solver-machine-learning_20260601_053159_001",
-    "instruction_sha256": "4a80588f3c14a4e4a1316a8fbbda4d498f54978a0219b50c664b58e3eedbf28a",
     "test_source_sha256": "e43b30f705c8cba4c95a1071313e042b8f8ff3b4f89adf33e58b284abf43e3b0",
     "evidence_sha256": {
       "environment/Dockerfile": "affcad731dbde08b0303d508ab7266d5f43dc2fb55db0bd23f889be5b7db0281"
@@ -875,7 +838,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260414_211532_005",
-    "instruction_sha256": "683077e8a73d9941a9383ba182004e9038b99ff63940780f5af5c2640c81e82f",
     "test_source_sha256": "798aec3758e98e0e21d1e55126fba52cac6760fa84d069c14bc1a67e76b210ef",
     "evidence_sha256": {
       "environment/files/setup.py": "2061c52cb3f58a0284c790f1d6911044ed63170047649ef1605ace7f3469316e",
@@ -891,7 +853,6 @@
   },
   {
     "task": "contrastive_solver-mathematics_20260604_003814_004",
-    "instruction_sha256": "c3b364f32a28d01ad292d8f1d363ce356da822fce08e9b41b9f559b5b110be5c",
     "test_source_sha256": "c02c383db077d8e1dbf6c89c8e25d29c63904d1c3fd0f4a364ed8a7f2df43888",
     "evidence_sha256": {
       "environment/Dockerfile": "a3d3e6d4ceb849c7e1cec8c7de2926e55c316063e2e45dd7af25ef1246c336ac"
@@ -915,7 +876,6 @@
   },
   {
     "task": "contrastive_solver-machine-learning_20260604_194036_001",
-    "instruction_sha256": "73f94eaf51272549be4aa8fb600218b35a3babd5e4f1e69e8db3c4ebf0632b28",
     "test_source_sha256": "9ed6c8de1220ff7140f23c2cbca8d3ca031964e2265781748e9bab9eec78ea28",
     "evidence_sha256": {
       "environment/Dockerfile": "cfdb3ac1300736cba9af86cf25410e7a586c9061b85bbc38503f8e86acdecbeb"
@@ -946,7 +906,6 @@
   },
   {
     "task": "contrastive_solver-system-administration_20260605_015435_006",
-    "instruction_sha256": "2e198f9ab27c586d60b37fbcdac778c85cf266feb3cae82e72eb97f0cbae33b9",
     "test_source_sha256": "cd398be979105c22a32246a94424d982ec3c121380336c72e361623870509383",
     "evidence_sha256": {
       "environment/Dockerfile": "26ca96d838cc3bb13846211f4c28dd2db832a6e37f4b9d56f4fed74e1b147297"
@@ -959,7 +918,6 @@
   },
   {
     "task": "contrastive_solver-system-administration_20260606_153537_003",
-    "instruction_sha256": "aabfa6a044b3baed3631b5f89a3c87789d8781640a821bf6336695bc12758f4b",
     "test_source_sha256": "126864b4f5b9c22e162543f5efc4b68437b3bf2e3a5de4a2e701852f9f74b5ba",
     "evidence_sha256": {
       "environment/Dockerfile": "d984260fe190c5e21d724a7bc6481c8db8872c45ecd6dfddab77dfb2b7c8059d"
@@ -972,7 +930,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260413_173854_001",
-    "instruction_sha256": "239f5f46ba9b8609e94b3f208048691a1b66216fcda071ef42f19ba1609adff9",
     "test_source_sha256": "e459df6fd2007e6206e0fcce311fa1ea4286a901873d5c7c6a9a9e50eb4a0028",
     "evidence_sha256": {
       "environment/Dockerfile": "69cf183b3ab26c79797fe38e3b3cbd3c9c3c4fd998d46dbdb571044a62f72868"

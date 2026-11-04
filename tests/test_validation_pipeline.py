@@ -84,7 +84,7 @@ def test_analysis_stages_local_evidence_and_upstream_schema(source, tmp_path, up
     assert Task(out).config.artifacts[0].destination == 'analysis.json'
 
 
-@pytest.mark.parametrize('number', [1, 2, 3, 4, 5, 6, 9, 10])
+@pytest.mark.parametrize('number', [0, 1, 2, 3, 5, 6, 9, 10])
 def test_stage_previews_and_real_harbor_config_schema(number, source, tmp_path, upstream):
     if number == 10 and not (ROOT / 'external/harden-v0/.git').exists():
         pytest.skip('harden checkout required')
@@ -208,6 +208,7 @@ def test_batch_schedules_all_tasks_and_accounts_per_task(
     a.outcome_retries = 0      # reruns of not-run tasks are covered by test_outcome_retries
     a.reference_runs = a.nop_runs = 1  # one fake trial per task; repetitions are tested separately
     a.reference_shuffled_runs = a.nop_shuffled_runs = 0  # shuffling is tested in test_listing_order.py
+    a.reference_repeat_runs = 0  # repeated reference runs are tested in test_listing_order.py
     monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
     captured = []
     async def execute(config):
@@ -464,7 +465,7 @@ def test_archive_report_ignores_nested_trial_summaries(tmp_path):
     import tarfile
     from validation.publishing.report import summarize
     archive = tmp_path / 'evidence.tar.gz'
-    summary = {'stage_layout': 'environment-first-v2', 'stage': 3, 'name': 'nop_validation', 'complete': True, 'items': [
+    summary = {'stage_layout': 'environment-first-v3', 'stage': 3, 'name': 'nop_validation', 'complete': True, 'items': [
         {'task': '/tmp/tasks/a', 'status': 'passed', 'rewards': [0]},
         {'task': '/tmp/tasks/b', 'status': 'failed', 'findings': ['missing reward']}]}
     with tarfile.open(archive, 'w:gz') as tar:
@@ -536,9 +537,9 @@ def test_contract_minimum_and_skips_fail_acceptance(source, tmp_path):
     a = args(source, tmp_path)
     a.min_tasks = 2
     with pytest.raises(ValueError, match='below minimum'):
-        contract.create(a, [4], tmp_path / 'too-small.json')
+        contract.create(a, [0], tmp_path / 'too-small.json')
     a.min_tasks = 1
-    frozen = contract.create(a, [4], tmp_path / 'contract.json')
+    frozen = contract.create(a, [0], tmp_path / 'contract.json')
     report = {'items': [{'task': str(source), 'status': 'skipped'}], 'has_findings': False}
     contract.assess_stage(frozen, 3, report)
     assert report['has_findings'] and report['contract_sha256'] == frozen['sha256']
@@ -691,14 +692,14 @@ def test_report_does_not_count_optional_ai_skip_as_failure(tmp_path):
     import io
     import tarfile
     from validation.publishing.report import summarize
-    report = {'stage_layout': 'environment-first-v2', 'stage': 4, 'name': 'static_checks', 'complete': True,
+    report = {'stage_layout': 'environment-first-v3', 'stage': 0, 'name': 'static_checks', 'complete': True,
               'items': [{'task': 'example', 'status': 'passed', 'checks': [
                   {'check': 'check_ai_detection.py', 'status': 'skipped', 'optional': True,
                    'reason': 'no GPTZERO_API_KEY configured', 'exit_code': None, 'log': None}]}]}
     archive = tmp_path / 'evidence.tar.gz'
     blob = json.dumps(report).encode()
     with tarfile.open(archive, 'w:gz') as tar:
-        info = tarfile.TarInfo('results/stage_4_static_checks/run/summary.json')
+        info = tarfile.TarInfo('results/stage_0_static_checks/run/summary.json')
         info.size = len(blob)
         tar.addfile(info, io.BytesIO(blob))
     assert summarize(archive)['failures'] == []
@@ -815,14 +816,14 @@ def test_report_optional_wait(tmp_path, monkeypatch):
         report.resolve_archive(tmp_path, timeout_hours=0)
 
 
-def test_contract_prepares_repository_repair_but_suffix_only_with_stage_four(source, tmp_path, monkeypatch):
+def test_contract_prepares_repository_repair_but_suffix_only_with_static_stage(source, tmp_path, monkeypatch):
     from validation import contract
     from validation.rules.static import instruction_suffix
     calls = []
     monkeypatch.setattr(instruction_suffix, 'prepare', lambda *a, **kw: calls.append(('fix', kw['instructions'])))
     monkeypatch.setattr(contract, 'create', lambda *a: calls.append('freeze'))
     for stages_selected, expected in [([1], [('fix', False), 'freeze']),
-                                      ([1, 4], [('fix', True), 'freeze'])]:
+                                      ([0, 1], [('fix', True), 'freeze'])]:
         a = args(source, tmp_path)
         a.prepare_contract = tmp_path / 'contract.json'
         calls.clear()
@@ -836,7 +837,7 @@ def test_archived_report_preserves_protocol_and_pipeline_errors(tmp_path):
     archive = tmp_path / 'evidence.tar.gz'
     entries = {'contract.json': {'sha256': 'contract', 'dataset': {}},
                'sample.tasks.json': [{'task_id': 'sample', 'sha256': 'task'}],
-               'results/pipeline-demo.json': {'stages': [{'stage_layout': 'environment-first-v2', 'stage': 6, 'status': 'error', 'reason': 'failed'}]}}
+               'results/pipeline-demo.json': {'stages': [{'stage_layout': 'environment-first-v3', 'stage': 6, 'status': 'error', 'reason': 'failed'}]}}
     with tarfile.open(archive, 'w:gz') as tar:
         for name, value in entries.items():
             payload = json.dumps(value).encode()
@@ -858,7 +859,7 @@ def test_stage_review_json_preserves_details_while_run_summary_is_short(tmp_path
     import io, tarfile
     from validation.publishing.report import write_report
     archive = tmp_path / 'evidence.tar.gz'
-    stage = {'stage_layout': 'environment-first-v2', 'stage': 5, 'name': 'llm_rubric_review', 'complete': True, 'items': [
+    stage = {'stage_layout': 'environment-first-v3', 'stage': 5, 'name': 'llm_rubric_review', 'complete': True, 'items': [
         {'task': '/tasks/alpha', 'status': 'findings', 'verdicts': [{'checks': {
             'difficult': {'outcome': 'fail', 'explanation': 'Too easy | short'},
             'verifiable': {'outcome': 'pass', 'explanation': 'Exact result'}}}],
@@ -1069,15 +1070,15 @@ def publish_fixture(tmp_path):
     source.mkdir()
     pq.write_table(pa.table({'path': names, 'task_binary': [blob(n) for n in names]}), source / 'tasks.parquet')
     contract = {'sha256': 'c' * 64, 'tasks': [{'task_id': n, 'sha256': (n[-1] * 64)} for n in names],
-        'arguments': {'tasks': str(source)}, 'stages': [1, 2, 3, 4],
+        'arguments': {'tasks': str(source)}, 'stages': [0, 1, 2, 3],
         'dataset': {'source': 'example/source', 'revision': 'abc'},
         'execution_profile': {'backend': 'apptainer', 'architecture': 'x86_64', 'network': 'host'},
         'success_criteria': {'static_checks': ['check-a.sh'], 'static_exclusions': {'check-b.sh': 'why'}}}
     def report(stage, items):
-        return {'stage_layout': 'environment-first-v2', 'stage': stage, 'complete': True, 'dry_run': False, 'items': items}
+        return {'stage_layout': 'environment-first-v3', 'stage': stage, 'complete': True, 'dry_run': False, 'items': items}
     check = lambda name, status: {'check': name, 'status': status}
     reports = {
-        4: report(4, [{'task': n, 'status': 'passed', 'checks': [check('check-a.sh', 'passed')]} for n in names[:4]]
+        0: report(0, [{'task': n, 'status': 'passed', 'checks': [check('check-a.sh', 'passed')]} for n in names[:4]]
                      + [{'task': names[4], 'status': 'failed', 'checks': [check('check-a.sh', 'failed')]}]),
         1: report(1, [{'task': f'/tmp/x/{n}', 'status': 'passed'} for n in names[:4]]),
         2: report(2, [{'task': '/tmp/x/' + names[0], 'status': 'passed', 'findings': [], 'rewards': [1]},
@@ -1091,27 +1092,23 @@ def publish_fixture(tmp_path):
 
 
 def test_publish_keeps_archives_and_never_archives_for_a_failed_run(tmp_path):
-    import pyarrow.parquet as pq
     from validation.publishing import publish
     names, contract, reports = publish_fixture(tmp_path)
     tables, record, run_file = publish.build(contract, reports, {'set-python': 'set-python-v1'}, run_id='run-1')
-    files = publish.write(tables, record, run_file, tmp_path / 'out')
-    assert files == ['set-java/tasks.parquet', 'set-java/archive.parquet', 'set-python-v1/tasks.parquet',
-                     'set-python-v1/archive.parquet', 'runs/run-1.json']
-    rows = {r['path']: r for f in files[:4] for r in pq.read_table(tmp_path / 'out' / f).to_pylist()}
-    kept = {r['path'] for r in pq.read_table(tmp_path / 'out/set-python-v1/tasks.parquet').to_pylist()}
-    assert kept == {names[0], names[2]}
-    assert rows[names[0]]['stages_passed'] == '1,2,3,4' and rows[names[0]]['archive_stage'] is None
-    assert rows[names[1]]['archive_stage'] == 2 and rows[names[1]]['stages_passed'] == '1'
+    assert sorted(tables) == ['set-java', 'set-python-v1']
+    rows = {r['path']: r for kept, archived in tables.values() for r in [*kept, *archived]}
+    assert {r['path'] for r in tables['set-python-v1'][0]} == {names[0], names[2]}
+    assert rows[names[0]]['stages_passed'] == '0,1,2,3' and rows[names[0]]['archive_stage'] is None
+    assert rows[names[1]]['archive_stage'] == 2 and rows[names[1]]['stages_passed'] == '0,1'
     assert 'oracle reward [0] instead of 1' == rows[names[1]]['archive_reason']
-    assert rows[names[2]]['stages_passed'] == '1,4' and rows[names[2]]['archive_stage'] is None   # outage: not archived
+    assert rows[names[2]]['stages_passed'] == '0,1' and rows[names[2]]['archive_stage'] is None   # outage: not archived
     assert rows[names[3]]['archive_stage'] is None                                               # no oracle: not archived
-    assert rows[names[4]]['archive_stage'] == 4 and 'check-a.sh' in rows[names[4]]['archive_reason']
+    assert rows[names[4]]['archive_stage'] == 0 and 'check-a.sh' in rows[names[4]]['archive_reason']
     assert rows[names[4]]['run'] == 'runs/run-1.json' and rows[names[4]]['content_sha256'] == '2' * 64
     python = record['data_sources']['set-python-v1']
     assert (python['tasks'], python['kept'], python['archived']) == (3, 2, 1)
     assert python['not_run_by_stage'] == {'2': 1, '3': 1} and python['archived_by_stage'] == {'2': 1}
-    text = (tmp_path / 'out/pull-request.md').read_text()
+    text = publish.description(record)
     assert 'Keeps **2 tasks** and archives **1** from' in text
     assert '| reference-solution-reward-zero | 1 |' in text and 'claude' not in text.lower()
 
@@ -1131,41 +1128,29 @@ def test_publish_run_json_preserves_optional_build_details(tmp_path, recovered):
     reports[1]['items'][0].update(status='passed' if recovered else 'failed',
                                   reason='build retry check', **details)
     tables, record, run_file = publish.build(contract, reports, {}, run_id='details')
-    files = publish.write(tables, record, run_file, tmp_path / 'out')
-    assert run_file in files
-    saved = json.loads((tmp_path / 'out' / run_file).read_text())
+    saved = json.loads(json.dumps(record))
     finding = next(x for x in saved['task_findings'][names[0]] if x['stage'] == 1)
     assert finding == {'stage': 1,
                        'labels': ['build-recovered' if recovered else 'build-not-robust'],
                        **details}
     # Ordinary findings keep their existing shape: optional details are not required.
-    assert saved['task_findings'][names[4]] == [{'stage': 4, 'labels': ['static:a']}]
+    assert saved['task_findings'][names[4]] == [{'stage': 0, 'labels': ['static:a']}]
 
 
-def test_publish_override_and_carry_over_of_published_state(tmp_path):
+def test_publish_override_and_unresolved_static_checks(tmp_path):
     from validation.publishing import publish
     names, contract, reports = publish_fixture(tmp_path)
     tables, record, _ = publish.build(contract, reports, {}, not_required=['check-a.sh'], run_id='run-2')
     assert not tables['set-java'][1] and record['not_required_checks'] == ['check-a.sh']
-    assert publish.judge(4, {'task': 'x', 'status': 'error', 'error': 'whitespace in paths'})[0] == 'not_run'
+    assert publish.judge(0, {'task': 'x', 'status': 'error', 'error': 'whitespace in paths'})[0] == 'not_run'
     assert publish.judge(1, {'status': 'error', 'environments': [{'status': 'error', 'error': 'tmux has-session timed out after 30 seconds'}]})[0] == 'not_run'
     assert publish.judge(1, {'status': 'error', 'reason': 'FileNotFoundError: missing trial directory'})[0] == 'not_run'
     # Setup execution errors remain unresolved for inspection, like other execution errors.
     assert publish.judge(1, {'status': 'error', 'environments': [{'status': 'error', 'error': 'build failed: no such package'}]})[0] == 'not_run'
     crashed = {'task': 'x', 'status': 'failed', 'checks': [{'check': 'check-a.sh', 'status': 'error'}]}
-    assert publish.judge(4, crashed)[0] == 'not_run'
+    assert publish.judge(0, crashed)[0] == 'not_run'
     crashed['checks'].append({'check': 'check-c.sh', 'status': 'failed'})
-    assert publish.judge(4, crashed) == ('archive', 'static checks failed: check-c.sh')
-    # Same content: an earlier archive decision stands and earlier stages carry over.
-    earlier = {names[0]: {'stage_layout': 'environment-first-v2', 'content_sha256': '1' * 64, 'stages_passed': '1,3', 'archive_stage': 1,
-                          'archive_reason': 'container did not build or start: x', 'run': 'runs/old.json'},
-               names[2]: {'stage_layout': 'environment-first-v2', 'content_sha256': 'changed', 'stages_passed': '1,2,3,4', 'archive_stage': None,
-                          'archive_reason': None, 'run': 'runs/old.json'}}
-    tables, _, _ = publish.build(contract, {4: reports[4]}, {}, previous=lambda folder: earlier, run_id='run-3')
-    archived = {r['path']: r for r in tables['set-python'][1]}
-    kept = {r['path']: r for r in tables['set-python'][0]}
-    assert archived[names[0]]['archive_stage'] == 1 and archived[names[0]]['run'] == 'runs/old.json'
-    assert kept[names[2]]['stages_passed'] == '4'          # changed content starts again
+    assert publish.judge(0, crashed) == ('archive', 'static checks failed: check-c.sh')
 
 
 def test_publish_function_dry_run_writes_files_and_description(tmp_path, monkeypatch):
@@ -1174,7 +1159,6 @@ def test_publish_function_dry_run_writes_files_and_description(tmp_path, monkeyp
     from validation.publishing import publish
     names, contract, reports = publish_fixture(tmp_path)
     monkeypatch.setattr(publish, 'read', lambda path: contract)
-    monkeypatch.setattr(publish, 'previous_rows', lambda repo, folder: {})
     reports_dir = tmp_path / 'report'
     reports_dir.mkdir()
     for stage, report in reports.items():
@@ -1221,16 +1205,16 @@ def test_publish_analysis_is_advisory_and_skipped_on_failure(tmp_path):
 def test_publish_reports_stage_timing_node_and_per_task_times(tmp_path):
     from validation.publishing import publish
     names, contract, reports = publish_fixture(tmp_path)
-    reports[4]['timing'] = {'node': 'h34-06', 'slurm_job_id': '1', 'started_at': '2026-10-01T10:00:00+00:00',
+    reports[0]['timing'] = {'node': 'h34-06', 'slurm_job_id': '1', 'started_at': '2026-10-01T10:00:00+00:00',
                             'wall_seconds': 3725.4, 'concurrency': 28}
-    for seconds, item in zip((2.0, 4.0, 6.0, 8.0, 10.0), reports[4]['items']):
+    for seconds, item in zip((2.0, 4.0, 6.0, 8.0, 10.0), reports[0]['items']):
         item['checks'][0]['duration_seconds'] = seconds
-    reports[2]['timing'] = {**reports[4]['timing'], 'wall_seconds': 59, 'concurrency': 4, 'shared_with_stages': [1, 2, 3]}
+    reports[2]['timing'] = {**reports[0]['timing'], 'wall_seconds': 59, 'concurrency': 4, 'shared_with_stages': [1, 2, 3]}
     _, record, _ = publish.build(contract, reports, {}, run_id='r')
-    assert record['stage_timings']['4']['task_seconds'] == {'median': 6.0, 'p90': 10.0, 'max': 10.0}
+    assert record['stage_timings']['0']['task_seconds'] == {'median': 6.0, 'p90': 10.0, 'max': 10.0}
     assert record['stage_timings']['2']['tasks_timed'] == 0 and '3' not in record['stage_timings']
     text = publish.description(record)
-    assert '| 4 | h34-06 | 5 | 28 | 1:02:05 | 6.0 s | 10.0 s |' in text
+    assert '| 0 | h34-06 | 5 | 28 | 1:02:05 | 6.0 s | 10.0 s |' in text
     assert '| 2 | h34-06 | 4 | 4 | 0:00:59 | Not recorded | Not recorded |' in text and 'Stages 1, 2, 3 ran task by task' in text
     trial = {'started_at': '2026-09-30T21:55:13.5', 'finished_at': '2026-09-30T21:55:27.5'}
     assert runtime.assess_trials([(tmp_path, trial), (tmp_path, {})], 2)['trial_seconds'] == [14.0, None]
@@ -1284,7 +1268,7 @@ def test_stage_one_passes_configured_concurrency_to_checker(source, tmp_path, mo
         called.append(kwargs['concurrency'])
         stages.save(out / 'summary.json', {'tasks': [{'task': t.name, 'status': 'passed', 'checks': []} for t in tasks]})
     monkeypatch.setattr(checker, 'run_checks', checks)
-    _, report = stages.run_stage(4, options)
+    _, report = stages.run_stage(0, options)
     assert called == [112]
     assert report['static_concurrency'] == 112
 
@@ -1409,7 +1393,7 @@ def test_removed_proposal_options_are_rejected(option):
 def test_pr_archive_labels_are_exclusive_and_custom_labels_win(tmp_path):
     from validation.publishing import publish
     names, contract, reports = publish_fixture(tmp_path)
-    static = next(item for item in reports[4]['items'] if Path(item['task']).name == names[4])
+    static = next(item for item in reports[0]['items'] if Path(item['task']).name == names[4])
     static['checks'] += [{'check': 'check-z.sh', 'status': 'failed'},
                          {'check': 'check-task-absolute-path.sh', 'status': 'warning'}]
     oracle = next(item for item in reports[2]['items'] if Path(item['task']).name == names[1])
@@ -1426,18 +1410,6 @@ def test_pr_archive_labels_are_exclusive_and_custom_labels_win(tmp_path):
     assert '| environment-mismatch | 1 | Wrong project &#124; missing files.<br>Investigated. |' in text
     assert 'Most frequent archive reasons' not in text and 'Validation findings' not in text
     assert 'static:z' not in text
-
-
-def test_pr_carries_one_historical_archive_label_without_current_warning(tmp_path):
-    from validation.publishing import publish
-    names, contract, reports = publish_fixture(tmp_path)
-    previous = {names[0]: {'stage_layout': 'environment-first-v2', 'content_sha256': '1' * 64, 'stages_passed': '1',
-        'archive_stage': 1, 'archive_reason': 'Previous build failed.', 'run': 'runs/old.json',
-        'archive_labels': ['custom-build-cause', 'build-execution-error']}}
-    tables, record, _ = publish.build(contract, {4: reports[4]}, {}, previous=lambda folder: previous)
-    row = next(r for r in tables['set-python'][1] if r['path'] == names[0])
-    assert row['archive_labels'] == ['build-execution-error']
-    assert '| build-execution-error | 1 | Previous build failed. |' in publish.description(record)
 
 
 def test_stage2_prepares_review_environment_for_legacy_payload(tmp_path):
@@ -1491,7 +1463,8 @@ def test_reference_and_nop_run_once_plus_one_shuffled_by_default(source, tmp_pat
 
 
 @pytest.mark.parametrize('number', [1, 2, 3])
-def test_static_rejection_skips_container_stages_with_coverage(source, tmp_path, monkeypatch, number):
+def test_failed_static_checks_never_skip_container_stages(source, tmp_path, monkeypatch, number):
+    # Layout v3: static checks (stage 0) never block; only a failed build blocks stages 2-3.
     from validation.stages import environment_preflight
     options = args(source.parent, tmp_path)
     options.dry_run = False
@@ -1499,15 +1472,11 @@ def test_static_rejection_skips_container_stages_with_coverage(source, tmp_path,
     calls = []
     def build(sources, *a):
         calls.extend(sources)
-        return []
+        return [{'task': str(s), 'status': 'passed'} for s in sources]
     def trials(stage, sources, *a):
         calls.extend(sources)
-        return []
+        return [{'task': str(s), 'status': 'passed'} for s in sources]
     monkeypatch.setattr(environment_preflight, 'run_build_stage', build)
     monkeypatch.setattr(stages, 'run_trial_batch', trials)
-    _, report = stages.run_stage(number, options)
-    assert calls == []
-    item, = report['items']
-    assert item['task'] == str(source)
-    assert item['status'] == 'skipped'
-    assert item['blocked_by_stage'] == 4
+    stages.run_stage(number, options)
+    assert calls == [source]

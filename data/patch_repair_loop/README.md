@@ -50,7 +50,7 @@ Fixes in one controller copy are not automatically propagated to other copies.
    repairs, retries, models, elapsed time, and available usage/cost estimates, and
    states that the results have not been independently audited by a human.
 
-Stage 4 can be skipped with a user-approved reason. The PR lists stages run and
+Stage 2 (reference solution) can be skipped with a user-approved reason. The PR lists stages run and
 explains the skip.
 
 ## Agent roles and prompts

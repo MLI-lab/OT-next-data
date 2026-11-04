@@ -1,4 +1,4 @@
-"""Publish task payload deltas and one results index, without deleting history."""
+"""Publish task payload deltas and one results index per dataset folder."""
 import json
 from pathlib import Path
 
@@ -27,37 +27,22 @@ class History:
         except EntryNotFoundError:
             return None
 
+    def payload_files(self, folder):
+        """Task payload files already published for a folder."""
+        prefix = folder + '/tasks/'
+        if self.root:
+            return sorted(p.relative_to(self.root).as_posix() for p in (self.root / prefix).glob('*.parquet'))
+        if not self.repo:
+            return []
+        from huggingface_hub import HfApi
+        return sorted(f for f in HfApi().list_repo_files(self.repo, repo_type='dataset', revision=self.revision)
+                      if f.startswith(prefix) and f.endswith('.parquet'))
+
     def load(self, folder):
         if folder in self.cache:
             return self.cache[folder]
         path = self.file(folder + '/results.parquet')
-        if path:
-            value = (results.read(path), [])
-        else:
-            # First publication in the new format preserves every legacy payload,
-            # including tasks absent from this run.
-            import pyarrow.parquet as pq
-            rows, legacy = [], []
-            for name in ('tasks.parquet', 'archive.parquet'):
-                path = self.file(folder + '/' + name)
-                if not path:
-                    continue
-                legacy.append(path)
-                columns = pq.read_schema(path).names
-                required = {'path', 'content_sha256'}
-                if not required <= set(columns):
-                    raise ValueError(f'{path}: legacy migration needs task IDs and content hashes')
-                for batch in pq.ParquetFile(path).iter_batches(columns=[c for c in columns if c != 'task_binary']):
-                    for task in batch.to_pylist():
-                        row = {r: 'not_recorded' for r in results.known_rules()}
-                        row.update(dataset=folder, task_id=task['path'], content_sha256=task['content_sha256'],
-                                   revision=1, latest=True, change_reason='Imported legacy task',
-                                   task_file=f'{folder}/tasks/r1.parquet',
-                                   publication_details=results.encode(task))
-                        rows.append(row)
-            if len({r['task_id'] for r in rows}) != len(rows):
-                raise ValueError('Legacy files contain duplicate task IDs; reconcile their revisions before migration')
-            value = (rows, legacy)
+        value = results.read(path) if path else []
         self.cache[folder] = value
         return value
 
@@ -100,16 +85,25 @@ def write(tables, record, run_file, out, reports, contract, history, cards=None,
     record['publication_layout'] = 'task-revisions-v1'
     record['result_files'], record['task_revision_files'] = {}, {}
     schema = pa.schema([('path', pa.string()), ('task_binary', pa.large_binary()),
-                        ('content_sha256', pa.string()), ('revision', pa.int64())])
+                        ('content_sha256', pa.string())])
     if image_manifest:
         schema = schema.with_metadata({b'ot.images.v1': results.encode(image_manifest).encode()})
     for folder, (kept, archived) in sorted(tables.items()):
         payloads = [*kept, *archived]
-        previous, legacy = history.load(folder)
-        hashes = {r['path']: r['content_sha256'] for r in payloads}
-        observed = results.observations(reports, hashes, folder, contract.get('arguments', {}))
-        # Evidence from an earlier input revision is not evidence for repaired bytes.
-        observed = [r for r in observed if hashes.get(r['task_id']) == r['content_sha256']]
+        previous = history.load(folder)
+        validated = {r['path']: r['content_sha256'] for r in payloads}
+        observed = results.observations(reports, validated, folder, contract.get('arguments', {}))
+        # Evidence from another input revision is not evidence for these bytes.
+        observed = [r for r in observed if validated.get(r['task_id']) == r['content_sha256']]
+        # The published task carries the automatic path and pip repairs of this run.
+        from validation.automatic_repairs import archive_files, plan, replace_in_archive
+        binaries = {r['path']: r['task_binary'] for r in payloads}
+        plans = plan(reports, lambda tasks: {t: archive_files(binaries[t]) for t in tasks if t in binaries})
+        results.repair_rows(observed, plans)
+        payloads = [dict(r, task_binary=replace_in_archive(r['task_binary'], plans[r['path']]['files']),
+                         content_sha256=plans[r['path']]['to'])
+                    if r['path'] in plans and r['content_sha256'] == plans[r['path']]['from'] else r
+                    for r in payloads]
         incoming = {(r['task_id'], r['content_sha256']): r for r in observed}
         for task in payloads:
             key = task['path'], task['content_sha256']
@@ -119,27 +113,14 @@ def write(tables, record, run_file, out, reports, contract, history, cards=None,
             row['cpus'], row['memory_mb'] = environment.get('cpus'), environment.get('memory_mb')
             row['run'] = run_file
             row['publication_details'] = results.encode({k: v for k, v in task.items() if k != 'task_binary'})
-            if task.get('patch_labels'):
-                row['change_reason'] = ', '.join(task['patch_labels'])
         merged = results.merge(previous, list(incoming.values()))
         existing = {(r['task_id'], r['content_sha256']) for r in previous}
         new = [r for r in merged if (r['task_id'], r['content_sha256']) not in existing]
-        # Revision files are dataset-wide batches; each row also has its per-task revision.
-        last_file = max([int(Path(r['task_file']).stem[1:]) for r in previous if r.get('task_file')], default=0)
-        delta_file = f'{folder}/tasks/r{last_file + 1}.parquet'
+        # Payload files are dataset-wide batches; a new file holds only new or changed tasks.
+        published = history.payload_files(folder)
+        numbers = [int(Path(f).stem[1:]) for f in published if Path(f).stem[1:].isdigit()]
+        delta_file = f'{folder}/tasks/r{max(numbers, default=0) + 1}.parquet'
         new_keys = {(r['task_id'], r['content_sha256']): r for r in new}
-        for row in new:
-            row['task_file'] = delta_file
-        if legacy:
-            path = out / folder / 'tasks/r1.parquet'
-            path.parent.mkdir(parents=True, exist_ok=True)
-            def originals():
-                for source in legacy:
-                    for batch in pq.ParquetFile(source).iter_batches(batch_size=1):
-                        for row in batch.to_pylist():
-                            yield {k: row.get(k) for k in ('path', 'task_binary', 'content_sha256')} | {'revision': 1}
-            write_rows(originals(), path, schema)
-            files.append(f'{folder}/tasks/r1.parquet')
         if new:
             path = out / delta_file
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,14 +128,14 @@ def write(tables, record, run_file, out, reports, contract, history, cards=None,
                 for task in payloads:
                     row = new_keys.get((task['path'], task['content_sha256']))
                     if row:
-                        yield {k: task[k] for k in ('path', 'task_binary', 'content_sha256')} | {'revision': row['revision']}
+                        yield {k: task[k] for k in ('path', 'task_binary', 'content_sha256')}
             write_rows(changed(), path, schema)
             files.append(delta_file)
         index = f'{folder}/results.parquet'
         results.write(out / index, merged)
         files.append(index)
         record['result_files'][folder] = index
-        record['task_revision_files'][folder] = sorted({r['task_file'] for r in merged if r.get('task_file')})
+        record['task_revision_files'][folder] = sorted({*published, *([delta_file] if new else [])})
     for folder, card in (cards or {}).items():
         path = out / folder / 'README.md'
         path.parent.mkdir(parents=True, exist_ok=True)

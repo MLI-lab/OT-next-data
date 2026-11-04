@@ -1,49 +1,42 @@
 [
   {
     "task": "contrastive_solver-security_20260507_172207_001",
-    "instruction_sha256": "4425b92000845abd7f3da6df00653678cc8afb6707b32391f2284166f061f2fd",
     "test_script_sha256": "fe79b81ae3512874cf98dde49ac295d7b35b2b01b8e87dd76d419a5f73ab91ea",
     "line": "cd /app && python3 app.py &",
     "role": "Start the service under test in its original task environment; HTTP/assertion grading stays in the clean verifier."
   },
   {
     "task": "contrastive_solver-security_20260508_180627_004",
-    "instruction_sha256": "f67fa50ad4673c8cb0b2a78a133ea05cfa3ecaf535a25386933db046a68667c8",
     "test_script_sha256": "5ed26bf6233ba6a1205933dfd1140989a5c4274a701015083ab27e899024a866",
     "line": "python3 /app/internal_service.py &",
     "role": "Start the service under test in its original task environment; HTTP/assertion grading stays in the clean verifier."
   },
   {
     "task": "contrastive_solver-security_20260511_015840_001",
-    "instruction_sha256": "c901cc19701908ee03cbd44cf3ab7955e0a8ed7103c26ac098c0020751fd712a",
     "test_script_sha256": "3c362d5e60bef571946d899089ec94841aa5cc270a3ceb31d94b2893fda19639",
     "line": "cd /app && python3 /app/app.py &",
     "role": "Start the service under test in its original task environment; HTTP/assertion grading stays in the clean verifier."
   },
   {
     "task": "contrastive_solver-security_20260514_012509_003",
-    "instruction_sha256": "21bc4a82ff072df89e8ede01b864cbdbd0adc0ca354ea4e00ef1c84ce33b667d",
     "test_script_sha256": "3d0a8da614dbd5e092c492691c025734b84a54cc0f6f036124a3d648e29ce69a",
     "line": "python /app/app.py &",
     "role": "Start the service under test in its original task environment; HTTP/assertion grading stays in the clean verifier."
   },
   {
     "task": "multi_solver-security_20260419_182351_001",
-    "instruction_sha256": "2e3fb7f2773e03a70fcb3ec9ba525edc51ae0aaf29af08e63defaf7e9394419d",
     "test_script_sha256": "b54182307ae1b68ee3303d7ff500dbac3a0108d1296208d9aed6937c95caebcf",
     "line": "cd /app && /opt/venv/bin/python3 app.py &",
     "role": "Start the service under test in its original task environment; HTTP/assertion grading stays in the clean verifier."
   },
   {
     "task": "contrastive_solver-security_20260508_180627_004",
-    "instruction_sha256": "f67fa50ad4673c8cb0b2a78a133ea05cfa3ecaf535a25386933db046a68667c8",
     "test_script_sha256": "5ed26bf6233ba6a1205933dfd1140989a5c4274a701015083ab27e899024a866",
     "line": "cd /app && python3 -m pdf_service.app &",
     "role": "Start the PDF service under test in the original task environment; HTTP assertions use the clean verifier."
   },
   {
     "task": "contrastive_solver-security_20260511_150433_001",
-    "instruction_sha256": "ee1df5456932c9c0b393670c27f4d56f75959819332fabaecb2a07ca7c8b797f",
     "test_script_sha256": "41291b282f2a2f1a84b85aea11ab7c72f4b6dde6ba4aa903dfba607a8dffd05d",
     "line": "cd /app && source /app/venv/bin/activate && python /app/app.py &",
     "virtualenv": "/app/venv",
@@ -51,7 +44,6 @@
   },
   {
     "task": "contrastive_solver-security_20260604_193356_001",
-    "instruction_sha256": "f619851fe0f1617c98811379473e2e78ad8b850ef328c1c8958e6caceaa0f8af",
     "test_script_sha256": "cee8cd274e282397d91c37a0c1a9b66cf8e8a49e154defb817c6f1932cc31af9",
     "line": "/usr/bin/python3 /app/flag_server.py &",
     "role": "Start the task flag server with its original interpreter; evaluate its HTTP behavior from the clean verifier."

@@ -44,7 +44,7 @@ def flagged_paths(task):
     with tempfile.TemporaryDirectory(prefix='resolve-paths-') as scratch:
         copied, _ = safe_copy(Path(task), scratch)
         target = path_check_copy(copied, scratch)
-        # Same adapted script as stage 4: upstream loses unquoted file names in a subshell.
+        # Same adapted script as the static checks: upstream loses unquoted file names in a subshell.
         script = Path(scratch) / 'adapted-scripts' / PATH_CHECK
         script.parent.mkdir()
         script.write_text(path_check_script((TERMINAL_BENCH / 'scripts/checks' / PATH_CHECK).read_text()))
@@ -224,10 +224,8 @@ def collect_reports(report_paths):
     tasks = {}
     for path in report_paths:
         report = json.loads(Path(path).read_text())
-        from validation.stages.layout import LAYOUT, REFERENCE, current_stage
-        # Discovery evidence from before 2026-10-17 has no layout field: stage 3 was the reference then.
-        layout = report.get('stage_layout', 'environment-first-v1')
-        stage = current_stage(report.get('stage'), layout)
+        from validation.stages.layout import REFERENCE, require_layout
+        stage = require_layout(report).get('stage')
         if stage not in (1, REFERENCE):
             raise ValueError(f'Expected a build (stage 1) or reference-solution (stage {REFERENCE}) report: {path}')
         for item in report['items']:

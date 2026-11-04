@@ -535,8 +535,8 @@ def test_relative_path_is_advisory_and_does_not_archive(tmp_path):
     item = json.loads((out / 'summary.json').read_text())['tasks'][0]
     assert item['status'] == 'passed'
     assert item['warnings'][0]['tag'] == 'relative-instruction-path'
-    assert labels(4, item) == ['warning:relative-instruction-path']
-    assert judge(4, item) == ('passed', '')
+    assert labels(0, item) == ['warning:relative-instruction-path']
+    assert judge(0, item) == ('passed', '')
 
 
 @pytest.mark.parametrize('profile,changed,expected', [
@@ -688,7 +688,7 @@ def test_pip_warning_keeps_training_task_and_preserves_strict_profiles(tmp_path,
     assert item['status'] == ('passed' if profile == 'training' else 'failed')
     if profile == 'training':
         assert item['warnings'][0]['tag'] == 'unpinned-dependency'
-        assert labels(4, item) == ['warning:unpinned-dependency']
+        assert labels(0, item) == ['warning:unpinned-dependency']
 
 
 @pytest.mark.parametrize('source,instruction,expected', [

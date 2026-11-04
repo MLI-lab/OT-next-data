@@ -2,7 +2,7 @@
 or uses a common package alias (np, pd, plt, ...) without importing it. Nothing is executed."""
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # run as a stage-4 script
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # run as a stage-0 script
 import ast
 import re
 

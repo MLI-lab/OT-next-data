@@ -1,17 +1,16 @@
-"""Pin flagged pip requirements from a successful oracle's environment snapshot.
+"""Pin unpinned pip requirements to the versions the reference run installed.
 
-Called by validation/run.py before normal validation. Discovery never counts as
-stage 1 or 3, and original task files are never changed.
+Stage 2 snapshots `pip freeze` after a reference run scores 1 (install_capture);
+the automatic repair at the end of the run applies pin() to the task's files
+(validation/automatic_repairs.py). No extra runs; original inputs never change.
 """
 from __future__ import annotations
 
-import copy
 from contextvars import ContextVar
 import json
 from pathlib import Path
 import re
 import shlex
-from uuid import uuid4
 
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
@@ -104,26 +103,6 @@ def commands(task):
     return found
 
 
-def enabled(args, numbers):
-    return 1 in numbers and getattr(args, 'fix_pip_pins', False) and not args.dry_run
-
-
-def check(tasks, args, out):
-    """Run the existing checker; hand its flagged tasks and commands to resolve()."""
-    from validation.rules.static.terminal_bench import load_checks, run_checks
-    _, selected, _ = load_checks(args.static_profile, exclude=args.exclude, group='environment')
-    if CHECK not in selected:
-        return {}
-    run_checks(tasks, out, profile=args.static_profile,
-               exclude=args.exclude, group='environment',
-               concurrency=max(1, args.concurrency))
-    results = json.loads((out / 'summary.json').read_text())
-    by_name = {task.name: task for task in tasks}
-    return {item['task']: commands(by_name[item['task']]) for item in results['tasks']
-            if any(c['check'] == CHECK and c['status'] in ('failed', 'warning') for c in item['checks'])
-            and not any(c['check'] != CHECK and c['status'] in ('failed', 'error') for c in item['checks'])}
-
-
 async def snapshot(environment, findings):
     reports = []
     for finding in findings:
@@ -157,8 +136,10 @@ def install_capture():
     Verifier._pip_pin_capture_installed = True
 
 
-def apply(task, observations):
-    """Pin supported named requirements; ambiguous/missing versions stay unchanged."""
+def pin(files, observations):
+    """Pin supported named requirements in a task's files (path -> bytes).
+
+    Returns (files, edits). Ambiguous or missing versions stay unchanged."""
     edits, pending = [], {}
     for observation in observations:
         if observation.get('exit_code') != 0:
@@ -190,126 +171,13 @@ def apply(task, observations):
     for (filename, start, end), candidates in pending.items():
         if len({c['replacement'] for c in candidates}) == 1:
             by_file.setdefault(filename, []).append(candidates[0])
+    files = dict(files)
     for filename, changes in by_file.items():
-        path = task / filename
-        text = path.read_text()
+        text = files[filename].decode()
         if any(text[c['start']:c['end']] != c['original'] for c in changes):
             raise ValueError(f'stale pip command evidence: {filename}')
         for change in sorted(changes, key=lambda c: c['start'], reverse=True):
             text = text[:change['start']] + change['replacement'] + text[change['end']:]
-        path.write_text(text)
+        files[filename] = text.encode()
         edits.extend(changes)
-    return edits
-
-
-def resolve(tasks, findings, out, args):
-    """Build/run flagged tasks with the normal oracle; only reward 1 permits edits."""
-    from validation.stages.runner import run_trial_batch
-    from validation.stages.harbor import trial_results
-    from validation.upstream import checkout
-    selected, skipped = [], []
-    for task in tasks:
-        if task.name not in findings:
-            continue
-        try:
-            from harbor.models.task.task import Task
-            from harbor.models.task.verifier_mode import resolve_effective_verifier_env_config
-            config = Task(task).config
-            separate = resolve_effective_verifier_env_config(config, None) is not None
-        except Exception as exc:
-            skipped.append({'task': str(task), 'status': 'unresolved', 'reason': str(exc)})
-            continue
-        if not findings[task.name] or config.steps or separate:
-            skipped.append({'task': str(task), 'status': 'unresolved',
-                            'reason': 'unsupported command or separate/multistep verifier'})
-        else:
-            selected.append(task)
-    if not selected:
-        return skipped
-    discovery = copy.copy(args)
-    discovery.attempts = 1
-    discovery._pip_pin_findings = findings
-    items = run_trial_batch(3, selected, out, discovery, checkout('terminal-bench'))
-    for item in items:
-        item['pip_snapshots'] = []
-        if item['status'] != 'passed':
-            continue
-        for trial, result in trial_results(Path(item['job_dir'])):
-            task_name = str(result.get('task_name') or '').split('/')[-1]
-            if not task_name:
-                task_name = Path(result.get('config', {}).get('task', {}).get('path', '')).name
-            evidence = trial / 'pip-freeze.json'
-            if task_name == Path(item['task']).name and evidence.is_file():
-                item['pip_snapshots'].extend(json.loads(evidence.read_text()))
-    return skipped + items
-
-
-def prepare(args, numbers):
-    if not enabled(args, numbers):
-        return
-    from validation.contract import verify_materialized, create, task_digest
-    from validation.task_inputs.selection import discover_tasks, select_paths
-    from validation.stages.runner import save
-    parent = verify_materialized(args)
-    tasks = select_paths(discover_tasks(args.tasks), args)
-    tasks = [t for t in tasks if t.name not in getattr(args, '_static_blocked', {})]
-    out = args.out.resolve() / 'pip-normalization' / uuid4().hex[:12]
-    if any(out.is_relative_to(task.resolve()) for task in tasks):
-        raise ValueError('--out must be outside source task directories')
-    out.mkdir(parents=True)
-    findings = getattr(args, '_pip_findings', None)
-    if findings is None:
-        findings = check(tasks, args, out / 'check')
-    if not findings:
-        return
-    save(out / 'findings.json', findings)
-    print(f'Pip pin discovery: {len(findings)} flagged tasks; running supported oracles.', flush=True)
-    hashes = {task.name: task_digest(task) for task in tasks}
-    try:
-        items = resolve(tasks, findings, out / 'oracle', args)
-    except Exception as exc:
-        items = [{'task': str(task), 'status': 'unresolved', 'reason': str(exc)}
-                 for task in tasks if task.name in findings]
-    save(out / 'resolver-evidence.json', {'purpose': 'pip-pin-discovery-only', 'task_hashes': hashes, 'items': items})
-    # Copy the selected dataset only when a passing oracle produced a snapshot.
-    if not any(item.get('pip_snapshots') for item in items):
-        return
-    destination = out / 'tasks'
-    from validation.rules.static.instruction_suffix import prepare as prepare_copy
-    derived = copy.copy(args)
-    derived.path_resolution_report = []
-    if 4 not in numbers:
-        derived.fix_instruction_suffix = False
-        derived.fix_instruction_paths = False
-    # A derived task tree needs fresh stage-1 validation.
-    derived.reuse_stage3 = None
-    prepare_copy(derived, destination)
-    by_name = {task.name: task for task in tasks}
-    edits = []
-    for item in items:
-        name = Path(item['task']).name
-        if item['status'] == 'passed' and item.get('pip_snapshots'):
-            if task_digest(by_name[name]) != hashes[name]:
-                raise ValueError(f'task changed during pip discovery: {name}')
-            edits.append({'task': name, 'edits': apply(destination / name, item['pip_snapshots'])})
-    save(out / 'edits.json', edits)
-    if not any(item['edits'] for item in edits):
-        return
-    derived.static_resume = None
-    for key in list(vars(derived)):
-        if key.startswith('_'):
-            delattr(derived, key)
-    meta_path = destination / 'source.json'
-    meta = json.loads(meta_path.read_text())
-    changes = meta.setdefault('automation_changes', {})
-    for item in edits:
-        if item['edits']:
-            changes[item['task']] = sorted(set(changes.get(item['task'], [])) | {'dependency-pinning'})
-    meta['pip_normalization'] = {'parent_contract_sha256': parent['sha256'] if parent else None,
-                                 'evidence': str(out / 'resolver-evidence.json'), 'edits': edits}
-    save(meta_path, meta)
-    contract_path = out / 'contract.json'
-    create(derived, numbers, contract_path)
-    args.tasks, args.contract = destination, contract_path
-    args.limit = args.task_id_range = args.static_resume = None
-    print(f'Pip pins saved: {destination}; normal validation follows.', flush=True)
+    return files, edits

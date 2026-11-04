@@ -9,7 +9,6 @@ import ssl
 
 
 GIB = 1024 ** 3
-IMAGE_BATCH = 200
 
 
 def size(path):
@@ -87,16 +86,6 @@ def stage_images(tasks, source, target, *, selected_keys=None):
     records.extend(stage_published(tasks, source, target, selected_keys=selected_keys))
     (target / 'staging.json').write_text(json.dumps(records, indent=2))
     return target
-
-
-def replace_images(tasks, source, target, args):
-    """Swap node-local images for the next batch once no container uses them."""
-    from hpc.offline_prep.image_cache import prepare_images
-    for path in Path(target).iterdir():
-        if path.is_file() and path.name.endswith(('.sif', '.overlay.img', '.deferred.json')):
-            path.unlink()
-    stage_images(tasks, source, target)
-    return prepare_images(tasks, target, source, args)
 
 
 def stage_multinode_weights(source, target, nodes, reserve=20 * GIB):
@@ -181,3 +170,39 @@ if __name__ == '__main__':
     parser.add_argument('directory', type=Path)
     args = parser.parse_args()
     print(json.dumps(stage_certificates(args.directory)))
+
+
+def stage_runtimes(tasks, source, target):
+    """Copy the prepared runtimes these tasks reference into job-local storage once.
+
+    Every task and verifier preparation copies a runtime archive into its container;
+    reading it from node memory instead of the shared filesystem keeps that transfer
+    out of the measured setup time. Archives are copied unchanged (the checksum is
+    still verified at every use); files missing from the cache are left to the
+    runtime lookup, which reports them as before."""
+    import json
+    from validation.publishing.runtime_release import KINDS, _context_of
+    source, target = Path(source), Path(target)
+    target.mkdir(parents=True, exist_ok=True)
+    wanted = set()
+    for task in tasks:
+        for name in KINDS:
+            for reference in Path(task).rglob(name):
+                if _context_of(reference.relative_to(task).as_posix()) is None:
+                    continue
+                key = json.loads(reference.read_text()).get('id')
+                if isinstance(key, str) and len(key) == 64:
+                    wanted.add(key)
+    records, missing = [], []
+    for key in sorted(wanted):
+        for suffix in ('.json', '.tar.gz'):
+            path = source / (key + suffix)
+            if not path.is_file():
+                missing.append(path.name)
+                continue
+            _, record = copy_asset(path.resolve(), target / path.name, reserve=4 * GIB)
+            records.append(record)
+    summary = {'source': str(source), 'local': str(target), 'runtimes': len(wanted),
+               'bytes': sum(r['bytes'] for r in records), 'missing': missing}
+    (target / 'staging.json').write_text(json.dumps(summary, indent=2))
+    return target, summary

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 
-STAGES = (1, 2, 3, 4)
+STAGES = (0, 1, 2, 3)  # 0 = static checks
 from validation.stages.layout import REFERENCE
 
 
@@ -49,14 +49,14 @@ def summarize(report_dir, expected_ids, required_stages=STAGES):
         for item in report["items"]:
             task = Path(item["task"]).name
             status = item.get("status") or "missing"
-            if stage == 4 and status == "passed":
+            if stage == 0 and status == "passed":
                 checks = item.get("checks") or []
                 if not checks or any(check.get("status") not in ("passed", "warning") and not conditional_skip(check)
                                      for check in checks):
                     status = "missing_or_skipped_check"
             stage_counts[status] += 1
             per_task[task][str(stage)] = status
-            if stage == 4:
+            if stage == 0:
                 for check in item.get("checks", []):
                     if conditional_skip(check):
                         skipped_optional_checks.append({"task_id": task, "stage": stage,

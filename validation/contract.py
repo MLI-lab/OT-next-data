@@ -207,7 +207,7 @@ def profile(args):
         'backend': args.backend, 'architecture': platform.machine(),
         'partition_policy': getattr(args, 'partition', 'auto'),
         'allocation_policy': 'auto: CPU for external models; h200 for local models or explicit GPUs; h200 fallback if CPU partition has no usable nodes',
-        'scheduler_target': f'{args.submit}/Slurm' if args.submit in ('helma', 'zih', 'rwth') else args.submit,
+        'scheduler_target': f'{args.submit}/Slurm' if args.submit in ('helma', 'zih', 'rwth', 'lrz') else args.submit,
         'submission_host': platform.node(),
         'network': args.network_mode if apptainer else 'backend/task-defined; see frozen task configs',
         'network_guarantee': ('host networking through cluster HTTP proxy' if args.network_mode == 'host'
@@ -310,6 +310,8 @@ def create(args, numbers, destination):
     resolve_review_defaults(args, numbers)
     if any(n in (5, 8) for n in numbers) and not args.review_model:
         raise ValueError('review stages need --review-model in the contract')
+    if any(n in (6, 9, 10) for n in numbers) and getattr(args, 'judge_mode', None) == 'serve' and not args.model:
+        raise ValueError('provide --model for solver stages; --judge-model selects only the judge')
     if any(n in (6, 9, 10) for n in numbers) and not (args.model or args.serve_model):
         raise ValueError('agent stages need --model or --serve-model in the contract')
     if getattr(args, 'serve_model', None):
@@ -326,11 +328,14 @@ def create(args, numbers, destination):
     meta = json.loads(source_meta_path.read_text()) if source_meta_path.exists() else {}
     from validation.automatic_repairs import contract_records
     checks_by_stage = {}
-    if 4 in numbers:
-        # All static checks run together in stage 4.
+    if 0 in numbers:
+        # All static checks run together in stage 0 and never block a task.
         _, selected, _ = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
+        checks_by_stage['0'] = selected
+    if 3 in numbers and getattr(args, 'reference_leaks', True):
+        # The leak scan runs in the clean no-op container of stage 3.
         from validation.stages.reference_leaks import CHECK
-        checks_by_stage['4'] = [*selected, CHECK]
+        checks_by_stage['3'] = [CHECK]
     _, _, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
     checks = sorted({check for selected in checks_by_stage.values() for check in selected})
     frozen = vars(args).copy()
@@ -356,6 +361,7 @@ def create(args, numbers, destination):
         'success_criteria': {'minimum_tasks': minimum, 'oracle_reward': 1, 'nop_reward': 0,
             'reward_key': args.reward_key, 'attempts': args.attempts,
             'reference_shuffled_runs': getattr(args, 'reference_shuffled_runs', 1),
+            'reference_repeat_runs': getattr(args, 'reference_repeat_runs', 2),
             'nop_shuffled_runs': getattr(args, 'nop_shuffled_runs', 1),
             'verifier_tamper': getattr(args, 'verifier_tamper', True),
             'reference_leaks': getattr(args, 'reference_leaks', True),
@@ -371,8 +377,8 @@ def create(args, numbers, destination):
         contract['stage3_checkpoint'] = freeze(args.reuse_stage3, contract, tasks)
     if getattr(args, 'static_resume', None):
         from validation.checkpoints.static_resume import checkpoint_record
-        if 4 not in numbers:
-            raise ValueError('--static-resume requires stage 4')
+        if 0 not in numbers:
+            raise ValueError('--static-resume requires stage 0')
         contract['static_checkpoint'] = checkpoint_record(args.static_resume)
     destination = destination.resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -408,7 +414,7 @@ def read(path):
     if recorded != actual:
         raise ValueError(f'contract checksum mismatch in {path}; prepare a new contract instead of editing it')
     if contract.get('schema_version') != 3 or contract.get('stage_layout') != LAYOUT:
-        raise ValueError('legacy or unsupported stage layout; use the original frozen code for old contracts, or prepare a new environment-first contract')
+        raise ValueError('unsupported stage layout; prepare a new contract')
     manifest = contract['task_manifest']
     name = manifest['path']
     if Path(name).name != name or name in ('', '.', '..'):
@@ -462,14 +468,14 @@ def bind(args, numbers):
     if args.prepare_contract:
         if args.contract or args.tasks is None:
             raise ValueError('--prepare-contract requires tasks and cannot be combined with --contract')
-        # Normalize task-quality inputs only when stage 4 is selected.
-        instructions = 4 in numbers and not getattr(args, 'prebuild_only', False) and (
+        # Normalize task-quality inputs only when the static checks (stage 0) are selected.
+        instructions = 0 in numbers and not getattr(args, 'prebuild_only', False) and (
             getattr(args, 'fix_instruction_suffix', False) or
             (getattr(args, 'fix_instruction_paths', True) and getattr(args, 'path_resolution_report', [])))
         # Images are built from the copy, so prebuilds carry the repair too.
         if instructions or getattr(args, 'fix_repository_leaks', False):
             from validation.rules.static.instruction_suffix import prepare
-            prepare(args, args.prepare_contract.resolve().with_suffix('.stage4-tasks'), instructions=instructions)
+            prepare(args, args.prepare_contract.resolve().with_suffix('.stage0-tasks'), instructions=instructions)
         create(args, numbers, args.prepare_contract)
         return None
     if not args.contract:
@@ -486,6 +492,8 @@ def bind(args, numbers):
         if key == 'stages':
             if numbers != contract['stages']:
                 raise ValueError('--stages differs from contract')
+        elif key == 'judge_mode' and getattr(args, key, None) == 'local' and contract['arguments'].get(key) == 'serve':
+            continue
         elif key in contract['arguments'] and comparable(getattr(args, key, None)) != contract['arguments'][key]:
             raise ValueError(f'--{key.replace("_", "-")} differs from contract')
     if args.tasks is not None and str(args.tasks.resolve()) != contract['arguments']['tasks']:

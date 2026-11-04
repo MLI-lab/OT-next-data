@@ -42,7 +42,6 @@ def test_publish_cards_dry_run_and_commit(tmp_path, monkeypatch, empty_publicati
     _, contract, reports = publish_fixture(tmp_path)
     monkeypatch.setattr(publish, 'read', lambda _: contract)
     monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
-    monkeypatch.setattr(publish, 'previous_rows', lambda *args: {})
     monkeypatch.setattr(publish, 'readme_exists', lambda *args: False)
     prompts = []
     def call(task, model):
@@ -109,7 +108,6 @@ def test_existing_readme_is_preserved_without_model_call(tmp_path, monkeypatch, 
     _, contract, reports = publish_fixture(tmp_path)
     monkeypatch.setattr(publish, 'read', lambda _: contract)
     monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
-    monkeypatch.setattr(publish, 'previous_rows', lambda *args: {})
     monkeypatch.setattr(publish, 'readme_exists', lambda *args: True)
     def forbidden(*args, **kwargs):
         raise AssertionError('Existing READMEs must not be regenerated')
@@ -123,7 +121,6 @@ def test_force_readme_regenerates_existing_cards_in_proposed_files(tmp_path, mon
     _, contract, reports = publish_fixture(tmp_path)
     monkeypatch.setattr(publish, 'read', lambda _: contract)
     monkeypatch.setattr(publish, 'stage_reports', lambda _: reports)
-    monkeypatch.setattr(publish, 'previous_rows', lambda *args: {})
     monkeypatch.setattr(publish, 'readme_exists', lambda *args: True)
     calls = []
     def call(task, model):
@@ -186,7 +183,13 @@ def test_explicit_validation_disclosures_survive_model_output(tmp_path):
     assert note not in text
     assert 'Validation outcomes' not in text
     assert cards['set-python']['validation_disclosures'] == [note]
-    publish.write(tables, record, run_file, tmp_path / 'release', cards)
+    from validation.publishing import revisions
+    (tmp_path / 'history').mkdir()
+    for folder, card in cards.items():   # as publish() does before writing
+        if card.get('validation_disclosures'):
+            record.setdefault('validation_disclosures', {})[folder] = card['validation_disclosures']
+    revisions.write(tables, record, run_file, tmp_path / 'release', {}, {},
+                    revisions.History(root=tmp_path / 'history'), cards)
     assert note in (tmp_path / 'release/pull-request.md').read_text()
     assert record['validation_disclosures']['set-python'] == [note]
     published = (tmp_path / 'release/set-python/README.md').read_text()

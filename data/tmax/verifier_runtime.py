@@ -297,7 +297,7 @@ def plan(files, image, *, wrapper=False, with_repairs=True):
     assets = model_assets.plan(files, image)
     if assets:
         result['model_assets'] = assets
-    if with_repairs and 'subprocess.run([prober_path, "https://google.com"]' in test and 'https://127.0.0.1:8443/health' in test:
+    if 'subprocess.run([prober_path, "https://google.com"]' in test and 'https://127.0.0.1:8443/health' in test:
         result['local_prober'] = True
     return result
 
@@ -389,7 +389,7 @@ def apply(files, planned, catalog):
         model_assets.apply(files, assets, catalog)
         labels.append('prepared-model-inputs')
     if planned.get('local_prober'):
-        from data.tmax.repairs import local_prober
+        from data.tmax.patch import local_prober
         if local_prober(files):
             labels.append('local-verifier-endpoint')
     if reference_tools.apply(files, planned['reference_tools'], task_paths=planned['paths'], task_python=planned['interpreter']):

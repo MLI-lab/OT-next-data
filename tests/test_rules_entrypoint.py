@@ -4,14 +4,14 @@ from pathlib import Path
 from validation.rules import __main__ as cli
 
 
-def test_all_rules_use_pipeline_with_static_gate_and_final_leak_check(tmp_path, monkeypatch):
+def test_all_rules_run_static_stage_then_dynamic_stages(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(sys, 'argv', ['rules', str(tmp_path), '--out', str(tmp_path / 'out')])
     monkeypatch.setattr(cli, 'run_static', lambda *a: (_ for _ in ()).throw(AssertionError('No separate static run')))
     monkeypatch.setattr(cli.subprocess, 'call', lambda command: calls.append(command) or 0)
     assert cli.main() == 0
     command, = calls
-    assert command[command.index('--stages') + 1] == '0,1,2,3,4'
+    assert command[command.index('--stages') + 1] == '0,1,2,3'
     assert command[command.index('--out') + 1] == str(tmp_path / 'out')
     assert '--no-reference-leaks' not in command
 
@@ -39,9 +39,10 @@ def test_static_command_writes_results_and_supports_partial_reruns(tmp_path):
     (task / 'environment/Dockerfile').write_text('FROM ubuntu:24.04')
     (task / 'tests/test.sh').write_text('bash /app/run_tests.sh')
     out = tmp_path / 'out'
-    assert cli.run_static(task, [BY_NAME['agent_editable_test']], out, 'training') == 1
-    cli.run_static(task, [BY_NAME['nproc']], out, 'training')
+    assert cli.run_static(task, [BY_NAME['agent_editable_test']], out, 'training', 'd') == 1
+    cli.run_static(task, [BY_NAME['nproc']], out, 'training', 'd')
     row, = results.read(out / 'results.parquet')
+    assert row['dataset'] == 'd' and row['task_id'] == 'task'
     assert row['agent_editable_test'] == 'fail'
+    assert results.details(row)['agent_editable_test']['details']  # the check's own finding
     assert row['nproc'] == 'pass'
-    assert row['revision'] == 1

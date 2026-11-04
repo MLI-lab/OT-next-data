@@ -235,7 +235,7 @@ def path_check_copy(task, scratch):
 
 CHECK = PATH_CHECK
 ADAPTATION = (
-    'Relative-path findings are advisory warnings and do not fail stage 4. Runs on a copy of the task '
+    'Relative-path findings are advisory warnings and do not fail stage 0. Runs on a copy of the task '
     'whose instruction.md has its source-code blocks removed (fenced blocks tagged with a programming '
     'language); masks complete absolute paths, inline JSON paths and inline Markdown heading examples '
     'and JavaScript console calls/sed substitutions so their substrings are not mistaken for paths; '

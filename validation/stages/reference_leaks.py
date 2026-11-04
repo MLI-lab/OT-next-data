@@ -1,9 +1,7 @@
-"""Capture reference output in stage 2; scan a clean agent environment in stage 4."""
-import asyncio
+"""Capture reference output in stage 2; scan the clean no-op container in stage 3."""
 from contextvars import ContextVar
 import json
 import hashlib
-import os
 from pathlib import Path
 import shlex
 import tempfile
@@ -25,8 +23,8 @@ PROBE_TIMEOUT_SEC = 600
 
 
 def evidence_digest(task):
-    # Stage 4 can normalize instruction paths after the reference stage. That does not
-    # change reference output or the initial filesystem; other payloads do.
+    # The path repair edits only instruction.md. That does not change reference
+    # output or the initial filesystem; other payloads do.
     from validation.contract import files_digest
     return files_digest((p.relative_to(task).as_posix(), p.read_bytes())
                         for p in task.rglob('*') if p.is_file() and p.relative_to(task).as_posix() != 'instruction.md')
@@ -103,7 +101,7 @@ def install():
             report['error'] = str(exc)
         path.write_text(json.dumps(report, indent=2) + '\n')
         # Do not prevent the reference evaluation when fingerprinting is unavailable.
-        # Stage 4 will explicitly reject the incomplete evidence.
+        # The stage-3 scan then reports the incomplete evidence.
         result = await original(self, *args, **kwargs)
         if before is not None:
             try:
@@ -149,6 +147,15 @@ def collect(task, output, records=None):
     return valid[-1]
 
 
+def matched_text(files, limit=5):
+    """Which solution files were already readable, and where: e.g. /app/fix.py (at /tmp/fix.py)."""
+    def where(match):
+        return match if isinstance(match, str) else match.get('path') or match.get('location') or str(match)
+    parts = [f"{f.get('path')} (at {', '.join(where(m) for m in f['matches'][:2])})"
+             for f in files if f.get('matches')]
+    return ', '.join(parts[:limit]) + (f' and {len(parts) - limit} more' if len(parts) > limit else '')
+
+
 def verdict(evidence, observation):
     files = observation['files']
     count = sum(bool(f['matches']) for f in files)
@@ -177,85 +184,10 @@ def verdict(evidence, observation):
             'scan_scope': 'Agent-readable regular files and local Git blobs across the filesystem, excluding /proc, /sys and /dev.',
             'reason': ('Reference only deletes files; no added or modified file contents to check' if deletion_only else
                        'Incomplete scan or no captured added or modified file contents' if not complete else
-                       f'{count}/{total} changed files ({100 * fraction:.2f}%) already readable before solving; '
+                       f'{count}/{total} changed files ({100 * fraction:.2f}%) already readable before solving: '
+                       + matched_text(files) + '; '
                        + ('above the 50% rejection threshold' if above_threshold else 'flagged without rejection') if count else
                        'No exact copies of the captured reference changes found')}
-
-
-async def scan_task(task_path, out, args, evidence):
-    # The cluster worker refuses cache misses when OT_IMAGES_PREPARED is set.
-    # Other backends do not yet expose a verified cache-only startup contract.
-    if args.backend != 'apptainer' or os.environ.get('OT_IMAGES_PREPARED') != '1':
-        raise ValueError('Reference leak scan requires the Apptainer worker with OT_IMAGES_PREPARED=1; prepare cached images first')
-    from validation.stages import harbor as runtime
-    from validation.stages.task_setup import detect, prepare, upload_setup
-    from harbor_patches.start_wait import run_with_budget, status_reader
-    runtime.install_runtime_patches()
-    from harbor.environments.factory import EnvironmentFactory
-    from harbor.models.environment_type import EnvironmentType
-    from harbor.models.task.task import Task
-    from harbor.models.trial.paths import TrialPaths
-
-    if args.force_build:
-        raise ValueError('Reference leak scanning requires cached images, not --force-build')
-    task = Task(task_path)
-    runtime.check_runtime_task(task_path, args.backend)
-    spec = task.config.environment
-    overrides = {}
-    if args.trial_cpus:
-        overrides['cpus'] = args.trial_cpus
-    if args.trial_memory_mb:
-        overrides['memory_mb'] = args.trial_memory_mb
-    spec = spec.model_copy(update=overrides)
-    paths = TrialPaths(out)
-    paths.mkdir()
-    env = EnvironmentFactory.create_environment(
-        type=EnvironmentType(args.backend), environment_dir=task.paths.environment_dir,
-        environment_name=f'{task.short_name}-reference-leak', session_id=f'leak-{uuid4().hex[:12]}',
-        trial_paths=paths, task_env_config=spec, **runtime.environment_config(args)['kwargs'])
-    try:
-        waited = status_reader(env)
-        await run_with_budget(
-            prepare(env, command=detect(task_path), timeout_sec=spec.build_timeout_sec, force_build=False,
-                    upload=lambda: upload_setup(env, task_path), waited=waited), spec.build_timeout_sec, waited)
-        await env.run_healthcheck()
-        # No oracle or verifier payload is uploaded to this environment.
-        with env.with_default_user(task.config.agent.user):
-            observation = await probe(env, {'mode': 'scan', 'root': '/', 'files': evidence['files']})
-        return verdict(evidence, observation)
-    finally:
-        await env.stop(delete=True)
-
-
-async def run_checks(sources, items, out, args):
-    by_name = {Path(i['task']).name: i for i in items}
-    records = read_evidence(args.out)
-    cached = read_scans(args.out, runtime_signature(args))
-    semaphore = asyncio.Semaphore(args.concurrency)
-    async def one(task):
-        async with semaphore:
-            if not (task / 'solution/solve.sh').is_file():
-                result = {'check': CHECK, 'status': 'not_applicable', 'reason': 'No reference solution supplied'}
-            else:
-                try:
-                    evidence = collect(task, args.out, records)
-                    if not evidence['files'] and evidence.get('deleted_files'):
-                        result = verdict(evidence, {'status': 'not_applicable', 'files': []})
-                    elif not evidence['files']:
-                        raise ValueError('Reference produced no changed regular files in the captured workspace')
-                    else:
-                        result = cached.get(evidence_signature(evidence))
-                        if result is None:
-                            result = await scan_task(task, out / task.name, args, evidence)
-                except Exception as exc:
-                    result = {'check': CHECK, 'status': 'error', 'scan_status': 'incomplete', 'reason': str(exc)}
-            item = by_name[task.name]
-            item.setdefault('checks', []).append(result)
-            if result.get('scan_status') == 'incomplete' or result.get('evaluation_status') == 'incomplete':
-                item['reference_leak_incomplete'] = True
-            if result['status'] in ('failed', 'error'):
-                item['status'] = 'failed' if result['status'] == 'failed' and item['status'] != 'error' else 'error'
-    await asyncio.gather(*(one(task) for task in sources))
 
 
 def evidence_signature(evidence):
@@ -268,29 +200,32 @@ def runtime_signature(args):
     return hashlib.sha256(json.dumps(settings, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def read_scans(output, runtime_sha256=None):
-    cached = {}
-    for path in Path(output).glob('stage_3_*/*/summary.json'):
-        report = json.loads(path.read_text())
-        for item in report.get('items', []):
-            for scan in item.get('reference_leak_scans', []):
-                result = scan.get('result', {})
-                if (result.get('scan_status') == 'completed' and
-                        (runtime_sha256 is None or scan.get('runtime_sha256') == runtime_sha256)):
-                    cached[scan['evidence_sha256']] = result
-    return cached
-
-
 def prepare_nop_scans(tasks, output):
+    return plan_nop_scans(tasks, output)[0]
+
+
+def plan_nop_scans(tasks, output):
+    """Scan requests for the stage-3 no-op containers, and the final result of
+    every task that needs no scan: no reference solution, a reference that only
+    deletes files, or missing/incomplete reference evidence."""
     records = read_evidence(output)
-    requests = {}
+    requests, results = {}, {}
     for task in tasks:
         if not (task / 'solution/solve.sh').is_file():
+            results[task.name] = {'check': CHECK, 'status': 'not_applicable', 'reason': 'No reference solution supplied'}
             continue
         try:
             evidence = collect(task, output, records)
-            if evidence['files']:
-                requests[task.name] = evidence
-        except (ValueError, OSError):
-            pass  # Stage 4 reports missing evidence; do not interfere with NOP grading.
-    return requests
+        except (ValueError, OSError) as exc:
+            # No usable stage-2 evidence: the check depends on the reference run.
+            results[task.name] = {'check': CHECK, 'status': 'skipped', 'blocked_by_stage': REFERENCE,
+                                  'reason': str(exc)}
+            continue
+        if evidence['files']:
+            requests[task.name] = evidence
+        elif evidence.get('deleted_files'):
+            results[task.name] = verdict(evidence, {'status': 'not_applicable', 'files': []})
+        else:
+            results[task.name] = {'check': CHECK, 'status': 'error', 'scan_status': 'incomplete',
+                                  'reason': 'Reference produced no changed regular files in the captured workspace'}
+    return requests, results

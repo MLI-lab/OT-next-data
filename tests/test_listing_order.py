@@ -199,7 +199,8 @@ def test_shuffled_reference_is_run_and_assessed_by_reference_batch(tmp_path, mon
     output = tmp_path / 'output'
     output.mkdir()
     args = SimpleNamespace(agent='oracle', model=None, backend='apptainer', dry_run=False,
-                           dynamic_do_not_modify=False, attempts=1, reward_key='reward', reference_shuffled_runs=1)
+                           dynamic_do_not_modify=False, attempts=1, reward_key='reward', reference_shuffled_runs=1,
+                           reference_repeat_runs=0)
     monkeypatch.setattr(runner.runtime, 'check_runtime_task', lambda *a: None)
     monkeypatch.setattr(runner.runtime, 'job_config', lambda task, out, *a: {'jobs_dir': str(out)})
     jobs = {}
@@ -225,3 +226,52 @@ def test_shuffled_reference_is_run_and_assessed_by_reference_batch(tmp_path, mon
     assert item['status'] == 'failed'
     assert item['listing_order']['shuffled_rewards'] == [0]
     assert item['listing_order']['expected_reward'] == 1
+
+
+def test_repeated_reference_runs_must_all_score_one(tmp_path, monkeypatch):
+    """Two extra normal reference runs: a stochastic verifier fails reference_determinism,
+    while the reference result itself stays the first run's."""
+    from types import SimpleNamespace
+    from validation.stages import runner
+    from harbor_patches.verifier_setup import SHUFFLE_LISTING
+    task = tmp_path / 'task'
+    (task / 'solution').mkdir(parents=True)
+    (task / 'solution/solve.sh').write_text('true')
+    output = tmp_path / 'output'
+    output.mkdir()
+    args = SimpleNamespace(agent='oracle', model=None, backend='apptainer', dry_run=False,
+                           dynamic_do_not_modify=False, attempts=1, reward_key='reward', reference_shuffled_runs=1,
+                           reference_repeat_runs=2)
+    monkeypatch.setattr(runner.runtime, 'check_runtime_task', lambda *a: None)
+    monkeypatch.setattr(runner.runtime, 'job_config', lambda task, out, *a: {'jobs_dir': str(out)})
+    jobs = {}
+    async def execute(config, **kwargs):
+        out = Path(config['jobs_dir'])
+        jobs[out] = (SHUFFLE_LISTING.get(), config.get('n_attempts'))
+        return out
+    monkeypatch.setattr(runner.runtime, 'execute_job', execute)
+    def results(out):
+        shuffled, attempts = jobs[out]
+        rewards = [1, 0] if out.name == 'reference-repeat-jobs' else [1] * (attempts or 1)
+        rows = []
+        for index, reward in enumerate(rewards):
+            path = out / f'trial-{index}'
+            path.mkdir(parents=True)
+            rows.append((path, {'verifier_result': {'rewards': {'reward': reward}},
+                                'resources': {'agent': {'cpu_seconds': 2.0, 'memory_peak_mb': 100.0}}}))
+        return rows
+    monkeypatch.setattr(runner.runtime, 'trial_results', results)
+    monkeypatch.setattr(runner.runtime, 'group_trial_results', lambda rows, tasks: ({task.name: rows}, []))
+    assess = runner.runtime.assess_trials
+    monkeypatch.setattr(runner.runtime, 'assess_trials',
+                        lambda *a, **kw: assess(*a, **dict(kw, require_execution=False)))
+    item, = runner.run_trial_batch(2, [task], output, args, None)
+    assert [v for v in jobs.values()] == [(False, None), (True, 1), (False, 2)]
+    assert item['normal_baseline_status'] == 'passed'
+    record = item['listing_order']
+    assert record['repeat_rewards'] == [1, 0]
+    assert record['status'] == 'flagged' and 'stochastic verifier' in record['reason']
+    assert item['status'] == 'failed'
+    from validation.run import usage
+    assert usage('reference_determinism', record)['cpu_seconds'] == 6.0
+    assert usage('reference_determinism', record)['memory_peak_mb'] == 100.0

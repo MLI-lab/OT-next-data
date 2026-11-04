@@ -1,0 +1,8 @@
+{
+  "bugsinpy-original-httpie-4": {
+    "decision": "exclude",
+    "reason": "Verifier depends on live DNS and an external HTTP service; reference fails offline. User confirmed exclusion.",
+    "offline_job": 1195559,
+    "online_job": 1195617
+  }
+}

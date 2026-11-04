@@ -89,7 +89,7 @@ A sole matching build-context copy elsewhere does not justify redirecting a
 command to it. References intended for a later `cd` remain unchanged unless
 separate reviewed evidence establishes their meaning.
 
-For reference-solution diagnostics, include stage 4 with the same
+For reference-solution diagnostics, include stage 2 (reference solution) with the same
 `--resolve-path-root` options. Each oracle trial records two observations in
 `items[].instruction_path_diagnostics` and `instruction-path-diagnostics.json`:
 

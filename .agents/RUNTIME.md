@@ -223,7 +223,7 @@ which Harbor enforces around the whole agent run and the whole verifier run.
 ### Running offline on Helma
 
 Helma cannot enforce isolation: `max_net_namespaces=0`, so `--network-mode isolated`
-only falls back to host with a warning (and `declared-network-egress` then fails).
+only falls back to host with a warning (and `declared-internet-access` then fails).
 Since 2026-11-01 CLAIX `c23ms` and `c25ms` are the same; LRZ nodes still have
 namespaces. Check `/proc/sys/user/max_net_namespaces` on a compute node first.
 

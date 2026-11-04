@@ -8,8 +8,7 @@ from validation.publishing.readme import render, write
 
 
 def row(name, **changes):
-    return dict(dataset='demo', task_id=name, content_sha256=name, latest=True,
-                revision=1, task_file='demo/tasks/r1.parquet', build='pass', **changes)
+    return dict(dataset='demo', task_id=name, content_sha256=name, build='pass', **changes)
 
 
 def metadata():
@@ -85,8 +84,8 @@ def test_repairs_overlap_final_outcomes_and_missing_evidence_stays_unknown():
 
 def test_table_includes_observed_checks_but_not_unrun_placeholders():
     from validation.publishing.readme import rule_statistics
-    rows = [row('a', repository_history='not_run', repository_history_details=json.dumps({
-        'checks': [{'status': 'not_checked', 'reason': 'no git'}]}), repair_loop='not_run')]
+    rows = [row('a', repository_history='unknown', details=json.dumps({
+        'repository_history': {'details': 'no git'}}), repair_loop='not_requested')]
     stats = rule_statistics(rows, ['build'])
     assert [s['rule'] for s in stats] == ['build', 'repository_history']
     assert stats[1]['unresolved'] == 1
@@ -113,10 +112,10 @@ def test_required_rules_and_attempt_budget_are_explicit():
 
 def test_resource_use_reports_mean_p95_max_of_passing_references():
     from validation.publishing.readme import resource_use
-    rows = [{'reference': 'pass', 'reference_memory_peak_mb': 1024.0 * n, 'reference_memory_limit_mb': 8192.0,
-             'reference_cpu_seconds': 10.0 * n} for n in (1, 2, 3, 4)]
-    rows += [{'reference': 'fail', 'reference_memory_peak_mb': 99999.0, 'reference_memory_limit_mb': 8192.0},
-             {'reference': 'pass'}]
+    measured = lambda memory, cpu=None: json.dumps({'reference': {'memory_peak_mb': memory,
+                                                                  **({'cpu_seconds': cpu} if cpu else {})}})
+    rows = [{'reference': 'pass', 'memory_mb': '8192', 'details': measured(1024.0 * n, 10.0 * n)} for n in (1, 2, 3, 4)]
+    rows += [{'reference': 'fail', 'memory_mb': '8192', 'details': measured(99999.0)}, {'reference': 'pass'}]
     used = {r[0]: r[1:] for r in resource_use(rows)}
     assert used['Peak memory'] == ('2.50 GiB', '4.00 GiB', '4.00 GiB', 4)
     assert used['CPU time'] == ('25 s', '40 s', '40 s', 4)

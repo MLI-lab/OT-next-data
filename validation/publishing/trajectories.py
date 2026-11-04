@@ -104,7 +104,7 @@ def write(groups, run_id, out):
 
 def collect(submissions, run_id, out, folder_of):
     """Trajectories of several finished stage-6 submissions: `(contract, request, report)` triples
-    as `publish_pass_counts.load` returns them. Returns the published file names and the record entry."""
+    as the stage-6 reports hold them. Returns the published file names and the record entry."""
     from validation.contract import task_records
     groups, truncated = {}, {}
     for submission, (contract, request, report) in submissions:

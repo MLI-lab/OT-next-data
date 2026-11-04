@@ -12,6 +12,11 @@ import time
 from uuid import uuid4
 
 
+# Setup review: preparations slower than the setup_speed limits keep running up to
+# this cap, so a slow setup is told apart from one that cannot finish.
+REVIEW_CAP_SECONDS = 1800.0
+
+
 async def review_task(task_path, out, args):
     from harbor.environments.factory import EnvironmentFactory
     from harbor.models.environment_type import EnvironmentType
@@ -108,8 +113,10 @@ async def review_task(task_path, out, args):
             if command:
                 setup_capture = '/setup_files/.ot-setup-output-' + uuid4().hex
                 command = capture_setup_command(command, setup_capture)
-            task_budget = min(task.config.environment.build_timeout_sec,
-                              getattr(args, 'preparation_max_seconds', None) or 60.0)
+            # A slow preparation is a setup_speed finding (judged from these
+            # timings), not a failed build: it may continue up to 30 minutes,
+            # or the task's own limit if that is shorter.
+            task_budget = min(task.config.environment.build_timeout_sec, REVIEW_CAP_SECONDS)
             await asyncio.wait_for(prepare(agent, command=command,
                 timeout_sec=task_budget, force_build=False, start_environment=False,
                 upload=lambda: upload_setup(agent, task_path), timings=agent_entry['timings_seconds']),
@@ -198,9 +205,10 @@ async def review_task(task_path, out, args):
                         await measured(record, 'runtime_release', lambda: release(target, bundle))
                     record['status'] = 'passed'
 
-                # A slow run is rejected at the individual-run limit, even if
-                # task.toml allows hours for actual compilation/analysis.
-                await asyncio.wait_for(preparation(), timeout=min(timeout, 60.0))
+                # Slow preparations are judged from the recorded time by setup_speed
+                # and do not fail the build; stopped after 30 minutes (or the
+                # verifier's own limit if that is shorter).
+                await asyncio.wait_for(preparation(), timeout=min(timeout, REVIEW_CAP_SECONDS))
                 record['timings_seconds']['preparation'] = time.monotonic() - preparation_started
                 record.pop('failure_phase', None)
                 if spec is not None:

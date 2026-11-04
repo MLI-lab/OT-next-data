@@ -1,0 +1,7 @@
+{
+  "removed_path": "/hnvme/workspace/y500bb12-rule-based-checks/bugsinpy-no-repairs-20261101/stage0-20261102",
+  "archive": "/tmp/y500bb12-failed-stage0-materialization-20261102.tar.gz",
+  "verified_files": 7975,
+  "reason": "Own failed partial unpacking from this session; never submitted; originating process ended; original Parquets and successful stage0 outputs preserved",
+  "restore": "Unpack archive into a new directory if needed."
+}

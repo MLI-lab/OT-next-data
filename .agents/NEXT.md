@@ -1,12 +1,23 @@
 # Next steps
 
 - Finish offline runtimes and clean verifier setup for each datasource.
-- Record conversion, image sharing/setup changes, and task repairs separately.
-  What we learned from attempting builds stays in the patch, because the task
-  cannot exist without it. What we learned afterwards from running tasks
-  (no-op, reference, rule checks, review) is a repair, applied as a separate
-  step. Evaluate the pipeline on the patch without repairs. Patch plus repairs
-  must reproduce the published tasks byte for byte.
+- Separate fixes by cause, not by the stage that discovered them. `repairs.py`
+  contains only confirmed defects in the upstream tasks, fixtures or verifiers
+  that exist in the supplied upstream environment. Apply these by default and
+  omit them with `patch.py --no-repairs` for the baseline audit.
+  Runtime, Apptainer/conversion, image sharing, setup and offline compatibility
+  changes belong in the base patch and remain enabled without upstream repairs.
+  Do not classify a change as an upstream repair merely because a no-op,
+  reference, rule check or review discovered it. Record historical exclusions
+  and publication reproduction separately; neither proves an upstream defect.
+  Automatic rule repairs, including instruction path edits and policy suffixes,
+  belong exclusively to the validation pipeline, never to the datasource patch
+  script or repairs.py. Preserve upstream instructions in the baseline and let
+  the pipeline apply its repairs afresh. Publish the task packages produced by
+  validation, including its automatic repairs and packaging normalization.
+  Do not replay historical automatic edits or archive serialization in the
+  patcher to reproduce a prior publication. This supersedes the earlier
+  requirement that patch plus repairs alone reproduce published archive bytes.
 - Verify image and runtime caches on the target cluster, then run stages 1-4
   with `--stages 0,1,2,3,4` (stage 0 stops tasks that fail the static checks;
   the LLM judge in stage 5 stays out for now). Always use

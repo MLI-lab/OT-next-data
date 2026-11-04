@@ -62,13 +62,13 @@ def test_missing_results_and_different_rules_are_refused(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match='no run over their exact content'):
         combine_module.combine([('r0', 'c0')], final, tmp_path / 'out')
     final, reports = setup(tmp_path, monkeypatch)
-    reports['r1'][4] = {'stage': 4, 'contract_sha256': 'c1', 'complete': True, 'items': [{'task': 't1', 'status': 'passed'}]}
+    reports['r1'][0] = {'stage': 0, 'contract_sha256': 'c1', 'complete': True, 'items': [{'task': 't1', 'status': 'passed'}]}
     with pytest.raises(ValueError, match='stage results are missing'):
         combine_module.combine([('r0', 'c0'), ('r1', 'c1')], final, tmp_path / 'out')
     final, reports = setup(tmp_path, monkeypatch)
-    reports['r0'][4] = {'stage': 4, 'contract_sha256': 'c0', 'complete': True,
+    reports['r0'][0] = {'stage': 0, 'contract_sha256': 'c0', 'complete': True,
                         'items': [{'task': t, 'status': 'passed', 'checks': [{'check': 'a.sh'}]} for t in ('t1', 't2')]}
-    reports['r1'][4] = {'stage': 4, 'contract_sha256': 'c1', 'complete': True,
+    reports['r1'][0] = {'stage': 0, 'contract_sha256': 'c1', 'complete': True,
                         'items': [{'task': 't1', 'status': 'passed', 'checks': [{'check': 'a.sh'}, {'check': 'b.sh'}]}]}
     with pytest.raises(ValueError, match='not judged the same way'):
         combine_module.combine([('r0', 'c0'), ('r1', 'c1')], final, tmp_path / 'out')
@@ -77,17 +77,17 @@ def test_missing_results_and_different_rules_are_refused(tmp_path, monkeypatch):
 def test_stages_that_ignore_the_instruction_accept_instruction_only_changes(tmp_path, monkeypatch):
     final, reports = setup(tmp_path, monkeypatch)
     # Run 1 changed only t1's instruction: its build result from run 0 still counts,
-    # but stage 4 must come from a run over the edited instruction.
+    # but stage 0 must come from a run over the edited instruction.
     for name, payload in (('c0', {'t1': b'env|old', 't2': b'n2'}), ('c1', {'t1': b'env|new'})):
         parquet(tmp_path / f'{name}.parquet', payload)
-    reports['r1'] = {4: {'stage': 4, 'contract_sha256': 'c1', 'complete': True, 'items': [{'task': 't1', 'status': 'passed', 'from': 'c1'}]}}
-    reports['r0'][4] = {'stage': 4, 'contract_sha256': 'c0', 'complete': True,
+    reports['r1'] = {0: {'stage': 0, 'contract_sha256': 'c1', 'complete': True, 'items': [{'task': 't1', 'status': 'passed', 'from': 'c1'}]}}
+    reports['r0'][0] = {'stage': 0, 'contract_sha256': 'c0', 'complete': True,
                         'items': [{'task': t, 'status': 'passed', 'from': 'c0'} for t in ('t1', 't2')]}
     view, merged = combine_module.combine([('r0', 'c0'), ('r1', 'c1')], final, tmp_path / 'out')
     by_stage = {s: {i['task'].rsplit('/', 1)[-1]: i['from'] for i in r['items']} for s, r in merged.items()}
-    assert by_stage == {1: {'t1': 'c0', 't2': 'c0'}, 4: {'t1': 'c1', 't2': 'c0'}}
+    assert by_stage == {1: {'t1': 'c0', 't2': 'c0'}, 0: {'t1': 'c1', 't2': 'c0'}}
     assert merged[1]['combined_instruction_only_difference'] == ['t1']
-    assert merged[4]['combined_instruction_only_difference'] == []
+    assert merged[0]['combined_instruction_only_difference'] == []
 
 
 def test_reviewed_nop_zero_is_a_manual_pass_and_keeps_the_original_verdict():

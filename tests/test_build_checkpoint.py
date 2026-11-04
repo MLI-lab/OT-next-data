@@ -16,7 +16,7 @@ def checkpoint(tmp_path, monkeypatch):
            **{k: {k: 'same'} for k in
               ('execution_profile', 'runtime_dependencies', 'implementation', 'upstream')}}
     monkeypatch.setattr(contracts, 'read', lambda _: old)
-    report = {'stage_layout': 'environment-first-v2', 'stage': 1, 'complete': True, 'contract_sha256': old['sha256'],
+    report = {'stage_layout': 'environment-first-v3', 'stage': 1, 'complete': True, 'contract_sha256': old['sha256'],
               'items': [{'task': '/old/' + t['task_id'], 'status': 'passed',
                          # Reusable results carry the agent's leak inspection (missing: rerun stage 1).
                          'environments': [{'environment': 'agent', 'status': 'passed',

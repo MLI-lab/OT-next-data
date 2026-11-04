@@ -118,7 +118,7 @@ def test_shared_preparation_preserves_original_and_rejects_stale(tmp_path):
     diagnostic = evidence(text, 'reference')
     diagnostic['agent_baseline']['task_sha256'] = task_digest(task)
     report = tmp_path / 'evidence.json'
-    report.write_text(json.dumps({'stage_layout': 'environment-first-v2', 'stage': 2, 'items': [{'task': 'sample', 'status': 'failed',
+    report.write_text(json.dumps({'stage_layout': 'environment-first-v3', 'stage': 2, 'items': [{'task': 'sample', 'status': 'failed',
                      'instruction_path_diagnostics': [diagnostic]}]}))
     def args():
         return SimpleNamespace(tasks=task.parent, limit=None, task_id_range=None,
@@ -172,7 +172,7 @@ def test_evidence_from_a_separately_prepared_copy_is_applied(tmp_path):
     diagnostic = evidence((seen / 'instruction.md').read_text(), 'reference')
     diagnostic['agent_baseline']['task_sha256'] = task_digest(seen)
     report = tmp_path / 'evidence.json'
-    report.write_text(json.dumps({'stage_layout': 'environment-first-v2', 'stage': 2, 'items': [
+    report.write_text(json.dumps({'stage_layout': 'environment-first-v3', 'stage': 2, 'items': [
         {'task': 'sample', 'status': 'passed', 'instruction_path_diagnostics': [diagnostic]}]}))
     prepare(args(task.parent, report), tmp_path / 'final')
     final = (tmp_path / 'final/sample/instruction.md').read_text()

@@ -9,10 +9,9 @@ def test_no_reward_is_not_run_but_observed_wrong_reward_fails(stage, name, wrong
     item = {'task': 'task', 'status': 'failed', 'normal_baseline_status': 'failed',
             'rewards': [], 'findings': ['exception: runtime installation failed']}
     row, = observations({stage: {'items': [item]}}, {'task': 'digest'})
-    assert row[name] == 'not_run'
+    assert row[name] == 'execution_error'
     detail = json.loads(row['details'])[name]
     assert all(detail[key] == value for key, value in item.items())
-    assert detail['category'] == 'execution_error'
     item.update(rewards=[wrong], findings=['wrong reward'])
     row, = observations({stage: {'items': [item]}}, {'task': 'digest'})
     assert row[name] == 'fail'

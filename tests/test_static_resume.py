@@ -37,7 +37,7 @@ def checkpoint(tmp_path, request):
               'checks': [{'check': name, 'status': 'passed', 'exit_code': 0, 'log': '/old/log'} for name in checks]}]}
     manifest_path = root / 'contract.tasks.json'
     manifest_path.write_text(json.dumps([{'task_id': task.name, 'sha256': contract.task_digest(task)}]))
-    old = {'schema_version': 3, 'stage_layout': 'environment-first-v2', 'task_manifest': {'path': manifest_path.name,
+    old = {'schema_version': 3, 'stage_layout': 'environment-first-v3', 'task_manifest': {'path': manifest_path.name,
            'sha256': static_resume.sha(manifest_path), 'count': 1},
            'success_criteria': {'static_checks': checks},
            'implementation': {request.param: static_resume.sha(root / 'checker.py'),
@@ -120,18 +120,18 @@ def test_explicit_previous_path_check_keeps_success(checkpoint):
     assert set(record['rerun_changed_checks']) == set(checker.LOCAL_CHECKS) & set(checks)
 
 
-@pytest.mark.parametrize('missing', [None, 1, 2, 3, 4])
+@pytest.mark.parametrize('missing', [None, 0, 1, 2, 3])
 def test_automatic_pr_requires_complete_gates(tmp_path, monkeypatch, missing):
     from validation.publishing import publish
     frozen = {'tasks': [{'task_id': 'sample'}], 'sha256': 'contract'}
     monkeypatch.setattr(publish, 'read', lambda path: frozen)
     reports = {}
-    for stage in (1, 2, 3, 4):
+    for stage in (0, 1, 2, 3):
         if stage != missing:
-            reports[stage] = {'stage_layout': 'environment-first-v2', 'complete': True, 'contract_sha256': 'contract',
+            reports[stage] = {'stage_layout': 'environment-first-v3', 'complete': True, 'contract_sha256': 'contract',
                               'items': [{'task': 'sample', 'status': 'passed', 'checks': []}]}
     monkeypatch.setattr(publish, 'stage_reports', lambda path: reports)
-    if missing:
+    if missing is not None:
         with pytest.raises(ValueError, match=f'stage {missing}'):
             publish.require_complete(tmp_path, tmp_path / 'contract')
     else:

@@ -1,4 +1,4 @@
-"""Stage-4 adapter for the editable grading harness review."""
+"""Static check: the verifier runs scripts or tests the agent could edit (reads task files only)."""
 import sys
 from pathlib import Path
 

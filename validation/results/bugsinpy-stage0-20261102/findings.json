@@ -1,0 +1,77 @@
+[
+  {
+    "task": "bugsinpy-original-black-14",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-black-20",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-black-6",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-luigi-9",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-pysnooper-1",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-19",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-scrapy-20",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-thefuck-3",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-tornado-1",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-tornado-10",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-tornado-14",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-16",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-2",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-36",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  },
+  {
+    "task": "bugsinpy-original-youtube-dl-41",
+    "check": "check-task-absolute-path.sh",
+    "status": "warning"
+  }
+]

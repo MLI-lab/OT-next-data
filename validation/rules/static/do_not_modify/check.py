@@ -5,7 +5,7 @@ without an extracted file pass. The dynamic rule (rules/dynamic/do_not_modify) c
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[4]))  # run as a stage-4 script
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))  # run as a stage-0 script
 
 from validation.rules.static.do_not_modify.extract import extract
 

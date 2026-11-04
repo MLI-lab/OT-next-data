@@ -71,7 +71,7 @@ that fixes the input tasks, validation stages and settings for a run.
 Create one, then run it (this example checks 10 tasks on Helma without an LLM):
 
 ```bash
-python validation/run.py /path/to/tasks --stages 0,1,2,3,4 \
+python validation/run.py /path/to/tasks --stages 0,1,2,3 \
   --limit 10 --submit helma --partition cpu --cpus 48 --time 02:00:00 \
   --out "$OT_WORKSPACE/runs/check" \
   --prepare-contract "$OT_WORKSPACE/contracts/check.json"

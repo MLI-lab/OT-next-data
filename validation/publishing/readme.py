@@ -27,23 +27,22 @@ def document(value):
 
 
 def outcome(row, rule):
-    value = row.get(rule)
-    detail = results.details(row).get(rule, {})
-    from validation.outcomes import category, check_phase
-    issue = category(detail, value or 'not_run', check_phase(rule))
-    if issue:
-        if issue['reason_code'] == 'not_applicable':
-            return 'not applicable'
-        return 'infra error' if issue['category'] == 'infrastructure_error' else 'incomplete' if issue['category'] in ('timeout', 'oom', 'execution_error') else 'not run'
+    """README group of a check status."""
+    from validation.outcomes import normalize
+    value, _ = normalize(rule, row.get(rule) or 'not_requested', results.details(row).get(rule, {}))
     if value in ('pass', 'fail', 'warning'):
         return value
-    return 'not run'
+    if value == 'not_applicable':
+        return 'not applicable'
+    if value == 'infrastructure_error':
+        return 'infra error'
+    return 'incomplete' if value in ('timeout', 'oom', 'execution_error') else 'not run'
 
 
 def latest(rows, dataset):
-    selected = [r for r in rows if r.get('latest') and r['dataset'] == dataset]
+    selected = [r for r in rows if r['dataset'] == dataset]
     if len({r['task_id'] for r in selected}) != len(selected):
-        raise ValueError('Results contain duplicate latest task IDs')
+        raise ValueError('Results contain duplicate task IDs')
     return selected
 
 
@@ -58,7 +57,7 @@ def baseline(rows, rules):
 
 
 def rule_statistics(rows, required_rules):
-    """One task per latest revision; repair actions are independent of check verdicts."""
+    """One row per task; repair actions are independent of check verdicts."""
     from validation.automatic_repairs import RULES as repair_rules
     observed = {key for row in rows for key in results.details(row)
                 if isinstance(row.get(key), str) and row[key] in results.STATUSES
@@ -130,11 +129,11 @@ def resource_use(rows):
         values = sorted(values)
         p95 = values[max(0, math.ceil(0.95 * len(values)) - 1)]
         return (name, shown(sum(values) / len(values)), shown(p95), shown(values[-1]), len(values))
-    number = lambda key: [r[key] for r in rows if r.get('reference') == 'pass' and r.get(key) is not None]
-    memory, cpu = number('reference_memory_peak_mb'), number('reference_cpu_seconds')
-    shares = [r['reference_memory_peak_mb'] / r['reference_memory_limit_mb'] for r in rows
-              if r.get('reference') == 'pass' and r.get('reference_memory_peak_mb') is not None
-              and r.get('reference_memory_limit_mb')]
+    measured = [(r, results.details(r).get('reference', {})) for r in rows if r.get('reference') == 'pass']
+    memory = [d['memory_peak_mb'] for _, d in measured if d.get('memory_peak_mb') is not None]
+    cpu = [d['cpu_seconds'] for _, d in measured if d.get('cpu_seconds') is not None]
+    shares = [d['memory_peak_mb'] / float(r['memory_mb']) for r, d in measured
+              if d.get('memory_peak_mb') is not None and r.get('memory_mb')]
     result = []
     if memory:
         result.append(summary('Peak memory', memory, lambda v: f'{v / 1024:.2f} GiB'))
@@ -226,9 +225,9 @@ def render(rows, metadata, view, dataset, annotation=None, evaluation_key=None, 
     disclosures = (annotation or {}).get('validation_disclosures', [])
     if disclosures:
         sections.append('\n\n'.join(disclosures))
-    sections.append('## Files\n\n`results.parquet` stores checks and evaluations by task revision. '
-                    f'`{view}/selection.parquet` lists the selected task revisions and their payload files. '
-                    'Payloads are shared across versions; only changed tasks need a new payload.')
+    sections.append('## Files\n\n`results.parquet` has one row per task with its checks and evaluations. '
+                    f'`{view}/selection.parquet` lists the selected tasks and their content hashes; '
+                    '`tasks/` holds the payloads. Only new or changed tasks need a new payload file.')
     return '\n\n'.join(sections) + '\n', selected
 
 
@@ -236,13 +235,12 @@ def write(results_path, metadata, out, view, dataset, annotation=None, evaluatio
     import pyarrow as pa
     import pyarrow.parquet as pq
     text, selected = render(results.read(results_path), metadata, view, dataset, annotation, evaluation_key, student_key)
-    if any(not row.get('task_file') for row in selected):
-        raise ValueError('Selected tasks need published task_file pointers; prepare revision payloads first')
     out = Path(out) / view
     out.mkdir(parents=True, exist_ok=True)
-    schema = pa.schema([(name, pa.int64() if name == 'revision' else pa.string())
-                        for name in ('dataset', 'task_id', 'revision', 'content_sha256', 'task_file')])
-    pq.write_table(pa.Table.from_pylist(selected, schema=schema), out / 'selection.parquet')
+    names = ('dataset', 'task_id', 'content_sha256')
+    schema = pa.schema([(name, pa.string()) for name in names])
+    pq.write_table(pa.Table.from_pylist([{n: row[n] for n in names} for row in selected], schema=schema),
+                   out / 'selection.parquet')
     (out / 'README.md').write_text(text)
     (out / 'run.json').write_text(json.dumps(metadata, indent=2) + '\n')
     if view == 'v1':

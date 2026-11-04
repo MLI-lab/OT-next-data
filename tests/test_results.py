@@ -8,27 +8,46 @@ def test_partial_update_preserves_other_checks_and_changed_content_resets(tmp_pa
     path = tmp_path / 'results.parquet'
     first = {'dataset': 'd', 'task_id': 't', 'content_sha256': 'a', 'nproc': 'pass', 'nop': 'fail'}
     results.update(path, [first])
-    results.update(path, [dict(first, nproc='warning') | {'nop_details': '{}'}])
+    results.update(path, [dict(first, nproc='warning')])
     results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'a', 'reference': 'pass'}])
     row, = results.read(path)
     assert row['nop'] == 'fail' and row['nproc'] == 'warning'
-    results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'b', 'nproc': 'pass',
-                          'change_reason': 'Fixed verifier'}])
-    old, new = results.read(path)
-    assert not old['latest'] and new['latest']
-    assert old['reference'] == 'pass' and new['reference'] == 'not_run'
-    assert new['revision'] == 2 and new['change_reason'] == 'Fixed verifier'
+    results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'b', 'nproc': 'pass'}])
+    row, = results.read(path)
+    # New task files replace the row: earlier results do not carry over.
+    assert row['content_sha256'] == 'b' and row['nproc'] == 'pass'
+    assert row['reference'] == 'not_requested' and row['nop'] == 'not_requested'
+    assert 'revision' not in row and 'latest' not in row
 
 
-def test_reference_resource_usage_is_kept_as_numbers(tmp_path):
-    usage = {'agent': {'memory_peak_mb': 2437.2, 'memory_limit_mb': 7782.4, 'cpu_seconds': 418.6, 'step_seconds': 236.1},
-             'verifier': {'memory_peak_mb': 500.0}}
-    item = {'task': '/tmp/t', 'status': 'completed', 'resources': [usage, None]}
-    results.export_report(tmp_path / 'r.parquet', {'stage': 2, 'items': [item]}, {'t': 'hash'})
-    row, = results.read(tmp_path / 'r.parquet')
-    assert row['reference'] == 'pass'
-    assert (row['reference_memory_peak_mb'], row['reference_memory_limit_mb']) == (2437.2, 7782.4)
-    assert (row['reference_cpu_seconds'], row['reference_step_seconds']) == (418.6, 236.1)
+def test_parquet_cells_hold_status_repair_and_one_details_text(tmp_path):
+    import pyarrow.parquet as pq
+    path = tmp_path / 'results.parquet'
+    repairs = json.dumps({'task-absolute-path': {'applied': True, 'evidence': [], 'details': 'data.csv -> /app/data.csv'},
+                          'instruction-suffix': {'applied': True, 'evidence': []},
+                          'pip-pinning': {'applied': False, 'evidence': []}})
+    results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'a',
+                          'task-absolute-path': 'warning', 'instruction-suffix': 'fail', 'pip-pinning': 'pass',
+                          'nproc': 'pass', 'nop': 'fail', 'dockerfile-sanity': 'fail',
+                          'automatic_repairs': repairs,
+                          'details': json.dumps({'dockerfile-sanity': {'status': 'failed', 'check': 'x', 'log': '/tmp/l',
+                                                                       'reason': 'FAIL Dockerfile line 3'},
+                                                 'nop': {'rewards': [1]}})}])
+    table = pq.read_table(path)
+    assert {'details', 'automatic_repairs', 'revision', 'latest', 'task_file'}.isdisjoint(table.schema.names)
+    row, = table.to_pylist()
+    compact = lambda value: {k: v for k, v in value.items() if v is not None}
+    assert compact(row['instruction-suffix']) == {'status': 'fail', 'repaired': True}
+    assert compact(row['task-absolute-path']) == {'status': 'warning', 'repaired': True,
+                                                 'details': 'data.csv -> /app/data.csv'}
+    assert compact(row['pip-pinning']) == {'status': 'pass', 'repaired': False}
+    assert compact(row['nproc']) == {'status': 'pass'} and 'repaired' not in row['nproc']
+    assert compact(row['nop']) == {'status': 'fail'}
+    assert compact(row['dockerfile-sanity']) == {'status': 'fail', 'details': 'FAIL Dockerfile line 3'}
+    assert compact(row['build']) == {'status': 'not_requested'}
+    # Reading and writing again keeps the same cells.
+    results.write(path, results.read(path))
+    assert pq.read_table(path).to_pylist() == [row]
 
 
 def test_same_reports_have_same_cells_for_both_entrypoints(tmp_path):
@@ -41,11 +60,10 @@ def test_same_reports_have_same_cells_for_both_entrypoints(tmp_path):
         results.export_report(tmp_path / (name + '.parquet'), report, {'t': 'hash'})
     a, = results.read(tmp_path / 'static.parquet')
     b, = results.read(tmp_path / 'pipeline.parquet')
-    a.pop('updated_at'); b.pop('updated_at')
     assert a == b
     assert a['agent_editable_test'] == 'fail'
-    assert a['nproc'] == 'not_run'
-    assert results.details(a)['nproc']['status'] == 'error'
+    assert a['nproc'] == 'execution_error'
+    assert results.details(a)['nproc']['details'] == 'missing tool'
 
 
 def test_hash_at_execution_is_preserved_and_passk_settings_are_distinct():
@@ -87,36 +105,30 @@ def test_missing_selected_check_overwrites_old_pass(tmp_path):
     results.export_report(path, {'checks': ['check-nproc.sh'], 'tasks': [
         {'task': 't', 'status': 'error', 'error': 'cannot read task', 'checks': []}]}, {'t': 'hash'})
     row, = results.read(path)
-    assert row['nproc'] == 'not_run'
+    assert row['nproc'] == 'unknown'
 
 
-def test_shared_details_migrate_and_preserve_other_checks(tmp_path):
+def test_details_are_kept_per_check_and_other_checks_are_preserved(tmp_path):
     import pyarrow.parquet as pq
     path = tmp_path / 'results.parquet'
-    first = {'dataset': 'd', 'task_id': 't', 'content_sha256': 'a',
-             'reference': 'pass', 'reference_details': json.dumps({'rewards': [1]}),
-             'nop': 'pass', 'nop_details': json.dumps({'rewards': [0]}),
+    first = {'dataset': 'd', 'task_id': 't', 'content_sha256': 'a', 'reference': 'pass', 'nproc': 'fail',
+             'details': json.dumps({'reference': {'rewards': [1]}, 'nproc': {'reason': 'FAIL make -j'}}),
              'publication_details': json.dumps({'source': 'original'})}
     results.update(path, [first])
     results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'a',
                           'nop': 'fail', 'details': json.dumps({'nop': {'rewards': [1]}})}])
     row, = results.read(path)
-    assert results.details(row) == {'reference': {'rewards': [1]}, 'nop': {'rewards': [1]}}
+    # Passes and failed no-op results (rewards are 0 or 1) need no text.
+    recorded = results.details(row)
+    assert recorded.pop('nproc') == {'details': 'FAIL make -j'}
+    assert 'reference' not in recorded and 'nop' not in recorded
+    assert recorded == {}  # checks that did not run have no text
+    assert row['build'] == 'not_requested'
+    assert row['reference'] == 'pass' and row['nop'] == 'fail'
     schema = pq.read_schema(path)
-    assert 'details' in schema.names and 'reference_details' not in schema.names
-    assert 'nop_details' not in schema.names and 'publication_details' in schema.names
-    assert schema.metadata[b'ot.results.version'] == b'2'
+    assert 'details' not in schema.names and 'reference_details' not in schema.names
+    assert 'publication_details' in schema.names
+    assert schema.metadata[b'ot.results.version'] == b'3'
     results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'b', 'reference': 'not_run'}])
-    _, changed = results.read(path)
-    assert results.details(changed) == {}
-
-
-def test_read_legacy_parquet_migrates_details(tmp_path):
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-    path = tmp_path / 'legacy.parquet'
-    pq.write_table(pa.Table.from_pylist([{'reference': 'pass',
-        'reference_details': json.dumps({'rewards': [1]}), 'nop': 'not_run', 'nop_details': None}]), path)
-    row, = results.read(path)
-    assert results.details(row) == {'reference': {'rewards': [1]}}
-    assert 'reference_details' not in row and 'nop_details' not in row
+    changed, = results.read(path)
+    assert changed['nproc'] == 'not_requested' and changed['reference'] == 'unknown'

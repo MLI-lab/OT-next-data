@@ -48,7 +48,7 @@ def runs(tmp_path, **stage_items):
         number = int(key[1:])
         path = tmp_path / f'stage_{number}' / 'summary.json'
         path.parent.mkdir(parents=True)
-        result[number] = (path, {'stage_layout': 'environment-first-v2', 'stage': number, 'items': items, 'has_findings': False})
+        result[number] = (path, {'stage_layout': 'environment-first-v3', 'stage': number, 'items': items, 'has_findings': False})
     return result
 
 
@@ -147,28 +147,19 @@ def test_pipeline_runs_the_round_once_after_all_stages(tmp_path, monkeypatch):
         order.append(('retry', sorted(stage_runs)))
         for n in stage_runs:
             stage_runs[n][1]['has_findings'] = True
-        return {n: {'stage_layout': 'environment-first-v2', 'stage': n, 'not_robust': [], 'history': {'x': {}}} for n in stage_runs}
+        return {n: {'stage_layout': 'environment-first-v3', 'stage': n, 'not_robust': [], 'history': {'x': {}}} for n in stage_runs}
     monkeypatch.setattr(run, 'run_stage', fake_stage)
     monkeypatch.setattr('validation.stages.outcome_retries.retry_round', fake_round)
     monkeypatch.setattr('validation.stages.runner.checkout', lambda name: tmp_path)
     options = SimpleNamespace(out=tmp_path, dry_run=False, trials=None, contract=None, outcome_retries=3,
                               prebuild_only=False,
                               fix_instruction_paths=False, fix_pip_pins=False, tasks=tmp_path)
-    monkeypatch.setattr('validation.stages.normalize_paths.prepare', lambda a, n: None)
-    monkeypatch.setattr('validation.rules.static.pip_pinning.repair.prepare', lambda a, n: None)
     assert run.run_selected(options, [1, 2, 3]) == 1
     assert order == [('stage', 1), ('stage', 2), ('stage', 3), ('retry', [1, 2, 3])]
     pipeline = json.loads(next(tmp_path.glob('pipeline-*.json')).read_text())
     assert set(pipeline['outcome_retries']) == {'1', '2', '3'}
     assert 'history' not in pipeline['outcome_retries']['3']
     assert all(entry['status'] == 'findings' for entry in pipeline['stages'])
-
-
-def test_reviewed_cause_replaces_the_generic_not_robust_text():
-    item = {'task': '/tasks/gone', 'status': 'failed', 'findings': ['not robust: ...'],
-            'not_robust': {'expected': 'passed', 'observed': ['archive'] * 4},
-            'archive_cause': 'the source repository is no longer available'}
-    assert judge(1, item) == ('archive', 'the source repository is no longer available (same result in all 4 attempts)')
 
 
 def test_description_reports_infrastructure_retries():

@@ -19,7 +19,7 @@ def test_stage3_and_final_bind_identical_tasks(tmp_path, monkeypatch, enabled):
         captured.append(contract.inventory(args.tasks)[0])
 
     monkeypatch.setattr(contract, 'create', create)
-    for label, stages in [('pilot', [1]), ('final', [1, 2, 3, 4])]:
+    for label, stages in [('pilot', [1]), ('final', [0, 1, 2, 3])]:
         args = SimpleNamespace(tasks=source.parent, prepare_contract=tmp_path / (label + '.json'),
                                contract=None, prebuild_only=False, limit=None, task_id_range=None,
                                fix_instruction_suffix=enabled, fix_instruction_paths=False,

@@ -1,7 +1,6 @@
 [
   {
     "task": "contrastive_solver-security_20260605_015435_005",
-    "instruction_sha256": "d748be3c90359aac251bc8f83ac55b818b2b3cc3849a01b77fb86b2b2e2e3e42",
     "test_script_sha256": "ee6e343a5dbea971d6808e9947cf676f067fbda8c9d280b5bb6ecdcb020f1e8d",
     "lines": [
       "nginx -g \"daemon off;\" &"
@@ -10,7 +9,6 @@
   },
   {
     "task": "contrastive_solver-security_20260604_004411_006",
-    "instruction_sha256": "4e852f244fd3d6aadb7a3a005b671ea1a6a0be1ca205d74fc96ddbadf0f95b04",
     "test_script_sha256": "606b4699c19883042e19213a89c21f968364b4685aec36acde27c614b21a0d56",
     "lines": [
       "/usr/local/bin/ensure_server.sh"
@@ -19,7 +17,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260604_002443_008",
-    "instruction_sha256": "c86be0c29556ac3e218539d7172f213bda41f05e55c2d8ade54d418a9ee6cf1d",
     "test_script_sha256": "feaf2cae120bb8a40778019b5867dd82885f7b18ffa4ba28667b4600f22029d6",
     "lines": [
       "cd /app/lua && make clean && make -j4"
@@ -28,7 +25,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260611_210349_008",
-    "instruction_sha256": "5361b501318674f5f6c6fdff8433fa638fde5b703e970befec096892050e1aa3",
     "test_script_sha256": "b7f4a23eaffed3576d649078f6bb09f89b84e2a5573063b53552799af644560a",
     "lines": [
       "cd /app/quickjs && make -j$(nproc) 2>&1"
@@ -37,7 +33,6 @@
   },
   {
     "task": "contrastive_solver-system-administration_20260501_051538_001",
-    "instruction_sha256": "98895cda55a1eb63d41ccae9226549f1164970ab1211c99067f25a75129cc95d",
     "test_script_sha256": "e934431ff8929dc089f443561e2112c09c0cfc3d52a608c2e5338b2a98bc7461",
     "lines": [
       "/start.sh &"
@@ -46,7 +41,6 @@
   },
   {
     "task": "contrastive_solver-system-administration_20260509_111805_009",
-    "instruction_sha256": "e43b12183f3d0a73c8e702eff08358ede4baab8e17aa2cf3fe704d47bad113f1",
     "test_script_sha256": "5994ff39b2eaafe03edd8c0c4c41c6116569cb9421c02883ebe7b0ee71abbc52",
     "lines": [
       "/opt/start_holders.sh 2>/dev/null || true"
@@ -55,7 +49,6 @@
   },
   {
     "task": "contrastive_solver-system-administration_20260511_015840_004",
-    "instruction_sha256": "75621729f488a2173f921b6f96b06c23c607212f305e13607bd9eafa97d34b98",
     "test_script_sha256": "0065f498e3b4436b0a3cba3bfc3cbfa26c4cf0eed70c8e5606e5135076369dcd",
     "lines": [
       "mkdir -p /app/logs /app/data",
@@ -65,7 +58,6 @@
   },
   {
     "task": "multi_solver-system-administration_20260414_211453_008",
-    "instruction_sha256": "257307b33e01b326bddfde800a163d58edbcef1f47b27e8e7346b37a84973af0",
     "test_script_sha256": "0bf3b18b0bb6d0a4ad4986081e2d759d75603eb9b6d6f43baad163b828e43397",
     "lines": [
       "/usr/bin/supervisord -c /etc/supervisor/supervisord.conf"
@@ -74,7 +66,6 @@
   },
   {
     "task": "multi_solver-system-administration_20260418_044216_005",
-    "instruction_sha256": "34126fda9c9d725d0604b0a70ab893ad879264c865e1591745aca7f4a990737a",
     "test_script_sha256": "336c70a671faa5ddc8c81c595665596b51501c60c96236b3f067a8b23b1a2944",
     "lines": [
       "/usr/bin/supervisord -c /etc/supervisor/supervisord.conf &"
@@ -83,7 +74,6 @@
   },
   {
     "task": "multi_solver-system-administration_20260419_112101_003",
-    "instruction_sha256": "196becbfd2a3b218795e23b6c263ad38d841718491cce28b3243bbe836d8db60",
     "test_script_sha256": "285c0c146dc3c29ffab7e7234efdd36ef5b753ad750270d5d37c6632f0ac7c8d",
     "lines": [
       "mkdir -p /var/log/supervisor /run/haproxy",
@@ -93,7 +83,6 @@
   },
   {
     "task": "multi_solver-system-administration_20260419_112101_004",
-    "instruction_sha256": "3adc86ce97227e022f04807f9f73a6874c797e0d26e27f12490a7f34e504acc0",
     "test_script_sha256": "8d87915e07c072cdbb23d7b2900107d39071788cb4fbafd264b25f720d242f44",
     "lines": [
       "supervisord -c /etc/supervisor/supervisord.conf"
@@ -102,7 +91,6 @@
   },
   {
     "task": "contrastive_solver-security_20260604_193356_001",
-    "instruction_sha256": "f619851fe0f1617c98811379473e2e78ad8b850ef328c1c8958e6caceaa0f8af",
     "test_script_sha256": "cee8cd274e282397d91c37a0c1a9b66cf8e8a49e154defb817c6f1932cc31af9",
     "lines": [
       "pkill -f \"flag_server.py\" 2>/dev/null || true",
@@ -116,7 +104,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260418_044216_008",
-    "instruction_sha256": "fd0b2c7fa723f358695329f1c15b15f6443fdf05d57ee641242ab686443ad7c7",
     "test_script_sha256": "7e5370c32f6040d9d9f439afd342ea9c21d9a39695477664566cf232486fa5ff",
     "lines": [
       "cd /app/pipeline-daemon",
@@ -129,7 +116,6 @@
   },
   {
     "task": "multi_solver-machine-learning_20260414_211453_002",
-    "instruction_sha256": "d9fdb4c8710b9ae27b74afa7aed58d8c33f7ba960ab410d7026a97da0531a921",
     "test_script_sha256": "c90e7543bb43c6b501b02ec41dd9d59c28de0111fdb37d8a8031685119f4339b",
     "lines": [
       "find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true"
@@ -142,7 +128,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260508_161717_002",
-    "instruction_sha256": "98ed0d277f0e03a2c75b7fb0743d750617ccffbfbcdc190e25282e6610c6fed2",
     "test_script_sha256": "838f940a848556781a4d81d7ecc5c27a3c01bcd768a0fd81cc835385334e3746",
     "lines": [
       "ldconfig 2>/dev/null || true"
@@ -160,7 +145,6 @@
   },
   {
     "task": "contrastive_solver-software-engineering_20260507_093408_003",
-    "instruction_sha256": "891e9bc13003aaf40ef7921afeb52d3e6d603221c2de9e506230d95c2ecadfb8",
     "test_script_sha256": "22649d960b08c244cb1101e91327bb023221c3639198d599342f2c1f9d372098",
     "lines": [],
     "tools": {
@@ -170,7 +154,6 @@
   },
   {
     "task": "contrastive_solver-security_20260501_172213_006",
-    "instruction_sha256": "fae6ecf2b35220c0b7474f01b860425ab759b97ff258e8aff41fe77225489cc3",
     "test_script_sha256": "5335fcbe838e6b9b1dae48ca7d67271ca5d8eedd6e9d954c401f4a978a6b84ac",
     "lines": [
       "bash /usr/local/bin/entrypoint.sh"
@@ -190,7 +173,6 @@
   },
   {
     "task": "multi_solver-software-engineering_20260414_091921_020",
-    "instruction_sha256": "afe3302750c91078c565456ae111fed0ac7b062ac805d85c6874b62c488e2051",
     "test_script_sha256": "389a94eb7f3051b3a8e80736b5c178a76a867c7e5c3124924ee0dd70e3802bde",
     "lines": [
       "cd /app/mypackage"
@@ -200,7 +182,6 @@
   },
   {
     "task": "contrastive_solver-system-administration_20260509_065529_007",
-    "instruction_sha256": "f2c0e8431b0093f10fe459d8b1ced958f1f2109360e253ba3d732bb908ecdd24",
     "test_script_sha256": "6c9fb6c393875282c7d2c9651705d272ddd064e34417104969776398410d37d2",
     "lines": [
       "ip addr add 127.0.0.2/8 dev lo 2>/dev/null || true",

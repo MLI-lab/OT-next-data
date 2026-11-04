@@ -3,6 +3,7 @@
 import sys
 import fcntl
 import hashlib
+import math
 import json
 import re
 from pathlib import Path
@@ -14,17 +15,16 @@ from validation.stages.runner import parser, run_stage, save
 
 def main():
     ap = parser()
-    ap.add_argument('--stages', default='1', help='comma-separated stage numbers 0-10, or all (default: 1)')
+    ap.add_argument('--stages', default='1', help='comma-separated stage numbers (0-3, 5-10), or all (default: 1)')
     args = ap.parse_args()
+    from validation.stages.layout import NAMES
     try:
-        numbers = [0, 1, 2, 3, 4, 5, 6, 9, 7, 8, 10] if args.stages == 'all' else [int(n) for n in args.stages.split(',')]
-        if not numbers or any(n not in range(0, 11) for n in numbers) or len(set(numbers)) != len(numbers):
-            raise ValueError('choose unique stages from 0 through 10')
+        numbers = [0, 1, 2, 3, 5, 6, 9, 7, 8, 10] if args.stages == 'all' else [int(n) for n in args.stages.split(',')]
+        if not numbers or any(n not in NAMES for n in numbers) or len(set(numbers)) != len(numbers):
+            raise ValueError('choose unique stages from ' + ', '.join(map(str, sorted(NAMES)))
+                             + ' (static checks are stage 0 since layout v3)')
     except ValueError as exc:
         ap.error(str(exc))
-    # Stage 0 is a filter before the other stages, not a stage of its own in the run.
-    args.static_gate = 0 in numbers
-    numbers = [n for n in numbers if n] or ap.error('stage 0 needs a stage to filter for')
     from hpc.validation_submit import maybe_submit
     try:
         from validation.contract import bind
@@ -42,16 +42,6 @@ def main():
 def run_selected(args, numbers):
     if getattr(args, 'prebuild_only', False):
         raise ValueError('--prebuild-only must run through the Slurm image preparation worker')
-    from validation.stages.static_gate import prepare as static_gate
-    static_gate(args, numbers)
-    from validation.stages.normalize_paths import prepare as normalize_paths
-    from validation.rules.static.pip_pinning.repair import prepare as normalize_pip_pins
-    normalize_pip_pins(args, numbers)
-    defer_paths = (1 in numbers and 4 in numbers
-                   and all(numbers.index(n) < numbers.index(4) for n in (1, 2, 3) if n in numbers)
-                   and not getattr(args, 'shard', None))
-    if not defer_paths:
-        normalize_paths(args, numbers)
     from validation.stages.layout import LAYOUT
     report = {'stage_layout': LAYOUT, 'stages': [], 'complete': False, 'dry_run': args.dry_run}
     if getattr(args, 'contract', None):
@@ -62,17 +52,7 @@ def run_selected(args, numbers):
     save(summary, report)
     args._build_failures = {}
     stage_runs = {}
-    retried, retried_before_paths = None, False
     for number in numbers:
-        if number == 4 and defer_paths:
-            # Settle environment/reference/no-op retries against their original
-            # task contract before instruction normalization derives another one.
-            retried = retry_unsettled(args, stage_runs, numbers)
-            retried_before_paths = True
-            normalize_paths(args, numbers)
-            if getattr(args, 'contract', None):
-                from validation.contract import read
-                report['contract_sha256'] = read(args.contract)['sha256']
         # With all, review both ordinary and adversarial trajectories. An explicit
         # --trials remains authoritative for a standalone analysis selection.
         jobs = analysis_jobs if number in (7, 8) and not given_trials else [given_trials]
@@ -87,7 +67,6 @@ def run_selected(args, numbers):
                                          'status': 'findings' if result['has_findings'] else 'completed'})
                 stage_runs[number] = (path, result)
                 if number == 1 and not args.dry_run:
-                    args._stage1_path_reports = [path]
                     args._build_failures = {i['task']: {'report': str(path), 'reason': i.get('reason', 'build validation failed')}
                                             for i in result['items'] if i['status'] != 'passed'}
                 if number in (6, 9):
@@ -95,8 +74,7 @@ def run_selected(args, numbers):
             except Exception as exc:
                 report['stages'].append({'stage': number, 'status': 'error', 'reason': str(exc)})
             save(summary, report)
-    if not retried_before_paths:
-        retried = retry_unsettled(args, stage_runs, numbers)
+    retried = retry_unsettled(args, stage_runs, numbers)
     if retried:
         report['outcome_retries'] = {str(stage): {k: v for k, v in s.items() if k != 'history'}
                                      for stage, s in retried.items()}
@@ -109,6 +87,12 @@ def run_selected(args, numbers):
             if stage_report.get('task_content_sha256'):
                 export_report(args.out / 'results.parquet', stage_report,
                               stage_report['task_content_sha256'], settings=vars(args))
+        # Automatic path and pip repairs from the stage-1 and stage-2 evidence.
+        from validation.automatic_repairs import files_from, plan
+        plans = plan({number: report for number, (_, report) in stage_runs.items()},
+                     lambda tasks: files_from(args.tasks, tasks))
+        apply_repairs(args.out / 'results.parquet', plans)
+        report['automatic_repairs'] = {task: {k: v for k, v in p.items() if k != 'files'} for task, p in plans.items()}
     report['complete'] = True
     save(summary, report)
     print(f'Pipeline report: {summary}')
@@ -138,18 +122,72 @@ def retry_unsettled(args, stage_runs, numbers):
 
 
 
-BASE = {'dataset', 'task_id', 'content_sha256', 'revision', 'latest', 'change_reason',
-        'task_file', 'updated_at', 'run', 'details'}
-STATUSES = {'pass', 'fail', 'warning', 'not_run', 'not_recorded'}
-USAGE = {'memory_peak_mb': 'reference_memory_peak_mb', 'memory_limit_mb': 'reference_memory_limit_mb',
-         'cpu_seconds': 'reference_cpu_seconds', 'step_seconds': 'reference_step_seconds'}
+BASE = {'dataset', 'task_id', 'content_sha256', 'run', 'details'}
+VERSION = b'3'
+from validation.outcomes import RESULTS, NO_RESULT
+STATUSES = {*RESULTS, *NO_RESULT}
+# Checks that run their own containers. Each cell records the check's cost over
+# all its runs: wall-clock seconds and container CPU seconds (summed) and peak
+# container memory (largest). Checks evaluated inside another check's container
+# (declared_*, repository_*, verifier_tamper, reference_leaks) add no runs.
+TIMED = ('build', 'reference', 'reference_determinism', 'do_not_modify_dynamic', 'nop', 'nop_determinism')
+USAGE = ('wall_seconds', 'cpu_seconds', 'memory_peak_mb')
 
 
-def reference_usage(item):
-    """Largest use across the reference runs and environments, to check task.toml limits against."""
-    used = [e for run in item.get('resources') or [] for e in (run or {}).values()]
-    return {column: max(values) for key, column in USAGE.items()
-            if (values := [e[key] for e in used if isinstance(e.get(key), (int, float))])}
+def _number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _runs(name, record):
+    """(wall seconds, [per-environment resources]) for each container run of a check."""
+    if name in ('reference', 'nop'):
+        return list(zip(record.get('trial_seconds') or [], record.get('resources') or []))
+    if name in ('reference_determinism', 'nop_determinism'):
+        usage = [record.get('shuffled_usage') or {}, record.get('repeat_usage') or {}]
+        return [pair for u in usage for pair in zip(u.get('trial_seconds') or [], u.get('resources') or [])]
+    if name == 'build':
+        history = record.get('preparation_runs') or [record]
+        return [(sum(v for k, v in (env.get('timings_seconds') or {}).items()
+                     if k in ('start', 'inspect', 'stop') and _number(v)), {'agent': env.get('resources')})
+                for run in history for env in run.get('environments') or []]
+    if name == 'do_not_modify_dynamic':
+        found = []
+        def walk(value):
+            if isinstance(value, dict):
+                if isinstance(value.get('trial_seconds'), list) and isinstance(value.get('resources'), list):
+                    found.extend(zip(value['trial_seconds'], value['resources']))
+                    return
+                for item in value.values():
+                    walk(item)
+            elif isinstance(value, list):
+                for item in value:
+                    walk(item)
+        walk(record.get('mutations'))
+        return found
+    return []
+
+
+def usage(name, record):
+    """Wall time, CPU time and peak memory of one check over all its runs."""
+    if not record or name not in TIMED:
+        return {}
+    if not any(k in record for k in ('trial_seconds', 'shuffled_usage', 'repeat_usage', 'environments',
+                                     'preparation_runs', 'mutations')):
+        # Already reduced (read back from results.parquet).
+        return {k: record[k] for k in USAGE if _number(record.get(k))}
+    runs = _runs(name, record)
+    walls = [w for w, _ in runs if _number(w)]
+    environments = [e for _, envs in runs for e in (envs or {}).values() if isinstance(e, dict)]
+    cpu = [e['cpu_seconds'] for e in environments if _number(e.get('cpu_seconds'))]
+    memory = [e['memory_peak_mb'] for e in environments if _number(e.get('memory_peak_mb'))]
+    out = {}
+    if walls:
+        out['wall_seconds'] = round(sum(walls), 1)
+    if cpu:
+        out['cpu_seconds'] = round(sum(cpu), 2)
+    if memory:
+        out['memory_peak_mb'] = max(memory)
+    return out
 
 
 def rule_name(name):
@@ -176,13 +214,9 @@ def encode(value):
 
 
 def details(row):
-    """Read shared evidence, accepting older per-check columns during migration."""
+    """Per-check evidence of an in-memory row, keyed by check name."""
     value = row.get('details')
-    shared = dict(json.loads(value) if isinstance(value, str) else value or {})
-    for key, value in row.items():
-        if key.endswith('_details') and key[:-8] in row and value is not None:
-            shared.setdefault(key[:-8], json.loads(value) if isinstance(value, str) else value)
-    return shared
+    return dict(json.loads(value) if isinstance(value, str) else value or {})
 
 
 def normalize_details(row):
@@ -192,21 +226,28 @@ def normalize_details(row):
     for name, record in shared.items():
         if name in row and isinstance(record, dict):
             row[name], shared[name] = normalize(name, row[name], record)
-    for key in list(row):
-        if key.endswith('_details') and key[:-8] in row:
-            del row[key]
+    for name, value in row.items():
+        if value == 'not_run' and name not in shared:
+            # A check without a result and without evidence: classify it like the others.
+            row[name], _ = normalize(name, value, {})
     if shared or row.get('details') is not None:
         row['details'] = encode(shared)
     return row
 
 
+# Dynamic checks that run inside each stage's containers.
+STAGE_CHECKS = {1: ('declared_workdir', 'declared_internet_access', 'repository_history', 'repository_timestamps'),
+                2: ('reference', 'reference_determinism', 'do_not_modify_dynamic'),
+                3: ('nop', 'nop_determinism', 'verifier_tamper', 'reference_leaks')}
+
+
 def known_rules():
     from validation.rules.registry import RULES
+    # The checks of stages 0-3. Later stages (review, metrics, evaluations) add
+    # their columns only when they run.
     return {r.name for r in RULES} | {
         'build', 'reference', 'nop', 'reference_determinism', 'nop_determinism',
-        'repository_history', 'repository_timestamps', 'llm_review',
-        'trace_metrics', 'trajectory_review', 'adversarial', 'repair_loop',
-        'static_input'}
+        'repository_history', 'repository_timestamps', 'declared_workdir', 'declared_internet_access'}
 
 
 def observations(reports, hashes, dataset='', settings=None):
@@ -234,7 +275,8 @@ def observations(reports, hashes, dataset='', settings=None):
                 from validation.outcomes import normalize
                 row[name], record = normalize(name, value if value is not None else status(record.get('status')), record)
                 row['details'] = encode({**details(row), name: record})
-            if int(stage) != 4:
+            static = int(stage) == 0
+            if not static:
                 name = {1: 'build', 2: 'reference', 3: 'nop', 5: 'llm_review',
                         7: 'trace_metrics', 8: 'trajectory_review', 9: 'adversarial',
                         10: 'repair_loop'}.get(int(stage))
@@ -247,8 +289,6 @@ def observations(reports, hashes, dataset='', settings=None):
                     if int(stage) in (2, 3) and item.get('rewards') == []:
                         value = 'not_run'
                     put(name, item, value)
-                if int(stage) == 2:
-                    row.update(reference_usage(item))
             if int(stage) == 6:
                 identity = {k: settings.get(k) for k in ('model', 'agent', 'agent_kwargs', 'attempts')}
                 model = re.sub(r'[^a-zA-Z0-9_]+', '_', str(identity['model'] or 'unknown'))
@@ -260,17 +300,19 @@ def observations(reports, hashes, dataset='', settings=None):
                 row[name + '_solved'] = solved
                 row[name + '_attempts'] = len(rewards)
             checks = item.get('checks', [])
-            if int(stage) == 4 and not checks:
+            if static and not checks:
                 put('static_input', item)
             for check in checks:
                 put(rule_name(check['check']), check)
-            if int(stage) == 4:
+            if static:
                 observed = {check['check'] for check in checks}
                 for name in report.get('checks', []):
                     if name not in observed:
                         put(rule_name(name), {'status': 'not_run',
                                              'reason': item.get('error') or item.get('reason') or
                                              'Selected check did not produce a result'}, 'not_run')
+            if int(stage) == 1 and isinstance(item.get('setup_speed'), dict):
+                put('setup_speed', item['setup_speed'])
             for field, name in [('listing_order', 'reference_determinism' if int(stage) == 2 else 'nop_determinism'),
                                 ('do_not_modify', 'do_not_modify_dynamic'), ('verifier_tamper', 'verifier_tamper')]:
                 record = item.get(field)
@@ -297,72 +339,187 @@ def observations(reports, hashes, dataset='', settings=None):
                 values = {status(check.get('status')) for check in checks}
                 value = next(v for v in ('fail', 'not_run', 'warning', 'pass') if v in values)
                 put(name, {'checks': checks}, value)
+            # A failed build blocks the dynamic checks that need its container or a trial.
+            blocked = (item.get('blocked_by_stage') is not None or
+                       (int(stage) == 1 and item.get('status') not in ('passed', 'completed')))
+            if blocked and int(stage) in STAGE_CHECKS:
+                for name in STAGE_CHECKS[int(stage)]:
+                    if row.get(name) in (None, 'not_requested'):
+                        put(name, {'status': 'skipped', 'blocked_by_stage': 1,
+                                   'reason': 'The task did not build'})
     return list(rows.values())
 
 
 def merge(previous, incoming):
-    """Keep old revisions, preserve unobserved cells, invalidate checks for new content."""
-    from datetime import datetime, timezone
+    """One row per task. Unobserved cells are kept; new task files replace the row."""
     rows = [normalize_details(r) for r in previous]
     incoming = [normalize_details(r) for r in incoming]
-    index = {(r['dataset'], r['task_id'], r['content_sha256']): r for r in rows}
+    index = {(r['dataset'], r['task_id']): r for r in rows}
     if len(index) != len(rows):
-        raise ValueError('Duplicate task revisions in results')
-    by_task = {}
-    for row in rows:
-        by_task.setdefault((row['dataset'], row['task_id']), []).append(row)
+        raise ValueError('Duplicate tasks in results')
     columns = known_rules() | {k for r in [*rows, *incoming] for k, v in r.items()
                               if k not in BASE and isinstance(v, str) and v in STATUSES}
     for update in incoming:
-        key = (update['dataset'], update['task_id'], update['content_sha256'])
+        key = (update['dataset'], update['task_id'])
         row = index.get(key)
-        old = by_task.setdefault(key[:2], [])
-        if row is None:
-            row = {c: 'not_run' for c in columns}
-            row.update(dataset=key[0], task_id=key[1], content_sha256=key[2],
-                       revision=max((r['revision'] for r in old), default=0) + 1,
-                       change_reason=update.get('change_reason') or ('Task content changed' if old else 'Initial task'))
+        if row is None or row['content_sha256'] != update['content_sha256']:
+            # Results for other task files are not results for these files.
+            if row is not None:
+                rows.remove(row)
+            row = {'dataset': key[0], 'task_id': key[1], 'content_sha256': update['content_sha256']}
             rows.append(row)
-            old.append(row)
             index[key] = row
-        for other in old:
-            other['latest'] = other is row
         if update.get('details') is not None:
             update = dict(update, details=encode({**details(row), **details(update)}))
         if update.get('automatic_repairs'):
             from validation.automatic_repairs import combine
             update = dict(update, automatic_repairs=combine(row.get('automatic_repairs'), update['automatic_repairs']))
-        row.update({k: v for k, v in update.items() if k not in ('revision', 'latest')})
-        row['updated_at'] = datetime.now(timezone.utc).isoformat()
+        row.update(update)
     for row in rows:
         for col in columns:
             if row.get(col) is None:
-                row[col] = 'not_run'
-    return sorted(rows, key=lambda r: (r['dataset'], r['task_id'], r['revision']))
+                row[col] = 'not_requested'
+    return sorted(rows, key=lambda r: (r['dataset'], r['task_id']))
+
+
+def summary(record):
+    """One short text from a check record: its reason or error, as plain text."""
+    parts = []
+    for key in ('reason', 'error', 'findings', 'exception_info', 'exception_type', 'stderr'):
+        value = record.get(key)
+        if value:
+            parts.append(value if isinstance(value, str) else
+                         '; '.join(map(str, value)) if isinstance(value, list) else encode(value))
+    return '\n'.join(dict.fromkeys(parts)) or None
+
+
+def cell(name, status, record, repair):
+    """The Parquet cell of one check: status, repaired (repairable checks only) and one
+    short details text."""
+    from validation.automatic_repairs import RULES as repairable
+    value = {'status': status}
+    if name in repairable:
+        value['repaired'] = (repair or {}).get('applied')
+    text = None
+    if name == 'instruction-suffix':
+        # Always the same timeout and anti-cheating sentence, so no text.
+        record, repair = None, None
+    if value.get('repaired'):
+        text = (repair or {}).get('details')
+    if not text and status != 'pass' and record:
+        # Rewards are 0 or 1, so a failed no-op or reference result needs no text.
+        if not (name in ('nop', 'reference') and status == 'fail'):
+            text = record.get('details') if isinstance(record.get('details'), str) else None
+            if not text:
+                text = summary(record)
+    if text:
+        value['details'] = text if len(text) <= 1000 else text[:997] + '...'
+    if name in TIMED:
+        value.update(usage(name, record))
+    return value
+
+
+def uncell(row):
+    """Back to the in-memory form: status strings, per-check details, repair records."""
+    row = dict(row)
+    records, repairs = {}, {}
+    for name, value in list(row.items()):
+        if not (isinstance(value, dict) and value.get('status') in STATUSES):
+            continue
+        row[name] = value['status']
+        record = {k: value[k] for k in ('details', *USAGE) if value.get(k) is not None}
+        if record:
+            records[name] = record
+        if 'repaired' in value:
+            repairs[name] = {'applied': value['repaired'], 'evidence': []}
+            if value['repaired'] and value.get('details'):
+                repairs[name]['details'] = value['details']
+    if records:
+        row['details'] = encode({**details(row), **records})
+    if repairs:
+        row['automatic_repairs'] = encode(repairs)
+    return row
 
 
 def read(path):
     import pyarrow.parquet as pq
-    return [normalize_details(row) for row in pq.read_table(path).to_pylist()] if Path(path).is_file() else []
+    if not Path(path).is_file():
+        return []
+    table = pq.read_table(path)
+    if (table.schema.metadata or {}).get(b'ot.results.version') != VERSION:
+        raise ValueError(f'{path}: not a results.parquet of format version 3')
+    return [normalize_details(uncell(row)) for row in table.to_pylist()]
 
 
 def write(path, rows):
     import pyarrow as pa
     import pyarrow.parquet as pq
+    from validation.automatic_repairs import RULES as repairable
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = [normalize_details(row) for row in rows]
-    names = sorted(BASE | {k for r in rows for k in r})
-    integers = {'revision'} | {n for n in names if n.endswith(('_solved', '_attempts'))}
-    schema = pa.schema([(n, pa.bool_() if n == 'latest' else pa.int64() if n in integers
-                         else pa.float64() if n in USAGE.values() else pa.string())
-                        for n in names], metadata={b'ot.results.version': b'2'})
+    out = []
+    for row in rows:
+        row = normalize_details(row)
+        records = details(row)
+        repairs = json.loads(row.pop('automatic_repairs', None) or '{}')
+        row.pop('details', None)
+        for name, value in list(row.items()):
+            if isinstance(value, str) and value in STATUSES and name not in BASE:
+                row[name] = cell(name, value, records.get(name), repairs.get(name))
+        out.append(row)
+    names = sorted({k for r in out for k in r} | {'dataset', 'task_id', 'content_sha256'})
+    checks = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'status' in v}
+    integers = {n for n in names if n.endswith(('_solved', '_attempts'))}
+    def kind(name):
+        if name in checks:
+            fields = [('status', pa.string())]
+            if name in repairable:
+                fields.append(('repaired', pa.bool_()))
+            fields.append(('details', pa.string()))
+            if name in TIMED:
+                fields += [(key, pa.float64()) for key in USAGE]
+            return pa.struct(fields)
+        return pa.int64() if name in integers else pa.string()
+    schema = pa.schema([(n, kind(n)) for n in names], metadata={b'ot.results.version': VERSION})
     temporary = path.with_name(path.name + '.' + uuid4().hex + '.tmp')
     try:
-        pq.write_table(pa.Table.from_pylist(rows, schema=schema), temporary)
+        pq.write_table(pa.Table.from_pylist(out, schema=schema), temporary)
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
+    write_usage_summary(path.with_name('check_resources.json'), out)
+
+
+def write_usage_summary(path, cells):
+    """Mean and median wall time, CPU time and peak memory of each check that runs
+    containers, over all tasks, and of the whole validation per task ("overall":
+    times summed over those checks, memory the largest)."""
+    import statistics
+    def stats(values):
+        return {'tasks': len(values), 'mean': round(statistics.fmean(values), 1),
+                'median': round(statistics.median(values), 1)}
+    summary, totals = {}, []
+    for name in TIMED:
+        measured = [row[name] for row in cells if isinstance(row.get(name), dict)]
+        entry = {key: stats(values) for key in USAGE
+                 if (values := [cell[key] for cell in measured if _number(cell.get(key))])}
+        if entry:
+            summary[name] = entry
+    for row in cells:
+        measured = [row[name] for name in TIMED if isinstance(row.get(name), dict)]
+        total = {}
+        for key in USAGE:
+            values = [cell[key] for cell in measured if _number(cell.get(key))]
+            if values:
+                total[key] = max(values) if key == 'memory_peak_mb' else sum(values)
+        if total:
+            totals.append(total)
+    overall = {key: stats(values) for key in USAGE if (values := [t[key] for t in totals if key in t])}
+    if overall:
+        summary['overall'] = overall
+    temporary = path.with_name(path.name + '.' + uuid4().hex + '.tmp')
+    temporary.write_text(json.dumps(summary, indent=2) + '\n')
+    temporary.replace(path)
 
 
 def update(path, incoming):
@@ -375,10 +532,37 @@ def update(path, incoming):
     return rows
 
 
+def repair_rows(rows, plans):
+    """Rows of repaired tasks: the repaired files' hash, each repaired check's status
+    after the repair, and the repair record (validation/automatic_repairs.py)."""
+    from validation.automatic_repairs import combine
+    for row in rows:
+        plan = plans.get(row['task_id'])
+        if not plan or row['content_sha256'] != plan['from']:
+            continue
+        row['content_sha256'] = plan['to']
+        for rule, repair in plan['rules'].items():
+            row[rule] = repair['status']
+        row['automatic_repairs'] = combine(row.get('automatic_repairs'), encode({
+            rule: {'applied': True, 'evidence': [], 'details': repair['details']}
+            for rule, repair in plan['rules'].items()}))
+    return rows
+
+
+def apply_repairs(path, plans):
+    """Record the automatic repairs of a finished run in its results.parquet."""
+    path = Path(path)
+    if not plans or not path.is_file():
+        return
+    with path.with_suffix('.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        write(path, repair_rows(read(path), plans))
+
+
 def export_report(path, report, hashes, dataset='', settings=None):
     from validation.automatic_repairs import capture
     capture(report, settings)
-    stage = report.get('stage', 4)
+    stage = report.get('stage', 0)  # the static-rules command writes reports without a stage
     return update(path, observations({stage: report}, hashes, dataset, settings))
 
 

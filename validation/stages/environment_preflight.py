@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 def run_build_stage(sources, out, args, checkpoint=None):
-    """Build and start every task, then decide its environment leak checks. All static checks,
-    including those about the environment, run together in stage 4."""
+    """Build and start every task, then decide its environment leak checks and record
+    where the instruction's relative paths are. All static checks run in stage 0."""
     from validation.stages.build_retries import run_builds
     if checkpoint:
         from validation.checkpoints.build import restore

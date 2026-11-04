@@ -64,9 +64,9 @@ def save(path, value):
 def validation_policy(config):
     stages = config.get("required_stages", list(STAGES))
     exclusions = config.get("static_exclusions", {})
-    if stages not in (list(STAGES), [1, NOP, 4]):
-        # Layout environment-first-v2: 2 = reference, 3 = no-op.
-        raise ValueError(f"required_stages must be [1,2,3,4] or [1,{NOP},4] (no reference solution)")
+    if stages not in (list(STAGES), [0, 1, NOP]):
+        # Layout environment-first-v3: 0 = static checks, 2 = reference, 3 = no-op.
+        raise ValueError(f"required_stages must be [0,1,2,3] or [0,1,{NOP}] (no reference solution)")
     if not isinstance(exclusions, dict) or any(not isinstance(reason, str) or not reason.strip()
                                               for reason in exclusions.values()):
         raise ValueError("static_exclusions must map checks to explicit reasons")
@@ -421,7 +421,7 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
     policy = validation_policy(config)
     save(round_dir / "validation-policy.json", policy)
     numbers = stages or policy["required_stages"]
-    options = ["--stages", ",".join(map(str, [0, *numbers] if 4 in numbers else numbers)), "--submit", "helma",
+    options = ["--stages", ",".join(map(str, numbers)), "--submit", "helma",
                "--partition", config["partition"], "--cpus", str(config["cpus"]),
                "--memory", config["memory"], "--concurrency", str(config["concurrency"]),
                "--time", config["time"], "--network-mode", config["network_mode"],
@@ -445,7 +445,7 @@ def submit(config, source, selected, round_dir, *, full=False, stages=None, revi
     else:
         # An interrupted older controller may have left a contract or normalized
         # task tree. Preserve it and prepare in a new location, never overwrite
-        # an immutable contract or collide with its stage-4 copy.
+        # an immutable contract or collide with its normalized copy.
         if any(round_dir.glob("contract*")):
             number = 0
             while (round_dir / "contract-preparations" / f"preparation-{number:04d}").exists():

@@ -9,7 +9,7 @@ is not retried; stage 1 itself retries a failed build up to 3 times. A task stil
 last attempt remains unresolved with its observed error category. Exhausting
 retries does not establish an infrastructure cause or a task defect.
 
-Stage 4 is left out: its checks are deterministic and the pipeline rewrites some
+Stage 0 is left out: its checks are deterministic and the pipeline rewrites some
 task files itself before running them.
 """
 from pathlib import Path
@@ -42,8 +42,6 @@ def retry_round(stage_runs, args, contract, batch_for, save):
     paths = {}
     for n in stages:
         for task, item in by_task(n).items():
-            if item.get('blocked_by_stage') == 4:
-                continue  # Static rejection is not a missing container result to retry.
             paths.setdefault(task, Path(item['task']))
             history[n][task] = {'mode': 'classifier', 'outcomes': [outcome_of(n, item)]}
 

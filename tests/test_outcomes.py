@@ -18,7 +18,6 @@ from validation.publishing.readme import outcome
     ({'status': 'failed', 'rewards': []}, 'execution_error'),
     ({}, 'unknown'),
     ({'returncode': 137}, 'unknown'),
-    ({'infrastructure_error': {'observed': ['not_run'] * 4}}, 'unknown'),
 ])
 def test_categories(record, expected):
     assert category(record)['category'] == expected
@@ -51,8 +50,7 @@ def test_static_finding_is_not_checker_crash():
 def test_export_publisher_and_readme_agree(error, expected):
     item = {'task': 'task', 'status': 'failed', 'rewards': [], 'error': error}
     row, = observations({2: {'items': [item]}}, {'task': 'digest'})
-    assert row['reference'] == 'not_run'
-    assert json.loads(row['details'])['reference']['category'] == expected
+    assert row['reference'] == expected
     assert judge(2, item)[0] == 'not_run'
     assert outcome(row, 'reference') in ('incomplete', 'infra error')
 
@@ -68,7 +66,7 @@ def test_wrong_reward_remains_failure_everywhere():
 def test_not_applicable_is_not_unresolved():
     item = {'task': 'task', 'status': 'not_applicable'}
     row, = observations({2: {'items': [item]}}, {'task': 'digest'})
-    assert row['reference'] == 'not_run'
+    assert row['reference'] == 'not_applicable'
     assert outcome(row, 'reference') == 'not applicable'
 
 

@@ -45,7 +45,7 @@ def freeze(args, numbers):
         if explicit is not None:
             resolved[str(number)] = {'rates': deepcopy(explicit), 'source': {'basis': 'user_supplied'}}
             continue
-        if getattr(args, 'review_local', False) and getattr(args, 'serve_model', None):
+        if (getattr(args, 'review_local', False) or getattr(args, 'judge_mode', None) in ('serve', 'local')) and getattr(args, 'serve_model', None):
             from config.models import resolve
             _, spec = resolve(args.serve_model)
             model = spec.hf_repo

@@ -1,5 +1,5 @@
-"""Resolve the latest task payloads from a revision results index."""
-from pathlib import Path, PurePosixPath
+"""Resolve the task payloads a results index refers to, by task ID and content hash."""
+from pathlib import Path
 
 
 def index_path(source):
@@ -9,30 +9,29 @@ def index_path(source):
 
 
 def selection(source):
+    """Map each payload file to the {task_id: content_sha256} it supplies for the index."""
     import pyarrow.parquet as pq
     index = index_path(source)
     if index is None:
         return None
-    selected = {}
-    seen = set()
-    for row in pq.read_table(index, columns=['dataset', 'task_id', 'content_sha256', 'latest', 'task_file']).to_pylist():
-        if not row['latest']:
+    wanted = {}
+    for row in pq.read_table(index, columns=['task_id', 'content_sha256']).to_pylist():
+        if row['task_id'] in wanted:
+            raise ValueError('Results index contains one task twice')
+        wanted[row['task_id']] = row['content_sha256']
+    selected, found = {}, set()
+    for path in sorted((index.parent / 'tasks').glob('*.parquet')):
+        names = pq.read_schema(path).names
+        if not {'path', 'content_sha256'} <= set(names):
             continue
-        if row['task_id'] in seen:
-            raise ValueError('Results index contains multiple latest revisions for one task')
-        seen.add(row['task_id'])
-        name = row.get('task_file')
-        if not name:
-            raise ValueError('This results table has no task payload links; provide the original task dataset')
-        if row['dataset'] and name.startswith(row['dataset'] + '/'):
-            name = name[len(row['dataset']) + 1:]
-        relative = PurePosixPath(name)
-        if relative.is_absolute() or '..' in relative.parts:
-            raise ValueError('Unsafe task revision path')
-        path = (index.parent / name).resolve()
-        if not path.is_relative_to(index.parent.resolve()) or not path.is_file():
-            raise ValueError(f'Missing or unsafe task revision file: {name}')
-        selected.setdefault(path, {})[row['task_id']] = row['content_sha256']
+        for row in pq.read_table(path, columns=['path', 'content_sha256']).to_pylist():
+            name = row['path']
+            if name not in found and wanted.get(name) == row['content_sha256']:
+                selected.setdefault(path.resolve(), {})[name] = row['content_sha256']
+                found.add(name)
+    missing = sorted(set(wanted) - found)
+    if missing:
+        raise ValueError(f'No payload with the indexed content hash for {len(missing)} task(s), e.g. {missing[0]}')
     return selected
 
 

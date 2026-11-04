@@ -1,4 +1,4 @@
-"""Run one static rule on a task directory as a script; the stage-4 runner calls rules this way.
+"""Run one static rule on a task directory as a script; the stage-0 runner calls rules this way.
 
 Exit 0: passed. Exit 1: a finding (a failure, or a warning for warning-only rules). Exit 2: the rule
 itself crashed; the runner records that as an error, never as a pass."""
