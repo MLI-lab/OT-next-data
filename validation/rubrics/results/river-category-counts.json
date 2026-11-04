@@ -1,0 +1,153 @@
+{
+  "unit": "judge-task review; three judges per task",
+  "reference_group_names": {
+    "false_negative": "Tests reject valid solutions",
+    "underspecified": "Underspecified task",
+    "false_positive": "Verifier accepts invalid solutions",
+    "instruction_test_mismatch": "Instruction/test mismatch",
+    "scoring_logic": "Scoring logic",
+    "answer_leakage": "Answer leakage"
+  },
+  "notes": "Native source categories preserved. FN group memberships overlap; binary scores unchanged.",
+  "scopes": {
+    "all": {
+      "unique_tasks": 80,
+      "clean_review_opportunities": 120,
+      "reference_group_task_counts": {
+        "false_negative": 21,
+        "underspecified": 6,
+        "false_positive": 4,
+        "instruction_test_mismatch": 11,
+        "scoring_logic": 3,
+        "answer_leakage": 1
+      },
+      "fp_by_river_category": {
+        "sonnet": {
+          "INSTR-AMBIGUOUS": 2,
+          "INSTR-VERIFIER-MISMATCH": 2,
+          "VERIFIER-TOO-WEAK": 5,
+          "OTHER": 1
+        },
+        "qwen": {
+          "ANSWER-LEAK": 1,
+          "INSTR-VERIFIER-MISMATCH": 2,
+          "OTHER": 2,
+          "VERIFIER-TOO-WEAK": 3
+        },
+        "flash": {
+          "ANSWER-LEAK": 8,
+          "INSTR-VERIFIER-MISMATCH": 3,
+          "VERIFIER-TOO-WEAK": 8,
+          "INSTR-ENV-MISMATCH": 2
+        }
+      },
+      "fn_by_reference_group": {
+        "sonnet": {
+          "false_negative": 1,
+          "false_positive": 2,
+          "instruction_test_mismatch": 6,
+          "scoring_logic": 2
+        },
+        "qwen": {
+          "false_negative": 5,
+          "underspecified": 1,
+          "false_positive": 2,
+          "instruction_test_mismatch": 4,
+          "scoring_logic": 2
+        },
+        "flash": {
+          "false_negative": 2,
+          "instruction_test_mismatch": 1,
+          "scoring_logic": 1,
+          "false_positive": 1
+        }
+      },
+      "binary_fp": 39,
+      "binary_fn": 29
+    },
+    "swe_bench": {
+      "unique_tasks": 40,
+      "clean_review_opportunities": 60,
+      "reference_group_task_counts": {
+        "false_negative": 20,
+        "underspecified": 6
+      },
+      "fp_by_river_category": {
+        "sonnet": {
+          "INSTR-AMBIGUOUS": 1,
+          "INSTR-VERIFIER-MISMATCH": 2
+        },
+        "qwen": {
+          "ANSWER-LEAK": 1,
+          "INSTR-VERIFIER-MISMATCH": 2
+        },
+        "flash": {
+          "ANSWER-LEAK": 5,
+          "INSTR-VERIFIER-MISMATCH": 3,
+          "VERIFIER-TOO-WEAK": 1
+        }
+      },
+      "fn_by_reference_group": {
+        "sonnet": {
+          "false_negative": 1
+        },
+        "qwen": {
+          "false_negative": 4,
+          "underspecified": 1
+        },
+        "flash": {
+          "false_negative": 2
+        }
+      },
+      "binary_fp": 15,
+      "binary_fn": 7
+    },
+    "terminal_bench": {
+      "unique_tasks": 40,
+      "clean_review_opportunities": 60,
+      "reference_group_task_counts": {
+        "false_positive": 4,
+        "instruction_test_mismatch": 11,
+        "scoring_logic": 3,
+        "answer_leakage": 1,
+        "false_negative": 1
+      },
+      "fp_by_river_category": {
+        "sonnet": {
+          "INSTR-AMBIGUOUS": 1,
+          "VERIFIER-TOO-WEAK": 5,
+          "OTHER": 1
+        },
+        "qwen": {
+          "OTHER": 2,
+          "VERIFIER-TOO-WEAK": 3
+        },
+        "flash": {
+          "VERIFIER-TOO-WEAK": 7,
+          "ANSWER-LEAK": 3,
+          "INSTR-ENV-MISMATCH": 2
+        }
+      },
+      "fn_by_reference_group": {
+        "sonnet": {
+          "false_positive": 2,
+          "instruction_test_mismatch": 6,
+          "scoring_logic": 2
+        },
+        "qwen": {
+          "false_positive": 2,
+          "instruction_test_mismatch": 4,
+          "scoring_logic": 2,
+          "false_negative": 1
+        },
+        "flash": {
+          "instruction_test_mismatch": 1,
+          "scoring_logic": 1,
+          "false_positive": 1
+        }
+      },
+      "binary_fp": 24,
+      "binary_fn": 22
+    }
+  }
+}

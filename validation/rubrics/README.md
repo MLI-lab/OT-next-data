@@ -261,11 +261,54 @@ sorted by number of judges wrong and task name. All 40 tasks appear in each pane
 
 Pairwise counts include tasks missed by all three; the rows are not additive.
 
+<details>
+<summary><b>Errors by category: false alarms versus missed defects</b></summary>
+
+Each bar pools judge–task reviews, with a different color for each judge. A task
+can contribute up to three errors. The panels show all tasks, SWE, and TB.
+
+![River errors by category](results/river-errors-by-category.png)
+
+- **Top: clean → defect (FP).** Group by the River category the judge assigned.
+  Across all tasks, VERIFIER-TOO-WEAK produces 16 false alarms, ANSWER-LEAK 9,
+  and INSTR-VERIFIER-MISMATCH 7. These remain disagreements with the original
+  clean labels, including supported criticisms outside the human audit’s scope.
+- **Bottom: defect → CLEAN (FN).** Group by the original source defect labels.
+  These are **not** River categories: a missed task has only a CLEAN verdict,
+  so the judge does not tell us which River category it should have chosen.
+  Instruction/test mismatch has 11 missed reviews out of 33 opportunities.
+  Scoring-logic defects have the highest observed miss rate, 5/9, but that is
+  only three tasks reviewed by three judges—not nine independent tasks.
+
+Rates use the number of tasks in each reference group, multiplied by three
+judges. Reference groups can overlap: 29 binary FN yield 30 group entries.
+A correct defective verdict in a different category is not counted as FP/FN;
+this is **binary error analysis by category**, not a validated multiclass
+confusion matrix or proof of which River criterion is intrinsically hardest.
+The original source terms `false_negative` and `false_positive` describe tests
+rejecting valid solutions and accepting invalid ones, respectively; they are
+not the judge-level FN and FP counts.
+
+[Counts and denominators](results/river-category-counts.json) ·
+[Vector figure](results/river-errors-by-category.svg) ·
+[Plot generator](utils/plot_river_categories.py)
+
+</details>
+
 **SWE error analysis by judge.** “Wrong” below means disagreement with the
 original human reference, not necessarily a bad judgment. **FP** = a clean-labeled
 task flagged defective; **FN** = a defective-labeled task called clean. Labels and
 scores remain unchanged. A suspected reference-label problem is not a confirmed
 human mistake.
+
+The 40 SWE tasks come from the original human audit, not an all-Verified sample:
+20 are reference-clean (recorded here as SWE-bench Verified) and 20 are
+reference-defective. The released records contain three individual annotations
+per task. Each task row below gives **defective votes out of three**, followed
+by the three reviewers’ **confidence scores out of five**. These are self-rated
+confidence scores, not calibrated probabilities. All 14 SWE tasks with a judge
+disagreement have unanimous human binary labels; unanimity does not resolve
+differences between the human audit and River’s criteria.
 
 <details>
 <summary><b>Sonnet 5.5 — 4 SWE disagreements (3 FP, 1 FN)</b></summary>
@@ -274,12 +317,12 @@ human mistake.
 We lean toward the judges on the latter two, but have not independently confirmed
 that those human labels are wrong.
 
-| Task | Error | Brief explanation and assessment |
-| --- | --- | --- |
-| `django__django-16899` | FP | **Interpretive wording requirement.** The request says to include the invalid field's name, using existing messages as examples. Sonnet thinks any clear wording should count; humans think the examples specify the sentence pattern. For example, “Invalid field: x” and “Field x is invalid” convey the same information, but only one pattern may pass. These are illustrative phrases, not the actual test strings. |
-| `django__django-13300` | FN | **Interpretive scope.** The request asks a database query to return a constant instead of full columns, “like .exists()”. Tests also require it to stop sorting rows. Humans treat that as an extra requirement; Sonnet treats copying the other method's optimizations as implied. Sorting is unnecessary for checking whether a match exists, but that does not automatically make removing it part of the request. |
-| `sympy__sympy-21930` | FP | **Possible human-label problem; we lean toward the judges.** The issue reports broken formatting involving a dagger and a power. All three judges say the tests additionally demand braces around a tensor expression with neither that dagger nor the reported double superscript. A fix to the reported problem could therefore fail for leaving a separate expression unchanged. Independent adjudication is still pending. |
-| `django__django-14034` | FP | **Possible human-label problem; we lean toward the judges.** The issue concerns whether the server accepts submitted form data. All three judges say the decisive test instead checks whether HTML marks an input as required. Browser markup and server validation are related but different behaviors. The saved experiments support the criticism, but the judges differ on the parent field's `required` setting; this case has not been independently rerun here. |
+| Task | Error | Human annotation | Brief explanation and assessment |
+| --- | --- | --- | --- |
+| `django__django-16899` | FP | Clean; 0/3 defect votes; confidence 4, 5, 5 | **Interpretive wording requirement.** The request says to include the invalid field's name, using existing messages as examples. Sonnet thinks any clear wording should count; humans think the examples specify the sentence pattern. For example, “Invalid field: x” and “Field x is invalid” convey the same information, but only one pattern may pass. These are illustrative phrases, not the actual test strings. |
+| `django__django-13300` | FN | Defective; 3/3 defect votes; confidence 5, 4, 4 | **Interpretive scope.** The request asks a database query to return a constant instead of full columns, “like .exists()”. Tests also require it to stop sorting rows. Humans treat that as an extra requirement; Sonnet treats copying the other method's optimizations as implied. Sorting is unnecessary for checking whether a match exists, but that does not automatically make removing it part of the request. |
+| `sympy__sympy-21930` | FP | Clean; 0/3 defect votes; confidence 4, 4, 5 | **Possible human-label problem; we lean toward the judges.** The issue reports broken formatting involving a dagger and a power. All three judges say the tests additionally demand braces around a tensor expression with neither that dagger nor the reported double superscript. A fix to the reported problem could therefore fail for leaving a separate expression unchanged. Independent adjudication is still pending. |
+| `django__django-14034` | FP | Clean; 0/3 defect votes; confidence 5, 5, 4 | **Possible human-label problem; we lean toward the judges.** The issue concerns whether the server accepts submitted form data. All three judges say the decisive test instead checks whether HTML marks an input as required. Browser markup and server validation are related but different behaviors. The saved experiments support the criticism, but the judges differ on the parent field's `required` setting; this case has not been independently rerun here. |
 
 GLM-Flash and Qwen share the last three disagreements. Both classify
 Django-16899 correctly against the reference.
@@ -318,15 +361,15 @@ confirmed wording mismatch Qwen missed, one answer-leak criterion difference,
 and one case where our new experiment favors Qwen over the summation-based
 human criticism.** Three cases overlap with Sonnet; four are additional.
 
-| Task | Error | Brief explanation and assessment |
-| --- | --- | --- |
-| `django__django-13300` | FN | **Interpretive; shared with Sonnet.** Does “like .exists()” require only selecting a constant, or removing sorting too? Qwen reads it broadly; humans read it narrowly. |
-| `sympy__sympy-21930` | FP | **Possible human-label problem; shared with Sonnet.** The tests reportedly require a tensor-formatting change beyond the reported dagger bug. We lean toward the judges, pending independent adjudication. |
-| `django__django-14034` | FP | **Possible human-label problem; shared with Sonnet.** The issue describes server validation; the decisive test reportedly checks HTML required attributes. We lean toward the judges, pending independent adjudication. |
-| `django__django-11129` | FN | **Interpretive wording requirement.** The request asks for a helpful error, but the tests require a particular exception and message. Humans say other sensible errors should count. Qwen considers the existing Django error convention sufficient guidance. Sonnet and GLM-Flash flag the problem. |
-| `sympy__sympy-12906` | FN | **New experiment favors Qwen on the summation objection.** The task asks that putting an expression into standard form twice give the same result as doing it once. Some human notes claim passing also requires a summation fix. We changed only canonicalization: all locally selected scored tests pass with summation code untouched. That particular criticism is unsupported; whether the additional canonical-form rules are implied remains interpretive. GLM-Flash also calls it clean. |
-| `django__django-8119` | FN | **Confirmed wording mismatch missed by Qwen.** The issue asks for expressions in `.filter()`, without specifying an error sentence. With the reference feature implemented, replacing only the error text with an equivalent explanation causes a scored test to fail. This supports the human defect label. Sonnet and GLM-Flash catch it. |
-| `django__django-16139` | FP | **Criterion difference, with a confirmed supplied fix.** The instruction gives the exact password-link replacement used by the reference solution. Qwen and GLM-Flash correctly identify that disclosure under River's ANSWER-LEAK criterion. Humans judged the issue clear and fairly tested. A clear task can still give away its answer; this is not evidence that the humans were wrong about clarity. |
+| Task | Error | Human annotation | Brief explanation and assessment |
+| --- | --- | --- | --- |
+| `django__django-13300` | FN | Defective; 3/3 defect votes; confidence 5, 4, 4 | **Interpretive; shared with Sonnet.** Does “like .exists()” require only selecting a constant, or removing sorting too? Qwen reads it broadly; humans read it narrowly. |
+| `sympy__sympy-21930` | FP | Clean; 0/3 defect votes; confidence 4, 4, 5 | **Possible human-label problem; shared with Sonnet.** The tests reportedly require a tensor-formatting change beyond the reported dagger bug. We lean toward the judges, pending independent adjudication. |
+| `django__django-14034` | FP | Clean; 0/3 defect votes; confidence 5, 5, 4 | **Possible human-label problem; shared with Sonnet.** The issue describes server validation; the decisive test reportedly checks HTML required attributes. We lean toward the judges, pending independent adjudication. |
+| `django__django-11129` | FN | Defective; 3/3 defect votes; confidence 5, 5, 4 | **Interpretive wording requirement.** The request asks for a helpful error, but the tests require a particular exception and message. Humans say other sensible errors should count. Qwen considers the existing Django error convention sufficient guidance. Sonnet and GLM-Flash flag the problem. |
+| `sympy__sympy-12906` | FN | Defective; 3/3 defect votes; confidence 5, 4, 5 | **New experiment favors Qwen on the summation objection.** The task asks that putting an expression into standard form twice give the same result as doing it once. Some human notes claim passing also requires a summation fix. We changed only canonicalization: all locally selected scored tests pass with summation code untouched. That particular criticism is unsupported; whether the additional canonical-form rules are implied remains interpretive. GLM-Flash also calls it clean. |
+| `django__django-8119` | FN | Defective; 3/3 defect votes; confidence 5, 5, 5 | **Confirmed wording mismatch missed by Qwen.** The issue asks for expressions in `.filter()`, without specifying an error sentence. With the reference feature implemented, replacing only the error text with an equivalent explanation causes a scored test to fail. This supports the human defect label. Sonnet and GLM-Flash catch it. |
+| `django__django-16139` | FP | Clean; 0/3 defect votes; confidence 5, 5, 5 | **Criterion difference, with a confirmed supplied fix.** The instruction gives the exact password-link replacement used by the reference solution. Qwen and GLM-Flash correctly identify that disclosure under River's ANSWER-LEAK criterion. Humans judged the issue clear and fairly tested. A clear task can still give away its answer; this is not evidence that the humans were wrong about clarity. |
 
 **What we independently checked:**
 
@@ -360,23 +403,60 @@ record their scope and results.
 
 **Overview: five answer-disclosure findings, three instruction/test mismatch
 findings, one weak-test finding, and two accepted tasks labeled defective.**
-Most FP here concern properties beyond clarity and acceptance of valid fixes.
-Except where noted, the assessments below summarize saved judgments and source
-inspection; they are not independently reproduced findings.
+**Overlap:** five of the 11 are shared with Qwen; three of those are also shared
+with Sonnet. The six additional cases are Django-13807, Django-15467,
+Django-13109, Django-14007, SymPy-14711, and Matplotlib-23299.
 
-| Task | Error | Brief explanation and assessment |
-| --- | --- | --- |
-| `django__django-13300` | FN | **Interpretive; shared with both judges.** GLM-Flash considers removal of SQL sorting implied by “like .exists()”; humans do not. |
-| `sympy__sympy-12906` | FN | **Summation objection not supported; shared with Qwen.** Our canonicalization-only experiment passes the scored tests without modifying summation code. Other canonical-form scope objections remain interpretive. |
-| `django__django-16139` | FP | **Confirmed supplied fix / criterion difference; shared with Qwen.** The instruction gives the reference password-link replacement. River flags answer disclosure; humans judged the task clear. |
-| `django__django-13807` | FP | **Diagnosis versus answer disclosure.** The instruction identifies missing quoting around SQL table names and points to the faulty code. GLM-Flash calls this an answer leak; how much a detailed bug diagnosis removes meaningful implementation work is debatable. |
-| `django__django-15467` | FP | **Supplied fix / criterion difference.** The instruction explicitly gives the replacement line for preserving a custom empty label. GLM-Flash flags the disclosed answer despite the task's clear requirements. |
-| `django__django-13109` | FP | **Prescribed implementation / criterion difference.** The instruction explicitly asks to replace the default manager with the base manager. GLM-Flash treats that near-complete fix as answer disclosure; humans accept the specific implementation request. |
-| `sympy__sympy-14711` | FP | **Visible fix candidate / criterion difference.** The traceback includes the commented code `if other == 0: return self`, matching the reference fix. GLM-Flash calls it an answer leak; deciding whether recognizing and applying a visible candidate is meaningful work remains a rubric judgment. |
-| `sympy__sympy-21930` | FP | **Possible human-label problem; shared with both judges.** GLM-Flash objects to tensor-formatting requirements beyond the reported dagger bug. We lean toward the judges, but have not independently reproduced this case. |
-| `django__django-14034` | FP | **Possible human-label problem; shared with both judges.** GLM-Flash reports that the test distinguishes HTML rendering while the instruction describes validation. We lean toward the judges, pending independent adjudication. |
-| `matplotlib__matplotlib-23299` | FP | **Possible scope mismatch.** The issue asks that querying the backend not remove figures. GLM-Flash reports a fix that preserves figures but fails a test requiring a backend setting to survive leaving `rc_context`. Whether the test requires an unstated API change needs independent review. |
-| `django__django-14007` | FP | **Possible weak-test problem / criterion difference.** The issue covers both ordinary and bulk inserts. GLM-Flash reports that the bulk test is skipped on SQLite and an incomplete fix still passes. This concerns acceptance of incorrect solutions, whereas the human clean label focuses on clarity and acceptance of valid fixes. The experiment has not been independently reproduced here. |
+**Independent review of those six:** three supported answer-disclosure findings
+(with two factual corrections), one interpretive case where we lean toward
+overflagging, one reproduced weak-test concern, and one reproduced scope
+difference requiring further adjudication. None is established here as a
+confirmed wrong human annotation. Source comparisons and focused experiments
+are recorded in the [verification evidence](results/river-swe-verification.json).
+
+| Task | Error | Human annotation | Brief explanation and assessment |
+| --- | --- | --- | --- |
+| `django__django-13300` | FN | Defective; 3/3 defect votes; confidence 5, 4, 4 | **Interpretive; shared with both judges.** GLM-Flash considers removal of SQL sorting implied by “like .exists()”; humans do not. |
+| `sympy__sympy-12906` | FN | Defective; 3/3 defect votes; confidence 5, 4, 5 | **Summation objection not supported; shared with Qwen.** Our canonicalization-only experiment passes the scored tests without modifying summation code. Other canonical-form scope objections remain interpretive. |
+| `django__django-16139` | FP | Clean; 0/3 defect votes; confidence 5, 5, 5 | **Confirmed supplied fix / criterion difference; shared with Qwen.** The instruction gives the reference password-link replacement. River flags answer disclosure; humans judged the task clear. |
+| `django__django-13807` | FP | Clean; 0/3 defect votes; confidence 5, 5, 5 | **Subjective; we lean toward overflagging.** The issue diagnoses missing SQL quotes, but the reference fix uses the quoting helper at additional table/column sites. This is substantial guidance, not the complete implementation. Treating every detailed diagnosis as an answer leak is too broad. |
+| `django__django-15467` | FP | Clean; 0/3 defect votes; confidence 5, 5, 5 | **Answer-disclosure criterion difference, with a correction.** The instruction supplies the core fix. Its `get(...) or default` is not identical to the reference `get(..., default)` for falsey values, so GLM-Flash overstates the exact match. The intended custom-label repair is still largely given away. |
+| `django__django-13109` | FP | Clean; 0/3 defect votes; confidence 5, 5, 5 | **Supported answer-disclosure finding / criterion difference.** The instruction prescribes `_base_manager` instead of `_default_manager`; the reference patch makes that single change. This fits River even though a human can reasonably label the task clear and fairly tested. |
+| `sympy__sympy-14711` | FP | Clean; 0/3 defect votes; confidence 5, 5, 5 | **Supported answer disclosure, with a correction.** The instruction traceback reveals `if other == 0: return self`, matching the reference fix. Contrary to GLM-Flash’s explanation, that comment is absent from the bundled baseline source. The disclosure is in the instruction itself. |
+| `sympy__sympy-21930` | FP | Clean; 0/3 defect votes; confidence 4, 4, 5 | **Possible human-label problem; shared with both judges.** GLM-Flash objects to tensor-formatting requirements beyond the reported dagger bug. We lean toward the judges, but have not independently reproduced this case. |
+| `django__django-14034` | FP | Clean; 0/3 defect votes; confidence 5, 5, 4 | **Possible human-label problem; shared with both judges.** GLM-Flash reports that the test distinguishes HTML rendering while the instruction describes validation. We lean toward the judges, pending independent adjudication. |
+| `matplotlib__matplotlib-23299` | FP | Clean; 0/3 defect votes; confidence 5, 4, 5 | **Reproduced scope difference; possible label problem.** A targeted `get_backend()` change preserves the figure in the issue reproduction but fails the scored test requiring a backend setting to survive `rc_context`. The reference fix passes both. This supports the concern, but the workaround has not been validated across all backends/regressions, so a wrong human label is not established. |
+| `django__django-14007` | FP | Clean; 0/3 defect votes; confidence 5, 5, 5 | **Reproduced weak-test concern / criterion difference.** A partial conversion fix passes all 13 scored SQLite tests while leaving the RETURNING branches unchanged; the bulk-insert test skips. River’s criticism is supported for this backend. Human “clean” annotations did not establish that incomplete fixes would be rejected. |
+
+</details>
+
+<details>
+<summary><b>Individual human ratings for the 14 SWE disagreement tasks</b></summary>
+
+Reviewer 1–3 means the order in that task’s released annotations, not the same
+three people across tasks. **U** = underspecification (0–3); **T** = tests rejecting
+reasonable solutions (0–3); **O** = other major issues (0/1); **C** = confidence
+(1–5). Larger U/T means a more serious concern. A reviewer’s defective flag is
+U ≥ 2, T ≥ 2, or O ≥ 1. The reference binary label is the majority of those flags.
+
+| Task | Human label / defect votes | Reviewer 1 | Reviewer 2 | Reviewer 3 |
+| --- | --- | --- | --- | --- |
+| `django__django-11129` | Defective; 3/3 | U2 T3 O0; C5 | U1 T2 O0; C5 | U0 T2 O0; C4 |
+| `django__django-13109` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-13300` | Defective; 3/3 | U0 T3 O0; C5 | U0 T2 O0; C4 | U0 T2 O0; C4 |
+| `django__django-13807` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-14007` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-14034` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C4 |
+| `django__django-15467` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-16139` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-16899` | Clean; 0/3 | U0 T0 O0; C4 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-8119` | Defective; 3/3 | U1 T2 O0; C5 | U3 T3 O1; C5 | U2 T2 O0; C5 |
+| `matplotlib__matplotlib-23299` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C4 | U0 T0 O0; C5 |
+| `sympy__sympy-12906` | Defective; 3/3 | U1 T3 O0; C5 | U1 T2 O0; C4 | U1 T3 O0; C5 |
+| `sympy__sympy-14711` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `sympy__sympy-21930` | Clean; 0/3 | U0 T0 O0; C4 | U0 T0 O0; C4 | U0 T0 O0; C5 |
+
+Full human explanations are retained in [the task evidence](results/river-task-results.json).
 
 </details>
 
