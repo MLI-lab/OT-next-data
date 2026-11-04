@@ -215,7 +215,7 @@ up to 2 retries were allowed. GLM-5.3-Flash custom-criteria has no verdict for
 one task, counted as wrong.
 
 <details>
-<summary><b>River details: accuracy, error overlap, and Sonnet's four SWE disagreements</b></summary>
+<summary><b>River details: accuracy, error overlap, and SWE analysis by judge</b></summary>
 
 River has the highest observed overall accuracy for each judge in this comparison.
 These are the same historical runs described above, with successful retries merged;
@@ -261,145 +261,127 @@ sorted by number of judges wrong and task name. All 40 tasks appear in each pane
 
 Pairwise counts include tasks missed by all three; the rows are not additive.
 
-**Sonnet's four SWE disagreements** comprise three FP and one FN, rather than
-four missed defects. All three judges disagree with the reference on the same
-three tasks; only `django__django-16899` is a Sonnet-only error.
-
-| Task | Human reference | Sonnet 5.5 | GLM-5.3-Flash | Qwen3.8-27B |
-| --- | --- | --- | --- | --- |
-| `django__django-13300` | Defective | FN: CLEAN | FN: CLEAN | FN: CLEAN |
-| `django__django-16899` | Clean | FP: INSTR-AMBIGUOUS | Correct: CLEAN | Correct: CLEAN |
-| `sympy__sympy-21930` | Clean | FP: INSTR-VERIFIER-MISMATCH | FP: INSTR-VERIFIER-MISMATCH | FP: INSTR-VERIFIER-MISMATCH |
-| `django__django-14034` | Clean | FP: INSTR-VERIFIER-MISMATCH | FP: INSTR-VERIFIER-MISMATCH | FP: INSTR-VERIFIER-MISMATCH |
-
-- **Django-13300 — an extra SQL optimization requirement.** The issue asks
-  `Exists()` to use `SELECT 1` like `.exists()`. The tests also require removal
-  of `ORDER BY`. All three human reviewers flagged overly restrictive tests:
-  removing ordering was not requested, so a reasonable fix could fail. All
-  three judges called it clean. Sonnet explicitly treated the SQL requirements
-  as implied by “like .exists()”. This is the one reference defect Sonnet missed.
-- **Django-16899 — exact error-message wording.** The issue asks the
-  `readonly_fields` error to include the field name, following analogous admin
-  checks. Sonnet argued that exact-string tests require unspecified phrasing.
-  The three human reviewers considered the expected wording sufficiently clear;
-  GLM-Flash and Qwen likewise treated the example and existing conventions as
-  enough guidance. No major defect is recorded in the reference.
-- **SymPy-21930 — LaTeX tests broader than the reported dagger bug.** The issue
-  describes double superscripts involving a dagger. All three judges objected
-  that the tests also require braces around standalone operators and an
-  `AntiSymmetricTensor` without a dagger. The human reviewers instead regarded
-  those tests as appropriate coverage of the requested rendering fix and
-  unanimously labeled the task clean. This is a shared disagreement about the
-  required scope of the fix, not a reference-labeled defect.
-- **Django-14034 — validation versus HTML rendering.** The issue discusses
-  `MultiValueField.is_valid()` when a required subfield is empty. All three
-  judges argued that the decisive test demands per-subwidget HTML `required`
-  attributes, which the issue does not request. The human reviewers considered
-  the validation and rendering assertions aligned with the issue and
-  unanimously labeled it clean. Sonnet's conclusion was based on reading;
-  GLM-Flash and Qwen reported experiments supporting their mismatch criticism.
-
-**How subjective are these disagreements?** The first two depend strongly on
-what a developer is expected to infer from an example or comparison. That does
-not make the labels arbitrary: the disagreement is about how much the written
-request commits the developer to doing. The following is an interpretation of
-the recorded evidence, not a new independent verification or a label correction.
-
-**Django-16899: must the message convey the right information, or use the exact
-same sentence pattern?** Imagine being asked to make an error message name the
-invalid field. “The field 'x' is invalid” and “Invalid field: 'x'” both communicate
-that information. These are illustrative examples, not the actual test strings.
-A test that accepts only one wording can reject a change that meets the plain
-request. That is Sonnet's objection. However, this issue also points to existing
-messages as examples of the desired consistency. The human reviewers, GLM-Flash,
-and Qwen read that as “follow the existing wording pattern”, rather than “use
-any wording that names the field”. Both readings have a rationale. We therefore
-regard this as a relatively subjective question of how precisely the example
-specifies the required wording.
-
-**Django-13300: does “do it like this other method” mean copy one behavior or all
-its optimizations?** The task concerns a database query that asks whether any
-matching row exists. It requests `SELECT 1`: return a simple constant instead
-of fetching the row's columns. The tests additionally demand removal of
-`ORDER BY`, which sorts matching rows. Sorting does not change whether a match
-exists, so removing it is a sensible optimization, but it is a separate change
-from replacing the selected columns. The human reviewers took the request
-narrowly: a developer could implement `SELECT 1`, leave sorting in place, and
-still have done what was asked. The judges read “like .exists()” more broadly:
-use the other method's optimizations, including removal of sorting. The test
-requirement is concrete; whether the comparison implies it is interpretive.
-
-**SymPy-21930: the judges raise a stronger concern about an extra requirement.**
-The reported problem is a mathematical expression whose dagger symbol and power
-are formatted incorrectly. The judges say the tests also require a formatting
-change to a tensor expression that has neither that dagger nor the reported
-double-superscript problem. In plain language: a developer might repair the
-reported display problem and still fail because an apparently separate
-expression was not changed too. The human reviewers regarded the broader tests
-as appropriate coverage of the rendering fix. Based on the recorded evidence,
-we lean toward the judges' mismatch interpretation, especially the tensor
-example. Before changing the label, an independent review should establish
-whether that extra change is required by a general rendering rule implied by
-the issue, or whether a complete, valid fix can leave it unchanged and fail.
-
-**Django-14034: checking submitted data and marking an input as required are
-different behaviors.** Server-side validation decides whether submitted form
-data is acceptable. An HTML `required` attribute tells the browser that an input
-must be filled in. They are related, but changing the HTML attribute does not
-itself change the server's validation logic. The issue describes the validation
-result; the judges say the decisive failing assertion concerns the HTML
-attribute instead. GLM-Flash and Qwen report that the test's validation assertions
-already pass before the fix. If independently confirmed against the exact task,
-that would be strong evidence that the test rewards a different repair from the
-one the issue describes. We lean toward the mismatch concern here too, but the
-judge accounts differ about the parent field's `required` setting. That detail
-must be resolved before declaring the human label wrong.
-
-**Our assessment:** Django-16899 and Django-13300 are interpretive boundary
-cases. SymPy-21930 and Django-14034 are plausible reference-label problems with
-more concrete mismatch evidence. In plain language, **we lean toward the judges
-being correct on SymPy-21930 and Django-14034: the human “clean” labels may be
-wrong.** This is our assessment of the recorded evidence, not an independently
-confirmed correction. Calling these judgments FP only records disagreement with
-the reference; it does not establish that the judges' criticisms are mistaken.
-We would not mark them as confirmed human-label errors solely because three
-judges agree. Their original labels and all reported scores stay unchanged
-pending independent adjudication.
+**SWE error analysis by judge.** “Wrong” below means disagreement with the
+original human reference, not necessarily a bad judgment. **FP** = a clean-labeled
+task flagged defective; **FN** = a defective-labeled task called clean. Labels and
+scores remain unchanged. A suspected reference-label problem is not a confirmed
+human mistake.
 
 <details>
-<summary><b>Read Sonnet’s recorded reasons for these four judgments</b></summary>
+<summary><b>Sonnet 5.5 — 4 SWE disagreements (3 FP, 1 FN)</b></summary>
 
-These are the original judge explanations, reproduced verbatim. The first task
-was accepted by Sonnet despite its defective reference label; the other three
-were rejected by Sonnet despite their clean reference labels. Statements below
-describe the judge’s reasoning and are not new verification results.
+**Overview: two interpretive cases and two suspected human-label problems.**
+We lean toward the judges on the latter two, but have not independently confirmed
+that those human labels are wrong.
 
-**`django__django-13300` — Accepted: `CLEAN` (FN)**
+| Task | Error | Brief explanation and assessment |
+| --- | --- | --- |
+| `django__django-16899` | FP | **Interpretive wording requirement.** The request says to include the invalid field's name, using existing messages as examples. Sonnet thinks any clear wording should count; humans think the examples specify the sentence pattern. For example, “Invalid field: x” and “Field x is invalid” convey the same information, but only one pattern may pass. These are illustrative phrases, not the actual test strings. |
+| `django__django-13300` | FN | **Interpretive scope.** The request asks a database query to return a constant instead of full columns, “like .exists()”. Tests also require it to stop sorting rows. Humans treat that as an extra requirement; Sonnet treats copying the other method's optimizations as implied. Sorting is unnecessary for checking whether a match exists, but that does not automatically make removing it part of the request. |
+| `sympy__sympy-21930` | FP | **Possible human-label problem; we lean toward the judges.** The issue reports broken formatting involving a dagger and a power. All three judges say the tests additionally demand braces around a tensor expression with neither that dagger nor the reported double superscript. A fix to the reported problem could therefore fail for leaving a separate expression unchanged. Independent adjudication is still pending. |
+| `django__django-14034` | FP | **Possible human-label problem; we lean toward the judges.** The issue concerns whether the server accepts submitted form data. All three judges say the decisive test instead checks whether HTML marks an input as required. Browser markup and server validation are related but different behaviors. The saved experiments support the criticism, but the judges differ on the parent field's `required` setting; this case has not been independently rerun here. |
+
+GLM-Flash and Qwen share the last three disagreements. Both classify
+Django-16899 correctly against the reference.
+
+<details>
+<summary>Original Sonnet explanations</summary>
+
+These are the recorded judge explanations, not new verification results.
+
+**`django__django-13300` — `CLEAN` (FN)**
 
 > This is a standard SWE-bench task (django-13300). The verifier applies the upstream test patch and runs expressions.tests. It then grades the FAIL_TO_PASS and PASS_TO_PASS lists with the swebench parser. The new test checks that the Exists subquery SQL has no pk column, has LIMIT 1, and has no ORDER BY. That behavior is what the issue describes by asking Exists to behave like .exists(). It runs real queries, so a hardcoded answer would not pass. I did not run the reference solution or the tests.
 
-**`django__django-16899` — Rejected: `INSTR-AMBIGUOUS` (FP)**
+**`django__django-16899` — `INSTR-AMBIGUOUS` (FP)**
 
 > The instruction only says the readonly_fields error should 'include the field name', like the other checks. The verifier (the SWE-bench test patch in tests/test.sh) does exact string comparison against "The value of 'readonly_fields[1]' refers to 'nonexistent', which is not a callable, an attribute of 'SongAdmin', or an attribute of 'admin_checks.Song'." The instruction never gives this wording. The only example, for list_editable, uses a different tail ('which is not contained in list_display'). Other reasonable messages that do include the field name, such as "The value of 'readonly_fields[0]' ('x') is not a callable...", would fail. Passing depends on guessing the exact phrasing or knowing the upstream Django fix.
 
-**`sympy__sympy-21930` — Rejected: `INSTR-VERIFIER-MISMATCH` (FP)**
+**`sympy__sympy-21930` — `INSTR-VERIFIER-MISMATCH` (FP)**
 
 > The issue only describes Commutator(Bd(a)**2, B(a)) producing 'b^\dagger_{0}^{2}' and suggests '{b^\dagger_{0}}^{2}'. The verifier's test patch also changes unrelated expected outputs that the issue never mentions. Bd(i) alone must print '{b^\dagger_{i}}'. Fd(p) must print '{a^\dagger_{p}}'. NO(...) must print '\left\{{a^\dagger_{a}} {a^\dagger_{i}}\right\}'. AntiSymmetricTensor must print '{t^{ab}_{ij}}', which has no dagger at all. A solver who fixes only the doubled-superscript case, for example by bracing only when a power is applied, would fail test_create, test_Tensors and others. The unconditional bracing in every _latex method, including the tensor class, is a behaviour the instruction doesn't specify.
 
-**`django__django-14034` — Rejected: `INSTR-VERIFIER-MISMATCH` (FP)**
+**`django__django-14034` — `INSTR-VERIFIER-MISMATCH` (FP)**
 
 > The issue only asks that is_valid() be False when a required sub-field is empty and the MultiValueField has required=False. The SWE-bench test (test_render_required_attributes) also uses a required=True field and asserts exact HTML. It expects the 'required' attribute on the f_0 input (whose sub-field is required) and none on f_1 (whose sub-field is optional). It also checks that a partially filled form is valid. The instruction says nothing about per-subwidget required rendering. A fix that follows the issue and corrects only validation could fail the test. This conclusion comes from reading the task files. I did not run any solution against the verifier.
 
+
 </details>
 
-The two shared mismatch findings are useful candidates for manual adjudication;
-agreement among judges alone does not establish that the human label is wrong.
-The original labels remain unchanged here. The human annotation field
-`false_negative` describes tests rejecting valid solutions; it is distinct from
-the judge-level FN count above.
+</details>
+
+<details>
+<summary><b>Qwen3.8-27B — 7 SWE disagreements (3 FP, 4 FN)</b></summary>
+
+**Overview: two interpretive cases, two suspected human-label problems, one
+confirmed wording mismatch Qwen missed, one answer-leak criterion difference,
+and one case where our new experiment favors Qwen over the summation-based
+human criticism.** Three cases overlap with Sonnet; four are additional.
+
+| Task | Error | Brief explanation and assessment |
+| --- | --- | --- |
+| `django__django-13300` | FN | **Interpretive; shared with Sonnet.** Does “like .exists()” require only selecting a constant, or removing sorting too? Qwen reads it broadly; humans read it narrowly. |
+| `sympy__sympy-21930` | FP | **Possible human-label problem; shared with Sonnet.** The tests reportedly require a tensor-formatting change beyond the reported dagger bug. We lean toward the judges, pending independent adjudication. |
+| `django__django-14034` | FP | **Possible human-label problem; shared with Sonnet.** The issue describes server validation; the decisive test reportedly checks HTML required attributes. We lean toward the judges, pending independent adjudication. |
+| `django__django-11129` | FN | **Interpretive wording requirement.** The request asks for a helpful error, but the tests require a particular exception and message. Humans say other sensible errors should count. Qwen considers the existing Django error convention sufficient guidance. Sonnet and GLM-Flash flag the problem. |
+| `sympy__sympy-12906` | FN | **New experiment favors Qwen on the summation objection.** The task asks that putting an expression into standard form twice give the same result as doing it once. Some human notes claim passing also requires a summation fix. We changed only canonicalization: all locally selected scored tests pass with summation code untouched. That particular criticism is unsupported; whether the additional canonical-form rules are implied remains interpretive. GLM-Flash also calls it clean. |
+| `django__django-8119` | FN | **Confirmed wording mismatch missed by Qwen.** The issue asks for expressions in `.filter()`, without specifying an error sentence. With the reference feature implemented, replacing only the error text with an equivalent explanation causes a scored test to fail. This supports the human defect label. Sonnet and GLM-Flash catch it. |
+| `django__django-16139` | FP | **Criterion difference, with a confirmed supplied fix.** The instruction gives the exact password-link replacement used by the reference solution. Qwen and GLM-Flash correctly identify that disclosure under River's ANSWER-LEAK criterion. Humans judged the issue clear and fairly tested. A clear task can still give away its answer; this is not evidence that the humans were wrong about clarity. |
+
+**What we independently checked:**
+
+- **SymPy-12906:** the unfixed source fails `test_canonical`. Applying only the
+  reference change to `sympy/core/relational.py` passes 62 test items covering all
+  61 scored names (one name occurs in two modules). `summations.py` remains
+  byte-identical to the original. The disputed convergence assertion is commented
+  out by the test patch, and `test_is_convergent` is not in the scored lists.
+  **Correction to the earlier interpretation: an unrelated summation fix is not
+  required by these scored tests.**
+- **Django-8119:** with the reference patch, the two test modules run 217 tests:
+  215 pass and 2 skip. Replacing “When() supports a Q object, a boolean expression,
+  or lookups as a condition.” with “When() requires a Q object, a boolean
+  expression, or keyword lookups.” leaves the behavior intact but causes exactly
+  one failure, `test_invalid_when_constructor_args`, which is in FAIL_TO_PASS.
+  The assertion requires the original sentence as a substring; it is not an
+  exact whole-string comparison.
+- **Django-16139:** direct comparison of the instruction and reference patch
+  confirms the supplied replacement `f"../../{self.instance.pk}/password/"`.
+  This was source inspection, not a new runtime test.
+
+The first two experiments used isolated copies of the bundled source and tests
+with Python 3.9 and local dependencies. They did **not** rerun the original
+Apptainer verifier. [Source excerpts, patches, commands, and test results](results/river-swe-verification.json)
+record their scope and results.
+
+</details>
+
+<details>
+<summary><b>GLM-5.3-Flash — 11 SWE disagreements (9 FP, 2 FN)</b></summary>
+
+**Overview: five answer-disclosure findings, three instruction/test mismatch
+findings, one weak-test finding, and two accepted tasks labeled defective.**
+Most FP here concern properties beyond clarity and acceptance of valid fixes.
+Except where noted, the assessments below summarize saved judgments and source
+inspection; they are not independently reproduced findings.
+
+| Task | Error | Brief explanation and assessment |
+| --- | --- | --- |
+| `django__django-13300` | FN | **Interpretive; shared with both judges.** GLM-Flash considers removal of SQL sorting implied by “like .exists()”; humans do not. |
+| `sympy__sympy-12906` | FN | **Summation objection not supported; shared with Qwen.** Our canonicalization-only experiment passes the scored tests without modifying summation code. Other canonical-form scope objections remain interpretive. |
+| `django__django-16139` | FP | **Confirmed supplied fix / criterion difference; shared with Qwen.** The instruction gives the reference password-link replacement. River flags answer disclosure; humans judged the task clear. |
+| `django__django-13807` | FP | **Diagnosis versus answer disclosure.** The instruction identifies missing quoting around SQL table names and points to the faulty code. GLM-Flash calls this an answer leak; how much a detailed bug diagnosis removes meaningful implementation work is debatable. |
+| `django__django-15467` | FP | **Supplied fix / criterion difference.** The instruction explicitly gives the replacement line for preserving a custom empty label. GLM-Flash flags the disclosed answer despite the task's clear requirements. |
+| `django__django-13109` | FP | **Prescribed implementation / criterion difference.** The instruction explicitly asks to replace the default manager with the base manager. GLM-Flash treats that near-complete fix as answer disclosure; humans accept the specific implementation request. |
+| `sympy__sympy-14711` | FP | **Visible fix candidate / criterion difference.** The traceback includes the commented code `if other == 0: return self`, matching the reference fix. GLM-Flash calls it an answer leak; deciding whether recognizing and applying a visible candidate is meaningful work remains a rubric judgment. |
+| `sympy__sympy-21930` | FP | **Possible human-label problem; shared with both judges.** GLM-Flash objects to tensor-formatting requirements beyond the reported dagger bug. We lean toward the judges, but have not independently reproduced this case. |
+| `django__django-14034` | FP | **Possible human-label problem; shared with both judges.** GLM-Flash reports that the test distinguishes HTML rendering while the instruction describes validation. We lean toward the judges, pending independent adjudication. |
+| `matplotlib__matplotlib-23299` | FP | **Possible scope mismatch.** The issue asks that querying the backend not remove figures. GLM-Flash reports a fix that preserves figures but fails a test requiring a backend setting to survive leaving `rc_context`. Whether the test requires an unstated API change needs independent review. |
+| `django__django-14007` | FP | **Possible weak-test problem / criterion difference.** The issue covers both ordinary and bulk inserts. GLM-Flash reports that the bulk test is skipped on SQLite and an incomplete fix still passes. This concerns acceptance of incorrect solutions, whereas the human clean label focuses on clarity and acceptance of valid fixes. The experiment has not been independently reproduced here. |
+
+</details>
 
 Evidence: [all 80 tasks with the three verdicts and explanations](results/river-task-results.json)
-(including the human annotations for these four cases), and
+(including human annotations for all 14 SWE tasks with a disagreement), and
 [plot generator](utils/plot_river_errors.py). Counts were recomputed from the
 archived stage-5 reports selected by the saved merge manifest and checked against
 the original scoring summary. Vector figures: [SWE](results/river-errors-swe.svg)

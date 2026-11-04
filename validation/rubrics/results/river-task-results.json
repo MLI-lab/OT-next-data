@@ -87,6 +87,40 @@
           "explanation": "This is a standard SWE-bench debugging task for Django issue #11129. The instruction is the GitHub bug report describing that QuerySet.update() with F expressions referencing annotations involving joins produces a confusing ProgrammingError ('missing FROM-clause entry') instead of a clear FieldError. A competent developer working in the /testbed Django codebase can identify the relevant code path (resolve_ref in django/db/models/sql/query.py) and extend the existing allow_joins check to also detect annotations that indirectly reference joined fields, raising the same FieldError('Joined field references are not permitted in this query') already used for direct joined field references. The verifier genuinely validates correctness: it applies a test patch adding test_update_with_joined_field_annotation and modifying test_update_annotated_multi_table_queryset, then runs Django's test suite and uses swebench's grading to confirm both FAIL_TO_PASS tests pass (new behavior) and all 14 PASS_TO_PASS tests still pass (no regression). Passing requires the actual code fix, not just output shape matching. The task is hard but fair \u2014 it requires understanding Django ORM internals around annotations, joins, and the resolve_ref mechanism.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/full80-qwen-river/submissions/c43ec4f06000/report/stage-5-e3af4ed65dda.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [
+          "false_negative"
+        ],
+        "defective_votes": 3,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 2.0,
+            "underspecified_notes": "The issue describes encountering an incorrect error, ProgrammingError: missing FROM-clause entry for table \"myapp_mymodel\" LINE 1: ...false END, \"a_field\" = CASE WHEN CASE WHEN (\"myapp_my...\", when performing QuerySet.update() on a field using an F expression that references an annotation of an annotation, each using a Case statement. The issue requests an improved error message or at least consistent error messages for similar assertions. It is unclear from the description what specific error and message should be raised when applying QuerySet.update() that involves a join on an annotated F expression which would require some sensible error selection that needs to be raised with a suitable message from an engineer writing the solution for the issue.",
+            "false_negative": 3.0,
+            "false_negative_notes": "The tests are too specific as they expect solution to raise a FieldError with msg `Joined field references are not permitted in this query`  when the annotation involves a join that was not mentioned in the issue description making it very strict for other reasonable solutions that might uses some other sensible assumptions for error and message to be raised to pass the test cases. ",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 1.0,
+            "underspecified_notes": "The ticket is complaining about an error message from a specific behavior and is asking to implement a logic to identify the issue and throw a more meaningful error. However, the ticket didn't mention the exact error type or message which is considered a bit of a blank to fill.",
+            "false_negative": 2.0,
+            "false_negative_notes": "The test patch is totally dependent on the error message and there is some perfect solution that would print another message or another type of error. For that, there is some reasonable solution that wouldn't pass the tests.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue description clearly outlines a problem with QuerySet.update() when using an F expression that refers to an annotated field requiring a join. The current error message is not very helpful in identifying the root cause. The expected behavior is to improve this error message to provide more specific information that would help in debugging and problem-solving. \nThe issue is well-specified, detailing the context, the encountered error, and the need for a more informative error message, making it straightforward for engineers to understand and address the issue.",
+            "false_negative": 2.0,
+            "false_negative_notes": "Specific error message is expected. This is too narrow and many solutions might not use the same wordings.\nThe specific error message match in the test may not be followed exactly, which could cause a valid solution to fail the test. ",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -522,6 +556,40 @@
           "explanation": "This is a standard SWE-bench debugging task for sympy issue 12906. The instruction is a concise bug report ('Relational.canonical does not yield canonical') with a concrete reproduction showing r.canonical != r.canonical.canonical for r = x**2 > -y/x. Although terse, it unambiguously identifies the buggy method (Relational.canonical in sympy/core/relational.py) and the required property (idempotency). A competent agent working in the sympy codebase can locate the canonical property, understand the existing (broken) rules from the code and docstring, and rewrite it to be idempotent while preserving the intended semantics (numbers on the right, consistent argument ordering).\n\nThe verifier is strong and genuine: test.sh applies a test patch that rewrites test_canonical to assert idempotency ([i.canonical for i in c] == c), reversed-canonical consistency, and number-placement across six diverse expressions (including the original x**2 > -x/y case and edge cases like Gt(3,2,evaluate=False)). It also enforces ~40 PASS_TO_PASS regression tests covering relational, solver, and summation modules, ensuring the fix does not break existing behavior. The verifier recomputes actual sympy objects and compares them\u2014no shape-only or keyword checks.\n\nNo defects identified: (a) no INSTR-VERIFIER-MISMATCH\u2014the verifier tests exactly the idempotency property the instruction complains about, plus standard canonical-form invariants implied by the term 'canonical'; (b) no INSTR-ENV-MISMATCH\u2014the sympy repo at /testbed with conda env provides everything needed; (c) no ANSWER-LEAK\u2014the instruction shows only the bug, not the fix; (d) not TASK-TRIVIAL\u2014fixing a subtle non-idempotency bug in a symbolic algebra library's core relational logic is a hard-but-fair debugging task; (e) no OTHER issues\u2014the test harness (git checkout, git apply, pytest) is standard SWE-bench infrastructure that works reliably.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/retry-noverdict-20261102/qwen-river/run/submissions/154b5e5de350/report/stage-5-89efc7b1d900.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [
+          "false_negative"
+        ],
+        "defective_votes": 3,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 1.0,
+            "underspecified_notes": "- The issue description has mentioned that `Relational.canonical` does not yield canonical.\n- It has provided an example code comparing the `r.canonical` and `r.canonical.canonical` which yield False.\n- The issue description lacks clarity and is very short.\n- Although there is a lack of detail about the issue and it has not mentioned specifically what should be the correct solution and what is the issue properly, a sensible interpretation can be made.",
+            "false_negative": 3.0,
+            "false_negative_notes": "- There are multiple test cases in the code that ensure the behavior of the canonical form is consistent in different cases.\n- The test ensures that applying canonical twice on any expression yields the same result as per the mentioned issue.\n- The expressions and their reversed forms are checked to ensure consistency and correctness in canonical forms.\n- The test also ensures that no canonical form has a numeric value on the left-hand side unless it is a number on both sides of the relational expression.\n- The test code for `Piecewise` fix addresses a different concern (summation convergence) and doesn't directly relate to the canonical method.\n- Hence, the test case is broad and will fail when the solution doesn't include the fix for the summation convergence.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 1.0,
+            "underspecified_notes": "The issue description outlines the problem but does not specify the expected behavior of the canonical method or detail the desired solution.",
+            "false_negative": 2.0,
+            "false_negative_notes": "The test covers additional cases that were not mentioned in the issue description. These include scenarios such as reversing relations when the left-hand side is a number and the right-hand side is not (e.g., `if r.lhs.is_Number and r.lhs > r.rhs: r = r.reversed`), and ensuring correct ordering of arguments when they are not initially in the correct order (e.g., `elif tuple(ordered(args)) != args`).",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 1.0,
+            "underspecified_notes": "The issue is well described that is Relational.canonical does not yield canonical,  however it would have been better having the outputs after calling cannonical to better understand the issue, probabley some logic on the simplification of the expression is not working.",
+            "false_negative": 3.0,
+            "false_negative_notes": "The tests covers issues not part of the issue description test cases on sum products will likely fail for reasonable solution addressing the canonical",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -565,21 +633,24 @@
             "underspecified_notes": "The problem is very clear. The user is asking for an optimization for exist queries to select one row which is enough to the condition. The problem is clear and offers enough info to start tackling the problem.",
             "false_negative": 3.0,
             "false_negative_notes": "The problem is doing much optimization than the requested one in the ticket description. The test patch are testing that the optimization consists of: \n  - limiting the number of results (already in the ticket)\n  - avoiding selecting unnecessary fields (can be inferred from the ticket)\n  - dropping ordering (This one is not in the ticket)\nThe tests are broad for the ticket description.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           },
           {
             "underspecified": 0.0,
             "underspecified_notes": "When you call `.exists()` on a queryset in Django, it optimizes the query by selecting a constant value (1) and limiting the results to one row, making it efficient. However, using the `Exists()` function in a filter generates a subquery that selects all columns, leading to larger, less efficient queries. This increases query size significantly, making it harder to debug and potentially slower to execute.",
             "false_negative": 2.0,
             "false_negative_notes": "The tests check if Django's `Exists` function generates optimized SQL queries by verifying the absence of unnecessary columns and `ORDER BY` clauses and ensuring the presence of a `LIMIT 1` clause. \n\nThe optimization regarding the ORDER BY clause was not mentioned in the original issue description. Many reasonable solutions will fail because of that.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           },
           {
             "underspecified": 0.0,
             "underspecified_notes": "The primary goal is clear \u2013 to modify the behavior of the `Exists()` function in Django so that it generates queries using `SELECT 1` instead of selecting columns, similar to how `.exists()` operates. This is intended to make the queries more efficient and easier to debug. The issue description provides specific examples of the current behavior and the desired behavior, which helps in understanding the requirement. \n",
             "false_negative": 2.0,
             "false_negative_notes": "The issue description clearly states the need to optimize the `Exists()` subqueries to use `SELECT 1`. The test case `ExistsTests.test_optimizations` checks for this optimization by capturing the SQL queries generated and verifying the absence of certain elements (e.g., primary key column) and the presence of others (e.g., limit clause). However, the tests check for specific changes to the SQL output that result from the refactored methods and code snippets changed in the gold patch. For instance, they specifically look to confirm that the SQL does not include `ORDER BY` clauses and only fetches one record. The tests verify the removal or addition of specific code sections like `add_extra`, `set_extra_mask`, and the new structure of the `exists` method as refactored in the gold patch. This means that any alternative implementations that achieve the same end result (simplifying the SQL query) but do not use the same method refactoring might not pass these tests, even if they are valid and effective solutions.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           }
         ]
       }
@@ -611,6 +682,41 @@
           "explanation": "This is the SWE-bench task django__django-8119 ('Allow expressions in .filter() calls'), a genuine, non-trivial Django ORM feature: making QuerySet.filter()/exclude() accept boolean expression objects (Exists, Subquery, Case, ExpressionWrapper(Q)) directly. The environment is complete and self-consistent: /testbed holds the Django source at the correct base commit (069bee7c12), the conda 'testbed' env and tests/runtests.py are present, and allow_internet=true supports the uv-based parser. The verifier (environment_mode=separate, artifacts=[/testbed]) faithfully implements the canonical SWE-bench flow: it preserves the agent's django/ source edits, resets only the three touched test files to base, applies the official test patch, runs ./tests/runtests.py --settings=test_sqlite over expressions/expressions_case, then grades with the swebench==4.0.3 harness, marking resolved only when ALL 6 FAIL_TO_PASS tests flip to passing AND all 204 PASS_TO_PASS tests keep passing (ResolvedStatus.FULL). I verified the verifier genuinely validates correctness rather than checking shape: applying the reference solution makes all 6 FAIL_TO_PASS tests pass (test_filtering_on_q_that_is_boolean, test_exists_in_filter, test_subquery_in_filter, test_case_in_filter_if_boolean_output_field, test_boolean_expression_combined, test_invalid_when_constructor_args) and the PASS_TO_PASS regression tests pass, whereas reverting the solution makes the F2P tests fail with 'TypeError: ExpressionWrapper object is not iterable'. This proves the check discriminates solved vs. unsolved and exercises the actual new behavior end-to-end. Secondary observations that are NOT defects: (a) config.json stores FAIL_TO_PASS/PASS_TO_PASS as double-encoded JSON strings, which is the standard SWE-bench HuggingFace dataset format that make_test_spec() json.loads, so grading reads them correctly; (b) the instruction is the raw GitHub issue text, which is the intended spec for a SWE-bench task and admits multiple valid implementations (the rubric explicitly treats multiple valid solution paths as acceptable, not ambiguous); (c) no answer leak, since solve.sh and the test patch live outside the agent-visible environment; (d) the task is far from trivial. A competent agent following the instruction can implement the feature and pass, and passing genuinely demonstrates correctness.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/full80-qwen-river/submissions/c43ec4f06000/report/stage-5-e3af4ed65dda.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [
+          "underspecified",
+          "false_negative"
+        ],
+        "defective_votes": 3,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 1.0,
+            "underspecified_notes": "The issue description provides a clear goal: allowing expressions in .filter() calls to enable query syntax extensions and unify the ORM experience. However, it lacks details on the current behavior of .filter() calls and what specific changes need to be made in the codebase. An experienced developer can infer the general direction, but the exact implementation steps and affected areas are not fully outlined.",
+            "false_negative": 2.0,
+            "false_negative_notes": "The tests include checks for specific error messages related to invalid `When` constructor arguments, which are not mentioned in the issue description. This reliance on specific error messages can lead to false negatives for otherwise correct solutions that might use different error handling or messaging. This means some reasonable solutions may be unfairly penalized if they do not match the exact expectations of these tests.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 3.0,
+            "underspecified_notes": "The issue discription is not self contained and we can\u2019t understand what will be a successful solution.",
+            "false_negative": 3.0,
+            "false_negative_notes": "As the discription is not self contained, we are not clear about the issue discription and the required solution.",
+            "other_major_issues": 1.0,
+            "other_notes": "It is not possible to understand what is requested and the discription is not self contained."
+          },
+          {
+            "underspecified": 2.0,
+            "underspecified_notes": "The issue is about changing Django's ORM to allow expressions in `.filter()` calls. The problem description is very generic and it misses a lot of details which should have been mentioned. Is it talking about some of the expressions i.e `lower`, `upper`, `Q` or all should be implemented. Secondly, there could be thousand ways to parse the data but it isn't mentioned how it should be parsed inside the filters or what specific exceptions or warning should be provided over the incorrect syntax. Due to these gaps, it becomes ambiguous hence 2 is given.",
+            "false_negative": 2.0,
+            "false_negative_notes": "Very specific typeerror messages are introduced which were mentioned nowhere in the problem description which will cause the tests to fail on all other reasonable solutions. Since no specific expressions are mentioned, other reasonable solutions might miss the expressions used in these tests which will cause it to fail as well hence 2 is provided here.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -1278,6 +1384,38 @@
           "explanation": "The instruction (instruction.md) is the GitHub issue text for django/django#16139, and it explicitly embeds the exact solution: 'It's as simple as replacing password.help_text = password.help_text.format(\"../password/\") with password.help_text = password.help_text.format(f\"../../{self.instance.pk}/password/\")'. The reference solution (solve.sh) applies precisely this one-line change to django/contrib/auth/forms.py. A competent agent following the instruction needs only to locate the file and apply the verbatim code replacement \u2014 no debugging, root-cause analysis, or design work is required. The verifier is otherwise strong (it adds a functional regression test that validates URL resolution via urljoin and requires 6559 existing tests to keep passing), but because the instruction itself reveals the complete fix, the task requires no genuine work beyond a guided copy-paste, which fits the ANSWER-LEAK definition: 'The instruction itself... reveals the expected answer (embeds the solution)... so the task requires no genuine work.'",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/full80-qwen-river/submissions/c43ec4f06000/report/stage-5-e3af4ed65dda.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [],
+        "defective_votes": 0,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue description explains an error that occurs when accessing the `UserAdmin` through another model's admin interface that has a reference to the `User` model with the `to_field` set. The error leads to the `UserAdmin` being accessed via an url similar to `.../user/22222222-3333-4444-5555-666677778888/change/?_to_field=uuid`. The issue description clearly states what the possible solution should be. It clearly outlines the solution in the issue description thus there is a clear sensible interpretation of what is required for a successful solution.",
+            "false_negative": 0.0,
+            "false_negative_notes": "Given the detailed suggestion in the issue description, the given test patch should pass all reasonable solutions which implement the suggestion in the issue description.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "- The issue description states that when accessing `UserAdmin` through another model's Admin that references `User` with `to_field` set, the `UserAdmin` is accessed via an incorrectly generated URL. This leads to a 404 error for the `PasswordResetForm` link.\n- The description includes sample code from the Django codebase.\n- It suggests a patch solution: replace `password.help_text = password.help_text.format(\"../password/\")` with `password.help_text = password.help_text.format(f\"../../{self.instance.pk}/password/\")`.\n- The issue description is short, concise, and provides all necessary information.",
+            "false_negative": 0.0,
+            "false_negative_notes": "- the new test function added `test_link_to_password_reset_in_helptext_via_to_field`test exactly same URL pattern being generated as suggested in issue description.\n- Hence, the test perfectly cover all possible solutions.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The ticket is clear. It seems that accessing the `UserAdmin` via a different model's admin interface (using a custom field like uuid instead of the primary key) results in an incorrect URL for the password reset link. The current implementation of the UserChangeForm assumes the UserAdmin is always accessed via its primary key, leading to a broken link and a 404 error. It's clear what's needed to be done starting from this ticket.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The test patch are testing that link to password reset view in UserChangeForm.password's help text when using to_field works fine which matches the problem in the ticket description so any solution should pass these tests.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -1319,21 +1457,24 @@
             "underspecified_notes": "The issue is about improving the error messages for `readonly_fields` in 'ModelAdmin'. Currently the error message specifies the index of the problematic field but does not include the field's name. This is inconsistent with error messages for other fields such as list_editable, raw_id_fields and list_display which do include the field name. The request is to update the error message for `readonly_fields` to include the field name for better clarity and consistency. It also explains why this change is beneficial as it eases the understanding of the error when using the framework. The issue is well specified so a score of 0 is appropriate.",
             "false_negative": 0.0,
             "false_negative_notes": "The tests are updated to reflect the expected change in the error message format. They include the field name in the `readonly_fields` error message exactly as specified in the issue description. The tests cover scenarios where `readonly_fields` contains non-existent fields. This ensures that the new error message format is correctly implemented. While the issue primarily focuses on `readonly_fields` the tests ensure that the format of the error message for `readonly_fields` is consistent with other fields like list_editable, raw_id_fields and list_display. Tests ensure that any solution that includes the field name in the `readonly_fields` error message will pass. Therefore a rating of 0 is appropriate.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           },
           {
             "underspecified": 0.0,
             "underspecified_notes": "The issue clearly states that the error message for readonly_fields in ModelAdmin should include the field's name, similar to how other fields like list_editable include the field's name. The description specifies the desired outcome: error messages for readonly_fields should include the field name to unify the format with other fields and enhance usability.\n",
             "false_negative": 0.0,
             "false_negative_notes": "The tests check multiple scenarios (different ModelAdmin subclasses and different positions in the readonly_fields list), ensuring that the solution works universally across various use cases. Any valid solution that correctly addresses the issue will not be penalized by the tests. The tests are focused solely on the specific requirement of including the field name in the error message.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           },
           {
             "underspecified": 0.0,
             "underspecified_notes": "- The problem statement is clear, concise and explains the issue properly. When using `readonly_fields` in `ModelAdmin`, if there are any invalid fields mentioned in the `readonly_fields` list, the error message contains the index of the invalid field in list, but field name is not included in error message which makes it difficult to debug.\n- This description is a request to update the error message to include field name along with its index, even though the specific error message if not provided, with the reference error message of `list_editable` filter, it is evident what expected error message should be.",
             "false_negative": 0.0,
             "false_negative_notes": "- The problem statement is clear and sets proper expectation from desired solution, and test cases are modified to verify the updated message as mentioned in the problem statement, which should cover all possible solutions based on given description.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           }
         ]
       }
@@ -1365,6 +1506,38 @@
           "explanation": "This is a well-formed SWE-bench debugging task (django__django-13807). The instruction clearly describes the bug: unquoted table names in SQLite PRAGMA statements cause syntax errors when table names are SQL keywords like 'order'. It specifies the exact file (django/db/backends/sqlite3/base.py), function (check_constraints), and line numbers (327, 333), and shows the buggy code. The environment at /testbed contains the Django source at the correct commit with the buggy code matching the description. The verifier applies a test patch that adds a model with db_table='order', db_column='select', and db_column='where' (all SQL keywords), then runs a functional test that creates a real FK violation and asserts IntegrityError is raised by check_constraints(). Without the fix, PRAGMA foreign_key_check(order) throws OperationalError (SQL syntax error), causing the test to fail. With the correct fix (quoting identifiers via self.ops.quote_name()), the test passes. The verifier also includes PASS_TO_PASS tests to prevent regressions. The solution patch correctly quotes all identifiers in all three affected SQL statements. A competent developer following the instruction would identify the unquoted identifiers in the shown code context and fix them, which is exactly what the test validates.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/full80-qwen-river/submissions/c43ec4f06000/report/stage-5-e3af4ed65dda.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [],
+        "defective_votes": 0,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue description points out the root cause of the problem. It highlights that an error caused by the `PRAGMA foreign_key_check(order);` statement whereby `order` is not quoted properly. Since order is a reserved SQL keyword, it needs to be quoted to be used as a table name. The issue description clearly indicates the problem and identifies the code section that causes the problem. There is a clear indication of what to do in order to achieve a reasonable solution.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The test patch performs a check to determine if tables names similar to SQL keywords can be used in queries. Reasonable solutions should pass this test patch.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue report indicates that SQLite crashes when using 'loaddata' if the table name consists of SQL keywords. It also details the steps to reproduce the behavior, attributing the cause to the table name not being properly quoted.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The issue indicates that the table name lacks quotation marks, and the test case addresses this by creating the table named 'order' and verifying whether it is enclosed in quotes.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue is about using the `loaddata` command when a SQL keyword is used for a table name (model name) or a column name (field name on the model) like order, group, select, etc. This happens because the SQL statement generated from the `loaddata` command does not quote the table names and column names properly. The solution is to ensure these are quoted. The issue is clear and self-contained.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The tests perfectly cover all possible solutions. The tests create a table named `order`, with columns named 'where' and 'select', which are all SQL keywords. It then calls the `check_constraints` on the table because this was where the error occurred from the issue description.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -1394,6 +1567,38 @@
           "explanation": "This is a well-formed SWE-bench debugging instance (matplotlib__matplotlib-23299). The instruction is the canonical GitHub bug report: calling get_backend() removes all figures from Gcf.figs when the first figure was created inside an rc_context(), with a runnable repro and the expected outcome ('The figure should not be missing from Gcf'). The environment supplies everything needed: /testbed is the matplotlib checkout (HEAD 3e35af5779 has the referenced base_commit 3eadeacc as an ancestor, so test.sh's `git checkout 3eadeacc lib/matplotlib/tests/test_rcparams.py` succeeds), the conda `testbed` env exists, the rc_context source at lib/matplotlib/__init__.py matches the reference patch context exactly (`orig = rcParams.copy()` present, docstring matches), and the regression test is absent until the test patch adds it, with its hunk context matching the base-commit test file so `git apply --check` passes. The reference solution (solution/solve.sh) is the genuine upstream root-cause fix: rc_context stops saving/restoring the 'backend' rcParam (orig = dict(rcParams.copy()); del orig['backend']), which is precisely why the backend reset caused get_backend() to reconcile away figures created under the temporary backend. The verifier (tests/test.sh + parser.py) applies the official regression test test_no_backend_reset_rccontext, which asserts rcParams['backend'] persists after exiting rc_context() \u2014 the exact root cause implied by the bug \u2014 plus a large PASS_TO_PASS set, runs pytest, and uses the swebench harness to require FULL resolution. Because it executes real matplotlib code rather than checking output shape/format or trusting a self-reported value, a fabricated plausibly-shaped output cannot pass, and a faithful root-cause fix necessarily satisfies both the instruction's stated outcome (figures preserved) and the verifier's backend-persistence assertion, so there is no instruction-verifier mismatch. Minor secondary notes (not primary defects): the instruction is a raw bug report without an explicit 'work in /testbed' sentence (standard SWE-bench convention, unambiguous here given the single matplotlib checkout), and an alternative band-aid fix to get_backend() rather than rc_context would be an incorrect fix that a competent agent would not choose. Overall a hard-but-fair task whose verifier genuinely validates correctness.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/full80-qwen-river/submissions/c43ec4f06000/report/stage-5-e3af4ed65dda.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [],
+        "defective_votes": 0,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "- The issue text expresses that calling `matplotlib.get_backend()` removes all figures from `Gcf` if the first figure in `Gcf.figs` was created in an `rc_context`.\n- The description clearly conveys what the expected behavior should be i.e. figures should be retained\n- The code to reproduce the issue has also been provided along with some workarounds which should be of a great help to narrow down on the cause",
+            "false_negative": 0.0,
+            "false_negative_notes": "- The appended test ensures that the backend is not reset when created within `rccontext`\n- This should be good enough to cover all the possible solutions of the problem",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "- The description highlights that calling `matplotlib.get_backend()` removes all figures from `Gcf` if the first figure in `Gcf.figs` was created in an `rc_context`.\n- The description provides the code to reproduce the issue.\n- The description also states the expectation that the figure should not be missing from `Gcf`.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The code in the Gold Patch was updated to prevent the context manager from resetting the `:rc:backend`. This is a valid solution.\nThe Test Patch introduces a new test case to verify the `rc_context()` function as expectation.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue description is well-specified, providing a clear bug summary, code for reproduction, the actual outcome, and the expected outcome. The problem is specifically related to matplotlib.get_backend() removing figures from Gcf.figs when the first figure is created in an rc_context. The code snippet and the assertion error make it clear what the bug is and how it can be reproduced. This allows an experienced software engineer to understand the problem and work on a solution without needing further clarification.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The tests are well-scoped to cover all reasonable solutions to the issue. They check whether the backend parameter is preserved after using the rc_context context manager, ensuring that the backend setting is not inadvertently reset. This directly addresses the issue described and ensures that the problem is fixed without relying on narrow implementation details. Any reasonable solution that maintains the backend setting correctly will pass these tests.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -1464,21 +1669,24 @@
             "underspecified_notes": "The issue description clearly identifies a problem with LaTeX rendering in the \"secondquant\" module, specifically with double superscripts involving the \"dagger\" command. It provides a straightforward example to demonstrate the issue and explains how it should be correctly rendered using curly brackets. This makes it easy for engineers to understand and address the specific problem.",
             "false_negative": 0.0,
             "false_negative_notes": "The test patch addresses the issue effectively by ensuring the correct LaTeX rendering for operators in the second quantization module. It adds tests to confirm that the LaTeX output is now wrapped with the correct curly brackets as stated in the issue description.\nThe patch covers the problem, ensuring all solutions are validated and align with the issue description.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           },
           {
             "underspecified": 0.0,
             "underspecified_notes": " The problem occurs within the \"secondquant\" module of the SymPy library when used in a Jupyter Notebook. The specific problem is incorrect interpretation of double superscripts containing the \"dagger\" command. The code snippet provided clearly demonstrates how to reproduce the issue and the expected output format is also given. The required solution is clearly stated which mentions to modify the LaTeX rendering to correctly interpret and display double superscripts by using curly brackets. This provides sufficient information to understand and implement the solution. So a score of 0 is appropriate.",
             "false_negative": 0.0,
             "false_negative_notes": "The tests check the LaTeX output for various operators (Bd, Fd) to ensure that the curly bracket changes render correctly. This directly addresses the issue described. The test cases cover different scenarios, including single operators (test_create, test_create_f), commutators (test_commutation) and more complex nested structures (test_NO, test_Tensors). A dedicated test case (test_issue_19661) directly verifies the LaTeX rendering for the specific problem described in the issue ensuring that the fix works as intended . Based on these tests, the tests are well-scoped and validate all possible solutions.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           },
           {
             "underspecified": 0.0,
             "underspecified_notes": "The issue description is clear and explains that the problem arises because the \"dagger\" command and the double superscript are not properly enclosed in curly brackets, leading to incorrect rendering. It also mentions that the issue can be resolved by modifying the LaTeX output to ensure that curly brackets are used appropriately to group the superscripts. The provided example aids in understanding the problem. Since all the required information is clear, it should be rated as 0.",
             "false_negative": 0.0,
             "false_negative_notes": "The test patch modifies existing tests and adds new ones to ensure that LaTeX rendering correctly uses curly braces around superscripts for various components in the `secondquant` module. The tests cover all possible solutions and it also include a test for the example given in the issue description to ensure it works correctly. Therefore, it should be rated as 0.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           }
         ]
       }
@@ -1510,6 +1718,38 @@
           "explanation": "This is a SWE-bench debugging task for Django issue #15467 (ModelAdmin drops custom empty_label when radio_fields is defined). The instruction clearly describes the bug and provides a fix hint showing the exact code change needed in django/contrib/admin/options.py. Although the cited line number (234) differs from the actual line (272), the target code `kwargs[\"empty_label\"] = _('\"None\"') if db_field.blank else None` is uniquely identifiable in the file, so a competent agent can locate and fix it. The environment at /testbed contains the Django source at the correct base commit (e0442a628e) with the buggy code present at line 272. The verifier (separate mode, artifacts=[/testbed]) genuinely validates correctness: it applies a test patch adding test_radio_fields_foreignkey_formfield_overrides_empty_label, runs the full admin_widgets test suite via ./tests/runtests.py, and uses swebench grading to confirm both the new FAIL_TO_PASS test passes AND ~60 PASS_TO_PASS tests continue to pass. This is not a shape/format check \u2014 it executes real assertions against the modified code. The reference solution correctly modifies options.py to preserve kwargs.get('empty_label') instead of unconditionally overwriting it with _('None'). A fabricated or incorrect fix would fail the new test or break existing tests. The task requires genuine work: navigating the Django codebase, understanding the formfield_for_foreignkey flow, and applying the fix in the correct context.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/full80-qwen-river/submissions/c43ec4f06000/report/stage-5-e3af4ed65dda.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [],
+        "defective_votes": 0,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue description outlines when the 'radio_field' is set, it changes default empty label in 'ModelAdmin', accompanied by a code example. It also specifies the file and code line that should be modified to achieve the desired behavior.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The test ensures the 'empty_label' is not overridden by verifying the expected behavior. It assigns the empty label '{\"empty_label\": \"Custom empty label\"}' and asserts that it remains unchanged with 'self.assertEqual(ff.empty_label, \"Custom empty label\")'.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue is clearly stated: when using ModelAdmin with radio_fields defined, the custom empty_label set in formfield_for_foreignkey is overridden by the default empty_label and the specific change needed to fix the issue is provided.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The test test_radio_fields_foreignkey_formfield_overrides_empty_label specifically targets the issue by checking if the custom empty_label set in the formfield_overrides is correctly applied and does not rely on any new function, variable name, or error message introduced in the Gold Patch that was not mentioned in the issue description.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue description points out that due to the way Django implements the `empty_label` any class that inherits `ModelAdmin` and tries to override the `formfield_for_foreignkey` method of `ModelAdmin` fails to actually override the default value of `empty_label`. It suggests that when one sets a custom `empty_label`, Django's default behaviour replaces the custom `empty_label` with its own default. The issue description is detailed and specific. It states the exact line to change in order to correct the undesired behaviour. There is a clear indication of what a successful solution should be.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The test patch checks to determine if the default value of the `empty_label` is the same as what was set. Reasonable solutions should pass the test patch.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -1551,21 +1791,24 @@
             "underspecified_notes": "The issue describes how a `MultiValueField` in Django, with one required and one non-required `CharField`, incorrectly validates as `True` when both sub-fields are empty, despite one being required. This occurs because `MultiValueField` ignores the required status of the sub-field. When a non-empty value is provided for the non-required sub-field and empty value for provided for required field, the form correctly validates as `False`. This inconsistency suggests a bug in the validation logic of `MultiValueField`, requiring a fix to ensure `is_valid()` returns `False` when required sub-fields are empty.\nThe issue is very much clear even though the last line suggests the user doubts on it, we are very certain of what the expectation should be.",
             "false_negative": 0.0,
             "false_negative_notes": "This test diff adds a new `PartiallyRequiredField` class and a corresponding `PartiallyRequiredForm` class to verify the behavior of `MultiValueField` when one of the sub-fields is required and the other is not. It includes tests to ensure that the form validates correctly when the required sub-field has a value and fails validation when the required sub-field is empty. Additionally, it checks the correct rendering of the `required` attribute in the HTML output of the form. The test patch tests the expected and correct behavior of the issue, so if the issue is resolved, the test will pass. Thus, any solution that solves the issue will pass the test.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           },
           {
             "underspecified": 0.0,
             "underspecified_notes": "The issue statement is clear in this case, it highlights the fac that when a form is passed empty values for both sub fields, form.is_valid() == True (should be false) but when one of the sub fields is not empty, form.is_valid() will be false. The required outcome is for the issue to be fixed and False to be returned in both cases",
             "false_negative": 0.0,
             "false_negative_notes": "The tests cover the issue from the description and check the case where the fileds are partially required (one of them) and both are empty. (lines 193 - 195) then checks if the form is valid any new solution that is valid should be able to pass the tests.",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": "No other issues with the task"
           },
           {
             "underspecified": 0.0,
             "underspecified_notes": "The issue description effectively outlines the problem with the \u201cMultiValueField\u201d implementation in the custom filed \u201cMF\u201d, detailing the specific scenarios where validation fails when it should not. It provides a clear assertion demonstrating the behavior of \u201cform.is_valid()\u201d when both subfields are empty and when one subfield contains a value. The inclusion of the field and form definitions offers sufficient context, allowing an experienced engineer to understand the requirements for a solution without needing further clarification. Overall, the issue is specified clearly, making it straightforward to identify and implement the necessary fix. ",
             "false_negative": 0.0,
             "false_negative_notes": "The tests thoroughly validate the behavior of the \u201cMultiValueField\u201d with required subfields as described in the issue. The \u201cPartiallyRequiredForm\u201d checks various scenarios, ensuring the form is invalid when required fields are missing. Additionally, it confirms that the required attributes are rendered correctly for each subfield. Since the tests encompass the expected behavior without relying on implementation details from the Gold Patch, they are well-scoped to identify all reasonable solutions to the issue. ",
-            "other_major_issues": 0.0
+            "other_major_issues": 0.0,
+            "other_notes": null
           }
         ]
       }
@@ -1626,6 +1869,38 @@
           "explanation": "This is a well-formed, verified SWE-bench instance (django__django-13109). INSTRUCTION is clear and self-sufficient: instruction.md concretely describes the bug (ForeignKey.validate uses _default_manager instead of _base_manager, so a form that widens the FK queryset to Article._base_manager.all() to allow archived rows still fails with 'does not exist'), names the exact mechanism, links to the precise code (related.py L917-919), states the suggested fix, and the constraint (do not change the default manager). ENVIRONMENT matches: /testbed is Django at base commit fbe82f8255 (HEAD c5005f4eaa 'SWE-bench') with related.py line 917 still reading '_default_manager' (unfixed), the conda 'testbed' env and uv present, and the four test files pristine, so nothing referenced by the instruction/verifier is missing (no INSTR-ENV-MISMATCH). The reference solution (solution/solve.sh) is the canonical one-line gold patch (_default_manager -> _base_manager in ForeignKey.validate). VERIFIER GENUINELY VALIDATES CORRECTNESS: in separate mode (artifacts=[/testbed]) tests/test.sh reinstalls the agent's edited Django (pip install -e .), resets the four test files to base, applies the official SWE-bench test patch (adds WriterManager/AuthorManager + 'archived' field + 3 new tests), runs ./tests/runtests.py over model_forms.* and validation.*, then grades with swebench 4.0.3. I inspected the actual swebench 4.0.3 wheel: make_test_spec json.loads the string-encoded lists; django is NOT in FAIL_ONLY_REPOS so eval_type=PASS_AND_FAIL and ResolvedStatus.FULL requires fail_to_pass==1 AND pass_to_pass==1; parse_log_django keys results by 'test (class)' and treats a missing test as FAILED. FAIL_TO_PASS = {test_FK_validates_using_base_manager (validation.tests.BaseModelValidationTests), test_validate_foreign_key_to_model_with_overridden_manager (model_forms.tests.ModelFormBasicTests)} and PASS_TO_PASS = 170 tests, all within the executed model_forms/validation modules. The two F2P tests directly exercise the changed code path with archived (default-manager-filtered) related objects: they raise/fail without the exact _base_manager fix and pass with it, so a fabricated or shape-only output cannot pass. The third added test (plain-form default-manager rejection) sits in P2P and passes regardless, confirming default behavior is preserved, while the 170 P2P tests guard against regressions. Thus a competent agent following the instruction can unambiguously locate and apply the fix, and passing genuinely demonstrates the correct behavioral change plus no regression. The instruction's explicit hint lowers difficulty but does not eliminate genuine work (locating the precise spot in a large codebase and surviving a 170-test regression gate), so it is not ANSWER-LEAK or TASK-TRIVIAL; the strong, discriminating test-based verifier rules out VERIFIER-TOO-WEAK.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/retry-noverdict-20261102/qwen-river/run/submissions/154b5e5de350/report/stage-5-89efc7b1d900.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [],
+        "defective_votes": 0,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "- The issue describes a problem where ForeignKey.validate() uses the default manager (_default_manager) for validation, which can cause issues when the default manager applies filters that exclude certain objects, such as archived articles\n- The expected solution is clear and specific: modify ForeignKey.validate() to use _base_manager for validation. This solution directly addresses the described problem and aligns with the provided example.\n- Overall, the issue is well-specified, providing a clear problem statement, a concrete example, and a specific solution. ",
+            "false_negative": 0.0,
+            "false_negative_notes": "- The tests are designed to cover the intended solution where the ForeignKey.validate() method uses the _base_manager for validation. \n- The tests validate the behavior when using both the default manager (which excludes archived objects) and the base manager (which includes all objects), ensuring that the functionality works as intended.\n- The tests are appropriately designed to verify the intended solution, and there are no other reasonable or unusual solutions that would fail these tests.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue is well-specified and it is clear what is required foe a successful solution. The issue description is clearly formatted with issue, relevant code samples and error message.\n\nIssue: The issue is that the 'ForeignKey' validation is using the default manager for validation, which means that any filters applied by this manager (Such as excluding archive articles) are also applied during validation. This can be problematic when we want to use a different manager for a specific form, like 'FavouriteArticlesForm'. The main issue to use 'base_manager' (which includes all articles).\nCode samples: Provided relevant code samples for 'default_manager' and as well as 'base_manager'.\nError message: \"article instance with id 123 does not exist.\" \n\nAlthough, the error message has in-sufficient information to build the solution. By seeing the relevant code samples and clear issue description, we can implement the solution easily. So, I chose Option 0 instead of Option 1.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The tests perfectly covering all possible scenarios.\n\nTests:\n1. test_validate_foreign_key_uses_default_manager: This test checks that the form is invalid when using the default manager because it does not include archived writers. Because, user wants to select favorite article including archive articles.\n2. test_validate_foreign_key_to_model_with_overridden_manager: This test checks that the form is valid when using the 'base_manager' because it includes archived writers. and it checks that the saved articles correctly references the archived writer.\n3. test_FK_validates_using_base_manager: This test checks that an article with an archived author does not raise any validation errors when using the base manager.\n\nThese tests are perfectly checking the 'base_manager' also including archive articles and raises error if 'default_manager' is used.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue is clear; `ForeignKey.validate() should validate using the base manager instead of the default manager`. A sample code is shared to reproduce the problem. The expected solution is indicated in the issue description.",
+            "false_negative": 0.0,
+            "false_negative_notes": "test_validate_foreign_key_uses_default_manager and test_FK_validates_using_base_manager ensures that ForeignKey.validate() validates using the base manager.\n",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -2380,6 +2655,38 @@
           "explanation": "This is a standard SWE-bench debugging task (django__django-14007): make Django call field database converters (from_db_value) on rows returned by INSERT for returning_fields, so objects.create() and bulk_create() yield wrapped PKs. The instruction is the canonical bug report and is unambiguous for this benchmark format: fix the Django source in /testbed so the described behavior holds; the verifier checks behavior, so any correct fix passes. I validated the full pipeline end-to-end in this environment: (1) the verifier resets tests/custom_pk/{fields,models,tests}.py to the base commit, applies the official test patch (adds test_auto_field_subclass_create and a bulk_create variant gated on can_return_rows_from_bulk_insert), runs ./tests/runtests.py --settings=test_sqlite on custom_pk, and grades with the swebench harness against config.json's FAIL_TO_PASS/PASS_TO_PASS. (2) Negative control: without any fix, test_auto_field_subclass_create fails ('1 is not an instance of MyWrapper') and the pipeline exits 1 with 'FAILED'. (3) Positive control: applying the reference solution (patch to django/db/models/sql/compiler.py execute_sql, applying self.get_converters/apply_converters to returned rows) makes the FAIL_TO_PASS test pass, all 12 PASS_TO_PASS tests pass, and the pipeline exits 0 with 'PASSED' and resolved=true in /logs/verifier/report.json. Suspected issues were checked and ruled out: the FAIL_TO_PASS class name (CustomPKTests) matches where the patch appends the test (after test_required_pk, which is inside CustomPKTests); /logs/verifier exists at session start (harness-provisioned), so parser.py's early json.dump succeeds, as demonstrated by the successful end-to-end run; the test patch applies cleanly (git apply --check); internet is available for uv to install swebench==4.0.3 in the separate verifier container; and no answer material ships in the agent environment (solve.sh exists only in the review copy). The task is hard-but-fair: it requires a real understanding of Django's SQL insert compiler, and passing genuinely demonstrates the fix because the graded test exercises the exact reported behavior and cannot pass without it.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/full80-qwen-river/submissions/c43ec4f06000/report/stage-5-e3af4ed65dda.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [],
+        "defective_votes": 0,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue is about the `INSERT` statements not calling the database converters on the field. The issue is clear and well-specified.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The tests perfectly cover all possible solutions. The tests asserts that the return type of an `INSERT` statement or a `Model.objects.create()` query is passed to the database converters.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue is well-specified and it is clear what is required for a successful solution. The problem statement describes that the from_db_value method is not being called for fields like BigAutoField when an object is created using create() or bulk_create(), which results in the field not being processed through any database converters such as from_db_value. This is clearly demonstrated with the example using MyAutoField, a subclass of BigAutoField, where the id should be wrapped in MyIntWrapper, but instead, it's a plain integer. The expected behavior is clear: the returned ID should be passed through the from_db_value method upon creation, just like it is when queried with objects.first().",
+            "false_negative": 0.0,
+            "false_negative_notes": "The test patch effectively covers the requirements outlined in the issue description by focusing on the key functionality that was problematic: the application of the from_db_value method during insert operations. The test test_auto_field_subclass_create checks that the id field of a newly created object is an instance of MyWrapper, confirming that the conversion logic is applied correctly. Similarly, test_auto_field_subclass_bulk_create ensures the same for bulk inserts. These tests comprehensively check for the correct behavior specified in the issue and ensure that any solution addressing this problem will be validated against the intended functionality, without introducing dependencies on implementation-specific details that are unrelated to the described issue.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issued description outlines a problem that occurs when trying to insert data into the database using Django queries. It explains that in Django's `BigAutoField` class, the custom field does not pass the returned integer through the database converters (i.e. including the `from_db_value` hook) during the insert operation. This leads to the wrong value being returned. In other queries, the correct wrapped value is returned however for inserts, it returns a plain integer. The issue description explicitly outlines the problem. There is a strong sense of what should be done to solve the problem; that is, one has to ensure that the correct wrapped value is returned.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The test patch ensures that for custom fields, during insertion the correct value is returned. Reasonable solutions should pass the test patch. ",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
@@ -2409,6 +2716,38 @@
           "explanation": "This is a well-structured SWE-bench debugging task for sympy issue #14711. The instruction clearly presents the bug: sum([N.x, (0 * N.x)]) raises TypeError because Vector.__add__ calls _check_vector(0) which rejects non-Vector objects. The traceback points directly to vector.py line 61. The verifier genuinely validates correctness by: (1) applying a test patch that adds 'assert A.x + 0 == A.x' to test_vector.py, (2) running the actual test suite via bin/test, and (3) using the swebench grading harness to verify FAIL_TO_PASS (test_Vector) transitions from fail to pass AND PASS_TO_PASS tests (test_Vector_diffs, test_vector_var_in_dcm) continue passing. This is a real functional test, not a shape/format check. The environment provides the sympy repo at /testbed in a pre-built SWE-bench image, with internet access for the uv-based parser. A competent agent can unambiguously understand the task (fix the TypeError when adding 0 to a Vector) and implement the fix (handle the case where other==0 in __add__). While the commented-out line '#if other == 0: return self' visible in the traceback hints at the fix, the agent still must navigate the codebase, locate the correct file and method, make the edit, and ensure existing tests pass \u2014 this is a hard-but-fair, if simple, debugging task.",
           "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-gt-harbor-20261101/full80-qwen-river/submissions/c43ec4f06000/report/stage-5-e3af4ed65dda.json"
         }
+      },
+      "reference_evidence": {
+        "source": "OpenAI original SWE-bench audit (2024)",
+        "defect_categories": [],
+        "defective_votes": 0,
+        "reviewer_count": 3,
+        "annotations": [
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue is clear-\u2018vector add 0 error\u2019. The root cause of the error can also be discovered by taking a keen look at the details of the error message shared.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The test covers all possible solutions. `assert A.x + 0 == A.x` basically tested that if 0 is added to a vector, the result is equal to the vector (`A.x`) instead of throwing `TypeError: A Vector must be supplied`",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The issue arises because multiplying a SymPy vector by zero results in an integer zero, not a zero vector, causing a `TypeError` when attempting to sum the list `[N.x, 0 * N.x]`. SymPy's `Vector` addition requires both operands to be vectors, but the integer zero does not meet this requirement. \n\nThe issue is well-specified and it is clear what is required for a successful solution.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The pull request addresses an issue in SymPy's `Vector` class where adding zero to a vector raised a `TypeError`. The `__add__` method was modified to check if the other operand is zero and, if so, return the original vector without performing the addition operation. This change prevents the error and treats the addition of zero as a no-op. Additionally, a new test case was added to ensure this behavior, verifying that adding zero to a vector returns the vector itself, thus enhancing the robustness and correctness of vector operations in SymPy.\n\nThe tests perfectly cover all possible solutions.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          },
+          {
+            "underspecified": 0.0,
+            "underspecified_notes": "The problem statement is fairly stating the issue that when attempting to add vectors in SymPy, adding a zero vector with another vector causes a TypeError. The code snippet and error message is also provided for the better understanding. This issue is preventing users from performing vector addition that involves zero-multiplied vectors.\n- Deductions for the solution: The sum of a vector and a zero-multiplied vector should result in the original vector without raising an error.",
+            "false_negative": 0.0,
+            "false_negative_notes": "The main problem is fixed and accurately tested by the test patch that is given. It adds a test to see whether a vector remains the same after a zero integer is added to it. This will cover all solutions fixing the issue at hand.",
+            "other_major_issues": 0.0,
+            "other_notes": null
+          }
+        ]
       }
     },
     {
