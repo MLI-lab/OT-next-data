@@ -214,6 +214,132 @@ earlier reasoning, Qwen3.8-27B used the model card's non-thinking sampling, and
 up to 2 retries were allowed. GLM-5.3-Flash custom-criteria has no verdict for
 one task, counted as wrong.
 
+<details>
+<summary><b>River details: accuracy, error overlap, and Sonnet's four SWE disagreements</b></summary>
+
+River has the highest observed overall accuracy for each judge in this comparison.
+These are the same historical runs described above, with successful retries merged;
+all 240 River judgments are resolved. Percentages below are rounded to the nearest
+whole percent, with half percentages rounded up.
+
+| Judge | Overall | SWE-bench | Terminal-Bench |
+| --- | ---: | ---: | ---: |
+| Sonnet 5.5 | 59/80 — 74% | 36/40 — 90% | 23/40 — 58% |
+| GLM-5.3-Flash | 54/80 — 68% | 29/40 — 73% | 25/40 — 63% |
+| Qwen3.8-27B | 59/80 — 74% | 33/40 — 83% | 26/40 — 65% |
+
+**Defective is the positive class.** FP (false positive) means a reference-clean
+task was flagged defective; FN (false negative) means a reference-defective task
+was called clean. These measure disagreement with the reference labels, not an
+independent adjudication of whether each judge's criticism is valid.
+
+| Judge | Overall FP | Overall FN | SWE FP | SWE FN | TB FP | TB FN |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Sonnet 5.5 | 10 | 11 | 3 | 1 | 7 | 10 |
+| GLM-5.3-Flash | 21 | 5 | 9 | 2 | 12 | 3 |
+| Qwen3.8-27B | 8 | 13 | 3 | 4 | 5 | 9 |
+
+GLM-Flash misses fewer defects overall but flags more reference-clean tasks.
+Sonnet and Qwen have the same overall accuracy with different error distributions.
+
+**Where do their errors overlap?** Each column below is one task, and each row
+is one judge. Orange = FP, purple = FN, gray = correct. Vertically aligned
+colored cells identify shared errors. Tasks are grouped by reference label, then
+sorted by number of judges wrong and task name. All 40 tasks appear in each panel.
+
+![River SWE-bench error overlap](results/river-errors-swe.png)
+
+![River Terminal-Bench error overlap](results/river-errors-tb.png)
+
+| Judges wrong on the same task | SWE-bench | Terminal-Bench |
+| --- | ---: | ---: |
+| Sonnet + GLM-Flash | 3 | 7 |
+| Sonnet + Qwen | 3 | 11 |
+| GLM-Flash + Qwen | 5 | 6 |
+| All three | 3 | 4 |
+| At least one | 14 | 26 |
+
+Pairwise counts include tasks missed by all three; the rows are not additive.
+
+**Sonnet's four SWE disagreements** comprise three FP and one FN, rather than
+four missed defects. All three judges disagree with the reference on the same
+three tasks; only `django__django-16899` is a Sonnet-only error.
+
+| Task | Human reference | Sonnet 5.5 | GLM-5.3-Flash | Qwen3.8-27B |
+| --- | --- | --- | --- | --- |
+| `django__django-13300` | Defective | FN: CLEAN | FN: CLEAN | FN: CLEAN |
+| `django__django-16899` | Clean | FP: INSTR-AMBIGUOUS | Correct: CLEAN | Correct: CLEAN |
+| `sympy__sympy-21930` | Clean | FP: INSTR-VERIFIER-MISMATCH | FP: INSTR-VERIFIER-MISMATCH | FP: INSTR-VERIFIER-MISMATCH |
+| `django__django-14034` | Clean | FP: INSTR-VERIFIER-MISMATCH | FP: INSTR-VERIFIER-MISMATCH | FP: INSTR-VERIFIER-MISMATCH |
+
+- **Django-13300 — an extra SQL optimization requirement.** The issue asks
+  `Exists()` to use `SELECT 1` like `.exists()`. The tests also require removal
+  of `ORDER BY`. All three human reviewers flagged overly restrictive tests:
+  removing ordering was not requested, so a reasonable fix could fail. All
+  three judges called it clean. Sonnet explicitly treated the SQL requirements
+  as implied by “like .exists()”. This is the one reference defect Sonnet missed.
+- **Django-16899 — exact error-message wording.** The issue asks the
+  `readonly_fields` error to include the field name, following analogous admin
+  checks. Sonnet argued that exact-string tests require unspecified phrasing.
+  The three human reviewers considered the expected wording sufficiently clear;
+  GLM-Flash and Qwen likewise treated the example and existing conventions as
+  enough guidance. No major defect is recorded in the reference.
+- **SymPy-21930 — LaTeX tests broader than the reported dagger bug.** The issue
+  describes double superscripts involving a dagger. All three judges objected
+  that the tests also require braces around standalone operators and an
+  `AntiSymmetricTensor` without a dagger. The human reviewers instead regarded
+  those tests as appropriate coverage of the requested rendering fix and
+  unanimously labeled the task clean. This is a shared disagreement about the
+  required scope of the fix, not a reference-labeled defect.
+- **Django-14034 — validation versus HTML rendering.** The issue discusses
+  `MultiValueField.is_valid()` when a required subfield is empty. All three
+  judges argued that the decisive test demands per-subwidget HTML `required`
+  attributes, which the issue does not request. The human reviewers considered
+  the validation and rendering assertions aligned with the issue and
+  unanimously labeled it clean. Sonnet's conclusion was based on reading;
+  GLM-Flash and Qwen reported experiments supporting their mismatch criticism.
+
+<details>
+<summary><b>Read Sonnet’s recorded reasons for these four judgments</b></summary>
+
+These are the original judge explanations, reproduced verbatim. The first task
+was accepted by Sonnet despite its defective reference label; the other three
+were rejected by Sonnet despite their clean reference labels. Statements below
+describe the judge’s reasoning and are not new verification results.
+
+**`django__django-13300` — Accepted: `CLEAN` (FN)**
+
+> This is a standard SWE-bench task (django-13300). The verifier applies the upstream test patch and runs expressions.tests. It then grades the FAIL_TO_PASS and PASS_TO_PASS lists with the swebench parser. The new test checks that the Exists subquery SQL has no pk column, has LIMIT 1, and has no ORDER BY. That behavior is what the issue describes by asking Exists to behave like .exists(). It runs real queries, so a hardcoded answer would not pass. I did not run the reference solution or the tests.
+
+**`django__django-16899` — Rejected: `INSTR-AMBIGUOUS` (FP)**
+
+> The instruction only says the readonly_fields error should 'include the field name', like the other checks. The verifier (the SWE-bench test patch in tests/test.sh) does exact string comparison against "The value of 'readonly_fields[1]' refers to 'nonexistent', which is not a callable, an attribute of 'SongAdmin', or an attribute of 'admin_checks.Song'." The instruction never gives this wording. The only example, for list_editable, uses a different tail ('which is not contained in list_display'). Other reasonable messages that do include the field name, such as "The value of 'readonly_fields[0]' ('x') is not a callable...", would fail. Passing depends on guessing the exact phrasing or knowing the upstream Django fix.
+
+**`sympy__sympy-21930` — Rejected: `INSTR-VERIFIER-MISMATCH` (FP)**
+
+> The issue only describes Commutator(Bd(a)**2, B(a)) producing 'b^\dagger_{0}^{2}' and suggests '{b^\dagger_{0}}^{2}'. The verifier's test patch also changes unrelated expected outputs that the issue never mentions. Bd(i) alone must print '{b^\dagger_{i}}'. Fd(p) must print '{a^\dagger_{p}}'. NO(...) must print '\left\{{a^\dagger_{a}} {a^\dagger_{i}}\right\}'. AntiSymmetricTensor must print '{t^{ab}_{ij}}', which has no dagger at all. A solver who fixes only the doubled-superscript case, for example by bracing only when a power is applied, would fail test_create, test_Tensors and others. The unconditional bracing in every _latex method, including the tensor class, is a behaviour the instruction doesn't specify.
+
+**`django__django-14034` — Rejected: `INSTR-VERIFIER-MISMATCH` (FP)**
+
+> The issue only asks that is_valid() be False when a required sub-field is empty and the MultiValueField has required=False. The SWE-bench test (test_render_required_attributes) also uses a required=True field and asserts exact HTML. It expects the 'required' attribute on the f_0 input (whose sub-field is required) and none on f_1 (whose sub-field is optional). It also checks that a partially filled form is valid. The instruction says nothing about per-subwidget required rendering. A fix that follows the issue and corrects only validation could fail the test. This conclusion comes from reading the task files. I did not run any solution against the verifier.
+
+</details>
+
+The two shared mismatch findings are useful candidates for manual adjudication;
+agreement among judges alone does not establish that the human label is wrong.
+The original labels remain unchanged here. The human annotation field
+`false_negative` describes tests rejecting valid solutions; it is distinct from
+the judge-level FN count above.
+
+Evidence: [all 80 tasks with the three verdicts and explanations](results/river-task-results.json)
+(including the human annotations for these four cases), and
+[plot generator](utils/plot_river_errors.py). Counts were recomputed from the
+archived stage-5 reports selected by the saved merge manifest and checked against
+the original scoring summary. Vector figures: [SWE](results/river-errors-swe.svg)
+and [TB](results/river-errors-tb.svg).
+
+</details>
+
 Additional findings:
 
 - **Most SWE tasks can be passed without fixing the bug.** SWE-bench runs the
