@@ -299,6 +299,69 @@ three tasks; only `django__django-16899` is a Sonnet-only error.
   unanimously labeled it clean. Sonnet's conclusion was based on reading;
   GLM-Flash and Qwen reported experiments supporting their mismatch criticism.
 
+**How subjective are these disagreements?** The first two depend strongly on
+what a developer is expected to infer from an example or comparison. That does
+not make the labels arbitrary: the disagreement is about how much the written
+request commits the developer to doing. The following is an interpretation of
+the recorded evidence, not a new independent verification or a label correction.
+
+**Django-16899: must the message convey the right information, or use the exact
+same sentence pattern?** Imagine being asked to make an error message name the
+invalid field. “The field 'x' is invalid” and “Invalid field: 'x'” both communicate
+that information. These are illustrative examples, not the actual test strings.
+A test that accepts only one wording can reject a change that meets the plain
+request. That is Sonnet's objection. However, this issue also points to existing
+messages as examples of the desired consistency. The human reviewers, GLM-Flash,
+and Qwen read that as “follow the existing wording pattern”, rather than “use
+any wording that names the field”. Both readings have a rationale. We therefore
+regard this as a relatively subjective question of how precisely the example
+specifies the required wording.
+
+**Django-13300: does “do it like this other method” mean copy one behavior or all
+its optimizations?** The task concerns a database query that asks whether any
+matching row exists. It requests `SELECT 1`: return a simple constant instead
+of fetching the row's columns. The tests additionally demand removal of
+`ORDER BY`, which sorts matching rows. Sorting does not change whether a match
+exists, so removing it is a sensible optimization, but it is a separate change
+from replacing the selected columns. The human reviewers took the request
+narrowly: a developer could implement `SELECT 1`, leave sorting in place, and
+still have done what was asked. The judges read “like .exists()” more broadly:
+use the other method's optimizations, including removal of sorting. The test
+requirement is concrete; whether the comparison implies it is interpretive.
+
+**SymPy-21930: the judges raise a stronger concern about an extra requirement.**
+The reported problem is a mathematical expression whose dagger symbol and power
+are formatted incorrectly. The judges say the tests also require a formatting
+change to a tensor expression that has neither that dagger nor the reported
+double-superscript problem. In plain language: a developer might repair the
+reported display problem and still fail because an apparently separate
+expression was not changed too. The human reviewers regarded the broader tests
+as appropriate coverage of the rendering fix. Based on the recorded evidence,
+we lean toward the judges' mismatch interpretation, especially the tensor
+example. Before changing the label, an independent review should establish
+whether that extra change is required by a general rendering rule implied by
+the issue, or whether a complete, valid fix can leave it unchanged and fail.
+
+**Django-14034: checking submitted data and marking an input as required are
+different behaviors.** Server-side validation decides whether submitted form
+data is acceptable. An HTML `required` attribute tells the browser that an input
+must be filled in. They are related, but changing the HTML attribute does not
+itself change the server's validation logic. The issue describes the validation
+result; the judges say the decisive failing assertion concerns the HTML
+attribute instead. GLM-Flash and Qwen report that the test's validation assertions
+already pass before the fix. If independently confirmed against the exact task,
+that would be strong evidence that the test rewards a different repair from the
+one the issue describes. We lean toward the mismatch concern here too, but the
+judge accounts differ about the parent field's `required` setting. That detail
+must be resolved before declaring the human label wrong.
+
+**Our assessment:** Django-16899 and Django-13300 are interpretive boundary
+cases. SymPy-21930 and Django-14034 are plausible reference-label problems with
+more concrete mismatch evidence. We would not dismiss the latter two merely
+because they count as FP, nor mark them as confirmed human-label errors solely
+because three judges agree. Their original labels and all reported scores stay
+unchanged pending independent adjudication.
+
 <details>
 <summary><b>Read Sonnet’s recorded reasons for these four judgments</b></summary>
 
