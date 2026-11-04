@@ -357,10 +357,14 @@ must be resolved before declaring the human label wrong.
 
 **Our assessment:** Django-16899 and Django-13300 are interpretive boundary
 cases. SymPy-21930 and Django-14034 are plausible reference-label problems with
-more concrete mismatch evidence. We would not dismiss the latter two merely
-because they count as FP, nor mark them as confirmed human-label errors solely
-because three judges agree. Their original labels and all reported scores stay
-unchanged pending independent adjudication.
+more concrete mismatch evidence. In plain language, **we lean toward the judges
+being correct on SymPy-21930 and Django-14034: the human “clean” labels may be
+wrong.** This is our assessment of the recorded evidence, not an independently
+confirmed correction. Calling these judgments FP only records disagreement with
+the reference; it does not establish that the judges' criticisms are mistaken.
+We would not mark them as confirmed human-label errors solely because three
+judges agree. Their original labels and all reported scores stay unchanged
+pending independent adjudication.
 
 <details>
 <summary><b>Read Sonnet’s recorded reasons for these four judgments</b></summary>
