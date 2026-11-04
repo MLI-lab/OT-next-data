@@ -295,6 +295,22 @@ Django-16899 correctly against the reference.
 
 [Original judge explanations](results/river-task-results.json)
 
+<details>
+<summary>Individual human ratings</summary>
+
+**U:** underspecification (0–3); **T:** tests rejecting valid solutions (0–3);
+**O:** other major issues (0/1); **C:** confidence (1–5). Reviewers are numbered
+within each task. A defect vote means U ≥ 2, T ≥ 2, or O ≥ 1.
+
+| Task | Reviewer 1 | Reviewer 2 | Reviewer 3 |
+| --- | --- | --- | --- |
+| `django__django-16899` | U0 T0 O0; C4 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-13300` | U0 T3 O0; C5 | U0 T2 O0; C4 | U0 T2 O0; C4 |
+| `sympy__sympy-21930` | U0 T0 O0; C4 | U0 T0 O0; C4 | U0 T0 O0; C5 |
+| `django__django-14034` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C4 |
+
+</details>
+
 </details>
 
 <details>
@@ -317,6 +333,25 @@ human criticism about summation.
 Local checks: the SymPy canonicalization-only fix passes 62 test items; an
 equivalent Django-8119 error message causes exactly one failure. Django-16139’s
 supplied fix was confirmed by source comparison. [Evidence](results/river-swe-verification.json).
+
+<details>
+<summary>Individual human ratings</summary>
+
+**U:** underspecification (0–3); **T:** tests rejecting valid solutions (0–3);
+**O:** other major issues (0/1); **C:** confidence (1–5). Reviewers are numbered
+within each task. A defect vote means U ≥ 2, T ≥ 2, or O ≥ 1.
+
+| Task | Reviewer 1 | Reviewer 2 | Reviewer 3 |
+| --- | --- | --- | --- |
+| `django__django-13300` | U0 T3 O0; C5 | U0 T2 O0; C4 | U0 T2 O0; C4 |
+| `sympy__sympy-21930` | U0 T0 O0; C4 | U0 T0 O0; C4 | U0 T0 O0; C5 |
+| `django__django-14034` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C4 |
+| `django__django-11129` | U2 T3 O0; C5 | U1 T2 O0; C5 | U0 T2 O0; C4 |
+| `sympy__sympy-12906` | U1 T3 O0; C5 | U1 T2 O0; C4 | U1 T3 O0; C5 |
+| `django__django-8119` | U1 T2 O0; C5 | U3 T3 O1; C5 | U2 T2 O0; C5 |
+| `django__django-16139` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+
+</details>
 
 </details>
 
@@ -341,34 +376,28 @@ reproduced test concerns. None establishes a wrong human label conclusively.
 | `matplotlib__matplotlib-23299` | FP | Clean; 0/3; C 5, 4, 5 | **Reproduced scope difference.** A targeted fix preserves the reported figure but fails the backend-persistence test. It is not proven complete across backends, so a wrong human label remains unconfirmed. |
 | `django__django-14007` | FP | Clean; 0/3; C 5, 5, 5 | **Reproduced weak-test concern.** A partial fix passes all 13 scored SQLite tests while bulk-insert paths remain unfixed; the bulk test skips. This tests a broader property than the human clean label. |
 
-</details>
-
 <details>
-<summary><b>Individual human ratings for the 14 SWE disagreement tasks</b></summary>
+<summary>Individual human ratings</summary>
 
-Reviewers are numbered within each task. **U:** underspecification (0–3);
-**T:** tests rejecting valid solutions (0–3); **O:** other major issues (0/1);
-**C:** confidence (1–5). A defect vote means U ≥ 2, T ≥ 2, or O ≥ 1.
-All 14 tasks have unanimous human binary labels.
+**U:** underspecification (0–3); **T:** tests rejecting valid solutions (0–3);
+**O:** other major issues (0/1); **C:** confidence (1–5). Reviewers are numbered
+within each task. A defect vote means U ≥ 2, T ≥ 2, or O ≥ 1.
 
-| Task | Human label / defect votes | Reviewer 1 | Reviewer 2 | Reviewer 3 |
-| --- | --- | --- | --- | --- |
-| `django__django-11129` | Defective; 3/3 | U2 T3 O0; C5 | U1 T2 O0; C5 | U0 T2 O0; C4 |
-| `django__django-13109` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
-| `django__django-13300` | Defective; 3/3 | U0 T3 O0; C5 | U0 T2 O0; C4 | U0 T2 O0; C4 |
-| `django__django-13807` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
-| `django__django-14007` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
-| `django__django-14034` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C4 |
-| `django__django-15467` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
-| `django__django-16139` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
-| `django__django-16899` | Clean; 0/3 | U0 T0 O0; C4 | U0 T0 O0; C5 | U0 T0 O0; C5 |
-| `django__django-8119` | Defective; 3/3 | U1 T2 O0; C5 | U3 T3 O1; C5 | U2 T2 O0; C5 |
-| `matplotlib__matplotlib-23299` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C4 | U0 T0 O0; C5 |
-| `sympy__sympy-12906` | Defective; 3/3 | U1 T3 O0; C5 | U1 T2 O0; C4 | U1 T3 O0; C5 |
-| `sympy__sympy-14711` | Clean; 0/3 | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
-| `sympy__sympy-21930` | Clean; 0/3 | U0 T0 O0; C4 | U0 T0 O0; C4 | U0 T0 O0; C5 |
+| Task | Reviewer 1 | Reviewer 2 | Reviewer 3 |
+| --- | --- | --- | --- |
+| `django__django-13300` | U0 T3 O0; C5 | U0 T2 O0; C4 | U0 T2 O0; C4 |
+| `sympy__sympy-12906` | U1 T3 O0; C5 | U1 T2 O0; C4 | U1 T3 O0; C5 |
+| `django__django-16139` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-13807` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-15467` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `django__django-13109` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `sympy__sympy-14711` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
+| `sympy__sympy-21930` | U0 T0 O0; C4 | U0 T0 O0; C4 | U0 T0 O0; C5 |
+| `django__django-14034` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C4 |
+| `matplotlib__matplotlib-23299` | U0 T0 O0; C5 | U0 T0 O0; C4 | U0 T0 O0; C5 |
+| `django__django-14007` | U0 T0 O0; C5 | U0 T0 O0; C5 | U0 T0 O0; C5 |
 
-Full human explanations are retained in [the task evidence](results/river-task-results.json).
+</details>
 
 </details>
 
