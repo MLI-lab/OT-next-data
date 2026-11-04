@@ -78,7 +78,7 @@ def environment_context(text, evidence_mode):
     """Insert the introduction for the execution path selected by the runner."""
     if evidence_mode not in ('image', 'files'):
         raise ValueError(f'Unknown review evidence mode: {evidence_mode}')
-    introduction = (ROOT / 'prompt_templates/modified/environment' / f'{evidence_mode}.txt').read_text().strip()
+    introduction = (ROOT / 'prompt_templates/modified/REVIEW_INTRODUCTION' / f'{evidence_mode}.txt').read_text().strip()
     if text.count('{{REVIEW_INTRODUCTION}}') != 1:
         raise ValueError('Review template must contain exactly one introduction placeholder')
     text = text.replace('{{REVIEW_INTRODUCTION}}', introduction)
