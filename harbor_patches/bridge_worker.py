@@ -84,6 +84,40 @@ def parse_copies_docker_semantics(dockerfile_path):
     return expanded
 
 
+def apply_workspace_copies(instance, workspace):
+    """Replay workspace COPY destinations as files or directories, as Docker does."""
+    root = Path(workspace)
+    dockerfile = next((p for p in (root / 'Dockerfile', root / 'environment/Dockerfile')
+                       if p.is_file()), None)
+    if dockerfile is None:
+        return
+    for line in worker._dockerfile_logical_lines(str(dockerfile)):
+        if line.upper().startswith('WORKDIR '):
+            instance._dockerfile_workdir = line[8:].strip()
+    for sources, dest in _original_parse_copies(str(dockerfile)):
+        if dest != '/workspace' and not dest.startswith('/workspace/'):
+            continue
+        target = root / dest.removeprefix('/workspace').lstrip('/')
+        for source in sources:
+            src = root / source.rstrip('/')
+            if not src.exists():
+                continue
+            if src.is_dir():
+                # COPY of a directory merges its contents, regardless of the
+                # source's trailing slash. A same-path replay is already done.
+                if src.resolve() == target.resolve():
+                    continue
+                if target.resolve().is_relative_to(src.resolve()):
+                    raise ValueError(f'Cannot replay recursive workspace COPY: {source} -> {dest}')
+                shutil.copytree(src, target, dirs_exist_ok=True, symlinks=True)
+            else:
+                dst = target / src.name if dest.endswith('/') or target.is_dir() or len(sources) > 1 else target
+                if src.resolve() == dst.resolve():
+                    continue
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+
+
 def stop_anchor(instance):
     proc = getattr(instance, '_helma_tmux_anchor', None)
     if proc is not None and proc.poll() is None:
@@ -790,6 +824,7 @@ def install_container_hooks(net_flags):
     worker.ApptainerInstance.start = start_with_anchor
     worker.ApptainerInstance.stop = stop_with_anchor
     worker.ApptainerInstance._build_sif = prepared_image_only
+    worker.ApptainerInstance._apply_dockerfile_copies = apply_workspace_copies
     worker._parse_copies = parse_copies_docker_semantics
     worker.subprocess.run = run_container_commands(worker.subprocess.run, net_flags)
 

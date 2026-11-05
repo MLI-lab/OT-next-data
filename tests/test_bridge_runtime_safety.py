@@ -1112,3 +1112,30 @@ def test_binary_exec_decoding_reaches_protected_executor(patch, tmp_path):
     assert result.stderr == 'ZIP \ufffd'
     assert result.returncode == 7
     assert seen[0]['errors'] == 'replace'
+
+
+@pytest.mark.parametrize('destination', ['/workspace/personal_info.md', '/workspace/renamed.md', '/workspace/docs/', '/workspace/existing'])
+def test_workspace_copy_file_destinations(patch, tmp_path, destination):
+    from types import SimpleNamespace
+    (tmp_path / 'personal_info.md').write_text('original CVPR context')
+    (tmp_path / 'existing').mkdir()
+    (tmp_path / 'Dockerfile').write_text(f'FROM python:3.11-slim\nWORKDIR /workspace\nCOPY personal_info.md {destination}\n')
+    instance = SimpleNamespace()
+    patch.apply_workspace_copies(instance, str(tmp_path))
+    patch.apply_workspace_copies(instance, str(tmp_path))
+    target = tmp_path / destination.removeprefix('/workspace/')
+    if target.is_dir():
+        target /= 'personal_info.md'
+    assert target.read_text() == 'original CVPR context'
+    assert instance._dockerfile_workdir == '/workspace'
+
+
+@pytest.mark.parametrize('source', ['data', 'data/'])
+def test_workspace_copy_directory_merges_contents(patch, tmp_path, source):
+    from types import SimpleNamespace
+    (tmp_path / 'data/subdir').mkdir(parents=True)
+    (tmp_path / 'data/subdir/file').write_text('nested')
+    (tmp_path / 'Dockerfile').write_text(f'FROM ubuntu\nCOPY {source} /workspace/dest\n')
+    patch.apply_workspace_copies(SimpleNamespace(), str(tmp_path))
+    assert (tmp_path / 'dest/subdir/file').read_text() == 'nested'
+    assert not (tmp_path / 'dest/data').exists()
