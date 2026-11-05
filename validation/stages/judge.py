@@ -46,7 +46,7 @@ def normalize(args):
     else:
         if getattr(args, 'judge_cli', None):
             raise ValueError('--judge-cli requires --judge-mode cli')
-        agent, model = 'terminus-2', args.judge_model
+        agent, model = getattr(args, 'judge_harness', 'mini-swe-agent'), args.judge_model
         if mode == 'serve':
             if getattr(args, 'judge_api_key_env', None):
                 raise ValueError('--judge-api-key-env requires --judge-mode api')
@@ -77,7 +77,7 @@ def review_args(args):
     result = copy(args)
     result.api_base = getattr(args, 'judge_api_base', None)
     if args.judge_mode != 'cli':
-        result.agent = 'terminus-2'
+        result.agent = args.review_agent
         result.agent_kwargs = getattr(args, 'judge_agent_kwargs', {})
     if args.judge_mode == 'serve' and not result.api_base:
         raise ValueError('judge server has not started; use cluster submission or --judge-mode api for an existing server')

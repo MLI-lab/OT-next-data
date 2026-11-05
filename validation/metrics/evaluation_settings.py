@@ -39,6 +39,8 @@ def with_trial(settings, trial):
     kwargs = agent.get('kwargs') or {}
     calls = kwargs.get('llm_call_kwargs') or {}
     limit = calls.get('max_tokens', calls.get('max_completion_tokens'))
+    if limit is None and agent.get('name') == 'mini-swe-agent':
+        limit = kwargs.get('max_tokens')
     result['request_output_tokens'] = limit
     if limit is not None:
         result['output_limit_status'] = 'present in saved request kwargs; HTTP payload not audited'

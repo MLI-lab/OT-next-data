@@ -7,31 +7,56 @@ import re
 from pathlib import Path
 import shutil
 import tomllib
+import warnings
 
 ROOT = Path(__file__).resolve().parents[1]
 
+DEFAULT_CLEAN_CATEGORY = '\n'.join([
+    '[[categories]]',
+    'name = "CLEAN"',
+    'description = "Instruction is clear and self-sufficient, a correct-per-instruction solution passes, AND the verifier genuinely validates correctness: it recomputes/decodes the true answer from the input (or exact-compares against a correct hardcoded answer) rather than merely checking output shape. A hard-but-fair task is still CLEAN."',
+]) + '\n'
+
+
+def classification_defaults(text):
+    """Add the documented CLEAN fallback only when absent; never rewrite the source."""
+    rubric = tomllib.loads(text)
+    if settings(rubric)['format'] == 'classification' and not any(
+            entry.get('name') == 'CLEAN' for entry in rubric['categories']):
+        warnings.warn('Classification rubric has no CLEAN category; adding the default CLEAN definition '
+                      'to the effective rubric. The source file is unchanged.', UserWarning, stacklevel=2)
+        return text.rstrip() + '\n\n' + DEFAULT_CLEAN_CATEGORY
+    return text
+
 
 def load(kind, output_format=None):
-    if kind == 'river_selected' and output_format not in (None, 'criteria'):
-        raise ValueError('river_selected uses --review-format criteria')
+    # Labeling is the public name; criteria remains compatible with saved plans.
+    if output_format == 'labeling':
+        output_format = 'criteria'
+    if kind == 'river_selected' and output_format not in (None, 'criteria', 'classification'):
+        raise ValueError('river_selected uses --review-format labeling or classification')
     if kind == 'river' and output_format not in (None, 'classification'):
-        raise ValueError('River uses classification; --review-format criteria is not supported')
+        raise ValueError('River uses classification; --review-format labeling is not supported')
     if kind == 'custom_severity' and output_format not in (None, 'severity'):
         raise ValueError('custom_severity uses --review-format severity')
     if kind == 'custom' and output_format not in (None, 'criteria', 'classification'):
-        raise ValueError('custom uses --review-format criteria or classification')
+        raise ValueError('custom uses --review-format labeling or classification')
     text = (ROOT / f'rubric_{kind}' / 'rubric.toml').read_text()
-    if kind == 'custom' and output_format == 'classification':
-        text = (ROOT / 'rubric_custom/classification.toml').read_text()
-    settings(tomllib.loads(text))
+    if kind in ('custom', 'river_selected') and output_format == 'classification':
+        text = (ROOT / f'rubric_{kind}/classification.toml').read_text()
+    text = classification_defaults(text)
     return text, {}
 
 
-# Runner policy stays in code, never in the rubric supplied to a judge.
-RIVER_CRITERIA = frozenset({
-    'VERIFIER-TOO-WEAK', 'INSTR-VERIFIER-MISMATCH',
-    'INSTR-ENV-MISMATCH', 'INSTR-AMBIGUOUS',
-})
+def selected_river_path():
+    """The authoritative definitions, or their frozen copy beside a staged verifier."""
+    bundled = Path(__file__).with_name('river-selected-criteria.toml')
+    return bundled if bundled.is_file() else ROOT / 'rubric_river_selected/rubric.toml'
+
+
+def river_criteria():
+    return frozenset(entry['name'] for entry in
+                     tomllib.loads(selected_river_path().read_text())['criteria'])
 
 
 def settings(rubric):
@@ -50,7 +75,7 @@ def settings(rubric):
         raise ValueError('Rubric contains non-definition metadata: ' + ', '.join(sorted(set(rubric) - allowed)))
     output_format = formats[section]
     names = {c['name'] for c in rubric.get('criteria', [])}
-    river = bool(names) and names <= RIVER_CRITERIA
+    river = bool(names) and names <= river_criteria()
     return {
         'format': output_format,
         'prompt': 'river_labeling' if river else {
@@ -60,7 +85,10 @@ def settings(rubric):
     }
 
 
-def prompt(rubric, task_name, evidence_mode="image", minutes=30):
+def prompt(rubric, task_name, evidence_mode="image", minutes=None):
+    if minutes is None:
+        from config.models import JudgeDefaults
+        minutes = JudgeDefaults().review_minutes
     config = tomllib.loads(rubric)
     templates = ROOT / 'prompt_templates/modified'
     template = settings(config)['prompt'] + '.txt'
@@ -94,6 +122,9 @@ def install_verifier(destination):
     tests = destination / 'tests'
     tests.mkdir(exist_ok=True)
     shutil.copyfile(Path(__file__), tests / 'run_review.py')
+    # The standalone verifier must recognize retry subsets without a second
+    # hardcoded registry or access to the repository on the compute worker.
+    shutil.copyfile(selected_river_path(), tests / 'river-selected-criteria.toml')
     # The staged rubric is uploaded with setup_files for file-only review trials.
     evidence = destination / 'setup_files'
     evidence.mkdir(exist_ok=True)
@@ -280,14 +311,15 @@ def codex_envelope(output, model):
 
 def judge_command(provider, model, reasoning_effort, mcp, max_budget_usd):
     if provider == 'claude':
+        from config.models import judge_cli_flags
         return ['claude', '--print', '--no-session-persistence', '--model', model,
-                '--output-format', 'json', '--effort', reasoning_effort, '--tools', '',
+                '--output-format', 'json', *judge_cli_flags(model, reasoning_effort), '--tools', '',
                 '--allowedTools', 'mcp__image__inspect', '--strict-mcp-config',
                 '--mcp-config', json.dumps(mcp), '--setting-sources', '',
                 '--max-budget-usd', str(max_budget_usd)]
     server = mcp['mcpServers']['image']
     settings = {
-        'approval_policy': 'never', 'model_reasoning_effort': reasoning_effort,
+        'approval_policy': 'never', 'model_reasoning_effort': reasoning_effort or 'medium',
         'features.shell_tool': False, 'features.unified_exec': False,
         'features.shell_snapshot': False, 'features.apps': False,
         'features.multi_agent': False, 'features.memories': False,
@@ -353,7 +385,10 @@ def checkpoint_dir(source, staged, args, agent, model):
         'review_reasoning_effort', 'review_max_budget_usd', 'review_local', 'serve_model',
         'agent_kwargs', 'serve_context', 'review_seed', 'review_retries', 'timeout_minutes',
         'review_grace_minutes')}
-    settings.update(agent=agent, model=model)
+    from config.models import judge_agent_kwargs
+    settings.update(agent=agent, model=model, effective_judge_kwargs=judge_agent_kwargs(
+        model, agent, getattr(args, 'agent_kwargs', {}) if agent == getattr(args, 'agent', None) else {},
+        getattr(args, 'review_reasoning_effort', None)))
     if not getattr(args, 'serve_model', None):
         settings['api_base'] = getattr(args, 'api_base', None)
     digest.update(json.dumps(settings, sort_keys=True, default=str).encode())
@@ -361,6 +396,7 @@ def checkpoint_dir(source, staged, args, agent, model):
     code_paths = [Path(__file__), *(ROOT.parent / 'stages' / name for name in (
         'image_review.py', 'image_inspector.py', 'harbor.py', 'task_setup.py', 'prepare_review_tasks.py', 'env_review.py')),
         ROOT.parents[1] / 'requirements.txt', ROOT.parents[1] / 'config/runtime.py',
+        ROOT.parents[1] / 'config/models.py',
         *(ROOT.parents[1] / 'harbor_patches').glob('*.py')]
     for path in sorted(code_paths):
         digest.update(path.read_bytes())
@@ -502,11 +538,12 @@ async def review_files(staged, source, out, args, agent, model, task_environment
                         {f'task-under-review/{source.name}': source, 'rubric.toml': task / 'rubric.toml'},
                         '/app/verdicts.json', grace_sec=env_review.grace_sec(args),
                         review=env_review.review_sec(args),
-                        delivery_wait_sec=env_review.grace_sec(args) if agent == 'terminus-2' else 0)
+                        delivery_wait_sec=env_review.grace_sec(args) if agent in ('mini-swe-agent', 'terminus-2') else 0)
                     session = active(env_review.policy(args, validate))
                 config = runtime.job_config(task, round_dir / 'jobs', attempt_args, agent, model)
+                from validation.stages import env_review
+                config = env_review.judge_config(config, args)
                 if task_environment:
-                    config = env_review.judge_config(config, args)
                     config['verifier'] = {'disable': True}
                 save(round_dir / 'job.json', config)
                 with session:

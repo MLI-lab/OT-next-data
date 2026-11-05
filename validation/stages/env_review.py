@@ -12,14 +12,16 @@ import re
 import shutil
 import tomllib
 
+from config.models import JudgeDefaults
+
 REVIEW_FILES = 'review_files'
-TIMEOUT_SEC = 1800.0  # default judge session: 30 minutes (--timeout-minutes); the prompt states it
-GRACE_SEC = 600.0  # then the final-answer window (harbor_patches/terminus_session.py)
+TIMEOUT_SEC = JudgeDefaults().review_minutes * 60  # default judge session: 5 hours
+GRACE_SEC = JudgeDefaults().grace_minutes * 60  # then 1 hour to deliver the final answer
 SLACK_SEC = 120.0  # outer Harbor margin for the session watchdog to cancel and save logs
 
 
 def review_sec(args=None):
-    """The judge session length: --timeout-minutes, 30 by default."""
+    """The judge session length: --timeout-minutes, 300 by default."""
     minutes = getattr(args, 'timeout_minutes', None)
     return float(minutes) * 60 if minutes else TIMEOUT_SEC
 
@@ -33,19 +35,22 @@ def grace_sec(args):
     return (getattr(args, 'review_grace_minutes', None) or GRACE_SEC / 60) * 60
 
 
-AGENTS = ('terminus-2', 'claude-code')  # judges that run inside the reviewed task's environment
+AGENTS = ('mini-swe-agent', 'terminus-2', 'claude-code')  # judges that run inside the reviewed task's environment
 # Claude Code could otherwise look up published reviews of the benchmark tasks.
 CLAUDE_DISALLOWED_TOOLS = 'WebSearch WebFetch'
 
 
 def judge_config(config, args=None):
-    """Judge settings: Terminus-2 keeps earlier turns' reasoning in the chat history
+    """Judge settings: MiniSWE and Terminus-2 keep earlier turns' reasoning in the chat history
     (interleaved thinking); Claude Code gets the review reasoning effort and no web tools."""
+    from config.models import judge_agent_kwargs
     for agent in config.get('agents', []):
-        if agent['name'] == 'terminus-2':
+        agent['kwargs'] = judge_agent_kwargs(
+            agent.get('model_name'), agent['name'], agent.get('kwargs'),
+            getattr(args, 'review_reasoning_effort', None))
+        if agent['name'] in ('mini-swe-agent', 'terminus-2'):
             agent['kwargs']['interleaved_thinking'] = True
         elif agent['name'] == 'claude-code':
-            agent['kwargs'].setdefault('reasoning_effort', getattr(args, 'review_reasoning_effort', None) or 'medium')
             agent['kwargs'].setdefault('disallowed_tools', CLAUDE_DISALLOWED_TOOLS)
     return config
 
@@ -157,8 +162,8 @@ def stage(source, staged, destination, files, artifact, grace_sec=None, review=T
     return destination
 
 
-async def run(task, out, args, model, validate=None, agent='terminus-2'):
-    """One Harbor job of args.attempts judge trials (Terminus-2 or Claude Code); returns the job's trial results.
+async def run(task, out, args, model, validate=None, agent='mini-swe-agent'):
+    """One Harbor job of args.attempts judge trials (MiniSWE, Terminus-2 or Claude Code); returns the job's trial results.
 
     With validate (stage-5 verdicts), the trials run as judge review sessions
     (harbor_patches/terminus_session.py, harbor_patches/claude_session.py);

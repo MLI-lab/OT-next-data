@@ -31,7 +31,7 @@ def test_modes_keep_solver_model_and_endpoint(mode):
     assert args.model == 'openai/solver'
     assert args.api_base == 'http://solver/v1'
     assert judged.api_base == (None if mode == 'cli' else 'http://judge/v1')
-    assert args.review_agent == ('codex' if mode == 'cli' else 'terminus-2')
+    assert args.review_agent == ('codex' if mode == 'cli' else 'mini-swe-agent')
     assert args.analysis_model == args.review_model
 
 
@@ -54,7 +54,7 @@ def test_legacy_args_unchanged():
     args = arguments('--review-local', '--model', 'openai/legacy', '--api-base', 'http://legacy/v1')
     before = vars(args).copy()
     assert review_args(args) is args
-    before.update(timeout_minutes=30, review_grace_minutes=10)
+    before.update(timeout_minutes=300, review_grace_minutes=60)
     assert vars(args) == before
 
 
@@ -149,11 +149,11 @@ def test_unregistered_hf_model_passes_serving_configuration():
     assert args.api_base == 'http://solver/v1'
 
 
-@pytest.mark.parametrize('model', ['glm-5.3', 'zai-org/GLM-5.3', 'openai/glm-5.3', 'hosted_vllm/zai-org/GLM-5.3'])
+@pytest.mark.parametrize('model', ['glm-5.3', 'zai-org/GLM-5.3', 'openai/glm-5.3', 'hosted_vllm/zai-org/GLM-5.3', 'anthropic/claude-sonnet-5-5'])
 def test_glm_judge_defaults(model):
     args = arguments('--judge-mode', 'api', '--judge-model', model)
     normalize(args)
-    assert (args.timeout_minutes, args.review_grace_minutes) == (120, 30)
+    assert (args.timeout_minutes, args.review_grace_minutes) == (300, 60)
 
 
 def test_judge_defaults_preserve_explicit_overrides():
@@ -169,17 +169,32 @@ def test_judge_defaults_preserve_explicit_overrides():
 def test_legacy_local_judge_uses_model_defaults():
     args = arguments('--review-local', '--serve-model', 'glm-5.3')
     normalize(args)
-    assert (args.timeout_minutes, args.review_grace_minutes, args.serve_context) == (120, 30, 131072)
+    assert (args.timeout_minutes, args.review_grace_minutes, args.serve_context) == (300, 60, 262144)
 
 
 @pytest.mark.parametrize('model', ['glm-5.3-flash', 'qwen38-27b'])
-def test_fast_judges_keep_short_review_budget(model):
+def test_judges_share_measurement_budget(model):
     args = arguments('--judge-mode', 'serve', '--judge-model', model)
     normalize(args)
-    assert (args.timeout_minutes, args.review_grace_minutes, args.serve_context) == (30, 10, 131072)
+    assert (args.timeout_minutes, args.review_grace_minutes, args.serve_context) == (300, 60, 262144)
 
 
 def test_solver_model_does_not_select_judge_defaults():
     args = arguments('--model', 'openai/glm-5.3')
     normalize(args)
-    assert (args.timeout_minutes, args.review_grace_minutes) == (30, 10)
+    assert (args.timeout_minutes, args.review_grace_minutes) == (300, 60)
+
+
+def test_mini_default_and_independent_terminus_override():
+    from validation.rubrics.utils.evaluation import JUDGES
+    args = arguments('--judge-mode', 'api', '--judge-model', 'openai/test',
+                     '--judge-harness', 'terminus-2')
+    normalize(args)
+    assert args.agent == 'mini-swe-agent'
+    assert args.review_agent == review_args(args).agent == 'terminus-2'
+    assert {j['agent'] for j in JUDGES if j.get('needs_endpoint')} == {'mini-swe-agent'}
+
+
+def test_registered_passk_models_support_native_tool_calls():
+    from config.models import MODELS
+    assert all(model.tool_call_parser for model in MODELS.values())

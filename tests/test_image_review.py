@@ -198,7 +198,7 @@ def test_worker_reserves_all_concurrent_review_environments(monkeypatch):
     args = SimpleNamespace(trial_cpus=None, cpus=18, serve_model=None, concurrency=10)
     assert trial_capacity(['task'], args, image_review=True)['reserved_cpus_per_trial'] == 9
     assert trial_capacity(['task'], args, image_review=True)['max_concurrency'] == 2
-    assert trial_capacity(['task'], args)['reserved_cpus_per_trial'] == 6
+    assert trial_capacity(['task'], args)['reserved_cpus_per_trial'] == 5
 
 
 def test_usage_limit_waits_and_retries_only_on_a_real_limit(monkeypatch):

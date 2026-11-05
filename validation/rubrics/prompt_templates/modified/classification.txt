@@ -17,4 +17,4 @@ Requirements:
 - Explain your classification using concrete evidence from the task.
 - Do not modify anything under `/app/task-under-review/`.
 
-You have 30 minutes for this review.
+You have {{REVIEW_MINUTES}} minutes for this review.

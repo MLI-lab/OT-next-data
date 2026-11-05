@@ -49,15 +49,17 @@ def parser():
     ap.add_argument('--out', type=Path, default=ROOT / 'validation/results', help='result directory; relative --out paths resolve from your working directory')
     ap.add_argument('--backend', choices=['apptainer', 'docker', 'modal'], default='apptainer')
     ap.add_argument('--environment-kwargs', type=json.loads, default={}, help='Harbor backend kwargs as a JSON object')
-    ap.add_argument('--agent', default='terminus-2', help='solver/cheat agent')
+    ap.add_argument('--agent', default='mini-swe-agent', help='solver/cheat harness (default: mini-swe-agent; terminus-2 remains available)')
     ap.add_argument('--review-evidence', choices=['auto', 'image', 'files'], default='auto',
                     help='stage 5: auto (default) uses cached task images or falls back to base file review; image requires task environments; files always uses a base environment')
     ap.add_argument('--review-max-budget-usd', type=float, default=5,
                     help='per-attempt Claude CLI budget for image-backed stage-5 review')
-    ap.add_argument('--review-reasoning-effort', choices=['low', 'medium', 'high', 'xhigh'], default='medium',
-                    help='Codex CLI reasoning effort for image-backed stage-5 review')
+    ap.add_argument('--review-reasoning-effort', choices=['low', 'medium', 'high', 'xhigh', 'max'], default=None,
+                    help='judge reasoning effort override; otherwise use the model configuration/provider default')
     ap.add_argument('--judge-mode', choices=['serve', 'local', 'api', 'cli'],
                     help='judge transport: start a server, connect to an API, or invoke a CLI (local aliases serve)')
+    ap.add_argument('--judge-harness', choices=['mini-swe-agent', 'terminus-2'], default='mini-swe-agent',
+                    help='harness for API/served judges (default: mini-swe-agent)')
     ap.add_argument('--judge-model', help='judge model: HF ID/registered key for serve, provider/model for API, CLI model name')
     ap.add_argument('--judge-api-base', help='judge-only OpenAI-compatible endpoint including /v1')
     ap.add_argument('--judge-api-key-env', help='environment variable containing the judge API key; never the secret itself')
@@ -69,11 +71,11 @@ def parser():
                     help='review token rates in USD per million: JSON with input/output and optional cache_read/cache_write; reported cost is retained separately')
     ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor', 'custom', 'river', 'river_selected', 'custom_severity'], default='terminal-bench',
                     help='Stage 5 rubric: terminal-bench (default), harbor, custom, river, river_selected, or custom_severity')
-    ap.add_argument('--review-format', choices=['criteria', 'classification', 'severity'],
-                    help='custom: criteria/classification; River: classification; river_selected: criteria; custom_severity: severity')
+    ap.add_argument('--review-format', choices=['labeling', 'classification', 'severity', 'criteria'],
+                    help='custom and river_selected: labeling/classification; River: classification; custom_severity: severity; criteria is an alias for labeling')
     ap.add_argument('--review-criteria', nargs='+', metavar='CRITERION',
                     help='Stage 5: review only these criterion names from the chosen rubric; default all')
-    ap.add_argument('--review-local', action='store_true', help='judge with the served model or --api-base model in Terminus 2 (all evidence modes)')
+    ap.add_argument('--review-local', action='store_true', help='judge with the served model or --api-base model with --judge-harness (all evidence modes)')
     ap.add_argument('--analysis-agent', help='override only the trajectory-analysis agent')
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
@@ -103,7 +105,7 @@ def parser():
     ap.add_argument('--review-runs', type=int, help='independent stage-5 reviews per task; defaults to --attempts')
     ap.add_argument('--review-retries', type=int, default=1, help='repair rounds for incomplete/invalid stage-5 judgments (default: 1)')
     ap.add_argument('--review-grace-minutes', type=float,
-                    help='final-answer window from the finish instruction; model default (usually 10, GLM-5.3: 30)')
+                    help='final-answer window from the finish instruction; model default (60 minutes)')
     ap.add_argument('--review-resume', action=argparse.BooleanOptionalAction, default=True, help='reuse matching completed/partial stage-5 review checkpoints (default: enabled)')
     ap.add_argument('--review-seed', type=int, default=42, help='local judge seed; independent review runs increment it')
     ap.add_argument('--outcome-retries', type=int, default=3,
@@ -178,7 +180,7 @@ def parser():
     ap.add_argument('--trials', type=Path, help='Harbor job directory for stages 7 and 8; one level of trial dirs')
     ap.add_argument('--max-iterations', type=int, default=10)
     ap.add_argument('--timeout-minutes', type=float,
-                    help='review session budget; model default (usually 30, GLM-5.3: 120)')
+                    help='review session budget; model default (300 minutes)')
     ap.add_argument('--publish-repo', help='open a pull request on this Hugging Face dataset when the Helma job ends, e.g. FWeindel/validated-tasks')
     ap.add_argument('--publish-require-complete', action='store_true', help='publish only after all tasks have outcomes for stages 1,2,3,4')
     ap.add_argument('--publish-folder', action='append', default=[], metavar='PREFIX=FOLDER', help='data source folder for task IDs starting with PREFIX, or *=FOLDER for every task (see publish.py)')
@@ -369,11 +371,6 @@ def check_args(a):
         raise ValueError('--limit must be positive')
     if not isinstance(a.environment_kwargs, dict) or not isinstance(a.agent_kwargs, dict):
         raise ValueError('environment/agent kwargs must be JSON objects')
-    if getattr(a, 'review_local', False) and not a.serve_model:
-        # API judges get the served judges' per-step reply limit unless one is given.
-        calls = dict(a.agent_kwargs.get('llm_call_kwargs') or {})
-        if not {'max_tokens', 'max_completion_tokens'} & (calls.keys() | a.agent_kwargs.keys()):
-            a.agent_kwargs = {**a.agent_kwargs, 'llm_call_kwargs': {**calls, 'max_tokens': 32768}}
 
 
 def save(path, value):
@@ -452,13 +449,15 @@ async def _review_once(number, source, item_dir, args, upstream, references=None
     resolve_review_defaults(args, [number])
     agent, model = (args.review_agent, args.review_model) if number == 5 else (args.analysis_agent, args.analysis_model)
     if getattr(args, 'review_local', False):
-        agent, model = 'terminus-2', args.model
+        agent, model = getattr(args, 'judge_harness', 'mini-swe-agent'), args.model
+        args = copy.copy(args)
+        args.agent = agent  # Keep legacy judge kwargs when the solver uses another harness.
     if number == 5:
         task = prepare_review_tasks.stage_review(source, item_dir / 'input' / 'rubric-review', upstream,
                                                  references, suffixes, getattr(args, 'review_rubric', 'terminal-bench'),
                                                  getattr(args, 'review_criteria', None), getattr(args, 'review_format', None),
                                                  getattr(args, 'review_evidence', 'image'),
-                                                 minutes=getattr(args, 'timeout_minutes', None) or 30)
+                                                 minutes=getattr(args, 'timeout_minutes', None))
         if (getattr(args, '_review_auto_selected', False) and args.review_evidence == 'files'
                 and args.backend == 'apptainer' and not args.dry_run):
             from validation.stages.review_environment import choose
@@ -491,7 +490,7 @@ async def _review_once(number, source, item_dir, args, upstream, references=None
         return await review_files(task, source, item_dir, args, agent, model, task_environment=True)
     skipped = json.loads((task / 'rubric-skips.json').read_text()) if number == 5 else {}
     rubric = task / 'rubric.toml' if number == 5 else upstream / 'docs/prompts' / rubric_name
-    if (agent == 'terminus-2' and (image or number == 8)) or (agent in env_review.AGENTS and number == 5 and image):
+    if (agent in ('mini-swe-agent', 'terminus-2') and (image or number == 8)) or (agent in env_review.AGENTS and number == 5 and image):
         # Judges run inside the reviewed task's own environment, as a solver would.
         files = ({f'task-under-review/{source.name}': source, 'rubric.toml': rubric} if number == 5
                  else {'task': source, 'trial': args.current_trial})
@@ -503,7 +502,7 @@ async def _review_once(number, source, item_dir, args, upstream, references=None
                                 files, '/app/' + verdict_name,
                                 grace_sec=env_review.grace_sec(args) if validate else None,
                                 review=env_review.review_sec(args),
-                                delivery_wait_sec=env_review.grace_sec(args) if validate and agent == 'terminus-2' else 0)
+                                delivery_wait_sec=env_review.grace_sec(args) if validate and agent in ('mini-swe-agent', 'terminus-2') else 0)
         job_dir, results = await env_review.run(task, item_dir, args, model, validate, agent=agent)
         if args.dry_run:
             return {'status': 'previewed', 'config': str(item_dir / 'job.json'), 'automatic_skips': skipped}
@@ -526,7 +525,7 @@ async def _review_once(number, source, item_dir, args, upstream, references=None
             result['status'] = 'failed'
     else:
         runtime.check_runtime_task(task, args.backend)
-        config = runtime.job_config(task, item_dir / 'jobs', args, agent, model)
+        config = env_review.judge_config(runtime.job_config(task, item_dir / 'jobs', args, agent, model), args)
         save(item_dir / 'job.json', config)
         if args.dry_run:
             return {'status': 'previewed', 'config': str(item_dir / 'job.json'), 'automatic_skips': skipped}
@@ -1062,10 +1061,11 @@ def _run_stage(number, args):
         report['instruction_suffixes'] = suffixes
         report['review_rubric'] = getattr(args, 'review_rubric', 'terminal-bench')
         report['review_format'] = getattr(args, 'review_format', None)
-        report['review_agent'] = 'terminus-2' if getattr(args, 'review_local', False) else args.review_agent
+        report['review_agent'] = getattr(args, 'judge_harness', 'mini-swe-agent') if getattr(args, 'review_local', False) else args.review_agent
         report['review_model'] = args.model if getattr(args, 'review_local', False) else args.review_model
         report['review_retries'] = getattr(args, 'review_retries', 1)
-        report['review_grace_minutes'] = getattr(args, 'review_grace_minutes', 10)
+        from validation.stages.env_review import grace_sec
+        report['review_grace_minutes'] = grace_sec(args) / 60
         report['review_criteria'] = getattr(args, 'review_criteria', None)
     report['task_content_sha256'] = source_hashes
     report_path = out / 'summary.json'

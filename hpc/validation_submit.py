@@ -196,8 +196,8 @@ def maybe_submit(args, numbers):
                  (cluster.max_cpus_per_gpu and args.cpus > gpus * cluster.max_cpus_per_gpu)):
         raise ValueError(f'{cluster.name} GPU/CPU request exceeds the limits in config/clusters.py')
     if args.serve_model:
-        if args.agent != 'terminus-2' and not getattr(args, 'review_local', False):
-            raise ValueError('--serve-model currently supports --agent terminus-2')
+        if args.agent not in ('mini-swe-agent', 'terminus-2') and not getattr(args, 'review_local', False):
+            raise ValueError('--serve-model supports --agent mini-swe-agent or terminus-2')
     if not os.environ.get('OT_WORKSPACE') and not args.dry_run:
         raise ValueError('source env.sh first: OT_WORKSPACE must point to the prepared workspace')
     folder = args.out.resolve() / 'submissions' / uuid4().hex[:12]

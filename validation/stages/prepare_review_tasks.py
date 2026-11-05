@@ -10,7 +10,10 @@ from validation.upstream import module
 from validation.rubrics import harbor_rubric, implementation_rubric, select_criteria
 
 
-def stage_review(source, destination, upstream, references=None, suffixes=None, rubric_kind='terminal-bench', criteria=None, review_format=None, evidence_mode='image', minutes=30):
+def stage_review(source, destination, upstream, references=None, suffixes=None, rubric_kind='terminal-bench', criteria=None, review_format=None, evidence_mode='image', minutes=None):
+    if minutes is None:
+        from config.models import JudgeDefaults
+        minutes = JudgeDefaults().review_minutes
     stager = module(upstream / 'scripts/review/stage_task.py', 'tb_stage_review')
     # Reuse upstream's production prompt and verifier, apply our rubric diffs,
     # and replace its GitHub-fetch Dockerfile with per-trial setup-file uploads.

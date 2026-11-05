@@ -166,7 +166,7 @@ def test_terminus_review_runs_in_task_environment(tmp_path, monkeypatch):
     assert seen['model'] == 'openai/glm-5.3-flash'
     with pytest.raises(ValueError, match='invalid JSON'):
         seen['validate']('{"checks": {"anti_cheat_robustness": {"outcome": "pass", "explanation": "a\x01b"}}}')
-    assert tomllib.loads((seen['task'] / 'task.toml').read_text())['agent']['timeout_sec'] == env_review.hard_timeout(600.0, delivery_wait_sec=600.0)
+    assert tomllib.loads((seen['task'] / 'task.toml').read_text())['agent']['timeout_sec'] == env_review.hard_timeout(env_review.GRACE_SEC, delivery_wait_sec=env_review.GRACE_SEC)
     assert (seen['task'] / 'review_files/task-under-review/sample/task.toml').is_file()
     assert (seen['task'] / 'review_files/rubric.toml').is_file()
     assert environment_dir_hash(seen['task'] / 'environment') == environment_dir_hash(source / 'environment')
@@ -205,7 +205,8 @@ def test_terminal_bench_prompt_file_matches_the_real_prompt(tmp_path):
         real = (task / 'instruction.md').read_text().replace((task / 'rubric.toml').read_text(), '<RUBRIC>')
         expected = Path(prepare_review_tasks.__file__).parents[1] / 'rubrics/prompt_templates/modified/terminal_bench.txt'
         from validation.rubrics.utils.review import environment_context
-        assert real == environment_context(expected.read_text(), 'image')
+        assert real == environment_context(expected.read_text(), 'image').replace(
+            'You have 30 minutes for this review.', 'You have 300 minutes for this review.')
 
 
 def test_missing_verdict_gets_one_full_retry(tmp_path, monkeypatch):
@@ -283,7 +284,7 @@ def test_session_length_follows_timeout_minutes():
     from validation.stages import env_review
     args = SimpleNamespace(timeout_minutes=120, review_grace_minutes=10)
     assert env_review.review_sec(args) == 7200
-    assert env_review.review_sec(SimpleNamespace()) == 1800
+    assert env_review.review_sec(SimpleNamespace()) == 18000
     assert env_review.hard_timeout(env_review.grace_sec(args), env_review.review_sec(args)) == 7200 + 600 + 120
     assert env_review.policy(args, None).review_sec == 7200
 
@@ -293,4 +294,4 @@ def test_glm_outer_limit_reserves_delivery_wait_and_full_grace():
     args = runner.parser().parse_args(['--judge-mode', 'serve', '--judge-model', 'glm-5.3'])
     normalize(args)
     review, grace = env_review.review_sec(args), env_review.grace_sec(args)
-    assert env_review.hard_timeout(grace, review, delivery_wait_sec=grace) == 182 * 60
+    assert env_review.hard_timeout(grace, review, delivery_wait_sec=grace) == 422 * 60

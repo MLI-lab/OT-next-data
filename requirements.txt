@@ -8,4 +8,5 @@ vllm==0.30.0  # Serve local LLMs for teacher generation and judging.
 ray[default]==2.55.1  # One model across several nodes
 harbor @ https://github.com/marin-community/harbor/archive/7faf878c14b6d72737579ec936ebf5f74ba3194d.zip  # Run task environments, agents and verifiers; record trajectories.
 
+mini-swe-agent==2.4.6  # Host-side MiniSWE harness; task images need no agent installation.
 python-dotenv==1.2.4  # Load judge credentials without overriding exported variables.

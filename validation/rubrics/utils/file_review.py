@@ -151,13 +151,15 @@ async def codex_review(source, rubric, instructions, record):
 
 
 async def claude_review(source, rubric, instructions, record):
+    from config.models import judge_cli_flags
+    record['judge_settings'] = {'model': 'claude-sonnet-5-5', 'flags': judge_cli_flags('claude-sonnet-5-5')}
     with tempfile.TemporaryDirectory(prefix='judge-files-') as temp:
         folder = Path(temp)
         (folder/'rubric.toml').write_text(rubric)
         config = {'mcpServers': {'files': {'command': sys.executable, 'args': ['-m', 'validation.rubrics.utils.file_review', '--mcp', str(source), str(folder/'rubric.toml'), str(folder/'verdict.json')],
                                           'env': {'PYTHONPATH': str(ROOT.parents[1])}}}}
         proc = await asyncio.create_subprocess_exec('claude', '--print', '--no-session-persistence',
-            '--model', 'claude-sonnet-5-5', '--effort', 'medium', '--output-format', 'json',
+            '--model', 'claude-sonnet-5-5', *judge_cli_flags('claude-sonnet-5-5'), '--output-format', 'json',
             '--tools', '', '--allowedTools', 'mcp__files__inspect_files', 'mcp__files__submit_review',
             '--strict-mcp-config', '--mcp-config', json.dumps(config), '--setting-sources', '',
             '--max-budget-usd', '5', cwd=folder, stdin=asyncio.subprocess.PIPE,

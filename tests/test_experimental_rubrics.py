@@ -40,9 +40,9 @@ class ExperimentalRubrics(TestCase):
 
     def test_classifications_validate_and_derive_status(self):
         from validation.rubrics.utils.review import validate
-        for kind in ('custom', 'river'):
+        for kind in ('custom', 'river', 'river_selected'):
             rubric = tomllib.loads(load(kind, 'classification')[0])
-            self.assertEqual(len(rubric['categories']), 6 if kind == 'custom' else 8)
+            self.assertEqual(len(rubric['categories']), {'custom': 6, 'river': 8, 'river_selected': 7}[kind])
             if kind == 'custom':
                 self.assertNotIn('PASS if', load(kind, 'classification')[0])
                 self.assertNotIn('FAIL if', load(kind, 'classification')[0])
@@ -68,7 +68,7 @@ class ExperimentalRubrics(TestCase):
                 (destination / 'instruction.md').write_text('Upstream prompt\nORIGINAL RUBRIC')
                 (destination / 'environment/Dockerfile').write_text('FROM ubuntu:24.04\nRUN git init /tmp/source\n')
                 (destination / 'task.toml').write_text('artifacts = ["/app/verdicts.json"]\n')
-        for kind, fmt in [('custom', None), ('custom', 'classification'), ('river', None), ('river_selected', None), ('custom_severity', None)]:
+        for kind, fmt in [('custom', None), ('custom', 'classification'), ('river', None), ('river_selected', None), ('river_selected', 'labeling'), ('river_selected', 'classification'), ('custom_severity', None)]:
             with self.subTest(kind=kind, fmt=fmt), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 source = root / 'task'; source.mkdir()

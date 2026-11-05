@@ -343,6 +343,7 @@ def test_agent_stage_records_run_settings_and_metrics(source, tmp_path, upstream
         stream.write('[agent]\ntimeout_sec=300\n')
     a = args(source.parent, tmp_path)
     a.dry_run, a.attempts = False, 2
+    a.agent = 'terminus-2'  # This test records Terminus's parser and prompt defaults.
     a.agent_kwargs = {'temperature': 0.6, 'max_tokens': 4096, 'max_turns': 40}
     monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
     async def execute(config):
@@ -402,7 +403,7 @@ def test_slurm_submission_exports_auth_without_recording_it(source, tmp_path, mo
     assert json.loads(request.read_text())['args']['submit'] == 'never'
 
 
-def test_resource_capacity_reserves_separate_verifier(source, tmp_path):
+def test_resource_capacity_reuses_agent_cpus_for_separate_verifier(source, tmp_path):
     pytest.importorskip('harbor')
     from hpc.validation_worker import trial_capacity
     with (source / 'task.toml').open('a') as file:
@@ -410,9 +411,9 @@ def test_resource_capacity_reserves_separate_verifier(source, tmp_path):
     a = args(source, tmp_path)
     a.cpus = 32
     a.serve_model = 'coder-30b'
-    assert trial_capacity([source], a)['max_concurrency'] == 7
+    assert trial_capacity([source], a)['max_concurrency'] == 9
     a.trial_cpus = 2
-    assert trial_capacity([source], a)['reserved_cpus_per_trial'] == 4
+    assert trial_capacity([source], a)['reserved_cpus_per_trial'] == 2
 
 
 def test_static_exclusions_are_explicit_and_reject_typos():

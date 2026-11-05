@@ -74,6 +74,20 @@ async def run(plan, folder, cell, args, upstream):
     output = folder / 'results' / cell['id']
     summary_path = output / 'summary.json'
     summary = json.loads(summary_path.read_text()) if summary_path.exists() else {'cell': cell, 'items': []}
+    from config.models import judge_agent_kwargs
+    effective = judge_agent_kwargs(cell['judge']['model'], cell['judge']['agent'],
+                                   args.agent_kwargs if cell['judge']['agent'] == args.agent else {},
+                                   args.review_reasoning_effort)
+    timeouts = {'review_minutes': args.timeout_minutes, 'grace_minutes': args.review_grace_minutes}
+    workflow = ('task-environment-session' if plan['evidence_mode'] == 'image'
+                and cell['judge']['agent'] in ('mini-swe-agent', 'terminus-2', 'claude-code') else 'file-or-host-review')
+    if summary['items'] and (summary.get('judge_settings') != effective or
+                             summary.get('judge_timeouts') != timeouts or
+                             summary.get('judge_workflow') != workflow):
+        raise ValueError('Existing experiment results have different or unrecorded judge settings; use a new experiment directory')
+    summary['judge_settings'] = effective
+    summary['judge_timeouts'] = timeouts
+    summary['judge_workflow'] = workflow
     completed = {Path(item['task']).name for item in summary['items'] if item.get('status') in ('passed', 'findings')}
     summary['items'] = [i for i in summary['items'] if Path(i['task']).name in completed]
     for task in plan['tasks']:
@@ -84,14 +98,14 @@ async def run(plan, folder, cell, args, upstream):
         staged = item_dir / 'input'
         if not staged.exists():
             stage_review(source, staged, upstream, rubric_kind=cell['rubric'],
-                         review_format=cell['format'], evidence_mode=plan['evidence_mode'])
+                         review_format=cell['format'], evidence_mode=plan['evidence_mode'], minutes=args.timeout_minutes)
         item_args = copy.deepcopy(args)
-        if cell['judge']['agent'] in ('codex', 'claude-code'):
+        if cell['judge']['agent'] == 'codex':
             result = await review(source, staged, item_dir, item_args, cell['judge']['agent'],
                                  cell['judge']['model'], runtime_task=staged if plan['evidence_mode'] == 'files' else None,
                                  evidence_mode=plan['evidence_mode'])
         else:
-            result = await review_files(staged, source, item_dir, item_args, 'terminus-2', cell['judge']['model'],
+            result = await review_files(staged, source, item_dir, item_args, cell['judge']['agent'], cell['judge']['model'],
                                         task_environment=plan['evidence_mode'] == 'image')
         summary['items'].append({'task': str(source), **result})
         save(summary_path, summary)
@@ -133,9 +147,13 @@ def main(argv=None):
     args.review_agent, args.review_model = cell['judge']['agent'], cell['judge']['model']
     args.model = args.review_model
     args.out = folder / 'results' / cell['id']
-    args.review_local = cell['judge']['agent'] == 'terminus-2'
-    args.agent_kwargs = {'llm_call_kwargs': {'max_tokens': 32768}}
-    args.timeout_minutes = 30
+    args.review_local = cell['judge']['agent'] in ('mini-swe-agent', 'terminus-2')
+    # The shared judge configuration supplies model-specific token budgets.
+    args.agent_kwargs = {}
+    from config.models import judge_defaults
+    defaults = judge_defaults(args.review_model)
+    args.timeout_minutes = defaults.review_minutes
+    args.review_grace_minutes = defaults.grace_minutes
     asyncio.run(run(plan, folder, cell, args, upstream))
 
 

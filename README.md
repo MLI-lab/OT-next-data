@@ -55,6 +55,11 @@ has code, patches and small metadata. Download model weights with `python config
 `/path/to/workspace/models/`; set `OT_MODELS` to use another directory. For run outputs, pass `--out "$OT_WORKSPACE/runs/NAME"`;
 without `--out`, validation currently writes to the repo's `validation/results/`.
 
+**MiniSWE** is the default harness for pass@k and local/API LLM judges.
+Use `--agent terminus-2` for solver runs or `--judge-harness terminus-2` for
+judges to select Terminus-2. Sonnet judges use Claude Code. See the
+[judge configuration](validation/rubrics/README.md#judge-configuration).
+
 Setup installs the Python packages in `requirements.txt` into one virtual
 environment for validation and teacher generation. The default location is
 `/path/to/workspace/envs/prep`. To choose another location, run

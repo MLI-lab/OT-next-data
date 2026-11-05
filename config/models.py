@@ -51,7 +51,7 @@ MODELS = {
     'qwen38-27b': Model(
         name='Qwen3.8-27B', hf_repo='Qwen/Qwen3.8-27B', gpus=1,
         weights_gb=56, reasoning_parser='qwen3', tool_call_parser='qwen3_xml', thinking=True,
-        max_output_tokens=32767,
+        context=262144, max_output_tokens=65536,
         # The model card's thinking-mode sampling (thinking is on); the old values
         # (0.7 / 0.8 / presence 1.5) were the card's non-thinking settings.
         sampling={'temperature': 1.0, 'top_p': 0.95, 'top_k': 20, 'min_p': 0.0,
@@ -59,18 +59,18 @@ MODELS = {
         extra_args=['--language-model-only']),
     'coder-30b': Model(
         name='Qwen3-Coder-30B-A3B-Instruct', hf_repo='Qwen/Qwen3-Coder-30B-A3B-Instruct',
-        gpus=1, weights_gb=61,
+        gpus=1, weights_gb=61, tool_call_parser='qwen3_coder',
         sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'repetition_penalty': 1.05}),
     'qwen35-122b': Model(
         name='Qwen3.5-122B-A10B', hf_repo='Qwen/Qwen3.5-122B-A10B',
-        gpus=4, thinking=True, weights_gb=245, reasoning_parser='qwen3',
+        gpus=4, thinking=True, weights_gb=245, reasoning_parser='qwen3', tool_call_parser='qwen3_coder',
         sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20},
         extra_args=['--language-model-only']),
     # Multi-node teacher that this runtime can actually serve: Qwen3MoeForCausalLM
     # is long supported, and 482 GB of FP8 weights need two of Helma's nodes.
     'qwen3-coder-480b-fp8': Model(
         name='Qwen3-Coder-480B-A35B-Instruct-FP8', hf_repo='Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8',
-        gpus=8, weights_gb=482, dtype='auto',
+        gpus=8, weights_gb=482, dtype='auto', tool_call_parser='qwen3_coder',
         sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'repetition_penalty': 1.05}),
     # The newest GLM, and the reason the runtime pin moved: vLLM 0.20 could not
     # load this family's attention-indexer weights. FP8 already, 756 GB, so two
@@ -82,19 +82,19 @@ MODELS = {
         # (873959: cudaErrorStreamCaptureInvalidated), so capture is off. It costs
         # some throughput; drop the flag when a vLLM release fixes capture under PP.
         extra_args=['--enforce-eager'],
-        # Same judge limits as GLM-5.3-Flash: 32,768 per reply inside a 131,072 context.
-        context=131072, max_output_tokens=32768,
+        # Pilot limits: 65,536 tokens per reply, including thinking, inside a 262,144 context.
+        context=262144, max_output_tokens=65536,
         sampling={'temperature': 1.0, 'top_p': 0.95}),
     # Local rubric judge. FP8, 306 GB, one Helma node, so no pipeline stage spans
     # nodes and CUDA graphs stay on (the 2026-10-15 judge runs kept GLM-5.3's
     # --enforce-eager and reached ~11 tokens/s per review). Sampling is its
-    # generation_config; reasoning effort is the chat template's default (max).
-    # 32,768 per reply: the 16,384 of those runs ended 57 reviews inside one
-    # thinking block.
+    # generation_config; judge effort is explicitly configured in JUDGE_MODELS.
+    # The pilot allows 65,536 per reply; earlier 16,384-token runs ended
+    # 57 reviews inside one thinking block.
     'glm-5.3-flash': Model(
         name='GLM-5.3-Flash', hf_repo='zai-org/GLM-5.3-Flash',
         gpus=4, thinking=True, weights_gb=306, dtype='auto', reasoning_parser='glm47', tool_call_parser='glm47',
-        context=131072, max_output_tokens=32768,
+        context=262144, max_output_tokens=65536,
         extra_args=['--language-model-only'],
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
@@ -102,32 +102,115 @@ MODELS = {
 @dataclass(frozen=True)
 class JudgeDefaults:
     """Review policy, separate from the model's shared serving/sampling settings."""
-    review_minutes: float = 30
-    grace_minutes: float = 10
+    review_minutes: float = 300
+    grace_minutes: float = 60
     context: int | None = None
+    thinking: bool | None = None
+    reasoning_effort: str | None = None
 
 
+# Open-model efforts match the published HF templates. Sonnet medium is our
+# explicit judge policy. None means leave the setting to HF/provider defaults.
 JUDGE_MODELS = {
-    # The 3-task two-hour pilot had 9.4-minute mean API calls and a 26.7-minute
-    # maximum. Thirty-minute grace is the next pilot setting, not yet validated.
-    'glm-5.3': JudgeDefaults(review_minutes=120, grace_minutes=30, context=131072),
-    'glm-5.3-flash': JudgeDefaults(context=131072),
-    'qwen38-27b': JudgeDefaults(context=131072),
+    # Generous measurement budgets shared by all judges; explicit run overrides win.
+    'glm-5.3': JudgeDefaults(context=262144, thinking=True, reasoning_effort='max'),
+    'glm-5.3-flash': JudgeDefaults(context=262144, thinking=True, reasoning_effort='max'),
+    'qwen38-27b': JudgeDefaults(context=262144, thinking=True, reasoning_effort='xhigh'),
+    'claude-sonnet-5-5': JudgeDefaults(thinking=True, reasoning_effort='medium'),
 }
 
 
 def judge_defaults(model: str | None) -> JudgeDefaults:
     """Resolve exact registered keys, HF IDs and API-prefixed registered names."""
+    return JUDGE_MODELS.get(model_key(model), JudgeDefaults())
+
+
+def model_key(model: str | None) -> str:
+    """Canonical registry key for CLI names, HF IDs and provider-prefixed IDs."""
     name = model or ''
-    for prefix in ('openai/', 'hosted_vllm/', 'together_ai/'):
+    for prefix in ('openai/', 'hosted_vllm/', 'together_ai/', 'anthropic/'):
         if name.startswith(prefix):
             name = name[len(prefix):]
             break
-    for key, defaults in JUDGE_MODELS.items():
-        spec = MODELS[key]
+    if name == 'sonnet-5.5':
+        return 'claude-sonnet-5-5'
+    for key, spec in MODELS.items():
         if name in (key, spec.hf_repo, spec.name):
-            return defaults
-    return JudgeDefaults()
+            return key
+    return name
+
+
+def judge_agent_kwargs(model, agent, overrides=None, reasoning_effort=None):
+    """Shared request defaults, independent of endpoint/launch path.
+
+    Explicit kwargs win, including nested request kwargs. Unknown models receive
+    no invented sampling/thinking settings: their provider/HF defaults apply.
+    Registered local judges also receive matching request/context budgets.
+    """
+    from copy import deepcopy
+    result = deepcopy(overrides or {})
+    defaults = judge_defaults(model)
+    effort = reasoning_effort or defaults.reasoning_effort
+    if agent in ('claude', 'claude-code'):
+        if effort is not None:
+            result.setdefault('reasoning_effort', effort)
+        if defaults.thinking is not None:
+            result.setdefault('thinking', 'adaptive' if defaults.thinking else 'disabled')
+        return result
+    if agent not in ('mini-swe-agent', 'terminus-2'):
+        return result
+    spec = MODELS.get(model_key(model))
+    sampling = dict(spec.sampling) if spec else {}
+    template = {}
+    thinking = defaults.thinking if defaults.thinking is not None else (spec.thinking if spec else None)
+    if thinking is not None:
+        template['enable_thinking'] = thinking
+    if effort is not None:
+        template['reasoning_effort'] = effort
+    calls = result.setdefault('llm_call_kwargs', {})
+    # Fold all explicit transport locations into one body, preserving explicit
+    # values over defaults. Terminus itself gives top-level extra_body precedence.
+    extra = dict(calls.pop('extra_body', {}) or {})
+    explicit_template = dict(extra.pop('chat_template_kwargs', {}) or {})
+    top_extra = dict(result.pop('extra_body', {}) or {})
+    explicit_template.update(top_extra.pop('chat_template_kwargs', {}) or {})
+    extra.update(top_extra)
+    explicit_effort = calls.pop('reasoning_effort', result.pop('reasoning_effort', None))
+    if explicit_effort is not None:
+        template['reasoning_effort'] = explicit_effort
+    template.update(explicit_template)
+    if model_key(model) in ('glm-5.3', 'glm-5.3-flash') and template.get('reasoning_effort') not in (None, 'low', 'high', 'max'):
+        raise ValueError('GLM-5.3 judges support low, high or max reasoning effort (not medium/xhigh)')
+    if model_key(model) == 'qwen38-27b' and template.get('reasoning_effort') not in (None, 'low', 'medium', 'xhigh'):
+        raise ValueError('Qwen3.8-27B supports low, medium or xhigh reasoning effort')
+    temperature = sampling.pop('temperature', None)
+    if temperature is not None and 'temperature' not in calls and 'temperature' not in extra:
+        result.setdefault('temperature', temperature)
+    sampling.update(extra)
+    for key in list(sampling):
+        if key in calls:
+            sampling[key] = calls.pop(key)
+        if key in result:
+            sampling[key] = result.pop(key)
+    if template:
+        sampling['chat_template_kwargs'] = template
+    if sampling:
+        result['extra_body'] = sampling
+    if not calls:
+        result.pop('llm_call_kwargs', None)
+    if spec is not None and defaults.context is not None:
+        context = (result.get('model_info') or {}).get('max_input_tokens', defaults.context)
+        budgets = serving_agent_kwargs(spec, context, result)
+        for key in ('max_tokens', 'model_info', 'llm_call_kwargs'):
+            result[key] = budgets[key]
+    return result
+
+
+def judge_cli_flags(model, reasoning_effort=None):
+    """Claude flags shared by host image and standalone file reviews."""
+    settings = judge_agent_kwargs(model, 'claude-code', reasoning_effort=reasoning_effort)
+    return [value for key, flag in (('reasoning_effort', '--effort'), ('thinking', '--thinking'))
+            if key in settings for value in (flag, settings[key])]
 
 
 # The two models the RL runs start from, measured on every dataset. Sampling is
@@ -144,13 +227,13 @@ MODELS.update({
     # Never thinks. Card: Temperature=0.7, TopP=0.8, TopK=20, MinP=0.
     'qwen3-30b-instruct-2507': Model(
         name='Qwen3-30B-A3B-Instruct-2507', hf_repo='Qwen/Qwen3-30B-A3B-Instruct-2507',
-        gpus=1, weights_gb=61, context=32768, max_output_tokens=8192,
+        gpus=1, weights_gb=61, tool_call_parser='hermes', context=32768, max_output_tokens=8192,
         sampling={'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'min_p': 0}),
     # Thinking on; the template has only the switch, no effort levels. Card, thinking
     # mode: Temperature=0.6, TopP=0.95, TopK=20, MinP=0.
     'qwen3-30b-thinking': Model(
         name='Qwen3-30B-A3B', hf_repo='Qwen/Qwen3-30B-A3B',
-        gpus=1, thinking=True, weights_gb=61, reasoning_parser='qwen3',
+        gpus=1, thinking=True, weights_gb=61, reasoning_parser='qwen3', tool_call_parser='hermes',
         context=32768, max_output_tokens=8192,
         sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20, 'min_p': 0}),
 })
@@ -167,7 +250,7 @@ def weights_dir(model_name: str):
 
 
 def serving_agent_kwargs(spec, context, overrides):
-    """Forward the reply budget to Terminus requests and its context accounting."""
+    """Forward the reply budget to harness requests and context accounting."""
     call_kwargs = dict(overrides.get('llm_call_kwargs') or {})
     budgets = [value for value in (overrides.get('max_tokens'),
                                    call_kwargs.get('max_tokens'),

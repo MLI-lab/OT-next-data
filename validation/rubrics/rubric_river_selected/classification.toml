@@ -1,0 +1,27 @@
+[[categories]]
+name = "CLEAN"
+description = "None of the defects defined in this rubric is present."
+
+[[categories]]
+name = "VERIFIER-TOO-WEAK"
+description = "The verifier passes without the task actually being solved: it does not check one or more requirements stated in the instructions, it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass."
+
+[[categories]]
+name = "INSTR-VERIFIER-MISMATCH"
+description = "The verifier checks something the instruction does not imply, or contradicts it. For example, reads/writes a different path, asserts a hardcoded value that conflicts with the data, requires specific output keys not stated in the instruction, or requires exact warning/error messages or other prose wording that the instruction does not specify. A solution that faithfully follows the instruction still fails."
+
+[[categories]]
+name = "INSTR-ENV-MISMATCH"
+description = "The instruction or verifier references input paths, files, dependencies, or services the environment does not actually provide, so the task cannot be completed as written (missing data/compiler/service). Do not flag if the agent can resolve the issue by installing, configuring, or starting available components. Flag if resolving it requires inventing missing data or implementing a service or program that the instructions assume is already provided."
+
+[[categories]]
+name = "INSTR-AMBIGUOUS"
+description = "The instruction alone is underspecified: a necessary specification is missing, so two equally reasonable interpretations produce different outputs and the verifier accepts only one. Merely admitting multiple valid solution paths is not enough."
+
+[[categories]]
+name = "TASK-TRIVIAL"
+description = "The task itself is so easy there is no meaningful work or learning signal: write a constant, echo a value, copy a file, regardless of verifier strength."
+
+[[categories]]
+name = "ANSWER-LEAK"
+description = "The instruction itself, or a file shipped in the environment, reveals the expected answer (lists the result, embeds the solution, or provides a ground-truth file), so the task requires no genuine work."

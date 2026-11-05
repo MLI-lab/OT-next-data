@@ -24,6 +24,8 @@ INFRASTRUCTURE_RETRY = {'max_retries': 0}
 
 
 def install_runtime_patches():
+    from harbor_patches.mini_swe import install as install_mini_swe
+    install_mini_swe()
     from harbor_patches.output_recovery import install as install_output_recovery
     install_output_recovery()
     from harbor_patches.verifier_setup import install as install_verifier_setup
@@ -104,8 +106,8 @@ def check_runtime_task(task, backend):
 def job_config(task, output, args, agent, model=None, artifacts=None):
     kwargs = dict(args.agent_kwargs) if agent == args.agent else {}
     agent_spec = {'name': agent, **({'model_name': model} if model else {}), 'kwargs': kwargs}
-    # API routing is relevant to host-driven Terminus, not the Claude reviewer.
-    if args.api_base and agent == 'terminus-2':
+    # API routing is relevant to host-driven harnesses, not the Claude reviewer.
+    if args.api_base and agent in ('mini-swe-agent', 'terminus-2'):
         kwargs['api_base'] = args.api_base
     config = {
         'job_name': 'job', 'jobs_dir': str(output.resolve()),

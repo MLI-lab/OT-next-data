@@ -12,6 +12,8 @@ def agent_settings(name, kwargs):
     try:
         from harbor.agents.factory import AgentFactory
         from harbor.models.agent.name import AgentName
+        if name == 'mini-swe-agent':
+            return mini_settings(kwargs)
         cls = AgentFactory._AGENT_MAP[AgentName(name)]
     except Exception as exc:
         return {'settings': dict(kwargs), 'defaults_resolved': False, 'reason': f'{type(exc).__name__}: {exc}'}
@@ -23,6 +25,23 @@ def agent_settings(name, kwargs):
              *sorted(p for p in (module.parent / 'templates').rglob('*') if p.is_file())]
     return {'settings': {**defaults, **kwargs}, 'defaults_resolved': True,
             'source_sha256': {str(p.relative_to(module.parent)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}}
+
+
+def mini_settings(kwargs):
+    """Record the host adapter and exact upstream loop, tool schema and prompts."""
+    import minisweagent
+    import yaml
+    from harbor_patches import mini_swe
+    root = Path(minisweagent.__file__).parent
+    config = yaml.safe_load((root / 'config/mini.yaml').read_text())
+    files = ['agents/default.py', 'models/litellm_model.py',
+             'models/utils/actions_toolcall.py', 'config/mini.yaml']
+    hashes = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in files}
+    hashes['ot/mini_swe.py'] = hashlib.sha256(Path(mini_swe.__file__).read_bytes()).hexdigest()
+    return {'settings': {'max_turns': 0, 'command_timeout_sec': 30,
+                         'interleaved_thinking': True, **kwargs},
+            'defaults_resolved': True, 'version': minisweagent.__version__,
+            'upstream_config': config, 'source_sha256': hashes}
 
 
 def task_settings(task):

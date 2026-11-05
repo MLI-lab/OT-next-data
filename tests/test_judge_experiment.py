@@ -80,3 +80,63 @@ class ExperimentTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+import pytest
+
+
+@pytest.mark.parametrize('agent,model', [
+    ('claude-code', 'claude-sonnet-5-5'),
+    ('terminus-2', 'hosted_vllm/zai-org/GLM-5.3'),
+    ('terminus-2', 'hosted_vllm/zai-org/GLM-5.3-Flash'),
+    ('terminus-2', 'hosted_vllm/Qwen/Qwen3.8-27B'),
+])
+def test_experiment_routes_all_four_judges_to_task_sessions(tmp_path, monkeypatch, agent, model):
+    import asyncio
+    from types import SimpleNamespace
+    from hpc import judge_review
+    from hpc.offline_prep import image_cache
+    from harbor_patches import image_context
+    from validation.stages import image_review, prepare_review_tasks
+    from validation.rubrics.utils import review
+
+    source = tmp_path / 'task'
+    (source / 'environment').mkdir(parents=True)
+    (source / 'environment/Dockerfile').write_text('FROM ubuntu:24.04\n')
+    cache = tmp_path / 'cache'
+    cache.mkdir()
+    (cache / 'task-cached.sif').write_bytes(b'test fixture')
+    monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
+    monkeypatch.setenv('HARBOR_SIF_CACHE', str(cache))
+    monkeypatch.setattr(judge_review, 'prepare', lambda *a: {'task': source})
+    monkeypatch.setattr(image_context, 'task_dockerfiles', lambda p: [p / 'environment/Dockerfile'])
+    monkeypatch.setattr(image_context, 'environment_dir_hash_truncated', lambda p: 'cached')
+    monkeypatch.setattr(judge_review.shutil, 'which', lambda binary: '/test/apptainer')
+    monkeypatch.setattr(image_cache, 'verify_image_runtime', lambda *a: None)
+    monkeypatch.setattr(judge_review, 'report', lambda *a: None)
+    monkeypatch.setattr(prepare_review_tasks, 'stage_review', lambda source, staged, *a, **kw: staged.mkdir(parents=True))
+    calls = []
+
+    async def host_review(*a, **kw):
+        pytest.fail('The four experiment judges must not use the host-CLI inspector')
+
+    async def session_review(staged, source, output, args, selected_agent, selected_model, task_environment=False):
+        calls.append((selected_agent, selected_model, task_environment, args.timeout_minutes, args.review_grace_minutes))
+        return {'status': 'passed'}
+
+    monkeypatch.setattr(image_review, 'review', host_review)
+    monkeypatch.setattr(review, 'review_files', session_review)
+    cell = {'id': 'cell', 'judge': {'agent': agent, 'model': model},
+            'rubric': 'river_selected', 'format': 'labeling'}
+    plan = {'evidence_mode': 'image', 'tasks': [{'id': 'task', 'input': str(source)}]}
+    args = SimpleNamespace(agent='terminus-2', agent_kwargs={}, review_reasoning_effort=None,
+                           timeout_minutes=300, review_grace_minutes=60)
+    asyncio.run(judge_review.run(plan, tmp_path, cell, args, tmp_path))
+    assert calls == [(agent, model, True, 300, 60)]
+    summary_path = tmp_path / 'results/cell/summary.json'
+    summary = json.loads(summary_path.read_text())
+    assert summary['judge_workflow'] == 'task-environment-session'
+    summary['judge_workflow'] = 'file-or-host-review'
+    summary_path.write_text(json.dumps(summary))
+    with pytest.raises(ValueError, match='different or unrecorded judge settings'):
+        asyncio.run(judge_review.run(plan, tmp_path, cell, args, tmp_path))

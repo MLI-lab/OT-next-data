@@ -179,30 +179,50 @@ def review_runtime_tasks(tasks, stages, scratch, evidence="files", rubric="termi
                          review_format=review_format, evidence_mode=evidence)]
 
 
-def trial_capacity(tasks, args, image_review=False):
-    # Reserve both agent and verifier steps: an agent may stay alive while its
-    # separate verifier starts, so filling every CPU with agents can deadlock.
+def trial_capacity(tasks, args, image_review=False, verifier_disabled=False):
+    """Reserve each trial's peak live CPU request, not sequential phases twice.
+
+    Single-step Harbor trials stop the agent before separate verification.
+    Multi-step trials retain the agent across intermediate verifications, while
+    host inspection reviews can keep all inspected environments alive together.
+    Task-environment judges disable the verifier and validate JSON on the host.
+    """
     from harbor.models.task.task import Task
     from harbor.models.task.verifier_mode import resolve_effective_verifier_env_config
     per_trial = args.trial_cpus or 1
     for path in tasks:
         task = Task(path)
-        envs = [task.config.environment]
-        envs.append(resolve_effective_verifier_env_config(task.config, None))
-        for step in task.config.steps or []:
-            envs.append(resolve_effective_verifier_env_config(task.config, step))
-        agent_cpus = args.trial_cpus or envs[0].cpus or 1
-        verifier_envs = ([] if getattr(args, 'git_checks_only', False) else
-                         envs[2:] if image_review and task.config.steps else envs[1:])
-        reservations = [args.trial_cpus or env.cpus or 1 for env in verifier_envs if env]
-        verifier_cpus = sum(reservations) if image_review else max(reservations, default=0)
-        per_trial = max(per_trial, agent_cpus + verifier_cpus)
+        agent_cpus = args.trial_cpus or task.config.environment.cpus or 1
+        steps = task.config.steps or []
+        configs = ([resolve_effective_verifier_env_config(task.config, step) for step in steps]
+                   if steps else [resolve_effective_verifier_env_config(task.config, None)])
+        reservations = [(args.trial_cpus or env.cpus or 1) if env else 0 for env in configs]
+        if verifier_disabled or getattr(args, 'git_checks_only', False):
+            required = agent_cpus
+        elif image_review:
+            required = agent_cpus + sum(reservations)
+        elif steps:
+            # Only the final separate verifier runs after agent shutdown.
+            required = max(agent_cpus + max(reservations[:-1], default=0), reservations[-1])
+        else:
+            required = max(agent_cpus, reservations[0])
+        per_trial = max(per_trial, required)
     available = args.cpus - (args.serve_cpus * getattr(args, 'serve_replicas', 1) if args.serve_model else 0)
     capacity = available // per_trial
     if capacity < 1:
         raise ValueError(f'need at least {per_trial} trial CPUs in addition to serving CPUs')
     return {'requested_concurrency': args.concurrency, 'max_concurrency': capacity,
             'trial_cpu_budget': available, 'reserved_cpus_per_trial': per_trial}
+
+
+def capacity_for_stages(tasks, args, stages):
+    """Distinguish container judges from host inspectors and ordinary verification."""
+    from validation.stages.env_review import AGENTS
+    image_review = 5 in stages and getattr(args, 'review_evidence', 'auto') in ('auto', 'image')
+    judge = (getattr(args, 'judge_harness', 'mini-swe-agent') if getattr(args, 'review_local', False)
+             else getattr(args, 'review_agent', None))
+    verifier_disabled = set(stages) == {5} and image_review and judge in AGENTS
+    return trial_capacity(tasks, args, image_review=image_review, verifier_disabled=verifier_disabled)
 
 
 def prebuild_result(preparation):
@@ -317,7 +337,7 @@ def main(request):
             getattr(args, 'review_format', None), getattr(args, 'review_criteria', None))
         budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
                    'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
-                  if static_only or prebuild_only else trial_capacity(runtime_tasks, args, image_review=5 in data['stages'] and getattr(args, 'review_evidence', 'auto') in ('auto', 'image')))
+                  if static_only or prebuild_only else capacity_for_stages(runtime_tasks, args, data['stages']))
         args.concurrency = min(args.concurrency, budget['max_concurrency'])
         save(request.parent / 'resources.json', {**budget, 'effective_concurrency': args.concurrency,
                                                'static_concurrency': args.static_concurrency})
@@ -496,7 +516,7 @@ def main(request):
                 '--model', str(weights), '--served-model-name', key, '--host', '127.0.0.1',
                 '--port', str(serving_port), '--tensor-parallel-size', str(tp), '--pipeline-parallel-size', str(pp),
                 '--max-model-len', str(args.serve_context), '--max-num-seqs', str(args.max_num_seqs or 2 * args.concurrency),
-                '--gpu-memory-utilization', '0.9', '--dtype', spec.dtype, '--generation-config', 'vllm',
+                '--gpu-memory-utilization', '0.9', '--dtype', spec.dtype, '--generation-config', 'auto',
                 '--enable-prefix-caching', '--enable-prompt-tokens-details', *spec.extra_args]
             if spec.reasoning_parser:
                 command += ['--reasoning-parser', spec.reasoning_parser]

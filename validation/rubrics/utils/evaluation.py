@@ -11,19 +11,14 @@ from pathlib import Path
 import tarfile
 
 CONFIGS = [
-    ('terminal-bench', 'terminal-bench', None, 'Per-criterion pass/fail'),
-    ('harbor', 'harbor', None, 'Per-criterion pass/fail'),
-    ('custom-criteria', 'custom', 'criteria', 'Per-criterion pass/fail'),
-    ('custom-classification', 'custom', 'classification', 'Single-category classification'),
-    ('river', 'river', None, 'Single-category classification'),
-    ('custom-severity', 'custom_severity', None, 'None/minor/major per criterion'),
+    ('river-selected-labeling', 'river_selected', 'labeling', 'Per-criterion pass/fail'),
+    ('river-selected-classification', 'river_selected', 'classification', 'Single-category classification'),
 ]
 JUDGES = [
-    {'id': 'gpt-5.4', 'agent': 'codex', 'model': 'gpt-5.4'},
     {'id': 'sonnet-5.5', 'agent': 'claude-code', 'model': 'claude-sonnet-5-5'},
-    {'id': 'glm-flash', 'agent': 'terminus-2', 'model': 'hosted_vllm/zai-org/GLM-5.3-Flash', 'needs_endpoint': True},
-    {'id': 'glm-5.3', 'agent': 'terminus-2', 'model': 'hosted_vllm/zai-org/GLM-5.3', 'needs_endpoint': True},
-    {'id': 'qwen', 'agent': 'terminus-2', 'model': 'hosted_vllm/Qwen/Qwen3.8-27B', 'needs_endpoint': True},
+    {'id': 'glm-flash', 'agent': 'mini-swe-agent', 'model': 'hosted_vllm/zai-org/GLM-5.3-Flash', 'needs_endpoint': True},
+    {'id': 'glm-5.3', 'agent': 'mini-swe-agent', 'model': 'hosted_vllm/zai-org/GLM-5.3', 'needs_endpoint': True},
+    {'id': 'qwen', 'agent': 'mini-swe-agent', 'model': 'hosted_vllm/Qwen/Qwen3.8-27B', 'needs_endpoint': True},
 ]
 
 

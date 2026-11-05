@@ -105,9 +105,12 @@ does not improve batching within a GPU job. Trials can be attempts of the same
 task, so concurrency is not necessarily the number of distinct tasks.
 
 Budget serving CPUs first, including all serving replicas. The worker's
-`trial_capacity` reserves each task's agent CPUs plus the largest separate
-verifier CPU request that can overlap it, then uses the largest per-trial
-reservation in the shard. The CPU ceiling is
+`trial_capacity` reserves the peak simultaneous request for each task, then uses
+the largest per-trial reservation in the shard. Single-step tasks stop their
+agent environment before separate verification, so reserve the larger request,
+not their sum. Task-environment judges use only the agent environment; verdict
+JSON is checked on the host. Intermediate multi-step verifiers and host inspection
+workflows can overlap environments and must reserve those simultaneous requests. The CPU ceiling is
 `floor((job_cpus - serving_cpus) / reserved_cpus_per_trial)`.
 Also check aggregate memory, GPU KV-cache capacity and node-local scratch.
 Never lower task CPU requests just to increase concurrency. Increase the job

@@ -262,7 +262,10 @@ async def review(source, staged, out, args, agent, model, *, runtime_task=None, 
                 mcp = {'mcpServers': {'image': {'command': sys.executable, 'args': [str(Path(__file__).with_name('image_inspector.py')), str(port)],
                     'env': {'OT_REVIEW_INSPECT_TOKEN': inspector.token}}}}
                 command = judge_command(provider, model.removeprefix('anthropic/').removeprefix('openai/').removeprefix('hosted_vllm/'),
-                    getattr(args, 'review_reasoning_effort', 'medium'), mcp, getattr(args, 'review_max_budget_usd', 5))
+                    getattr(args, 'review_reasoning_effort', None), mcp, getattr(args, 'review_max_budget_usd', 5))
+                from config.models import judge_agent_kwargs
+                save(round_dir / 'judge-settings.json', {'model': model, 'settings': judge_agent_kwargs(
+                    model, agent, reasoning_effort=getattr(args, 'review_reasoning_effort', None))})
                 (round_dir / 'prompt.txt').write_text(prompt)
                 envelope = {}
                 started = time.monotonic()
