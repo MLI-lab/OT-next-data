@@ -95,10 +95,30 @@ def refresh_times(root):
             os.utime(path, (now, now))
 
 
+def check_stage_capacity(manifest, root):
+    """Check the archive/extraction peak and an optional whole-run scratch budget."""
+    archive_bytes = Path(manifest['archive']).stat().st_size
+    requested = int(os.environ.get('OT_MIN_SCRATCH_FREE_BYTES', '0'))
+    if requested < 0:
+        raise ValueError('OT_MIN_SCRATCH_FREE_BYTES must be nonnegative')
+    required = max(2 * archive_bytes + 20 * 1024**3, requested)
+    free = shutil.disk_usage(root).free
+    evidence = {'free_bytes': free, 'required_bytes': required,
+                'runtime_archive_bytes': archive_bytes, 'requested_run_budget_bytes': requested}
+    (root / 'scratch-capacity.json').write_text(json.dumps(evidence, indent=2))
+    if free < required:
+        raise OSError(f'Insufficient node-local scratch before staging: '
+                      f'need {required / 1024**3:.1f} GiB free, have {free / 1024**3:.1f} GiB')
+    print(f'Node-local scratch: {free / 1024**3:.1f} GiB free; '
+          f'{required / 1024**3:.1f} GiB required before staging', flush=True)
+    return evidence
+
+
 def stage(bundle, source, root):
     root = root.resolve()
     root.mkdir(parents=True)  # Never reuse a partially staged runtime.
     manifest = json.loads(bundle.read_text())
+    capacity = check_stage_capacity(manifest, root)
     archive = root / 'runtime.tar'
     shutil.copyfile(manifest['archive'], archive)
     if digest(archive) != manifest['sha256']:
@@ -145,7 +165,7 @@ def stage(bundle, source, root):
     (root / 'env.sh').write_text('unset PYTHONHOME\n' + ''.join(
         'export ' + key + '=' + shlex.quote(value) + '\n' for key, value in values.items()))
     (root / 'staging.json').write_text(json.dumps({'bundle': manifest, 'code_source': str(source),
-        'local_root': str(root)}, indent=2))
+        'local_root': str(root), 'scratch_capacity': capacity}, indent=2))
     print('Host runtime staged at ' + str(root), flush=True)
 
 

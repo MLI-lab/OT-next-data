@@ -98,3 +98,28 @@ def test_dependency_archives_are_local_and_only_new_outputs_are_saved(tmp_path, 
     local_assets.save_dependencies(local, shared, original)
     assert not (shared / 'selected.tar').exists()  # unchanged input is not rewritten
     assert (shared / 'new.tar').read_bytes() == b'oracle result'
+
+
+def test_runtime_capacity_rejects_before_copying(tmp_path, monkeypatch):
+    archive = tmp_path / 'bundle.tar'; archive.write_bytes(b'archive')
+    manifest = tmp_path / 'bundle.json'
+    manifest.write_text(json.dumps({'archive': str(archive)}))
+    monkeypatch.setattr(local_runtime.shutil, 'disk_usage', lambda _: SimpleNamespace(free=0))
+    monkeypatch.setattr(local_runtime.shutil, 'copyfile', lambda *a, **kw: pytest.fail('copied before capacity check'))
+    with pytest.raises(OSError, match='Insufficient node-local scratch before staging'):
+        local_runtime.stage(manifest, tmp_path / 'code', tmp_path / 'local')
+    record = json.loads((tmp_path / 'local/scratch-capacity.json').read_text())
+    assert record['free_bytes'] == 0
+
+
+def test_whole_run_scratch_budget_is_enforced(tmp_path, monkeypatch):
+    archive = tmp_path / 'bundle.tar'; archive.write_bytes(b'archive')
+    gib = 1024**3
+    monkeypatch.setenv('OT_MIN_SCRATCH_FREE_BYTES', str(200 * gib))
+    monkeypatch.setattr(local_runtime.shutil, 'disk_usage', lambda _: SimpleNamespace(free=150 * gib))
+    with pytest.raises(OSError, match='need 200.0 GiB'):
+        local_runtime.check_stage_capacity({'archive': str(archive)}, tmp_path)
+    monkeypatch.setattr(local_runtime.shutil, 'disk_usage', lambda _: SimpleNamespace(free=250 * gib))
+    result = local_runtime.check_stage_capacity({'archive': str(archive)}, tmp_path)
+    assert result['required_bytes'] == 200 * gib
+    assert result['free_bytes'] == 250 * gib

@@ -64,6 +64,13 @@ reads, version checks, shared batch logs, and final result/archive writes still
 access cluster storage; system executables and CUDA come from site modules.
 See [runtime details](../.agents/RUNTIME.md).
 
+Before copying the runtime, the launcher checks free node-local scratch for both
+its archive and extraction, plus 20 GiB of spare space. Set
+`OT_MIN_SCRATCH_FREE_BYTES` to require a larger whole-run budget (for example,
+`214748364800` for 200 GiB). The check records available and required space and
+fails before copying if the node is too full. Model and other asset copies also
+check remaining space as staging proceeds.
+
 ## ZIH
 
 [ZIH](zih/README.md) uses `zih/validation.sbatch` with the same worker and staging
