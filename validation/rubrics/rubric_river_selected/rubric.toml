@@ -17,3 +17,7 @@ description = "The instruction alone is underspecified: a necessary specificatio
 [[criteria]]
 name = "TASK-TRIVIAL"
 description = "The task itself is so easy there is no meaningful work or learning signal: write a constant, echo a value, copy a file, regardless of verifier strength."
+
+[[criteria]]
+name = "ANSWER-LEAK"
+description = "The instruction itself, or a file shipped in the environment, reveals the expected answer (lists the result, embeds the solution, or provides a ground-truth file), so the task requires no genuine work."
