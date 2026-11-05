@@ -8,7 +8,7 @@ description = "The verifier checks something the instruction does not imply, or 
 
 [[criteria]]
 name = "INSTR-ENV-MISMATCH"
-description = "The instruction or verifier references input paths, files, dependencies, or services the environment does not actually provide, so the task cannot be completed as written (missing data/compiler/service)."
+description = "The instruction or verifier references input paths, files, dependencies, or services the environment does not actually provide, so the task cannot be completed as written (missing data/compiler/service). Do not flag if the agent can resolve the issue by installing, configuring, or starting available components. Flag if resolving it requires inventing missing data or implementing a service or program that the instructions assume is already provided."
 
 [[criteria]]
 name = "INSTR-AMBIGUOUS"
