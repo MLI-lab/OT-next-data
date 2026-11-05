@@ -30,8 +30,10 @@
 # 'docker image prune -a' or 'docker system prune -a' deletes prebuilt images between attempts: a run that
 # uses them then pauses until 'prebuild' has built them again.
 # A full disk makes attempts fail and count as unsolved. So a shard starts only with MIN_FREE_GB (2000) free on
-# the run's disk and Docker's, and a shard during which free space fell below a tenth of that is not counted
-# (the run pauses; run again once there is space). While a run goes, Docker build cache unused for CACHE_HOURS
+# the run's disk and Docker's (else the run waits, checking every 30 minutes), and a shard during which free
+# space fell below a tenth of that is not counted: it is redone 30 minutes later, up to 3 times, then left for
+# the end. Runs keep temporary files in $WS/tmp, not /tmp: on a server the system disk is often small, and
+# others fill it now and then. While a run goes, Docker build cache unused for CACHE_HOURS
 # (2) is removed every 2 minutes: the image every attempt builds stays behind as cache. Docker is shared, so
 # that clears every user's old build cache (not that of images that still exist), and while a prune deletes,
 # builds and container starts wait.
@@ -1010,7 +1012,9 @@ start_loop() {
     write_docker_wrapper
     write_shard_watch
     write_check_images
-    setsid nohup bash -c '
+    # Harbor and Docker's command line write temporary files (a full /tmp failed every attempt of a shard).
+    mkdir -p "$WS/tmp"
+    TMPDIR="$WS/tmp" setsid nohup bash -c '
         set -u
         contract=$1 root=$2 count=$3 wrapper=$4 port=$5 watch=$6 tasks=$7 stuck=$8 images=$9
         dockerroot=${10} minfree=${11} cachehours=${12}
@@ -1035,6 +1039,7 @@ start_loop() {
             pruner=$!
         fi
         trap "kill $pruner 2>/dev/null; rm -f \"$root/loop.pid\"" EXIT
+        declare -A disk_tries   # per shard: how often it was not counted because of the disk
         # Attempts made while the model is down, or without their prebuilt image, would count as failed, so a
         # shard counts only if the model answers and the images are there before and after it.
         up() { [ -z "$port" ] || curl -sf "http://127.0.0.1:$port/health" >/dev/null; }
@@ -1067,8 +1072,9 @@ EOF
             if [ "$minfree" != 0 ] && python "$watch" low "$minfree" 2 "$root" ${dockerroot:+"$dockerroot"} >/dev/null; then
                 if [ "$cachehours" != 0 ]; then for _ in 1 2 3; do prune "-w 3600" "as free space was low" || break; done; fi
                 if free=$(python "$watch" low "$minfree" 2 "$root" ${dockerroot:+"$dockerroot"}); then
-                    echo "$(date -Is) only $free free on the disk (MIN_FREE_GB=$minfree); paused before shard $i/$count. Free some space, then run again." >> "$root/loop.log"
-                    exit 1
+                    echo "$(date -Is) only $free free on the disk (MIN_FREE_GB=$minfree); waiting before shard $i/$count, checking every 30 minutes. Free some space." >> "$root/loop.log"
+                    while python "$watch" low "$minfree" 2 "$root" ${dockerroot:+"$dockerroot"} >/dev/null; do sleep 1800; done
+                    echo "$(date -Is) enough free space again; going on" >> "$root/loop.log"
                 fi
             fi
             rm -rf "$root/shards/$s" "$root/shards/$s.space"; mkdir -p "$root/shards/$s/report"
@@ -1090,7 +1096,7 @@ EOF
                 exit 1
             fi
             # Not counted if free space fell below the floor at any time, or Harbor (the shard log) or attempts of
-            # several tasks report a full disk: any disk of the host, also ones not measured (Harbor writes to /tmp).
+            # several tasks report a full disk: any disk of the host, also ones not measured (such as the system disk).
             # Attempts of one task alone point to a small disk inside its own containers, which belongs to the
             # task: they count, unless free space was also below MIN_FREE_GB.
             why=
@@ -1099,17 +1105,22 @@ EOF
             elif grep -qsi "no space left on device" "$root/shards/$s.log"; then
                 why="its log reports a full disk"
             else
-                tasks=$(python "$watch" enospc "$root/shards/$s"); n=$(printf "%s" "$tasks" | grep -c .)
+                full=$(python "$watch" enospc "$root/shards/$s"); n=$(printf "%s" "$full" | grep -c .)
                 if [ "$n" -gt 1 ]; then
                     why="attempts of $n tasks report a full disk"
                 elif [ "$n" = 1 ] && [ "$minfree" != 0 ] && low=$(python "$watch" spoiled "$root/shards/$s" "$minfree" ${dockerroot:+"$dockerroot"}); then
-                    why="free space fell to $low, and attempts of $tasks report a full disk"
+                    why="free space fell to $low, and attempts of $full report a full disk"
                 fi
             fi
             if [ -n "$why" ]; then
                 python "$watch" cleanup "$root/shards/$s" >> "$root/loop.log" 2>&1
-                echo "$(date -Is) the disk was (nearly) full during shard $i/$count ($why); shard not counted. Free some space, then run again: the shard is redone." >> "$root/loop.log"
-                exit 1
+                disk_tries[$s]=$((${disk_tries[$s]:-0} + 1))
+                if [ "${disk_tries[$s]}" -le 3 ]; then
+                    echo "$(date -Is) the disk was (nearly) full during shard $i/$count ($why); shard not counted, redone in 30 minutes." >> "$root/loop.log"
+                    sleep 1800; i=$((i - 1)); continue
+                fi
+                echo "$(date -Is) the disk was (nearly) full during shard $i/$count ($why), again; shard not counted$([ "$pass" = 1 ] && echo "; it is retried at the end"). Free some space." >> "$root/loop.log"
+                continue
             fi
             for f in "$root"/shards/$s/stage_*_*/*/summary.json; do
                 [ -f "$f" ] || continue
