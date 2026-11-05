@@ -18,7 +18,14 @@ scan_runtime = ContextVar('reference_leak_scan_runtime', default=None)
 SCAN_ARTIFACT = 'reference-leak-scan.json'
 # Shell words are fixed checker configuration, not task-controlled input. The
 # /opt glob covers image-baked runtimes that are intentionally absent from PATH.
-PROBE_PYTHONS = 'python3 python /usr/bin/python3 /usr/local/bin/python3 /opt/*/bin/python3 /opt/*/bin/python'
+PROBE_PYTHONS = (
+    'python3 python /usr/bin/python3 /usr/local/bin/python3 /opt/*/bin/python3 /opt/*/bin/python '
+    '"${UV_PYTHON_INSTALL_DIR:-/nonexistent}"/*/bin/python3 '
+    '"${XDG_DATA_HOME:-$HOME/.local/share}"/uv/python/*/bin/python3 '
+    '"$HOME"/.local/share/uv/python/*/bin/python3 '
+    '/root/.local/share/uv/python/*/bin/python3 '
+    '/home/*/.local/share/uv/python/*/bin/python3'
+)
 PROBE_TIMEOUT_SEC = 600
 
 
@@ -40,7 +47,7 @@ async def probe(environment, request):
         '"$ot_candidate" -I -c ' + shlex.quote(sanity) + ' >/dev/null 2>&1; then '
         'ot_probe_python=$ot_candidate; break; fi; done; '
         'if [ -z "$ot_probe_python" ]; then '
-        'echo "reference probe needs an existing Python 3.7+ interpreter (PATH, /usr/bin, /usr/local/bin or /opt/*/bin)" >&2; '
+        'echo "reference probe needs an existing Python 3.7+ interpreter (PATH, system paths, /opt or uv-managed installations)" >&2; '
         'exit 127; fi; '
         '"$ot_probe_python" -I -c ' + shlex.quote(source) + ' '
         + shlex.quote(json.dumps(request)) + ' > ' + shlex.quote(remote))

@@ -120,7 +120,7 @@ def job_config(task, output, args, agent, model=None, artifacts=None):
     return config
 
 
-async def execute_job(config, *, path_search_roots=(), pip_pin_capture=None):
+async def execute_job(config, *, path_search_roots=(), pip_pin_capture=None, verifier_path_instructions=None):
     install_runtime_patches()
     from validation.stages.path_diagnostics import install as install_path_diagnostics, observations
     install_path_diagnostics()
@@ -131,6 +131,10 @@ async def execute_job(config, *, path_search_roots=(), pip_pin_capture=None):
     job = await Job.create(JobConfig.model_validate(config))
     token = _save_dependencies.set(all(agent.get('name') == 'oracle' for agent in config['agents']))
     diagnostic_agents = {agent.get('name') for agent in config['agents']}
+    from harbor_patches.verifier_setup import PATH_OBSERVER
+    from validation.rules.dynamic.verifier_paths import observe, instruction_views
+    path_observer_token = PATH_OBSERVER.set(observe if diagnostic_agents == {'nop'} else None)
+    path_instruction_token = instruction_views.set(verifier_path_instructions)
     reference_files_token = reference_files_enabled.set(diagnostic_agents == {'oracle'})
     diagnostic_token = observations.set(
         {'roots': list(path_search_roots)}
@@ -146,6 +150,8 @@ async def execute_job(config, *, path_search_roots=(), pip_pin_capture=None):
         observations.reset(diagnostic_token)
         _capture.reset(pip_token)
         reference_files_enabled.reset(reference_files_token)
+        PATH_OBSERVER.reset(path_observer_token)
+        instruction_views.reset(path_instruction_token)
     return Path(str(job.job_dir))
 
 

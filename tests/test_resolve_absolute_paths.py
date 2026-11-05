@@ -74,8 +74,75 @@ def test_partial_search_never_accepts_a_unique_match(tmp_path, monkeypatch, fail
                 raise TimeoutError('scan interrupted')
             return SimpleNamespace(return_code=1, stdout='/repo/file.py\0', stderr='Permission denied')
     report = asyncio.run(resolver.resolve_in_environment(Environment(), tmp_path, ['/repo']))
-    assert report['status'] == 'error'
-    assert report['findings'] == []
+    if failure == 'timeout':
+        assert report['status'] == 'error'
+        assert report['findings'] == []
+    else:
+        assert report['status'] == 'partial'
+        finding, = report['findings']
+        assert finding['status'] == 'partial_match'
+        assert finding['matches'] == ['/repo/file.py']
+        assert finding['absolute_path'] is None
+        assert report['search_diagnostics'] == ['Permission denied']
+
+
+def test_missing_root_does_not_prevent_searching_accessible_root(tmp_path, monkeypatch):
+    from validation.rules.static.task_absolute_path.instruction_paths import automatic
+    (tmp_path / 'instruction.md').write_text('Edit `file.py`.')
+    project = tmp_path / 'project'
+    project.mkdir()
+    (project / 'file.py').touch()
+    monkeypatch.setattr(resolver, 'flagged_paths', lambda _: (['file.py', 'absent.py'], {}))
+    class Environment:
+        async def run_healthcheck(self):
+            pass
+        async def exec(self, command, **kwargs):
+            result = subprocess.run(['sh', '-c', command], cwd=project, capture_output=True, text=True)
+            return SimpleNamespace(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    report = asyncio.run(resolver.resolve_in_environment(Environment(), tmp_path, [str(tmp_path / 'missing'), str(project)]))
+    assert report['status'] == 'partial'
+    assert report['findings'][0]['matches'] == [str(project / 'file.py')]
+    assert report['findings'][1]['status'] == 'unresolved'
+    assert any(str(tmp_path / 'missing') in line for line in report['search_diagnostics'])
+    instruction = (tmp_path / 'instruction.md').read_text()
+    assert automatic(instruction, {'agent_baseline': report}, False) == (instruction, [])
+
+
+def test_partial_multiple_matches_still_establish_ambiguity():
+    result = resolver.classify(['file.py'], '/repo/a/file.py\0/repo/b/file.py\0', '/repo', ['/repo'], complete=False)
+    assert result[0]['status'] == 'ambiguous'
+    assert result[0]['absolute_path'] is None
+
+
+def test_real_permission_error_keeps_accessible_matches(tmp_path, monkeypatch):
+    import os
+    if os.geteuid() == 0:
+        pytest.skip('Root bypasses ordinary directory permissions')
+    task = tmp_path / 'task'
+    task.mkdir()
+    (task / 'instruction.md').write_text('Edit file.py')
+    project = tmp_path / 'project'
+    locked = project / 'private'
+    locked.mkdir(parents=True)
+    (project / 'file.py').touch()
+    (locked / 'file.py').touch()
+    monkeypatch.setattr(resolver, 'flagged_paths', lambda _: (['file.py'], {}))
+    class Environment:
+        async def run_healthcheck(self):
+            pass
+        async def exec(self, command, **kwargs):
+            result = subprocess.run(['sh', '-c', command], cwd=project, capture_output=True, text=True)
+            return SimpleNamespace(return_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    locked.chmod(0)
+    try:
+        report = asyncio.run(resolver.resolve_in_environment(Environment(), task, [str(project)]))
+    finally:
+        locked.chmod(0o700)
+    assert report['status'] == 'partial'
+    assert report['unsearched_paths'] == [str(locked)]
+    assert report['findings'][0]['matches'] == [str(project / 'file.py')]
+    assert report['findings'][0]['status'] == 'partial_match'
+    assert report['findings'][0]['absolute_path'] is None
 
 
 def test_success_records_cwd_and_evidence_without_editing(tmp_path, monkeypatch):

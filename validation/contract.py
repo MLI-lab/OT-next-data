@@ -334,10 +334,12 @@ def create(args, numbers, destination):
         # All static checks run together in stage 0 and never block a task.
         _, selected, _ = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
         checks_by_stage['0'] = selected
+    if 3 in numbers:
+        checks_by_stage['3'] = ['verifier_paths']
     if 3 in numbers and getattr(args, 'reference_leaks', True):
         # The leak scan runs in the clean no-op container of stage 3.
         from validation.stages.reference_leaks import CHECK
-        checks_by_stage['3'] = [CHECK]
+        checks_by_stage['3'].append(CHECK)
     _, _, exclusions = load_checks(getattr(args, 'static_profile', 'training'), exclude=args.exclude)
     checks = sorted({check for selected in checks_by_stage.values() for check in selected})
     frozen = vars(args).copy()
@@ -367,6 +369,7 @@ def create(args, numbers, destination):
             'nop_shuffled_runs': getattr(args, 'nop_shuffled_runs', 1),
             'verifier_tamper': getattr(args, 'verifier_tamper', True),
             'reference_leaks': getattr(args, 'reference_leaks', True),
+            'verifier_paths': True,
             'reference_runs': getattr(args, 'reference_runs', 1), 'nop_runs': getattr(args, 'nop_runs', 1), 'static_checks': checks, 'static_checks_by_stage': checks_by_stage,
             'static_exclusions': exclusions, 'conditional_checks': {'check_ai_detection.py': 'requires GPTZERO_API_KEY; unavailable checks are incomplete and fail acceptance' if getattr(args, 'static_profile', None) == 'all' else 'only with GPTZERO_API_KEY; missing key or upstream API-unavailable skip is non-failing'}, 'failure_policy': 'collect all findings; fail acceptance on any selected failure/error/skip or insufficient coverage'},
         'execution_profile': profile(args), 'runtime_dependencies': dependencies(),

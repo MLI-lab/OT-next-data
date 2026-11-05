@@ -85,6 +85,7 @@ LOCAL_CHECKS = {'check-agent-editable-test.py': _STATIC / 'agent_editable_test.p
                 'check-task-toml-schema.py': _STATIC / 'task_toml_schema.py',
                 'check-do-not-modify.py': _STATIC / 'do_not_modify/check.py',
                 'check-no-behavioural-tests.py': _STATIC / 'no_behavioural_tests/check.py',
+                'check-script-execution-coverage.py': _STATIC / 'script_execution_coverage.py',
                 'check-python-missing-imports.py': _STATIC / 'python_missing_imports.py',
                 'check-artifact-efficiency.py': _STATIC / 'artifact_efficiency.py'}
 # Local checks whose findings are warnings, with the tag reports use.

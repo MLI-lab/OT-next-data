@@ -14,6 +14,7 @@ EXECUTION_LOG = '/logs/verifier/ot-execution.txt'
 # Set by shuffled no-op and reference runs: Python directory listings in the verifier call
 # come back in random order (sitecustomize.shuffle_listing).
 SHUFFLE_LISTING = contextvars.ContextVar('ot_shuffle_listing', default=False)
+PATH_OBSERVER = contextvars.ContextVar('ot_verifier_path_observer', default=None)
 # The Python recorders go into each interpreter's own site-packages, loaded by a .pth
 # import line, not through PYTHONPATH: test scripts that assign PYTHONPATH (MiMo 001531,
 # `PYTHONPATH=src python -m pytest`) dropped the recorder and pytest aborted on the
@@ -171,6 +172,16 @@ class SetupEnvironment:
     def __getattr__(self, name):
         return getattr(self.environment, name)
 
+    async def _observe_paths(self, phase, kwargs):
+        observer = PATH_OBSERVER.get()
+        if observer is not None:
+            try:
+                await observer(self, phase, kwargs)
+            except Exception:
+                # Missing/corrupt evidence is incomplete in validation. A
+                # diagnostic write failure must not change the task's reward.
+                pass
+
     async def upload_dir(self, source_dir, target_dir):
         if str(target_dir).rstrip('/') == '/tests' and not self._tests_started:
             # Do not execute an agent-created script or a previous step's setup
@@ -183,6 +194,7 @@ class SetupEnvironment:
 
     async def exec(self, command, *args, **kwargs):
         if command == self.test_command:
+            await self._observe_paths('before_setup', kwargs)
             from harbor.verifier.verifier import VerifierRuntimeError
             cleared = await self.environment.exec(CLEAR_REWARDS_COMMAND, *args, **kwargs)
             if cleared.return_code:
@@ -228,6 +240,7 @@ class SetupEnvironment:
             (directory / 'setup-timing.json').write_text(json.dumps({'setup_execution': round(seconds, 3)}) + '\n')
             (directory / 'setup-stdout.txt').write_text(result.stdout or '')
             (directory / 'setup-stderr.txt').write_text(result.stderr or '')
+            await self._observe_paths('after_setup', kwargs)
             if result.return_code != 0:
                 scored = await self.environment.exec(FAILED_SETUP_REWARD_COMMAND, *args, **kwargs)
                 if scored.return_code == 0:
@@ -325,6 +338,7 @@ class SetupEnvironment:
                     pass
                 return result
             finally:
+                await self._observe_paths('after_verifier', kwargs)
                 # The node-local job directory is the final fallback after kill.
                 import asyncio
                 try:

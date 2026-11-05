@@ -756,6 +756,8 @@ def run_nop(selected, out, args):
     contract_hash = json.loads(Path(contract_path).read_text())['sha256'] if contract_path else None
     oracle_passed = (oracle_passed_tasks(args.out.resolve(), contract_hash)
                      if getattr(args, 'out', None) and contract_hash else set())
+    from validation.rules.dynamic.verifier_paths import resolved_instructions
+    path_instructions = resolved_instructions([task for task, _ in selected], args.out, contract_hash)
 
     plans = defaultdict(list)
     for task, item in selected:
@@ -800,7 +802,8 @@ def run_nop(selected, out, args):
             scan_runtime_token = reference_leaks.scan_runtime.set(reference_leaks.runtime_signature(args))
             scan_token = reference_leaks.scan_requests.set(scan_requests)
             try:
-                job_dir = asyncio.run(runtime.execute_job(config))
+                job_dir = asyncio.run(runtime.execute_job(config, **(
+                    {'verifier_path_instructions': path_instructions} if path_instructions else {})))
             finally:
                 reference_leaks.scan_requests.reset(scan_token)
                 reference_leaks.scan_runtime.reset(scan_runtime_token)
@@ -825,6 +828,8 @@ def run_nop(selected, out, args):
                     json.loads((trial / reference_leaks.SCAN_ARTIFACT).read_text())
                     for trial, _ in groups[task.name]
                     if (trial / reference_leaks.SCAN_ARTIFACT).is_file()]
+                from validation.rules.dynamic.verifier_paths import aggregate as assess_verifier_paths
+                prepared['verifier_paths'] = assess_verifier_paths(groups[task.name])
                 if not prepared['reference_leak_scans'] and task.name in scan_results:
                     # No scan was needed or possible in this container.
                     prepared['reference_leak_scans'] = [{'result': scan_results[task.name]}]

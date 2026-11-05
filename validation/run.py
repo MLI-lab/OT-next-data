@@ -239,7 +239,7 @@ def normalize_details(row):
 # Dynamic checks that run inside each stage's containers.
 STAGE_CHECKS = {1: ('declared_workdir', 'declared_internet_access', 'repository_history', 'repository_timestamps'),
                 2: ('reference', 'reference_determinism', 'do_not_modify_dynamic'),
-                3: ('nop', 'nop_determinism', 'verifier_tamper', 'reference_leaks')}
+                3: ('nop', 'nop_determinism', 'verifier_tamper', 'reference_leaks', 'verifier_paths')}
 
 
 def known_rules():
@@ -319,7 +319,8 @@ def observations(reports, hashes, dataset='', settings=None):
             if int(stage) == 1 and isinstance(item.get('setup_speed'), dict):
                 put('setup_speed', item['setup_speed'])
             for field, name in [('listing_order', 'reference_determinism' if int(stage) == 2 else 'nop_determinism'),
-                                ('do_not_modify', 'do_not_modify_dynamic'), ('verifier_tamper', 'verifier_tamper')]:
+                                ('do_not_modify', 'do_not_modify_dynamic'), ('verifier_tamper', 'verifier_tamper'),
+                                ('verifier_paths', 'verifier_paths')]:
                 record = item.get(field)
                 if isinstance(record, dict):
                     value = None

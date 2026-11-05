@@ -1,8 +1,8 @@
 # Validation rules
 
 Here we describe the checks in stages 0-3, which select the first datasource
-version (v1) using rules without an LLM. There are **30 checks**: **18 static
-checks** that read only the task files, and **12 dynamic checks** that use
+version (v1) using rules without an LLM. There are **32 checks**: **19 static
+checks** that read only the task files, and **13 dynamic checks** that use
 containers and execute commands.
 
 The validation pipeline writes `results.parquet`. Each row is one task, identified
@@ -13,8 +13,145 @@ by `task_id`. The columns are:
 | `task_id` | Task name |
 | `dataset` | Datasource name |
 | `content_sha256` | Hash of the task files, after automatic repairs |
-| 18 static checks | `compose-host-binds`, `dockerfile-platform`, `instruction-suffix`, `no-cheat-dir`, `resource-sizes`, `task-timeout`, `dockerfile-references`, `dockerfile-sanity`, `nproc`, `pip-pinning`, `task-absolute-path`, `test-file-references`, `agent_editable_test`, `task-toml-schema`, `do_not_modify`, `no_behavioural_tests`, `python_missing_imports`, `artifact_efficiency` |
-| 12 dynamic checks | `build`, `declared_workdir`, `declared_internet_access`, `reference`, `nop`, `reference_determinism`, `nop_determinism`, `repository_history`, `repository_timestamps`, `reference_leaks`, `verifier_tamper`, `do_not_modify_dynamic` |
+| 19 static checks | `compose-host-binds`, `dockerfile-platform`, `instruction-suffix`, `no-cheat-dir`, `resource-sizes`, `task-timeout`, `dockerfile-references`, `dockerfile-sanity`, `nproc`, `pip-pinning`, `task-absolute-path`, `test-file-references`, `agent_editable_test`, `task-toml-schema`, `do_not_modify`, `no_behavioural_tests`, `script_execution_coverage`, `python_missing_imports`, `artifact_efficiency` |
+| 13 dynamic checks | `build`, `declared_workdir`, `declared_internet_access`, `reference`, `nop`, `reference_determinism`, `nop_determinism`, `repository_history`, `repository_timestamps`, `reference_leaks`, `verifier_tamper`, `do_not_modify_dynamic`, `verifier_paths` |
+
+`verifier_paths` is a failure-level check during stage 3 no-op verification. It
+scans Python verifier sources, Python heredocs and shell path literals, then
+records their filesystem state before setup, after setup and after grading in
+`verifier/verifier-paths.json`. Missing absolute paths not named in the instruction
+fail the check and retain evidence for review. Probe failures remain execution errors,
+not task passes or confirmed missing dependencies. Known verifier outputs, optional existence checks,
+negative existence assertions and grading-log paths are excluded. The source
+line, classification and three observations remain in the artifact. The probe
+searches existing system and uv-managed Python installations (including
+`UV_PYTHON_INSTALL_DIR` and XDG/home defaults). If none works, it reports an
+explicit interpreter-discovery error without installing dependencies.
+
+Subprocess argument roles are classified conservatively. Direct Python writes
+and shell output redirections are excluded. A small set of command interfaces
+(`openssl` file flags, compiler `-o`, simple `cat`/`cmp`/`diff` inputs and two-argument
+`cp`/`mv`) identifies inputs and outputs. Supplied Python helpers can be inspected
+without executing them: literal `sys.argv` indices and simple declared `argparse`
+options are bound to the invocation. Helpers must have an exact `/tests` mapping
+or a literal Dockerfile `COPY` mapping; basename guesses are not used. Relative
+helper paths require an explicit known working directory. Image-only helpers,
+complex argument parsing and unsupported languages remain unresolved.
+
+An unresolved subprocess argument is excluded with
+`excluded: subprocess_role_unresolved`, not a warning or incomplete result.
+This deliberately favors fewer false positives and can miss real dependencies.
+A later existence assertion or read alone does not establish that such a path was
+an input; the command might have produced it. Missing executable paths, identified
+command inputs and direct reads before the unknown invocation remain eligible for
+failure. The source evidence remains available in the inventory. Files opened
+with `r+` remain inputs because that mode requires an existing file. Instruction
+mentions still exempt agent-requested files, including specified program outputs.
+This is bounded static analysis, not a general interprocedural execution model.
+
+The subprocess screen recognizes `sys.executable` as a Python interpreter.
+An existence assertion before an unknown invocation in the same function is
+retained as a prerequisite; assertions after the invocation may check outputs.
+Function-local assignments are kept separate between tests, and literal
+`os.system`/`os.popen` commands use the shell redirection analysis.
+
+Local Python helper writes are traced from module calls and `test_*` entrypoints,
+including positional/keyword/default arguments and nested local calls. Literal
+writes, `os.makedirs` and `Path.mkdir(parents=True)` carry call-chain evidence;
+recursive directory creation also establishes its parent directories as outputs.
+Numeric `range` loop variables and simple pytest `parametrize(..., range(...))`
+values can establish the fixed parent of a generated child path. Plain `mkdir`
+does not establish missing parents. Read-only helpers and uncalled parameterized
+writers do not establish outputs. Analysis is bounded to six helper calls and
+4,000 AST operations; dynamic dispatch, arbitrary interpolated strings and
+cross-process service effects remain unsupported.
+
+Requested SSH keypair generation implies its corresponding `.pub` output only
+when the instruction names the base key path. There is no blanket `.pub` suffix
+exemption. A supplied shell script explicitly requested to execute can also
+establish direct literal output paths: the checker reads supported supplied-file
+metadata or literal setup heredocs and records the script and output line as
+evidence. Arbitrary script behavior is not inferred by these additions.
+
+Explicit mount destinations are recognized separately from image/input paths.
+Instruction artifacts must be explicitly named and delegated to in the written
+instruction. Supported evidence providers are supplied literal text and literal
+`espeak`/`espeak-ng` transcript-to-audio commands. No audio transcription is run,
+and merely mentioning mount or appearing in a supplied file is not an exemption.
+There are no task-ID or task-path allowlists.
+
+When an instruction names an extraction destination and source archive/location,
+the runtime probe can index regular TAR/ZIP members without extracting anything
+into the task environment. Format detection also accepts archives named `.bin`.
+Only exact member-to-destination matches observed before grading are exempted,
+with archive/member provenance in `archive_recoverable`. Nested archive indexing
+requires an explicit recursive/nested extraction request and is limited to two
+levels. Inspection is bounded to 32 MiB per archive, 256 source candidates and
+4,096 members, with a per-path time budget. Symlinks and traversal members are
+not recovery evidence. Multipart reconstruction and custom binary formats are
+not implemented; failed or unsupported inspection is not proof of absence.
+
+Known false-positive limitations:
+
+- The checker may flag a file the agent is asked to reconstruct from supplied
+  pieces or extract from an unsupported archive format.
+- The checker may flag a file that an agent-created program, or a service that
+  program calls, would generate. The no-op run does not perform that work.
+
+These are possible false positives, not automatic exemptions. Files named in
+the instruction and outputs the checker can identify are already excluded.
+
+Python fallback searches over literal lists/tuples are optional when the list is
+used only by that search and each candidate is used only inside its positive
+existence guard. Direct reads and executions guarded by the same path's existence
+are optional too; an additional unconditional use remains checked. Arbitrary
+lists and conditionals are not excluded. Explicit `assert exists(a) or exists(b)`
+and `assert any(exists(p) for p in candidates)` forms are recorded as required
+alternative groups. A group fails when every candidate is unmentioned and missing
+at all three checkpoints. A mentioned alternative or an observed existing member
+prevents that group finding. This is bounded static analysis, not general Python
+control-flow analysis; computed searches still require review.
+
+Shell literal-path selectors are also recognized: each `if`/`elif` branch must
+positively test a path (`[ ]`, `[[ ]]` or `test`) and assign that exact path to
+the same variable. A final nonzero `exit` makes the candidates a required
+alternative group. Only those branch occurrences are classified; an additional
+unconditional reference remains checked. Other shell conditionals, computed
+paths and more complex branch bodies retain the ordinary conservative scan.
+
+For a missing path, the runtime probe also checks the containing Git repository's
+locally available ref history. An exact repository-relative path backed by a
+historical blob before verifier setup is exempted and recorded in
+`git_recoverable` with repository, path, commit and blob IDs. This exemption does
+not require an explicit Git-recovery instruction; it records availability, not
+proof that recovery is clearly requested. It does not search unrelated
+repositories, fetch objects, restore files or change the checkout. A file supplied
+only through history created by verifier setup is not exempted. Searches are
+bounded to 128 path commits and a shared 20-second probe budget; lookup failures
+remain diagnostic errors rather than invented evidence of availability.
+
+Stage 3 uses the existing instruction-path resolver's unique matches from stages
+1 and 2 before comparing paths. It renders the resolved instruction in memory,
+checks the task and instruction hashes, and records the supporting edits and
+reports. It does not modify the task. A relative filename or suffix in the
+instruction also excludes the corresponding absolute verifier path: `output.py`
+or `src/output.py` can cover `/app/src/output.py`, without a successful resolver
+match. This is a mention check, not proof that the verifier uses the correct
+directory. A different absolute path or a longer filename does not count as a
+relative mention. Resolver permission errors remain visible in the evidence but
+do not make this rule incomplete solely because a relative mention is unresolved.
+The resolver continues searching other directories when a root is missing or a
+directory is inaccessible. It preserves observed matches and search diagnostics
+with `status=partial`; a lone partial match is not called unique and does not
+trigger an automatic instruction edit. A missing match in a partial search is
+unresolved, not proof that the file is absent.
+
+This is a bounded literal-path screen, not a syscall trace: computed paths,
+conditional execution, and temporary files created then deleted between snapshots
+can need manual review. Relative paths are not resolved. Unsupported source
+languages are recorded as coverage limitations. Missing probes or parse errors
+make the check incomplete, never passed. The existing static
+`test-file-references` check is independent and unchanged.
 
 Each check column has these fields:
 
@@ -54,6 +191,33 @@ Each check below lists its entry in `results.parquet`. Open a check for its desc
 Origins: **TB unchanged**, **TB patched by us**, or **Ours**.
 
 ## Static checks
+
+### Script execution coverage
+
+`script_execution_coverage` is a separate failure-level check in the default
+training profile. It recognizes explicitly named script creation, modification,
+and execution requirements, including requests to fix existing implementations.
+Input/usage clauses and optional or negative requests are excluded. Merely
+mentioning `setup.py build_ext` does not demand that the verifier rebuild: the
+compiled functionality can be tested instead. An explicit request to deliver
+`setup.py` itself is still checked.
+
+The check follows supplied Python imports (including relative imports and
+package initializers), calls, and subprocess helpers through `/tests` and literal
+Docker COPY mappings. It never imports or executes task code. Details retain
+source locations and the potential import/call graph. Existence, source-text
+checks, and precomputed outputs alone do not count as execution evidence.
+An import alone is uncertain: it need not call the requested functionality.
+
+Unresolved chains **pass conservatively**, as requested by the user on 2026-11-05.
+Per-script `unknown` status, `conservative_pass`, and `unresolved` details distinguish
+these passes from resolved call evidence. Missing helpers, unsupported languages,
+ambiguous imports and dynamic execution are not failure-level findings. A failure
+requires a recognized requirement with no execution/call evidence and no unresolved
+chain that could exercise it. This conservative static approximation can miss
+uncovered functionality. It does not establish runtime reachability, coverage of
+specific changed branches or meaningful assertions on outputs. The separate
+`no_behavioural_tests` rule remains unchanged.
 
 <a id="compose-host-binds"></a>
 

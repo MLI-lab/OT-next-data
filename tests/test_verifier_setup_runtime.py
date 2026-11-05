@@ -118,7 +118,14 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
                         step_name='first' if mode.endswith('step') else None)
     verifier_setup.install(); verifier_setup.install()
     async def run():
-        return await asyncio.wait_for(verifier.verify(), timeout=.05 if outcome == 'timeout' else 5)
+        async def observe(wrapper, phase, kwargs):
+            assert wrapper.environment is env
+            events.append((phase, None))
+        token = verifier_setup.PATH_OBSERVER.set(observe)
+        try:
+            return await asyncio.wait_for(verifier.verify(), timeout=.05 if outcome == 'timeout' else 5)
+        finally:
+            verifier_setup.PATH_OBSERVER.reset(token)
     if outcome in ('failure', 'timeout'):
         with pytest.raises(VerifierRuntimeError if outcome == 'failure' else TimeoutError): asyncio.run(run())
         assert not any(e[0] == 'grade' for e in events)
@@ -127,6 +134,11 @@ def test_normal_verification_runs_setup_before_checks(tmp_path, mode, outcome, s
         assert result.rewards == {'reward': 0 if outcome == 'scored-failure' else 1}
         assert [e[0] for e in events if e[0] in ('setup', 'grade')] == (['setup'] if outcome == 'scored-failure' else ['setup', 'grade'])
     assert verifier.environment is env
+    phases = [e[0] for e in events if e[0] in ('before_setup', 'after_setup', 'after_verifier')]
+    assert phases == (['before_setup'] if outcome == 'timeout' else
+                      ['before_setup', 'after_setup'] if outcome in ('failure', 'scored-failure') else
+                      ['before_setup', 'after_setup', 'after_verifier'])
+    assert next(i for i, e in enumerate(events) if e[0] == 'before_setup') < next(i for i, e in enumerate(events) if e[0] == 'setup')
     assert sum(e[0] == 'agent-package-fallback' for e in events) == int(
         prepared_runtime and not mode.startswith('separate'))
     if prepared_runtime and not mode.startswith('separate'):

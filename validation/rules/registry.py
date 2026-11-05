@@ -17,6 +17,7 @@ class Rule:
 
 TB = 'validation.rules.static.terminal_bench'
 RULES = [
+    Rule('verifier_paths', 'dynamic', 'ours', 'fail', 'validation.rules.dynamic.verifier_paths'),
     # Terminal-Bench checks run unchanged.
     Rule('compose-host-binds', 'static', 'TB', 'fail', TB),
     Rule('dockerfile-platform', 'static', 'TB', 'fail', TB),
@@ -39,6 +40,7 @@ RULES = [
     Rule('task-toml-schema', 'static', 'ours', 'fail', 'validation.rules.static.task_toml_schema'),
     Rule('do_not_modify', 'static', 'ours', 'fail', 'validation.rules.static.do_not_modify.check'),
     Rule('no_behavioural_tests', 'static', 'ours', 'fail', 'validation.rules.static.no_behavioural_tests.check'),
+    Rule('script_execution_coverage', 'static', 'ours', 'fail', 'validation.rules.static.script_execution_coverage'),
     Rule('python_missing_imports', 'static', 'ours', 'fail', 'validation.rules.static.python_missing_imports'),
     Rule('artifact_efficiency', 'static', 'ours', 'warning', 'validation.rules.static.artifact_efficiency'),
     Rule('do_not_modify_dynamic', 'dynamic', 'ours', 'fail', 'validation.rules.dynamic.do_not_modify.stage'),

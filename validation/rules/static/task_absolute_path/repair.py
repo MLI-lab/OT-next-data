@@ -118,12 +118,13 @@ def search_command(candidates, roots):
     # all matches, so a second file prevents an unjustified unique resolution.
     find = ['find', '-P', *roots, '-type', 'd', '-name', '.git', '-prune', '-o',
             '-type', 'f', '(', *predicates, ')', '-print0']
-    checks = ' && '.join('test -d ' + shlex.quote(root) for root in roots)
-    return checks + ' && ' + shlex.join(find)
+    # find continues across inaccessible/missing roots. Do not short-circuit
+    # all remaining roots with a preceding `test -d ... &&` chain.
+    return 'LC_ALL=C ' + shlex.join(find)
 
 
-def classify(candidates, stdout, cwd, roots):
-    """Only call after successful, complete find output (NUL-separated)."""
+def classify(candidates, stdout, cwd, roots, *, complete=True):
+    """Preserve observed matches; partial searches cannot establish uniqueness."""
     roots = validate_roots(roots)
     if stdout and not stdout.endswith('\0'):
         raise ValueError('Incomplete file-search output')
@@ -137,9 +138,11 @@ def classify(candidates, stdout, cwd, roots):
         matches = [p for p in files if relative and p.endswith('/' + relative)]
         findings.append({'relative_path': candidate,
                          'status': 'unsupported' if relative is None else
-                         'unique' if len(matches) == 1 else 'ambiguous' if matches else 'missing',
+                         ('unique' if complete else 'partial_match') if len(matches) == 1 else
+                         'ambiguous' if matches else ('missing' if complete else 'unresolved'),
                          'matches': matches,
-                         'absolute_path': matches[0] if len(matches) == 1 else None,
+                         'search_complete': complete,
+                         'absolute_path': matches[0] if complete and len(matches) == 1 else None,
                          'resolves_from_start': bool(relative and posixpath.normpath(posixpath.join(cwd, relative)) in matches)})
     return findings
 
@@ -209,9 +212,19 @@ async def resolve_in_environment(environment, task_path, search_roots, timeout_s
         report['command'] = command
         result = await environment.exec(command, timeout_sec=timeout_sec)
         report.update(exit_code=result.return_code, stderr=result.stderr or '')
+        if result.return_code == 1:
+            diagnostics = (result.stderr or '').splitlines()
+            report.update(status='partial', search_complete=False,
+                          findings=classify(candidates, result.stdout or '', report['working_directory'], roots, complete=False),
+                          search_diagnostics=diagnostics,
+                          unsearched_paths=[match[1] for line in diagnostics
+                                            if (match := re.match(r"^find: ['‘](.+?)['’]: ", line))],
+                          error='Some paths could not be searched. Observed matches are retained, '
+                                'but no unique automatic replacement is accepted.')
+            return report
         if result.return_code != 0:
-            raise RuntimeError('File search failed or was incomplete; no matches are accepted')
-        report.update(status='completed', findings=classify(candidates, result.stdout or '',
+            raise RuntimeError('File search could not run successfully')
+        report.update(status='completed', search_complete=True, findings=classify(candidates, result.stdout or '',
                       report['working_directory'], roots))
     except Exception as exc:
         report['error'] = f'{type(exc).__name__}: {exc}'
