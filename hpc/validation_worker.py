@@ -191,7 +191,17 @@ def trial_capacity(tasks, args, image_review=False, verifier_disabled=False):
     from harbor.models.task.verifier_mode import resolve_effective_verifier_env_config
     per_trial = args.trial_cpus or 1
     for path in tasks:
-        task = Task(path)
+        if verifier_disabled:
+            # Review the original task even when its descriptive metadata uses
+            # an older schema. env_review.stage applies the same wrapper policy.
+            import tomllib
+            from types import SimpleNamespace
+            from harbor.models.task.config import TaskConfig
+            config = tomllib.loads((Path(path) / 'task.toml').read_text())
+            config.pop('task', None)
+            task = SimpleNamespace(config=TaskConfig.model_validate(config))
+        else:
+            task = Task(path)
         agent_cpus = args.trial_cpus or task.config.environment.cpus or 1
         steps = task.config.steps or []
         configs = ([resolve_effective_verifier_env_config(task.config, step) for step in steps]

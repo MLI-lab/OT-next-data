@@ -158,6 +158,14 @@ def without_artifacts(text):
     return text[:match.start()] + text[end:].lstrip('\n')
 
 
+def without_task_metadata(text):
+    """The review wrapper needs execution settings, not legacy author metadata.
+
+    The unmodified source task.toml remains available in review_files.
+    """
+    return re.sub(r'(?ms)^\[+task(?:\.[^\]]+)?\]+[^\n]*\n.*?(?=^\[|\Z)', '', text)
+
+
 def stage(source, staged, destination, files, artifact, grace_sec=None, review=TIMEOUT_SEC, delivery_wait_sec=0):
     """Review task for `source` that keeps its environment and takes `staged`'s instruction.
 
@@ -181,7 +189,8 @@ def stage(source, staged, destination, files, artifact, grace_sec=None, review=T
             shutil.copyfile(path, target)
     (destination / 'instruction.md').write_text((staged / 'instruction.md').read_text())
     text = (f'artifacts = [{{source = "{artifact}", destination = "{Path(artifact).name}"}}]\n'
-            + agent_timeout(without_artifacts(text), hard_timeout(grace_sec, review, delivery_wait_sec)))
+            + agent_timeout(without_task_metadata(without_artifacts(text)),
+                            hard_timeout(grace_sec, review, delivery_wait_sec)))
     parsed = tomllib.loads(text)
     if parsed['agent']['timeout_sec'] != hard_timeout(grace_sec, review, delivery_wait_sec) or len(parsed['artifacts']) != 1:
         raise ValueError('could not set the review artifact and time limit in task.toml')

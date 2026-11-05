@@ -82,3 +82,14 @@ def test_judge_repetitions_reject_an_underallocated_task(tmp_path):
                                '--review-agent', 'mini-swe-agent', '--review-evidence', 'image'])
     with pytest.raises(ValueError, match='3 simultaneous reviews'):
         capacity_for_stages([source], args, [5])
+
+
+def test_judge_cpu_budget_accepts_legacy_descriptive_metadata(tmp_path):
+    source = task(tmp_path)
+    with (source / 'task.toml').open('a') as f:
+        f.write('\n[task]\ndescription = "legacy"\n[[task.authors]]\nemail = "author@example.invalid"\n')
+    args = parser().parse_args(['--cpus', '32', '--attempts', '3',
+                               '--review-agent', 'mini-swe-agent', '--review-evidence', 'image'])
+    budget = capacity_for_stages([source], args, [5])
+    assert budget['reserved_cpus_per_trial'] == 2
+    assert budget['max_concurrency'] == 5

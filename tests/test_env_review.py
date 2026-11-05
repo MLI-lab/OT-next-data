@@ -334,3 +334,30 @@ def test_glm_outer_limit_reserves_delivery_wait_and_full_grace():
     normalize(args)
     review, grace = env_review.review_sec(args), env_review.grace_sec(args)
     assert env_review.hard_timeout(grace, review, delivery_wait_sec=grace) == 422 * 60
+
+
+def test_review_wrapper_accepts_legacy_metadata_and_preserves_evidence(tmp_path):
+    from harbor.models.task.config import TaskConfig
+    text = '''schema_version = "1.1"
+[task]
+description = "Legacy task without a name"
+[[task.authors]]
+email = "author@example.invalid"
+[environment]
+cpus = 2
+memory_mb = 4096
+[agent]
+user = "solver"
+'''
+    source = make_task(tmp_path / 'source', text)
+    staged = tmp_path / 'prompt'
+    staged.mkdir()
+    (staged / 'instruction.md').write_text('Review the original task.')
+    wrapper = env_review.stage(source, staged, tmp_path / 'wrapper',
+                              {'task-under-review/source': source}, '/app/verdicts.json')
+    config = TaskConfig.model_validate(tomllib.loads((wrapper / 'task.toml').read_text()))
+    assert config.environment.cpus == 2
+    assert config.environment.memory_mb == 4096
+    assert (wrapper / 'review_files/task-under-review/source/task.toml').read_text() == text
+    assert (source / 'task.toml').read_text() == text
+    assert environment_dir_hash(wrapper / 'environment') == environment_dir_hash(source / 'environment')
