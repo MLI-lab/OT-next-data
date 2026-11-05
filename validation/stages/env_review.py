@@ -62,7 +62,30 @@ def usage_limited(trial):
         text = (Path(trial) / 'agent' / 'claude-code.txt').read_text(errors='replace')
     except OSError:
         return False
-    return bool(USAGE_LIMIT.search(text[-20000:]))
+    # Claude emits rate_limit_event metadata even for allowed requests. Never
+    # search the raw JSON: event names and tool output are not provider errors.
+    result, rate_info, plain = None, None, []
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            plain.append(line)
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get('type') == 'result':
+            result = event
+        elif event.get('type') == 'rate_limit_event':
+            rate_info = event.get('rate_limit_info')
+    if result is not None:
+        # A successful terminal result also supersedes earlier transient limits.
+        message = '\n'.join(str(result.get(key, '')) for key in ('result', 'errors'))
+        return bool(result.get('is_error') and USAGE_LIMIT.search(message))
+    if isinstance(rate_info, dict):
+        # overageStatus can be rejected while the subscription remains allowed.
+        return rate_info.get('status') == 'rejected'
+    # Older CLI versions may emit an unstructured failure message.
+    return bool(USAGE_LIMIT.search('\n'.join(plain)[-20000:]))
 
 
 async def execute(config, item_dir=None):

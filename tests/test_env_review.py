@@ -264,6 +264,45 @@ def test_claude_judge_refuses_api_key(monkeypatch):
         asyncio.run(env_review.execute({'agents': [{'name': 'claude-code', 'kwargs': {}}]}))
 
 
+@pytest.mark.parametrize('events, expected', [
+    ([{'type': 'rate_limit_event', 'rate_limit_info': {
+        'status': 'allowed', 'overageStatus': 'rejected',
+        'overageDisabledReason': 'out_of_credits'}}], False),
+    ([{'type': 'rate_limit_event', 'rate_limit_info': {'status': 'allowed_warning'}}], False),
+    ([{'type': 'rate_limit_event', 'rate_limit_info': {'status': 'rejected'}}], True),
+    ([{'type': 'rate_limit_event', 'rate_limit_info': {'status': 'rejected'}},
+      {'type': 'result', 'is_error': False, 'result': 'Discussed rate limits.'}], False),
+    ([{'type': 'result', 'is_error': True, 'errors': ['Status code: 429']}], True),
+    ([{'type': 'rate_limit_event', 'rate_limit_info': {'status': 'allowed'}},
+      {'type': 'result', 'is_error': True, 'result': 'Authentication failed'}], False),
+    ([{'type': 'user', 'message': {'content': 'usage limit reached'}}], False),
+])
+def test_claude_usage_limit_stream_status(tmp_path, events, expected):
+    (tmp_path / 'agent').mkdir()
+    (tmp_path / 'agent/claude-code.txt').write_text('\n'.join(map(json.dumps, events)))
+    assert env_review.usage_limited(tmp_path) is expected
+
+
+def test_claude_allowed_stream_does_not_wait_or_rerun(tmp_path, monkeypatch):
+    from validation.stages import harbor
+    (tmp_path / 'agent').mkdir()
+    (tmp_path / 'agent/claude-code.txt').write_text('\n'.join(map(json.dumps, [
+        {'type': 'rate_limit_event', 'rate_limit_info': {'status': 'allowed', 'resetsAt': 9999999999}},
+        {'type': 'result', 'is_error': False, 'result': 'Done'},
+    ])))
+    calls = []
+    async def execute_job(config):
+        calls.append(config)
+        return tmp_path
+    async def forbidden_sleep(*args):
+        pytest.fail('Successful review must not wait for a quota reset')
+    monkeypatch.setattr(harbor, 'execute_job', execute_job)
+    monkeypatch.setattr(harbor, 'trial_results', lambda path: [(tmp_path, {})])
+    monkeypatch.setattr(asyncio, 'sleep', forbidden_sleep)
+    assert asyncio.run(env_review.execute({'agents': []})) == (tmp_path, [(tmp_path, {})])
+    assert len(calls) == 1
+
+
 def test_claude_time_limit_hook_fires_once(tmp_path):
     import subprocess
     from harbor_patches import claude_session
