@@ -51,6 +51,7 @@ def test_array_plan_uses_site_resources_and_keeps_task_slices(tmp_path, monkeypa
     assert f'hpc/{site}/validation.sbatch' in script
     # One packed snapshot on shared storage, unpacked per job on node-local disk.
     assert (out / 'code.tar.gz').is_file() and not (out / 'code').exists()
+
     assert 'tar -xzf' in script and 'VALIDATION_REPO="$code/code"' in script
     assert 'VALIDATION_REPO' not in next(c for c in command if c.startswith('--export='))
     if site == 'zih':
@@ -70,6 +71,32 @@ def test_gpu_array_rejects_cpu_partition_before_writing(tmp_path, monkeypatch):
         shards.plan('contract.json', 3, tmp_path / 'run', time='01:00:00', cpus=12, memory='128G',
                     partition='barnard', array_concurrency=2, submit=False)
     assert not (tmp_path / 'run').exists()
+
+
+def test_multinode_model_array_reserves_gpus_per_node(tmp_path, monkeypatch):
+    from hpc import validation_submit
+    contract = fake_contract(monkeypatch, stages=(5,))
+    contract['arguments'].update(submit='helma', serve_model='glm-5.3', gpus=None, serve_cpus=16)
+    def snapshot(folder):
+        target = folder / 'code'
+        target.mkdir()
+        return target
+    monkeypatch.setattr(validation_submit, 'snapshot_code', snapshot)
+    monkeypatch.setattr(shards, 'snapshot_matches', lambda *args: True)
+    out = tmp_path / 'run'
+    shards.plan(tmp_path / 'contract.json', 3, out, time='24:00:00', cpus=128, memory=None,
+                partition='h200', array_concurrency=1, submit=False)
+    plan = json.loads((out / 'plan.json').read_text())
+    assert plan['allocation']['nodes'] == 2
+    assert plan['allocation']['gpus'] == 4
+    assert {'--nodes=2', '--ntasks=2', '--ntasks-per-node=1', '--gres=gpu:h200:4'} <= set(plan['command'])
+    requests = [json.loads(p.read_text()) for p in out.glob('shards/*/request.json')]
+    assert len(requests) == 3
+    assert all(r['args']['gpus'] == 4 and r['args']['cpus'] == 128 for r in requests)
+    assert (out / 'code.tar.gz').is_file() and not (out / 'code').exists()
+    script = (out / 'array.sbatch').read_text()
+    assert 'srun --overlap --gres=none --nodes=2 --ntasks=2' in script
+    assert 'unpack-code "$code"' in script
 
 
 def report_for(stage, shard, count, status='passed', complete=True, retries=None, contract_sha='c' * 64):

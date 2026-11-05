@@ -222,7 +222,15 @@ def capacity_for_stages(tasks, args, stages):
     judge = (getattr(args, 'judge_harness', 'mini-swe-agent') if getattr(args, 'review_local', False)
              else getattr(args, 'review_agent', None))
     verifier_disabled = set(stages) == {5} and image_review and judge in AGENTS
-    return trial_capacity(tasks, args, image_review=image_review, verifier_disabled=verifier_disabled)
+    budget = trial_capacity(tasks, args, image_review=image_review, verifier_disabled=verifier_disabled)
+    if verifier_disabled:
+        reviews = getattr(args, 'review_runs', None) or getattr(args, 'attempts', 1)
+        budget['reviews_per_task'] = reviews
+        budget['max_concurrent_trials'] = budget['max_concurrency']
+        budget['max_concurrency'] //= reviews
+        if budget['max_concurrency'] < 1:
+            raise ValueError(f'not enough trial CPUs for {reviews} simultaneous reviews of one task')
+    return budget
 
 
 def prebuild_result(preparation):

@@ -77,12 +77,12 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
     config = selected_cluster(allocation_args)
     allocation = choose_allocation(allocation_args)
     partition, gpus = allocation['partition'], allocation['gpus']
+    nodes = 1
     if allocation_args.serve_model:
         replicas = arguments.get('serve_replicas', 1)
         serving = placement(resolve(allocation_args.serve_model)[1], gpus_per_node=config.gpus_per_node, replicas=replicas)
-        if serving['nodes'] != 1:
-            raise ValueError('shard arrays currently require a model that fits on one node')
-        gpus = max(gpus, serving['gpus'])
+        nodes = serving['nodes']
+        gpus = serving['gpus_per_node'] if nodes > 1 else max(gpus, serving['gpus'])
         if arguments.get('serve_cpus', 4) * replicas >= cpus:
             raise ValueError('allocation must leave CPUs for trials besides the model server')
     if gpus:
@@ -115,14 +115,24 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
     from hpc.validation_submit import archive_code_snapshot
     archive = archive_code_snapshot(out)
     script = out / 'array.sbatch'
+    unpack = f'mkdir -p "$code" && tar -xzf {shlex.quote(str(archive))} -C "$code"\n'
+    if nodes > 1:
+        # Ray workers use the head's source path when staging their runtime.
+        # Keep that path available on every node without unpacking on shared storage.
+        unpack = (f'srun --overlap --gres=none --nodes={nodes} --ntasks={nodes} '
+                  '--ntasks-per-node=1 --cpus-per-task=1 --mem=1024M '
+                  'bash -c \'mkdir -p "$1" && tar -xzf "$2" -C "$1"\' '
+                  f'unpack-code "$code" {shlex.quote(str(archive))}\n')
     script.write_text('#!/bin/bash\n#SBATCH --job-name=validation-shards\nset -euo pipefail\n'
                       'shard=$(printf \'%04d\' "${SLURM_ARRAY_TASK_ID:?}")\n'
                       'code="${TMPDIR:-/tmp}/ot-code-${SLURM_JOB_ID:?}"\n'
-                      f'mkdir -p "$code" && tar -xzf {shlex.quote(str(archive))} -C "$code"\n'
+                      + unpack +
                       'export VALIDATION_REPO="$code/code"\n'
                       f'exec bash "$VALIDATION_REPO/hpc/{config.name}/validation.sbatch" '
                       f'{shlex.quote(str(out / "shards"))}/"$shard"/request.json\n')
-    command = ['sbatch', '--parsable', f'--partition={partition}', '--nodes=1', '--ntasks=1', f'--cpus-per-task={cpus}',
+    command = ['sbatch', '--parsable', f'--partition={partition}', f'--nodes={nodes}',
+               *(['--ntasks=1'] if nodes == 1 else [f'--ntasks={nodes}', '--ntasks-per-node=1']),
+               f'--cpus-per-task={cpus}',
                *(['--exclusive'] if exclusive else []), *([f'--nodelist={nodelist}'] if nodelist else []),
                *([f'--mem={memory}'] if memory else []), f'--time={time}',
                *([f'--account={config.account}'] if config.account else []),
@@ -132,7 +142,8 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
                f'--export=ALL,OT_CLUSTER={config.name}', str(script)]
     save(out / 'plan.json', {'contract': str(Path(contract_path).resolve()), 'contract_sha256': contract['sha256'], 'count': count,
                              'stages': contract['stages'], 'tasks': total, 'command': command,
-                             'allocation': {'cluster': config.name, 'partition': partition, 'gpus': gpus, 'cpus': cpus, 'nodelist': nodelist}})
+                             'allocation': {'cluster': config.name, 'partition': partition, 'nodes': nodes,
+                                            'gpus': gpus, 'cpus': cpus, 'nodelist': nodelist}})
     if submit:
         job = subprocess.check_output(command, text=True).strip()
         (out / 'array-job-id.txt').write_text(job + '\n')

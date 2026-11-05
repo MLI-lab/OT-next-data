@@ -60,3 +60,25 @@ def test_requested_concurrency_is_configurable(tmp_path, concurrency):
     source = task(tmp_path)
     args = parser().parse_args(['--concurrency', str(concurrency), '--cpus', '32'])
     assert trial_capacity([source], args, verifier_disabled=True)['requested_concurrency'] == concurrency
+
+
+def test_judge_repetitions_share_the_allocated_cpu_budget(tmp_path):
+    from validation.stages.env_review import judge_config
+    source = task(tmp_path)
+    args = parser().parse_args(['--cpus', '32', '--serve-model', 'qwen38-27b',
+                               '--serve-cpus', '8', '--concurrency', '2', '--attempts', '3',
+                               '--review-agent', 'mini-swe-agent', '--review-evidence', 'image'])
+    budget = capacity_for_stages([source], args, [5])
+    assert budget['max_concurrent_trials'] == 12
+    assert budget['max_concurrency'] == 4
+    assert budget['reviews_per_task'] == 3
+    # Even with only two tasks in flight, each task can run all three reviews.
+    assert judge_config({'agents': []}, args)['n_concurrent_trials'] == 3
+
+
+def test_judge_repetitions_reject_an_underallocated_task(tmp_path):
+    source = task(tmp_path)
+    args = parser().parse_args(['--cpus', '4', '--attempts', '3',
+                               '--review-agent', 'mini-swe-agent', '--review-evidence', 'image'])
+    with pytest.raises(ValueError, match='3 simultaneous reviews'):
+        capacity_for_stages([source], args, [5])

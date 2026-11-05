@@ -44,6 +44,10 @@ def judge_config(config, args=None):
     """Judge settings: MiniSWE and Terminus-2 keep earlier turns' reasoning in the chat history
     (interleaved thinking); Claude Code gets the review reasoning effort and no web tools."""
     from config.models import judge_agent_kwargs
+    # The outer stage limits concurrent tasks. Within one task, run its
+    # independent reviews together; the worker budgets all of these trials.
+    if args is not None:
+        config['n_concurrent_trials'] = getattr(args, 'review_runs', None) or getattr(args, 'attempts', 1)
     for agent in config.get('agents', []):
         agent['kwargs'] = judge_agent_kwargs(
             agent.get('model_name'), agent['name'], agent.get('kwargs'),
