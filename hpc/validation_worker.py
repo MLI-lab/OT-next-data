@@ -268,6 +268,7 @@ def main(request):
     save(scratch / 'certificate-staging.json', stage_certificates(scratch / 'certificates'))
     processes, logs = [], []
     dependency_output = None
+    critical_services = []
 
     def start(command, name):
         # Bridge services share the batch log; model/metrics logs stay separate.
@@ -502,6 +503,11 @@ def main(request):
                    '--num-workers', str(max(2, args.concurrency * 2))], 'worker')
             wait_ready(bridge + '/status', processes, timeout=600, workers=True, diagnostics=True)
         if args.serve_model:
+            if args.serve_model == 'glm-5.3-flash':
+                from hpc.vllm_kpool_fix import apply
+                repair = apply()
+                save(scratch / 'vllm-kpool-repair.json', repair)
+                save(request.parent / 'vllm-kpool-repair.json', repair)
             from config.models import resolve, weights_dir, placement
             from config.runtime import record, check, cluster_config
             check(cluster_config(os.environ.get('OT_CLUSTER', 'helma')), gpu=True)
@@ -571,6 +577,7 @@ def main(request):
                                timeout=startup_timeout or None, retries=startup_retries,
                                record=status['serving'],
                                persist=lambda: save(request.parent / 'execution.json', status))
+            critical_services = list(processes)
             try:
                 # Sampled for stage 7's inference resource use; optional.
                 start(['nvidia-smi', '--query-gpu=index,memory.used,memory.total,utilization.gpu',
@@ -592,7 +599,9 @@ def main(request):
             else:
                 args.agent_kwargs = serving_agent_kwargs(spec, args.serve_context, args.agent_kwargs)
         from validation.run import run_selected
-        code = run_selected(args, data['stages'])
+        from hpc.service_health import watch_services
+        with watch_services(critical_services):
+            code = run_selected(args, data['stages'])
         if getattr(args, 'contract', None):
             status['validation_contract'] = str(args.contract)
             status['contract_sha256'] = read(args.contract)['sha256']

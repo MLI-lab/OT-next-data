@@ -17,7 +17,7 @@ We report labeling and classification separately, with three accepted reviews pe
 - **Classification:** PASS if the selected category is `CLEAN`; FAIL otherwise.
 
 
-### Is the rubric applied consistently by a capable model? 
+### Is the rubric applied consistently by a capable model?
 
 For Sonnet 5.5, we measure:
 
@@ -278,6 +278,9 @@ These summarize the judges’ reasoning; a majority agreeing with the ground-tru
 
 Accuracy is `(TP + TN) / 34`, using the majority decision for this criterion only.
 
+Main reason for false negatives is that the judges often treat substantial testing of the main behavior as sufficient, even when a stated requirement remains unchecked. I think is fine if the core functionality is genuinely tested, so the remaining gap is minor and we keep them
+Main reason for false positives is that judge says a shortcut is possible but does not demonstrate it i.e. hypothetical examples.
+
 ## On INSTR-VERIFIER-MISMATCH
 
 Labeling results only, on 180 category-labeled tasks: 118 FAIL and 62 PASS. Both judges have three reviews per task. Only this criterion’s PASS/FAIL decision counts; positive means a defect.
@@ -300,25 +303,45 @@ The 62 PASS tasks use the updated reference set: four excluded tasks are removed
 
 Accuracy is `(TP + TN) / 180`. [Results and individual reviews](category_results/INSTR-VERIFIER-MISMATCH.json).
 
-## On INSTR-ENV-MISMATCH
+Main reason for false negative is that the judges often confirm that the intended solution passes, but do not sufficiently check whether the verifier rejects other solutions allowed by the instructions.
 
-Labeling results only, on 72 category-labeled tasks: 59 FAIL and 13 PASS. Both judges have three reviews per task. Only this criterion’s PASS/FAIL decision counts; positive means a defect.
+<details>
+<summary>Sonnet: why do the three mismatch reviews disagree on 13 tasks?</summary>
 
-**Agreement across three reviews:**
+PASS means no mismatch; FAIL means mismatch. Results below are relative to the current reference labels, not independent proof that a review is wrong. In labeling, each criterion is judged separately: “only ambiguity” means INSTR-AMBIGUOUS = FAIL and INSTR-VERIFIER-MISMATCH = PASS.
 
-| Judge | Unanimous agreement | Mean pairwise agreement |
-|---|---:|---:|
-| Sonnet 5.5 | 61/72 (84.7%) | 194/216 (89.8%) |
-| Qwen3.8-27B | 65/72 (90.3%) | 202/216 (93.5%) |
+**Ambiguity instead of mismatch: 5 tasks**
 
-**Majority vote across three reviews:**
+At least one review assigns mismatch PASS but ambiguity FAIL. This does not always explain the entire disagreement: for `django__django-14534`, another review passes both criteria.
 
-| Judge | Accuracy | TP | FN | FP | TN |
-|---|---:|---:|---:|---:|---:|
-| Sonnet 5.5 | 59/72 (81.9%) | 51 | 8 | 5 | 8 |
-| Qwen3.8-27B | 70/72 (97.2%) | 58 | 1 | 1 | 12 |
+| Task | Reference | Reviews 1 / 2 / 3 | Majority result | Why the reviews differ |
+|---|---|---|---|---|
+| `adaptive-rejection-sampler` | FAIL | FAIL / PASS / FAIL | TP; one review misses it | All three flag the unspecified function signature as ambiguity. Two also flag mismatch because the verifier requires particular argument names and ordering; one assigns mismatch PASS. |
+| `django__django-12747` | FAIL | FAIL / PASS / FAIL | TP; one review misses it | The instruction permits empty dictionaries or zero-valued entries, but tests accept only the empty form. All flag ambiguity; the PASS review assigns the problem only to that category. |
+| `instance_qutebrowser__qutebrowser-e34dfc68647d087ca3175d9ad3f023c30d8c9746-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d` | FAIL | FAIL / PASS / PASS | FN; majority misses it | All flag unclear URL-validation rules as ambiguity. Only FAIL also argues that specific URLs accepted by the tests conflict with the instruction. |
+| `django__django-13199` | FAIL | FAIL / FAIL / PASS | TP; one review misses it | FAIL flags an unspecified API and session-middleware behavior. PASS considers the tests consistent with the request and flags the unspecified interface only as ambiguity. |
+| `django__django-14534` | PASS (subjective) | PASS / FAIL / PASS | TN; one review flags it | PASS considers None for a missing ID reasonably implied. FAIL emphasizes that the suggested code raises KeyError instead. Two reviews flag ambiguity, including one that passes mismatch. |
 
-Accuracy is `(TP + TN) / 72`. [Results and individual reviews](category_results/INSTR-ENV-MISMATCH.json).
+**Other reasons for disagreement: 8 tasks**
+
+No review assigns mismatch PASS while flagging ambiguity. Reviews instead differ over what the instruction implies, which checks matter, or whether the verifier’s expected result is correct. This is not necessarily a switch to another defect category.
+
+| Task | Reference | Reviews 1 / 2 / 3 | Majority result | Why the reviews differ |
+|---|---|---|---|---|
+| `polyglot-rust-c` | FAIL | FAIL / PASS / PASS | FN; majority misses it | 1. The task asks for one source file, `main.rs`.<br>2. Compiling it using the supplied commands creates executable files alongside it.<br>3. The verifier requires the directory to contain only `main.rs`, so those compilation outputs cause failure—even when the program works correctly.<br>PASS reviews interpret “single file” as forbidding these extra files; FAIL identifies the conflict. The upstream annotation confirms that compilation outputs are allowed. |
+| `polyglot-c-py` | FAIL | FAIL / PASS / PASS | FN; majority misses it | PASS treats a source-only directory as implied by “single file.” FAIL notes that the instructed build creates cmain in that directory, but the verifier rejects it unless deleted. |
+| `dna-insert` | FAIL | FAIL / PASS / PASS | FN; majority misses it | FAIL says repeated DNA bases permit equivalent primer designs that the verifier rejects. PASS says the sequences determine the insertion location and valid designs are accepted. |
+| `sam-cell-seg` | FAIL | PASS / PASS / FAIL | FN; majority misses it | PASS says the output checks match the instruction. FAIL says the input uses unbracketed coordinates but the verifier requires bracketed lists, despite asking for matching format. |
+| `task_009230_96ffbd11` | FAIL | PASS / PASS / FAIL | FN; majority misses it | PASS says expected numbers match the formula within tolerance. FAIL calculates a discrepancy larger than that tolerance. This is a factual disagreement. |
+| `task_002319_20a7cc18` | FAIL | PASS / FAIL / FAIL | TP; one review misses it | PASS says the expected values match. FAIL says the instructed calculation produces peak index 50000, while the verifier requires 10000. |
+| `task_006064_10c605da` | FAIL | FAIL / FAIL / PASS | TP; one review misses it | FAIL identifies a source-code check requiring is_alphabetic, rejecting alternative implementations. PASS discusses outputs but does not address that restriction. |
+| `django__django-11299` | PASS | FAIL / PASS / PASS | TN; one review flags it | FAIL considers requiring the internal SimpleCol implementation an extra demand. PASS considers it implied by the issue’s discussion of Col versus SimpleCol. |
+
+The majority gives **5 TP, 6 FN, 0 FP and 2 TN** on these 13 tasks. These explanations summarize the saved reviews; their individual factual claims have not all been independently verified. [Individual reviews and reference annotations](category_results/INSTR-VERIFIER-MISMATCH.json).
+
+Under the revised wording, an arbitrary required function signature is a mismatch if it cannot reasonably be inferred from the instructions or repository context. Rejecting an output explicitly permitted by the instructions is also a mismatch. The historical reviews used the earlier rubric.
+
+</details>
 
 ## On INSTR-AMBIGUOUS
 
@@ -340,4 +363,24 @@ The 62 PASS tasks use the updated reference set: four excluded tasks are removed
 | Sonnet 5.5 | 69/76 (90.8%) | 9 | 5 | 2 | 60 |
 | Qwen3.8-27B | 67/76 (88.2%) | 5 | 9 | 0 | 62 |
 
-Accuracy is `(TP + TN) / 76`. [Results and individual reviews](category_results/INSTR-AMBIGUOUS.json).
+Most ambiguity false negatives occur because the judge considers one interpretation reasonably implied by conventions or context. And most false positives are subjective tasks i.e. does an impliict behaviour need an explicit instruction.
+
+## On INSTR-ENV-MISMATCH
+
+Labeling results only, on 72 category-labeled tasks: 59 FAIL and 13 PASS. Both judges have three reviews per task. Only this criterion’s PASS/FAIL decision counts; positive means a defect.
+
+**Agreement across three reviews:**
+
+| Judge | Unanimous agreement | Mean pairwise agreement |
+|---|---:|---:|
+| Sonnet 5.5 | 61/72 (84.7%) | 194/216 (89.8%) |
+| Qwen3.8-27B | 65/72 (90.3%) | 202/216 (93.5%) |
+
+**Majority vote across three reviews:**
+
+| Judge | Accuracy | TP | FN | FP | TN |
+|---|---:|---:|---:|---:|---:|
+| Sonnet 5.5 | 59/72 (81.9%) | 51 | 8 | 5 | 8 |
+| Qwen3.8-27B | 70/72 (97.2%) | 58 | 1 | 1 | 12 |
+
+Main mistake for FP (7/8) was that sonnet assumed grading resources there and did not check them. Man mistake for FP mainly fixable setup problems that the judges treated as missing resources (not a big deal as okay also if we filter them out).
