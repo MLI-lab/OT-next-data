@@ -35,6 +35,10 @@ class Model:
     reasoning_parser: str = ''
     tool_call_parser: str = ''
     weights_gb: int = 0             # bf16/fp8 checkpoint size, for planning
+    # Cluster-specific pilot recommendations, measured in independent review
+    # sessions, not distinct tasks or requests per second. Launchers must still
+    # budget task CPUs/RAM and recheck KV capacity; these are not HF defaults.
+    recommended_judge_sessions: dict[str, int] = field(default_factory=dict)
 
     def parallelism(self, gpus_per_node: int) -> tuple[int, int]:
         """(tensor parallel, pipeline parallel) for a cluster with this node width."""
@@ -95,6 +99,10 @@ MODELS = {
         name='GLM-5.3-Flash', hf_repo='zai-org/GLM-5.3-Flash',
         gpus=4, thinking=True, weights_gb=306, dtype='auto', reasoning_parser='glm47', tool_call_parser='glm47',
         context=262144, max_output_tokens=65536,
+        # Helma pilot: 4 H200s, 128 CPUs (16 serving), ~80K live tokens/session.
+        # 36 sessions = 12 tasks x 3 reviews, for tasks requesting <=2 CPUs.
+        # Proposed from 678 completed reviews; throughput validation is pending.
+        recommended_judge_sessions={'helma': 36},
         extra_args=['--language-model-only'],
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
