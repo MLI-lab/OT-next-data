@@ -385,6 +385,10 @@ def create(args, numbers, destination):
         if 0 not in numbers:
             raise ValueError('--static-resume requires stage 0')
         contract['static_checkpoint'] = checkpoint_record(args.static_resume)
+    if getattr(args, 'image_preparation_evidence', None):
+        from validation.stages.image_preparation import load, sha
+        load(args.image_preparation_evidence)
+        contract['image_preparation_evidence_sha256'] = sha(args.image_preparation_evidence)
     destination = destination.resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     manifest_path = destination.with_suffix('.tasks.json')
@@ -436,6 +440,11 @@ def read(path):
 
 
 def verify_source(args, contract):
+    if getattr(args, 'image_preparation_evidence', None):
+        from validation.stages.image_preparation import load, sha
+        if sha(args.image_preparation_evidence) != contract.get('image_preparation_evidence_sha256'):
+            raise ValueError('Image preparation evidence differs from frozen contract')
+        load(args.image_preparation_evidence)
     if contract.get('expected_outcomes_sha256') or contract.get('arguments', {}).get('expected_outcomes'):
         raise ValueError('This contract uses retired expected-outcomes behavior; prepare a new contract')
     expected_references = contract['dataset'].get('reference_solutions')

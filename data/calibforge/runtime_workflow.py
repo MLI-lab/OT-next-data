@@ -118,6 +118,8 @@ class RuntimeWorkflow:
                 for item in results:
                     if item.get('log') and (destination / Path(item['log']).name).is_file():
                         item['log'] = str(destination / Path(item['log']).name)
+                        item['log_sha256'] = hashlib.sha256(Path(item['log']).read_bytes()).hexdigest()
+                    item['task_id'] = task_id
                 (destination / 'preparation.json').write_text(json.dumps(results, indent=2) + '\n')
             return results
 

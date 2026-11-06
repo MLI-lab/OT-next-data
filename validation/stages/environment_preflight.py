@@ -8,6 +8,9 @@ def run_build_stage(sources, out, args, checkpoint=None):
     """Build and start every task, then decide its environment leak checks and record
     where the instruction's relative paths are. All static checks run in stage 0."""
     from validation.stages.build_retries import run_builds
+    from validation.stages.image_preparation import failures
+    imported = failures(sources, getattr(args, 'image_preparation_evidence', None))
+    executable = [p for p in sources if p.name not in imported]
     if checkpoint:
         from validation.checkpoints.build import restore
         names = {p.name for p in sources}
@@ -17,10 +20,14 @@ def run_build_stage(sources, out, args, checkpoint=None):
         args = copy.copy(args)
         args._collect_stage1_paths = getattr(args, 'fix_instruction_paths', False)
         with (out / 'outcomes.jsonl').open('a') as outcomes:
-            builds = asyncio.run(run_builds(sources, out, args, outcomes))
+            builds = asyncio.run(run_builds(executable, out, args, outcomes))
+            import json
+            for item in imported.values():
+                outcomes.write(json.dumps(item) + '\n')
     else:
         builds = []
     by_name = {Path(i['task']).name: i for i in builds}
+    by_name.update(imported)
     results = []
     for source in sources:
         result = dict(by_name[source.name])

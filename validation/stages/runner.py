@@ -138,6 +138,8 @@ def parser():
                     help='per-image preparation timeout; 0 uses the remaining Slurm allocation')
     ap.add_argument('--prebuild-only', action='store_true',
                     help='Slurm only: prepare and cache all selected images, archive build evidence, and run no validation stages')
+    ap.add_argument('--image-preparation-evidence', type=Path,
+                    help='hash-bound fresh image preparation failures to report in BUILD; never permits validation builds')
     ap.add_argument('--dependency-archives',
                     help='folder with one <task>.tar of build dependencies per task: oracle validation (stage 2) '
                          'saves a task\'s archive, every other trial gets it mounted read-only; needs --dependency-layout')

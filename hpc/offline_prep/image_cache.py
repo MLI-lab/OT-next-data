@@ -220,6 +220,15 @@ def prepare_images(tasks, images, shared, args):
                   'timeout_sec': timeout, 'command': command, 'log': str(log),
                   'directory_build': os.environ.get('OT_IMAGE_DIRECTORY_BUILD', '1') == '1',
                   'deferred_overlay_mb': int(os.environ.get('BRIDGE_DEFERRED_OVERLAY_MB', '2048'))}
+        from datetime import datetime, timezone
+        from validation.contract import task_digest
+        record.update(environment_sha256=environment_dir_hash(dockerfile.parent),
+                      source_task_sha256=task_digest(task_paths[key]),
+                      builder_sha256=digest(Path(__file__)),
+                      bridge_patch_sha256=digest(Path(__file__).parents[2] / 'harbor_patches/bridge_worker.py'),
+                      directory_builder_sha256=digest(Path(__file__).parents[2] / 'harbor_patches/image_build.py'),
+                      started_at=datetime.now(timezone.utc).isoformat(),
+                      node=socket.gethostname(), slurm_job_id=os.environ.get('SLURM_JOB_ID'))
         try:
             with log.open('w') as output:
                 options = {}
@@ -249,6 +258,8 @@ def prepare_images(tasks, images, shared, args):
                 print(f'WARNING: image built but shared cache publication failed: {exc}', flush=True)
         except Exception as exc:
             record.update(status='error', error=str(exc))
+            record['returncode'] = getattr(exc, 'returncode', None)
+            record['exception_type'] = type(exc).__name__
             image.unlink(missing_ok=True)
         record['seconds'] = round(time.monotonic() - started, 3)
         return record

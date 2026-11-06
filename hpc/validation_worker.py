@@ -354,6 +354,11 @@ def main(request):
             tasks, data['stages'], scratch, getattr(args, 'review_evidence', 'files'),
             getattr(args, 'review_rubric', 'terminal-bench'),
             getattr(args, 'review_format', None), getattr(args, 'review_criteria', None))
+        if not prebuild_only and 1 in data['stages']:
+            from validation.stages.image_preparation import failures
+            imported_builds = failures(tasks, getattr(args, 'image_preparation_evidence', None))
+            runtime_tasks = [task for task in runtime_tasks if task.name not in imported_builds]
+            save(request.parent / 'imported-image-failures.json', imported_builds)
         budget = ({'requested_concurrency': args.concurrency, 'max_concurrency': args.cpus,
                    'trial_cpu_budget': args.cpus, 'reserved_cpus_per_trial': 0}
                   if static_only or prebuild_only else capacity_for_stages(runtime_tasks, args, data['stages']))
