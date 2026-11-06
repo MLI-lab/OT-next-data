@@ -1,5 +1,5 @@
 """Category-specific confusion matrices from three accepted reviews per task."""
-import collections,csv,hashlib,io,json,urllib.request
+import argparse,collections,csv,hashlib,io,json,urllib.request
 from pathlib import Path
 ROOT=Path('/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105')
 HERE=Path(__file__).resolve().parent
@@ -11,9 +11,15 @@ def matrix(truth,pred):
  for t,p in zip(truth,pred):c['TP' if t and p else 'FN' if t else 'FP' if p else 'TN']+=1
  return c
 def main():
- repo='FWeindel/task-defect-ground-truth';rev=json.loads(fetch('https://huggingface.co/api/datasets/'+repo))['sha']
+ global CAT
+ parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--category',default=CAT,choices=['VERIFIER-TOO-WEAK','INSTR-VERIFIER-MISMATCH','INSTR-ENV-MISMATCH','INSTR-AMBIGUOUS'])
+ parser.add_argument('--output',type=Path,default=HERE/'results.json')
+ parser.add_argument('--revision',help='Pin the Hugging Face ground-truth revision.')
+ args=parser.parse_args();CAT=args.category
+ repo='FWeindel/task-defect-ground-truth';rev=args.revision or json.loads(fetch('https://huggingface.co/api/datasets/'+repo))['sha']
  raw=fetch('https://huggingface.co/datasets/'+repo+'/resolve/'+rev+'/curated/2026-11-04-four-categories/category_examples.csv')
- gt=[r for r in csv.DictReader(io.StringIO(raw.decode())) if r['category']==CAT];byid={r['record_id']:r for r in gt};assert len(byid)==len(gt)==34
+ gt=[r for r in csv.DictReader(io.StringIO(raw.decode())) if r['category']==CAT];byid={r['record_id']:r for r in gt};assert len(byid)==len(gt) and gt
  inv=json.loads((ROOT/'inventory.json').read_text())['tasks'];tasks=[]
  for t in inv:
   for l in t['labels']:
@@ -58,8 +64,9 @@ def main():
  for (j,f),vs in allvotes.items():
   comparison.append({'judge':j,'format':f,'tasks':len(common),'majority':matrix([vs[k][0] for k in sorted(common)],[sum(vs[k][1])>=2 for k in sorted(common)])})
  agreement=[{'judge':j,'tasks':len(vs),'unanimous':sum(len(set(v[1]))==1 for v in vs.values()),'pairwise_agreements':sum(v[1][a]==v[1][b] for v in vs.values() for a,b in [(0,1),(0,2),(1,2)]),'pairwise_comparisons':3*len(vs)} for (j,f),vs in allvotes.items()]
- result={'ground_truth_revision':rev,'ground_truth_category_records':gt,'ground_truth_csv_sha256':hashlib.sha256(raw).hexdigest(),'definition':'Positive = VERIFIER-TOO-WEAK defect. Labeling: criterion FAIL. Majority uses at least 2/3 positive votes. Historical six-criterion rubric, before weak-verifier split.','sources':sources,'rows':rows,'common_complete_cohort':comparison,'within_judge_agreement':agreement,'evidence':evidence}
- (HERE/'results.json').write_text(json.dumps(result,indent=2)+'\n')
+ result={'ground_truth_revision':rev,'ground_truth_category_records':gt,'ground_truth_csv_sha256':hashlib.sha256(raw).hexdigest(),'definition':f'Positive = {CAT} defect. Labeling: criterion FAIL. Majority uses at least 2/3 positive votes. Historical six-criterion rubric, before weak-verifier split.','sources':sources,'rows':rows,'common_complete_cohort':comparison,'within_judge_agreement':agreement,'evidence':evidence}
+ args.output.parent.mkdir(parents=True,exist_ok=True)
+ args.output.write_text(json.dumps(result,indent=2)+'\n')
  for r in rows:print({k:v for k,v in r.items() if k not in ['missing','review_indices']})
  print('Common cohort:',comparison)
 if __name__=='__main__':main()

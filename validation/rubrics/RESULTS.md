@@ -17,7 +17,7 @@ We report labeling and classification separately, with three accepted reviews pe
 - **Classification:** PASS if the selected category is `CLEAN`; FAIL otherwise.
 
 
-### Is the rubric applied consistently by a capable model?
+### Is the rubric applied consistently by a capable model? 
 
 For Sonnet 5.5, we measure:
 
@@ -278,19 +278,66 @@ These summarize the judges’ reasoning; a majority agreeing with the ground-tru
 
 Accuracy is `(TP + TN) / 34`, using the majority decision for this criterion only.
 
-<details>
-<summary>Counts across all three reviews (102 judgments per judge)</summary>
-
-| Judge | TP | FN | FP | TN |
-|---|---:|---:|---:|---:|
-| Sonnet 5.5 | 35 | 19 | 19 | 29 |
-| Qwen3.8-27B | 41 | 13 | 15 | 33 |
-
-
-</details>
-
 ## On INSTR-VERIFIER-MISMATCH
+
+Labeling results only, on 180 category-labeled tasks: 118 FAIL and 62 PASS. Both judges have three reviews per task. Only this criterion’s PASS/FAIL decision counts; positive means a defect.
+
+The 62 PASS tasks use the updated reference set: four excluded tasks are removed, and the two subjective cases remain PASS.
+
+**Agreement across three reviews:**
+
+| Judge | Unanimous agreement | Mean pairwise agreement |
+|---|---:|---:|
+| Sonnet 5.5 | 167/180 (92.8%) | 514/540 (95.2%) |
+| Qwen3.8-27B | 130/180 (72.2%) | 440/540 (81.5%) |
+
+**Majority vote across three reviews:**
+
+| Judge | Accuracy | TP | FN | FP | TN |
+|---|---:|---:|---:|---:|---:|
+| Sonnet 5.5 | 163/180 (90.6%) | 102 | 16 | 1 | 61 |
+| Qwen3.8-27B | 128/180 (71.1%) | 68 | 50 | 2 | 60 |
+
+Accuracy is `(TP + TN) / 180`. [Results and individual reviews](category_results/INSTR-VERIFIER-MISMATCH.json).
 
 ## On INSTR-ENV-MISMATCH
 
+Labeling results only, on 72 category-labeled tasks: 59 FAIL and 13 PASS. Both judges have three reviews per task. Only this criterion’s PASS/FAIL decision counts; positive means a defect.
+
+**Agreement across three reviews:**
+
+| Judge | Unanimous agreement | Mean pairwise agreement |
+|---|---:|---:|
+| Sonnet 5.5 | 61/72 (84.7%) | 194/216 (89.8%) |
+| Qwen3.8-27B | 65/72 (90.3%) | 202/216 (93.5%) |
+
+**Majority vote across three reviews:**
+
+| Judge | Accuracy | TP | FN | FP | TN |
+|---|---:|---:|---:|---:|---:|
+| Sonnet 5.5 | 59/72 (81.9%) | 51 | 8 | 5 | 8 |
+| Qwen3.8-27B | 70/72 (97.2%) | 58 | 1 | 1 | 12 |
+
+Accuracy is `(TP + TN) / 72`. [Results and individual reviews](category_results/INSTR-ENV-MISMATCH.json).
+
 ## On INSTR-AMBIGUOUS
+
+Labeling results only, on 76 category-labeled tasks: 14 FAIL and 62 PASS. Both judges have three reviews per task. Only this criterion’s PASS/FAIL decision counts; positive means a defect.
+
+The 62 PASS tasks use the updated reference set: four excluded tasks are removed, and the two subjective cases remain PASS.
+
+**Agreement across three reviews:**
+
+| Judge | Unanimous agreement | Mean pairwise agreement |
+|---|---:|---:|
+| Sonnet 5.5 | 74/76 (97.4%) | 224/228 (98.2%) |
+| Qwen3.8-27B | 71/76 (93.4%) | 218/228 (95.6%) |
+
+**Majority vote across three reviews:**
+
+| Judge | Accuracy | TP | FN | FP | TN |
+|---|---:|---:|---:|---:|---:|
+| Sonnet 5.5 | 69/76 (90.8%) | 9 | 5 | 2 | 60 |
+| Qwen3.8-27B | 67/76 (88.2%) | 5 | 9 | 0 | 62 |
+
+Accuracy is `(TP + TN) / 76`. [Results and individual reviews](category_results/INSTR-AMBIGUOUS.json).
