@@ -1,0 +1,144 @@
+{
+  "task_id": "django__django-10097",
+  "jobs": [
+    1246071,
+    1246101
+  ],
+  "original_verifier_files_match": {
+    "test.sh": true,
+    "config.json": true
+  },
+  "variants": [
+    {
+      "variant": "baseline",
+      "reward": 0,
+      "resolved": false,
+      "url_probe": {
+        "actually_rejected": false,
+        "should_be_rejected": true,
+        "url": "http://foo/bar@example.com"
+      },
+      "failing_url_tests": [
+        "test_URLValidator_raises_error_352 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_353 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_354 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_355 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_356 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_357 (validators.tests.TestSimpleValidators) ... FAIL"
+      ],
+      "graded_test_counts": {
+        "FAIL_TO_PASS": {
+          "success": 438,
+          "failure": 0
+        },
+        "PASS_TO_PASS": {
+          "success": 1427,
+          "failure": 5
+        },
+        "FAIL_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        },
+        "PASS_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        }
+      },
+      "graded_failures": {
+        "PASS_TO_PASS": [
+          "test_add (generic_inline_admin.tests.GenericInlineAdminWithUniqueTogetherTest)",
+          "test_delete (generic_inline_admin.tests.GenericInlineAdminWithUniqueTogetherTest)",
+          "test_no_param (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+          "test_basic_add_GET (generic_inline_admin.tests.GenericAdminViewTest)",
+          "test_basic_edit_GET (generic_inline_admin.tests.GenericAdminViewTest)"
+        ]
+      }
+    },
+    {
+      "variant": "gold",
+      "reward": 0,
+      "resolved": false,
+      "url_probe": {
+        "url": "http://foo/bar@example.com",
+        "actually_rejected": true,
+        "should_be_rejected": true
+      },
+      "failing_url_tests": [],
+      "graded_test_counts": {
+        "FAIL_TO_PASS": {
+          "success": 438,
+          "failure": 0
+        },
+        "PASS_TO_PASS": {
+          "success": 1427,
+          "failure": 5
+        },
+        "FAIL_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        },
+        "PASS_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        }
+      },
+      "graded_failures": {
+        "PASS_TO_PASS": [
+          "test_add (generic_inline_admin.tests.GenericInlineAdminWithUniqueTogetherTest)",
+          "test_delete (generic_inline_admin.tests.GenericInlineAdminWithUniqueTogetherTest)",
+          "test_no_param (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+          "test_basic_add_GET (generic_inline_admin.tests.GenericAdminViewTest)",
+          "test_basic_edit_GET (generic_inline_admin.tests.GenericAdminViewTest)"
+        ]
+      }
+    },
+    {
+      "variant": "baseline_source",
+      "reward": 0,
+      "resolved": false,
+      "url_probe": {
+        "actually_rejected": false,
+        "url": "http://foo/bar@example.com",
+        "should_be_rejected": true
+      },
+      "failing_url_tests": [
+        "test_URLValidator_raises_error_352 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_353 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_354 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_355 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_356 (validators.tests.TestSimpleValidators) ... FAIL",
+        "test_URLValidator_raises_error_357 (validators.tests.TestSimpleValidators) ... FAIL"
+      ],
+      "graded_test_counts": {
+        "FAIL_TO_PASS": {
+          "success": 438,
+          "failure": 0
+        },
+        "PASS_TO_PASS": {
+          "success": 1427,
+          "failure": 5
+        },
+        "FAIL_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        },
+        "PASS_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        }
+      },
+      "graded_failures": {
+        "PASS_TO_PASS": [
+          "test_add (generic_inline_admin.tests.GenericInlineAdminWithUniqueTogetherTest)",
+          "test_delete (generic_inline_admin.tests.GenericInlineAdminWithUniqueTogetherTest)",
+          "test_no_param (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+          "test_basic_add_GET (generic_inline_admin.tests.GenericAdminViewTest)",
+          "test_basic_edit_GET (generic_inline_admin.tests.GenericAdminViewTest)"
+        ]
+      }
+    }
+  ],
+  "environment_adjustment": "baseline_source sets PYTHONPATH=/testbed to import the same Django source checkout instead of the installed egg. Templates were confirmed present in the source checkout, but the same five template lookup errors persisted. Their root cause is not established. No source, test or grading changes in this variant.",
+  "scope": "Both original-runtime baseline and gold runs fail the same five unrelated admin template checks. The source-import result must be reported with its explicit environment qualification.",
+  "original_source_diff_empty": true
+}

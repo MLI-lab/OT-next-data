@@ -1,0 +1,46 @@
+{
+  "jobs": [
+    1245576,
+    1245852
+  ],
+  "original_verifier_files_match": {
+    "test.sh": true,
+    "config.json": true
+  },
+  "results": [
+    {
+      "variant": "baseline",
+      "reward": 0,
+      "suppressed_context_passes": true,
+      "FAIL_TO_PASS": {
+        "success": [],
+        "failure": [
+          "test_innermost_exception_without_traceback (view_tests.tests.test_debug.ExceptionReporterTests)"
+        ]
+      }
+    },
+    {
+      "variant": "instruction",
+      "reward": 0,
+      "suppressed_context_passes": true,
+      "FAIL_TO_PASS": {
+        "success": [],
+        "failure": [
+          "test_innermost_exception_without_traceback (view_tests.tests.test_debug.ExceptionReporterTests)"
+        ]
+      }
+    },
+    {
+      "variant": "gold",
+      "reward": 1,
+      "suppressed_context_passes": true,
+      "FAIL_TO_PASS": {
+        "success": [
+          "test_innermost_exception_without_traceback (view_tests.tests.test_debug.ExceptionReporterTests)"
+        ],
+        "failure": []
+      }
+    }
+  ],
+  "scope": "Tests the exact suggested implementation, not every conceivable interpretation of the instruction. Baseline already passes test_suppressed_context; suggested implementation still fails the separate required missing-traceback test."
+}

@@ -1,0 +1,14 @@
+{
+  "task": "sympy__sympy-13878",
+  "job_id": 1245842,
+  "original_verifier_files_match": {
+    "test.sh": true,
+    "config.json": true
+  },
+  "reference_reward": 1,
+  "equivalent_reward": 0,
+  "only_change_from_reference": "Arcsin CDF zero branch: x < a becomes x <= a.",
+  "equivalence_proof": "For valid real parameters a < b, the branches differ only at x=a. At that point the reference middle branch is 2*asin(sqrt(0))/pi = 0, equal to the alternative zero branch. Therefore the CDF is identical for every real x.",
+  "rejected_assertion": "test_arcsin exact symbolic equality",
+  "limitation": "Both suite runs also reported exceptions in other tests. These did not prevent the reference from receiving reward 1. The equivalent version failed the sole required FAIL_TO_PASS test; all listed PASS_TO_PASS tests passed in both runs."
+}

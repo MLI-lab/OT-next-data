@@ -1,0 +1,190 @@
+{
+  "scope": "Task-file inspection, preserved tool command/output inspection, and public patch comparison. No fresh container execution or verifier rerun.",
+  "cases": [
+    {
+      "task_id": "django__django-16824",
+      "trajectory_sha256": "c871e75f89fe21b49cd687860e193b85b1a30f748921b61465b700a1335d89ee",
+      "historical_local_git_access_confirmed": true,
+      "reference_patch_changed_lines_match": true,
+      "comparison_source": "historical git-show output",
+      "evidence": [
+        {
+          "step": 27,
+          "commands": [
+            "grep -rn \"map(str, e.cmd)\" / --include=\"*.py\" 2>/dev/null | grep -v \"task-under-review\" | grep -v \"^/proc\" | head; echo \"SEARCH1 DONE\"; find / -name \"solution_patch*\" -o -name \"*gold*patch*\" 2>/dev/null | grep -v \"task-under-review\\|/proc\\|/sys\" | head",
+            "cd /testbed && git branch -a; echo \"---\"; git log --all --oneline -- django/core/management/commands/dbshell.py | head -5; echo \"---\"; git log --all --oneline | wc -l"
+          ],
+          "outputs": [
+            "SEARCH1 DONE\n/opt/miniconda3/pkgs/ld_impl_linux-64-2.38-h1181459_1/info/recipe/parent/patches/binutils/0004-Darwin-gold-binary-cc-include-string-not-cstring.patch\n/opt/miniconda3/pkgs/ld_impl_linux-64-2.40-h12ee557_0/info/recipe/parent/patches/binutils/0004-Darwin-gold-binary-cc-include-string-not-cstring.patch\n/tmp/gold_patch.diff\n",
+            "* main\n---\n4a76ac0e9d Fixed #35429 -- Added argparse choices to --database options.\nf5b39b77e3 Fixed #34535 -- Fixed SQLite dbshell crash on pathlib.Path when handling CommandError.\n3278c31fa5 [4.0.x] Refs #33476 -- Refactored code to strictly match 88 characters line length.\n6a682b38e7 [4.0.x] Refs #33476 -- Reformatted code with Black.\n7119f40c98 Refs #33476 -- Refactored code to strictly match 88 characters line length.\n---\n48985\n"
+          ]
+        },
+        {
+          "step": 28,
+          "commands": [
+            "cd /testbed && git merge-base --is-ancestor f5b39b77e3 HEAD && echo \"FIX COMMIT IS ANCESTOR OF HEAD\" || echo \"not ancestor\"; git log --oneline f5b39b77e3~1..HEAD | wc -l; git log --oneline | grep -n \"f5b39b77e3\" | head -2",
+            "cd /testbed && git show f5b39b77e3 --stat | head -20; echo \"===\"; git show f5b39b77e3 -- django/core/management/commands/dbshell.py | head -40"
+          ],
+          "outputs": [
+            "not ancestor\n0\n",
+            "commit f5b39b77e38b7585861df9314aba4ce93b018c4c\nAuthor: Jan Pieter Waagmeester <jieter@jieter.nl>\nDate:   Wed May 3 14:24:45 2023 +0200\n\n    Fixed #34535 -- Fixed SQLite dbshell crash on pathlib.Path when handling CommandError.\n    \n    Regression in 5b884d45ac5b76234eca614d90c83b347294c332.\n\n django/core/management/commands/dbshell.py |  2 +-\n tests/dbshell/test_sqlite.py               | 19 +++++++++++++++++++\n 2 files changed, 20 insertions(+), 1 deletion(-)\n===\ncommit f5b39b77e38b7585861df9314aba4ce93b018c4c\nAuthor: Jan Pieter Waagmeester <jieter@jieter.nl>\nDate:   Wed May 3 14:24:45 2023 +0200\n\n    Fixed #34535 -- Fixed SQLite dbshell crash on pathlib.Path when handling CommandError.\n    \n    Regression in 5b884d45ac5b76234eca614d90c83b347294c332.\n\ndiff --git a/django/core/management/commands/dbshell.py b/django/core/management/commands/dbshell.py\nindex 30d2765afb..bdb130594f 100644\n--- a/django/core/management/commands/dbshell.py\n+++ b/django/core/management/commands/dbshell.py\n@@ -41,7 +41,7 @@ class Command(BaseCommand):\n             raise CommandError(\n                 '\"%s\" returned non-zero exit status %s.'\n                 % (\n-                    \" \".join(e.cmd),\n+                    \" \".join(map(str, e.cmd)),\n                     e.returncode,\n                 ),\n                 returncode=e.returncode,\n"
+          ]
+        },
+        {
+          "step": 29,
+          "commands": [
+            "cd /testbed && git for-each-ref | head -20; echo \"---TAGS---\"; git tag | head; echo \"---STASH---\"; git stash list; echo \"---ORIG_HEAD/FETCH_HEAD---\"; ls .git/ | grep -iE \"head|ref\" | head",
+            "cd /testbed && git log --all --oneline | head -12; echo \"---\"; git cat-file -t 4a72da71001f154ea60906a2f74898d32b7322a7 2>&1; git log --oneline -1 4a72da71001f154ea60906a2f74898d32b7322a7 2>&1"
+          ],
+          "outputs": [
+            "49830025c992fbc8d8f213e7c16dba1391c6adf2 commit\trefs/heads/main\nabd14962c88883b397ff9608ccc19ffa4dfd7419 tag\trefs/tags/1.0\n6df1fa16a0cb0100815db149eafa15d89ee72cb9 tag\trefs/tags/1.0.1\n03eacbd3143b001556be1eaa5986d15962c446e5 tag\trefs/tags/1.0.2\n400bef1f6a902d24b58a0003bece7a6ebf0011f7 tag\trefs/tags/1.0.3\n1abf1e00c38c60586f0bc6e3b3d6346805a31ed4 tag\trefs/tags/1.0.4\n17aea8fa295be7bf6096fbc7c616c3b4e2c7c1ff tag\trefs/tags/1.1\nea09c23887c2569c0a29797929f1fc2e57be23e8 tag\trefs/tags/1.1.1\nf70e82da232c709dc27e753d24793b409bdc8b28 tag\trefs/tags/1.1.2\n6adb5659ed37a0c896e2578fbf3fabc1af4090c2 tag\trefs/tags/1.1.3\n1fe0e3d18df080db2a044622d2781ff5f63b29c1 tag\trefs/tags/1.1.4\n68ce8092ff792124002ba423989a4e69ff7f99a5 tag\trefs/tags/1.10\nc157c6b24c56b15ecf469d9c53ca951ef85970d5 tag\trefs/tags/1.10.1\nff5362962f59d8961339dbb63d5330aa2d49f35b tag\trefs/tags/1.10.2\n575bcacd4e277ec10a7a2700fbb3a7ed95928bca tag\trefs/tags/1.10.3\n3aca3d4a64f72282f00d3f3edbfe509a95022ffa tag\trefs/tags/1.10.4\n6dcca968cebc6864930fa78065702df41189218a tag\trefs/tags/1.10.5\nab4a6d4b9233b20e22ba3235f2dc3ba0d8c2d3c2 tag\trefs/tags/1.10.6\ne077f39a93880343201bcb7c8778996fc0002c83 tag\trefs/tags/1.10.7\n4d4c1cab5d1800d3effae9e979fa3b5f4433b6a4 tag\trefs/tags/1.10.8\n---TAGS---\n1.0\n1.0.1\n1.0.2\n1.0.3\n1.0.4\n1.1\n1.1.1\n1.1.2\n1.1.3\n1.1.4\n---STASH---\n---ORIG_HEAD/FETCH_HEAD---\nHEAD\nORIG_HEAD\npacked-refs\nrefs\n",
+            "c499184f19 [5.1.x] Bumped version for 5.1.2 release.\n6e07a7769f [5.1.x] Added release date for 5.1.2.\n17fa7592af [5.1.x] Fixed #35809 -- Set background color for selected rows in the admin's form select widget.\ne245f62d00 [5.1.x] Updated translations from Transifex.\n6bedb102e9 [5.1.x] Reindented attributes and methods for classes in docs/ref/middleware.txt.\nbf64ac3567 [5.1.x] Fixed #35670 -- Clarified the return value for LoginRequiredMiddleware's methods.\n53031136f5 [5.1.x] Relocated path() explanation to docs/ref/urls.txt to simplify tutorial 1.\n22bce642a9 [5.1.x] Fixed #35734 -- Used JSONB_BUILD_OBJECT database function on PostgreSQL when using server-side bindings.\n9e146b27ad [5.1.x] Made cosmetic edits to the Steering council docs.\n251180f7f9 [5.1.x] Removed setting the release schedule from Steering Council prerogatives as per DEP 44.\nd96b661135 [5.1.x] Fixed #35767 -- Adjusted customizing User model docs.\nc12fe0a724 [5.1.x] Added example of email sending with additional capabilities to docs/topics/email.txt.\n---\ncommit\n4a72da7100 Refs #27471 -- Made admin's filter choice arrows use cursor pointers.\n"
+          ]
+        },
+        {
+          "step": 30,
+          "commands": [
+            "cd /testbed && for t in 4.2 4.2.1 4.2.2 5.0 5.1 5.1.2; do git merge-base --is-ancestor f5b39b77e3 \"$t\" 2>/dev/null && echo \"f5b39b77e3 IS in tag $t\"; done; echo \"---\"; git log --all --oneline -- django/core/management/commands/dbshell.py | head -4",
+            "cd /testbed && git show f5b39b77e3 -- tests/dbshell/test_sqlite.py | head -35"
+          ],
+          "outputs": [
+            "f5b39b77e3 IS in tag 5.0\nf5b39b77e3 IS in tag 5.1\nf5b39b77e3 IS in tag 5.1.2\n---\n4a76ac0e9d Fixed #35429 -- Added argparse choices to --database options.\nf5b39b77e3 Fixed #34535 -- Fixed SQLite dbshell crash on pathlib.Path when handling CommandError.\n3278c31fa5 [4.0.x] Refs #33476 -- Refactored code to strictly match 88 characters line length.\n6a682b38e7 [4.0.x] Refs #33476 -- Reformatted code with Black.\n",
+            "commit f5b39b77e38b7585861df9314aba4ce93b018c4c\nAuthor: Jan Pieter Waagmeester <jieter@jieter.nl>\nDate:   Wed May 3 14:24:45 2023 +0200\n\n    Fixed #34535 -- Fixed SQLite dbshell crash on pathlib.Path when handling CommandError.\n    \n    Regression in 5b884d45ac5b76234eca614d90c83b347294c332.\n\ndiff --git a/tests/dbshell/test_sqlite.py b/tests/dbshell/test_sqlite.py\nindex 7c39fd111e..faf9882ad9 100644\n--- a/tests/dbshell/test_sqlite.py\n+++ b/tests/dbshell/test_sqlite.py\n@@ -1,5 +1,9 @@\n+import subprocess\n from pathlib import Path\n+from unittest import mock, skipUnless\n \n+from django.core.management import CommandError, call_command\n+from django.db import connection\n from django.db.backends.sqlite3.client import DatabaseClient\n from django.test import SimpleTestCase\n \n@@ -21,3 +25,18 @@ class SqliteDbshellCommandTestCase(SimpleTestCase):\n             self.settings_to_cmd_args_env({\"NAME\": \"test.db.sqlite3\"}, [\"-help\"]),\n             ([\"sqlite3\", \"test.db.sqlite3\", \"-help\"], None),\n         )\n+\n+    @skipUnless(connection.vendor == \"sqlite\", \"SQLite test\")\n+    def test_non_zero_exit_status_when_path_to_db_is_path(self):\n+        sqlite_with_path = {\n+            \"ENGINE\": \"django.db.backends.sqlite3\",\n+            \"NAME\": Path(\"test.db.sqlite3\"),\n+        }\n+        cmd_args = self.settings_to_cmd_args_env(sqlite_with_path)[0]\n+\n"
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "psf__requests-5087",
+      "trajectory_sha256": "376a7e842cbfa4291e9d7f867d34b280f1306a7d5d80f7a116de58490389eaec",
+      "historical_local_git_access_confirmed": true,
+      "reference_patch_changed_lines_match": true,
+      "comparison_source": "public diff for the two commits confirmed present by historical git outputs",
+      "evidence": [
+        {
+          "step": 24,
+          "commands": [
+            "cd /testbed && git log --oneline | wc -l && git branch -a && git tag | tail -5 && git log --all --oneline | grep -iE \"5087|5088|retains|retain\" ; echo \"grep exit=$?\"; git log --oneline -1 --format=\"%H %ci %s\"",
+            "find / -xdev \\( -path /proc -o -path /sys -o -path /app/task-under-review \\) -prune -o -type f \\( -name \"*solution*\" -o -name \"*test_patch*\" -o -name \"*.diff\" -o -name \"*patch*\" \\) -print 2>/dev/null | grep -vE \"^/(opt/miniconda3|usr/(lib|share)|testbed/(build|docs))\" | head -20; echo \"---\"; ls /root/ /tmp/ 2>/dev/null"
+          ],
+          "outputs": [
+            "5655\n* main\nv2.8.0\nv2.8.1\nv2.9.0\nv2.9.1\nv2.9.2\n67a7b2e8 Merge pull request #5087 from LuckyDenis/master\na79a6339 Merge pull request #5088 from zurbrugc/master\n50877717 Merge pull request #940 from Lukasa/issue917\ngrep exit=0\na4c18cd733f97b5659a29589432d8a39e7a0de87 2019-07-29 09:06:11 -0700 Add missing backtick (#5145)\n",
+            "/usr/bin/patch\n/usr/include/c++/11/ext/pb_ds/detail/container_base_dispatch.hpp\n/usr/include/c++/11/ext/pb_ds/detail/priority_queue_base_dispatch.hpp\n/usr/include/linux/patchkey.h\n/usr/include/python3.10/patchlevel.h\n/var/lib/dpkg/info/patch.list\n/var/lib/dpkg/info/patch.md5sums\n---\n/root/:\nsetup_env.sh\nsetup_repo.sh\n\n/tmp/:\nmkpatch.sh\nparser_sim.py\nsolution_patch.json.diff\ntest_patch.json.diff\nts_patch.diff\n"
+          ]
+        },
+        {
+          "step": 25,
+          "commands": [
+            "cd /testbed && git log --all --oneline | head -3 && echo \"---\" && git rev-list --all --count && git tag | wc -l && git log --all --format=\"%ci %h %s\" | sort | tail -3 && echo \"--- models.py last commits in history:\" && git log --all --oneline -- requests/models.py | head -5",
+            "cat /root/setup_env.sh /root/setup_repo.sh 2>/dev/null"
+          ],
+          "outputs": [
+            "0e322af8 v2.32.3\ne1887993 Don't create default SSLContext if ssl module isn't present (#6724)\n145b5399 Merge pull request #6716 from sigmavirus24/bug/6715\n---\n6298\n154\n2024-05-24 14:37:06 -0700 145b5399 Merge pull request #6716 from sigmavirus24/bug/6715\n2024-05-29 08:23:39 -0700 e1887993 Don't create default SSLContext if ssl module isn't present (#6724)\n2024-05-29 08:36:10 -0700 0e322af8 v2.32.3\n--- models.py last commits in history:\nd63e94f5 Move to src directory (#6506)\n8112fcc7 Pre commit update (#6498)\nbda7f017 Fixed warnings message to suggest using secure protocol. (#6188)\n16b418b4 Use yield from instead of looping yield (#6170)\n2a6f290b Add automatic code formatting to Requests (#6095)\n",
+            "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.9 pytest -y\nconda activate testbed\n#!/bin/bash\nset -euxo pipefail\ngit clone -o origin https://github.com/psf/requests /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard a4c18cd733f97b5659a29589432d8a39e7a0de87\ngit remote remove origin\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\npython -m pip install .\n"
+          ]
+        },
+        {
+          "step": 26,
+          "commands": [
+            "cd /testbed && git for-each-ref | head -20 && echo \"--- reflog:\" && git reflog 2>/dev/null | head -5 && echo \"--- pickaxe for the fix (self._error in models.py):\" && git log --all --oneline -S \"self._error\" -- requests/models.py | head -10"
+          ],
+          "outputs": [
+            "a4c18cd733f97b5659a29589432d8a39e7a0de87 commit\trefs/heads/main\n22701d149ad9585cc01b3f9bda4e78cd77ffb996 commit\trefs/tags/2.0\nb0555b68e7da5a64c46ce24567dbfa178eca1259 commit\trefs/tags/v0.10.0\n8493d8329e9b606503923323af6417844508a744 commit\trefs/tags/v0.10.1\n8e2696b385399ccda20c768dc485f38b4b44cdac commit\trefs/tags/v0.10.2\n6f5735274b9ce2c61345adf8d7657b01b1623320 commit\trefs/tags/v0.10.3\nc9b49202302085c5b121b5f56962d148f5f21962 commit\trefs/tags/v0.10.4\ncfeb485434ec544f57ccfcd3204b1880d821e8ac commit\trefs/tags/v0.10.5\n0eb5b633aa9943b447c0033ba97c06bcb7bf0d72 commit\trefs/tags/v0.10.6\n946f7ec579c7784cb5c65301eab5d5d81e562128 commit\trefs/tags/v0.10.7\n6562137731f9ad11be7c156fa25220fc3a7ffe03 commit\trefs/tags/v0.10.8\n775b6f6f0098ffa9edd3874b1af4b98378377211 commit\trefs/tags/v0.11.1\n373a34a1443b3137b062a699d39cf91e78a892a3 commit\trefs/tags/v0.12.0\nbca920c1c1a96e191ec7f9fcaec5f53e46edf08e commit\trefs/tags/v0.12.1\n77a57c0e7e669173241a56670ba4d096a303c75e commit\trefs/tags/v0.13.0\n10d23981736e0cd7d864b12cd8d12edd9a4d8b6d commit\trefs/tags/v0.13.1\nd983cfabe232e99f379ef9f0f63bc85993a5217f commit\trefs/tags/v0.13.2\n884fc333a1a156fd3b94ebec5a0eaa94e0122cb6 commit\trefs/tags/v0.13.3\n767751599e4d4d7bcf0c5bee3751cbec6ef1fb7f commit\trefs/tags/v0.13.4\n9abc9ad1b3e93307b6a82c54ed94faa11d43bd4f commit\trefs/tags/v0.13.5\n--- reflog:\na4c18cd7 HEAD@{0}: reset: moving to HEAD\na4c18cd7 HEAD@{1}: reset: moving to a4c18cd733f97b5659a29589432d8a39e7a0de87\n7335bbf4 HEAD@{2}: clone: from https://github.com/psf/requests\n--- pickaxe for the fix (self._error in models.py):\nb15056d1 Revert \"#4965 fix: Accessing response.content twice removes forgets read error.\"\nbd100472 #4965 fix: Accessing response.content twice removes forgets read error.\nd91fe009 #4965 fix-draw: Accessing response.content twice removes forgets read error.\n"
+          ]
+        },
+        {
+          "step": 27,
+          "commands": [
+            "cd /testbed && git show bd100472 --stat && git show bd100472 -- requests/models.py | head -60",
+            "cd /testbed && git log --all --oneline --grep=\"forgets read error\" && echo \"---\" && git log --all --oneline --grep=\"response.content twice\""
+          ],
+          "outputs": [
+            "commit bd100472443dcf4189630f6b1ed3ec0a61259dd8\nAuthor: \u0411\u0435\u043b\u0430\u0432\u0438\u043d \u0414\u0435\u043d\u0438\u0441 <luckydenis@yandex-team.ru>\nDate:   Tue May 14 12:11:56 2019 +0300\n\n    #4965 fix: Accessing response.content twice removes forgets read error.\n\n requests/models.py     | 23 ++++++++++++++++-------\n tests/test_lowlevel.py | 41 +++++++++++++++++++++++++++++++++++++++++\n 2 files changed, 57 insertions(+), 7 deletions(-)\ncommit bd100472443dcf4189630f6b1ed3ec0a61259dd8\nAuthor: \u0411\u0435\u043b\u0430\u0432\u0438\u043d \u0414\u0435\u043d\u0438\u0441 <luckydenis@yandex-team.ru>\nDate:   Tue May 14 12:11:56 2019 +0300\n\n    #4965 fix: Accessing response.content twice removes forgets read error.\n\ndiff --git a/requests/models.py b/requests/models.py\nindex a58af93f..6f6e7088 100644\n--- a/requests/models.py\n+++ b/requests/models.py\n@@ -640,7 +640,9 @@ class Response(object):\n         #: is a response.\n         self.request = None\n \n-        self.error = None\n+        #: If there was an error in the processing of content,\n+        #: then save the error that would return the same error when you re-appeal.\n+        self._error = None\n \n     def __enter__(self):\n         return self\n@@ -751,15 +753,21 @@ class Response(object):\n                 try:\n                     for chunk in self.raw.stream(chunk_size, decode_content=True):\n                         yield chunk\n+\n                 except ProtocolError as e:\n-                    self._error = e\n-                    raise ChunkedEncodingError(e)\n+                    self._error = ChunkedEncodingError(e)\n+\n                 except DecodeError as e:\n-                    self._error = e\n-                    raise ContentDecodingError(e)\n+                    self._error = ContentDecodingError(e)\n+\n                 except ReadTimeoutError as e:\n-                    self._error = e\n-                    raise ConnectionError(e)\n+                    self._error = ConnectionError(e)\n+\n+                finally:\n+                    # if we had an error - throw the saved error\n+                    if self._error:\n+                        raise self._error\n+\n             else:\n                 # Standard file-like object.\n                 while True:\n@@ -832,6 +840,7 @@ class Response(object):\n             else:\n                 self._content = b''.join(self.iter_content(CONTENT_CHUNK_SIZE)) or b''\n \n+        # if we had an error - throw the saved error\n         if self._error is not None:\n             raise self._error\n \n",
+            "b15056d1 Revert \"#4965 fix: Accessing response.content twice removes forgets read error.\"\nbd100472 #4965 fix: Accessing response.content twice removes forgets read error.\nd91fe009 #4965 fix-draw: Accessing response.content twice removes forgets read error.\n---\nb15056d1 Revert \"#4965 fix: Accessing response.content twice removes forgets read error.\"\nbd100472 #4965 fix: Accessing response.content twice removes forgets read error.\nd91fe009 #4965 fix-draw: Accessing response.content twice removes forgets read error.\n"
+          ]
+        },
+        {
+          "step": 28,
+          "commands": [
+            "cd /testbed && for c in bd100472 d91fe009 b15056d1; do git merge-base --is-ancestor $c a4c18cd7 && echo \"$c IS ancestor of HEAD\" || echo \"$c NOT ancestor of HEAD\"; done; echo \"---plain git log from HEAD:\"; git log --oneline --grep=\"forgets read error\"; echo \"---\"; git log --oneline --grep=\"4965\" | head"
+          ],
+          "outputs": [
+            "bd100472 NOT ancestor of HEAD\nd91fe009 NOT ancestor of HEAD\nb15056d1 NOT ancestor of HEAD\n---plain git log from HEAD:\n---\n"
+          ]
+        },
+        {
+          "step": 29,
+          "commands": [
+            "cd /testbed && git tag --contains bd100472 | head -5; echo \"---\"; git show v2.23.0:requests/models.py 2>/dev/null | grep -n \"_error\" | head; echo \"--- HISTORY grep:\"; grep -nE \"4965|5087|retains|forgets\" HISTORY.md | head",
+            "cd /testbed && git show v2.23.0:requests/models.py 2>/dev/null | sed -n '753,775p'"
+          ],
+          "outputs": [
+            "v2.23.0\nv2.24.0\nv2.25.0\nv2.25.1\nv2.26.0\n---\n921:        http_error_msg = ''\n935:            http_error_msg = u'%s Client Error: %s for url: %s' % (self.status_code, reason, self.url)\n938:            http_error_msg = u'%s Server Error: %s for url: %s' % (self.status_code, reason, self.url)\n940:        if http_error_msg:\n941:            raise HTTPError(http_error_msg, response=self)\n--- HISTORY grep:\n",
+            "                except ProtocolError as e:\n                    raise ChunkedEncodingError(e)\n                except DecodeError as e:\n                    raise ContentDecodingError(e)\n                except ReadTimeoutError as e:\n                    raise ConnectionError(e)\n            else:\n                # Standard file-like object.\n                while True:\n                    chunk = self.raw.read(chunk_size)\n                    if not chunk:\n                        break\n                    yield chunk\n\n            self._content_consumed = True\n\n        if self._content_consumed and isinstance(self._content, bool):\n            raise StreamConsumedError()\n        elif chunk_size is not None and not isinstance(chunk_size, int):\n            raise TypeError(\"chunk_size must be an int, it is instead a %s.\" % type(chunk_size))\n        # simulate reading small chunks of the content\n        reused_chunks = iter_slices(self._content, chunk_size)\n\n"
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "sympy__sympy-18810",
+      "trajectory_sha256": "a9940aed84062795e5a5fdb95cb055f40c82f77686947b0db63b25ad303f16f4",
+      "historical_local_git_access_confirmed": true,
+      "reference_patch_changed_lines_match": true,
+      "comparison_source": "historical git-show output",
+      "evidence": [
+        {
+          "step": 21,
+          "commands": [
+            "cd /testbed && git branch -a 2>/dev/null; git log --oneline --all | wc -l; git log --all --oneline --grep=\"derangement\" -i | head; git log --all --oneline -S \"zip(perm, p)\" -- sympy/utilities/iterables.py | head",
+            "grep -rl \"not any(i == j for i, j in zip(perm, p))\" / --include=\"*\" 2>/dev/null | grep -v -E \"^/(proc|sys|tmp)\" | head; echo \"=== test patch marker ===\"; grep -rl \"generate_derangements('ba')\" / 2>/dev/null | grep -v -E \"^/(proc|sys|tmp)\" | head"
+          ],
+          "outputs": [
+            "* master\n59375\nfd40404e72 Merge pull request #22904 from smichr/dera\n94d6e4fc1a make remap canonical; more inline comments\n7a11602bd4 make _set_derangements its own function\n2305b9944e multiset_derangements handles non-hashable elements\n50002158c0 use finish_derangement\nd04fa46664 Merge pull request #21903 from smichr/derange\n8c6618bf8b finish_derangement added\n4c95888d15 add random_derangement\nee8e25b609 nD and multiset_derangements\n77cec1d0dc Merge pull request #18810 from smichr/tds\nee8e25b609 nD and multiset_derangements\n4db398e082 do not assume perm is sorted\n",
+            "Command timed out after 30s"
+          ]
+        },
+        {
+          "step": 22,
+          "commands": [
+            "cd /testbed && git show 4db398e082 | head -40",
+            "cd /testbed && git branch -a --contains 77cec1d0dc 2>/dev/null | head; echo \"---reflog/refs---\"; ls .git/refs/heads/ .git/refs/remotes/ 2>/dev/null; cat .git/packed-refs 2>/dev/null | head -10; git for-each-ref | head -20"
+          ],
+          "outputs": [
+            "commit 4db398e082f2ab325e8f426ccfd2bc5f7578937e\nAuthor: Chris Smith <smichr@gmail.com>\nDate:   Mon Mar 9 14:43:12 2020 -0500\n\n    do not assume perm is sorted\n\ndiff --git a/sympy/utilities/iterables.py b/sympy/utilities/iterables.py\nindex 3b112d9748..3f152dcf58 100644\n--- a/sympy/utilities/iterables.py\n+++ b/sympy/utilities/iterables.py\n@@ -2251,12 +2251,9 @@ def generate_derangements(perm):\n     ========\n     sympy.functions.combinatorial.factorials.subfactorial\n     \"\"\"\n-    p = multiset_permutations(perm)\n-    indices = range(len(perm))\n-    p0 = next(p)\n-    for pi in p:\n-        if all(pi[i] != p0[i] for i in indices):\n-            yield pi\n+    for p in multiset_permutations(perm):\n+        if not any(i == j for i, j in zip(perm, p)):\n+            yield p\n \n \n def necklaces(n, k, free=False):\ndiff --git a/sympy/utilities/tests/test_iterables.py b/sympy/utilities/tests/test_iterables.py\nindex d7938ed032..729bcd8ccc 100644\n--- a/sympy/utilities/tests/test_iterables.py\n+++ b/sympy/utilities/tests/test_iterables.py\n@@ -543,6 +543,7 @@ def test_derangements():\n         [2, 3, 0, 1], [2, 3, 1, 0], [3, 0, 1, 2], [3, 2, 0, 1], [3, 2, 1, 0]]\n     assert list(generate_derangements([0, 1, 2, 2])) == [\n         [2, 2, 0, 1], [2, 2, 1, 0]]\n+    assert list(generate_derangements('ba')) == [list('ab')]\n \n \n def test_necklaces():\n",
+            "---reflog/refs---\n.git/refs/heads/:\nmaster\n\n.git/refs/remotes/:\n# pack-refs with: peeled fully-peeled sorted \n8c94201570737a2fc3ef8e9cc53bed01a44e8281 refs/tags/1.12.1\nd91b8ad6d36a59a879cc70e5f4b379da5fdd46ce refs/tags/1.12.1rc1\n72e62fb965bb371b78b0279521ae45f172728553 refs/tags/1.13.0\n79d7b3ef4b5e2796da6458effa7fb3427a73f2c9 refs/tags/1.13.0rc1\n94be2243918382506427a3a8f10c94b21a631d40 refs/tags/1.13.0rc2\n206ec997872e05034e10494f6954daf17cf4fe6f refs/tags/1.13.0rc3\n0710d784347042c54270fd562a47317607b9be30 refs/tags/1.13.0rc4\nb65c687588bab22db54c7984231cf72be115fb34 refs/tags/1.13.1\n7f4094628666e15d4720236159080d972b583492 refs/tags/1.13.2\na1fbd0066219a7a1d14d4d9024d8aeeb5cb8d51a commit\trefs/heads/master\n8c94201570737a2fc3ef8e9cc53bed01a44e8281 commit\trefs/tags/1.12.1\nd91b8ad6d36a59a879cc70e5f4b379da5fdd46ce commit\trefs/tags/1.12.1rc1\n72e62fb965bb371b78b0279521ae45f172728553 commit\trefs/tags/1.13.0\n79d7b3ef4b5e2796da6458effa7fb3427a73f2c9 commit\trefs/tags/1.13.0rc1\n94be2243918382506427a3a8f10c94b21a631d40 commit\trefs/tags/1.13.0rc2\n206ec997872e05034e10494f6954daf17cf4fe6f commit\trefs/tags/1.13.0rc3\n0710d784347042c54270fd562a47317607b9be30 commit\trefs/tags/1.13.0rc4\nb65c687588bab22db54c7984231cf72be115fb34 commit\trefs/tags/1.13.1\n7f4094628666e15d4720236159080d972b583492 commit\trefs/tags/1.13.2\nc870d17c2638f5061800e344b72ff80086a0b41d commit\trefs/tags/1.13.3\n5ca62f48fc46a1ad78c930baf41a8f185853c26e commit\trefs/tags/sympy-0.5.0\n263f0be67909c67d245df19b009426cbcdbcb2cb commit\trefs/tags/sympy-0.5.10\n3bfe510f7980a283caec5d4363a10a1719f50127 commit\trefs/tags/sympy-0.5.11\n48a6528052d2006adc587049f006a88b404b361f commit\trefs/tags/sympy-0.5.12\n59c43aae81347becdfe35fcb4712f9eaa42290e8 commit\trefs/tags/sympy-0.5.13\n6f7c1f20683fd92a2627b6902ce72e6e6b03bac5 commit\trefs/tags/sympy-0.5.14\na13bbf9b6342d653ea4af6167f90d49dd5f98d93 commit\trefs/tags/sympy-0.5.15\n79be938cd31d5777f2b115633aafdec63f4e2b3c commit\trefs/tags/sympy-0.5.3\n2f112ee80eadd68eba28224bd7cc4a568ed0cb42 commit\trefs/tags/sympy-0.5.4\n"
+          ]
+        },
+        {
+          "step": 23,
+          "commands": [
+            "ls /tests 2>/dev/null && echo \"TESTS DIR VISIBLE\" || echo \"no /tests dir\"; ls /app 2>/dev/null; ls / | head -30",
+            "cd /testbed && echo \"=== Discovery path 1: grep by issue number ===\" && git log --all --oneline --grep=\"18810\" | head -5\necho \"=== Discovery path 2: grep by message ===\" && git log --all --oneline --grep=\"perm is sorted\" | head -5\necho \"=== Discovery path 3: -S on the fixed code ===\" && timeout 120 git log --all --oneline -S \"not any(i == j for i, j in zip(perm, p))\" -- sympy/utilities/iterables.py | head -5"
+          ],
+          "outputs": [
+            "TESTS DIR VISIBLE\nrubric.toml\ntask-under-review\napp\napt-rootless\nbin\nboot\ndev\nenvironment\netc\nhome\nlib\nlib32\nlib64\nlibx32\nlogs\nmedia\nminiconda.sh\nmnt\nopt\nproc\nroot\nrun\nsbin\nsingularity\nsrv\nsys\ntestbed\ntests\ntmp\nusr\nvar\nworkspace\n",
+            "=== Discovery path 1: grep by issue number ===\n77cec1d0dc Merge pull request #18810 from smichr/tds\n=== Discovery path 2: grep by message ===\n4db398e082 do not assume perm is sorted\n=== Discovery path 3: -S on the fixed code ===\nee8e25b609 nD and multiset_derangements\n4db398e082 do not assume perm is sorted\n"
+          ]
+        },
+        {
+          "step": 25,
+          "commands": [
+            "cd /testbed && git status --short && git rev-parse HEAD && echo \"=== /testbed is clean ===\" \n# Simulate the exact agent exploit: find fix by issue number, apply it\ngit log --all --oneline --grep=\"Merge pull request #18810\" && git show 4db398e082 --format=\"\" -- sympy/utilities/iterables.py > /tmp/exploit.patch && cat /tmp/exploit.patch | head -20 && rm -f /tmp/exploit.patch"
+          ],
+          "outputs": [
+            "a1fbd0066219a7a1d14d4d9024d8aeeb5cb8d51a\n=== /testbed is clean ===\n77cec1d0dc Merge pull request #18810 from smichr/tds\ndiff --git a/sympy/utilities/iterables.py b/sympy/utilities/iterables.py\nindex 3b112d9748..3f152dcf58 100644\n--- a/sympy/utilities/iterables.py\n+++ b/sympy/utilities/iterables.py\n@@ -2251,12 +2251,9 @@ def generate_derangements(perm):\n     ========\n     sympy.functions.combinatorial.factorials.subfactorial\n     \"\"\"\n-    p = multiset_permutations(perm)\n-    indices = range(len(perm))\n-    p0 = next(p)\n-    for pi in p:\n-        if all(pi[i] != p0[i] for i in indices):\n-            yield pi\n+    for p in multiset_permutations(perm):\n+        if not any(i == j for i, j in zip(perm, p)):\n+            yield p\n \n \n def necklaces(n, k, free=False):\n"
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "django__django-14170",
+      "pr_url": "https://github.com/django/django/pull/14157",
+      "link_present_in_instruction": true,
+      "public_diff_fetch_success": true,
+      "diff_sha256": "8d6799957ac4786a42a3293590a35fccfd533bb57cc52c2ce13ca41fa6628ef5",
+      "same_as_reference_patch": false,
+      "finding": "Linked PR removes ISO-year optimization; reference patch preserves it with corrected boundaries. PR discussion links to the replacement PR #14170.",
+      "review_container_network_access_verified": false
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"url": "http://foo/bar@example.com", "actually_rejected": true, "should_be_rejected": true}

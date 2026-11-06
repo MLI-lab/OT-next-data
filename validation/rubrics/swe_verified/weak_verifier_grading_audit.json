@@ -1,0 +1,23 @@
+{
+  "task_id": "django__django-10097",
+  "task_source": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/active-tasks/django__django-10097__1c3c3acae54ace9693d9",
+  "grader_version": "swebench==4.0.3",
+  "counts": {
+    "FAIL_TO_PASS": 438,
+    "PASS_TO_PASS": 1432
+  },
+  "validators_tests_in_grading_lists": 0,
+  "synthetic_grader_check": {
+    "all_listed_tests_pass": "RESOLVED_FULL",
+    "plus_unlisted_validator_failure": "RESOLVED_FULL",
+    "listed_test_failure_control": "RESOLVED_PARTIAL"
+  },
+  "scope": "Static execution-path inspection plus actual pinned grading-function check on synthetic status maps. No full container/verifier rerun; no claim that the unchanged task passes.",
+  "sha256": {
+    "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/active-tasks/django__django-10097__1c3c3acae54ace9693d9/tests/test.sh": "ba2dcce33dc461d28d30e577e9dbe27e10a0ca3fe1fd42a4a1339486a0129b88",
+    "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/active-tasks/django__django-10097__1c3c3acae54ace9693d9/tests/config.json": "99ac5793b6310421dde51b325b1ffe14a8420649eec1e0ee1703884042a4e096",
+    "/scratch/swe10097-grading-audit/grading.py": "93649804d23711567a93a75981cac3eea835c5adce89f95ea67ba87d96c5aa31"
+  },
+  "follow_up_runtime_audit": "django10097_runtime_audit/summary.json",
+  "follow_up_conclusion": "Actual runs confirm six URL-validator failures are absent from scoring. Baseline and gold both score 0 because five unrelated admin template tests fail. Full-credit incorrect-solution counterexample not demonstrated."
+}

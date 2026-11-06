@@ -1,0 +1,2183 @@
+{
+  "source": "judge_results.json",
+  "excluded": [
+    "ANSWER-LEAK",
+    "INSTR-ENV-MISMATCH",
+    "TASK-TRIVIAL"
+  ],
+  "remaining": [
+    "VERIFIER-TOO-WEAK",
+    "INSTR-VERIFIER-MISMATCH",
+    "INSTR-AMBIGUOUS"
+  ],
+  "rows": [
+    {
+      "judge": "Sonnet 5.5",
+      "format": "labeling",
+      "correct_by_review_index": [
+        59,
+        60,
+        61
+      ],
+      "correct_reviews": 180,
+      "majority_correct": 60,
+      "lowest_correct": 59,
+      "task_votes": [
+        {
+          "task_id": "django__django-10097",
+          "pass": [
+            false,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-10914",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11119",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11206",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11299",
+          "pass": [
+            false,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11490",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11797",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11880",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12039",
+          "pass": [
+            false,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12276",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12304",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12741",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13089",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13109",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13513",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-13551",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13807",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14007",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14170",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14376",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-14382",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14404",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14534",
+          "pass": [
+            true,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-14631",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14765",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14787",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14855",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15467",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15499",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15814",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15930",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16100",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16139",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16145",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16255",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16315",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16612",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16801",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16824",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-9296",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "matplotlib__matplotlib-23476",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "matplotlib__matplotlib-25122",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "psf__requests-5087",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pydata__xarray-3677",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pydata__xarray-4629",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pytest-dev__pytest-5262",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-10844",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-12585",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13135",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13439",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13496",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-14894",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-14983",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-8459",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-8475",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9320",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9367",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9711",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-12419",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-13878",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-14711",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-16766",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-16886",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-18810",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-23534",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-24562",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        }
+      ]
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "labeling",
+      "correct_by_review_index": [
+        58,
+        60,
+        56
+      ],
+      "correct_reviews": 174,
+      "majority_correct": 60,
+      "lowest_correct": 56,
+      "task_votes": [
+        {
+          "task_id": "django__django-10097",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-10914",
+          "pass": [
+            true,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11119",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11206",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11299",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11490",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11797",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11880",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12039",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12276",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12304",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12741",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13089",
+          "pass": [
+            false,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13109",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13513",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-13551",
+          "pass": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-13807",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14007",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14170",
+          "pass": [
+            false,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14376",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-14382",
+          "pass": [
+            true,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14404",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14534",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14631",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14765",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14787",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14855",
+          "pass": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-15467",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15499",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15814",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15930",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16100",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16139",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16145",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16255",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16315",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16612",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16801",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16824",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-9296",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "matplotlib__matplotlib-23476",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "matplotlib__matplotlib-25122",
+          "pass": [
+            false,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "psf__requests-5087",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pydata__xarray-3677",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pydata__xarray-4629",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pytest-dev__pytest-5262",
+          "pass": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-10844",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-12585",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13135",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13439",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13496",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-14894",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-14983",
+          "pass": [
+            false,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-8459",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-8475",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9320",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9367",
+          "pass": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9711",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-12419",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-13878",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-14711",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-16766",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-16886",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-18810",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-23534",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-24562",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        }
+      ]
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "classification",
+      "correct_by_review_index": [
+        61,
+        60,
+        60
+      ],
+      "correct_reviews": 181,
+      "majority_correct": 60,
+      "lowest_correct": 60,
+      "task_votes": [
+        {
+          "task_id": "django__django-10097",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-10914",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11119",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11206",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11299",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11490",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11797",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11880",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12039",
+          "pass": [
+            true,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-12276",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12304",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12741",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13089",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13109",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13513",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-13551",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13807",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14007",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14170",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14376",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-14382",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14404",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14534",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-14631",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14765",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14787",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14855",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15467",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15499",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15814",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15930",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16100",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16139",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16145",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16255",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16315",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16612",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16801",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16824",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-9296",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "matplotlib__matplotlib-23476",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "matplotlib__matplotlib-25122",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "psf__requests-5087",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pydata__xarray-3677",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pydata__xarray-4629",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pytest-dev__pytest-5262",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-10844",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-12585",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13135",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13439",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13496",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-14894",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-14983",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-8459",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-8475",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9320",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9367",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9711",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-12419",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-13878",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-14711",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-16766",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-16886",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-18810",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-23534",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-24562",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        }
+      ]
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "classification",
+      "correct_by_review_index": [
+        55,
+        53,
+        54
+      ],
+      "correct_reviews": 162,
+      "majority_correct": 57,
+      "lowest_correct": 53,
+      "task_votes": [
+        {
+          "task_id": "django__django-10097",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-10914",
+          "pass": [
+            true,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11119",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11206",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11299",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11490",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11797",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-11880",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12039",
+          "pass": [
+            false,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12276",
+          "pass": [
+            true,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-12304",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-12741",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13089",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13109",
+          "pass": [
+            false,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-13513",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-13551",
+          "pass": [
+            false,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-13807",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14007",
+          "pass": [
+            true,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14170",
+          "pass": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-14376",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-14382",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14404",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14534",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14631",
+          "pass": [
+            true,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14765",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14787",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-14855",
+          "pass": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "django__django-15467",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15499",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15814",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-15930",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16100",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16139",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16145",
+          "pass": [
+            false,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16255",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16315",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16612",
+          "pass": [
+            true,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16801",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-16824",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "django__django-9296",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "matplotlib__matplotlib-23476",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "matplotlib__matplotlib-25122",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "psf__requests-5087",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pydata__xarray-3677",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pydata__xarray-4629",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "pytest-dev__pytest-5262",
+          "pass": [
+            false,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-10844",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-12585",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13135",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13439",
+          "pass": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-13496",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-14894",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "scikit-learn__scikit-learn-14983",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-8459",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-8475",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9320",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9367",
+          "pass": [
+            true,
+            false,
+            true
+          ]
+        },
+        {
+          "task_id": "sphinx-doc__sphinx-9711",
+          "pass": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-12419",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-13878",
+          "pass": [
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-14711",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-16766",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-16886",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-18810",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-23534",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        },
+        {
+          "task_id": "sympy__sympy-24562",
+          "pass": [
+            true,
+            true,
+            true
+          ]
+        }
+      ]
+    }
+  ]
+}

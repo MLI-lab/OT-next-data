@@ -1,0 +1,1953 @@
+{
+  "scope": "Majority-PASS labeling judgments on VERIFIER-TOO-WEAK ground-truth FAIL tasks. Explanations are judge claims, not new independent runtime verification.",
+  "ground_truth_revision": "1c433f99899d55defea013f92c694c4ebe4ffb99",
+  "cases": [
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "task_id": "instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc",
+      "task": "instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc__f24c9f1be3ae0fb431b6",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        false,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0004/report/stage-5-658c1e182816.json",
+          "trial": "/tmp/1237670.helma/validation-0004/results/stage_5_llm_rubric_review/658c1e182816/00002-instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc__f24c9f1be3ae0fb431b6/jobs/job/instance_future-architect__vuls__4aq4a35/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "TestHosts exercises many concrete IPv4/IPv6/ignore/error cases through hosts(), so a fabricated output would not pass; loader and subcommand changes are untested but core logic is verified."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The test calls hosts(), a function the instruction names, and checks behaviours the instruction describes."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The task needs only the repo's own config package and the Go toolchain. The reference patch uses the iplib library, but the stdlib is enough, so nothing required is missing."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "The test expects 192.168.1.1/30 to give only .1 and .2, with the network and broadcast addresses dropped. IPv4 /31 gives .0 and .1, and IPv6 /126 gives all four addresses. The instruction only says '/30 yields the in-range addresses', so a plain net.IPNet enumeration of four addresses is equally reasonable and would fail."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task needs multi-file changes: CIDR expansion, ignore handling, loader changes and subcommand selection."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction and environment do not contain the solution."
+            }
+          }
+        },
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0004/report/stage-5-658c1e182816.json",
+          "trial": "/tmp/1237670.helma/validation-0004/results/stage_5_llm_rubric_review/658c1e182816/00002-instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc__f24c9f1be3ae0fb431b6/jobs/job/instance_future-architect__vuls__S6fpJrD/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "TestHosts exercises hosts() across IPv4/IPv6, ignores, invalid ignores, and too-broad masks, plus pass-to-pass tests; the core logic can't be hardcoded. Load and subcommand selection are untested, but that gap is minor."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The test calls hosts(host, ignores) as the instruction specifies and doesn't check error message wording."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "This is a Go repo task; iplib is a dependency the agent can add, and the tests run with go test."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "The test expects 192.168.1.1/30 to yield only {.1,.2}, so network and broadcast addresses are excluded. The instruction only says '/30 yields the in-range addresses', yet '/31' yields both addresses and IPv6 '/126' yields four. A natural reading of '/30' is all four addresses, which fails the test. The exclusion rule is never stated."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task needs multi-file feature work: CIDR parsing, expansion, ignore handling, config loading and subcommand selection."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction doesn't contain the solution, and the tests and solution are not shipped to the agent."
+            }
+          }
+        },
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0004/report/stage-5-658c1e182816.json",
+          "trial": "/tmp/1237670.helma/validation-0004/results/stage_5_llm_rubric_review/658c1e182816/00002-instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc__f24c9f1be3ae0fb431b6/jobs/job/instance_future-architect__vuls__YZaBZAy/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "TestHosts exercises the core hosts() logic across IPv4/IPv6, ignores, errors and empty results with exact expected outputs; hardcoding would not be practical. Loader and subcommand changes are untested, but the central behavior is checked."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The test calls hosts() with the signature given in the instruction and checks only behaviors it describes. It does not check error message wording."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Everything needed is in the repo environment. The iplib dependency can be added via go.mod."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "The test expects 192.168.1.1/30 to yield only .1 and .2, excluding the network and broadcast addresses. IPv4 /31 and /32 and IPv6 /126 include all addresses, and the instruction only says 'in-range addresses'. A full-range enumeration giving 4 addresses is equally reasonable and would fail the test."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task is a multi-file feature: CIDR enumeration, ignore handling, config loader changes and subcommand selection."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction does not embed the solution, and no ground-truth files are shipped to the agent."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row future-architect__vuls-86b60e14",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0073:VERIFIER-TOO-WEAK",
+        "benchmark": "Scale AI / SWE-bench Pro",
+        "task_version": "2026-09-21 audit snapshot; exact revision not reported",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Fix remains in the image; only the parser is graded; range behavior is ambiguous",
+        "evidence_provenance": "published_example; inside-image_and_current-file_checks",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Scale AI / SWE-bench Pro:instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0073",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc/1/files/tests/config.json; https://hub.harborframework.com/api/tasks/scale-ai/instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc/1/files/tests/parser.py; https://hub.harborframework.com/api/tasks/scale-ai/instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc/1/files/tests/run_script.sh; https://hub.harborframework.com/api/tasks/scale-ai/instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc/1/files/tests/test.sh",
+        "evidence_review_status": "reviewed_accepted",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0073/task-b710b466b4a1ec28.tar.gz",
+        "reconstructed_task_sha256": "b710b466b4a1ec28122e58ab5be26e573302044645695161cb709f3ce28f3256",
+        "original_record_id": "pub:PUB-0073:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0073_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/290f253ba67d79ef012f193365d522571f79b440/curated/2026-11-04/tasks/PUB-0073/task-b710b466b4a1ec28.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "task_id": "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+      "task": "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        true,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0005/report/stage-5-1d2124ea2117.json",
+          "trial": "/tmp/1237650.helma/validation-0005/results/stage_5_llm_rubric_review/1d2124ea2117/00002-instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d/jobs/job/instance_gravitational__teleport__J3V92HP/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The tests (TestCeremony_RunAdmin subtests) fail without the fix. They exercise the limit scenario, the returned device, the outcome and the error substring. Only the tsh nil-guard in printEnrollOutcome is untested, because tool/tsh is excluded from the run, which is a minor gap."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The tests use only the interfaces and strings named in the instruction (env.Service, SetDevicesLimitReached, 'device limit', DeviceRegistered)."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The task is a Go repo change with the repo and its tests present in the environment, and nothing missing is assumed."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The requirements and interfaces are specific enough to determine the names, return values and error text the tests check."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The change spans several files: exporting the fake service type, adding a flag and method, changing a return value, and adding a nil guard. It is small but not trivial."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction describes the behavior and interfaces but contains no patch. The solution is kept outside the agent-visible files."
+            }
+          }
+        },
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0005/report/stage-5-1d2124ea2117.json",
+          "trial": "/tmp/1237650.helma/validation-0005/results/stage_5_llm_rubric_review/1d2124ea2117/00002-instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d/jobs/job/instance_gravitational__teleport__a2J2LeB/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "fail",
+              "explanation": "Only TestCeremony_RunAdmin is run (tool/tsh is excluded in run_script.sh), so the stated requirement that printEnrollOutcome handle a nil device is never checked; a solution omitting that guard still passes."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The test expects the substring 'device limit', outcome DeviceRegistered, and a non-nil device. The instruction states all of these, including the fake service's error message."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The tests use only the in-repo testenv package and a Go toolchain, so nothing is missing from the environment."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The requirements name the exact types, methods, fields, outcome, and error substring the test uses, so the instruction is sufficiently specified."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task needs a multi-file refactor (exporting the service type, adding a Service field, a limit flag, and error-path changes in RunAdmin), which is more than a trivial edit."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction describes the behavior and interfaces but contains no patch, and the solution and tests folders are hidden from the agent."
+            }
+          }
+        },
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0005/report/stage-5-1d2124ea2117.json",
+          "trial": "/tmp/1237650.helma/validation-0005/results/stage_5_llm_rubric_review/1d2124ea2117/00002-instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d/jobs/job/instance_gravitational__teleport__vch5RKm/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier runs the upstream Go test TestCeremony_RunAdmin with a real fake gRPC service. It checks the error substring, the non-nil device and the DeviceRegistered outcome. The printEnrollOutcome nil guard is untested, but that is a minor gap and the core behaviour can't be faked."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The test uses env.Service, SetDevicesLimitReached and the 'device limit' substring, and the instruction specifies all three. Nothing extra is required."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The repo is in the Go environment and the changes are confined to existing files. Nothing is missing."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The requirements and interfaces name the exact types, fields, methods, error text and outcome, so the spec is sufficient for the test."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The change spans several files: exporting the service type, adding limit logic, changing the RunAdmin return, and adding a nil guard. It requires understanding the codebase."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction describes behavior and interfaces but contains no code solution, and no ground-truth file is shipped to the agent."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row gravitational__teleport-32bcd715",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0074:VERIFIER-TOO-WEAK",
+        "benchmark": "Scale AI / SWE-bench Pro",
+        "task_version": "2026-09-21 audit snapshot; exact revision not reported",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Fix remains in the image and the graded run skips the package containing the crash",
+        "evidence_provenance": "published_example; inside-image_and_current-file_checks",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Scale AI / SWE-bench Pro:instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0074",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/tests/config.json; https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/tests/parser.py; https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/tests/run_script.sh; https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/tests/test.sh",
+        "evidence_review_status": "reviewed_accepted",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0074/task-7154749b62a64770.tar.gz",
+        "reconstructed_task_sha256": "6f74e9b16bf232672b5325b307dec3b058c15c037f6ad1dda0f3529800d8d42d",
+        "original_record_id": "pub:PUB-0074:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0074_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/86229e6040a8599a8a3d4b68824759bdd3b18caa/curated/2026-11-06-judge-runtime-repair/tasks/6f74e9b16bf232672b5325b307dec3b058c15c037f6ad1dda0f3529800d8d42d.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "task_id": "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+      "task": "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        false,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/claude-sonnet-5-5-labeling-existing-n3/run/shards/0000/report/stage-5-2fe8648f4d21.json",
+          "trial": "/tmp/1242916.helma/validation-0000/results/stage_5_llm_rubric_review/2fe8648f4d21/00000-instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7/jobs/job/instance_internetarchive__openli__HD2oeUP/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Tests in test_models.py exercise the three new helpers with varied ISBN-10/13, ASIN, lowercase and empty inputs, asserting exact values and order."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Tests check only behaviours stated in the requirements (tuple output, uppercasing, length validation, [isbn10, isbn13, asin] order, empty handling)."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The tests need only openlibrary/core/models.py and the existing test file, both present in the repo."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The instruction calls these 'methods' alongside Edition.from_isbn, and the signatures and behaviours are specified. A module-level reading is possible but unlikely."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "It needs a refactor of from_isbn plus three helpers with ISBN/ASIN handling and caller updates, which is non-trivial."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction describes behaviour only. The solution and tests are in folders hidden from the solving agent."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/claude-sonnet-5-5-labeling-existing-n3/run/shards/0000/report/stage-5-2fe8648f4d21.json",
+          "trial": "/tmp/1242916.helma/validation-0000/results/stage_5_llm_rubric_review/2fe8648f4d21/00000-instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7/jobs/job/instance_internetarchive__openli__kvszKmN/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Upstream parametrized tests exercise all three helpers incl. case, empty, and invalid-length inputs; hardcoding is impractical."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Tests check behaviors stated in the requirements (tuple, uppercasing, lengths, ordering, empties)."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Repo at the base commit and pytest setup are provided; tests only touch models.py."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "Requirements and interface specify signatures and outputs; the staticmethod-on-Edition placement is implied by 'method' and the title."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "Requires refactoring from_isbn and adding three helpers with correct ISBN conversion semantics; nontrivial."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "Instruction gives specs only, no solution code; solution is in a hidden folder."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/claude-sonnet-5-5-labeling-existing-n3/run/shards/0000/report/stage-5-2fe8648f4d21.json",
+          "trial": "/tmp/1242916.helma/validation-0000/results/stage_5_llm_rubric_review/2fe8648f4d21/00000-instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7/jobs/job/instance_internetarchive__openli__pp94eVW/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Parametrized tests check exact return values of the three new helpers (incl. lowercase ASIN, empty input, ordering), covering the stated requirements; not hardcodable."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Tests call the helpers with the names and semantics given in the requirements; no extra prose or keys required."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Repo workspace with models.py and the test file is provided; nothing missing."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "Instruction refers to 'the method' on Edition.from_isbn context with exact signatures and behaviors; the 'Function' label is minor and the intended placement is reasonably clear."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "Requires refactoring from_isbn and writing three helpers with ISBN conversion logic; modest but real work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction describes behavior only; solution and tests are not shipped to the solver."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row internetarchive__openlibrary-5de7de19",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0076:VERIFIER-TOO-WEAK",
+        "benchmark": "Scale AI / SWE-bench Pro",
+        "task_version": "2026-09-21 audit snapshot; exact revision not reported",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Fix remains in the image and the named function is never tested",
+        "evidence_provenance": "published_example; inside-image_and_current-file_checks",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Scale AI / SWE-bench Pro:instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0076",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/tests/config.json; https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/tests/parser.py; https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/tests/run_script.sh; https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/tests/test.sh",
+        "evidence_review_status": "reviewed_accepted",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0076/task-80f4ed8e6f59569d.tar.gz",
+        "reconstructed_task_sha256": "852e84ba139122f44226319afcbc3a00f14deabd45fdc595f12ec07815a475ee",
+        "original_record_id": "pub:PUB-0076:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0076_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/86229e6040a8599a8a3d4b68824759bdd3b18caa/curated/2026-11-06-judge-runtime-repair/tasks/852e84ba139122f44226319afcbc3a00f14deabd45fdc595f12ec07815a475ee.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "task_id": "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+      "task": "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        false,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/claude-sonnet-5-5-labeling-existing-n3/run/shards/0000/report/stage-5-2fe8648f4d21.json",
+          "trial": "/tmp/1242916.helma/validation-0000/results/stage_5_llm_rubric_review/2fe8648f4d21/00001-instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b/jobs/job/instance_tutao__tutanota-d1aa0ec__LhRkNP3/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Updated MailUtilsAllowedFoldersForMailTypeTest exercises draft/trash subfolders and non-draft blocking with a real FolderSystem; behavior is genuinely tested."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Tests check behavior described in the instruction; the signature issue is covered under ambiguity."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "All referenced files and the test harness exist in the repo environment."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "Instruction says 'No new interfaces' and only that functions 'accept folder system context', but tests require mailStateAllowedInsideFolderType to take a MailFolder (not a folderType) as 2nd arg and the FolderSystem as 3rd; the exact signature/order is unspecified, so reasonable alternatives (e.g. keeping folderType) would fail."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "Requires multi-file changes across MailUtils and several UI components."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "Instruction does not include the solution; solve.sh is not shown to the agent."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/claude-sonnet-5-5-labeling-existing-n3/run/shards/0000/report/stage-5-2fe8648f4d21.json",
+          "trial": "/tmp/1242916.helma/validation-0000/results/stage_5_llm_rubric_review/2fe8648f4d21/00001-instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b/jobs/job/instance_tutao__tutanota-d1aa0ec__VTysqcN/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Tests exercise real hierarchy behavior (draft/trash subfolders allowed, non-drafts blocked) across many folder types; hardcoding would not pass."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Tests check behavior described in the requirements; the signature issue is better captured as ambiguity."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "All referenced files and the test environment exist in the repo/environment."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "The instruction says 'No new interfaces' and only that functions 'accept folder system context'. It never says mailStateAllowedInsideFolderType must change its second parameter from folderType to a MailFolder, or that folderSystem goes last. The tests call (state, folder, system), so other reasonable signatures fail to compile and fail the whole suite."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "Requires multi-file changes across validation and UI callers."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction does not reveal the solution; the solution and tests are not visible to the agent."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/claude-sonnet-5-5-labeling-existing-n3/run/shards/0000/report/stage-5-2fe8648f4d21.json",
+          "trial": "/tmp/1242916.helma/validation-0000/results/stage_5_llm_rubric_review/2fe8648f4d21/00001-instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b/jobs/job/instance_tutao__tutanota-d1aa0ec__Yewr6ii/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Runs the upstream unit tests for allMailsAllowedInsideFolder/mailStateAllowedInsideFolderType plus the full suite; behavior is genuinely tested."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Tests depend on the exact upstream signature, but this is covered by the ambiguity criterion; otherwise checks the described behavior."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Repo and test files are present; the gold test file is checked out from git by the verifier."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "The instruction says 'No new interfaces' and only says functions should 'accept folder system context'; it never states that mailStateAllowedInsideFolderType must change from (state, folderType) to (state, folder, folderSystem) or the argument order. The hidden tests call that exact signature, so equally reasonable designs would fail."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "Multi-file change across MailUtils and several views with hierarchy logic."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "Instruction does not reveal the solution; the solution is only in the hidden solution folder."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row tutao__tutanota-d1aa0ece",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0082:VERIFIER-TOO-WEAK",
+        "benchmark": "Scale AI / SWE-bench Pro",
+        "task_version": "2026-09-21 audit snapshot; exact revision not reported",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Fix remains in the image and one summary line is counted as 107 passing tests",
+        "evidence_provenance": "published_example; inside-image_and_current-file_checks",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Scale AI / SWE-bench Pro:instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0082",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/tests/config.json; https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/tests/parser.py; https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/tests/run_script.sh; https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/tests/test.sh",
+        "evidence_review_status": "reviewed_accepted",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0082/task-2e1f79dac1e20926.tar.gz",
+        "reconstructed_task_sha256": "c27a8b469c791cb7ecf15e1cebdc80608a5adc7fa5ad323a0ff95c7d4133449f",
+        "original_record_id": "pub:PUB-0082:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0082_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/86229e6040a8599a8a3d4b68824759bdd3b18caa/curated/2026-11-06-judge-runtime-repair/tasks/c27a8b469c791cb7ecf15e1cebdc80608a5adc7fa5ad323a0ff95c7d4133449f.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "task_id": "portfolio-optimization",
+      "task": "portfolio-optimization__54a0faa63fd7551dbab3",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        true,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0038/report/stage-5-854bfb607b5a.json",
+          "trial": "/tmp/1239452.helma/validation-0038/results/stage_5_llm_rubric_review/854bfb607b5a/00002-portfolio-optimization__54a0faa63fd7551dbab3/jobs/job/portfolio-optimization__54a0faa6__C8tdge9/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Tests compile-check the .so, compare risk/return against the baseline at 1e-10 for n=100 and 5000/6000/8000, and measure speedup; a fabricated output would not pass."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Tests check exactly what the instruction states (function names from skeleton, 1e-10 match, 1.2x speedup, up to 8000 assets)."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Skeletons, setup.py, baseline and benchmark are provided; the build uses numpy and a C compiler, which the environment can supply."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "Math, file names, tolerance, speedup and build commands are specified; the skeletons fix the interface."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The solver must write a working NumPy C extension and wrapper and meet accuracy and performance requirements; this is modest but real work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The environment holds only skeletons with TODOs; the reference solution is in the hidden solution folder."
+            }
+          }
+        },
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0038/report/stage-5-854bfb607b5a.json",
+          "trial": "/tmp/1239452.helma/validation-0038/results/stage_5_llm_rubric_review/854bfb607b5a/00002-portfolio-optimization__54a0faa63fd7551dbab3/jobs/job/portfolio-optimization__54a0faa6__fjKRA3h/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "fail",
+              "explanation": "Tests only check that a .so exists and that the Python wrapper's outputs and timing are right. Nothing checks that the wrapper calls the C extension. A numpy-only wrapper with a stub .so would pass, though the task asks for a C implementation."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The tests check the 1e-10 tolerance, the 1.2x speedup at N>=5000 and N up to 8000, all of which the instruction states. They import from /app, which matches the task layout."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The skeleton files, setup.py, baseline and benchmark are all provided in the environment, and the build command works as described."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The instruction gives the formulas, tolerance, speedup target and build command. There is little room for different interpretations."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task needs a working C extension using the NumPy C API, with a build and a performance target. This is modest but real work, not a constant or a copy."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The solution is in the solution/ folder, which the agent does not see. The environment ships only skeletons with TODO markers."
+            }
+          }
+        },
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0038/report/stage-5-854bfb607b5a.json",
+          "trial": "/tmp/1239452.helma/validation-0038/results/stage_5_llm_rubric_review/854bfb607b5a/00002-portfolio-optimization__54a0faa63fd7551dbab3/jobs/job/portfolio-optimization__54a0faa6__jggiw7g/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Tests compare C risk/return against the protected baseline at 1e-10 for N=100,5000,6000,8000, check a compiled .so exists, and measure speedup; a fabricated output would not pass."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Tests check exactly what the instruction states (correctness within 1e-10, 1.2x speedup at >=5000 assets, up to 8000 assets, compiled extension with the named functions)."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The Dockerfile provides gcc, numpy, setuptools and all skeleton/benchmark files in /app, which are what the tests import."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The math, function names, build command and thresholds are all specified, and the skeletons fix the interface."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "It requires writing a NumPy C extension, the wrapper, and a working build, with exact-match and speed constraints. This is modest but real work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The skeletons contain only TODO stubs. The reference solution is in the hidden solution folder, not in the environment."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "portfolio-optimization",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row portfolio-optimization",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0088:VERIFIER-TOO-WEAK",
+        "benchmark": "Terminal-Bench 2.1",
+        "task_version": "2026-09-21 audit snapshot; 2.1",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "A NumPy wrapper passes a task that explicitly asks for a C implementation",
+        "evidence_provenance": "published_example; current-file_check",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Terminal-Bench 2.1:portfolio-optimization",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0088",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/terminal-bench/portfolio-optimization/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/terminal-bench/portfolio-optimization/1/files/tests/portfolio_baseline_protected.py; https://hub.harborframework.com/api/tasks/terminal-bench/portfolio-optimization/1/files/tests/test_outputs.py; https://hub.harborframework.com/api/tasks/terminal-bench/portfolio-optimization/1/files/tests/test.sh",
+        "evidence_review_status": "previously_available_not_rereviewed",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0088/task-916c702e2b28f490.tar.gz",
+        "reconstructed_task_sha256": "916c702e2b28f49061421afc5055ed037810090e26a38aae4c35c90ddcaad59a",
+        "original_record_id": "pub:PUB-0088:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0088_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "portfolio-optimization",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/290f253ba67d79ef012f193365d522571f79b440/curated/2026-11-04/tasks/PUB-0088/task-916c702e2b28f490.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "task_id": "pytorch-model-cli",
+      "task": "pytorch-model-cli__8d4521165ad9821dccc6",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        false,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0015/report/stage-5-9f4eb1930359.json",
+          "trial": "/tmp/1238225.helma/validation-0015/results/stage_5_llm_rubric_review/9f4eb1930359/00003-pytorch-model-cli__8d4521165ad9821dccc6/jobs/job/pytorch-model-cli__8d4521165ad98__NpJnYUS/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Tests run the real cli_tool on 50 MNIST images and compare to the model's predictions, and check the file outputs. Hardcoding is impractical."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Verifier checks /app/weights.json, /app/cli_tool, /app/prediction.txt and the stdout digit, all of which the instruction states. The weights.json content is not checked."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Environment ships model.pth, model.py, image.png, cJSON and lodepng. The compiler and torch can be installed."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The task is well specified. The model architecture is in model.py and the weights format is free. Image preprocessing follows standard MNIST ToTensor."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "It requires converting weights, writing a C inference tool with a PNG decoder and JSON parsing, and compiling it. That is real work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "No answer is given in the instruction or the environment files. The expected predictions are only in the hidden tests."
+            }
+          }
+        },
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0015/report/stage-5-9f4eb1930359.json",
+          "trial": "/tmp/1238225.helma/validation-0015/results/stage_5_llm_rubric_review/9f4eb1930359/00003-pytorch-model-cli__8d4521165ad9821dccc6/jobs/job/pytorch-model-cli__8d4521165ad98__ce4JLK6/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The tests run /app/cli_tool on 50 freshly generated MNIST test images and compare each to expected predictions. They also check the single-image output and prediction.txt. A fabricated output would not pass."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The tests use only the paths and invocation named in the instruction: /app/cli_tool, /app/weights.json, /app/image.png and /app/prediction.txt. They require no output keys or wording beyond a bare digit."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment ships model.pth, model.py, image.png, cJSON and lodepng. The solution builds from these with only pip and gcc installs."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The instruction does not state the preprocessing, but dividing pixel values by 255 is the standard choice. It is consistent with the ToTensor-based reference and the shipped model."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task needs weight export, a C inference engine, PNG decoding and JSON parsing. That is real multi-step work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "No answer is given in the instruction or the environment files. The expected predictions are only in the hidden tests."
+            }
+          }
+        },
+        {
+          "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0015/report/stage-5-9f4eb1930359.json",
+          "trial": "/tmp/1238225.helma/validation-0015/results/stage_5_llm_rubric_review/9f4eb1930359/00003-pytorch-model-cli__8d4521165ad9821dccc6/jobs/job/pytorch-model-cli__8d4521165ad98__xhmrVE4/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Tests run cli_tool on 50 regenerated MNIST images against the model's real predictions, plus the image.png case; hardcoding is impractical and a fabricated output would fail."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Verifier checks /app/weights.json, /app/cli_tool, /app/prediction.txt and stdout digit, all named in the instruction; the weights format is not inspected."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Model, image, cJSON and lodepng are provided in /app; the solution shows a compiler and torch can be installed."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "Preprocessing is not stated, but the standard MNIST /255 scaling with no normalization is the natural choice and can be checked against image.png; the spec is adequate."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "Requires converting weights, writing C inference with PNG decoding and JSON loading, and compiling; real multi-step work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "No expected answers are given in the instruction or the environment files."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "pytorch-model-cli",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row pytorch-model-cli",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0090:VERIFIER-TOO-WEAK",
+        "benchmark": "Terminal-Bench 2.1",
+        "task_version": "2026-09-21 audit snapshot; 2.1",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Required behavior is untested and grading depends on an outside MNIST mirror",
+        "evidence_provenance": "published_example; current-file_check",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Terminal-Bench 2.1:pytorch-model-cli",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0090",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/terminal-bench/pytorch-model-cli/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/terminal-bench/pytorch-model-cli/1/files/tests/test_outputs.py; https://hub.harborframework.com/api/tasks/terminal-bench/pytorch-model-cli/1/files/tests/test.sh",
+        "evidence_review_status": "previously_available_not_rereviewed",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0090/task-5a1a878dd5c2533a.tar.gz",
+        "reconstructed_task_sha256": "5a1a878dd5c2533a762b6f3b2aa7d872e0abddffd126d0e12ab0f465ac0cbddf",
+        "original_record_id": "pub:PUB-0090:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0090_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "pytorch-model-cli",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/290f253ba67d79ef012f193365d522571f79b440/curated/2026-11-04/tasks/PUB-0090/task-5a1a878dd5c2533a.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "task_id": "task_000254_21ede93b",
+      "task": "task_000254_21ede93b__398c2cdc6f598231950c",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        false,
+        true
+      ],
+      "reviews": [
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/qwen38-27b-labeling/run/shards/0006/report/stage-5-956d8c44fe9b.json",
+          "trial": "/tmp/1240134.helma/validation-0006/results/stage_5_llm_rubric_review/956d8c44fe9b/00011-task_000254_21ede93b__398c2cdc6f598231950c/jobs/job/task_000254_21ede93b__398c2cdc6f__3K2jN48/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier (tests/test.sh -> test_final_state.py) performs genuine end-to-end functional checks: artifacts exist and are executable, the daemon is actually running (ps check), summary.json contains exact values (total_critical 2 then 4), master_critical.log must contain exact expected lines at both points, and it dynamically drops a new file into incoming/ requiring processing within 2 seconds. That live inotify-reactivity test makes fabricated static outputs fail, and checks are on exact values rather than shape/count. Unverified implementation details (rename-based atomicity, popen, awk/sed) do not make the verifier gameable since all observable outcomes are strictly checked."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "fail",
+              "explanation": "The shipped legacy logs (verified with od -c) are single physical lines separated by literal two-character backslash-n sequences, not newline bytes. A faithful implementation of the instruction's line-based filter ('extract only the lines containing [CRITICAL]' via awk/sed) emits whole lines with embedded '\\n'; I built exactly such an instruction-faithful C daemon and the verifier failed it on the exact-content assertion (expected clean lines like '[CRITICAL] Backup failed on /dev/sda1'). The verifier's hardcoded expectations implicitly require an undocumented normalization (literal \\n to real newlines), so a solution faithfully following the instruction still fails."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "fail",
+              "explanation": "Every command in this environment (agent shells and even the tmux server) runs under the Singularity fakeroot wrapper with LD_PRELOAD=/.singularity.d/libs/libfakeroot.so and FAKEROOTKEY. A naturally started background daemon inherits these, and its popen('/home/user/filter.sh ...') child (dash+libfakeroot) hung non-deterministically after the spawning session's faked went away: reproduced 3x, the daemon looked healthy at session end (total_critical=2, clean master log) then wedged (pipe_read/wait_woken with dead child) and missed the verifier's 2-second deadline, while the identical binary started with env -u LD_PRELOAD -u FAKEROOTKEY passed the verifier 100%. The environment thus breaks the required popen-based daemon behavior; completion demands an undocumented, unobservable-during-session env-sanitization workaround, so the task cannot be completed as written."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "Given the legacy files' flat literal-\\n format, the instruction 'extract only the lines containing the exact string [CRITICAL]' is underspecified: 'line' can reasonably mean physical file lines (default awk/sed/grep semantics, yielding lines with embedded '\\n') or logical \\n-separated entries (yielding clean lines). These two equally reasonable interpretations produce different master_critical.log contents, and the verifier accepts only the normalized interpretation. The instruction never documents the legacy format, so the spec is missing."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires writing a C daemon implementing recursive directory traversal, popen-based orchestration of a shell filter, crash-safe atomic JSON state updates via tmp+rename, and an inotify IN_CLOSE_WRITE event loop, plus an executable bash filter script and correct background execution - substantial systems-programming work, not a trivial task."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction does not list the expected critical lines or counts, and the environment ships only the input legacy logs from which the expected values are derived by the specified extraction; the verifier's expected strings live solely in the hidden tests/test.sh. No ground-truth file or embedded solution is provided to the agent."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/qwen38-27b-labeling/run/shards/0006/report/stage-5-956d8c44fe9b.json",
+          "trial": "/tmp/1240134.helma/validation-0006/results/stage_5_llm_rubric_review/956d8c44fe9b/00011-task_000254_21ede93b__398c2cdc6f598231950c/jobs/job/task_000254_21ede93b__398c2cdc6f__cPKvxvQ/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier in tests/test.sh is behavioral and dynamic: it pins the pre-state (total_critical==2, exact 2-line set from the legacy data), then writes /home/user/incoming/test.log itself and requires a live, correctly filtering daemon to append exactly the 2 new CRITICAL lines and bump the count to 4 within 2 seconds. A fabricated or static output cannot pass because the pre-drop assertions plus the post-drop delta require a real running watcher; unchecked details (inotify vs polling, popen, atomic rename) do not open a fabrication path."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "All verifier paths (/home/user/filter.sh, archiver, archive/summary.json, master_critical.log, incoming/test.log), the JSON key total_critical, and the expected lines/counts exactly match the instruction's specification and the critical records actually present in the shipped legacy logs (db.log, network.log). The verifier does not assert different paths, unstated keys, or prose wording; its expectations are consistent with the instruction's intent, so no contradiction of the instruction itself is found."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Every referenced component exists: legacy/incoming/archive directories with the test logs, gcc 11.4, inotify headers (verified to compile and run a full daemon), ps, python3+pytest for the verifier. The task is completable as written - I demonstrated a complete C archiver + filter.sh solution that passes the entire verifier in a sandbox - and resolving the data-format quirk requires no inventing missing data, installing components, or implementing assumed-provided services."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "The shipped legacy logs use literal two-character '\\n' sequences as record separators (od -c shows db.log is one physical line: 'INFO: Backup started\\n[CRITICAL] Backup failed on /dev/sda1\\nWARN: Low space'), but the instruction only says to 'extract only the lines containing the exact string [CRITICAL]' with awk/sed and never mentions this format. Two equally reasonable implementations exist: a literal newline-oriented line filter (yields whole physical lines with embedded INFO/WARN text) vs normalizing the literal \\n sequences first (yields clean critical records); I empirically confirmed the former FAILS the verifier's set-equality assertion while the latter passes. The instruction alone does not disambiguate, the agent has no oracle, and the verifier accepts only one interpretation."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires substantial systems work: a C daemon implementing recursive directory traversal, popen-based script invocation, atomic JSON state updates via tmp+rename(), an inotify IN_CLOSE_WRITE event loop with .log filtering, plus an executable awk/sed filter script, compiled and running persistently in the background. This is far beyond copy/echo-level work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction does not list expected lines or counts, and no solution/ground-truth files ship in the environment (scans of /root, /opt, /srv, /etc, /var/tmp found nothing; the verifier lives only under /app/task-under-review, which is not shown to the agent). The legacy log files containing the [CRITICAL] records are the input data that the task requires extracting, not a leak of the answer."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/qwen38-27b-labeling/run/shards/0006/report/stage-5-956d8c44fe9b.json",
+          "trial": "/tmp/1240134.helma/validation-0006/results/stage_5_llm_rubric_review/956d8c44fe9b/00011-task_000254_21ede93b__398c2cdc6f598231950c/jobs/job/task_000254_21ede93b__398c2cdc6f__hCh8krT/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "fail",
+              "explanation": "I proved a fabricated solution passes the full verifier (pytest '1 passed'): a dummy filter.sh ('echo \"I do nothing\"', no awk/sed, never invoked), a bash polling script named 'archiver' (no C source, no inotify, no popen, non-atomic direct summary writes), and a hand-crafted initial archive state. Stated requirements left unchecked by tests/test.sh: awk/sed use in filter.sh, invoking filter.sh via popen(), inotify monitoring, atomic tmp+rename updates, the C source at /home/user/archiver.c, and warning-free compilation."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "fail",
+              "explanation": "The environment's legacy logs contain literal backslash-n two-character sequences as record separators (confirmed via od -c and byte counts: db.log is one physical line of 77 bytes), so the strings the verifier hardcodes ('[CRITICAL] Backup failed on /dev/sda1') exist only as substrings of longer lines. The instruction only says to extract 'lines containing the exact string [CRITICAL]' and never mentions decoding escaped newlines; a faithful awk/sed implementation (demonstrated in a sandbox) fails the assertion 'master_critical.log does not contain the expected initial critical lines'."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Everything referenced is present and functional: /home/user/{legacy_logs,incoming,archive} exist with the promised legacy logs (in subdirs dir1/dir2 plus ignore.txt), gcc 11.4 compiles, <sys/inotify.h> resolves and a live inotify probe received IN_CLOSE_WRITE (mask 0x8), and awk/sed/python3/pytest/ps are installed. A correct solution (decoding the literal \\n format) passed the complete verifier flow end-to-end in a sandbox, so the task is completable as written."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "fail",
+              "explanation": "The instruction never specifies how legacy log records are delimited, yet the data files use literal \\n two-character sequences. Two reasonable readings exist: (A) treat them as literal text and emit the physical lines (the literal instruction reading, which a faithful awk/sed filter does), or (B) decode them as escaped record separators. The two produce different master_critical.log contents and the verifier accepts only (B); I empirically demonstrated branch A fails and branch B passes, so the instruction alone cannot determine the required output."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires genuine systems work: a C daemon with recursive directory traversal, popen-based script invocation, atomic JSON state updates via rename(), an inotify IN_CLOSE_WRITE watcher kept running in the background, plus a filter script - and the environment's literal-\\n data format adds an extra discovery/robustness challenge. It is far beyond echo/copy-level work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction lists no expected lines, counts, or outputs; the expected values (lines, totals 2 and 4) live only in tests/test.sh, which is not shown to the agent. A filesystem scan found the expected strings only in the input legacy logs themselves (inputs, not the answer), and /home/user ships no pre-existing filter.sh, archiver, archiver.c, or ground-truth archive contents - archive/ is empty."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "task_000254_21ede93b",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Learning Generalizable Behaviors for Terminal Agents",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://arxiv.org/pdf/2608.22631v3#page=28",
+        "source_location": "arXiv:2608.22631v3, PDF page 28, Appendix C.3; find \"000254\"",
+        "evidence_url": "https://arxiv.org/pdf/2608.22631v3#page=28",
+        "record_id": "pub:PUB-0017:VERIFIER-TOO-WEAK",
+        "benchmark": "TMax",
+        "task_version": "River audit of unfiltered TMax; exact revision not reported",
+        "task_revision": "7b090eca98bf351356bc1c64290c5c4a09f2f98c",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "C archiver mechanisms are unchecked; process name and output counts suffice.",
+        "evidence_provenance": "published_example; second_LLM_review",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "TMax:task_000254_21ede93b",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0017",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "https://arxiv.org/abs/2608.22631v3",
+        "instruction_url": "https://huggingface.co/datasets/allenai/tmax-15k-open-instruct/resolve/7b090eca98bf351356bc1c64290c5c4a09f2f98c/task-data.tar.gz",
+        "verifier_url": "https://huggingface.co/datasets/allenai/tmax-15k-open-instruct/resolve/7b090eca98bf351356bc1c64290c5c4a09f2f98c/task-data.tar.gz",
+        "evidence_review_status": "previously_available_not_rereviewed",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0017/task-18ff8c0ed4881f87.tar.gz",
+        "reconstructed_task_sha256": "18ff8c0ed4881f87a24d066cf6e5cb0dd54a63531d4871354636e7ef1484afde",
+        "original_record_id": "pub:PUB-0017:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0017_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "rl_training",
+        "evaluation_family_id": "task_000254_21ede93b",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "publication_example_and_native_task_sources_checked",
+        "reaudit_notes": "Read River v3 Appendices C.3/C.4; native TMax description and verifier AST match the training export. Published bundle instruction and tests match the export byte-for-byte. No runtime replay.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "28",
+        "source_version": "2608.22631v3",
+        "source_search_text": "000254",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/290f253ba67d79ef012f193365d522571f79b440/curated/2026-11-04/tasks/PUB-0017/task-18ff8c0ed4881f87.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "task_id": "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+      "task": "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        true,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00001-instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d/jobs/job/instance_gravitational__teleport__FGE4K9t/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier (tests/test.sh + run_script.sh + parser.py + config.json) executes the real gold test file against the agent's source code. I verified empirically: with the gold test file checked out and no fix, lib/devicetrust/enroll fails to compile (env.Service / SetDevicesLimitReached undefined) so all fail_to_pass tests fail; with the reference solution, the full verifier run passed (reward=1, ~17 min, all 4 fail_to_pass names present as PASSED). The tests force genuine behavior (error containing 'device limit', outcome DeviceRegistered, non-nil returned device, plus passing normal-flow subtests), so a fabricated output cannot pass."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Every requirement the verifier enforces is explicitly stated in the instruction: error substring 'device limit', outcome enroll.DeviceRegistered, RunAdmin returning the current device on error, the public E.Service *FakeDeviceService field, and SetDevicesLimitReached(limitReached bool). The verifier is weaker than the instruction in places (it checks only 'device limit', not the full AccessDenied message, and does not test printEnrollOutcome at all) but never contradicts it; the instruction-faithful reference solution passed the full verifier end-to-end."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "All referenced components exist in the environment: /app is the teleport repo at base commit 601c9525, both the base and gold-test commit 32bcd71591 exist in .git, Go 1.23.1 plus module/build caches are present, the gold checkout command in test.sh works, and the complete verifier run (288 packages, -race -cover -shuffle) completed in ~17 minutes, well within the 3000s timeout."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The instruction pins down file paths, struct/field/method names, the error message content, the outcome enum values, and the error-return contract, so there is only one reasonable implementation that satisfies it. The single underspecified detail (the exact fallback format printEnrollOutcome prints for a nil device) is not checked by the verifier, so no two reasonable interpretations lead to different pass/fail results."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires real engineering work in a large Go codebase: adding a limit-simulation flag with mutex protection to a gRPC streaming fake device service, exposing it through testenv, fixing the RunAdmin error path to return the registered device, and guarding a CLI printer against nil. This is not an echo/copy/constant task."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "fail",
+              "explanation": "The complete solution is shipped inside the environment: the fix commit 32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c ('fix: Fix panic on `tsh device enroll --current-device` (#32694)') is present in /app/.git, reachable from master, and is the direct child of the base commit - `git log --reverse --oneline 601c9525b7..master | head -1` immediately surfaces it and `git show`/`git checkout 32bcd71591 -- <files>` yields the exact 5-file fix, so the task requires no genuine work. Additionally, the instruction embeds a near line-by-line specification of the fix (Requirements and 'New interfaces introduced' with exact paths, fields, methods, and messages)."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00001-instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d/jobs/job/instance_gravitational__teleport__dP2ECyj/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "fail",
+              "explanation": "The verifier (tests/test.sh + run_script.sh + config.json) only runs the gold unit tests in lib/devicetrust/enroll; run_script.sh's package list excludes 'tool/tsh', so the stated requirement that printEnrollOutcome handle a nil *devicepb.Device without panicking (the exact panic named in the task title, in tool/tsh/common/device.go) is never exercised by any test run. I verified empirically that the reference solution with the tool/tsh/common/device.go hunk removed (no nil guard present) still passes all four fail_to_pass tests, so a solution omitting an explicitly stated requirement earns reward 1. Additionally, the 'AccessDenied' error type and the full message 'cluster has reached its enrolled trusted device limit' are reduced to a substring check for 'device limit'."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Everything the verifier asserts (public env.Service field, SetDevicesLimitReached(limitReached bool), outcome enroll.DeviceRegistered, error containing the substring 'device limit', non-nil returned device) is explicitly stated in the instruction's Requirements/interface sections, with no extra paths, keys, or message-wording demands. A solution faithful to the instructions (the reference patch) passes end-to-end: I ran the full test.sh flow and it returned reward=1 with all 4 fail_to_pass tests passing."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "All referenced components exist and work: /app holds the repo at base commit 601c9525b7, the gold-test commit 32bcd715 is present so test.sh's 'git checkout 32bcd... -- enroll_test.go' succeeds, Go 1.23.1 satisfies go.mod (go 1.21), the module cache is warm (1.7G), and libpam headers exist for the 'pam' build tag. The full verifier flow completed in 1005s cold (334s warm), well within the 3000s verifier timeout, yielding the correct reward in both the unsolved (0) and solved (1) states."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The instruction pins the necessary specification precisely: file paths (lib/devicetrust/testenv/fake_device_service.go, testenv.go, enroll.go, tool/tsh/common/device.go), exact struct/field names (Service, devicesLimitReached), method signatures (SetDevicesLimitReached(limitReached bool)), expected outcome (DeviceRegistered), and the required error substring ('device limit'). Any implementation faithful to these details compiles against the gold tests and produces the same verifier outcome; no missing spec creates divergent reasonable interpretations."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "This is a genuine multi-file debugging task in the large Teleport Go codebase: diagnosing a nil-pointer panic in the enrollment flow, renaming/extending the fake gRPC DeviceTrustService with a device-limit simulation, exposing the service through testenv, fixing Ceremony.RunAdmin's error-path return, and adding a nil-device guard. It requires real understanding of the enrollment ceremony, not a constant-answer or copy operation."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "No solution code, patch, or ground-truth output is provided in the agent-visible workspace: the instruction describes the required interfaces and behaviors (a specification) rather than listing the solution, and the files containing the gold patch (tests/config.json, solution/) live in the hidden /tests directory, not the workspace. The fix commit does exist in the repository's git history as a descendant of the base commit, which is inherent to this SWE-bench Pro format (tagged 'swe-bench-pro' in task.toml), but it is not surfaced, and locating, understanding, and implementing the changes still constitutes genuine work."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00001-instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d/jobs/job/instance_gravitational__teleport__xfHRXqc/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier compiles the agent's code and runs the real gold unit tests (go test -race -cover with the gold enroll_test.go force-checked-out), requiring 4 named tests (TestCeremony_RunAdmin plus its three subtests, incl. the new device-limit scenario) to PASS in the -json output. I confirmed empirically both directions: gold solution applied -> reward 1 (10/10 tests passed); base sources with gold test file -> test package fails to build (env.Service undefined) -> reward 0. The tests assert real behavior (error containing 'device limit', outcome DeviceRegistered, non-nil returned device), so a fabricated output cannot pass; the one untested secondary line (printEnrollOutcome nil guard, tool/tsh is excluded from the test run) does not leave the reported panic unfixed since the verified RunAdmin change eliminates the nil device."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Every demand of the verifier is stated in instruction.md: public testenv.E.Service field, FakeDeviceService.SetDevicesLimitReached, an error containing the 'device limit' substring, outcome enroll.DeviceRegistered on registration-success/enrollment-failure, RunAdmin returning the current device on error, and a test covering devicesLimitReached=true. I ran the gold test file and the pipeline end-to-end: a faithful implementation of the stated requirements passes (reward 1); no extra paths, hardcoded values, output keys, or exact-prose requirements are imposed."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment provides everything the instructions and verifier need: /app holds teleport at base commit 601c9525b7, the gold commit 32bcd71591 is present so the verifier's test-file checkout works, Go 1.23.1 and a warm module cache build lib/devicetrust/* successfully, and the full verifier run finished in ~22 minutes, well inside the 3000s timeout. Unrelated CGO build failures (flynn/hid, go-sqlite3, lib/inventory/metadata missing C headers in packages not needed by the tested code) were observed but demonstrably do not affect the result."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The instruction specifies exact file paths, type/field/method names (FakeDeviceService, Service, SetDevicesLimitReached), error substrings, and outcome semantics, and the verifier only checks the behavioral contract via the gold tests; I verified the matching mechanics (Go's -run pattern and underscore-rewritten subtest names in -json output) so any spec-conforming implementation yields the same verifier outcome. No necessary spec is left to guesswork that would flip pass/fail."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "Solving requires genuine multi-file Go work: exposing/renaming the fake device service with a mutex-guarded limit flag and AccessDenied path in EnrollDevice, plumbing the public Service field and WithAutoCreateDevice through testenv, fixing RunAdmin's error return to propagate currentDev with the correct outcome, and adding a nil guard in printEnrollOutcome \u2014 then making new -race unit tests compile and pass. This is a real medium debugging task, not an echo/copy exercise."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "fail",
+              "explanation": "The shipped workspace embeds the complete ground-truth solution in its git history: commit 32bcd71591 ('fix: Fix panic on `tsh device enroll --current-device` (#32694)') is an ancestor of the origin/master ref in /app and is trivially discoverable without knowing the SHA (e.g. `git log origin/master -- lib/devicetrust/enroll/enroll.go` or `git log --all --grep='device enroll'`), after which `git show` yields the exact 5-file gold patch; I extracted and applied it this way and the verifier passed. Additionally, instruction.md's 'New interfaces introduced' section enumerates every struct, field, and method the fix introduces, compounding the leak."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row gravitational__teleport-32bcd715",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0074:VERIFIER-TOO-WEAK",
+        "benchmark": "Scale AI / SWE-bench Pro",
+        "task_version": "2026-09-21 audit snapshot; exact revision not reported",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Fix remains in the image and the graded run skips the package containing the crash",
+        "evidence_provenance": "published_example; inside-image_and_current-file_checks",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Scale AI / SWE-bench Pro:instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0074",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/tests/config.json; https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/tests/parser.py; https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/tests/run_script.sh; https://hub.harborframework.com/api/tasks/scale-ai/instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d/1/files/tests/test.sh",
+        "evidence_review_status": "reviewed_accepted",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0074/task-7154749b62a64770.tar.gz",
+        "reconstructed_task_sha256": "6f74e9b16bf232672b5325b307dec3b058c15c037f6ad1dda0f3529800d8d42d",
+        "original_record_id": "pub:PUB-0074:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0074_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/86229e6040a8599a8a3d4b68824759bdd3b18caa/curated/2026-11-06-judge-runtime-repair/tasks/6f74e9b16bf232672b5325b307dec3b058c15c037f6ad1dda0f3529800d8d42d.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "task_id": "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+      "task": "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        false,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00002-instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7/jobs/job/instance_internetarchive__openli__9CtAS5C/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier checks out the gold test file (openlibrary/tests/core/test_models.py from commit 5de7de19) and requires all 16 fail_to_pass behavioral tests (exact return values for get_isbn_or_asin/is_valid_identifier/get_identifier_forms across ISBN-10, ISBN-13, ASIN, lowercase-ASIN, and empty inputs, covering every stated requirement) plus 9 pass_to_pass regression tests. I reproduced the pipeline: before the fix exactly the 16 tests fail (reward 0) and with a faithful fix all 25 pass (reward 1); the parser regexes extract the exact pytest node IDs correctly."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The tests assert precisely what instruction.md requires: the three methods on Edition (called with the keyword parameter names given in the spec), the (isbn, asin) tuple with uppercase ASIN, length-based validation (10/13/10), [isbn10, isbn13, asin] ordering, and empty-input handling; expected values are consistent with the repo's own to_isbn_13/isbn_13_to_isbn_10 utilities, and all pass_to_pass tests already pass in the pre-fix state. A solution faithfully following the instruction (the reference patch) passes the full pipeline, verified end-to-end."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment provides everything referenced: /app holds the openlibrary repo at base commit 5f7d8d19 with the gold commit 5de7de19 present for the test-file checkout, and python3.11, pytest, the checked-out infogami submodule, and Xvfb/chrome are installed. I ran the selected pytest file successfully in both before and after states in this environment."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "instruction.md specifies exact method names, the file path, signatures with parameter names, return shapes, ordering ([isbn10, isbn13, asin]), ASIN uppercasing, and empty-string edge cases, so the gold tests match the natural interpretation; the repeated use of 'method' and the Edition.from_isbn() context make Edition methods the unambiguous reading. No two equally reasonable interpretations yield different verifier outcomes."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires diagnosing the ASIN/ISBN handling bug in Edition.from_isbn(), implementing three identifier helpers with correct ISBN-10/ISBN-13 canonical conversion using repo utilities, and refactoring the retrieval flow plus its callers in dynlinks.py and code.py - a medium debugging/refactoring task with real work, not echoing or copying a value."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "fail",
+              "explanation": "The shipped environment's git repository at /app is not shallow and contains the gold fix commit 5de7de19211e71b29b2f2ba3b1dff2fe065d660f ('Refactor Edition.from_isbn() to be more modular') on the master branch, discoverable with a simple `git log --all --grep=\"from_isbn\"`. `git show 5de7de19` yields the complete solution (verified identical to solution/solve.sh's patch, including the gold test file with expected values), so the agent can copy the answer without doing the task's genuine work."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00002-instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7/jobs/job/instance_internetarchive__openli__bjhfG6J/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier (tests/test.sh -> run_script.sh -> parser.py) executes 16 fail_to_pass behavioral pytest cases that import openlibrary.core.models and invoke the three new methods, plus 9 pass_to_pass regression tests. I confirmed all 16 fail on the buggy base state and all 25 required tests pass with the fix, and expected values check real semantics (ASIN uppercasing, length-10/13 rules, ISBN-10<->13 conversions, [isbn10, isbn13, asin] ordering, empty/None exclusion) rather than shape, keywords, or self-reported values; the gold test file is force re-checked out from the PR commit, so agent test-tampering is neutralized."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Every asserted value in the gold tests follows from the instruction's stated rules: tuple placement (ISBN index 0 / ASIN index 1), uppercase ASIN rule, exact is_valid_identifier length rule, [isbn10, isbn13, asin] ordering, explicit empty-string cases, and derived ISBNs 9781111111113 / 0747532699, which I verified as correct ISBN check-digit math consistent with the repo's own openlibrary/utils/isbn.py helpers. Test keyword arguments (isbn=, asin=) match the input names in the 'New public interfaces' section, so a faithful solution passes."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment actually provides everything referenced: the openlibrary repo at /app at base commit 5f7d8d190, the PR commit 5de7de192 present locally for the gold test-file checkout, working Python 3.11/pytest/isbnlib, and Xvfb/Chrome needed by run_script.sh. I executed the full pipeline (base tests pass, gold checkout works, unsolved state fails 16 tests, solved state passes 25/25) with no missing data, compiler, or service."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The Requirements and 'New public interfaces' sections specify exact return contracts, normalization/casing rules, the validity rule (len 10/13, ASIN len 10), output ordering, None/empty exclusion, and empty-input behavior, making the tested outputs uniquely determinable (e.g., ISBN-10/13 derivation is standard deterministic check-digit math via helpers already imported in models.py). The bug context (Edition.from_isbn) makes it unambiguous that the new methods belong to Edition; no two reasonable interpretations diverge on the tested behavior."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires genuine debugging/refactoring work in a real codebase: replacing the tangled, buggy from_isbn logic in openlibrary/core/models.py with correctly behaving get_isbn_or_asin/is_valid_identifier/get_identifier_forms methods implementing ASIN detection, canonicalization, and bidirectional ISBN-10/13 conversion (the reference patch changes ~84 lines across 3 files) \u2014 far beyond echo/copy work."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "fail",
+              "explanation": "The shipped environment's git history at /app/.git embeds the complete solution: the exact fix commit 5de7de19211e71b29b2f2ba3b1dff2fe065d660f ('Refactor Edition.from_isbn() to be more modular') is the direct child of the base commit and is reachable on local master (visible via `git log master --oneline -- openlibrary/core/models.py`), and `git show 5de7de192` reproduces the gold patch byte-identically (verified against config.json's patch) including the gold test file, so the agent can extract the full expected answer from git history without doing the intended work."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00002-instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7/jobs/job/instance_internetarchive__openli__cwLQDZh/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier (tests/test.sh + run_script.sh + parser.py + config.json) runs 16 fail_to_pass unit tests asserting exact behavioral values across diverse inputs (ISBN-10, ISBN-13, upper/lowercase ASIN, empty strings, invalid lengths, ordering of [isbn10, isbn13, asin]) plus 9 pass_to_pass regression tests. I confirmed empirically: pre-fix the run yields 9/25 passed (reward 0), post-reference-solution 25/25 (reward 1). All 8 instruction requirement bullets are behaviorally covered, so a stubbed or fabricated implementation cannot pass."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The gold tests check exactly the three interfaces the instruction specifies (get_isbn_or_asin, is_valid_identifier, get_identifier_forms on Edition in openlibrary/core/models.py) with expected values consistent with every requirement bullet (tuple index placement, ASIN uppercasing, length-10/13 rules, list ordering, empty-input handling). No extra paths, keys, or prose wording are required, and the reference solution that faithfully follows the instruction passes 25/25."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment provides everything the instruction and verifier need: the openlibrary repo checked out at base commit 5f7d8d190, the fix commit 5de7de192 present locally so the gold test checkout (git checkout 5de7de192... -- openlibrary/tests/core/test_models.py) works offline, and pytest 7.4.4, Xvfb, and all import dependencies installed. I ran the complete verifier pipeline end-to-end successfully in both pre-fix and post-fix states."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The requirements specify exact method names, signatures, return shapes (tuple index 0 = ISBN, index 1 = ASIN), normalization rules (ASIN uppercased, canonical ISBN-13 used to derive ISBN-10), ordering ([isbn10, isbn13, asin]), and empty-input behavior, and the 16 parameterized test cases pin down each semantic. No two equally reasonable interpretations produce different verifier outcomes (e.g., staticmethod vs instance method both pass the instance-based test calls)."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "Solving the task requires understanding the codebase's ISBN/ASIN handling (canonical, to_isbn_13, isbn_13_to_isbn_10 in openlibrary/isbns.py), implementing three methods with precise identifier-conversion semantics, and integrating them into Edition.from_isbn for ASIN lookup - genuine debugging/refactoring work, not echoing or copying a constant."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "fail",
+              "explanation": "The environment's git object database (/app/.git) contains the exact fix commit 5de7de19211e71b29b2f2ba3b1dff2fe065d660f ('Refactor `Edition.from_isbn()` to be more modular'), reachable from master and origin/master. A single natural command (git log --all --grep='from_isbn') returns it as the first hit, and `git show` on it yields a patch I verified to be content-identical to the reference solution, so the ground-truth answer is embedded in a shipped environment file and the task can be completed without genuine work."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row internetarchive__openlibrary-5de7de19",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0076:VERIFIER-TOO-WEAK",
+        "benchmark": "Scale AI / SWE-bench Pro",
+        "task_version": "2026-09-21 audit snapshot; exact revision not reported",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Fix remains in the image and the named function is never tested",
+        "evidence_provenance": "published_example; inside-image_and_current-file_checks",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Scale AI / SWE-bench Pro:instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0076",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/tests/config.json; https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/tests/parser.py; https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/tests/run_script.sh; https://hub.harborframework.com/api/tasks/scale-ai/instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb/1/files/tests/test.sh",
+        "evidence_review_status": "reviewed_accepted",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0076/task-80f4ed8e6f59569d.tar.gz",
+        "reconstructed_task_sha256": "852e84ba139122f44226319afcbc3a00f14deabd45fdc595f12ec07815a475ee",
+        "original_record_id": "pub:PUB-0076:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0076_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/86229e6040a8599a8a3d4b68824759bdd3b18caa/curated/2026-11-06-judge-runtime-repair/tasks/852e84ba139122f44226319afcbc3a00f14deabd45fdc595f12ec07815a475ee.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "task_id": "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+      "task": "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        true,
+        false,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00003-instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b/jobs/job/instance_tutao__tutanota-d1aa0ec__Hc62F4L/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "fail",
+              "explanation": "tests/parser.py never parses individual test results: if any log line matches 'All N assertions passed' it emits a hardcoded list of 107 suite names as PASSED (a list that omits the bug-specific test/tests/mail/MailUtilsAllowedFoldersForMailTypeTest.ts entirely), and tests/run_script.sh runs 'cd test && node test || true' whose entry point (test/test.js) is agent-editable in the workspace. I verified the verifier's parser+subset logic accepts a fabricated 3-line stdout containing only that summary line (107/107 required suites 'passed') with no code change at all, i.e. a fabricated plausibly-shaped output passes. Honest runs are gated (an unfixed repo fails at tsc; a broken fix prints '2 out of 8102 assertions failed' and is rejected), but the acceptance signal is a self-reported line plus a hardcoded name list that can be trivially faked, so the verifier can pass without the task being solved."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "Everything the verifier requires is implied by instruction.md: validation functions taking (mailState, folder, folderSystem), drafts allowed in Drafts/Trash and their subfolders, non-drafts blocked in draft subfolders, and keeping all existing behavior green (full suite + tsc). No extra paths, output keys, or exact prose messages are demanded. I confirmed a faithful reference fix passes end-to-end in this environment: the full run printed 'All 8102 assertions passed' and the parser/evaluation marked 107/107 required suites PASSED."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "All referenced components exist (repo at base cc335e9fb, gold commit d1aa0ecec for the test checkout, node v16, node_modules, /logs mount points). One genuine defect was found and worked around for this review: under this sandbox's user-namespace uid mapping, chown to uid 1000 fails with EINVAL, so better-sqlite3's vendored deps/extract.js (onwarn: process.emitWarning) crashes during the native rebuild and a fresh 'node test' fails even with the correct fix. This is resolvable by configuring an available component (one-line onwarn patch, after which the entire pipeline passed: 'All 8102 assertions passed', exit 0), so per the rubric's carve-out for issues solvable by installing/configuring available components, it is not flagged."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The Requirements section pins the needed contract: validation functions must accept folder system context (fixing the API shape), drafts are allowed in Drafts/Trash and subfolders of both, non-drafts stay blocked from draft subfolders, existing restrictions are maintained, and 'No new interfaces' points to the pre-existing isSubfolderOfType helper (present at the base commit). The gold test file matches this wording exactly, so two equally reasonable interpretations do not produce divergent verifier outcomes."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "This is a genuine multi-file bug fix in a large TypeScript codebase: changing allMailsAllowedInsideFolder/mailStateAllowedInsideFolderType signatures and threading FolderSystem through MailListView, MailView, MultiMailViewer, MultiSearchViewer, and AddInboxRuleDialog, all constrained by a project-wide tsc typecheck and an ~8,100-assertion test suite. There is real work and a clear learning signal; nothing about it reduces to echoing a constant or copying a file."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "fail",
+              "explanation": "The agent's environment ships the exact ground truth: the gold fix commit d1aa0ecec288bfc800cfb9133b087c4f81ad8b38 (direct child of the base commit, reachable from refs/heads/master, message 'Draft mails are now able to be moved into draft folder subfolders / fix #5067') is present in /app/.git, and 'git show d1aa0ecec...' reveals the complete reference patch across all 6 source files plus the gold test file. The solution can therefore be read straight out of the environment with no genuine work required."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00003-instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b/jobs/job/instance_tutao__tutanota-d1aa0ec__ZMhLFJy/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier runs the repo's real test suite (tsc typecheck + full ospec run) with the gold test file restored from git, and parser.py only marks the 107 required suites passed when ospec prints its genuine all-assertions-passed line. Empirically: base+gold test -> tsc TS2554 errors and verdict FAILED; signature-only fix without hierarchy logic -> '7 out of 8102 assertions failed' and verdict FAILED; full reference fix -> 'All 8102 assertions passed' and verdict PASSED. The gold test (test/tests/mail/MailUtilsAllowedFoldersForMailTypeTest.ts, imported by test/tests/Suite.ts line 57) directly asserts every stated behavior (drafts allowed in Drafts/Trash and subfolders, non-drafts blocked in draft subfolders, other folders unchanged), so a plausibly-shaped fake cannot pass."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The verifier imposes no output paths, keys, or prose on the agent; it just runs the repo's own suite, which matches the instruction (behavioral requirements plus 'maintain backward compatibility' = the pre-existing suites must keep passing). The 3-argument (mailState/folder, folderSystem) signature enforced by the gold tests is implied by the requirement that 'validation functions should accept folder system context ... instead of relying only on direct folder type comparison', so a faithful solution following the instruction passes."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment provides the tutanota repo at base commit cc335e9fb, node 16, node_modules, and a working build/test toolchain; I ran the exact verifier pipeline end-to-end and the reference solution yields 'All 8102 assertions passed'. Two sandbox anomalies are not task defects: Xvfb is absent but run_script.sh backgrounds it and the node-based tests ran fine without a display, and better-sqlite3's node-gyp extraction crashed only because this review container is a single-uid user namespace (/proc/self/uid_map 0->215708, chown returns EINVAL) \u2014 with a trivial configuration workaround (skip chown in extract.js) the full pipeline succeeded, and the original docker environment with normal uid ranges and allow_internet=true builds cleanly."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The requirements pin the necessary design: subfolder detection requires the folder's identity plus the FolderSystem, and the instruction explicitly says the validation functions should accept folder-system context instead of only comparing folder types, so the (mailState, folder, folderSystem) / (mails, folder, folderSystem) interface enforced by the gold tests is the natural and effectively unique faithful interpretation; no second equally reasonable reading of the instruction produces a different accepted output."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires a genuine multi-file TypeScript change in a large codebase (MailUtils, MailListView, MailView, MultiMailViewer, MultiSearchViewer, AddInboxRuleDialog) to make hierarchical draft/trash folder validation work while keeping the entire 8102-assertion suite and full-project typecheck green \u2014 not a trivial constant/echo/copy task."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "fail",
+              "explanation": "The complete reference solution is shipped inside the agent's workspace: git commit d1aa0ecec288bfc800cfb9133b087c4f81ad8b38 ('Draft mails are now able to be moved into draft folder subfolders, fix #5067') is the direct child of the base commit cc335e9fb and is reachable from master and many remote branches, so `git log --all`/`git show d1aa0ecec` (the hash is even embedded in the task name in task.toml) reveals the entire gold patch including all six source files and the updated tests. An agent can pass the task by applying that commit with no genuine engineering work."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/reruns/qwen38-27b-labeling-cache-retry/run/shards/0000/report/stage-5-27ab3fb89708.json",
+          "trial": "/tmp/1242922.helma/validation-0000/results/stage_5_llm_rubric_review/27ab3fb89708/00003-instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b/jobs/job/instance_tutao__tutanota-d1aa0ec__yhUTT2E/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier runs the repository's real unit suite (`cd test && node test`, ospec) and only awards reward when the global 'All N assertions passed' summary appears, which requires every assertion to pass including the gold test test/tests/mail/MailUtilsAllowedFoldersForMailTypeTest.ts that test.sh re-checkouts from the fix commit before running (so the test file itself cannot be tampered with). The gold test asserts the actual required behavior in both directions (drafts allowed in Drafts/Trash folders and their subfolders; non-drafts blocked in Drafts subfolders; mixed mails only in Trash; empty allowed anywhere), and the build's `npx tsc` step type-checks tests/**/*.ts, forcing the validation functions to accept the new (mail, folder, folderSystem) signature, so skipping or hollowing out the tests (e.g. removing the Suite.ts import) still fails. I reproduced the unsolved state end-to-end (gold test + base code) and the parser/eval logic returned FAILED, confirming a fabricated or no-op solution cannot pass."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The verifier's gold tests and build checks align with the instruction's requirements: hierarchical recognition of Drafts and Trash subfolders, validation functions accepting folder system context, drafts allowed in Drafts+subfolders, non-drafts blocked there, preserved existing restrictions (trash/other folders, emptyOrContainsDraftsAndNonDrafts), and call-site integration (MailView/MultiMailViewer/MultiSearchViewer/AddInboxRuleDialog) enforced by tsc. No unexpected paths, hardcoded values, or prose-message requirements are imposed that a faithful implementation of the instruction would violate."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "fail",
+              "explanation": "The verifier's test command cannot run in the shipped environment: `node test` always crashes in the esbuild 'sqlite-native-plugin' step, which compiles @tutao/better-sqlite3-sqlcipher@7.5.0 from source via node-gyp and deterministically fails (deps/extract.js + hoisted tar@6.1.13 -> TypeError ERR_INVALID_ARG_TYPE while extracting sqlcipher.tar.gz -> make/node-gyp error -> exit 1 before any test executes; the module's install script is a no-op and no prebuilt .node or native-cache entry is shipped). I reproduced this on the pristine base repo, after a clean rebuild, and with the reference solution applied: running their parser.py/eval logic on the captured output of the patched run yields FAILED, so even the reference solution fails verification and the task cannot be completed as written."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The instruction fully specifies the needed behavior: hierarchical folder checking for special folder types explicitly named 'like Drafts and Trash', validation functions accepting folder system context instead of direct folder-type comparison, drafts allowed in Drafts and subfolders, non-drafts blocked there, preserved existing restrictions, UI integration, and backward compatibility. The gold tests codify exactly this contract; alternative solution paths are possible but a faithful reading leads to the tested behavior, so there is no underspecification where two reasonable interpretations produce divergent, verifier-rejected results."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "This is a genuine SWE debugging task on the Tutanota codebase: reworking mailStateAllowedInsideFolderType/allMailsAllowedInsideFolder to be hierarchy-aware (e.g. via isSubfolderOfType over FolderSystem) and threading the folder system through all call sites across ~7 files (MailUtils, MailListView, MailView, MultiMailViewer, MultiSearchViewer, AddInboxRuleDialog) while keeping the entire test suite green. It requires real analysis and implementation, not a trivial constant/copy."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "fail",
+              "explanation": "The environment ships the repository's full upstream git history: master/origin/master (b61d6c2ab) is 3596 commits ahead of the base commit cc335e9fb and contains the exact fix commit d1aa0ecec 'Draft mails are now able to be moved into draft folder subfolders' (the base commit sits immediately below it in origin/master's history). An agent can trivially locate it (e.g. `git log --oneline cc335e9fb..origin/master -- src/mail/model/MailUtils.ts` or grepping commit messages) and `git show d1aa0ecec` returns the complete gold patch for all source files, so the expected answer is embedded in the environment and the task requires no genuine work if discovered."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row tutao__tutanota-d1aa0ece",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0082:VERIFIER-TOO-WEAK",
+        "benchmark": "Scale AI / SWE-bench Pro",
+        "task_version": "2026-09-21 audit snapshot; exact revision not reported",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Fix remains in the image and one summary line is counted as 107 passing tests",
+        "evidence_provenance": "published_example; inside-image_and_current-file_checks",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Scale AI / SWE-bench Pro:instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0082",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/tests/config.json; https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/tests/parser.py; https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/tests/run_script.sh; https://hub.harborframework.com/api/tasks/scale-ai/instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf/1/files/tests/test.sh",
+        "evidence_review_status": "reviewed_accepted",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0082/task-2e1f79dac1e20926.tar.gz",
+        "reconstructed_task_sha256": "c27a8b469c791cb7ecf15e1cebdc80608a5adc7fa5ad323a0ff95c7d4133449f",
+        "original_record_id": "pub:PUB-0082:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0082_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/86229e6040a8599a8a3d4b68824759bdd3b18caa/curated/2026-11-06-judge-runtime-repair/tasks/c27a8b469c791cb7ecf15e1cebdc80608a5adc7fa5ad323a0ff95c7d4133449f.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "task_id": "pytorch-model-cli",
+      "task": "pytorch-model-cli__8d4521165ad9821dccc6",
+      "ground_truth": "FAIL",
+      "positive_predictions": [
+        false,
+        false,
+        false
+      ],
+      "reviews": [
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/qwen38-27b-labeling-metadata-compat/run/shards/0008/report/stage-5-37869444497a.json",
+          "trial": "/tmp/1239013.helma/validation-0008/results/stage_5_llm_rubric_review/37869444497a/00008-pytorch-model-cli__8d4521165ad9821dccc6/jobs/job/pytorch-model-cli__8d4521165ad98__2ZZ2NYi/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "The verifier executes the agent's binary on 51 distinct real inputs (/app/image.png plus the first 50 MNIST test images saved as PNGs) and compares each stdout prediction to expected per-image values, rather than trusting prediction.txt or checking shape/keywords. A fabricated constant-output tool would fail the 50-image behavioral test, and the test expectations are hidden from the agent so hardcoding is not feasible; I independently verified via manual weight extraction from model.pth and pure-Python forward pass that the model predicts 2 on the provided image.png (logit margin 1.13), confirming the expected values are real model behavior. (Minor: it doesn't force cli_tool to be a compiled binary or that weights.json is actually parsed, but the core inference work is genuinely verified.)"
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "All verifier paths match the instruction ('Everything should be located in the /app directory'): /app/weights.json, /app/cli_tool, /app/prediction.txt, and it invokes the tool exactly as specified (cli_tool weights.json image.png). I directly verified that the model in model.pth predicts '2' on the shipped image.png, so the hardcoded expected value conflicts with no data; no specific weights.json schema, output keys, or error/warning prose is required, and the 50-image test merely enforces that the tool performs genuine inference as instructed."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment (Dockerfile: python:3.13-slim-bookworm with task-deps copied to /app) provides model.py, model.pth, image.png, cJSON.c/h and lodepng.cpp/h, all referenced by the instruction and solution; gcc and torch are not preinstalled but allow_internet=true lets the agent install them via apt/pip (the reference solution does exactly this), and the verifier's MNIST download likewise relies on the declared internet access. No required data or service is missing in a way that would need to be invented."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The only degrees of freedom (weights.json format, C implementation details) are unconstrained by the verifier, which only checks existence and behavior, so no two reasonable format choices can diverge in outcome. The predicted-digit target for prediction.txt is unambiguous (only one image, image.png, is shipped), output whitespace is normalized by strip() in the tests, and /255 input normalization is the standard MNIST/ToTensor convention an agent can validate against the provided model.py with PyTorch - not an equally-reasonable alternative interpretation that the verifier would reject."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires converting PyTorch state-dict weights to JSON, implementing PNG decoding and a 3-layer MLP (Linear-ReLU-Linear-ReLU-Linear, argmax) inference in C, and packaging a CLI - real multi-step engineering work (expert estimate 30 min in task.toml), not an echo/copy task."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "The instruction never states the expected digit or any predictions, and the shipped files (model.pth, model.py, image.png, cJSON, lodepng) are the raw inputs needed to derive the answer, not ground truth; the expected values ('2' and the 50-image list) exist only in the hidden verifier tests that are not shown to the task-solving agent."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/qwen38-27b-labeling-metadata-compat/run/shards/0008/report/stage-5-37869444497a.json",
+          "trial": "/tmp/1239013.helma/validation-0008/results/stage_5_llm_rubric_review/37869444497a/00008-pytorch-model-cli__8d4521165ad9821dccc6/jobs/job/pytorch-model-cli__8d4521165ad98__bBccQ47/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "Beyond file-existence checks, test_outputs.py executes /app/cli_tool on the shipped image and on 50 real MNIST test images (downloaded via torchvision), comparing each stdout digit to expected values. I independently extracted the true weights from model.pth and verified the model's actual prediction for image.png is 2 (logit 1.696 vs 0.563 for the runner-up), so a fabricated constant/random/fake-weights tool would fail the 50-image functional test; the verifier is not a shape/format/keyword check."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The hardcoded expectation '2' for /app/image.png matches the genuine model output: recomputing the 784-16-16-10 MLP forward pass in pure Python from the real model.pth weights on the decoded PNG yields 2 in both float64 and float32. The 50-image expectation list closely tracks the known true labels of the first 50 MNIST test images with a few scattered deviations consistent with model errors, indicating it was generated from the real model; all /app paths the tests use exist and are writable, and the lenient .strip()/int() comparisons do not contradict 'only the predicted digit'."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment (Dockerfile: WORKDIR /app, task-deps copied in) provides model.pth, model.py, image.png, cJSON.c/h, and lodepng; gcc/build-essential, torch, and the MNIST dataset are obtainable over the network, and task.toml sets allow_internet = true with test.sh itself installing curl/uv/torch/opencv, so the task is completable as written (the reference solve.sh does exactly this)."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "Model architecture (model.py), weights (model.pth), input (28x28 grayscale PNG), invocation, output ('only the predicted digit'), and location (/app) are all fixed; the [0,1] input scaling is the MNIST/ToTensor standard and is empirically discoverable by cross-checking the C tool against the provided PyTorch model, and a robustness check showed the model's argmax is stable (0 flips across 17 perturbed variants), so reasonable implementations converge to the same verified outputs."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires extracting PyTorch weights from a .pth file, serializing them to JSON, implementing PNG decoding and a 3-layer MLP inference (Linear/ReLU/argmax) in C, and compiling a CLI binary \u2014 substantial real work (expert estimate 30 min), not a constant/echo/copy exercise."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "instruction.md states no expected digit or prediction list, and the environment ships only inputs (model.pth, model.py, image.png, cJSON, lodepng) plus the reference solution, which is hidden from the agent along with the verifier; computing the required outputs (e.g., prediction 2) is the task itself, not a provided ground-truth."
+            }
+          }
+        },
+        {
+          "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/qwen38-27b-labeling-metadata-compat/run/shards/0008/report/stage-5-37869444497a.json",
+          "trial": "/tmp/1239013.helma/validation-0008/results/stage_5_llm_rubric_review/37869444497a/00008-pytorch-model-cli__8d4521165ad9821dccc6/jobs/job/pytorch-model-cli__8d4521165ad98__kYVP8YZ/attempts/000",
+          "checks": {
+            "VERIFIER-TOO-WEAK": {
+              "outcome": "pass",
+              "explanation": "tests/test_outputs.py executes the agent's actual /app/cli_tool on /app/image.png and on 50 real MNIST test images (downloaded live) and compares stdout predictions digit-by-digit against model-derived ground truth (2,2,1,0,4,1,4,9,...), so a fabricated constant/random tool would fail (image 2 expects 1). I independently reproduced the model in pure Python from model.pth and confirmed the true model predicts '2' on image.png (logit 1.70 vs runner-up 0.25), showing the checks reflect genuine model behavior rather than shape/self-report. All required artifacts (cli_tool, weights.json, prediction.txt in /app) and their contents are verified."
+            },
+            "INSTR-VERIFIER-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The only hardcoded values ('2' in test_prediction_file_content/test_cli_tool_executable) match the actual model's prediction on the shipped image.png, which I verified with an independent pure-Python forward pass of the real weights (pixel/255 input, argmax = 2). The 50-image correctness test is implied by 'a tool that can be used to run inference on an MNIST model', /app paths and exact digit-only stdout follow from 'everything should be located in the /app directory' and 'output should only be the predicted digit', so a faithful solution passes."
+            },
+            "INSTR-ENV-MISMATCH": {
+              "outcome": "pass",
+              "explanation": "The environment provides everything the task needs: model.pth, model.py, image.png, and the cJSON/lodepng C libraries (all present in the container, md5-identical to environment/task-deps); the container is python:3.13-slim with apt/pip and task.toml sets allow_internet=true, so the missing compiler and torch are installable (the reference solve.sh itself apt-installs build-essential and pip-installs torch). The verifier's MNIST download likewise relies on the permitted internet, so nothing requires inventing data or services."
+            },
+            "INSTR-AMBIGUOUS": {
+              "outcome": "pass",
+              "explanation": "The input convention (28x28 PNG pixels scaled by 1/255, standard ToTensor normalization) is the natural interpretation and is the one the ground truth was generated with (verified: it reproduces the expected '2' on image.png); weights.json format is intentionally unconstrained (the agent's own tool reads it and the verifier only requires it to exist); prediction.txt clearly corresponds to the only provided image. No two equally reasonable interpretations yield conflicting accepted outputs."
+            },
+            "TASK-TRIVIAL": {
+              "outcome": "pass",
+              "explanation": "The task requires extracting PyTorch weights from model.pth into JSON, implementing the full 784-16-16-10 MLP forward pass with ReLU and argmax in C, decoding PNGs (lodepng), parsing JSON (cJSON), installing a toolchain, compiling a binary, and producing prediction.txt - multi-step engineering work consistent with the 30-120 minute time estimates in task.toml."
+            },
+            "ANSWER-LEAK": {
+              "outcome": "pass",
+              "explanation": "instruction.md states only deliverable requirements with no expected digits, and the shipped environment files (model.py, model.pth, image.png, cJSON, lodepng) are task inputs/libraries, not answers - the expected 50-image prediction list and the C solution exist only in the hidden tests/ and solution/ folders, which the Dockerfile does not copy into the environment (it only copies task-deps/)."
+            }
+          }
+        }
+      ],
+      "ground_truth_record": {
+        "task_id": "pytorch-model-cli",
+        "criterion": "VERIFIER-TOO-WEAK",
+        "label": "FAIL",
+        "confidence": "not_assigned",
+        "source_title": "Benchmarks are more broken than we could have imagined.",
+        "evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md",
+        "source_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "source_location": "Appendix: every confirmed finding; row pytorch-model-cli",
+        "evidence_url": "https://www.horizonanalyticslabs.com/research/public-benchmark-dataset-audit",
+        "record_id": "pub:PUB-0090:VERIFIER-TOO-WEAK",
+        "benchmark": "Terminal-Bench 2.1",
+        "task_version": "2026-09-21 audit snapshot; 2.1",
+        "task_revision": "Harbor task revision 1",
+        "overall_label": "FAIL",
+        "original_binary_label": "1",
+        "confidence_scope": "No new confidence label inferred",
+        "evidence_explanation": "Required behavior is untested and grading depends on an outside MNIST mirror",
+        "evidence_provenance": "published_example; current-file_check",
+        "independent_human": "False",
+        "evaluation_eligible": "",
+        "original_defect_categories": "[]",
+        "source_links": "[]",
+        "annotations_url": "",
+        "task_archive_url": "",
+        "task_archive_sha256": "",
+        "group_id": "Terminal-Bench 2.1:pytorch-model-cli",
+        "metadata_fetch_status": "not_applicable",
+        "existing_dataset_id": "",
+        "mapping_rule": "Published concrete example under user inclusion policy; not necessarily independently human-validated.",
+        "criterion_scope": "test_coverage",
+        "source_ratings": "",
+        "mapping_basis": "published_example",
+        "published_case_ids": "PUB-0090",
+        "label_caveat": "published_evidence",
+        "additional_evidence_count": "0",
+        "arxiv_url": "",
+        "instruction_url": "https://hub.harborframework.com/api/tasks/terminal-bench/pytorch-model-cli/1/files/instruction.md",
+        "verifier_url": "https://hub.harborframework.com/api/tasks/terminal-bench/pytorch-model-cli/1/files/tests/test_outputs.py; https://hub.harborframework.com/api/tasks/terminal-bench/pytorch-model-cli/1/files/tests/test.sh",
+        "evidence_review_status": "previously_available_not_rereviewed",
+        "reconstructed_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/main/old/curated/2026-11-04/tasks/PUB-0090/task-5a1a878dd5c2533a.tar.gz",
+        "reconstructed_task_sha256": "5a1a878dd5c2533a762b6f3b2aa7d872e0abddffd126d0e12ab0f465ac0cbddf",
+        "original_record_id": "pub:PUB-0090:test_coverage",
+        "original_criterion": "test_coverage",
+        "original_label": "FAIL",
+        "category": "VERIFIER-TOO-WEAK",
+        "category_description": "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass.",
+        "category_mapping_reason": "Manual category review: plausible incorrect solutions are FAIL; verifier exploits outside that scope are PASS. See category page.",
+        "category_mapping_status": "mapped_from_documented_finding",
+        "taxonomy_version": "user-four-categories-2026-11-04-revised",
+        "defect_present": "True",
+        "prior_evidence_page_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/evidence/pub_PUB-0090_VERIFIER-TOO-WEAK.md",
+        "interpretation_a": "",
+        "interpretation_b": "",
+        "original_evidence_explanation": "",
+        "proposed_category": "",
+        "review_provenance": "",
+        "task_context_provenance": "",
+        "verifier_selection": "",
+        "source_kind": "benchmark_or_evaluation",
+        "evaluation_family_id": "pytorch-model-cli",
+        "reaudit_date": "2026-11-04",
+        "runtime_validation": "not_reexecuted_in_this_audit",
+        "reaudit_method": "documented_evidence_mapping_reviewed; archive_integrity_verified",
+        "reaudit_notes": "Reviewed the stored task-level source finding against the criterion and existing version-review caveats. Referenced task archives download and match recorded SHA-256. This is not independent reproduction of the published claim.",
+        "reaudit_status": "retained_with_stated_evidence_scope",
+        "source_pdf_page": "",
+        "source_version": "",
+        "source_search_text": "",
+        "harbor_task_url": "https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/290f253ba67d79ef012f193365d522571f79b440/curated/2026-11-04/tasks/PUB-0090/task-5a1a878dd5c2533a.tar.gz",
+        "reviewed": "",
+        "subjective": ""
+      }
+    }
+  ]
+}

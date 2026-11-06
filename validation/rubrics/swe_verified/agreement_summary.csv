@@ -1,0 +1,7 @@
+criterion,min_confidence,complete_tasks,exact_unanimous,binary_unanimous,all_minor,all_severe,split_minor_severe
+underspecified,1,1695,525,1108,1047,61,587
+underspecified,4,1343,449,916,871,45,427
+underspecified,5,337,139,249,242,7,88
+false_negative,1,1694,544,979,658,321,715
+false_negative,4,1345,460,804,548,256,541
+false_negative,5,338,137,209,156,53,129

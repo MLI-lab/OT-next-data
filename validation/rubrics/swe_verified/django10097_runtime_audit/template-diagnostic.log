@@ -1,0 +1,110 @@
+### Starting TaskPrologue of job 1246128 on h31-32 at Fri Nov  6 14:22:37 CET 2026
+Running on cores 288-335 with governor performance
+No GPU known
+### Finished TaskPrologue
+
+Updating files:  80% (4789/5933)Updating files:  81% (4806/5933)Updating files:  82% (4866/5933)Updating files:  83% (4925/5933)Updating files:  84% (4984/5933)Updating files:  85% (5044/5933)Updating files:  86% (5103/5933)Updating files:  87% (5162/5933)Updating files:  88% (5222/5933)Updating files:  89% (5281/5933)Updating files:  90% (5340/5933)Updating files:  91% (5400/5933)Updating files:  92% (5459/5933)Updating files:  93% (5518/5933)Updating files:  94% (5578/5933)Updating files:  95% (5637/5933)Updating files:  96% (5696/5933)Updating files:  97% (5756/5933)Updating files:  98% (5815/5933)Updating files:  99% (5874/5933)Updating files: 100% (5933/5933)Updating files: 100% (5933/5933), done.
+HEAD is now at b9cf764be6 Fixed #29517 -- Added support for SQLite column check constraints on positive integer fields.
+django path /testbed/django/__init__.py
+template exists True
+sys.path ['', '/testbed', '/opt/miniconda3/envs/testbed/lib/python35.zip', '/opt/miniconda3/envs/testbed/lib/python3.5', '/opt/miniconda3/envs/testbed/lib/python3.5/plat-linux', '/opt/miniconda3/envs/testbed/lib/python3.5/lib-dynload', '/opt/miniconda3/envs/testbed/lib/python3.5/site-packages', '/opt/miniconda3/envs/testbed/lib/python3.5/site-packages/Django-2.2.dev20180625180104-py3.5.egg']
+django/contrib/admin/templates/admin/change_form.html
+-rw-r--r-- 1 root root 3043 Nov  6 13:22 django/contrib/admin/templates/admin/change_form.html
+tests/runtests.py
+        msg = "Testing against Django installed in '%s'" % os.path.dirname(django.__file__)
+             'this isn\'t provided, either the DJANGO_SETTINGS_MODULE '
+        os.environ['DJANGO_SETTINGS_MODULE'] = options.settings
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_sqlite')
+        options.settings = os.environ['DJANGO_SETTINGS_MODULE']
+tests/generic_inline_admin/tests.py
+from django.contrib import admin
+from django.contrib.admin.sites import AdminSite
+from django.contrib.auth.models import User
+from django.contrib.contenttypes.admin import GenericTabularInline
+from django.contrib.contenttypes.models import ContentType
+from django.forms.formsets import DEFAULT_MAX_NUM
+from django.forms.models import ModelForm
+from django.test import (
+    RequestFactory, SimpleTestCase, TestCase, override_settings,
+)
+from django.urls import reverse
+
+from .admin import MediaInline, MediaPermanentInline, site as admin_site
+from .models import Category, Episode, EpisodePermanent, Media, PhoneNumber
+
+
+class TestDataMixin:
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.superuser = User.objects.create_superuser(username='super', password='secret', email='super@example.com')
+
+
+@override_settings(ROOT_URLCONF='generic_inline_admin.urls')
+class GenericAdminViewTest(TestDataMixin, TestCase):
+
+    def setUp(self):
+        self.client.force_login(self.superuser)
+
+        e = Episode.objects.create(name='This Week in Django')
+        self.episode_pk = e.pk
+        m = Media(content_object=e, url='http://example.com/podcast.mp3')
+        m.save()
+        self.mp3_media_pk = m.pk
+
+        m = Media(content_object=e, url='http://example.com/logo.png')
+        m.save()
+        self.png_media_pk = m.pk
+
+    def test_basic_add_GET(self):
+        """
+        A smoke test to ensure GET on the add_view works.
+        """
+        response = self.client.get(reverse('admin:generic_inline_admin_episode_add'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_basic_edit_GET(self):
+        """
+        A smoke test to ensure GET on the change_view works.
+        """
+        response = self.client.get(
+            reverse('admin:generic_inline_admin_episode_change', args=(self.episode_pk,))
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_basic_add_POST(self):
+        """
+        A smoke test to ensure POST on add_view works.
+        """
+        post_data = {
+            "name": "This Week in Django",
+            # inline data
+            "generic_inline_admin-media-content_type-object_id-TOTAL_FORMS": "1",
+            "generic_inline_admin-media-content_type-object_id-INITIAL_FORMS": "0",
+            "generic_inline_admin-media-content_type-object_id-MAX_NUM_FORMS": "0",
+        }
+        response = self.client.post(reverse('admin:generic_inline_admin_episode_add'), post_data)
+        self.assertEqual(response.status_code, 302)  # redirect somewhere
+
+    def test_basic_edit_POST(self):
+        """
+        A smoke 
+=== JOB_STATISTICS ===
+=== current date     : Fri Nov  6 14:22:42 CET 2026
+= Job-ID             : 1246128 on helma
+= Job-Name           : django10097-diagnostic
+= Job-Command        : /hnvme/workspace/y500bb12-rule-based-checks/sonnet-six-audit-20261106/django10097/diagnose-job.sh
+= Initial workdir    : /home/hpc/y500bb/y500bb12
+= Queue/Partition    : preempt_cpu
+= Slurm account      : y500bb with QOS=mq_y500bb
+= Requested resources: cpu=48,mem=12G,node=1,billing=48 for 00:40:00
+= Elapsed runtime    : 00:00:06
+= Total RAM usage    : 1.8 GiB of assigned 12 GiB (15.0%)
+= Node list          : h31-32
+= Subm/Elig/Start/End: 2026-11-06T14:22:12 / 2026-11-06T14:22:12 / 2026-11-06T14:22:36 / 2026-11-06T14:22:42
+======================
+=== Quota infos ======
+    Path                 Used     SoftQ    HardQ    Gracetime  Filec    FileQ    FiHaQ    FileGrace    
+    /home/hpc             100.9G   104.9G   209.7G        N/A     380K     395K     495K        N/A    
+!!! /hnvme                  8.7T     0.0K     0.0K        N/A      63K      61K      81K        N/A !!!
+======================

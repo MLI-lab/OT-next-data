@@ -1,0 +1,2 @@
+/hnvme/workspace/y500bb12-rule-based-checks/judge-images-20261105/images/bundles-v1/build_e36851c11f016bbe-e36851c11f01.sif.tar: OK
+/tmp/1245852.helma/django13513-proof.sHEUJr/build_e36851c11f016bbe-e36851c11f01.sif: OK

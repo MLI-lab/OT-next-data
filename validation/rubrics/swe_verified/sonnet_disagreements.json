@@ -1,0 +1,1813 @@
+[
+  {
+    "task_id": "django__django-10097",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "PASS",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "VERIFIER-TOO-WEAK": [
+        "fail",
+        "pass",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0012/report/stage-5-d19492cb449f.json",
+        "trial": "/tmp/1238117.helma/validation-0012/results/stage_5_llm_rubric_review/d19492cb449f/00000-django__django-10097__1c3c3acae54ace9693d9/jobs/job/django__django-10097__1c3c3acae5__GjQSLXr/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "fail",
+            "explanation": "The 438 FAIL_TO_PASS and 1432 PASS_TO_PASS entries in tests/config.json include no validators.tests case, so the URLValidator behaviour is never directly graded. The F2P list is mostly unrelated auth/model tests, so a fix of the validator regex is not what the grading checks."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test patch edits only the URL validator data files (invalid_urls.txt, valid_urls.txt), and these match the issue's RFC 1738 requirements. I found no prose or output-format requirements."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The task is a one-line regex change in the Django repo, which is present at /testbed. No missing files or services."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue states that ':', '@' and '/' must be rejected in the user and password fields. The expected behaviour follows from that."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The task needs understanding of the validator regex and RFC 1738. It is a small patch but not a constant or a copy."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction is the original issue text and gives no regex. The solution lives only in solution/solve.sh, which the solving agent does not see."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0012/report/stage-5-d19492cb449f.json",
+        "trial": "/tmp/1238117.helma/validation-0012/results/stage_5_llm_rubric_review/d19492cb449f/00000-django__django-10097__1c3c3acae54ace9693d9/jobs/job/django__django-10097__1c3c3acae5__a4GBhCg/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Verifier runs the Django test suite with SWE-bench test-patch URL lists (several invalid URLs plus the updated valid one) alongside existing cases; a hardcoded or shape-only answer would not pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Tests check validator accept/reject behavior, which follows from the RFC 1738 requirement in the issue that ':', '@' and '/' be encoded in user/password."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Standard Django repo at the base commit; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives the RFC rule and an example URL; the expected behavior is well defined."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is a one-line regex change, but it requires understanding the validator and RFC semantics and avoiding regressions."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the problem only and gives no fix; the solution and tests are held out of the agent's environment."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0012/report/stage-5-d19492cb449f.json",
+        "trial": "/tmp/1238117.helma/validation-0012/results/stage_5_llm_rubric_review/d19492cb449f/00000-django__django-10097__1c3c3acae54ace9693d9/jobs/job/django__django-10097__1c3c3acae5__sqqbS6R/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the real Django test suite with the upstream SWE-bench test patch (invalid/valid URL cases) plus P2P tests; not hardcodable or shape-only."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Tests check URLValidator rejects unencoded ':', '@', '/' in userinfo, which the instruction states per RFC 1738; no wording or path requirements."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The environment is the Django repo at the base commit; everything needed is present."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The instruction names the RFC rule and an example URL; the required behavior is well determined."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "Requires understanding and fixing the validator regex, a one-line change but with real reasoning needed."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the problem without giving the regex; the solution and tests are not visible to the agent."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-10914",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "PASS",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "TASK-TRIVIAL": [
+        "fail",
+        "pass",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0014/report/stage-5-f1266991c14e.json",
+        "trial": "/tmp/1238180.helma/validation-0014/results/stage_5_llm_rubric_review/f1266991c14e/00000-django__django-10914__bbc754553e707055465a/jobs/job/django__django-10914__bbc754553e__4A4Ntfu/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test asserts default_storage.file_permissions_mode == 0o644, which directly verifies the titled requirement; it can't be satisfied by fabricated output."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The title says to set the default to 0o644 and the test checks exactly that."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Everything needed is in the /testbed Django repo and the test runner works there."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The title states the exact value and setting. The docs discussion in the body is extra and doesn't change the tested behaviour."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The reference solution is a one-line constant change (None to 0o644) in global_settings.py, and the instruction title names both the setting and the value, so it takes almost no work."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The title states the desired value, but that is the requirement itself. No solution or ground-truth file is shipped in the environment."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0014/report/stage-5-f1266991c14e.json",
+        "trial": "/tmp/1238180.helma/validation-0014/results/stage_5_llm_rubric_review/f1266991c14e/00000-django__django-10914__bbc754553e707055465a/jobs/job/django__django-10914__bbc754553e__fNUJSg2/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test runs test_utils.tests and asserts default_storage.file_permissions_mode == 0o644. That is the behavior the title asks for, and hardcoding it would not pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The title states the 0o644 default and the test checks exactly that. The docs and release-note work mentioned in the issue is not tested, so a correct solution isn't penalized."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and the test patch and runner are standard. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The title says to set the default FILE_UPLOAD_PERMISSION to 0o644, which leaves no ambiguity. The body's request for a docs warning is looser, but the verifier doesn't depend on it."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is a one-line change, but it is a real SWE-bench instance. The agent has to locate the setting in the Django source and decide how far to go with the docs and other references."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The title gives the target value, but that is the task specification. No solution or ground-truth file is shipped to the agent."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0014/report/stage-5-f1266991c14e.json",
+        "trial": "/tmp/1238180.helma/validation-0014/results/stage_5_llm_rubric_review/f1266991c14e/00000-django__django-10914__bbc754553e707055465a/jobs/job/django__django-10914__bbc754553e__gdZSVJ9/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Test asserts default_storage.file_permissions_mode == 0o644, which exercises the real setting default; cannot be faked without changing the default."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The title says to set the default to 0o644 and the test checks exactly that; no extra wording or paths are required."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Repo at /testbed and the test file exist; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The title clearly states the required change (default 0o644); the body's doc-warning request is secondary and does not change the testable behaviour."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is a one-line change, but the agent still has to locate the setting in the Django codebase; this is a standard SWE-bench item, not a constant-write task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The value 0o644 is the stated requirement, not a leaked solution; no solution files ship in the environment."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-11119",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "FAIL",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "TASK-TRIVIAL": [
+        "fail",
+        "fail",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0016-r1-n3/run/shards/0000/report/stage-5-d1c9abd4d076.json",
+        "trial": "/tmp/1240688.helma/validation-0000/results/stage_5_llm_rubric_review/d1c9abd4d076/00000-django__django-11119__1588a2f3854460619d64/jobs/job/django__django-11119__1588a2f385__9nPmadG/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Standard SWE-bench test runs the real engine with autoescape=False and checks unescaped output; a one-line fix is properly verified."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks exactly the behavior described in the issue (autoescape honored in render_to_string)."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Repo at the pinned commit is provided; the test file and engine.py exist."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue clearly states the expected behavior: the engine's autoescape attribute should be honored."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The fix is a one-line change in Engine.render_to_string, which is very small, though the agent must locate it. This is a typical small SWE-bench task; it is marginally trivial."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the problem only and gives no patch; the solution is kept outside the agent's environment."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0016-r1-n3/run/shards/0000/report/stage-5-d1c9abd4d076.json",
+        "trial": "/tmp/1240688.helma/validation-0000/results/stage_5_llm_rubric_review/d1c9abd4d076/00000-django__django-11119__1588a2f3854460619d64/jobs/job/django__django-11119__1588a2f385__YeCjZmh/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The verifier runs the upstream SWE-bench test (autoescape=False output unescaped) plus the existing test_engine tests, which the fix must satisfy."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks exactly the behavior described: render_to_string honors the engine's autoescape attribute."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at the right commit and the test files and tooling exist, so the task is solvable as written."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue clearly says render_to_string should pass the engine's autoescape into the Context it creates."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The fix is a one-line change that the issue text all but spells out. It still requires finding the right place in the codebase, but there is very little work or learning signal."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the bug but gives no patch, and the environment ships no solution files."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0016-r1-n3/run/shards/0000/report/stage-5-d1c9abd4d076.json",
+        "trial": "/tmp/1240688.helma/validation-0000/results/stage_5_llm_rubric_review/d1c9abd4d076/00000-django__django-11119__1588a2f3854460619d64/jobs/job/django__django-11119__1588a2f385__bUsnJox/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test renders with autoescape=False and asserts unescaped output, plus the existing engine tests; a hardcoded answer can't pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks the behavior the issue describes (autoescape=False honored), with no extra requirements."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo and template dir exist in the environment; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue clearly states that render_to_string should honor the engine autoescape attribute."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is small but requires finding the cause in Django engine.py and understanding Context autoescape; it is not a constant or copy task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the problem without giving the patch; the solution is not shipped in the environment."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-11299",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "PASS",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "INSTR-VERIFIER-MISMATCH": [
+        "fail",
+        "pass",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0018/report/stage-5-2f5f86a75e42.json",
+        "trial": "/tmp/1238279.helma/validation-0018/results/stage_5_llm_rubric_review/2f5f86a75e42/00000-django__django-11299__8e12ca1164272b2c6bd1/jobs/job/django__django-11299__8e12ca1164__6w6Aorz/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Tests exercise real behavior (constraint creation on SQLite with OR/AND, integrity errors) plus query structure; a fabricated output would not pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "fail",
+            "explanation": "test_simplecol_query asserts internal lookup types are SimpleCol, which the instruction never mentions; a valid fix at the SQL/schema-editor level producing the correct CREATE TABLE would fail it."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Repo at /testbed with the Django test runner is provided; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "Issue clearly states the expected SQL, although it doesn't specify the implementation."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "Requires diagnosing Col vs SimpleCol propagation in Query._add_q, though the fix is one line; real debugging is needed."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "Instruction shows expected SQL but not the code fix; the solution is not shipped in the environment."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0018/report/stage-5-2f5f86a75e42.json",
+        "trial": "/tmp/1238279.helma/validation-0018/results/stage_5_llm_rubric_review/2f5f86a75e42/00000-django__django-11299__8e12ca1164272b2c6bd1/jobs/job/django__django-11299__8e12ca1164__f3nhD6L/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Standard SWE-bench tests exercise real behavior (constraint creation on DB with OR/AND, and SimpleCol query test); not hardcodable."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Tests check the behavior described: OR/AND check constraints work without qualified column names."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Environment is the Django repo at /testbed; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "Issue clearly describes the bug and expected SQL."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "One-line fix, but requires diagnosing the simple_col propagation in Query._add_q; non-trivial to locate."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "Instruction gives the symptom and expected SQL, not the code fix; solution is kept separate."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0018/report/stage-5-2f5f86a75e42.json",
+        "trial": "/tmp/1238279.helma/validation-0018/results/stage_5_llm_rubric_review/2f5f86a75e42/00000-django__django-11299__8e12ca1164272b2c6bd1/jobs/job/django__django-11299__8e12ca1164__okJt4WK/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Tests exercise real DB constraint behavior (test_add_or_constraint) plus query structure; a fabricated output would not pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "test_simplecol_query checks internal SimpleCol use, but the issue text points at Col vs SimpleCol, and the correct fix naturally yields this."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Standard Django repo environment; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "Issue gives expected SQL and root cause hint; behavior is well specified."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "One-line fix but requires diagnosing query-building code in Django; real work."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "Instruction shows expected SQL but not the code fix; solution is hidden in solution/."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-12039",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "FAIL",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "VERIFIER-TOO-WEAK": [
+        "fail",
+        "fail",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0024/report/stage-5-51a4685c8be8.json",
+        "trial": "/tmp/1238552.helma/validation-0024/results/stage_5_llm_rubric_review/51a4685c8be8/00000-django__django-12039__6e3cfbeb191c41ae79c0/jobs/job/django__django-12039__6e3cfbeb19__M6AkSrh/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "fail",
+            "explanation": "The only FAIL_TO_PASS test is test_descending_columns_list_sql, which covers only the Columns whitespace fix. The opclass trailing-whitespace tests are PostgreSQL-only and skipped under the sqlite run, so a patch fixing only Columns would pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The tests check the expected CREATE INDEX whitespace described in the issue."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at the right commit and the tests run with the provided sqlite settings."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue states the expected SQL output clearly."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The task needs locating and fixing the logic in ddl_references.py, which is a real though small change."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction gives the symptom and expected output, not the patch."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0024/report/stage-5-51a4685c8be8.json",
+        "trial": "/tmp/1238552.helma/validation-0024/results/stage_5_llm_rubric_review/51a4685c8be8/00000-django__django-12039__6e3cfbeb191c41ae79c0/jobs/job/django__django-12039__6e3cfbeb19__TomvdzQ/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "fail",
+            "explanation": "Tests run on sqlite (--settings=test_sqlite), so the PostgreSQL-only opclass tests (test_ops_class_columns_lists_sql etc.) are skipped. The opclass trailing-whitespace bug in the instruction (IndexColumns) is therefore never verified; a fix to Columns alone passes."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The tests check the SQL strings shown in the issue ('(\"headline\" DESC)', etc.); consistent with the instruction."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Standard SWE-bench django checkout at the base commit; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "Issue gives exact current and expected SQL output; unambiguous."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "Requires locating and fixing logic in ddl_references.py; non-trivial though small."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the bug and expected output but does not include the patch; the solution is outside the agent's view."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0024/report/stage-5-51a4685c8be8.json",
+        "trial": "/tmp/1238552.helma/validation-0024/results/stage_5_llm_rubric_review/51a4685c8be8/00000-django__django-12039__6e3cfbeb191c41ae79c0/jobs/job/django__django-12039__6e3cfbeb19__WExTFg6/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the real SWE-bench indexes tests, which assert exact CREATE INDEX SQL for ascending and descending columns. Fail-to-pass tests are behavioral. The opclass tests are skipped on sqlite, but the Columns fix is covered."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Tests check the whitespace formatting described in the issue, e.g. '(\"headline\" DESC)' and '(\"headline\")'. This follows from the instruction."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The environment is the Django repo at the base commit, and the tests run on sqlite. Nothing needed is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue states the expected output for each case, so a single formatting is implied."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The solver has to locate and fix the logic in ddl_references.py. The fix is small but needs real code understanding."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the bug and the expected SQL but not the code fix. The solution and tests are kept outside the agent's environment."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-12304",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "PASS",
+      "FAIL"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "ANSWER-LEAK": [
+        "fail",
+        "pass",
+        "fail"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0029/report/stage-5-40d6d6afa76b.json",
+        "trial": "/tmp/1238875.helma/validation-0029/results/stage_5_llm_rubric_review/40d6d6afa76b/00000-django__django-12304__4899fcec97beb5add055/jobs/job/django__django-12304__4899fcec97__MgTsFbN/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "test_templates renders a real template using Suit.DIAMOND.label/value, so it exercises the behavior. The P2P tests also run."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks that enum classes can be used in templates, which is what the issue asks for."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and the tests run with runtests.py. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue is clear and the suggested fix makes the test pass."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is one line, but the agent still has to find the metaclass in enums.py and make the change work for all Choices classes."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction names the exact fix: declare do_not_call_in_templates = True on the Choices classes. That matches the reference patch."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0029/report/stage-5-40d6d6afa76b.json",
+        "trial": "/tmp/1238875.helma/validation-0029/results/stage_5_llm_rubric_review/40d6d6afa76b/00000-django__django-12304__4899fcec97beb5add055/jobs/job/django__django-12304__4899fcec97__ULinTQr/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the real model_enums test suite including a template-rendering test that fails without the fix, plus P2P tests."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test renders an enum in a template, which follows from the issue; it does not depend on any unstated wording."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo at the base commit and the test runner are provided; nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue clearly says enum classes must be usable in templates, and suggests do_not_call_in_templates."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The patch is a single line, but the solver still has to find the right place (the ChoicesMeta metaclass), which is a standard SWE-bench-level task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The issue names the general approach, but no solution file or ground truth ships in the environment, and the solver still has to find where to apply it."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0029/report/stage-5-40d6d6afa76b.json",
+        "trial": "/tmp/1238875.helma/validation-0029/results/stage_5_llm_rubric_review/40d6d6afa76b/00000-django__django-12304__4899fcec97beb5add055/jobs/job/django__django-12304__4899fcec97__yFd5zFT/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test renders a template using Suit.DIAMOND.label/value, which fails without do_not_call_in_templates; it is behavioral, not a grep or shape check."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks that enum classes work in templates, which is exactly what the issue asks for."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The environment is the Django repo at /testbed and has everything needed."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue is clear that enum classes must be usable in templates and suggests the approach."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is small, but the agent still has to locate the metaclass in enums.py and apply it correctly."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction names the exact fix, 'declare do_not_call_in_templates = True on the various Choices classes', which is essentially the reference patch."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-14382",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "FAIL",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "ANSWER-LEAK": [
+        "fail",
+        "fail",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0008/report/stage-5-60483a8e05c8.json",
+        "trial": "/tmp/1237786.helma/validation-0008/results/stage_5_llm_rubric_review/60483a8e05c8/00001-django__django-14382__2d6b6ae57dea46c02747/jobs/job/django__django-14382__2d6b6ae57d__6TeKPjY/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the upstream admin_scripts tests including the new trailing-slash test, which checks no stderr and that apps.py is created."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test exercises exactly the behavior described (startapp with trailing slash target); no wording requirements."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Repo is at /testbed and tests run in the provided environment; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "Issue clearly describes the bug and expected behavior."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "A small bug fix in a real codebase, requiring locating the code and verifying with tests; standard SWE-bench difficulty."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction names the file, the exact line, and the proposed one-line fix (target.rstrip(os.sep)), essentially handing over the solution."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0008/report/stage-5-60483a8e05c8.json",
+        "trial": "/tmp/1237786.helma/validation-0008/results/stage_5_llm_rubric_review/60483a8e05c8/00001-django__django-14382__2d6b6ae57dea46c02747/jobs/job/django__django-14382__2d6b6ae57d__8uM2fZK/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the real admin_scripts test suite, including a behavioral test for the trailing-slash startapp case plus regression tests."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks that startapp with a trailing-slash directory succeeds and creates files, which is what the issue describes."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and the test runs there. Nothing the task needs is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue clearly describes the bug and the expected behavior."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "It is a small fix, but the agent still has to locate the code and handle the path correctly, so it is a standard SWE-bench task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction names the file and line and gives the exact one-line fix (target.rstrip(os.sep)), which is essentially the solution."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0008/report/stage-5-60483a8e05c8.json",
+        "trial": "/tmp/1237786.helma/validation-0008/results/stage_5_llm_rubric_review/60483a8e05c8/00001-django__django-14382__2d6b6ae57dea46c02747/jobs/job/django__django-14382__2d6b6ae57d__ftchP7M/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test runs django-admin startapp with a trailing-slash target and checks for no stderr and that apps.py is created; the full admin_scripts suite also guards regressions."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks the behavior described in the issue, with no wording or format requirements beyond it."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and the tests run with the standard Django test runner, so nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue clearly says a trailing slash on the target directory should be accepted."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "This is a small, ordinary SWE-bench bug fix that still needs the agent to locate the code and make a correct change."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The issue text suggests a fix idea, but that is part of the original bug report. No solution or ground-truth file ships in the environment."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-14534",
+    "format": "labeling",
+    "overall_decisions": [
+      "PASS",
+      "FAIL",
+      "FAIL"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "INSTR-VERIFIER-MISMATCH": [
+        "pass",
+        "fail",
+        "pass"
+      ],
+      "INSTR-AMBIGUOUS": [
+        "pass",
+        "fail",
+        "fail"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0010/report/stage-5-9488a12118a2.json",
+        "trial": "/tmp/1238023.helma/validation-0010/results/stage_5_llm_rubric_review/9488a12118a2/00001-django__django-14534__588bedacbd37af33af2e/jobs/job/django__django-14534__588bedacbd__aXYj8NV/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Upstream SWE-bench tests run the forms test module and check real behavior (prefix_field_0 ids, None when auto_id=False)."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Tests check the behavior described in the issue (id_for_label honoring attrs id); the None expectation follows naturally from using the attrs id."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The environment is a standard Django checkout at the base commit; nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue states the desired behavior of using the id from data['attrs']; the auto_id=False case (None) is a natural reading and is discoverable from the existing tests."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "It is a one-line fix, but locating it and handling the missing-id case is real, if small, work, and it is a standard SWE-bench-level task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The issue suggests a fix (data['attrs']['id']) that is slightly different from the real one (.get('id')); no ground-truth files are shipped to the agent."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0010/report/stage-5-9488a12118a2.json",
+        "trial": "/tmp/1238023.helma/validation-0010/results/stage_5_llm_rubric_review/9488a12118a2/00001-django__django-14534__588bedacbd37af33af2e/jobs/job/django__django-14534__588bedacbd__qLXKdqm/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the real Django forms test suite with FAIL_TO_PASS and PASS_TO_PASS checks, including a behavioral test with a custom auto_id. It can't be hardcoded."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "fail",
+            "explanation": "The updated test expects id_for_label to be None when auto_id=False. The instruction proposes `self.data['attrs']['id']`, which would raise KeyError there. A solution that follows the instruction literally fails."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at the base commit and the tests run in the provided environment. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "fail",
+            "explanation": "The instruction never says what to return when no id is set (auto_id=False). The verifier requires None, while the literal suggestion raises KeyError."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "It is a small one-line fix, but the agent has to find the code and handle the missing-id case. That is real, if modest, work."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction is the original issue text. It suggests an approach that differs from the reference fix (.get('id')) and doesn't ship the solution or a ground-truth file."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0010/report/stage-5-9488a12118a2.json",
+        "trial": "/tmp/1238023.helma/validation-0010/results/stage_5_llm_rubric_review/9488a12118a2/00001-django__django-14534__588bedacbd37af33af2e/jobs/job/django__django-14534__588bedacbd__viLjdXp/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the real Django forms test suite including the new subwidget id test; hardcoding is not feasible."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Tests check behavior on the described bug; the None expectation is a reasonable upstream behavior."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Repo at base commit is provided and tests run in it; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "fail",
+            "explanation": "The updated test requires id_for_label to be None when auto_id=False (the old test expected 'id_name_0'). The instruction only says to return attrs['id'], which would raise KeyError there, and does not say what to return when no id exists. A fallback to the old format would also fail."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "One-line fix, but it needs localization and edge-case handling; typical for SWE-bench."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction is the issue text and suggests a fix, but the suggested fix is incomplete (no .get), so it does not give the exact solution."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-15814",
+    "format": "labeling",
+    "overall_decisions": [
+      "PASS",
+      "FAIL",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "ANSWER-LEAK": [
+        "pass",
+        "fail",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0022/report/stage-5-9689fad48772.json",
+        "trial": "/tmp/1238493.helma/validation-0022/results/stage_5_llm_rubric_review/9689fad48772/00001-django__django-15814__37058ff26207ab7f36f9/jobs/job/django__django-15814__37058ff262__DTqr7Hj/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the SWE-bench FAIL_TO_PASS regression test plus the PASS_TO_PASS proxy_models tests; this behaviorally exercises select_related().only() on proxy models."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks the exact bug described (select_related + only on a proxy FK crashing), with no extra requirements on wording or paths."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The task runs in the Django repo at /testbed and the tests use files that exist there."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives the models, the failing query and the traceback. The expected behavior is that the query works without error, which is clear."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is one line, but finding it means tracing the ORM deferred-loading code. This is a normal SWE-bench bug fix."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The issue text only contains the reporter's original suggestion, which is not the exact upstream fix. No solution or test files are shipped in the environment."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0022/report/stage-5-9689fad48772.json",
+        "trial": "/tmp/1238493.helma/validation-0022/results/stage_5_llm_rubric_review/9689fad48772/00001-django__django-15814__37058ff26207ab7f36f9/jobs/job/django__django-15814__37058ff262__Y8Mwt8v/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the real proxy_models test suite including the new regression test that exercises the crash; hard to fake."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks that select_related().only() works on proxy FK, exactly what the issue describes; no wording or format requirements."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Repo is at /testbed with Django and tests; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue clearly describes the crash and expected behavior (no error)."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "Requires locating the code in Django's query internals and verifying the fix; a one-line change but real debugging work."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The issue text states the exact fix location and replacement (opts = cur_model._meta.concrete_model._meta), which is essentially the reference patch."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0022/report/stage-5-9689fad48772.json",
+        "trial": "/tmp/1238493.helma/validation-0022/results/stage_5_llm_rubric_review/9689fad48772/00001-django__django-15814__37058ff26207ab7f36f9/jobs/job/django__django-15814__37058ff262__iNEeHkE/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Standard SWE-bench test runs the full proxy_models suite including a regression test that exercises the real fix."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test only checks that select_related().only() on a proxy FK works, as the issue describes."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Task runs in the Django repo at /testbed with all needed components available."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives a clear crash and expected behavior, and even hints at the concrete_model fix."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "It needs locating the bug in Django ORM deferred_to_data and understanding proxy models; not a trivial constant or copy task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The issue text suggests a one-line workaround but it is a normal upstream bug report, with no ground-truth file shipped. The solution and tests are hidden from the agent."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-16139",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "PASS",
+      "FAIL"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "TASK-TRIVIAL": [
+        "pass",
+        "pass",
+        "fail"
+      ],
+      "ANSWER-LEAK": [
+        "fail",
+        "pass",
+        "fail"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0026-r1-n3/run/shards/0000/report/stage-5-7dac490e0e7f.json",
+        "trial": "/tmp/1240746.helma/validation-0000/results/stage_5_llm_rubric_review/7dac490e0e7f/00001-django__django-16139__cb11ed7b147cb0f2b815/jobs/job/django__django-16139__cb11ed7b14__AxTz8Pv/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The SWE-bench test resolves the help-text link against a to_field admin URL and compares it to the real password_change URL, so it checks behavior. Other correct fixes would pass it, and hardcoding would not."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks that the password link works when the user is reached via to_field, which is what the issue describes. It does not depend on any specific wording."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo at the base commit is provided, and the test uses the existing auth_tests.urls_admin. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue is clear and gives the intended fix. Any fix that produces a correct relative link passes the test."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The underlying task is a real Django bug fix that needs diagnosis in forms.py. It is small, but that is typical for SWE-bench."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction says to replace the line with password.help_text.format(f\"../../{self.instance.pk}/password/\"). That is exactly the reference patch, so the answer is given in the instruction."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0026-r1-n3/run/shards/0000/report/stage-5-7dac490e0e7f.json",
+        "trial": "/tmp/1240746.helma/validation-0000/results/stage_5_llm_rubric_review/7dac490e0e7f/00001-django__django-16139__cb11ed7b147cb0f2b815/jobs/job/django__django-16139__cb11ed7b14__Uw5veLm/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test builds the admin URLs, resolves the help-text link against a to_field URL, and compares it to the real password-change URL. That is a behavioral check a hardcoded answer wouldn't pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks the link resolves correctly, which is what the issue asks for. It doesn't depend on any specific wording."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo and test files are in the environment, and the test patch applies cleanly. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue states the problem and a concrete fix, and any link that resolves correctly satisfies the test."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "It's a one-line change, but the agent has to locate the code and understand how the URL resolves. That is typical SWE-bench difficulty."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The issue text suggests the fix, but that is the original ticket wording. No solution or ground-truth file ships in the environment."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0026-r1-n3/run/shards/0000/report/stage-5-7dac490e0e7f.json",
+        "trial": "/tmp/1240746.helma/validation-0000/results/stage_5_llm_rubric_review/7dac490e0e7f/00001-django__django-16139__cb11ed7b147cb0f2b815/jobs/job/django__django-16139__cb11ed7b14__ho2HVCz/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test resolves the generated relative link against a to_field change URL and compares it to the real password_change URL, so it checks behavior. Hardcoding wouldn't pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks that the link resolves correctly, which matches the issue. It doesn't require any specific wording."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo and the tests it needs are present in the environment."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue states the problem and the proposed fix clearly, and any link that resolves correctly passes."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The task is a one-line change that the issue spells out exactly, so it takes almost no work."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction gives the exact replacement line, f\"../../{self.instance.pk}/password/\", which matches the reference patch."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-16824",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "PASS",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "ANSWER-LEAK": [
+        "fail",
+        "pass",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0037-r1-n3/run/shards/0000/report/stage-5-feac9454fb0b.json",
+        "trial": "/tmp/1240778.helma/validation-0000/results/stage_5_llm_rubric_review/feac9454fb0b/00001-django__django-16824__77449910a3e9bd68c233/jobs/job/django__django-16824__77449910a3__8uyDY2B/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The fail-to-pass test calls dbshell with a Path-named DB and asserts the exact CommandError message; it exercises the real behavior, and the pass-to-pass tests are also run."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test needs the message to join the command items as strings, which follows from the issue. The exact message format is the existing one in dbshell.py."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and the tests run with runtests.py. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives the traceback and the fix (coerce e.cmd items to str), so there is one reasonable outcome."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "It is a one-line fix, but the agent still has to locate the code in a large repo. This is typical SWE-bench difficulty."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The issue text ends with 'coercing each item in e.cmd to string should fix this', which gives away the fix (map(str, e.cmd)). The traceback also names the exact file and line."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0037-r1-n3/run/shards/0000/report/stage-5-feac9454fb0b.json",
+        "trial": "/tmp/1240778.helma/validation-0000/results/stage_5_llm_rubric_review/feac9454fb0b/00001-django__django-16824__77449910a3e9bd68c233/jobs/job/django__django-16824__77449910a3__BwcZsDB/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test calls dbshell with a Path NAME and asserts the CommandError message, so it fails on the unfixed code and requires the actual fix."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The expected message uses the existing error format with the command joined by spaces, which follows from the issue and the current code."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and the tests run with runtests.py. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives the traceback and says to coerce each item in e.cmd to a string, so the expected behavior is clear."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is a one-line change, but the agent has to locate it from the traceback. This is a typical SWE-bench task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The issue only suggests the general approach, which is normal for a bug report. No solution or ground-truth file ships in the environment."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-labeling-existing-s0037-r1-n3/run/shards/0000/report/stage-5-feac9454fb0b.json",
+        "trial": "/tmp/1240778.helma/validation-0000/results/stage_5_llm_rubric_review/feac9454fb0b/00001-django__django-16824__77449910a3e9bd68c233/jobs/job/django__django-16824__77449910a3__bcVjk3d/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test calls dbshell with a Path NAME and asserts the CommandError message, which fails without the str() coercion."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The expected message follows from joining the command items as strings, which the issue's suggested fix implies, and a correct fix produces it."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo at /testbed has the dbshell code and test file the task refers to, so nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue includes the traceback and states the fix (coerce each item of e.cmd to str), so the spec is clear."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is a one-line change, but the agent still has to find the right file and line in the Django codebase. This is a standard SWE-bench-level task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The issue suggests the general approach but gives no patch, and the solution and tests are not shown to the agent."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-9296",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "FAIL",
+      "FAIL"
+    ],
+    "overall_disagreement": false,
+    "varying": {
+      "TASK-TRIVIAL": [
+        "fail",
+        "fail",
+        "pass"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0041/report/stage-5-29aa9ee6a21c.json",
+        "trial": "/tmp/1239591.helma/validation-0041/results/stage_5_llm_rubric_review/29aa9ee6a21c/00001-django__django-9296__57e034c23430036dbd4a/jobs/job/django__django-9296__57e034c2343__6NrP7Bc/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The verifier runs the upstream pagination test, which iterates the paginator and checks page contents. A fabricated output would not pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks standard __iter__ behaviour yielding pages, which the instruction describes."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and runs in the original environment. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The instruction gives the exact desired __iter__ behaviour, so it is not ambiguous."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The task is a 3-line method addition, and the issue text supplies the code. There is almost no real work."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction embeds the solution code (def __iter__ ... yield self.page(page_num)), which matches the reference patch."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0041/report/stage-5-29aa9ee6a21c.json",
+        "trial": "/tmp/1239591.helma/validation-0041/results/stage_5_llm_rubric_review/29aa9ee6a21c/00001-django__django-9296__57e034c23430036dbd4a/jobs/job/django__django-9296__57e034c2343__7QtJvU4/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test iterates a Paginator and checks page contents, and the rest of the pagination suite also runs. A fabricated output would not pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks that iter(paginator) yields pages in order, which is what the issue asks for."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The task uses the Django repo at /testbed and needs nothing else."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue states the exact behaviour: __iter__ yields self.page(n) for each n in page_range."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The whole change is a 3-line method, and the issue text spells out its body, so little real work is left."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction embeds the implementation code, which is identical to the reference patch."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0041/report/stage-5-29aa9ee6a21c.json",
+        "trial": "/tmp/1239591.helma/validation-0041/results/stage_5_llm_rubric_review/29aa9ee6a21c/00001-django__django-9296__57e034c23430036dbd4a/jobs/job/django__django-9296__57e034c2343__np3krBR/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test runs the real pagination suite and checks the pages yielded by iter(paginator) against expected contents. A fabricated output would not pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test_paginator_iteration test checks exactly the behaviour the issue describes: iterating a Paginator yields its pages."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo and tests are present in /testbed and nothing the task needs is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives the intended __iter__ behaviour, yielding self.page(n) for each n in page_range, so there is one clear interpretation."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The agent still has to find django/core/paginator.py and add the method, so the task is small but not a constant or a copy."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction embeds the exact __iter__ implementation, which matches the reference patch almost line for line, so the answer is given in the instruction."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "scikit-learn__scikit-learn-13439",
+    "format": "labeling",
+    "overall_decisions": [
+      "PASS",
+      "PASS",
+      "FAIL"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "TASK-TRIVIAL": [
+        "pass",
+        "pass",
+        "fail"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0028/report/stage-5-418124e9dd2c.json",
+        "trial": "/tmp/1238825.helma/validation-0028/results/stage_5_llm_rubric_review/418124e9dd2c/00003-scikit-learn__scikit-learn-13439__3b63caed8588326a615b/jobs/job/scikit-learn__scikit-learn-13439__EBgCZdB/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test asserts len(pipeline)==2 on a real Pipeline and runs the whole test_pipeline.py file. Hardcoding is not feasible, and the check matches the stated requirement."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The instruction asks for Pipeline.__len__, and the test checks exactly that."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo and test file exist at the base commit, and nothing is missing from the environment."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "Pipeline length naturally means the number of steps, so there is no competing reasonable interpretation."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is small, but it is a genuine library change that requires locating the Pipeline class and implementing the method. It is not a constant or echo task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction only describes the bug. The solution and test files are not visible to the solving agent."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0028/report/stage-5-418124e9dd2c.json",
+        "trial": "/tmp/1238825.helma/validation-0028/results/stage_5_llm_rubric_review/418124e9dd2c/00003-scikit-learn__scikit-learn-13439__3b63caed8588326a615b/jobs/job/scikit-learn__scikit-learn-13439__Sr3yeze/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Test asserts len(pipeline)==2 on a real Pipeline and runs the full test_pipeline.py; the only way to pass is to implement __len__ (a stub constant is unlikely and would break the real-use semantics)."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks len of a pipeline equals its number of steps, consistent with the issue (pipe[:len(pipe)] indexing)."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Everything needed (sklearn repo at /testbed, pytest) is present; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The title and example make clear len should be the number of steps, which supports pipe[:len(pipe)]; the interpretation is natural."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "The fix is a 3-line __len__ method, but it is a genuine code change in a real repo that needs a small amount of investigation; it is a standard small SWE-bench task rather than a constant or copy task."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction is only the issue report and does not contain the solution; the solution is in a separate folder not shown to the agent."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0028/report/stage-5-418124e9dd2c.json",
+        "trial": "/tmp/1238825.helma/validation-0028/results/stage_5_llm_rubric_review/418124e9dd2c/00003-scikit-learn__scikit-learn-13439__3b63caed8588326a615b/jobs/job/scikit-learn__scikit-learn-13439__z5xz5Bm/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Test asserts len(pipeline)==2 on a real pipeline, plus the existing pipeline tests; a len returning steps count is the whole requirement, so no fabricated output passes."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks len(pipeline), which follows directly from the instruction title 'Pipeline should implement __len__'."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "Everything needed is in the sklearn repo at /testbed; nothing missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "len of a pipeline naturally means number of steps; the pipe[:len(pipe)] example makes it clear."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The fix is a tiny three-line __len__ method, so the task is very easy, though it is a real code change in a real repo and not a constant or a copy."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "pass",
+            "explanation": "The instruction is the issue text and doesn't contain the patch; the solution is not shipped in the environment."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "sympy__sympy-16766",
+    "format": "labeling",
+    "overall_decisions": [
+      "FAIL",
+      "FAIL",
+      "FAIL"
+    ],
+    "overall_disagreement": false,
+    "varying": {
+      "TASK-TRIVIAL": [
+        "pass",
+        "fail",
+        "fail"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0009/report/stage-5-8a3cd6d02e35.json",
+        "trial": "/tmp/1237886.helma/validation-0009/results/stage_5_llm_rubric_review/8a3cd6d02e35/00004-sympy__sympy-16766__55e3243c0f3013826ba5/jobs/job/sympy__sympy-16766__55e3243c0f30__BArkThc/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test runs the real printer on an Indexed with two indices and checks the exact output 'p[0, 1]'. The original test_pycode.py tests also run as pass-to-pass. Hardcoding wouldn't pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks the same printing behavior the issue describes, with no extra wording or format requirements."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and the tests are in the repo. Nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives the desired output and the exact method, so the spec is clear."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "pass",
+            "explanation": "A real code change to a printer is needed. It is small, but not a constant or a copy."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction includes the full _print_Indexed implementation, which is essentially identical to the reference patch. Pasting it in solves the task."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0009/report/stage-5-8a3cd6d02e35.json",
+        "trial": "/tmp/1237886.helma/validation-0009/results/stage_5_llm_rubric_review/8a3cd6d02e35/00004-sympy__sympy-16766__55e3243c0f3013826ba5/jobs/job/sympy__sympy-16766__55e3243c0f30__QEFuuKd/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "Runs the real test_pycode.py, and the new assertion checks actual printer output for p[0, 1]. A hardcoded or fabricated answer would not pass."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks the output 'p[0, 1]', which follows from the suggested method in the issue. It does not require anything the instruction leaves out."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo is at /testbed and the test file exists, so nothing the task needs is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives the method to add and the expected format, so there is only one sensible output."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The fix is a single 4-line method that the issue text spells out, so the task needs almost no work."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "The instruction contains the full _print_Indexed implementation, which is essentially identical to the reference patch."
+          }
+        }
+      },
+      {
+        "source_report": "/home/vault/y500bb/y500bb12/ot-next-data/judge-sonnet-full-20261105/run/shards/0009/report/stage-5-8a3cd6d02e35.json",
+        "trial": "/tmp/1237886.helma/validation-0009/results/stage_5_llm_rubric_review/8a3cd6d02e35/00004-sympy__sympy-16766__55e3243c0f3013826ba5/jobs/job/sympy__sympy-16766__55e3243c0f30__as5SxGd/attempts/000",
+        "checks": {
+          "VERIFIER-TOO-WEAK": {
+            "outcome": "pass",
+            "explanation": "The test asserts prntr.doprint(p[0, 1]) == 'p[0, 1]' with a multi-index case. This exercises the behavior the issue describes."
+          },
+          "INSTR-VERIFIER-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The test checks the output the issue asks for, and a faithful solution passes."
+          },
+          "INSTR-ENV-MISMATCH": {
+            "outcome": "pass",
+            "explanation": "The repo and the file to edit are present in the environment, and nothing is missing."
+          },
+          "INSTR-AMBIGUOUS": {
+            "outcome": "pass",
+            "explanation": "The issue gives the exact method and the expected output format, so there is no ambiguity."
+          },
+          "TASK-TRIVIAL": {
+            "outcome": "fail",
+            "explanation": "The fix is a single method that the issue text supplies. Little work is left beyond pasting it into pycode.py."
+          },
+          "ANSWER-LEAK": {
+            "outcome": "fail",
+            "explanation": "instruction.md includes the full _print_Indexed implementation, which is essentially identical to the reference patch in solve.sh."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-12039",
+    "format": "classification",
+    "overall_decisions": [
+      "PASS",
+      "FAIL",
+      "FAIL"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "category": [
+        "CLEAN",
+        "VERIFIER-TOO-WEAK",
+        "VERIFIER-TOO-WEAK"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0025/report/stage-5-69d0cbabc800.json",
+        "trial": "/tmp/1239896.helma/validation-0025/results/stage_5_llm_rubric_review/69d0cbabc800/00000-django__django-12039__6e3cfbeb191c41ae79c0/jobs/job/django__django-12039__6e3cfbeb19__KcL4CuA/attempts/000",
+        "category": "CLEAN",
+        "explanation": "The instruction describes the whitespace bug in CREATE INDEX SQL: 'name'DESC and a trailing space after opclasses. The expected output is given explicitly. The verifier is the upstream SWE-bench test patch, which asserts the exact SQL fragments the issue specifies: '(\"headline\" DESC)', '(\"headline\" text_pattern_ops)', and so on. These checks are behavioral and follow from the issue. The solution only changes ddl_references.py, and the environment is standard. I found no leak, mismatch, ambiguity, weakness, or triviality.",
+        "checks": {
+          "task_clean": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the whitespace bug in CREATE INDEX SQL: 'name'DESC and a trailing space after opclasses. The expected output is given explicitly. The verifier is the upstream SWE-bench test patch, which asserts the exact SQL fragments the issue specifies: '(\"headline\" DESC)', '(\"headline\" text_pattern_ops)', and so on. These checks are behavioral and follow from the issue. The solution only changes ddl_references.py, and the environment is standard. I found no leak, mismatch, ambiguity, weakness, or triviality."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0025/report/stage-5-69d0cbabc800.json",
+        "trial": "/tmp/1239896.helma/validation-0025/results/stage_5_llm_rubric_review/69d0cbabc800/00000-django__django-12039__6e3cfbeb191c41ae79c0/jobs/job/django__django-12039__6e3cfbeb19__Lj7y63J/attempts/000",
+        "category": "VERIFIER-TOO-WEAK",
+        "explanation": "The issue states two requirements. First, ascending/descending columns need a space before the suffix (\"name\" DESC). Second, opclass indexes must not leave a trailing space (text_pattern_ops, not text_pattern_ops ). The test script runs the suite with test_sqlite. The opclass tests (test_ops_class_columns_lists_sql and test_ops_class_descending_columns_list_sql) sit in a class decorated for PostgreSQL only, so they are skipped on SQLite. The only FAIL_TO_PASS test is test_descending_columns_list_sql, which exercises Columns.__str__ only. A patch that fixes Columns but leaves the trailing-space bug in IndexColumns would pass, so the opclass requirement is never checked. The instruction is clear and there is no leak or environment problem.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The issue states two requirements. First, ascending/descending columns need a space before the suffix (\"name\" DESC). Second, opclass indexes must not leave a trailing space (text_pattern_ops, not text_pattern_ops ). The test script runs the suite with test_sqlite. The opclass tests (test_ops_class_columns_lists_sql and test_ops_class_descending_columns_list_sql) sit in a class decorated for PostgreSQL only, so they are skipped on SQLite. The only FAIL_TO_PASS test is test_descending_columns_list_sql, which exercises Columns.__str__ only. A patch that fixes Columns but leaves the trailing-space bug in IndexColumns would pass, so the opclass requirement is never checked. The instruction is clear and there is no leak or environment problem."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0025/report/stage-5-69d0cbabc800.json",
+        "trial": "/tmp/1239896.helma/validation-0025/results/stage_5_llm_rubric_review/69d0cbabc800/00000-django__django-12039__6e3cfbeb191c41ae79c0/jobs/job/django__django-12039__6e3cfbeb19__rd4hbTC/attempts/000",
+        "category": "VERIFIER-TOO-WEAK",
+        "explanation": "The instruction asks for two fixes: a space before DESC, and no trailing whitespace after an opclass when there is no explicit ordering. The verifier runs `indexes.tests` on sqlite (`--settings=test_sqlite`). The opclass tests (test_ops_class_columns_lists_sql and test_ops_class_descending_columns_list_sql) sit in a PostgreSQL-only class, so they are skipped on sqlite. The only fail-to-pass test is test_descending_columns_list_sql. A patch that fixes only Columns.__str__ would therefore pass, and the opclass trailing-space requirement is never checked. I did not run the tests; this comes from reading the test patch and test.sh.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction asks for two fixes: a space before DESC, and no trailing whitespace after an opclass when there is no explicit ordering. The verifier runs `indexes.tests` on sqlite (`--settings=test_sqlite`). The opclass tests (test_ops_class_columns_lists_sql and test_ops_class_descending_columns_list_sql) sit in a PostgreSQL-only class, so they are skipped on sqlite. The only fail-to-pass test is test_descending_columns_list_sql. A patch that fixes only Columns.__str__ would therefore pass, and the opclass trailing-space requirement is never checked. I did not run the tests; this comes from reading the test patch and test.sh."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-12304",
+    "format": "classification",
+    "overall_decisions": [
+      "FAIL",
+      "FAIL",
+      "PASS"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "category": [
+        "ANSWER-LEAK",
+        "ANSWER-LEAK",
+        "CLEAN"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0030/report/stage-5-6906e941dc55.json",
+        "trial": "/tmp/1239999.helma/validation-0030/results/stage_5_llm_rubric_review/6906e941dc55/00000-django__django-12304__4899fcec97beb5add055/jobs/job/django__django-12304__4899fcec97__Bh3WG6o/attempts/000",
+        "category": "ANSWER-LEAK",
+        "explanation": "The instruction (the original Django ticket) states the fix outright: 'declare do_not_call_in_templates = True on the various Choices classes'. The reference patch is a single line, `cls.do_not_call_in_templates = True`, added in ChoicesMeta.__new__ in django/db/models/enums.py. The only remaining work is deciding where to put that line. The verifier is the upstream test_templates test, and it is consistent with the instruction, so the verifier is not the problem. The leak is the primary defect. The task is also very small, but the leak is what removes the work.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction (the original Django ticket) states the fix outright: 'declare do_not_call_in_templates = True on the various Choices classes'. The reference patch is a single line, `cls.do_not_call_in_templates = True`, added in ChoicesMeta.__new__ in django/db/models/enums.py. The only remaining work is deciding where to put that line. The verifier is the upstream test_templates test, and it is consistent with the instruction, so the verifier is not the problem. The leak is the primary defect. The task is also very small, but the leak is what removes the work."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0030/report/stage-5-6906e941dc55.json",
+        "trial": "/tmp/1239999.helma/validation-0030/results/stage_5_llm_rubric_review/6906e941dc55/00000-django__django-12304__4899fcec97beb5add055/jobs/job/django__django-12304__4899fcec97__GGXiTGV/attempts/000",
+        "category": "ANSWER-LEAK",
+        "explanation": "The instruction (the Django issue text) states the fix outright: 'declare do_not_call_in_templates = True on the various Choices classes'. The reference solution is a one-line change, cls.do_not_call_in_templates = True in ChoicesMeta.__new__. The test, test_templates, renders '{{ Suit.DIAMOND.label }}|{{ Suit.DIAMOND.value }}' and is a legitimate check of that fix. The defect is that the instruction hands over the answer, so little real work remains. TASK-TRIVIAL would also fit.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction (the Django issue text) states the fix outright: 'declare do_not_call_in_templates = True on the various Choices classes'. The reference solution is a one-line change, cls.do_not_call_in_templates = True in ChoicesMeta.__new__. The test, test_templates, renders '{{ Suit.DIAMOND.label }}|{{ Suit.DIAMOND.value }}' and is a legitimate check of that fix. The defect is that the instruction hands over the answer, so little real work remains. TASK-TRIVIAL would also fit."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0030/report/stage-5-6906e941dc55.json",
+        "trial": "/tmp/1239999.helma/validation-0030/results/stage_5_llm_rubric_review/6906e941dc55/00000-django__django-12304__4899fcec97beb5add055/jobs/job/django__django-12304__4899fcec97__r3zAL6r/attempts/000",
+        "category": "CLEAN",
+        "explanation": "The task is Django issue 12304 (enum types unusable in templates). The verifier applies the upstream test, which renders a template with Suit.DIAMOND.label and .value and checks the output is 'Diamond|1'. This is a behavioral test, and a correct fix passes it. The instruction matches the test. The issue text suggests do_not_call_in_templates = True, but that is part of the original bug report, so I don't count it as a leak. The fix is small, but the task is not trivial.",
+        "checks": {
+          "task_clean": {
+            "outcome": "pass",
+            "explanation": "The task is Django issue 12304 (enum types unusable in templates). The verifier applies the upstream test, which renders a template with Suit.DIAMOND.label and .value and checks the output is 'Diamond|1'. This is a behavioral test, and a correct fix passes it. The instruction matches the test. The issue text suggests do_not_call_in_templates = True, but that is part of the original bug report, so I don't count it as a leak. The fix is small, but the task is not trivial."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-14534",
+    "format": "classification",
+    "overall_decisions": [
+      "FAIL",
+      "FAIL",
+      "FAIL"
+    ],
+    "overall_disagreement": false,
+    "varying": {
+      "category": [
+        "INSTR-AMBIGUOUS",
+        "INSTR-VERIFIER-MISMATCH",
+        "INSTR-AMBIGUOUS"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0011/report/stage-5-2660a4d40ff8.json",
+        "trial": "/tmp/1239407.helma/validation-0011/results/stage_5_llm_rubric_review/2660a4d40ff8/00001-django__django-14534__588bedacbd37af33af2e/jobs/job/django__django-14534__588bedacbd__LpazEq5/attempts/000",
+        "category": "INSTR-AMBIGUOUS",
+        "explanation": "The instruction only says id_for_label should return self.data['attrs']['id'] (honoring auto_id). It never says what to return when no id exists (auto_id=False). The verifier's modified existing test requires id_for_label to be None in that case (BeatleForm(auto_id=False), previously 'id_name_0'). Following the instruction literally raises KeyError. A reasonable fallback to the old 'id_%s_%s' value would fail the test. Only the reference .get('id') returning None passes, and that behavior is unspecified.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction only says id_for_label should return self.data['attrs']['id'] (honoring auto_id). It never says what to return when no id exists (auto_id=False). The verifier's modified existing test requires id_for_label to be None in that case (BeatleForm(auto_id=False), previously 'id_name_0'). Following the instruction literally raises KeyError. A reasonable fallback to the old 'id_%s_%s' value would fail the test. Only the reference .get('id') returning None passes, and that behavior is unspecified."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0011/report/stage-5-2660a4d40ff8.json",
+        "trial": "/tmp/1239407.helma/validation-0011/results/stage_5_llm_rubric_review/2660a4d40ff8/00001-django__django-14534__588bedacbd37af33af2e/jobs/job/django__django-14534__588bedacbd__pScnziz/attempts/000",
+        "category": "INSTR-VERIFIER-MISMATCH",
+        "explanation": "The instruction proposes `return self.data['attrs']['id']` and says nothing about the case where no id exists (auto_id=False). The verifier's FAIL_TO_PASS test test_iterable_boundfield_select changes the expected value from 'id_name_0' to None for BeatleForm(auto_id=False). The reference patch uses `self.data['attrs'].get('id')`, which returns None in that case. The instruction's own suggestion would raise KeyError there. An agent could keep the old 'id_name_0' fallback and fail the test. The None behavior is not implied by the instruction, so a reasonable fix can still fail.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction proposes `return self.data['attrs']['id']` and says nothing about the case where no id exists (auto_id=False). The verifier's FAIL_TO_PASS test test_iterable_boundfield_select changes the expected value from 'id_name_0' to None for BeatleForm(auto_id=False). The reference patch uses `self.data['attrs'].get('id')`, which returns None in that case. The instruction's own suggestion would raise KeyError there. An agent could keep the old 'id_name_0' fallback and fail the test. The None behavior is not implied by the instruction, so a reasonable fix can still fail."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0011/report/stage-5-2660a4d40ff8.json",
+        "trial": "/tmp/1239407.helma/validation-0011/results/stage_5_llm_rubric_review/2660a4d40ff8/00001-django__django-14534__588bedacbd37af33af2e/jobs/job/django__django-14534__588bedacbd__wmYotko/attempts/000",
+        "category": "INSTR-AMBIGUOUS",
+        "explanation": "The instruction only suggests returning self.data['attrs']['id']. It never says what id_for_label should return when no id is set, for example with auto_id=False. The verifier changes an existing assertion to expect None in that case (fields[0].id_for_label == None in the BeatleForm test). The suggested code would raise KeyError there. Keeping the old 'id_name_0' fallback is an equally reasonable reading, and it would fail the verifier. The None behavior comes from the upstream patch's .get('id') and is not implied by the issue text.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction only suggests returning self.data['attrs']['id']. It never says what id_for_label should return when no id is set, for example with auto_id=False. The verifier changes an existing assertion to expect None in that case (fields[0].id_for_label == None in the BeatleForm test). The suggested code would raise KeyError there. Keeping the old 'id_name_0' fallback is an equally reasonable reading, and it would fail the verifier. The None behavior comes from the upstream patch's .get('id') and is not implied by the issue text."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "django__django-16139",
+    "format": "classification",
+    "overall_decisions": [
+      "FAIL",
+      "PASS",
+      "FAIL"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "category": [
+        "ANSWER-LEAK",
+        "CLEAN",
+        "ANSWER-LEAK"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-classification-metadata-compat/run/shards/0027/report/stage-5-4d5aefc07546.json",
+        "trial": "/tmp/1239271.helma/validation-0027/results/stage_5_llm_rubric_review/4d5aefc07546/00001-django__django-16139__cb11ed7b147cb0f2b815/jobs/job/django__django-16139__cb11ed7b14__LhKG4Fd/attempts/000",
+        "category": "ANSWER-LEAK",
+        "explanation": "The instruction (the Django ticket text) states the exact fix: replace password.help_text.format(\"../password/\") with password.help_text.format(f\"../../{self.instance.pk}/password/\"). This is character-for-character the line in solution/solve.sh and the gold patch (django/contrib/auth/forms.py). The task therefore requires almost no investigation. The verifier is the sound SWE-bench FAIL_TO_PASS test (test_link_to_password_reset_in_helptext_via_to_field) plus PASS_TO_PASS tests, and it has no other defects.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction (the Django ticket text) states the exact fix: replace password.help_text.format(\"../password/\") with password.help_text.format(f\"../../{self.instance.pk}/password/\"). This is character-for-character the line in solution/solve.sh and the gold patch (django/contrib/auth/forms.py). The task therefore requires almost no investigation. The verifier is the sound SWE-bench FAIL_TO_PASS test (test_link_to_password_reset_in_helptext_via_to_field) plus PASS_TO_PASS tests, and it has no other defects."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-classification-metadata-compat/run/shards/0027/report/stage-5-4d5aefc07546.json",
+        "trial": "/tmp/1239271.helma/validation-0027/results/stage_5_llm_rubric_review/4d5aefc07546/00001-django__django-16139__cb11ed7b147cb0f2b815/jobs/job/django__django-16139__cb11ed7b14__VwVMvCj/attempts/000",
+        "category": "CLEAN",
+        "explanation": "The instruction describes the bug and suggests a fix, which is the normal issue-text of a SWE-bench task, and the real work is still to make the change in the code. The fail-to-pass test resolves the help-text link against the to_field change URL and compares the result to the password-change URL. That is behavior-based, so any correct fix passes and wrong ones fail. The pass-to-pass tests cover regressions. I found no environment problems, no mismatch between instruction and tests, and no ambiguity.",
+        "checks": {
+          "task_clean": {
+            "outcome": "pass",
+            "explanation": "The instruction describes the bug and suggests a fix, which is the normal issue-text of a SWE-bench task, and the real work is still to make the change in the code. The fail-to-pass test resolves the help-text link against the to_field change URL and compares the result to the password-change URL. That is behavior-based, so any correct fix passes and wrong ones fail. The pass-to-pass tests cover regressions. I found no environment problems, no mismatch between instruction and tests, and no ambiguity."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/recoveries/claude-sonnet-5-5-classification-metadata-compat/run/shards/0027/report/stage-5-4d5aefc07546.json",
+        "trial": "/tmp/1239271.helma/validation-0027/results/stage_5_llm_rubric_review/4d5aefc07546/00001-django__django-16139__cb11ed7b147cb0f2b815/jobs/job/django__django-16139__cb11ed7b14__gooHPUX/attempts/000",
+        "category": "ANSWER-LEAK",
+        "explanation": "The instruction, which is the original Django ticket, gives the exact fix. It says to replace password.help_text.format(\"../password/\") with password.help_text.format(f\"../../{self.instance.pk}/password/\"). The reference solution in solve.sh is that same one-line change. The verifier is the SWE-bench test and is reasonable, but the task needs no real diagnosis because the answer is in the prompt.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction, which is the original Django ticket, gives the exact fix. It says to replace password.help_text.format(\"../password/\") with password.help_text.format(f\"../../{self.instance.pk}/password/\"). The reference solution in solve.sh is that same one-line change. The verifier is the SWE-bench test and is reasonable, but the task needs no real diagnosis because the answer is in the prompt."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "sympy__sympy-16766",
+    "format": "classification",
+    "overall_decisions": [
+      "PASS",
+      "FAIL",
+      "FAIL"
+    ],
+    "overall_disagreement": true,
+    "varying": {
+      "category": [
+        "CLEAN",
+        "ANSWER-LEAK",
+        "ANSWER-LEAK"
+      ]
+    },
+    "reviews": [
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0008/report/stage-5-d724f5e0badb.json",
+        "trial": "/tmp/1239290.helma/validation-0008/results/stage_5_llm_rubric_review/d724f5e0badb/00004-sympy__sympy-16766__55e3243c0f3013826ba5/jobs/job/sympy__sympy-16766__55e3243c0f30__BjcbSga/attempts/000",
+        "category": "CLEAN",
+        "explanation": "The instruction gives the issue and a suggested _print_Indexed. The verifier runs the upstream test, which asserts prntr.doprint(p[0, 1]) == 'p[0, 1]'. That output follows directly from the suggested method, and the reference patch is essentially the same method. The task is not trivial, since it needs a change to pycode.py, and the answer is not leaked beyond the suggestion the issue itself contains. I found no verifier or environment defect.",
+        "checks": {
+          "task_clean": {
+            "outcome": "pass",
+            "explanation": "The instruction gives the issue and a suggested _print_Indexed. The verifier runs the upstream test, which asserts prntr.doprint(p[0, 1]) == 'p[0, 1]'. That output follows directly from the suggested method, and the reference patch is essentially the same method. The task is not trivial, since it needs a change to pycode.py, and the answer is not leaked beyond the suggestion the issue itself contains. I found no verifier or environment defect."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0008/report/stage-5-d724f5e0badb.json",
+        "trial": "/tmp/1239290.helma/validation-0008/results/stage_5_llm_rubric_review/d724f5e0badb/00004-sympy__sympy-16766__55e3243c0f3013826ba5/jobs/job/sympy__sympy-16766__55e3243c0f30__ZuAj5a4/attempts/000",
+        "category": "ANSWER-LEAK",
+        "explanation": "The instruction (the issue text) spells out the exact method to add: `def _print_Indexed(self, expr): base, *index = expr.args; return \"{}[{}]\".format(str(base), \", \".join([self._print(ind) for ind in index]))`. The reference patch is functionally identical to it. The test (`prntr.doprint(p[0, 1]) == 'p[0, 1]'`) passes if the snippet is pasted into PythonCodePrinter, so the task needs no real work. The verifier and the instruction are otherwise consistent.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction (the issue text) spells out the exact method to add: `def _print_Indexed(self, expr): base, *index = expr.args; return \"{}[{}]\".format(str(base), \", \".join([self._print(ind) for ind in index]))`. The reference patch is functionally identical to it. The test (`prntr.doprint(p[0, 1]) == 'p[0, 1]'`) passes if the snippet is pasted into PythonCodePrinter, so the task needs no real work. The verifier and the instruction are otherwise consistent."
+          }
+        }
+      },
+      {
+        "source_report": "/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105/claude-sonnet-5-5-classification/run/shards/0008/report/stage-5-d724f5e0badb.json",
+        "trial": "/tmp/1239290.helma/validation-0008/results/stage_5_llm_rubric_review/d724f5e0badb/00004-sympy__sympy-16766__55e3243c0f3013826ba5/jobs/job/sympy__sympy-16766__55e3243c0f30__eQoFbDg/attempts/000",
+        "category": "ANSWER-LEAK",
+        "explanation": "The instruction text includes the exact method to add to PythonCodePrinter (_print_Indexed with base, *index and the format/join expression). The reference patch in solution/solve.sh is functionally identical, so the task only requires pasting the supplied snippet into pycode.py. The verifier (test_pycode.py asserting prntr.doprint(p[0, 1]) == 'p[0, 1]') is reasonable, but the answer is given away in the instruction.",
+        "checks": {
+          "task_clean": {
+            "outcome": "fail",
+            "explanation": "The instruction text includes the exact method to add to PythonCodePrinter (_print_Indexed with base, *index and the format/join expression). The reference patch in solution/solve.sh is functionally identical, so the task only requires pasting the supplied snippet into pycode.py. The verifier (test_pycode.py asserting prntr.doprint(p[0, 1]) == 'p[0, 1]') is reasonable, but the answer is given away in the instruction."
+          }
+        }
+      }
+    ]
+  }
+]

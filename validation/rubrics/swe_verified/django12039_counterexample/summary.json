@@ -1,0 +1,14 @@
+{
+  "job_id": 1245311,
+  "task": "django__django-12039",
+  "base_commit": "58c1acb1d6054dfec29d0f30b1033bae6ef62aec",
+  "change": "Only the Columns whitespace fix; IndexColumns left unchanged.",
+  "original_verifier_files_match": {
+    "test.sh": true,
+    "config.json": true
+  },
+  "reward": 1,
+  "resolved": true,
+  "remaining_bug": "IndexColumns still produces a trailing space after text_pattern_ops.",
+  "scope": "Original test.sh and pinned grader run in cached task image; direct IndexColumns probe confirms remaining bug. No PostgreSQL server was run."
+}

@@ -1,0 +1,71 @@
+{
+  "source": "swebench==4.0.3 wheel, make_test_spec._from_json_or_obj",
+  "source_sha256": "e241abd945823cb52c28c3f9101b70c307209734767b314bb07dafcfb367bbf5",
+  "helper_source": "def _from_json_or_obj(key: str) -> Any:\n        \"\"\"If key points to string, load with json\"\"\"\n        if key not in instance:\n            # If P2P, F2P keys not found, it's a validation instance\n            return []\n        if isinstance(instance[key], str):\n            return json.loads(instance[key])\n        return instance[key]",
+  "checks": [
+    {
+      "task_id": "django__django-10097",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "config_sha256": "99ac5793b6310421dde51b325b1ffe14a8420649eec1e0ee1703884042a4e096",
+      "decoded_test_counts": {
+        "FAIL_TO_PASS": 438,
+        "PASS_TO_PASS": 1432
+      }
+    },
+    {
+      "task_id": "django__django-10914",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "config_sha256": "29f3b17368f821b11d71ee7330a157528898a5de842d22bd38bbcf473c5de690",
+      "decoded_test_counts": {
+        "FAIL_TO_PASS": 1,
+        "PASS_TO_PASS": 98
+      }
+    },
+    {
+      "task_id": "django__django-13089",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "config_sha256": "4e78135bfdd08c8b5b5ca736b6ac627bccfbf4655d518892f594db2151970cf7",
+      "decoded_test_counts": {
+        "FAIL_TO_PASS": 2,
+        "PASS_TO_PASS": 352
+      }
+    },
+    {
+      "task_id": "django__django-14170",
+      "criterion": "VERIFIER-TOO-WEAK",
+      "config_sha256": "d433ede4ab74263f2f18d24a60884be127111b6ac08f4733839ca370933da97d",
+      "decoded_test_counts": {
+        "FAIL_TO_PASS": 2,
+        "PASS_TO_PASS": 76
+      }
+    },
+    {
+      "task_id": "django__django-14382",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "config_sha256": "c165a930cb8c81aa50c3ef88892b1daeaaad8cb3f6f98ecd5268c3d3365a52c5",
+      "decoded_test_counts": {
+        "FAIL_TO_PASS": 1,
+        "PASS_TO_PASS": 188
+      }
+    },
+    {
+      "task_id": "matplotlib__matplotlib-25122",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "config_sha256": "c869a3e4e6cffe2372776101f1b7b9accc5b7ccdcab5342f4befea6a0ec6ca2a",
+      "decoded_test_counts": {
+        "FAIL_TO_PASS": 12,
+        "PASS_TO_PASS": 2476
+      }
+    },
+    {
+      "task_id": "pytest-dev__pytest-5262",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "config_sha256": "61a52166d5b8c61a88fa8ad04bacedd863dd5f0a30b6cbe2fd62596cb286547f",
+      "decoded_test_counts": {
+        "FAIL_TO_PASS": 1,
+        "PASS_TO_PASS": 108
+      }
+    }
+  ],
+  "conclusion": "The claimed character-by-character processing is contradicted by the pinned loader, which decodes the JSON strings into lists. Other claims in the reviews have not been adjudicated."
+}

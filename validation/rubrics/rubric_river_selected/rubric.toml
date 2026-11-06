@@ -1,6 +1,10 @@
 [[criteria]]
-name = "VERIFIER-TOO-WEAK"
-description = "The verifier passes without the task actually being solved: it does not check one or more requirements stated in the instructions, it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. A fabricated, plausibly-shaped output would pass."
+name = "VERIFIER-ACCEPTS-INCOMPLETE"
+description = "The verifier passes a solution that completes only part of what the instructions ask for. Check that relevant tests affect the final score, not just that they are present or executed. Assign FAIL only if you demonstrate that a solution missing a stated requirement passes without tampering with the tests or scoring."
+
+[[criteria]]
+name = "VERIFIER-ACCEPTS-SHORTCUTS"
+description = "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, or tests only fixed inputs so the answer can be hardcoded. A fabricated output or hardcoded answer would pass. Assign FAIL only if you demonstrate that a fabricated output or hardcoded answer passes without tampering with the tests or scoring."
 
 [[criteria]]
 name = "INSTR-VERIFIER-MISMATCH"
