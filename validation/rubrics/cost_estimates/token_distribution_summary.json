@@ -1,0 +1,18 @@
+{
+  "Sonnet 5.5": {
+    "reviews": 1782,
+    "median_total_tokens": 88841.0,
+    "mean_total_tokens": 101769.54264870932,
+    "p90_total_tokens": 134348.2,
+    "min": 74331,
+    "max": 887148
+  },
+  "Qwen3.8-27B": {
+    "reviews": 1782,
+    "median_total_tokens": 670379.5,
+    "mean_total_tokens": 1055709.6980920315,
+    "p90_total_tokens": 2227050.0,
+    "min": 96317,
+    "max": 18239376
+  }
+}

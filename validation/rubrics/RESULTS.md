@@ -1,11 +1,58 @@
-# Questions to answer
-The questions we want to answer:
+# What we want to do 
 
-- Is the rubric applied consistently by a capable model?
+Figure out which defects actually matter for RL training performance.  
+
+Why not just filter out all tasks flagged with LLM as a judge rubric: 
+
+1.) INSTR-ENV-MISMATCH: should differentiate between an environment mismatch that the agent can easily fix and one that requires the agent to invent missing data or services. For example, if the instruction says a service is running but it is not, and the agent can easily start it, this just makes the task harder rather than invalid. Example task: https://hub.harborframework.com/tasks/tmax/task_001197_680abe08, which would get filtered with river rubric without this rubric adjustment.
+
+2.) VERIFIER-TOO-WEAK: should differentiate between a verifier that accepts a solution that completes only part of the work the instruction asks for (but actual work) and a verifier that accepts shortcuts. For example portfolio-optimization (https://hub.harborframework.com/tasks/terminal-bench/portfolio-optimization) asks about accelerating financial portfolio calculations using C, verifier checks correctness and speed but not that implementation is in C (a model can still learn from correctly implementing a fast and correct implementation say in numpy not C). So we split the category into "VERIFIER-ACCEPTS-INCOMPLETE" and "VERIFIER-ACCEPTS-SHORTCUTS". "VERIFIER-ACCEPTS-INCOMPLETE" repairing the verifier to test all steps would make the task harder (as if we would combine two tasks in one long horizon task). These are potentials for hardening tasks when we repair them. 
+
+3.) INSTR-VERIFIER-MISMATCH: For example, the Django task django__django-14376 https://code.djangoproject.com/ticket/32732 asks to replace deprecated MySQL parameter names (db → database, passwd → password) and points to one file, but the verifier also expects corresponding changes in another file. Since the instruction does not explicitly restrict changes to the mentioned file, we may not want to filter out the task, as figuring out which other files need updating should be part of the work. Q: should we add "Do not flag tasks where the instruction points to specific files, but the verifier expects the same requested change in additional files or code paths, unless the instruction explicitly restricts changes to those files." to the criteria description to not filter out these tasks. 
+
+4.) INSTR-AMBIGUOUS: For example, the Django task [django__django-14534](https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/resolve/c496a719605039fb29df2bb0906433946d095820/tasks/39352eb2be2ee55a/task.tar) asks for a widget’s ID but does not explicitly say what should happen when no ID exists: raise `KeyError` or return `None`. The verifier requires `None`. We may not want to filter out such tasks: an agent could choose the accepted behavior and still learn from the task and also the alternative is not necessarily undesirable behaviour. Unclear if filtering these will improve RL performance 
+
+5.) "TASK-TRIVIAL" very subjective criteria and changes per model, for the judge which is strong something would be trivial but for the model we want to train might still teach it something. 
+
+6.) "ANSWER-LEAK" unclear if a model would exploit the shortcut, would need to see from RL runs. Also can be subjective e.g. many SWE tasks get filtered out where instruction has a suggestion of the fix. The ones where it is a direct leak e.g. from git history or exact/partial reference solution already in agent environment we can filter out by hash matching (static rule) which is cheaper and more determinsitc/interpretable. 
+
+
+# What we need to figure out first to answer this 
+
+1.) Task ambiguity: Is there objectively a defect, or does identifying one require a subjective judgment?
+
+To compare judges performance, choose ground truth tasks that are not subjective and defect is mostly objectively true, moving from benchmark tasks that are alrady very good and defects are more minor and perhapse subjetcive to tasks filtered from training RL envs where defect is more clear. 
+
+2.) Rubric quality: Is the criterion sufficiently clear that two competent evaluators should interpret it the same way?
+
+After this experiment did the following adjustments to the rubric (might want to rerun if they show an imporvement): 
+
+- For verifier too weak asking for a demonstration to resolve hypothetical examples given by the judge
+- For verifier too weak sometimes judge does not distinguish between a test being present or executed versus affecting the final score, added "Check that relevant tests affect the final score, not just that they are present or executed."
+- Added “ rejects build artifacts created by the instruction’s own compilation commands” as an example to INSTR-VERIFIER-MISMATCH based on one task where verifier checks that only one script in folder but that scripts creates binaries so valid solution gets rejected, which should be flagged but judges disagreed 
+- In “INSTR-VERIFIER-MISMATCH" Changed “The verifier checks something the instruction does not imply, or contradicts it to” The verifier checks an arbitrary requirement or contradicts the instruction to better distinguish cases that should be classified as ambigious (where agent may by chance figure out solution that scores 1 and can learn from) to tasks where its impossibel (e..g match exact warning message) And added to INSTR-AMBIGUOUS: “For example, the expected behavior for an edge case is unclear, and the verifier accepts only one of several reasonable behaviors” so that case from above gets classified in here 
+
+
+3.) Judge quality: Can the LLM correctly apply that criterion to the evidence?
+
+We figure out by looking at same judge agreement. The better the judge (Sonnet 5.5.) the more agreement (Qwen 3.8 27B) has higher disagreement. 
+
+
+# Questions to answer
+The questions we want to answer: 
+
+- Is the rubric applied consistently by a capable model? (i.e. is our rubric good, not too subjective)
 - Are the consistent judgments also correct?
 - Is performance limited by model capability?
 
 **Estimated API cost:** One Sonnet 5.5 labeling review costs approximately **$0.06 per task**, and one classification review **$0.054 per task**.
+
+Main conclusions: 
+
+Conclusion: 
+Answer leak and subjective should be combined if we want to filter by this, e.g. if an instruction gives suggested implementation or solution is in git history is it answer leak or trivial. 
+Split verifier too weak into verifiers that allow a shortcut and verifiers that only check some of the requirements with the reasoning that for partial real coverage agent stil has to do some actual work which may be useful for RL training (as if the actual task is putting together two requirements and this one only one is checked) 
+And for verifier too weak asking for a demonstration to resolve hypothetical examples given by the judge. 
 
 ## On confidently clean tasks
 

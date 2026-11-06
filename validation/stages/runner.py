@@ -83,9 +83,11 @@ def parser():
     ap.add_argument('--reference-leaks', action=argparse.BooleanOptionalAction, default=True,
                     help='evaluate reference-solution leaks in the stage-3 no-op containers (default: enabled)')
     ap.add_argument('--reference-runs', type=int, default=1,
-                    help='stage 2: total reference-solution runs per task (default 1), each in a fresh container; all must score 1')
-    ap.add_argument('--nop-runs', type=int, default=1,
-                    help='stage 3: total no-op runs per task (default 1), each in a fresh container; all must score 0')
+                    help='stage 2: baseline reference runs per task (default 1), plus repeat and shuffled runs '
+                         '(4 total by default); each in a fresh container; all must score 1')
+    ap.add_argument('--nop-runs', type=int, default=3,
+                    help='stage 3: normal no-op runs per task (default 3), plus shuffled runs '
+                         '(4 total by default); each in a fresh container; all must score 0')
     ap.add_argument('--verifier-tamper', action=argparse.BooleanOptionalAction, default=True,
                     help='stage 3: one no-op run per task records which container tools grading ran '
                          '(validation/rules/dynamic/verifier_tamper; default: enabled)')
@@ -274,7 +276,7 @@ def check_args(a):
             raise ValueError('--git-checks-only requires --stages 1 without verifier review or image preparation')
         if getattr(a, 'preparation_runs', 1) != 1:
             raise ValueError('--git-checks-only requires one environment preparation')
-    if getattr(a, 'reference_runs', 1) < 1 or getattr(a, 'nop_runs', 1) < 1:
+    if getattr(a, 'reference_runs', 1) < 1 or getattr(a, 'nop_runs', 3) < 1:
         raise ValueError('--reference-runs and --nop-runs must be at least 1')
     if min(getattr(a, 'nop_shuffled_runs', 1), getattr(a, 'reference_shuffled_runs', 1),
            getattr(a, 'reference_repeat_runs', 2)) < 0:
@@ -762,7 +764,7 @@ def oracle_passed_tasks(out_root, contract_sha256=None):
 
 
 def run_nop(selected, out, args):
-    """Run one NOP baseline per task, after its setup when declared."""
+    """Run the configured NOP baselines per task, after setup when declared."""
     from collections import defaultdict
     from validation.stages.task_setup import detect
     contract_path = getattr(args, 'contract', None)
@@ -1013,7 +1015,7 @@ def run_fortify(source, item_dir, args, upstream):
 
 def stage_runs(number, args):
     """Trials per task for a stage: stage 1 runs once (it retries failed builds itself)."""
-    return {1: 1, REFERENCE: getattr(args, 'reference_runs', 1), NOP: getattr(args, 'nop_runs', 1)}.get(
+    return {1: 1, REFERENCE: getattr(args, 'reference_runs', 1), NOP: getattr(args, 'nop_runs', 3)}.get(
         number, getattr(args, 'attempts', 1))
 
 

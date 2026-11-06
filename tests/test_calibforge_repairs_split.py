@@ -1,5 +1,10 @@
 import io
 import tarfile
+import json
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pytest
 
 from data.calibforge import patch, repairs
 
@@ -38,3 +43,21 @@ def test_no_op_exclusions_are_repairs_not_backend_exclusions():
     assert len(repairs.CHECK_EXCLUSIONS) == 5
     assert not repairs.CHECK_EXCLUSIONS.keys() & patch.DROPPED.keys()
     assert all(r['category'].startswith('backend') for r in patch.DROPPED.values())
+
+
+@pytest.mark.parametrize('no_repairs', [False, True])
+def test_main_retains_historical_exclusions(tmp_path, monkeypatch, no_repairs):
+    ids = list(patch.DROPPED) + list(repairs.CHECK_EXCLUSIONS)
+    binary = task({'environment/Dockerfile': 'FROM python:3.12\n'})
+    source = tmp_path / 'source.parquet'
+    output = tmp_path / 'output'
+    pq.write_table(pa.table({'path': ids, 'task_binary': [binary] * len(ids)}), source)
+    monkeypatch.setattr('data.utils.patch_reporting.write_patch_report', lambda *a, **kw: None)
+    monkeypatch.setattr('sys.argv', ['patch.py', '--source', str(source), '--output', str(output)]
+                        + (['--no-repairs'] if no_repairs else []))
+    patch.main()
+    assert pq.read_table(output / source.name)['path'].to_pylist() == ids
+    manifest = json.loads((output / 'calibforge_repair_manifest.json').read_text())
+    assert manifest['dropped'] == {}
+    assert manifest['counts']['dropped'] == 0
+    assert set(manifest['historical_exclusions']) == set(ids)

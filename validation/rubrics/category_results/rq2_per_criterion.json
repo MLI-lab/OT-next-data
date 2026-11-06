@@ -1,0 +1,113 @@
+{
+  "definition": "Mean correctness over three individual reviews per case; CLEAN uses restricted overall decision on 60 clean tasks, other columns target-category detection on reference FAIL cases.",
+  "sources": [
+    "structured_comparison.json",
+    "prompt_format_comparison.json"
+  ],
+  "rows": [
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "counts": {
+        "CLEAN": {
+          "correct": 178,
+          "reviews": 180
+        },
+        "VERIFIER-TOO-WEAK": {
+          "correct": 32,
+          "reviews": 48
+        },
+        "INSTR-VERIFIER-MISMATCH": {
+          "correct": 305,
+          "reviews": 351
+        },
+        "INSTR-AMBIGUOUS": {
+          "correct": 26,
+          "reviews": 39
+        },
+        "INSTR-ENV-MISMATCH": {
+          "correct": 149,
+          "reviews": 177
+        }
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Classification",
+      "counts": {
+        "CLEAN": {
+          "correct": 180,
+          "reviews": 180
+        },
+        "VERIFIER-TOO-WEAK": {
+          "correct": 25,
+          "reviews": 48
+        },
+        "INSTR-VERIFIER-MISMATCH": {
+          "correct": 282,
+          "reviews": 351
+        },
+        "INSTR-AMBIGUOUS": {
+          "correct": 16,
+          "reviews": 39
+        },
+        "INSTR-ENV-MISMATCH": {
+          "correct": 149,
+          "reviews": 177
+        }
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "counts": {
+        "CLEAN": {
+          "correct": 167,
+          "reviews": 180
+        },
+        "VERIFIER-TOO-WEAK": {
+          "correct": 38,
+          "reviews": 48
+        },
+        "INSTR-VERIFIER-MISMATCH": {
+          "correct": 201,
+          "reviews": 351
+        },
+        "INSTR-AMBIGUOUS": {
+          "correct": 13,
+          "reviews": 39
+        },
+        "INSTR-ENV-MISMATCH": {
+          "correct": 172,
+          "reviews": 177
+        }
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Classification",
+      "counts": {
+        "CLEAN": {
+          "correct": 158,
+          "reviews": 180
+        },
+        "VERIFIER-TOO-WEAK": {
+          "correct": 22,
+          "reviews": 48
+        },
+        "INSTR-VERIFIER-MISMATCH": {
+          "correct": 180,
+          "reviews": 351
+        },
+        "INSTR-AMBIGUOUS": {
+          "correct": 10,
+          "reviews": 39
+        },
+        "INSTR-ENV-MISMATCH": {
+          "correct": 168,
+          "reviews": 177
+        }
+      }
+    }
+  ]
+}

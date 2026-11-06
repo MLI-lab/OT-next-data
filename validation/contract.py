@@ -370,7 +370,7 @@ def create(args, numbers, destination):
             'verifier_tamper': getattr(args, 'verifier_tamper', True),
             'reference_leaks': getattr(args, 'reference_leaks', True),
             'verifier_paths': True,
-            'reference_runs': getattr(args, 'reference_runs', 1), 'nop_runs': getattr(args, 'nop_runs', 1), 'static_checks': checks, 'static_checks_by_stage': checks_by_stage,
+            'reference_runs': getattr(args, 'reference_runs', 1), 'nop_runs': getattr(args, 'nop_runs', 3), 'static_checks': checks, 'static_checks_by_stage': checks_by_stage,
             'static_exclusions': exclusions, 'conditional_checks': {'check_ai_detection.py': 'requires GPTZERO_API_KEY; unavailable checks are incomplete and fail acceptance' if getattr(args, 'static_profile', None) == 'all' else 'only with GPTZERO_API_KEY; missing key or upstream API-unavailable skip is non-failing'}, 'failure_policy': 'collect all findings; fail acceptance on any selected failure/error/skip or insufficient coverage'},
         'execution_profile': profile(args), 'runtime_dependencies': dependencies(),
         'trajectory_input_sha256': task_digest(args.trials) if args.trials else None,

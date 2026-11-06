@@ -2,6 +2,62 @@
 
 ## Dataset stats
 
+The patcher now retains every input task, including historical build and no-op exclusions, for fresh validation. Historical exclusion reasons are preserved in `calibforge_repair_manifest.json`; they do not assign new results. The counts below describe the earlier filtered release, not a new rerun.
+
+## Regenerating tasks and preparing caches
+
+`patch.py` applies task repairs and then integrates reviewed runtime recipes in
+one command. By default it reuses checksum-verified cached runtimes and does not
+build or download images or runtimes:
+
+```bash
+python data/calibforge/patch.py --source upstream/tasks.parquet --output NEW_DIR
+```
+
+Runtime evidence comes from `--runtime-plans FILE`, `OT_CALIBFORGE_RUNTIME_PLANS`,
+or a `runtime-plans.json` beside the source. The existing `prepare-runtime`
+subcommand now exports these source-bound plans. A plan must match the exact
+converted task contents. Missing or stale evidence leaves that task's runtime
+integration pending in `runtime-workflow.json`; the task is retained. This is
+not a claim that every upstream task already has a reviewed runtime plan.
+
+Existing runs do not need that new plan format. To reuse their prepared task
+packages and `runtime-refs.json`, add:
+
+```bash
+  --runtime-history /path/to/previous-run/contract.stage0-tasks \
+  --runtime-baseline /path/to/pre-runtime/tasks.parquet \
+  --runtime-refs /path/to/release/runtime-refs.json \
+  --runtime-cache /path/to/runtimes
+```
+
+The baseline is the historical task package before runtime migration, not the
+raw upstream input. The importer checks the current task against this baseline,
+replays the prepared setup and verifier files, and verifies referenced runtime
+bytes and manifests. It preserves the current instruction and environment;
+only the known instruction suffix and Dockerfile preparation comment are ignored
+when comparing them. Conflicting tasks, missing history and missing artifacts
+remain pending. The output report records input package checksums and the files
+reused for each task. This establishes compatibility for reuse, not a fresh
+execution or validation result.
+
+With a matching plan but no cached artifact, the patcher writes the setup recipe
+and unbound runtime declaration. Normal online setup can prepare dependencies;
+offline execution still requires preparing the cache. Existing cache entries
+are checksum-verified before their references are attached.
+
+To also prepare images and runtimes, use the same command with `--prepare-cache`
+in a preparation allocation. It uses the shared builders, reuses matching caches,
+and records image failures without removing tasks. It does not submit validation.
+`--image-cache DIR` and `--runtime-cache DIR` select the caches; defaults use
+`$OT_WORKSPACE/images` and `$OT_RUNTIME_CACHE` or `$OT_WORKSPACE/runtimes`.
+Image-native recipes still require their measured pristine source image in the
+shared cache or `OT_RUNTIME_IMAGE_CACHE`. The flag does not invent missing
+interpreter evidence. Cache preparation logs are retained under `cache-evidence/`.
+
+`--conversion-only` explicitly requests the old task-conversion-only behavior.
+`--no-repairs` omits check-derived repairs but does not disable runtime integration.
+
 5,431 original tasks; **5,317 kept, all 5,317 patched; 114 archived**. Original: 5,431 task image definitions. Current: 5,210 cached Apptainer environments covering 5,317 tasks; 107 fewer environments than kept tasks.
 
 ## Dataset characteristics

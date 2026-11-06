@@ -1,0 +1,328 @@
+{
+  "definition": "Overall metrics average reviews; criterion detection and false flags use 2/3 votes; criterion agreement uses all 3 equal binary decisions. Clean cohort excludes four defective and two subjective tasks. Positive cohorts exclude two known multi-defect tasks.",
+  "excluded_clean_ids": [
+    "django__django-12039",
+    "django__django-13513",
+    "django__django-14376",
+    "django__django-14534",
+    "scikit-learn__scikit-learn-14983",
+    "sympy__sympy-13878"
+  ],
+  "excluded_multi_defect_ids": [
+    "adaptive-rejection-sampler",
+    "pytorch-model-cli"
+  ],
+  "overall": [
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "clean_correct": 178,
+      "clean_reviews": 180,
+      "defect_flagged": 388,
+      "defect_reviews": 438
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Classification",
+      "clean_correct": 180,
+      "clean_reviews": 180,
+      "defect_flagged": 382,
+      "defect_reviews": 438
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "clean_correct": 167,
+      "clean_reviews": 180,
+      "defect_flagged": 274,
+      "defect_reviews": 438
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Classification",
+      "clean_correct": 158,
+      "clean_reviews": 180,
+      "defect_flagged": 247,
+      "defect_reviews": 438
+    }
+  ],
+  "by_criterion": [
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "criterion": "VERIFIER-TOO-WEAK",
+      "defects": 16,
+      "detected": 11,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 70,
+      "tasks": 76
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "defects": 117,
+      "detected": 101,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 166,
+      "tasks": 177
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "criterion": "INSTR-AMBIGUOUS",
+      "defects": 13,
+      "detected": 9,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 72,
+      "tasks": 73
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Labeling",
+      "criterion": "INSTR-ENV-MISMATCH",
+      "defects": 59,
+      "detected": 51,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 111,
+      "tasks": 119
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Classification",
+      "criterion": "VERIFIER-TOO-WEAK",
+      "defects": 16,
+      "detected": 8,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 73,
+      "tasks": 76
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Classification",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "defects": 117,
+      "detected": 95,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 164,
+      "tasks": 177
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Classification",
+      "criterion": "INSTR-AMBIGUOUS",
+      "defects": 13,
+      "detected": 5,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 70,
+      "tasks": 73
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "format": "Classification",
+      "criterion": "INSTR-ENV-MISMATCH",
+      "defects": 59,
+      "detected": 51,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 109,
+      "tasks": 119
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "criterion": "VERIFIER-TOO-WEAK",
+      "defects": 16,
+      "detected": 12,
+      "clean_tasks": 60,
+      "false_flags": 1,
+      "agreement": 71,
+      "tasks": 76
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "defects": 117,
+      "detected": 67,
+      "clean_tasks": 60,
+      "false_flags": 1,
+      "agreement": 128,
+      "tasks": 177
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "criterion": "INSTR-AMBIGUOUS",
+      "defects": 13,
+      "detected": 5,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 69,
+      "tasks": 73
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Labeling",
+      "criterion": "INSTR-ENV-MISMATCH",
+      "defects": 59,
+      "detected": 58,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 113,
+      "tasks": 119
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Classification",
+      "criterion": "VERIFIER-TOO-WEAK",
+      "defects": 16,
+      "detected": 6,
+      "clean_tasks": 60,
+      "false_flags": 1,
+      "agreement": 65,
+      "tasks": 76
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Classification",
+      "criterion": "INSTR-VERIFIER-MISMATCH",
+      "defects": 117,
+      "detected": 62,
+      "clean_tasks": 60,
+      "false_flags": 2,
+      "agreement": 107,
+      "tasks": 177
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Classification",
+      "criterion": "INSTR-AMBIGUOUS",
+      "defects": 13,
+      "detected": 4,
+      "clean_tasks": 60,
+      "false_flags": 0,
+      "agreement": 69,
+      "tasks": 73
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "format": "Classification",
+      "criterion": "INSTR-ENV-MISMATCH",
+      "defects": 59,
+      "detected": 56,
+      "clean_tasks": 60,
+      "false_flags": 1,
+      "agreement": 107,
+      "tasks": 119
+    }
+  ],
+  "classification_confusions": [
+    {
+      "judge": "Sonnet 5.5",
+      "reference": "VERIFIER-TOO-WEAK",
+      "reviews": 48,
+      "predictions": {
+        "VERIFIER-TOO-WEAK": 25,
+        "INSTR-VERIFIER-MISMATCH": 2,
+        "INSTR-ENV-MISMATCH": 1,
+        "ANSWER-LEAK": 2,
+        "INSTR-AMBIGUOUS": 8,
+        "CLEAN": 10
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "reference": "INSTR-VERIFIER-MISMATCH",
+      "reviews": 351,
+      "predictions": {
+        "INSTR-VERIFIER-MISMATCH": 282,
+        "CLEAN": 34,
+        "INSTR-AMBIGUOUS": 28,
+        "VERIFIER-TOO-WEAK": 7
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "reference": "INSTR-AMBIGUOUS",
+      "reviews": 39,
+      "predictions": {
+        "INSTR-AMBIGUOUS": 16,
+        "CLEAN": 9,
+        "INSTR-VERIFIER-MISMATCH": 14
+      }
+    },
+    {
+      "judge": "Sonnet 5.5",
+      "reference": "INSTR-ENV-MISMATCH",
+      "reviews": 177,
+      "predictions": {
+        "CLEAN": 13,
+        "VERIFIER-TOO-WEAK": 2,
+        "INSTR-ENV-MISMATCH": 149,
+        "INSTR-AMBIGUOUS": 7,
+        "INSTR-VERIFIER-MISMATCH": 5,
+        "ANSWER-LEAK": 1
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "reference": "VERIFIER-TOO-WEAK",
+      "reviews": 48,
+      "predictions": {
+        "VERIFIER-TOO-WEAK": 22,
+        "ANSWER-LEAK": 19,
+        "INSTR-VERIFIER-MISMATCH": 3,
+        "INSTR-ENV-MISMATCH": 3,
+        "CLEAN": 1
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "reference": "INSTR-VERIFIER-MISMATCH",
+      "reviews": 351,
+      "predictions": {
+        "INSTR-VERIFIER-MISMATCH": 180,
+        "INSTR-ENV-MISMATCH": 16,
+        "CLEAN": 49,
+        "ANSWER-LEAK": 81,
+        "VERIFIER-TOO-WEAK": 13,
+        "INSTR-AMBIGUOUS": 12
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "reference": "INSTR-AMBIGUOUS",
+      "reviews": 39,
+      "predictions": {
+        "CLEAN": 17,
+        "INSTR-AMBIGUOUS": 10,
+        "INSTR-VERIFIER-MISMATCH": 7,
+        "ANSWER-LEAK": 4,
+        "INSTR-ENV-MISMATCH": 1
+      }
+    },
+    {
+      "judge": "Qwen3.8-27B",
+      "reference": "INSTR-ENV-MISMATCH",
+      "reviews": 177,
+      "predictions": {
+        "INSTR-ENV-MISMATCH": 168,
+        "VERIFIER-TOO-WEAK": 1,
+        "ANSWER-LEAK": 2,
+        "INSTR-VERIFIER-MISMATCH": 6
+      }
+    }
+  ],
+  "sources": [
+    "prompt_format_comparison.json",
+    "../swe_verified/judge_results.json"
+  ]
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "group": "Qwen labeling",
+    "trial": "/tmp/1238833.helma/validation-0004/results/stage_5_llm_rubric_review/aaa258d795a0/00002-django__django-13287__486d03d7d78935689a54/jobs/job/django__django-13287__486d03d7d7__BvRQcrt/attempts/000",
+    "calls": 28,
+    "sum_per_call": {
+      "prompt_tokens": 761438,
+      "completion_tokens": 30495,
+      "cached_tokens": 699328
+    }
+  },
+  {
+    "group": "Qwen labeling",
+    "trial": "/tmp/1238832.helma/validation-0003/results/stage_5_llm_rubric_review/6d7ff4bd3aef/00000-adaptive-rejection-sampler__0e2dcfc95bd5921ce832/jobs/job/adaptive-rejection-sampler__0e2d__VRsh97L/attempts/000",
+    "calls": 89,
+    "sum_per_call": {
+      "prompt_tokens": 8442877,
+      "completion_tokens": 146425,
+      "cached_tokens": 8216320
+    }
+  },
+  {
+    "group": "Qwen classification",
+    "trial": "/tmp/1239528.helma/validation-0005/results/stage_5_llm_rubric_review/0f6695eb189e/00004-django__django-16693__da5d05e2c5be49321439/jobs/job/django__django-16693__da5d05e2c5__bRRVbqL/attempts/000",
+    "calls": 36,
+    "sum_per_call": {
+      "prompt_tokens": 723310,
+      "completion_tokens": 20725,
+      "cached_tokens": 675024
+    }
+  },
+  {
+    "group": "Qwen classification",
+    "trial": "/tmp/1238985.helma/validation-0003/results/stage_5_llm_rubric_review/86c1058c5d86/00000-adaptive-rejection-sampler__0e2dcfc95bd5921ce832/jobs/job/adaptive-rejection-sampler__0e2d__r2vyFvL/attempts/000",
+    "calls": 80,
+    "sum_per_call": {
+      "prompt_tokens": 8070873,
+      "completion_tokens": 162720,
+      "cached_tokens": 7844704
+    }
+  }
+]

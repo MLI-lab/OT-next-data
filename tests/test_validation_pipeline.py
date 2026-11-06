@@ -1454,11 +1454,13 @@ def test_stage2_runs_reviews_with_bounded_concurrency(source, tmp_path, upstream
     assert report['complete']
 
 
-def test_reference_and_nop_run_once_plus_one_shuffled_by_default(source, tmp_path):
+def test_reference_and_nop_run_four_times_including_shuffled_by_default(source, tmp_path):
     a = args(source.parent, tmp_path)
-    assert (a.reference_runs, a.nop_runs, a.attempts) == (1, 1, 1)
+    assert (a.reference_runs, a.nop_runs, a.attempts) == (1, 3, 1)
+    assert a.reference_runs + a.reference_repeat_runs + a.reference_shuffled_runs == 4
+    assert a.nop_runs + a.nop_shuffled_runs == 4
     assert (a.reference_shuffled_runs, a.nop_shuffled_runs) == (1, 1)
-    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 1, 1, 1]
+    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 1, 3, 1]
     a = stages.parser().parse_args([str(source.parent), '--reference-runs', '5', '--nop-runs', '2', '--attempts', '8'])
     assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 5, 2, 8]
 

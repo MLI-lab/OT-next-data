@@ -3525,6 +3525,7 @@ def migrate_published(source, output, *, revision, subset, image, probe, cache, 
         raise ValueError('CalibForge task runtime proof fields require review')
     history, records, labels, reasons, specs, catalog = [], [], {}, {}, {}, {}
     offline_specs={}
+    runtime_plans = {}
     counts = Counter()
     with pq.ParquetWriter(target, reader.schema_arrow.with_metadata(metadata)) as writer:
         for batch in reader.iter_batches(batch_size=16):
@@ -3596,6 +3597,8 @@ def migrate_published(source, output, *, revision, subset, image, probe, cache, 
                             raise
                         status = 'unmodified: ' + str(error)
                     else:
+                        from data.calibforge.runtime_workflow import encode
+                        runtime_plans[name] = encode(planned)
                         key = spec_id(planned['spec'])
                         if key not in catalog:
                             record = json.loads((Path(cache) / (key + '.json')).read_text())
@@ -3688,6 +3691,8 @@ def migrate_published(source, output, *, revision, subset, image, probe, cache, 
                   coverage=coverage, counts=dict(counts), tasks=records, runtime_ids=sorted(specs),offline_runtime_ids=sorted(offline_specs),
                   original_external_service_tasks=[record['path'] for record in records if record.get('offline_limitations')])
     (output / 'runtime-migration.json').write_text(json.dumps(report, indent=1)+'\n')
+    (output / 'runtime-plans.json').write_text(json.dumps(
+        {'format': 'calibforge-runtime-plans-v1', 'tasks': runtime_plans}, indent=1)+'\n')
     (output / 'verifier-bundle-specs.json').write_text(json.dumps(specs, indent=1)+'\n')
     (output / 'verifier-offline-specs.json').write_text(json.dumps(offline_specs,indent=1)+'\n')
     write_patch_report(Path(source), target, source=dict(dataset=subset,

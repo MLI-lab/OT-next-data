@@ -3,8 +3,9 @@
 Detailed implementation notes preserved from the earlier README. Numeric rule
 counts below describe historical patch runs, not one current validated release.
 See [README.md](README.md) for stage results and current status. The current
-patcher contains 62 exclusions; the historical 57-task table below predates
-the four missing-Python exclusions and one memory-limit exclusion.
+patcher retains all input tasks and records 62 historical exclusion reasons without
+applying them. The historical 57-task table below predates the four missing-Python
+exclusions and one memory-limit exclusion. This retention also applies with `--no-repairs`.
 
 # CalibForge
 
@@ -26,10 +27,10 @@ python data/calibforge/patch.py --source upstream/tasks.parquet --output NEW_DIR
 ```
 
 Use a new output directory. The patcher writes `tasks.parquet`, the shared
-`tasks.manifest.json` and `tasks.archive.parquet` (57 tasks are excluded, see
-[Excluded tasks](#excluded-tasks-x)), and `calibforge_repair_manifest.json` with
-the rules applied to each task. Running it on the pinned 5,431 tasks keeps
-5,374, changes 5,365 of them and leaves 9 untouched. Counts overlap.
+`tasks.manifest.json` and `calibforge_repair_manifest.json` with the rules applied
+to each task and historical exclusion evidence. No input tasks are excluded.
+The tables below document earlier patch runs; their exclusion counts no longer
+describe the patcher's current behavior.
 
 | Rule | Report label | Change | Tasks |
 | --- | --- | --- | ---: |

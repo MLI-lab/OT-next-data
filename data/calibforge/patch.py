@@ -40,7 +40,8 @@ R16 RUN <command> <<DELIMITER with its body  ->  RUN printf '%s\\n' '<line>' ...
 R17 `ulimit -c unlimited` in a listed build script  ->  `ulimit -c unlimited || true`  (build steps on the
     compute nodes cannot raise the core file limit; the script writes its dump with gcore, which does not
     use that limit, and the script is deleted from the image by the same RUN step).
-X   Listed tasks are excluded and archived: the Dockerfile must run a server under an unprivileged
+X   Historical exclusion evidence is retained in the manifest, but tasks are no longer dropped:
+    the Dockerfile must run a server under an unprivileged
     account while the image is built (the build backend has a single user ID), the Dockerfile must bind
     port 80 while the image is built (an unprivileged build step may not), or the task's evidence
     files live below /tmp or /var/tmp (task containers start with both directories empty).
@@ -1180,6 +1181,7 @@ for _task, (_shard, _backdoor) in LOGIN_PROFILE_BACKDOORS.items():
 # ---- driver ------------------------------------------------------------------------------------
 
 LABELS = (
+    ("RV", "prepared-verifier-runtime", "Add reviewed clean-runtime setup and execution recipes; reuse checksum-verified cached runtimes when available. See runtime-workflow.json for missing evidence or artifacts; validation has not run."),
     ("C1", "redundant-agent-resources-removed", "Remove ignored [agent] resource fields ({C1}) only after confirming identical values in [environment]; effective resource requests and agent timeout are unchanged."),
     ("B3", "verifier-preparation-comment-removed", "Remove the generated verifier-preparation comment; executable Dockerfile instructions are unchanged."),
     ("V3", "verifier-expected-unsolved-state-assertion", "{V3} Preserve the original behavioral checks, but report the expected unsolved state as failed tests with reward 0 instead of fixture setup errors. Explicitly authorized by the user."),
@@ -1353,7 +1355,9 @@ def patch_task(task_id, binary, shared=None, repairs=True):
                 elif re.search(r"^ENV\s+PATH=.*/root/\.local/bin", new, re.M):
                     # With the directory already on PATH the uv installer writes no env file to source.
                     layer = layer.replace(UV_ENV_STEP, 'export PATH="$HOME/.local/bin:$PATH" && ')
-                new = new.rstrip("\n") + "\n\n" + layer
+                # Preserve the historical context bytes so existing verified
+                # image caches remain addressable after regeneration.
+                new = new.rstrip("\n") + "\n\n" + VERIFIER_PREPARATION_COMMENT + "\n" + layer
                 changes["B1"] = plan["kind"]
             members[k] = (info, new.encode("utf-8"))
         elif info.name == "task.toml" and repairs:
@@ -1410,16 +1414,47 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--no-repairs", action="store_true", help="stop at the plain conversion; see repairs.py")
+    parser.add_argument("--no-repairs", action="store_true", help="omit check-derived task repairs; runtime integration still runs unless --conversion-only")
+    parser.add_argument("--conversion-only", action="store_true", help="only apply task conversion/repairs, without runtime integration")
+    parser.add_argument("--runtime-plans", type=Path, help="source-bound plans exported by CalibForge prepare-runtime; defaults to OT_CALIBFORGE_RUNTIME_PLANS")
+    parser.add_argument("--runtime-history", type=Path, help="previously prepared task Parquet or run directory")
+    parser.add_argument("--runtime-baseline", type=Path, help="matching pre-runtime task Parquet or directory")
+    parser.add_argument("--runtime-refs", type=Path, help="existing runtime-refs.json mapping runtime IDs to tasks")
+    parser.add_argument("--runtime-cache", type=Path, help="existing runtime cache (default: OT_RUNTIME_CACHE or OT_WORKSPACE/runtimes)")
+    parser.add_argument("--image-cache", type=Path, help="shared image cache (default: OT_WORKSPACE/images)")
+    parser.add_argument("--prepare-cache", action="store_true", help="also prepare missing images/runtimes using shared builders; run in a preparation allocation")
+    parser.add_argument("--cache-cpus", type=int, default=2)
+    parser.add_argument("--cache-memory-mb", type=int, default=8192)
+    parser.add_argument("--cache-timeout-sec", type=int, default=3600)
     args = parser.parse_args()
+    if args.conversion_only and args.prepare_cache:
+        parser.error('--prepare-cache cannot be combined with --conversion-only')
+    import os
+    import subprocess
+    from data.calibforge.runtime_workflow import RuntimeWorkflow
+    plans = args.runtime_plans or os.environ.get('OT_CALIBFORGE_RUNTIME_PLANS')
+    if plans is None:
+        adjacent = (args.source if args.source.is_dir() else args.source.parent) / 'runtime-plans.json'
+        if adjacent.is_file():
+            plans = adjacent
+    workflow = None if args.conversion_only else RuntimeWorkflow(
+        plans=plans, cache=args.runtime_cache, image_cache=args.image_cache,
+        prepare_cache=args.prepare_cache, cpus=args.cache_cpus,
+        memory_mb=args.cache_memory_mb, timeout=args.cache_timeout_sec,
+        evidence_dir=args.output / 'cache-evidence', history=args.runtime_history,
+        baseline=args.runtime_baseline, refs=args.runtime_refs)
     repairs = not args.no_repairs
-    dropped = {**DROPPED, **CHECK_EXCLUSIONS} if repairs else DROPPED
+    # Historical failures are evidence for review, not exclusions or fresh verdicts.
+    # Retain every input task so a new run can measure its actual outcome.
+    dropped = {}
+    historical_exclusions = {**DROPPED, **CHECK_EXCLUSIONS}
     source = args.source.resolve()
     files = [source] if source.is_file() else sorted(source.glob("*.parquet"))
     if not files or any(f.suffix != ".parquet" for f in files):
         raise ValueError(f"no pinned CalibForge Parquet files in {source}")
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = {"source_revision": REVISION, "tasks": [], "dropped": dropped, "repairs": repairs,
+                "historical_exclusions": historical_exclusions,
                 "counts": {**dict.fromkeys(RULES, 0), "changed": 0, "dropped": 0, "total": 0}}
     for path in files:
         target = args.output / path.name
@@ -1435,6 +1470,17 @@ def main():
                 table = {name: [column[i] for i in kept] for name, column in table.items()}
                 for i, task_id in enumerate(table["path"]):
                     binary, changes, modified = patch_task(task_id, table["task_binary"][i], shared.get(task_id), repairs)
+                    if workflow is not None:
+                        try:
+                            binary, runtime_modified = workflow.apply(task_id, binary)
+                        except (ValueError, OSError, subprocess.SubprocessError) as error:
+                            # Preserve the converted task, with the actual integration
+                            # failure recorded rather than silently dropping the row.
+                            workflow.records[-1].update(status='error', reason=str(error))
+                            runtime_modified = False
+                        if runtime_modified:
+                            changes['RV'] = True
+                            modified = True
                     if changes:
                         manifest["tasks"].append({"task": task_id, "changes": changes})
                     if modified:
@@ -1457,13 +1503,29 @@ def main():
                 "verifier_network_use_in_test_sh"):
         manifest["counts"][key] = sum(key in item["changes"] for item in manifest["tasks"])
     (args.output / "calibforge_repair_manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+    if workflow is not None:
+        runtime_report = workflow.report()
+        (args.output / 'runtime-workflow.json').write_text(json.dumps(runtime_report, indent=2) + '\n')
+        print('Runtime preparation:', json.dumps(runtime_report['counts']))
+        if plans:
+            (args.output / 'runtime-plans.json').write_bytes(Path(plans).read_bytes())
+        if workflow.history is not None:
+            workflow.history.close()
     # Keep repairs.py beside the patcher snapshot, so publication includes it.
     report = args.output / "tasks.manifest.json"
     if report.is_file():
-        code = Path(__file__).with_name("repairs.py").read_bytes()
-        (args.output / "repairs.py").write_bytes(code)
         recorded = json.loads(report.read_text())
-        recorded["patcher_dependencies"] = [{"path": "repairs.py", "sha256": hashlib.sha256(code).hexdigest()}]
+        dependencies = ['repairs.py', 'runtime_workflow.py', 'runtime_history.py']
+        if workflow is not None:
+            dependencies += ['verifier_runtime.py', 'python_roles.py', 'packaging_runtime.py',
+                             'source_inputs.py', 'task_installation_roles.json', 'task_service_roles.json',
+                             'task_module_roles.json', 'task_initialization_roles.json',
+                             'task_packaging_roles.json', 'task_native_dependencies.json']
+        recorded['patcher_dependencies'] = []
+        for name in dependencies:
+            code = Path(__file__).with_name(name).read_bytes()
+            (args.output / name).write_bytes(code)
+            recorded['patcher_dependencies'].append({'path': name, 'sha256': hashlib.sha256(code).hexdigest()})
         report.write_text(json.dumps(recorded, indent=2) + "\n")
 
 
