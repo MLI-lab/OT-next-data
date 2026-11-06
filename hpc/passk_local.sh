@@ -18,6 +18,8 @@
 #   ./hpc/passk_local.sh run nl2bash_v1 instruct      # full pass@4 in the background (ATTEMPTS=16 for pass@16)
 #   ./hpc/passk_local.sh status nl2bash_v1 instruct
 #   ./hpc/passk_local.sh merge nl2bash_v1 instruct    # when status says all shards are complete
+#   ./hpc/passk_local.sh upload nl2bash_v1 instruct   # then: check the run and write its traces and pass counts for Hugging Face
+#   ./hpc/passk_local.sh upload nl2bash_v1 instruct go   # and open the pull request with them (once)
 #   ./hpc/passk_local.sh stop nl2bash_v1 instruct     # stop a run and remove its containers (run again: it continues)
 #   ./hpc/passk_local.sh unserve instruct             # stop the model (refused while its runs still go)
 #   ./hpc/passk_local.sh serve thinking               # then the other model, on the same GPU
@@ -1186,6 +1188,301 @@ EOF
     echo "Check started. Run './hpc/passk_local.sh check $ds' again later to see the results."
 }
 
+# upload <dataset> <model> [go]: the traces and pass counts of a finished, merged run, for Hugging Face ($HF_REPO).
+# Without 'go' it checks the run, writes the two files and shows what would be uploaded (it reads every trajectory,
+# so it takes a while); with 'go' it opens a pull request with them, once. The team's publish_pass_counts.py writes
+# them from an evidence archive and a request.json, as the cluster's jobs leave them; local runs leave neither, so
+# this writes both first. The traces (one row per attempt: trajectory, verifier record, reward) go up as
+# runs/<run>/trajectories/<data source>/<model>.parquet, the layout main's publish.py uploads and the v2 traces/
+# files were built from; the pass counts (one row per task) as <data source>/pass_counts.parquet, with the columns
+# of the pass_counts.parquet files already on Hugging Face. The run record stays here, as main keeps it.
+upload_check() {   # $1 run folder, $2 the dry run's output, $3 model key: do both files cover exactly the report?
+    python - "$1" "$2" "$ds" "$3" <<'EOF'
+import json, sys
+from pathlib import Path
+import pyarrow.parquet as pq
+from validation.checks.reward_metrics import pass_at_k
+root, out, ds, key = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4]
+if not (out / 'cleaned.json').is_file():
+    sys.exit(f'ERROR: the server paths are not yet removed from the files in {out}')
+report = json.loads((root / 'merged/report/stage-6-merged.json').read_text())
+want, rewards = set(), {}
+for item in report['items']:
+    rewards[Path(item['task']).name] = sorted(item.get('rewards') or [])
+    want.update(o['trial'].split('/jobs/job/', 1)[1].split('/', 1)[0] for o in item.get('attempt_outcomes') or [])
+records, files = sorted(out.glob('runs/*.json')), sorted(out.glob(f'runs/*/trajectories/{ds}/{key}.parquet'))
+if len(records) != 1 or len(files) != 1:
+    sys.exit(f'ERROR: expected one run record and one traces file in {out}')
+traces = json.loads(records[0].read_text()).get('trajectories') or {}
+if traces.get('truncated_archives'):
+    sys.exit(f"ERROR: the evidence archive was cut off: {traces['truncated_archives']}")
+rows = pq.read_table(files[0], columns=['path', 'trial', 'reward', 'trajectory_found']).to_pylist()
+got = {r['trial'] for r in rows}
+if len(got) != len(rows) or got != want:
+    sys.exit(f'ERROR: {len(rows)} trace rows for {len(want)} attempts in the report '
+             f'({len(want - got)} missing, {len(got - want)} not in the report)')
+mine = {}
+for r in rows:
+    mine.setdefault(r['path'], []).append(r['reward'])
+differ = [task for task in rewards if sorted(mine.get(task, [])) != rewards[task]]
+if differ:
+    sys.exit(f'ERROR: the rewards in the traces differ from the report for {len(differ)} tasks, e.g. {differ[:3]}')
+counts = {r['path']: r for r in pq.read_table(out / ds / 'pass_counts.parquet').to_pylist()}
+graded = {task: [x for x in rewards[task] if isinstance(x, (int, float))] for task in rewards}
+wrong = [task for task in rewards if task not in counts or counts[task]['graded'] != len(graded[task])
+         or counts[task]['solved'] != sum(x >= 1 for x in graded[task])]
+if wrong or len(counts) != len(rewards):
+    sys.exit(f'ERROR: {ds}/pass_counts.parquet does not match the merged report ({len(counts)} rows for '
+             f'{len(rewards)} tasks, {len(wrong)} differ, e.g. {wrong[:3]})')
+k = max(r['attempts'] for r in counts.values())
+pass1 = sum(r['solved'] / r['attempts'] for r in counts.values()) / len(counts)
+passk = sum(pass_at_k(r['attempts'], r['solved'], k) or 0 for r in counts.values()) / len(counts)
+print(f'{files[0].relative_to(out)}: {len(rows)} attempts of {len(rewards)} tasks, {sum(r["reward"] >= 1 for r in rows)} '
+      f'solved, {sum(not r["trajectory_found"] for r in rows)} without a saved trajectory, '
+      f'{files[0].stat().st_size / 1e9:.2f} GB.')
+print(f'{ds}/pass_counts.parquet: {len(counts)} tasks, {sum(r["solved"] > 0 for r in counts.values())} solved at least '
+      f'once; pass@1 {pass1:.1%}, pass@{k} {passk:.1%}.')
+print('Both match the merged report.')
+EOF
+}
+# The records hold this server's paths, with the user name in them, and could hold its host name: those become
+# <workspace>, <home>, <user> and <host>, and nothing else in a record may change. The pass counts get the columns
+# and model names of the pass_counts.parquet files already on Hugging Face.
+upload_clean() {   # $1 the dry run's output, $2 model key
+    python - "$1" "$ds" "$2" "$WS" "$HOME" "$(id -un)" "$(hostname -f 2>/dev/null || hostname)" "$(hostname -s 2>/dev/null || hostname)" <<'EOF'
+import hashlib, json, os, sys
+from pathlib import Path
+import pyarrow as pa
+import pyarrow.parquet as pq
+from config.models import resolve
+out, ds, key, ws, home, user, *hosts = sys.argv[1:]
+out = Path(out)
+rules = {}
+for path in (ws, os.path.realpath(ws)):
+    rules[path.rstrip('/')] = '<workspace>'
+for path in (home, os.path.realpath(home)):
+    if len(user) >= 4 and user in path:   # not /root: the containers' own paths start with it
+        rules.setdefault(path.rstrip('/'), '<home>')
+guard = [s for s in {user, *hosts} if len(s) >= 4 and s not in ('root', 'localhost')]
+for host in sorted(guard, key=len, reverse=True):
+    rules.setdefault(host, '<user>' if host == user else '<host>')
+rules = sorted(rules.items(), key=lambda rule: len(rule[0]), reverse=True)   # longer first: they contain the others
+
+
+def same_shape(a, b, where):   # only the text of string values may differ
+    if isinstance(a, dict):
+        if not isinstance(b, dict) or list(a) != list(b):
+            sys.exit(f'ERROR: keys changed at {where}')
+        for k in a:
+            same_shape(a[k], b[k], f'{where}.{k}')
+    elif isinstance(a, list):
+        if not isinstance(b, list) or len(a) != len(b):
+            sys.exit(f'ERROR: a list changed at {where}')
+        for i, (x, y) in enumerate(zip(a, b)):
+            same_shape(x, y, f'{where}[{i}]')
+    elif isinstance(a, str) or isinstance(b, str):
+        if not (isinstance(a, str) and isinstance(b, str)):
+            sys.exit(f'ERROR: a value changed at {where}')
+    elif json.dumps(a) != json.dumps(b):   # numbers, booleans and nulls, with their types
+        sys.exit(f'ERROR: a value changed at {where}')
+
+
+files = sorted(out.glob(f'runs/*/trajectories/{ds}/{key}.parquet'))
+records = sorted(out.glob('runs/*.json'))
+if len(files) != 1 or len(records) != 1:
+    sys.exit(f'ERROR: expected one run record and one traces file in {out}')
+path, record_path = files[0], records[0]
+table = pq.read_table(path)
+trials = table.column('trial').to_pylist()
+replaced, left = {old: 0 for old, _ in rules}, []
+for column in ('result', 'trajectory'):
+    texts = table.column(column).to_pylist()
+    for i, text in enumerate(texts):
+        if text is None:
+            continue
+        new = text
+        for old, label in rules:
+            replaced[old] += new.count(old)
+            new = new.replace(old, label)
+        if new != text:
+            try:
+                before = json.loads(text)
+            except ValueError:
+                before = None
+            if before is not None:
+                same_shape(before, json.loads(new), f'{trials[i]} {column}')
+            texts[i] = new
+        flat = new.replace('\\n', '').replace('\n', '')   # terminal output can wrap a path across lines
+        left += [(trials[i], column, s, flat[max(0, flat.find(s) - 60):flat.find(s) + 60]) for s in guard if s in flat]
+    table = table.set_column(table.schema.get_field_index(column), table.schema.field(column), pa.array(texts, pa.string()))
+    del texts
+if left:
+    for trial, column, s, context in left[:10]:
+        print(f'{trial} {column}: ...{context}...')
+    sys.exit(f'ERROR: {len(left)} records still name this server ({", ".join(sorted({s for _, _, s, _ in left}))}). '
+             'Nothing was changed or uploaded; send this output.')
+part = path.with_name(path.name + '.part')
+pq.write_table(table, part, compression='zstd', compression_level=9)   # as trajectories.py writes it
+os.replace(part, path)
+record = json.loads(record_path.read_text())
+record['trajectories']['files'][path.relative_to(out).as_posix()].update(
+    bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+record_path.write_text(json.dumps(record, indent=2) + '\n')
+counts = out / ds / 'pass_counts.parquet'
+columns = ('path', 'content_sha256', 'model', 'attempts', 'graded', 'solved')
+t = pq.read_table(counts).select(columns)
+t = t.set_column(columns.index('model'), t.schema.field('model'), pa.array([resolve(key)[1].hf_repo] * t.num_rows, pa.string()))
+pq.write_table(t, counts)
+labels = {}
+for old, label in rules:
+    labels[label] = labels.get(label, 0) + replaced[old]
+(out / 'cleaned.json').write_text(json.dumps({'replaced': labels}, indent=2) + '\n')
+print('Server paths removed from the traces: ' + ', '.join(f'{n} x {label}' for label, n in labels.items()) + '.')
+EOF
+}
+upload_traces() {
+    local name=$1 go=$2 root="$WS/runs/$1" contract="$WS/contracts/$1.json" key out archive attempts found bytes avail n
+    key=$(model_key "$model"); out="$root/merged/publish-pass-counts"; archive="$root/merged/evidence.tar.gz"
+    [ -f "$root/merged/report/stage-6-merged.json" ] || die "merge the run first: ./hpc/passk_local.sh merge $ds $model"
+    case "$go" in
+        go)
+            upload_check "$root" "$out" "$key" || die "write the file first: ./hpc/passk_local.sh upload $ds $model"
+            python - "$root" "$out" "$ds" "$key" "$contract" "$HF_REPO" <<'EOF'
+import json, subprocess, sys, tomllib
+from datetime import datetime, timezone
+from pathlib import Path
+import pyarrow.parquet as pq
+from config.models import resolve, weights_dir
+from validation.checks.reward_metrics import pass_at_k
+from validation.contract import read, task_records
+root, out, ds, key, contract_path, repo = Path(sys.argv[1]), Path(sys.argv[2]), *sys.argv[3:]
+done = root / 'merged/upload.json'
+if done.exists():
+    sys.exit(f"ERROR: already uploaded: {json.loads(done.read_text())['pull_request']}. To upload again anyway, remove {done}.")
+from huggingface_hub import CommitOperationAdd, HfApi
+api = HfApi()
+try:
+    who = api.whoami()
+except Exception as error:
+    sys.exit(f'ERROR: not logged in to Hugging Face ({type(error).__name__}). Log in with a token that has write access: '
+             'source ~/ot-next/local-env.sh && hf auth login')
+if ((who.get('auth') or {}).get('accessToken') or {}).get('role') == 'read':
+    sys.exit('ERROR: your Hugging Face token can only read. Make one with write access, then: hf auth login')
+c = read(contract_path); a = c['arguments']
+file = sorted(out.glob(f'runs/*/trajectories/{ds}/{key}.parquet'))[0]
+path = file.relative_to(out).as_posix()
+rewards = pq.read_table(file, columns=['reward']).column('reward').to_pylist()
+counts_path = f'{ds}/pass_counts.parquet'
+counts = pq.read_table(out / counts_path).to_pylist()
+tasks = [t['task_id'] for t in task_records(c)]
+online = 0
+for task in tasks:
+    try:
+        online += bool(tomllib.loads((Path(a['tasks']) / task / 'task.toml').read_text()).get('environment', {}).get('allow_internet'))
+    except (OSError, ValueError):
+        pass
+spec = resolve(key)[1]
+try:
+    weights = json.loads((weights_dir(spec.name) / 'download_complete.json').read_text()).get('revision') or 'unknown'
+except (OSError, ValueError):
+    weights = 'unknown'
+code = (root / 'code-commit.txt').read_text().strip() if (root / 'code-commit.txt').is_file() else 'unknown'
+harbor = ((c.get('upstream') or {}).get('harbor-validation') or {}).get('commit') or 'unknown'
+try:
+    gpu = subprocess.run(['nvidia-smi', '--query-gpu=name', '--format=csv,noheader', '-i', '0'],
+                         capture_output=True, text=True, timeout=30).stdout.strip() or 'one GPU'
+except (OSError, subprocess.SubprocessError):
+    gpu = 'one GPU'
+k = a['attempts']
+by_solved = ', '.join(f'{n}/{k}: {sum(r["solved"] == n for r in counts)}' for n in range(k + 1))
+pass1 = sum(r['solved'] / r['attempts'] for r in counts) / len(counts)
+passk = sum(pass_at_k(r['attempts'], r['solved'], k) or 0 for r in counts) / len(counts)
+description = f"""Traces and pass counts of the pass@{k} run of {ds} with {key} ({spec.hf_repo}): {len(rewards)} attempts of {len(tasks)} tasks; {sum(r >= 1 for r in rewards)} attempts solved, {sum(r['solved'] > 0 for r in counts)} tasks solved at least once; pass@1 {pass1:.1%}, pass@{k} {passk:.1%}.
+
+- {path}: one row per attempt with the trajectory, the verifier record (result.json) and the reward, as validation/publishing/trajectories.py writes them.
+- {counts_path}: one row per task (path, content_sha256, model, attempts, graded, solved), like the other pass_counts.parquet files. Tasks by solved attempts: {by_solved}.
+
+How it was run: on a local server ({gpu}) with hpc/passk_local.sh from OT-next-data branch passk-script (commit {code[:12]}, stage layout environment-first-v2), not on a cluster. Docker instead of Apptainer, with the task images built on the server; {a.get('concurrency')} attempts at once on one GPU; the model served by vLLM with the settings of config/models.py as the cluster worker starts it, except --max-num-seqs 128; agent {a.get('agent')}; Harbor {harbor[:12]}. Network as each task.toml sets it: {online} of {len(tasks)} tasks allow internet access.
+
+Versions: tasks {a.get('dataset_source')} at {a.get('dataset_revision')}; weights {spec.hf_repo} at {weights}; contract sha256 {c['sha256']}.
+
+In the records, this server's paths, user name and host name are replaced by <workspace>, <home>, <user> and <host>; nothing else was changed.
+"""
+print(description)
+print(f'Uploading {path} ({file.stat().st_size / 1e9:.2f} GB) and {counts_path} to {repo} as {who.get("name")} '
+      '(can take a while)...', flush=True)
+commit = api.create_commit(repo_id=repo, repo_type='dataset', create_pr=True,
+                           operations=[CommitOperationAdd(path_in_repo=path, path_or_fileobj=str(file)),
+                                       CommitOperationAdd(path_in_repo=counts_path, path_or_fileobj=str(out / counts_path))],
+                           commit_message=f'{ds}: traces and pass counts of the pass@{k} run with {key}',
+                           commit_description=description)
+done.write_text(json.dumps({'pull_request': commit.pr_url, 'files': [path, counts_path], 'by': who.get('name'),
+                            'at': datetime.now(timezone.utc).isoformat()}, indent=2) + '\n')
+print(f'Pull request: {commit.pr_url}')
+EOF
+            return ;;
+        '') ;;
+        *) die "usage: ./hpc/passk_local.sh upload $ds $model [go]" ;;
+    esac
+    # The report must cover the run, and the rows name each task by its content hash, which must be the published
+    # task's: a changed copy (Docker fixes, prebuilt images) has other hashes and is not supported yet.
+    attempts=$(python - "$root" "$contract" <<'EOF'
+import json, sys
+from pathlib import Path
+import pyarrow.parquet as pq
+from validation.contract import read, task_records
+root, contract = Path(sys.argv[1]), read(sys.argv[2])
+tasks = Path(contract['arguments']['tasks'])
+report = json.loads((root / 'merged/report/stage-6-merged.json').read_text())
+if not report.get('complete'):
+    sys.exit('ERROR: the merged report is not complete. Finish the run, then merge again.')
+mine = {t['task_id']: t['sha256'] for t in task_records(contract)}
+items = {Path(i['task']).name: i for i in report['items']}
+if set(items) != set(mine):
+    sys.exit(f'ERROR: the merged report has {len(items)} tasks and the run {len(mine)}. Merge again.')
+parquet = tasks.with_name(tasks.name.removesuffix('-tasks') + '.parquet')
+if not tasks.name.endswith('-tasks'):
+    sys.exit(f'ERROR: this run used a changed copy of the tasks ({tasks}); its task hashes are not those of the '
+             'published tasks. Uploading such a run is not supported yet.')
+if not parquet.is_file():
+    sys.exit(f'ERROR: {parquet}, the dataset file the tasks were unpacked from, is missing: cannot check the task hashes.')
+table = pq.read_table(parquet, columns=['path', 'content_sha256']).to_pydict()
+published = dict(zip(table['path'], table['content_sha256']))
+differ = [task for task, sha in mine.items() if published.get(task) != sha]
+if differ:
+    sys.exit(f'ERROR: {len(differ)} of {len(mine)} tasks differ from {parquet}, e.g. {differ[:3]}.')
+print(sum(len(i.get('attempt_outcomes') or []) for i in items.values()))
+EOF
+    )
+    found=$(find "$root"/shards/[0-9][0-9][0-9][0-9] -type f -path '*/stage_6_*/jobs/job/*/attempts/000/result.json' | wc -l)
+    [ "$found" = "$attempts" ] || die "the merged report has $attempts attempts, but $found attempt folders are under $root/shards"
+    # publish_pass_counts.py holds every trajectory in memory several times over while it writes the file.
+    bytes=$(find "$root"/shards/[0-9][0-9][0-9][0-9] -type f -path '*/stage_6_*/jobs/job/*/attempts/000/agent/trajectory.json' -printf '%s\n' | awk '{s += $1} END {printf "%d", s}')
+    avail=$(awk '/^MemAvailable:/ {printf "%d", $2 * 1024}' /proc/meminfo)
+    [ "$avail" -ge $((6 * bytes)) ] || [ -n "${FORCE_MEMORY:-}" ] || die "the $((bytes / 1000000)) MB of trajectories need about $((6 * bytes / 1000000000 + 1)) GB of free memory, and $((avail / 1000000000)) GB are free (FORCE_MEMORY=1 to try anyway)"
+    # What the cluster writes for every job (validation/shards.py plan), with the model under its key in
+    # config/models.py, as cluster runs name it: the same weights, vLLM settings and agent settings.
+    python -c 'import json, sys; c = json.load(open(sys.argv[1])); a = dict(c["arguments"], contract=sys.argv[1], serve_model=sys.argv[3]); json.dump({"args": a, "stages": c["stages"]}, open(sys.argv[2], "w"), indent=2)' "$contract" "$root/merged/request.json" "$key"
+    # The two files trajectories.py reads per attempt, only from the shard folders. Written aside and moved
+    # into place when complete: publish_pass_counts.py would silently publish a cut-off archive.
+    if [ "$(cat "$archive.count" 2>/dev/null)" != "$attempts" ] || ! gzip -t "$archive" 2>/dev/null; then
+        echo "Packing the traces of $attempts attempts..."
+        rm -f "$archive" "$archive.count" "$archive.part"
+        (cd "$root" && find shards/[0-9][0-9][0-9][0-9] -type f \( -path '*/stage_6_*/jobs/job/*/attempts/000/agent/trajectory.json' \
+            -o -path '*/stage_6_*/jobs/job/*/attempts/000/result.json' \) -print0 | tar czf merged/evidence.tar.gz.part --null -T -)
+        n=$(tar tzf "$archive.part" | grep -c '/attempts/000/result.json$' || :)
+        [ "$n" = "$attempts" ] || die "the archive holds $n of $attempts attempts"
+        mv "$archive.part" "$archive"; echo "$attempts" > "$archive.count"
+    fi
+    echo "Writing the traces file (reads every trajectory; can take a while)..."
+    rm -rf "$out"
+    python validation/publishing/publish_pass_counts.py "$root/merged" --folder "*=$ds" --repo "" --dry-run --out "$out" \
+        > "$root/merged/publish.log" 2>&1 || { tail -n 15 "$root/merged/publish.log" >&2; die "writing the traces file failed; full output: $root/merged/publish.log"; }
+    upload_clean "$out" "$key" || die "removing the server paths failed; nothing was uploaded"
+    upload_check "$root" "$out" "$key"
+    echo "Nothing is uploaded yet. To open the pull request on $HF_REPO with these two files: ./hpc/passk_local.sh upload $ds $model go"
+}
+
 cmd=${1:-}; ds=${2:-}; model=${3:-}
 case "$cmd" in
     setup) setup; exit 0 ;;
@@ -1194,7 +1491,7 @@ case "$cmd" in
     check) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh check <dataset>"; activate; check; exit 0 ;;
     prebuild) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh prebuild <dataset> [retry|stop]"; activate; prebuild "$model"; exit 0 ;;
 esac
-[ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh setup | serve {instruct|thinking} | unserve [instruct|thinking] | check <dataset> | prebuild <dataset> [retry|stop] | {pilot|run|status|stop|merge} <dataset> {instruct|thinking}"
+[ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh setup | serve {instruct|thinking} | unserve [instruct|thinking] | check <dataset> | prebuild <dataset> [retry|stop] | {pilot|run|status|stop|merge} <dataset> {instruct|thinking} | upload <dataset> {instruct|thinking} [go]"
 model_key "$model" >/dev/null
 activate
 CONCURRENCY=${CONCURRENCY:-$(default_concurrency "$ds")}
@@ -1234,8 +1531,8 @@ else:
 EOF
             start_loop "$name" "$count" "$(port_of "$model")"
         fi ;;
-    status|stop|merge)
-        kind=${4:-run}
+    status|stop|merge|upload)
+        if [ "$cmd" = upload ]; then kind=run; else kind=${4:-run}; fi
         if [ "$kind" = pilot ]; then name="$ds-$model-pilot"; else name="$ds-$model-pass$ATTEMPTS"; fi
         root="$WS/runs/$name"
         [ -f "$root/count" ] || die "no $kind of $ds $model yet"
@@ -1297,6 +1594,7 @@ EOF
                 tasks=$(contract_tasks "$WS/contracts/$name.json")
                 for f in LOCAL_CHANGES.txt LEFT_OUT.txt; do [ ! -f "$tasks/$f" ] || cp "$tasks/$f" "$root/merged/report/"; done
                 echo "Merged report: $root/merged/report/ (send this folder to Franziska)" ;;
+            upload) upload_traces "$name" "${4:-}" ;;
         esac ;;
     *) die "unknown step '$cmd'" ;;
 esac
