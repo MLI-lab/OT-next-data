@@ -1421,7 +1421,7 @@ def main():
     parser.add_argument("--runtime-baseline", type=Path, help="matching pre-runtime task Parquet or directory")
     parser.add_argument("--runtime-refs", type=Path, help="existing runtime-refs.json mapping runtime IDs to tasks")
     parser.add_argument("--runtime-reviewed-inputs", type=Path,
-                        help="hash-bound reviewed instruction-only changes; preserve current instructions during runtime reuse")
+                        help="hash-bound reviewed instruction differences and formatting-only verifier guard merges")
     parser.add_argument("--runtime-cache", type=Path, help="existing runtime cache (default: OT_RUNTIME_CACHE or OT_WORKSPACE/runtimes)")
     parser.add_argument("--image-cache", type=Path, help="shared image cache (default: OT_WORKSPACE/images)")
     parser.add_argument("--prepare-cache", action="store_true", help="also prepare missing images/runtimes using shared builders; run in a preparation allocation")

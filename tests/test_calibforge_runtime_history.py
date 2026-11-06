@@ -149,3 +149,28 @@ def test_reviewed_instruction_reuse_preserves_current_input(tmp_path):
     with pytest.raises(ValueError, match='binding differs'):
         flow.apply('example', task(before))
     flow.history.close()
+
+
+def test_reviewed_verifier_merge_keeps_guard_and_runtime_changes():
+    from data.calibforge.runtime_history import preserve_reviewed_verifier
+    from data.calibforge.repairs import assert_required_verifier_module
+    name = 'contrastive_solver-data-processing_20260604_003814_003'
+    raw = '"""Verifier.\n\nDescription.\n"""\nimport pandas\ndef test_answer():\n    assert answer == 42\n'
+    current = assert_required_verifier_module(name, raw).encode()
+    baseline = current.replace(b'\nDescription.\n"""', b'\n    Description.\n    """')
+    prepared = raw.replace('import pandas', 'import os\nimport pandas').encode()
+    expected = assert_required_verifier_module(name, prepared.decode()).encode()
+    review = {key + '_sha256': hashlib.sha256(body).hexdigest() for key, body in
+              [('baseline', baseline), ('current', current), ('prepared', prepared), ('result', expected)]}
+    review['reason'] = 'Formatting-only guard difference inspected; preserve current guard around clean-runtime edits'
+    assert preserve_reviewed_verifier(name, baseline, current, prepared, review) == expected
+    assert b'test_required_verifier_dependency' in expected and b'assert answer == 42' in expected
+    assert b'import os' in expected
+    changed = current.replace(b'answer == 42', b'answer == 0')
+    altered = dict(review, current_sha256=hashlib.sha256(changed).hexdigest())
+    with pytest.raises(ValueError, match='executable behavior'):
+        preserve_reviewed_verifier(name, baseline, changed, prepared, altered)
+    with pytest.raises(ValueError, match='binding differs'):
+        preserve_reviewed_verifier(name, baseline, current, prepared+b'\n', review)
+    with pytest.raises(ValueError, match='result differs'):
+        preserve_reviewed_verifier(name, baseline, current, prepared, dict(review, result_sha256='0'*64))

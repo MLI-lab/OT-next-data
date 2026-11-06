@@ -4,7 +4,9 @@ No task-name-only compatibility assumptions: the pre-runtime payload must agree
 with the current task before historical setup changes can be replayed.
 """
 import copy
+import ast
 import hashlib
+import inspect
 import io
 import json
 from pathlib import Path, PurePosixPath
@@ -38,6 +40,38 @@ def comparable(name, data):
     if name == 'environment/Dockerfile':
         return data.replace(b'# Verifier preparation from tests/test.sh, installed at build time.\n', b'')
     return data
+
+
+def preserve_reviewed_verifier(task, old, current, prepared, review):
+    """Replay runtime edits while retaining a reviewed missing-input guard repair.
+
+    Only formatting/docstring indentation differences are eligible. The explicit
+    review binds all three inputs and the result. Existing patcher guard helpers,
+    not a handwritten merge or a relaxed test, produce the combined verifier.
+    """
+    for key, body in [('baseline', old), ('current', current), ('prepared', prepared)]:
+        if body is None or hashlib.sha256(body).hexdigest() != review.get(key + '_sha256'):
+            raise ValueError('Reviewed verifier binding differs: ' + task)
+    if not review.get('reason'):
+        raise ValueError('Reviewed verifier requires a reason')
+    def normalized(body):
+        tree = ast.parse(body)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                node.value.value = inspect.cleandoc(node.value.value)
+        return ast.dump(tree, include_attributes=False)
+    if normalized(old) != normalized(current):
+        raise ValueError('Reviewed verifier changes executable behavior: ' + task)
+    from data.calibforge.repairs import assert_required_solution_file, assert_required_verifier_module
+    result = assert_required_verifier_module(task, assert_required_solution_file(task, prepared.decode())).encode()
+    prefix = current.split(b'else:\n', 1)[0]
+    if (not prefix.startswith(b'# CalibForge: assert missing ') or b'else:\n' not in current or
+            result.split(b'else:\n', 1)[0] != prefix):
+        raise ValueError('Reviewed verifier guard was not preserved: ' + task)
+    ast.parse(result)
+    if hashlib.sha256(result).hexdigest() != review.get('result_sha256'):
+        raise ValueError('Reviewed verifier merge result differs: ' + task)
+    return result
 
 
 class PackageIndex:
@@ -107,12 +141,14 @@ class RuntimeHistory:
         self.provenance = dict(baseline=self.baseline.sources, prepared=self.prepared.sources,
                                refs=dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
         self.reviewed_inputs = {}
+        self.reviewed_verifiers = {}
         if reviewed_inputs:
             path = Path(reviewed_inputs)
             review = json.loads(path.read_text())
-            if review.get('format') != 'calibforge-reviewed-instructions-v1':
+            if review.get('format') not in ('calibforge-reviewed-instructions-v1', 'calibforge-reviewed-runtime-inputs-v1'):
                 raise ValueError('Expected source-bound reviewed instruction differences')
             self.reviewed_inputs = review['tasks']
+            self.reviewed_verifiers = review.get('verifiers', {})
             self.provenance['reviewed_inputs'] = dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
 
     def close(self):
@@ -134,6 +170,12 @@ class RuntimeHistory:
         # Refuse changed task inputs, tests or environments. Already-applied
         # historical changes are accepted, but unrelated repairs are never undone.
         conflicts = []
+        verifier_review = self.reviewed_verifiers.get(task)
+        merged_verifier = None
+        if verifier_review:
+            name = 'tests/test_outputs.py'
+            merged_verifier = preserve_reviewed_verifier(task, old.get(name), current.get(name),
+                                                         prepared.get(name), verifier_review)
         reviewed = self.reviewed_inputs.get(task)
         if reviewed:
             # Only instruction-only changes can use this path. All executable,
@@ -145,6 +187,8 @@ class RuntimeHistory:
                     comparable(name, old[name]) != comparable(name, prepared.get(name))):
                 raise ValueError('Reviewed instruction binding differs: ' + task)
         for name in old.keys() | current.keys():
+            if merged_verifier is not None and name == 'tests/test_outputs.py':
+                continue
             if reviewed and name == 'instruction.md':
                 continue
             if comparable(name, current.get(name)) not in (comparable(name, old.get(name)), comparable(name, prepared.get(name))):
@@ -173,6 +217,9 @@ class RuntimeHistory:
             if not member.isfile() and name not in old_members and not member.isdir():
                 record.update(reason='historical runtime adds an unsupported nonregular member', conflicting_files=[name])
                 return binary, False
+        if merged_verifier is not None:
+            updates['tests/test_outputs.py'] = merged_verifier
+            removed.discard('tests/test_outputs.py')
         references = {}
         for name, data in prepared.items():
             if name.endswith('.json') and name.startswith(('tests/ot-', 'setup_files/ot-')):
@@ -211,4 +258,6 @@ class RuntimeHistory:
                       runtime_ids=sorted(ready), replayed_files=sorted(updates), removed_files=sorted(removed))
         if reviewed:
             record['preserved_reviewed_instruction'] = reviewed
+        if verifier_review:
+            record['preserved_reviewed_verifier'] = verifier_review
         return rewrite(binary, updates, removed=removed, templates=prepared_members), True
