@@ -553,19 +553,33 @@ async def repair_criteria(result, partial, source, item_dir, args, upstream, ref
     the missing criteria, or the full rubric when no judgment was usable (missing=None)."""
     from validation.rubrics.utils.usage import summarize_rows
     skipped = result.get('automatic_skips') or {}
+    # Initial attempts have finished, so their reserved slots can serve repairs.
+    # Bound this even if a malformed result contains more partials than attempts.
+    slots = asyncio.Semaphore(max(1, args.attempts))
+
+    async def retry_one(index, part):
+        if part['missing'] is not None and not part['missing']:
+            return None
+        retry_args = copy.copy(args)
+        retry_args.review_criteria, retry_args.attempts = part['missing'], 1
+        folder = item_dir / 'criteria-repair' / f'{index:03d}'
+        folder.mkdir(parents=True)
+        async with slots:
+            return await review_once(5, source, folder, retry_args, upstream, references, suffixes)
+
+    # TaskGroup cancels and awaits sibling reviews if one raises. Merge only
+    # after completion, in original order, keeping accounting deterministic.
+    async with asyncio.TaskGroup() as group:
+        retries = [group.create_task(retry_one(index, part)) for index, part in enumerate(partial)]
     for index, part in enumerate(partial):
         checks = dict(part['checks'])
         origin = {name: 'original' for name in checks}
         full = part['missing'] is None
         record = {'trial': part['trial'], 'missing': 'all' if full else part['missing'],
                   'ignored_criteria': part['unexpected'], **({'error': part['error']} if part.get('error') else {})}
-        retry = None
-        if full or part['missing']:
-            retry_args = copy.copy(args)
-            retry_args.review_criteria, retry_args.attempts = (None if full else part['missing']), 1
+        retry = retries[index].result()
+        if retry is not None:
             folder = item_dir / 'criteria-repair' / f'{index:03d}'
-            folder.mkdir(parents=True)
-            retry = await review_once(5, source, folder, retry_args, upstream, references, suffixes)
             record.update(output=str(folder), status=retry['status'], findings=retry.get('findings', []))
             rows = (retry.get('usage') or {}).get('trials', [])
             if rows and result.get('usage'):

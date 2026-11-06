@@ -361,3 +361,72 @@ user = "solver"
     assert (wrapper / 'review_files/task-under-review/source/task.toml').read_text() == text
     assert (source / 'task.toml').read_text() == text
     assert environment_dir_hash(wrapper / 'environment') == environment_dir_hash(source / 'environment')
+
+
+def test_repairs_overlap_within_attempt_budget_and_merge_in_order(tmp_path, monkeypatch):
+    async def exercise():
+        active_count = peak = started = 0
+        both_started = asyncio.Event()
+        asked = []
+        good = {'outcome': 'pass', 'explanation': 'Verified.'}
+
+        async def review_once(number, source, folder, args, *rest):
+            nonlocal active_count, peak, started
+            active_count += 1
+            started += 1
+            peak = max(peak, active_count)
+            asked.append(args.review_criteria)
+            assert args.attempts == 1
+            if started == 2:
+                both_started.set()
+            await asyncio.wait_for(both_started.wait(), timeout=1)
+            await asyncio.sleep(0)
+            active_count -= 1
+            names = args.review_criteria or ['a', 'b']
+            return {'status': 'completed', 'findings': [],
+                    'verdicts': [{'trial': str(folder), 'checks': {n: good for n in names}}],
+                    'usage': {'trials': [{'trial': str(folder)}]}}
+
+        monkeypatch.setattr(runner, 'review_once', review_once)
+        partial = [
+            {'trial': 't0', 'checks': {'a': good}, 'missing': ['b'], 'unexpected': []},
+            {'trial': 't1', 'checks': {}, 'missing': None, 'unexpected': []},
+            {'trial': 't2', 'checks': {}, 'missing': None, 'unexpected': []},
+        ]
+        result = {'status': 'completed', 'findings': [], 'verdicts': [],
+                  'usage': {'trials': [], 'expected_trials': 3}}
+        await runner.repair_criteria(result, partial, tmp_path, tmp_path / 'out',
+                                     SimpleNamespace(attempts=2), None, None, None)
+        assert peak == 2 and active_count == 0
+        assert asked == [['b'], None, None]
+        assert [v['trial'] for v in result['verdicts']] == ['t0', 't1', 't2']
+        assert result['verdicts'][0]['criterion_origin'] == {'a': 'original', 'b': 'retry'}
+        assert result['usage']['expected_trials'] == 6
+        assert len(result['usage']['trials']) == 3
+
+    asyncio.run(exercise())
+
+
+def test_repair_failure_cancels_sibling_reviews(tmp_path, monkeypatch):
+    async def exercise():
+        started = asyncio.Event()
+        stopped = asyncio.Event()
+
+        async def review_once(number, source, folder, args, *rest):
+            if folder.name == '000':
+                await started.wait()
+                raise RuntimeError('setup failed')
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                stopped.set()
+
+        monkeypatch.setattr(runner, 'review_once', review_once)
+        part = {'trial': 't', 'checks': {}, 'missing': None, 'unexpected': []}
+        with pytest.raises(ExceptionGroup, match='TaskGroup'):
+            await runner.repair_criteria({}, [part, part], tmp_path, tmp_path / 'out',
+                                         SimpleNamespace(attempts=2), None, None, None)
+        assert stopped.is_set()
+
+    asyncio.run(exercise())
