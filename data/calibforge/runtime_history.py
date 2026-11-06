@@ -89,7 +89,7 @@ class PackageIndex:
 
 
 class RuntimeHistory:
-    def __init__(self, *, prepared, baseline, refs):
+    def __init__(self, *, prepared, baseline, refs, reviewed_inputs=None):
         self.temporary = tempfile.TemporaryDirectory(prefix='calibforge-history-')
         self.connection = sqlite3.connect(str(Path(self.temporary.name) / 'tasks.sqlite'))
         self.baseline = PackageIndex(self.connection, 'baseline', baseline)
@@ -106,6 +106,14 @@ class RuntimeHistory:
                 self.by_task.setdefault(task, {})[key] = record
         self.provenance = dict(baseline=self.baseline.sources, prepared=self.prepared.sources,
                                refs=dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+        self.reviewed_inputs = {}
+        if reviewed_inputs:
+            path = Path(reviewed_inputs)
+            review = json.loads(path.read_text())
+            if review.get('format') != 'calibforge-reviewed-instructions-v1':
+                raise ValueError('Expected source-bound reviewed instruction differences')
+            self.reviewed_inputs = review['tasks']
+            self.provenance['reviewed_inputs'] = dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
 
     def close(self):
         self.connection.close()
@@ -126,7 +134,19 @@ class RuntimeHistory:
         # Refuse changed task inputs, tests or environments. Already-applied
         # historical changes are accepted, but unrelated repairs are never undone.
         conflicts = []
+        reviewed = self.reviewed_inputs.get(task)
+        if reviewed:
+            # Only instruction-only changes can use this path. All executable,
+            # environment and verifier inputs retain the ordinary comparisons.
+            name = 'instruction.md'
+            if (not reviewed.get('reason') or old.get(name) is None or current.get(name) is None or
+                    hashlib.sha256(old[name]).hexdigest() != reviewed.get('baseline_sha256') or
+                    hashlib.sha256(current[name]).hexdigest() != reviewed.get('current_sha256') or
+                    comparable(name, old[name]) != comparable(name, prepared.get(name))):
+                raise ValueError('Reviewed instruction binding differs: ' + task)
         for name in old.keys() | current.keys():
+            if reviewed and name == 'instruction.md':
+                continue
             if comparable(name, current.get(name)) not in (comparable(name, old.get(name)), comparable(name, prepared.get(name))):
                 conflicts.append(name)
         for name in old_members.keys() | current_members.keys():
@@ -189,4 +209,6 @@ class RuntimeHistory:
         record.update(status='prepared', cache_prepared=True, evidence='historical before/after task packages',
                       baseline_content_sha256=old_digest, prepared_content_sha256=prepared_digest,
                       runtime_ids=sorted(ready), replayed_files=sorted(updates), removed_files=sorted(removed))
+        if reviewed:
+            record['preserved_reviewed_instruction'] = reviewed
         return rewrite(binary, updates, removed=removed, templates=prepared_members), True

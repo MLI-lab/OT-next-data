@@ -71,3 +71,29 @@ def test_unrelated_task_still_requires_normal_build(tmp_path):
     other = tmp_path / 'other'
     other.mkdir()
     assert failures([other], manifest) == {}
+
+
+def test_staging_failure_has_bindings_but_no_invented_build_exit(tmp_path, monkeypatch):
+    from hpc.offline_prep.image_cache import prepare_images
+    import hpc.local_assets
+    task = tmp_path / 'example'
+    (task / 'environment').mkdir(parents=True)
+    (task / 'environment/Dockerfile').write_text('FROM example\n')
+    images = tmp_path / 'images'
+    images.mkdir()
+    def fail(*args, **kwargs):
+        raise OSError('No space left on device')
+    monkeypatch.setattr(hpc.local_assets, 'stage_images', fail)
+    args = SimpleNamespace(image_build_memory_mb=2048, image_build_cpus=1,
+                           image_build_timeout_sec=60, image_build_concurrency=1,
+                           cpus=1, prebuild_only=True)
+    records = prepare_images([task], images, tmp_path / 'cache', args)
+    assert records[0]['status'] == 'error'
+    assert records[0]['environment_sha256'] and records[0]['source_task_sha256']
+    assert 'returncode' not in records[0]
+    records[0].update(task_id=task.name, log_sha256=sha(records[0]['log']))
+    source = tmp_path / 'record.json'
+    source.write_text(json.dumps(records))
+    manifest = tmp_path / 'manifest.json'
+    freeze([source], manifest)
+    assert failures([task], manifest)[task.name]['category'] == 'infrastructure_error'

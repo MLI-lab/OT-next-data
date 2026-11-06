@@ -222,3 +222,18 @@ def test_review_has_independent_mean_budgets_and_buckets(tmp_path, monkeypatch, 
 def test_review_help_states_preparation_limits():
     from validation.stages.runner import parser
     assert 'each task or verifier preparation <=60s' in ' '.join(parser().format_help().split())
+
+
+def test_missing_reference_is_not_applicable_even_after_build_failure(tmp_path):
+    from validation.stages.runner import parser, run_trial_batch
+    from validation.stages.layout import REFERENCE
+    source = tmp_path / 'missing-reference'
+    source.mkdir()
+    args = parser().parse_args([])
+    args._build_failures = {str(source): {'report': 'build.json', 'reason': 'image failed'}}
+    selected, skipped = build_retries.partition_builds([source], args, reference=True)
+    assert selected == [source] and not skipped
+    items = run_trial_batch(REFERENCE, selected, tmp_path, args, tmp_path)
+    assert items[0]['status'] == items[0]['listing_order']['status'] == 'not_applicable'
+    selected, skipped = build_retries.partition_builds([source], args)
+    assert not selected and skipped[0]['blocked_by_stage'] == 1

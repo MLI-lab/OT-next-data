@@ -1420,6 +1420,8 @@ def main():
     parser.add_argument("--runtime-history", type=Path, help="previously prepared task Parquet or run directory")
     parser.add_argument("--runtime-baseline", type=Path, help="matching pre-runtime task Parquet or directory")
     parser.add_argument("--runtime-refs", type=Path, help="existing runtime-refs.json mapping runtime IDs to tasks")
+    parser.add_argument("--runtime-reviewed-inputs", type=Path,
+                        help="hash-bound reviewed instruction-only changes; preserve current instructions during runtime reuse")
     parser.add_argument("--runtime-cache", type=Path, help="existing runtime cache (default: OT_RUNTIME_CACHE or OT_WORKSPACE/runtimes)")
     parser.add_argument("--image-cache", type=Path, help="shared image cache (default: OT_WORKSPACE/images)")
     parser.add_argument("--prepare-cache", action="store_true", help="also prepare missing images/runtimes using shared builders; run in a preparation allocation")
@@ -1442,7 +1444,7 @@ def main():
         prepare_cache=args.prepare_cache, cpus=args.cache_cpus,
         memory_mb=args.cache_memory_mb, timeout=args.cache_timeout_sec,
         evidence_dir=args.output / 'cache-evidence', history=args.runtime_history,
-        baseline=args.runtime_baseline, refs=args.runtime_refs)
+        baseline=args.runtime_baseline, refs=args.runtime_refs, reviewed_inputs=args.runtime_reviewed_inputs)
     repairs = not args.no_repairs
     # Historical failures are evidence for review, not exclusions or fresh verdicts.
     # Retain every input task so a new run can measure its actual outcome.

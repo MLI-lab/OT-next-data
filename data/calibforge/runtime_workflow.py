@@ -67,7 +67,7 @@ def rewrite(binary, updates, *, removed=(), templates=None):
 class RuntimeWorkflow:
     def __init__(self, *, plans=None, cache=None, image_cache=None, prepare_cache=False,
                  cpus=2, memory_mb=8192, timeout=3600, evidence_dir=None,
-                 history=None, baseline=None, refs=None):
+                 history=None, baseline=None, refs=None, reviewed_inputs=None):
         if min(cpus, memory_mb, timeout) <= 0:
             raise ValueError('Cache preparation resources and timeout must be positive')
         self.plans = {}
@@ -90,7 +90,10 @@ class RuntimeWorkflow:
             if not all((history, baseline, refs)):
                 raise ValueError('Historical runtime reuse needs prepared packages, baseline packages and runtime-refs.json')
             from data.calibforge.runtime_history import RuntimeHistory
-            self.history = RuntimeHistory(prepared=history, baseline=baseline, refs=refs)
+            self.history = RuntimeHistory(prepared=history, baseline=baseline, refs=refs,
+                                          reviewed_inputs=reviewed_inputs)
+        elif reviewed_inputs:
+            raise ValueError('Reviewed instruction differences require historical runtime inputs')
 
     def prepare_images(self, task_id, binary):
         """Use the shared image-only preparer; never run validation or grading."""

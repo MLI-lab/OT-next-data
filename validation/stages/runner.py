@@ -631,6 +631,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
         try:
             if number == REFERENCE and not (source / 'solution/solve.sh').is_file():
                 item.update(status='not_applicable', reason='no solution/solve.sh for oracle validation')
+                item['listing_order'] = {'status': 'not_applicable', 'reason': 'No reference solution supplied'}
                 continue
             task = source
             if number == 9:
@@ -1123,7 +1124,7 @@ def _run_stage(number, args):
             report['reused_from'] = {k: v for k, v in checkpoint.items() if k != 'items'}
     elif number in (REFERENCE, NOP, 6, 9):
         from validation.stages.build_retries import partition_builds
-        selected, skipped = partition_builds(sources, args) if number in (REFERENCE, NOP) else (sources, [])
+        selected, skipped = partition_builds(sources, args, reference=number == REFERENCE) if number in (REFERENCE, NOP) else (sources, [])
         report['items'] = skipped + run_trial_batch(number, selected, out, args, upstream, report, contract)
         if number == 6:
             from validation.metrics.reward_metrics import summarize

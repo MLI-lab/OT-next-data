@@ -104,12 +104,12 @@ def summarize_retries(items):
             'by_stability_and_cause': dict(sorted(table.items()))}
 
 
-def partition_builds(sources, args):
+def partition_builds(sources, args, *, reference=False):
     failures = getattr(args, '_build_failures', {})
     selected, skipped = [], []
     for source in sources:
         failure = failures.get(str(source))
-        if failure:
+        if failure and not (reference and not (source / 'solution/solve.sh').is_file()):
             skipped.append({'task': str(source), 'status': 'skipped', 'blocked_by_stage': 1,
                             'build_report': failure['report'], 'reason': failure['reason']})
         else:

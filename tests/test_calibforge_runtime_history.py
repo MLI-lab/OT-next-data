@@ -124,3 +124,28 @@ def test_stale_historical_content_digest_rejected(tmp_path):
     with pytest.raises(ValueError, match='Historical task checksum'):
         flow.apply('example', task(before))
     flow.history.close()
+
+
+def test_reviewed_instruction_reuse_preserves_current_input(tmp_path):
+    before, _, key = historical(tmp_path)
+    original = before['instruction.md']
+    before['instruction.md'] = 'Solve the task using ./program.\n'
+    reviewed = tmp_path / 'reviewed.json'
+    reviewed.write_text(json.dumps(dict(format='calibforge-reviewed-instructions-v1', tasks={
+        'example': dict(baseline_sha256=hashlib.sha256(original.encode()).hexdigest(),
+                        current_sha256=hashlib.sha256(before['instruction.md'].encode()).hexdigest(),
+                        reason='Inspected instruction path normalization only; runtime inputs unchanged')})))
+    flow = RuntimeWorkflow(history=tmp_path/'prepared.parquet', baseline=tmp_path/'baseline.parquet',
+                           refs=tmp_path/'refs.json', cache=tmp_path/'cache', reviewed_inputs=reviewed)
+    binary, changed = flow.apply('example', task(before))
+    assert changed
+    assert members(binary)['instruction.md'] == before['instruction.md']
+    assert flow.records[-1]['preserved_reviewed_instruction']['reason']
+    before['tests/test_outputs.py'] += '\nassert answer == 0\n'
+    binary = task(before)
+    assert flow.apply('example', binary) == (binary, False)
+    assert 'tests/test_outputs.py' in flow.records[-1]['conflicting_files']
+    before['instruction.md'] += 'unreviewed change'
+    with pytest.raises(ValueError, match='binding differs'):
+        flow.apply('example', task(before))
+    flow.history.close()
