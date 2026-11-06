@@ -141,7 +141,7 @@ There are 34 criterion disagreements across 26 tasks; some tasks disagree on mul
 
 #### Accuracy
 
-For this comparison, we exclude environment mismatch, answer leakage and triviality. Labeling requires PASS on the three remaining criteria: weak verifier, instruction–verifier mismatch and ambiguity. Classification counts `CLEAN` and the three excluded categories as clean.
+For this comparison, we exclude environment mismatch, answer leakage and triviality, because Qwen was run offline some steups required online though and answer leakage actually present in some etc. (ask me why for more details). Labeling requires PASS on the three remaining criteria: weak verifier, instruction–verifier mismatch and ambiguity. Classification counts `CLEAN` and the three excluded categories as clean.
 
 | Judge | Format | Mean accuracy over 3 reviews | Majority-vote accuracy | Lowest review-index accuracy |
 |---|---|---:|---:|---:|
@@ -241,8 +241,6 @@ Sonnet treats this as an unstated requirement; the human reviewers consider it r
 ## On VERIFIER-TOO-WEAK label
 
 Labeling results only, on the 34 category-labeled tasks: 18 FAIL (weak verifier) and 16 PASS.
-
-The [category definition](https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-04-four-categories/VERIFIER-TOO-WEAK.md) distinguishes plausible incorrect or incomplete solutions from interference with grading. Reviewed hacks outside this criterion are labeled PASS, even though the task is not clean overall.
 
 Positive means a weak-verifier defect: **TP** correctly flags a FAIL task; **FN** misses it; **FP** flags a PASS task; **TN** correctly passes it. Only the `VERIFIER-TOO-WEAK` judgment counts here, not failures on other criteria.
 
