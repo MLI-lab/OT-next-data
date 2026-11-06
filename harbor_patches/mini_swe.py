@@ -6,7 +6,8 @@ stay in MiniSWE's history; Harbor retains ownership of setup and hard deadlines.
 from __future__ import annotations
 
 import asyncio
-from concurrent.futures import CancelledError
+from concurrent.futures import CancelledError, ThreadPoolExecutor
+from contextvars import copy_context
 from copy import deepcopy
 from importlib.metadata import version
 import json
@@ -240,7 +241,11 @@ class MiniSweAgent(BaseAgent):
             except Stopped:
                 return {'exit_status': 'Cancelled'}
 
-        worker = asyncio.create_task(asyncio.to_thread(work))
+        # Each synchronous agent waits on async I/O through Bridge.call(). It
+        # must not occupy the default executor needed by that I/O (including
+        # bridge HTTP calls and DNS), or 32+ agents can deadlock the entire loop.
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='mini-swe')
+        worker = asyncio.get_running_loop().run_in_executor(executor, copy_context().run, work)
         try:
             if policy:
                 async with asyncio.timeout(policy.review_sec + policy.grace_sec) as deadline:
@@ -259,6 +264,9 @@ class MiniSweAgent(BaseAgent):
             raise AgentTimeoutError('MiniSWE judge exceeded its session time limit') from exc
         finally:
             bridge.stop()
+            executor.shutdown(wait=False, cancel_futures=True)
+            # Bridge.stop releases blocked calls before we read the final history.
+            await asyncio.shield(asyncio.gather(worker, return_exceptions=True))
             # The worker cannot issue further API/environment requests after stop().
             # Backfill even on cancellation; native logs are also written after each step.
             self._save(context)

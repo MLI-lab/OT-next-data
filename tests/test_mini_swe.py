@@ -238,3 +238,39 @@ def test_command_timeout_is_an_observation(tmp_path, monkeypatch):
     agent = MiniSweAgent(logs_dir=tmp_path, model_name='openai/test')
     asyncio.run(agent.run('Task.', SlowEnvironment(), AgentContext()))
     assert 'Command timed out after 30 seconds' in calls[1][-1]['content']
+
+
+def test_36_agents_leave_default_executor_available_for_io(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    async def exercise():
+        # Keep the shared I/O pool small: agents must not consume its slots.
+        asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=4))
+        ready = asyncio.Event()
+        started = 0
+        io_threads = []
+
+        async def completion(model, messages, kwargs):
+            nonlocal started
+            started += 1
+            if started == 36:
+                ready.set()
+            await ready.wait()
+            io_threads.append(await asyncio.to_thread(lambda: threading.current_thread().name))
+            return response('echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT')
+
+        class ThreadedEnvironment(Environment):
+            async def exec(self, command, **kwargs):
+                await asyncio.to_thread(lambda: None)  # bridge HTTP transport
+                return await super().exec(command, **kwargs)
+
+        monkeypatch.setattr('harbor_patches.mini_swe.completion', completion)
+        agents = [MiniSweAgent(logs_dir=tmp_path / str(i), model_name='openai/test') for i in range(36)]
+        async with asyncio.timeout(15):
+            await asyncio.gather(*(a.run('Judge.', ThreadedEnvironment(), AgentContext()) for a in agents))
+        assert started == len(io_threads) == 36
+        assert not any(name.startswith('mini-swe') for name in io_threads)
+        assert all((tmp_path / str(i) / 'trajectory.json').exists() for i in range(36))
+
+    asyncio.run(exercise())
