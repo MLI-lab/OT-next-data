@@ -46,6 +46,8 @@ def install_runtime_patches():
     install_terminus_session()
     from harbor_patches.claude_session import install as install_claude_session
     install_claude_session()
+    from harbor_patches.claude_dependencies import install as install_claude_dependencies
+    install_claude_dependencies()
     from harbor_patches.resource_usage import install as install_resource_usage
     install_resource_usage()
     # The pinned bridge keys images only by Dockerfile text. Include COPY
