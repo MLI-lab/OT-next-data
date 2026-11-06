@@ -271,10 +271,12 @@ These summarize the judges’ reasoning; a majority agreeing with the ground-tru
 
 **Majority vote across three reviews:**
 
-| Judge | TP | FN | FP | TN |
-|---|---:|---:|---:|---:|
-| Sonnet 5.5 | 12 | 6 | 6 | 10 |
-| Qwen3.8-27B | 13 | 5 | 4 | 12 |
+| Judge | Accuracy | TP | FN | FP | TN |
+|---|---:|---:|---:|---:|---:|
+| Sonnet 5.5 | 22/34 (64.7%) | 12 | 6 | 6 | 10 |
+| Qwen3.8-27B | 25/34 (73.5%) | 13 | 5 | 4 | 12 |
+
+Accuracy is `(TP + TN) / 34`, using the majority decision for this criterion only.
 
 <details>
 <summary>Counts across all three reviews (102 judgments per judge)</summary>
