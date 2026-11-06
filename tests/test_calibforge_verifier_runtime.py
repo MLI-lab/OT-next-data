@@ -339,6 +339,32 @@ def test_uvx_compound_initialization_is_not_mistaken_for_shell_control(line):
         runtime.uvx_plan(files, python='3.13.9')
 
 
+@pytest.mark.parametrize('corrupt', [None, 'spec', 'id', 'resolved_requirements', 'archive_sha256', 'module_inventory_archive_sha256'])
+def test_uvx_shared_family_measured_locked_inventory(corrupt):
+    files = uvx_case()
+    files['environment/Dockerfile'] = (
+        'FROM ubuntu:24.04\nRUN apt-get update && apt-get install -y python3\n'
+        '# Verifier preparation from tests/test.sh, installed at build time.\n'
+        'RUN curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh; '
+        'uvx -p 3.13 -w pytest==8.4.1 -w pytest-json-ctrf==0.3.5 pytest --version\n').encode()
+    recipe = runtime.uvx_plan(files, python='3.13.9')['spec']
+    pins = [*recipe['requirements'], 'pluggy==1.6.0', 'iniconfig==2.3.0', 'Pygments==2.20.0', 'packaging==26.3']
+    prepared = dict(format=FORMAT, id=spec_id(recipe), spec=recipe, status='ready', resolved_requirements=pins)
+    locked = runtime.locked_family_spec(recipe, prepared)
+    inventory = dict(format=FORMAT, id=spec_id(locked), spec=locked, status='ready',
+        resolved_requirements=pins, import_names=['pytest', 'numpy'],
+        archive_sha256='a'*64, module_inventory_archive_sha256='a'*64)
+    observed = dict(returncode=0, observed=dict(python='3.13.9', stdlib=['pathlib','subprocess','sys'],
+        resolved_executable='/root/.local/share/uv/python/cpython-3.13.9-linux-x86_64-gnu/bin/python3.13'),
+        runtime_locks={spec_id(recipe): prepared}, locked_runtime_inventories={spec_id(locked): inventory})
+    if corrupt:
+        inventory[corrupt] = {'python': '3.12.0'} if corrupt == 'spec' else [] if corrupt == 'resolved_requirements' else 'b'*64
+        with pytest.raises(ValueError, match='module inventory'):
+            runtime.shared_uvx_plan(files, observed)
+    else:
+        assert runtime.shared_uvx_plan(files, observed)['spec'] == locked
+
+
 def test_uvx_shared_family_rejects_other_interpreter_selection():
     files = uvx_case()
     docker = ('FROM ubuntu:24.04\nRUN apt-get update && apt-get install -y python3\n'

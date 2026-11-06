@@ -1257,10 +1257,24 @@ def shared_uvx_plan(files, observed):
     prepared = observed.get('runtime_locks', {}).get(spec_id(planned['spec']))
     if prepared is None:
         raise ValueError('CalibForge prepared family dependency lock requires review')
-    if (prepared.get('module_inventory_archive_sha256') != prepared.get('archive_sha256')
-            or 'import_names' not in prepared):
+    locked = locked_family_spec(planned['spec'], prepared)
+    inventory = prepared
+    if 'import_names' not in inventory:
+        # An already locked artifact can supply a measured inventory when the
+        # intermediate recipe archive is no longer available. Bind it to the
+        # entire resolved spec, not just Python or the direct dependencies.
+        inventory = observed.get('locked_runtime_inventories', {}).get(spec_id(locked), {})
+        from harbor_patches.verifier_bundle import FORMAT
+        if (inventory.get('format') != FORMAT or inventory.get('status') != 'ready'
+                or inventory.get('id') != spec_id(locked) or inventory.get('spec') != locked
+                or sorted(inventory.get('resolved_requirements', [])) != sorted(locked['requirements'])):
+            raise ValueError('CalibForge locked family module inventory requires review')
+    if (not re.fullmatch('[0-9a-f]{64}', inventory.get('archive_sha256', ''))
+            or inventory.get('module_inventory_archive_sha256') != inventory.get('archive_sha256')
+            or not isinstance(inventory.get('import_names'), list)
+            or not all(isinstance(name, str) for name in inventory['import_names'])):
         raise ValueError('CalibForge prepared family module inventory requires review')
-    planned['spec'] = locked_family_spec(planned['spec'], prepared)
+    planned['spec'] = locked
     attach_auxiliary_spec(planned)
     if planned.get('native_tools'):
         image_sha256 = observed.get('auxiliary_image_sha256')
@@ -1271,7 +1285,7 @@ def shared_uvx_plan(files, observed):
             image_tools=native_tool_binding(image_sha256,planned))
     review_files={**files,**{path:source.encode() for path,source in planned.get('auxiliary_sources',{}).items()}}
     planned.update(review_test_sources(review_files, {**measured,
-        'requirements':prepared['resolved_requirements'], 'import_names':prepared['import_names'],
+        'requirements':prepared['resolved_requirements'], 'import_names':inventory['import_names'],
         'source_image_sha256':observed.get('auxiliary_image_sha256'),
         'original_uvx_path':True, 'auxiliary_helpers':planned.get('auxiliary_helpers',[])}, task_python=None, original_files=files))
     planned['test_sources'].update(planned.get('task_launchers',{}))
