@@ -5,11 +5,13 @@ The questions we want to answer:
 - Are the consistent judgments also correct?
 - Is performance limited by model capability?
 
+**Estimated API cost:** One Sonnet 5.5 labeling review costs approximately **$0.06 per task**, and one classification review **$0.054 per task**.
+
 ## On confidently clean tasks
 
-We selected [66 tasks](https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-06-swe66-review/TASKS.md) from the SWE-bench Verified audit ([original audit rubric](https://cdn.openai.com/introducing-swe-bench-verified/swe-b-annotation-instructions.pdf)) where all three reviewers agreed that the instructions were clear and the tests were fair, each with confidence 5/5. None reported other major issues and we use this as evidence for the assumption that all our rubric citeria are clean. This should be a clean reference set to first study judge behavior on tasks with strong human agreement.
+We selected [66 tasks](https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-06-swe66-review/TASKS.md) from the SWE-bench Verified audit ([original audit rubric](https://cdn.openai.com/introducing-swe-bench-verified/swe-b-annotation-instructions.pdf)) where all three reviewers agreed that the instructions were clear and the tests were fair, each with confidence 5/5. None reported other major issues (use to assume all our rubric citeria are clean). 
 
-**Ground-truth update:** Four tasks are excluded from the active Hugging Face selection; two remain PASS with a subjective flag. This leaves 62 tasks, including the two subjective cases ([exclusions and subjective cases](https://huggingface.co/datasets/FWeindel/task-defect-ground-truth/blob/main/curated/2026-11-06-swe66-review/README.md)). The results below still describe the original 66-task cohort.
+**Ground-truth update:** Four tasks are excluded from HF after verifying not clean and two remain PASS with a subjective flag. The results below still describe the original 66-tasks.
 
 We report labeling and classification separately, with three accepted reviews per task for each format:
 
@@ -32,9 +34,8 @@ For Sonnet 5.5, we measure:
 | Classification | 62/66 (93.9%) | 190/198 (96.0%) |
 | Classification counting answer leakage and triviality as PASS | 65/66 (98.5%) | 196/198 (99.0%) |
 
-All rows use the original 66 tasks. Labeling ignores the two excluded criteria; classification counts their categories as PASS alongside CLEAN. 3/4 tasks with disagreement human also made wrong annotation, 1 judge actually made an error.
-
-**Which categories disagree?**
+<details>
+<summary>Which categories disagree?</summary>
 
 **Classification: which categories were assigned to the same task?**
 
@@ -70,6 +71,8 @@ Labeling gives each criterion its own PASS/FAIL decision. We show only tasks whe
 - **Instruction–verifier mismatch:** Two labeling tasks disagree about whether tests require unstated behavior. Classification calls one unanimously CLEAN and splits between mismatch and ambiguity on the other.
 - **Ambiguity:** One labeling task disagrees about an unspecified edge case—the same task that classification splits between ambiguity and mismatch.
 
+</details>
+
 ### Are the consistent judgments also correct?
 
 | Judge | Format | Mean accuracy over 3 reviews | Majority-vote accuracy | Lowest review-index accuracy |
@@ -79,11 +82,7 @@ Labeling gives each criterion its own PASS/FAIL decision. We show only tasks whe
 | Sonnet 5.5 | Classification | 157/198 (79.3%) | 51/66 (77.3%) | 52/66 (78.8%) |
 | Sonnet 5.5 | Classification counting answer leakage and triviality as clean | 181/198 (91.4%) | 60/66 (90.9%) | 60/66 (90.9%) |
 
-Mean accuracy averages accuracy across the three reviews. Majority-vote accuracy uses the decision supported by at least two reviews per task. Lowest review-index accuracy is the lowest of the three accuracy scores.
-
 ### Is performance limited by model capability?
-
-We compare both judges on the same tasks, looking first at consistency and then at accuracy.
 
 #### Judge agreement
 
@@ -95,6 +94,9 @@ These figures measure agreement across each judge's own three reviews, not agree
 | Qwen3.8-27B | Labeling | 45/66 (68.2%) | 156/198 (78.8%) |
 | Sonnet 5.5 | Classification | 62/66 (93.9%) | 190/198 (96.0%) |
 | Qwen3.8-27B | Classification | 43/66 (65.2%) | 152/198 (76.8%) |
+
+<details>
+<summary>Qwen3.8-27B: which categories disagree?</summary>
 
 **Qwen3.8-27B classification: which categories were assigned to the same task?**
 
@@ -134,6 +136,8 @@ There are 34 criterion disagreements across 26 tasks; some tasks disagree on mul
 - **Environment mismatch:** Both tasks use `test.sh` to download grading dependencies. Preserved command outputs confirm DNS/download failures, and both runs explicitly used `network_mode: simulated`. FAIL reviews treat the observed restriction as a task defect; PASS reviews attribute it to the review environment. The failures are real in the review runtime so shoudl exclude in accuracy.
 
 [Individual reviews](swe_verified/qwen_labeling_disagreements.json) retain the explanations. The [grading-code check](swe_verified/qwen_grading_claim_audit.json) confirms JSON decoding for the seven affected task/criterion cases; it does not validate the other claims or rerun the full verifiers.
+
+</details>
 
 #### Accuracy
 
