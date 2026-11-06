@@ -4,11 +4,11 @@ description = "The verifier passes without the task actually being solved: it do
 
 [[criteria]]
 name = "INSTR-VERIFIER-MISMATCH"
-description = "The verifier checks something the instruction does not imply, or contradicts it. For example, reads/writes a different path, asserts a hardcoded value that conflicts with the data, requires specific output keys not stated in the instruction, or requires exact warning/error messages or other prose wording that the instruction does not specify. A solution that faithfully follows the instruction still fails."
+description = "The verifier checks something the instruction does not imply, or contradicts it. For example, reads/writes a different path, asserts a hardcoded value that conflicts with the data, requires specific output keys not stated in the instruction, or requires exact warning/error messages or other prose wording that the instruction does not specify."
 
 [[criteria]]
 name = "INSTR-ENV-MISMATCH"
-description = "The instruction or verifier references input paths, files, dependencies, or services the environment does not actually provide, so the task cannot be completed as written (missing data/compiler/service). Do not flag if the agent can resolve the issue by installing, configuring, or starting available components. Flag if resolving it requires inventing missing data or implementing a service or program that the instructions assume is already provided."
+description = "The instruction or verifier references input paths, files, dependencies, or services the environment does not actually provide, so the task cannot be completed as written (missing data/compiler/service). Do not flag if the agent can resolve the issue by installing, configuring, or starting available software or services. Flag if resolving it requires inventing missing data or implementing a service or program that the instructions assume is already provided."
 
 [[criteria]]
 name = "INSTR-AMBIGUOUS"
