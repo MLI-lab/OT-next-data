@@ -572,6 +572,17 @@ def reference_explains_build_errors(invocation, task_path):
 
 # Raised inside the verifier: its script ended without a usable reward.
 VERIFIER_CRASHES = ('VerifierRuntimeError', 'RewardFileNotFoundError', 'RewardFileEmptyError', 'VerifierOutputParseError')
+# harbor_patches/protected_step.py raises this after a confirmed cgroup OOM at
+# the task's own declared memory limit. During grading of the unchanged start
+# state it is the task's program failing, not a node or container fault.
+VERIFIER_OOM = 'Task memory limit exceeded outside a recoverable agent terminal interaction'
+
+
+def verifier_oom(exception):
+    traceback = str(exception.get('exception_traceback') or '')
+    return (exception.get('exception_type') == 'RuntimeError'
+            and VERIFIER_OOM in str(exception.get('exception_message') or '')
+            and 'in verify' in traceback)
 
 
 def tests_ran(path, verifier):
@@ -597,12 +608,15 @@ def valid_nop_zero(path, result, reward_key):
     Container, node and timeout errors are excluded: there the tests had no chance to run.
     """
     exception = result.get('exception_info') or {}
-    if exception.get('exception_type') not in (None, *VERIFIER_CRASHES):
+    if exception.get('exception_type') not in (None, *VERIFIER_CRASHES) and not verifier_oom(exception):
         return None
     verifier = result.get('verifier_result') or {}
     reward = (verifier.get('rewards') or {}).get(reward_key)
     if reward is not None and (isinstance(reward, bool) or reward != 0):
         return None
+    if verifier_oom(exception):
+        return {'trial': str(path), 'observed_reward': reward, 'exception_info': exception,
+                'reason': 'verifier exceeded the task memory limit on the unchanged start state'}
     if NOP_RESOURCE_FAILURE.search(verifier_output(path, verifier)) and not tests_ran(path, verifier):
         return None
     return {'trial': str(path), 'reason': 'no-op zero without a usable reward from the verifier',

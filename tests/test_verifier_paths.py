@@ -655,3 +655,63 @@ def test_files():
     reader('/tmp/input')
 ''')
     assert {f['path'] for f in rule.assess(record(path))['findings']} == {'/tmp/input'}
+
+
+SHELL_ELSE_ASSIGNMENT = '''#!/bin/bash
+if [ -d "/tests" ]; then
+    TEST_PATH="/tests/test_outputs.py"
+else
+    TEST_PATH="/workspace/tests/test_outputs.py"
+fi
+pytest "$TEST_PATH"
+'''
+
+SHELL_NEGATED_DEFAULT = '''#!/bin/bash
+TEST_FILE="/tests/test_outputs.py"
+if [ ! -f "$TEST_FILE" ]; then
+    TEST_FILE="/workspace/tests/test_outputs.py"
+fi
+pytest "$TEST_FILE"
+'''
+
+
+def test_conditional_verifier_location_fallbacks_excluded(tmp_path):
+    for index, text in enumerate((SHELL_ELSE_ASSIGNMENT, SHELL_NEGATED_DEFAULT)):
+        (tmp_path / str(index)).mkdir()
+        path = task(tmp_path / str(index), '')
+        (path / 'tests/test.sh').write_text(text)
+        (path / 'tests/test_outputs.py').write_text('')
+        data = record(path)
+        entry = next(p for p in data['inventory']['paths'] if p['path'] == '/workspace/tests/test_outputs.py')
+        assert entry['excluded'] == 'verifier_location_fallback'
+    (tmp_path / 'py').mkdir()
+    path = task(tmp_path / 'py', 'gt = "/tests/test_outputs.py" if os.path.exists("/tests/test_outputs.py") else "/workspace/tests/test_outputs.py"\n')
+    (path / 'tests/test_outputs.py').write_text('')
+    entry = next(p for p in record(path)['inventory']['paths'] if p['path'] == '/workspace/tests/test_outputs.py')
+    assert entry['excluded'] == 'verifier_location_fallback'
+
+
+def test_unconditional_other_tests_location_still_fails(tmp_path):
+    path = task(tmp_path, '')
+    (path / 'tests/test.sh').write_text(SHELL_ELSE_ASSIGNMENT + 'cat /workspace/tests/test_outputs.py\n')
+    (path / 'tests/test_outputs.py').write_text('')
+    entry = next(p for p in record(path)['inventory']['paths'] if p['path'] == '/workspace/tests/test_outputs.py')
+    assert entry['excluded'] is None
+
+
+def test_compared_strings_and_http_routes_are_not_paths(tmp_path):
+    path = task(tmp_path, '''
+def test_routes():
+    assert make_request("GET", "/health")["status"] == "ok"
+    assert client.get("/api/users").status_code == 200
+    assert "/ alpha" in content or "/alpha" in content
+    for bad in ["/login/"]:
+        assert bad not in eps
+    assert first.get("path") == "/index.html"
+''')
+    excluded = {p['path']: p['excluded'] for p in record(path)['inventory']['paths']}
+    assert excluded['/health'] == excluded['/api/users'] == excluded['/alpha'] == excluded['/index.html'] == 'not_a_path'
+    assert excluded['/login'] == 'not_a_path'
+    (tmp_path / 'read').mkdir()
+    path = task(tmp_path / 'read', 'def test_read():\n    load_data("/app/missing.txt")\n')
+    assert rule.assess(record(path))['status'] == 'failed'

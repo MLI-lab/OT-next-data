@@ -171,6 +171,36 @@ def implied_key_output(path, instruction):
     return False
 
 
+HTTP_METHODS = {'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'}
+HTTP_CALL = re.compile(r'(?:^|[._])(?:get|post|put|delete|patch|head|options|request|requests|fetch|urlopen|http\w*|url\w*|route|endpoint|api\w*)$', re.I)
+
+
+def literal_context(node, parent, constants, parents=None):
+    """Role of an otherwise unclassified literal; only provable non-path uses are named.
+
+    `compared`: an operand of ==, !=, in or not in (log text, code substrings,
+    server routes such as `self.path == '/health'`). `http_route`: an argument
+    of a request-style call or of a call that also passes an HTTP method.
+    Everything else stays `unclassified` and remains a dependency.
+    """
+    compare = lambda n: isinstance(n, ast.Compare) and all(isinstance(op, (ast.Eq, ast.NotEq, ast.In, ast.NotIn)) for op in n.ops)
+    if compare(parent):
+        return 'compared'
+    # for bad in ['/login/', ...]: assert bad not in endpoints
+    loop = (parents or {}).get(parent)
+    if (isinstance(parent, (ast.List, ast.Tuple)) and isinstance(loop, ast.For) and loop.iter is parent
+            and isinstance(loop.target, ast.Name)):
+        uses = [n for stmt in loop.body for n in ast.walk(stmt)
+                if isinstance(n, ast.Name) and n.id == loop.target.id]
+        if uses and all(compare(parents.get(n)) for n in uses):
+            return 'compared'
+    if isinstance(parent, ast.Call) and node in parent.args:
+        method = [resolve(arg, constants) for arg in parent.args]
+        if HTTP_CALL.search(name(parent.func) or '') or any(isinstance(m, str) and m.upper() in HTTP_METHODS for m in method):
+            return 'http_route'
+    return 'unclassified'
+
+
 def python_paths(text, source, offset=0, context=None):
     tree = scoped_names(ast.parse(text))
     constants = {}
@@ -349,7 +379,7 @@ def python_paths(text, source, offset=0, context=None):
                 ancestor = parents.get(ancestor)
             if fragment or absolute(resolve(parent, constants)):
                 continue
-            emit(value, node, 'unclassified')
+            emit(value, node, literal_context(node, parent, constants, parents))
     return records
 
 
@@ -521,6 +551,21 @@ def requested_script_outputs(task, instruction):
     return outputs
 
 
+def shell_blocks(lines):
+    """Line ranges of top-level and nested `if ... fi` blocks (innermost first)."""
+    stack, blocks = [], []
+    for number, line in enumerate(lines):
+        try:
+            words = shlex.split(line, comments=True)
+        except ValueError:
+            continue
+        if words[:1] == ['if']:
+            stack.append(number)
+        if stack and (words[-1:] == ['fi'] or words[:1] == ['fi']):
+            blocks.append((stack.pop(), number))
+    return sorted(blocks, key=lambda b: b[1] - b[0])
+
+
 def inventory(task, context=None, instruction_view=None):
     task = Path(task)
     context = Path(context) if context is not None else task / 'tests'
@@ -528,6 +573,7 @@ def inventory(task, context=None, instruction_view=None):
     script_outputs = requested_script_outputs(task, instruction)
     artifact_outputs = artifact_instruction_outputs(task, instruction)
     records, errors, coverage = [], [], []
+    source_lines = {}
     for source in sorted(context.rglob('*')):
         if not source.is_file() or source.name == 'setup.sh':
             continue
@@ -538,6 +584,7 @@ def inventory(task, context=None, instruction_view=None):
         label = source.relative_to(context).as_posix()
         try:
             text = source.read_text()
+            source_lines[label] = text.splitlines()
             if source.suffix == '.py':
                 records.extend(python_paths(text, label, context=context))
             else:
@@ -566,6 +613,36 @@ def inventory(task, context=None, instruction_view=None):
         item['path'] = item['path'].rstrip('/') or '/'
         if 'alternatives' in item:
             item['alternatives'] = sorted({p.rstrip('/') or '/' for p in item['alternatives']})
+    def verifier_location_fallback(path, uses):
+        """Another location of a file shipped in tests/, selected only by a condition.
+
+        Each use must sit in a shell if/elif/else block, or on a Python
+        conditional-expression line, that also names the /tests location the
+        harness always provides. Unconditional uses remain dependencies.
+        """
+        match = re.fullmatch(r'(/.+)/tests(/.*)?', path)
+        if not match:
+            return False
+        relative = (match[2] or '').lstrip('/')
+        if not ((context / relative).exists() if relative else context.is_dir()):
+            return False
+        canonical = re.compile(r'(?<![\w/.-])/tests(?:' + re.escape(match[2] or '') + r')?(?![\w.-])')
+        for use in uses:
+            lines = source_lines.get(use['source'], [])
+            index = use['line'] - 1
+            if not 0 <= index < len(lines):
+                return False
+            if use['source'].endswith('.py') or not use['source'].endswith('.sh'):
+                line = lines[index]
+                if not (canonical.search(line) and re.search(r'\bif\b.*\belse\b', line)):
+                    return False
+                continue
+            block = next((b for b in shell_blocks(lines) if b[0] <= index <= b[1]), None)
+            # Also `TEST=/tests/x` directly before `if [ ! -f "$TEST" ]; then TEST=...; fi`.
+            if block is None or not any(canonical.search(line) for line in lines[max(0, block[0] - 3):block[1] + 1]):
+                return False
+        return True
+
     paths = []
     for path in sorted({r['path'] for r in records}):
         uses = [r for r in records if r['path'] == path]
@@ -594,7 +671,9 @@ def inventory(task, context=None, instruction_view=None):
                   'verifier_generated' if 'generated' in roles and 'subprocess_input' not in roles else
                   'subprocess_role_unresolved' if unknown_uses and not definite_input else
                   'optional_or_negative_check' if roles <= {'optional_check', 'expected_absent'} else
-                  'harness_output' if path == '/logs/verifier' or path.startswith('/logs/verifier/') else None)
+                  'harness_output' if path == '/logs/verifier' or path.startswith('/logs/verifier/') else
+                  'verifier_location_fallback' if verifier_location_fallback(path, uses) else
+                  'not_a_path' if roles <= {'compared', 'http_route'} else None)
         paths.append(dict(path=path, uses=uses, excluded=reason,
                           instruction_match='absolute' if mentioned else 'relative' if relative_mention else None,
                           relative_instruction_mention=relative_mention,

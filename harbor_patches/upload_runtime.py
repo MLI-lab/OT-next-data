@@ -172,15 +172,32 @@ def receive_chunk(instance, payload, worker):
     received = time.monotonic() - started
     installing = time.monotonic()
     try:
-        result = worker.subprocess.run(
-            [worker.APPTAINER, 'exec', f'instance://{instance.instance_name}',
-             'bash', '-c', script], capture_output=True, text=True, timeout=120)
+        result = install(worker, instance, script)
         return {'return_code': result.returncode, 'stdout': (result.stdout or '')[:4000],
                 'stderr': (result.stderr or '')[:2000], 'upload_offset': offset,
                 'upload_timings_seconds': {'receive': received, 'install': time.monotonic() - installing}}
     finally:
         staged.unlink(missing_ok=True)
         transfers.pop(transfer, None)
+
+
+INSTALL_ATTEMPTS = 3
+
+
+def install(worker, instance, script):
+    """Run the idempotent mkdir/extract/verify step, retrying only a launcher killed by a signal.
+
+    Observed on Barnard: `apptainer exec` killed by SIGPIPE (-13) about 0.07 s
+    after start, before running the script and with no output. A script that
+    ran and failed returns a nonnegative code and is never retried.
+    """
+    for attempt in range(INSTALL_ATTEMPTS):
+        result = worker.subprocess.run(
+            [worker.APPTAINER, 'exec', f'instance://{instance.instance_name}',
+             'bash', '-c', script], capture_output=True, text=True, timeout=120)
+        if result.returncode >= 0 or result.stdout or attempt + 1 == INSTALL_ATTEMPTS:
+            return result
+        time.sleep(1 + attempt)
 
 
 _upload = ContextVar('bridge_upload', default=False)
@@ -211,9 +228,7 @@ def receive_directory(instance, payload, worker):
     received = time.monotonic() - started
     installing = time.monotonic()
     try:
-        result = worker.subprocess.run(
-            [worker.APPTAINER, 'exec', f'instance://{instance.instance_name}',
-             'bash', '-c', script], capture_output=True, text=True, timeout=120)
+        result = install(worker, instance, script)
         return {'return_code': result.returncode, 'stdout': (result.stdout or '')[:4000],
                 'stderr': (result.stderr or '')[:2000],
                 'upload_timings_seconds': {'receive': received,
