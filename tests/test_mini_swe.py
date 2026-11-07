@@ -159,6 +159,32 @@ def test_local_http_preserves_reasoning_and_budget(tmp_path, monkeypatch, prefix
     assert result.usage.completion_tokens == 10
 
 
+@pytest.mark.parametrize('override,env,expected', [
+    (None, None, 3600.0), (120, None, 120.0), (None, '900', 900.0)])
+def test_local_http_request_timeout_default_and_overrides(monkeypatch, override, env, expected):
+    import httpx
+    import openai
+    from harbor_patches.mini_swe import completion
+    created = []
+    real = openai.AsyncOpenAI
+    async def handler(request):
+        return httpx.Response(200, json=response('echo done').model_dump())
+    def factory(**kwargs):
+        created.append(kwargs)
+        return real(api_key='test', base_url='http://example/v1',
+                                  http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    monkeypatch.setattr(openai, 'AsyncOpenAI', factory)
+    if env:
+        monkeypatch.setenv('OT_MODEL_REQUEST_TIMEOUT_SEC', env)
+    else:
+        monkeypatch.delenv('OT_MODEL_REQUEST_TIMEOUT_SEC', raising=False)
+    settings = {'api_base': 'http://example/v1', 'max_tokens': 8}
+    if override:
+        settings['timeout'] = override
+    asyncio.run(completion('openai/glm', [{'role': 'user', 'content': 'Task'}], settings))
+    assert created[0]['timeout'] == expected and created[0]['max_retries'] == 0
+
+
 def test_factory_and_record_use_host_adapter(monkeypatch):
     from harbor.agents.factory import AgentFactory
     from harbor.models.agent.name import AgentName

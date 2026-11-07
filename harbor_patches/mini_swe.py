@@ -67,6 +67,17 @@ def request_kwargs(kwargs):
     return result
 
 
+# Per-request limit for one model call. The OpenAI SDK default (600 s) aborted
+# long reasoning turns on slow local servers, and each MiniSWE retry restarted
+# the turn from scratch. The review session limit stays the binding deadline.
+REQUEST_TIMEOUT_SEC = 3600.0
+
+
+def request_timeout(options):
+    value = options.pop('timeout', None) or os.environ.get('OT_MODEL_REQUEST_TIMEOUT_SEC')
+    return float(value) if value else REQUEST_TIMEOUT_SEC
+
+
 async def completion(model, messages, kwargs):
     """Use native OpenAI transport for local endpoints: LiteLLM strips reasoning there."""
     import litellm
@@ -75,7 +86,8 @@ async def completion(model, messages, kwargs):
         options = deepcopy(kwargs)
         base = options.pop('api_base', None) or os.environ.get('OPENAI_API_BASE') or os.environ.get('OPENAI_BASE_URL')
         key = os.environ.get('OPENAI_API_KEY') or ('EMPTY' if base else None)
-        async with AsyncOpenAI(base_url=base, api_key=key, max_retries=0) as client:
+        timeout = request_timeout(options)
+        async with AsyncOpenAI(base_url=base, api_key=key, max_retries=0, timeout=timeout) as client:
             response = await client.chat.completions.create(
                 model=model.split('/', 1)[1], messages=messages, **options)
         from harbor_patches.reasoning_field import with_reasoning_content
