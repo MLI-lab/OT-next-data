@@ -532,6 +532,21 @@ def python_bootstrap_apt(command):
 
 def remove_uv_bootstrap_loops(script):
     """Replace only literal retry loops for the pinned uv installer."""
+    env_file_retry = '''max_retries=3
+for i in $(seq 1 $max_retries); do
+    curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh
+    if [ -f "$HOME/.local/bin/env" ]; then
+        break
+    fi
+    echo "Retry $i/$max_retries: uv installation failed, retrying in 5 seconds..."
+    sleep 5
+done
+
+source $HOME/.local/bin/env || { echo "Failed to source uv env"; exit 1; }'''
+    if script.count(env_file_retry) == 1:
+        remainder = script.replace(env_file_retry, '', 1)
+        if not re.search(r'\$(?:\{)?(?:max_retries|i)\b', remainder):
+            script = script.replace(env_file_retry, 'source $HOME/.local/bin/env', 1)
     for match in list(re.finditer(r'^for i in (?:[1-5](?: [1-5])*|\{1\.\.[1-5]\}); do\n(?:(?!^done$).)*^done$', script, re.M | re.S))[::-1]:
         lines = shell_lines(match[0])[1:-1]
         safe = True

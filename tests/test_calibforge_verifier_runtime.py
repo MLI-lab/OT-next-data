@@ -835,6 +835,30 @@ def test_uv_installer_retry_loop_does_not_drop_task_initialization():
     assert runtime.remove_uv_bootstrap_loops(modified)==modified
 
 
+def test_uv_installer_env_file_retry_preserves_grading_and_rejects_side_effects():
+    bootstrap = '''max_retries=3
+for i in $(seq 1 $max_retries); do
+    curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh
+    if [ -f "$HOME/.local/bin/env" ]; then
+        break
+    fi
+    echo "Retry $i/$max_retries: uv installation failed, retrying in 5 seconds..."
+    sleep 5
+done
+
+source $HOME/.local/bin/env || { echo "Failed to source uv env"; exit 1; }'''
+    files = uvx_case()
+    files['tests/test.sh'] = files['tests/test.sh'].replace(
+        b'source $HOME/.local/bin/env', bootstrap.encode(), 1)
+    planned = runtime.uvx_plan(files, python='3.13.9')
+    assert 'max_retries' not in planned['test_script']
+    assert '/tests/test_outputs.py' in planned['test_script']
+    for changed in (bootstrap.replace('sleep 5', 'python3 /app/initialize.py'),
+                    bootstrap.replace('uv/0.9.5', 'uv/0.9.7'),
+                    bootstrap + '\necho "$i"\n', bootstrap + '\necho "${max_retries}"\n'):
+        assert runtime.remove_uv_bootstrap_loops(changed) == changed
+
+
 def test_submitted_package_install_and_cli_keep_task_interpreter():
     files={'environment/files/foo/setup.py':b'from setuptools import setup\nsetup(name="foo")',
            'environment/files/foo/cli.py':b'print("task CLI")',
