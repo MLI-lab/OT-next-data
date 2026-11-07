@@ -106,6 +106,23 @@ def test_verified_recovery_returns_task_to_normal_build(tmp_path):
         failures([task], recovered)
 
 
+def test_targeted_retry_classifies_latest_exit_and_preserves_old_log(tmp_path):
+    task, log, source, manifest = evidence(tmp_path)
+    first = json.loads(source.read_text())[0]
+    log.write_text('No space left on device\n')
+    first['log_sha256'] = sha(log)
+    later_log = tmp_path / 'retry.log'
+    later_log.write_text('initdb: cannot be run as root\n')
+    later = dict(first, started_at='2026-11-07T01:00:00Z',
+                 log=str(later_log), log_sha256=sha(later_log))
+    source.write_text(json.dumps([later, first]))
+    retried = tmp_path / 'retried.json'
+    freeze([source], retried)
+    result = failures([task], retried)[task.name]
+    assert result['build_status'] == 'failed'
+    assert result['image_preparation'][0]['superseded_attempts'][0]['log'] == str(log)
+
+
 def test_staging_failure_has_bindings_but_no_invented_build_exit(tmp_path, monkeypatch):
     from hpc.offline_prep.image_cache import prepare_images
     import hpc.local_assets

@@ -5,6 +5,7 @@ Every use verifies the original records and logs. Only matching environment byte
 can block a container trial; other tasks must still pass the prebuilt-image guard.
 """
 import argparse
+from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
@@ -66,6 +67,26 @@ def load(path):
             if record['environment_sha256'] in recovered:
                 continue  # Normal BUILD still executes against the recovered image.
             entries.setdefault(task, []).append(dict(record, evidence_record=str(record_path)))
+    # A targeted repair can replace a storage/setup error with a later real
+    # builder exit. Keep earlier evidence, but classify only the latest attempt
+    # for each exact environment, never merge diagnostics across attempts.
+    for task, records in entries.items():
+        by_environment = {}
+        for record in records:
+            timestamp = datetime.fromisoformat(record['started_at'].replace('Z', '+00:00'))
+            if timestamp.tzinfo is None:
+                raise ValueError('Preparation timestamp must include its timezone')
+            by_environment.setdefault(record['environment_sha256'], []).append((timestamp, record))
+        selected = []
+        for attempts in by_environment.values():
+            attempts.sort(key=lambda pair: pair[0])
+            if len(attempts) > 1 and attempts[-1][0] == attempts[-2][0]:
+                raise ValueError('Ambiguous latest preparation attempt')
+            latest = dict(attempts[-1][1])
+            if len(attempts) > 1:
+                latest['superseded_attempts'] = [record for _, record in attempts[:-1]]
+            selected.append(latest)
+        entries[task] = selected
     return entries
 
 
