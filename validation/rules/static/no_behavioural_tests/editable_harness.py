@@ -364,12 +364,61 @@ def verifier_events(task):
     return shell.events + python_runs(task)
 
 
+def starting_files(task):
+    """Evidence of what the agent's starting environment contains, from environment/.
+
+    Returns None when the task has no environment/ directory (unknown start
+    state). Otherwise the basenames of supplied files and the text of the
+    Dockerfile and supplied text files, so a file the image build creates
+    (e.g. `gcc -o /app/service/test_handler`) also counts as present.
+    """
+    root = task / 'environment'
+    if not root.is_dir():
+        return None
+    names, texts = set(), []
+    for path in root.rglob('*'):
+        if not path.is_file():
+            continue
+        names.add(path.name)
+        if path.stat().st_size <= 2_000_000:
+            try:
+                texts.append(path.read_text())
+            except (UnicodeError, OSError):
+                pass
+    return names, '\n'.join(texts)
+
+
+def present_at_start(start, path):
+    """Conservative: unknown start state or any mention of the file counts as present."""
+    if start is None:
+        return True
+    names, text = start
+    name = PurePosixPath(path).name
+    return name in names or path in text or re.search(rf'(?<![\w.-]){re.escape(name)}(?![\w-])', text) is not None
+
+
+def uploaded_test_alias(task, path, source):
+    match = re.fullmatch(r'(/.+)/tests(/.*)?', path)
+    if not match or path.startswith('/tests'):
+        return False
+    relative = (match[2] or '').lstrip('/')
+    if not ((task / 'tests' / relative).exists() if relative else (task / 'tests').is_dir()):
+        return False
+    origin = task / source.lstrip('/') if source else None
+    try:
+        text = origin.read_text(errors='replace') if origin and origin.is_file() else ''
+    except OSError:
+        text = ''
+    return re.search(r'(?<![\w/.-])/tests(?:' + re.escape(match[2] or '') + r')?(?![\w.-])', text) is not None
+
+
 def classify(task, instruction):
     """Annotate run/suite events with a role: trusted, deliverable, editable_harness, or tests_dir.
 
     Restorations only count when they happen before the run (event order).
     """
     out, restored = [], []
+    start = starting_files(Path(task))
     for kind, path, source, line, text in verifier_events(task):
         e = dict(kind=kind, path=path, file=source, line=line, text=text, role=None, test_like=False)
         if kind == 'restore':
@@ -383,6 +432,20 @@ def classify(task, instruction):
             elif any(covers(r, path) for r in restored) or (kind == 'suite' and any(covers(path, r) for r in restored)):
                 # For a suite run from a project dir, restoring its test files inside counts.
                 e['role'] = 'trusted'
+            elif uploaded_test_alias(Path(task), path, source):
+                # /workspace/tests/x where tests/x ships and the same verifier file also
+                # names /tests: a fallback location, the harness always uploads /tests.
+                e['role'] = 'tests_dir'
+            elif kind == 'run' and not e['test_like'] and source.endswith('.py'):
+                # Run from a Python test that asserts on its behaviour itself: the
+                # program under test (fix/build/write it), not a harness whose output
+                # a separate grader scores (shell runs keep that case flagged).
+                e['role'] = 'deliverable'
+            elif kind == 'run' and not present_at_start(start, path):
+                # Not in the starting environment: written by the agent or built by
+                # the verifier itself (e.g. gcc -o /tmp/x from the agent's source),
+                # or an alternative location that does not exist (/workspace/tests).
+                e['role'] = 'not_provided'
             elif mentioned(instruction, path) and not (e['test_like'] and not asked_to_write(instruction, path)):
                 e['role'] = 'deliverable'  # running the agent's program is the behaviour under test
             else:

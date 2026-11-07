@@ -213,3 +213,34 @@ def test_unittest_and_nested_test_scripts_are_followed(tmp_path):
     t = task(tmp_path / 'x', 'bash /tests/run.sh\n' + reward,
              files={'tests/test_k.py': keywords, 'tests/run.sh': 'bash /app/run.sh\npytest /tests/test_k.py\n'})
     assert behaviour.analyze_task(t)['status'] == 'not_evidenced'
+
+
+def test_files_absent_from_the_starting_environment_are_not_editable_harnesses(tmp_path):
+    test_py = '''import subprocess
+def test_runs():
+    subprocess.run(["gcc", "-o", "/tmp/dataproc_test", "/app/dataproc.c"])
+    subprocess.run(["/tmp/dataproc_test"])
+    subprocess.run(["python3", "/app/verify_release.py"])
+    subprocess.run(["python3", "/app/test_runner.py"])
+    subprocess.run(["/app/service/test_handler"])
+'''
+    t = task(tmp_path, 'if [ -f /tests/test_outputs.py ]; then T=/tests/test_outputs.py; else T=/workspace/tests/test_outputs.py; fi\nbash /workspace/tests/run.sh\n',
+             files={'tests/test_outputs.py': test_py,
+                    'environment/Dockerfile': 'FROM ubuntu\nCOPY files/ /app/\nRUN gcc -o /app/service/test_handler /app/handler.c\n',
+                    'environment/files/test_runner.py': 'print("All tests passed!")\n',
+                    'environment/files/dataproc.c': 'int main(){}\n'},
+             instruction='Write /app/verify_release.py. Run python3 /app/test_runner.py to check your work.')
+    assert sorted(f['path'] for f in harness.analyze_task(t)['findings']) == ['/app/service/test_handler', '/app/test_runner.py']
+
+
+def test_programs_under_test_are_deliverables_and_tests_aliases_are_ignored(tmp_path):
+    t = task(tmp_path, 'if [ -f /tests/test_outputs.py ]; then T=/tests/test_outputs.py; else T=/workspace/tests/test_outputs.py; fi\npytest "$T"\n',
+             files={'tests/test_outputs.py': '''import subprocess
+def test_tool():
+    subprocess.run(["/app/wordfreq", "input.txt"])
+    subprocess.run(["bash", "/app/scripts/backup.sh"])
+    subprocess.run(["python3", "/app/run_tests.py"])
+''', 'environment/Dockerfile': 'FROM ubuntu\nCOPY files/ /app/\n',
+                    'environment/files/wordfreq.c': '', 'environment/files/scripts/backup.sh': '',
+                    'environment/files/run_tests.py': '', 'environment/files/test_outputs.py': ''})
+    assert [f['path'] for f in harness.analyze_task(t)['findings']] == ['/app/run_tests.py']
