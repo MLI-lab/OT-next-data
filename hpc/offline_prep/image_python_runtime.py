@@ -196,7 +196,11 @@ def command(image, scratch, *args, binds=()):
         raise ValueError('Stage source overlay into private build scratch before execution')
     overlay = ['--overlay', str(image.overlay) + ':ro'] if isinstance(image, SourceImage) else []
     sif = image.sif if isinstance(image, SourceImage) else image
-    return ['apptainer', 'exec', '--cleanenv', '--containall', '--no-home', '--pwd', '/',
+    # Barnard scratch lives below /dev/shm, whose per-job directory does not
+    # exist in the immutable source image. A private writable layer lets
+    # Apptainer create bind points without modifying the source SIF/overlay.
+    return ['unshare', '-r', 'apptainer', 'exec', '--writable-tmpfs',
+            '--cleanenv', '--containall', '--no-home', '--pwd', '/',
             '--env', f'TMPDIR={scratch}',
             '--bind', f'{scratch}:{scratch}',
             *[arg for bind in binds for arg in ('--bind', bind)], *overlay, str(sif), *map(str, args)]

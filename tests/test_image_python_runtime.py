@@ -73,6 +73,8 @@ def test_image_source_rejects_unsafe_interpreter(executable):
 
 def test_image_commands_use_private_scratch_and_clean_environment(tmp_path):
     argv = command('/pristine.sif', tmp_path, '/python', '-I')
+    assert argv[:3] == ['unshare', '-r', 'apptainer']
+    assert '--writable-tmpfs' in argv
     assert '--cleanenv' in argv and '--containall' in argv and '--no-home' in argv
     assert argv[argv.index('--env') + 1] == f'TMPDIR={tmp_path}'
     assert argv[-3:] == ['/pristine.sif', '/python', '-I']
