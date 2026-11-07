@@ -33,3 +33,16 @@ def test_upload_install_retries_only_signal_killed_launcher(monkeypatch):
     outcomes[:] = [SimpleNamespace(returncode=2, stdout='', stderr='tar: error')]
     assert upload_runtime.install(worker, instance, 'true').returncode == 2
     assert len(calls) == 1
+
+
+def test_verifier_timeout_and_oom_are_observed_nop_zeros(tmp_path):
+    timeout = {'exception_type': 'VerifierTimeoutError', 'exception_message': 'Verifier execution timed out after 300.0 seconds'}
+    assert harbor.valid_nop_zero(tmp_path, {'exception_info': timeout}, 'reward')['reason'].startswith('verifier exceeded the task time limit')
+    trials = [(tmp_path / 'a', {'exception_info': OOM}), (tmp_path / 'b', {'exception_info': timeout})]
+    result = harbor.assess_trials(trials, 2, expected_reward=0, require_execution=True)
+    assert result['status'] == 'completed' and result['rewards'] == [0, 0]
+
+
+def test_startup_timeout_is_not_a_nop_zero(tmp_path):
+    startup = {'exception_type': 'EnvironmentStartTimeoutError'}
+    assert harbor.valid_nop_zero(tmp_path, {'exception_info': startup}, 'reward') is None

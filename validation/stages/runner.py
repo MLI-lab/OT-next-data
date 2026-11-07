@@ -910,7 +910,8 @@ def add_verifier_tamper(prepared, rows, task, args):
     if not wrapped:
         prepared['verifier_tamper'] = dict(status='incomplete', reason='no run was wrapped', tools=[])
         return
-    reward = lambda row: (runtime.assess_trials([row], 1, expected_reward=None, task_path=task).get('rewards') or [None])[0]
+    # No-op acceptance: a verifier that hits the task's memory/time limit scores 0 here too.
+    reward = lambda row: (runtime.assess_trials([row], 1, expected_reward=0, task_path=task).get('rewards') or [None])[0]
     baseline = [reward(row) for row in rows if row not in wrapped] or [0]
     prepared['verifier_tamper'] = record = assess(Path(wrapped[0][0]), reward(wrapped[0]), baseline)
     if record['status'] == 'flagged':
@@ -954,6 +955,19 @@ def add_listing_order(prepared, normal, shuffled, task, args, *, expected_reward
     from validation.rules.dynamic.nop_baseline.listing_order import compare
     trials = shuffled['groups'].get(task.name, [])
     count = shuffled.get('expected_count', 1)
+    accepted = []
+    if expected_reward == 0:
+        # Same acceptance as the normal no-op runs: a verifier that crashes or
+        # exceeds the task's memory/time limit on the unchanged state scores 0.
+        converted = []
+        for path, result in trials:
+            zero = runtime.valid_nop_zero(path, result, args.reward_key) if result.get('exception_info') else None
+            if zero:
+                accepted.append(zero)
+                verifier = dict(result.get('verifier_result') or {}, rewards={args.reward_key: 0})
+                result = dict(result, exception_info=None, verifier_result=verifier)
+            converted.append((path, result))
+        trials = converted
     record = compare(normal, trials, args.reward_key, expected_reward=expected_reward, expected_count=count)
     # Require a valid final reward and no execution failures, but no per-test recorder/report.
     assessment = runtime.assess_trials(trials, count, expected_reward=None,
@@ -961,6 +975,8 @@ def add_listing_order(prepared, normal, shuffled, task, args, *, expected_reward
     if assessment['status'] != 'completed' or shuffled.get('unmatched'):
         record.update(status='incomplete', reason='; '.join(assessment['findings']) or 'unmatched shuffled results')
     record['job_dir'] = shuffled['job_dir']
+    if accepted:
+        record['accepted_zeros'] = accepted
     record['shuffled_usage'] = {k: assessment.get(k, []) for k in ('trial_seconds', 'resources')}
     prepared['listing_order'] = record
     if record['status'] in ('flagged', 'incomplete'):

@@ -12,7 +12,8 @@ ADAPTATION = (
     'supplied label:glob configurations, and references discovered through named supplied '
     'files/directories; reads literal writes and copies/moves in explicitly invoked local setup shell '
     'scripts without executing them, with source evidence'
-    '; renders escaped Markdown underscores in prose, rejects whitespace/escape-containing report strings as single paths, ignores unused top-level literal sets in Python without reflective namespace access, and follows literal initial writes in the exact ET v6 encoded RUN wrapper; a named directory with proven supplied children need not end in a slash')
+    '; renders escaped Markdown underscores in prose, rejects whitespace/escape-containing report strings as single paths, ignores unused top-level literal sets in Python without reflective namespace access, and follows literal initial writes in the exact ET v6 encoded RUN wrapper; a named directory with proven supplied children need not end in a slash'
+    '; checks only the task\'s own tests/test_*.py, not test files of libraries vendored under tests/')
 
 
 # Specific conventional interfaces, not an exemption for everything under /boot.
@@ -87,6 +88,14 @@ def reference_check_script(source):
     if source.count(old) != 1 or source.count('/[a-zA-Z0-9_./]+\\.') != 1:
         raise ValueError('upstream file-reference extractor changed')
     source = source.replace(old, "grep -E '^/'")
+    # Upstream derives the task directory as two levels above each test file, so a
+    # library vendored under tests/ with its own tests/test_*.py (e.g. a pristine
+    # copy of fitsio for the verifier) failed with "task.toml not found". Only the
+    # task's own tests/test_*.py are its test files.
+    discovery = 'find "$task_dir" -type f -path "*/tests/test_*.py"'
+    if source.count(discovery) != 1:
+        raise ValueError('upstream test-file discovery changed')
+    source = source.replace(discovery, 'find "$task_dir/tests" -maxdepth 1 -type f -name "test_*.py"')
     # Quoted report text is not one filename. Stop at whitespace or a shell/
     # Python escape instead of splitting the entire string into path fragments.
     source = source.replace('[^"\'"\'"\']*', '[^"\'"\'"\'[:space:]\\\\]*')

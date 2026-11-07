@@ -150,7 +150,7 @@ def test_oracle_passed_tasks_reads_this_submissions_stage_4_reports(tmp_path):
     assert oracle_passed_tasks(tmp_path / 'missing') == set()
 
 
-@pytest.mark.parametrize("error", ["MemoryLimitExceededError", "VerifierTimeoutError", "ContainerStartError"])
+@pytest.mark.parametrize("error", ["MemoryLimitExceededError", "ContainerStartError"])
 def test_paired_reference_cannot_override_resource_or_infrastructure_exception(tmp_path, error):
     task = reference_task(tmp_path, RENAMED_MODULE)
     trial = tmp_path / "trial"
@@ -192,7 +192,7 @@ def test_infrastructure_zero_is_retried_not_archived_as_wrong_reward(tmp_path):
 @pytest.mark.parametrize('exception_type, reward, oracle_passed, status', [
     ('RewardFileNotFoundError', None, True, 'completed'),   # needs a file only the solution creates
     ('VerifierRuntimeError', None, True, 'completed'),
-    ('VerifierTimeoutError', None, True, 'failed'),         # hang or overloaded node: stays open
+    ('VerifierTimeoutError', None, True, 'completed'),      # task's own verifier time limit on the unchanged state
     ('EnvironmentStartTimeoutError', None, True, 'failed'),
     ('RewardFileNotFoundError', None, False, 'completed'),
     (None, 1, True, 'failed'),

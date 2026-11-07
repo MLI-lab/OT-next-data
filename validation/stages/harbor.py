@@ -605,10 +605,13 @@ def valid_nop_zero(path, result, reward_key):
     """A no-op zero, also when the verifier crashes or writes no reward: many verifiers need
     something the agent creates to run at all.
 
-    Container, node and timeout errors are excluded: there the tests had no chance to run.
+    Container and node errors are excluded: there the tests had no chance to run. A
+    verifier that exceeds the task's own memory or time limit on the unchanged start
+    state is accepted: grading ran and did not accept the no-op.
     """
     exception = result.get('exception_info') or {}
-    if exception.get('exception_type') not in (None, *VERIFIER_CRASHES) and not verifier_oom(exception):
+    timed_out = exception.get('exception_type') == 'VerifierTimeoutError'
+    if exception.get('exception_type') not in (None, *VERIFIER_CRASHES) and not verifier_oom(exception) and not timed_out:
         return None
     verifier = result.get('verifier_result') or {}
     reward = (verifier.get('rewards') or {}).get(reward_key)
@@ -617,6 +620,11 @@ def valid_nop_zero(path, result, reward_key):
     if verifier_oom(exception):
         return {'trial': str(path), 'observed_reward': reward, 'exception_info': exception,
                 'reason': 'verifier exceeded the task memory limit on the unchanged start state'}
+    if timed_out:
+        # The task's own verifier time limit, reached while grading the unchanged
+        # start state (e.g. the unfixed program hangs): the no-op is not accepted.
+        return {'trial': str(path), 'observed_reward': reward, 'exception_info': exception,
+                'reason': 'verifier exceeded the task time limit on the unchanged start state'}
     if NOP_RESOURCE_FAILURE.search(verifier_output(path, verifier)) and not tests_ran(path, verifier):
         return None
     return {'trial': str(path), 'reason': 'no-op zero without a usable reward from the verifier',
@@ -766,6 +774,9 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
                 notes.append(f'{path.name}: accepted zero: {problem}')
             if zero['observed_reward'] is not None:
                 scores.append(zero['observed_reward'])
+            elif verifier_oom(zero['exception_info'] or {}) or (zero['exception_info'] or {}).get('exception_type') == 'VerifierTimeoutError':
+                # Grading ran and hit the task's own limit: an observed zero.
+                scores.append(0)
             continue
         if result.get('exception_info'):
             findings.append(f'{path.name}: exception: {result["exception_info"]}')
