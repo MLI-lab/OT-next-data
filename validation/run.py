@@ -351,7 +351,12 @@ def observations(reports, hashes, dataset='', settings=None):
             blocked = (item.get('blocked_by_stage') is not None or
                        (int(stage) == 1 and item.get('build_status', item.get('status')) not in ('passed', 'completed')))
             if blocked and int(stage) in STAGE_CHECKS:
-                for name in STAGE_CHECKS[int(stage)]:
+                blocked_checks = list(STAGE_CHECKS[int(stage)])
+                if int(stage) == 3 and settings.get('dynamic_do_not_modify', True):
+                    # Tasks without a reference receive this check in their no-op
+                    # trials. A failed build prevents it; it was not deselected.
+                    blocked_checks.append('do_not_modify_dynamic')
+                for name in blocked_checks:
                     if row.get(name) in (None, 'not_requested'):
                         put(name, {'status': 'skipped', 'blocked_by_stage': 1,
                                    'reason': 'The task did not build'})

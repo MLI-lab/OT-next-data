@@ -147,3 +147,17 @@ def test_staging_failure_has_bindings_but_no_invented_build_exit(tmp_path, monke
     manifest = tmp_path / 'manifest.json'
     freeze([source], manifest)
     assert failures([task], manifest)[task.name]['category'] == 'infrastructure_error'
+
+
+@pytest.mark.parametrize('enabled', [True, False])
+def test_failed_build_blocks_requested_nop_protection_check(enabled):
+    from validation.run import observations
+    report = {'items': [{'task': '/tasks/example', 'status': 'skipped',
+                          'blocked_by_stage': 1, 'reason': 'Fresh image build failed'}]}
+    row, = observations({3: report}, {'example': 'a' * 64},
+                        settings={'dynamic_do_not_modify': enabled})
+    assert row['nop'] == 'blocked'
+    if enabled:
+        assert row['do_not_modify_dynamic'] == 'blocked'
+    else:
+        assert 'do_not_modify_dynamic' not in row
