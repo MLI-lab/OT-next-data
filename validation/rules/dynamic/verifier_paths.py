@@ -729,6 +729,11 @@ def history(path):
         if root_result.returncode:
             if "not a git repository" in root_result.stderr:
                 return {"status":"not_in_repository"}
+            # Bare repositories have no work tree: their files are Git metadata,
+            # not tracked paths that history could restore.
+            bare=git(directory,"rev-parse","--is-bare-repository")
+            if bare.returncode == 0 and bare.stdout.strip() == "true":
+                return {"status":"not_in_repository","reason":"bare repository metadata"}
             raise RuntimeError(root_result.stderr.strip() or "cannot identify repository")
         root=root_result.stdout.strip()
         relative=os.path.relpath(path,root)

@@ -24,7 +24,10 @@ PROBE_PYTHONS = (
     '"${XDG_DATA_HOME:-$HOME/.local/share}"/uv/python/*/bin/python3 '
     '"$HOME"/.local/share/uv/python/*/bin/python3 '
     '/root/.local/share/uv/python/*/bin/python3 '
-    '/home/*/.local/share/uv/python/*/bin/python3'
+    '/home/*/.local/share/uv/python/*/bin/python3 '
+    # Prepared verifier runtimes are mounted read-only at container start, so
+    # probes also work in task images without their own Python.
+    '/opt/ot-verifier-images/*/python/bin/python3'
 )
 PROBE_TIMEOUT_SEC = 600
 
