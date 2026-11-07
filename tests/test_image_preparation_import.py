@@ -157,10 +157,8 @@ def test_failed_build_blocks_requested_nop_protection_check(enabled):
     row, = observations({3: report}, {'example': 'a' * 64},
                         settings={'dynamic_do_not_modify': enabled})
     assert row['nop'] == 'blocked'
-    if enabled:
-        assert row['do_not_modify_dynamic'] == 'blocked'
-    else:
-        assert 'do_not_modify_dynamic' not in row
+    # One do_not_modify column: the static stage-0 result stays when the container check cannot run.
+    assert 'do_not_modify' not in row and 'do_not_modify_dynamic' not in row
 
 
 def test_build_reason_names_the_conversion_error(tmp_path):

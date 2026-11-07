@@ -131,7 +131,7 @@ STATUSES = {*RESULTS, *NO_RESULT}
 # all its runs: wall-clock seconds and container CPU seconds (summed) and peak
 # container memory (largest). Checks evaluated inside another check's container
 # (declared_*, repository_*, verifier_tamper, reference_leaks) add no runs.
-TIMED = ('build', 'reference', 'reference_determinism', 'do_not_modify_dynamic', 'nop', 'nop_determinism')
+TIMED = ('build', 'reference', 'reference_determinism', 'do_not_modify', 'nop', 'nop_determinism')
 USAGE = ('wall_seconds', 'cpu_seconds', 'memory_peak_mb')
 
 
@@ -151,7 +151,7 @@ def _runs(name, record):
         return [(sum(v for k, v in (env.get('timings_seconds') or {}).items()
                      if k in ('start', 'inspect', 'stop') and _number(v)), {'agent': env.get('resources')})
                 for run in history for env in run.get('environments') or []]
-    if name == 'do_not_modify_dynamic':
+    if name == 'do_not_modify':
         found = []
         def walk(value):
             if isinstance(value, dict):
@@ -238,7 +238,7 @@ def normalize_details(row):
 
 # Dynamic checks that run inside each stage's containers.
 STAGE_CHECKS = {1: ('declared_workdir', 'declared_internet_access', 'repository_history', 'repository_timestamps'),
-                2: ('reference', 'reference_determinism', 'do_not_modify_dynamic'),
+                2: ('reference', 'reference_determinism'),
                 3: ('nop', 'nop_determinism', 'verifier_tamper', 'reference_leaks', 'verifier_paths')}
 
 
@@ -246,7 +246,8 @@ def known_rules():
     from validation.rules.registry import RULES
     # The checks of stages 0-3. Later stages (review, metrics, evaluations) add
     # their columns only when they run.
-    return {r.name for r in RULES} | {
+    # do_not_modify_dynamic reports into the single do_not_modify column.
+    return {r.name for r in RULES if r.name != 'do_not_modify_dynamic'} | {
         'build', 'reference', 'nop', 'reference_determinism', 'nop_determinism',
         'repository_history', 'repository_timestamps', 'declared_workdir', 'declared_internet_access'}
 
@@ -319,9 +320,15 @@ def observations(reports, hashes, dataset='', settings=None):
             if int(stage) == 1 and isinstance(item.get('setup_speed'), dict):
                 put('setup_speed', item['setup_speed'])
             for field, name in [('listing_order', 'reference_determinism' if int(stage) == 2 else 'nop_determinism'),
-                                ('do_not_modify', 'do_not_modify_dynamic'), ('verifier_tamper', 'verifier_tamper'),
+                                ('do_not_modify', 'do_not_modify'), ('verifier_tamper', 'verifier_tamper'),
                                 ('verifier_paths', 'verifier_paths')]:
                 record = item.get(field)
+                if field == 'do_not_modify' and isinstance(record, dict) and (
+                        record.get('blocked_by_stage') is not None or record.get('status') == 'skipped'):
+                    # One do_not_modify column: the container check replaces the static
+                    # stage-0 result, except when a failed build kept it from running.
+                    # An incomplete container check is still reported as incomplete.
+                    record = None
                 if isinstance(record, dict):
                     value = None
                     if field == 'verifier_tamper' and record.get('status') == 'flagged':
@@ -351,11 +358,8 @@ def observations(reports, hashes, dataset='', settings=None):
             blocked = (item.get('blocked_by_stage') is not None or
                        (int(stage) == 1 and item.get('build_status', item.get('status')) not in ('passed', 'completed')))
             if blocked and int(stage) in STAGE_CHECKS:
+                # do_not_modify is not blocked: its static stage-0 result stays.
                 blocked_checks = list(STAGE_CHECKS[int(stage)])
-                if int(stage) == 3 and settings.get('dynamic_do_not_modify', True):
-                    # Tasks without a reference receive this check in their no-op
-                    # trials. A failed build prevents it; it was not deselected.
-                    blocked_checks.append('do_not_modify_dynamic')
                 for name in blocked_checks:
                     if row.get(name) in (None, 'not_requested'):
                         put(name, {'status': 'skipped', 'blocked_by_stage': 1,

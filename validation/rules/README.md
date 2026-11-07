@@ -13,8 +13,8 @@ by `task_id`. The columns are:
 | `task_id` | Task name |
 | `dataset` | Datasource name |
 | `content_sha256` | Hash of the task files, after automatic repairs |
-| 19 static checks | `compose-host-binds`, `dockerfile-platform`, `instruction-suffix`, `no-cheat-dir`, `resource-sizes`, `task-timeout`, `dockerfile-references`, `dockerfile-sanity`, `nproc`, `pip-pinning`, `task-absolute-path`, `test-file-references`, `agent_editable_test`, `task-toml-schema`, `do_not_modify`, `no_behavioural_tests`, `script_execution_coverage`, `python_missing_imports`, `artifact_efficiency` |
-| 13 dynamic checks | `build`, `declared_workdir`, `declared_internet_access`, `reference`, `nop`, `reference_determinism`, `nop_determinism`, `repository_history`, `repository_timestamps`, `reference_leaks`, `verifier_tamper`, `do_not_modify_dynamic`, `verifier_paths` |
+| 18 static checks | `compose-host-binds`, `dockerfile-platform`, `instruction-suffix`, `no-cheat-dir`, `resource-sizes`, `task-timeout`, `dockerfile-references`, `dockerfile-sanity`, `nproc`, `pip-pinning`, `task-absolute-path`, `test-file-references`, `agent_editable_test`, `task-toml-schema`, `no_behavioural_tests`, `script_execution_coverage`, `python_missing_imports`, `artifact_efficiency` |
+| 13 dynamic checks | `build`, `declared_workdir`, `declared_internet_access`, `reference`, `nop`, `reference_determinism`, `nop_determinism`, `repository_history`, `repository_timestamps`, `reference_leaks`, `verifier_tamper`, `do_not_modify`, `verifier_paths` |
 
 `verifier_paths` is a failure-level check during stage 3 no-op verification. It
 scans Python verifier sources, Python heredocs and shell path literals, then
@@ -160,7 +160,7 @@ Each check column has these fields:
 | `status` | always | the result for the task files after automatic repairs |
 | `repaired` | checks with an automatic repair | `true` if the pipeline fixed the task, `false` if nothing needed fixing |
 | `details` | when there is something to report | the finding, the original error, or what a task-specific repair changed |
-| `wall_seconds`, `cpu_seconds`, `memory_peak_mb` | checks that run containers (`build`, `reference`, `reference_determinism`, `do_not_modify_dynamic`, `nop`, `nop_determinism`) | wall-clock and container CPU time summed over the check's runs, and the largest container memory |
+| `wall_seconds`, `cpu_seconds`, `memory_peak_mb` | checks that run containers (`build`, `reference`, `reference_determinism`, `do_not_modify`, `nop`, `nop_determinism`) | wall-clock and container CPU time summed over the check's runs, and the largest container memory |
 
 `check_resources.json` next to `results.parquet` gives mean and median per check and for the whole validation per task.
 
@@ -542,6 +542,11 @@ agent was asked to modify. Typical bug-fixing tasks are not affected: there the 
 runs a test that uses the buggy file, rather than executing the file itself, and that is not
 flagged. To mitigate this, paths that appear in the instruction are not flagged.
 
+A file that is neither supplied under `environment/` nor named in the Dockerfile was made
+by the agent or the verifier and is not flagged. A non-test-like program run by a Python
+test is the program under test. A `/workspace/tests` copy of a shipped test file, next to
+its `/tests` location, is a fallback and is not flagged.
+
 </details>
 
 
@@ -569,52 +574,6 @@ unknown fields.
 
 Column `task-toml-schema`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
 Example `details`: `task.toml: [verifier] timeout_sec must be a number`
-
-</details>
-
-</details>
-
-<a id="do_not_modify"></a>
-
-<details>
-<summary><code>do_not_modify</code> (Ours) · Protected-file constraints in instructions.</summary>
-
-the instruction says a file must not be modified, but the verifier never
-mentions that file, so it cannot notice if the agent changes it. A dynamic part runs in
-stage 2 (see below).
-
-<details>
-<summary>Implementation</summary>
-
-1. Extract the protected files from the instruction's prose (examples and code blocks are
-   masked). The checker looks for a named file or directory together with one of the
-   phrases below, such as “do not modify `config.yaml`” or “`config.yaml` is read-only”:
-   - **Before the file or directory name:** do not modify, must not modify, don't change, must not edit,
-     do not edit, do not touch, do not alter, without modifying, leave unchanged, leave
-     intact, do not remove.
-   - **After the file or directory name:** must remain unchanged/intact, must not be modified/edited/changed,
-     is/are read-only; also "treat X as read-only".
-   - **File nouns:** a limited list such as file, directory, folder, script, binary,
-     library and runner, with modifiers such as input, source or test.
-   - **Location words:** in, under, inside, within, at, of.
-
-   Connected targets are handled too ("Do not modify `a.py` or `b.py`"). This uses fixed
-   vocabulary and local patterns, not a general "take the first noun" rule. Sentences that
-   protect a region (a function, signature or format) rather than a file are not enforced.
-2. To see whether the verifier checks the files the instruction says not to modify,
-   look for each extracted path or filename in the contents of files under `tests/`.
-   If a file is never mentioned, flag the task. A mention is only a rough indication;
-   the dynamic check tests whether changes are actually detected. Tasks without an
-   extracted protected file pass.
-
-</details>
-
-
-<details>
-<summary>Entry in <code>results.parquet</code></summary>
-
-Column `do_not_modify`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
-Example `details`: `instruction protects /app/config.yaml, but the tests never check it`
 
 </details>
 
@@ -712,7 +671,7 @@ They run in the containers of stages 1-3:
 | Stage | Checks |
 | --- | --- |
 | 1: build and setup | `build`, `declared_workdir`, `declared_internet_access`, `repository_history`, `repository_timestamps` |
-| 2: reference solution | `reference`, `reference_determinism`, `do_not_modify_dynamic` |
+| 2: reference solution | `reference`, `reference_determinism`, `do_not_modify` |
 | 3: no-op | `nop`, `nop_determinism`, `verifier_tamper`, `reference_leaks` |
 
 Only unavailable container preparation blocks stages 2 and 3: the image cannot be
@@ -1054,13 +1013,45 @@ Example `details`: `/usr/bin/python3 changed during the agent run`
 
 </details>
 
-<a id="do_not_modify_dynamic"></a>
+<a id="do_not_modify"></a>
 
 <details>
-<summary><code>do_not_modify_dynamic</code> (Ours) · Protected-file constraints during execution.</summary>
+<summary><code>do_not_modify</code> (Ours) · Protected-file constraints in instructions.</summary>
 
+The instruction says a file must not be modified, but the verifier cannot notice if the
+agent changes it. One rule and one result column: a static part runs in stage 0 and the
+container part in stage 2 (or in the no-op trials of tasks without a reference solution).
+The container result replaces the static one; the static result remains only when a
+failed build kept the container part from running.
 
-Result column: `do_not_modify_dynamic`. The static check uses `do_not_modify`.
+<details>
+<summary>Static part</summary>
+
+1. Extract the protected files from the instruction's prose (examples and code blocks are
+   masked). The checker looks for a named file or directory together with one of the
+   phrases below, such as “do not modify `config.yaml`” or “`config.yaml` is read-only”:
+   - **Before the file or directory name:** do not modify, must not modify, don't change, must not edit,
+     do not edit, do not touch, do not alter, without modifying, leave unchanged, leave
+     intact, do not remove.
+   - **After the file or directory name:** must remain unchanged/intact, must not be modified/edited/changed,
+     is/are read-only; also "treat X as read-only".
+   - **File nouns:** a limited list such as file, directory, folder, script, binary,
+     library and runner, with modifiers such as input, source or test.
+   - **Location words:** in, under, inside, within, at, of.
+
+   Connected targets are handled too ("Do not modify `a.py` or `b.py`"). This uses fixed
+   vocabulary and local patterns, not a general "take the first noun" rule. Sentences that
+   protect a region (a function, signature or format) rather than a file are not enforced.
+2. To see whether the verifier checks the files the instruction says not to modify,
+   look for each extracted path or filename in the contents of files under `tests/`.
+   If a file is never mentioned, flag the task. A mention is only a rough indication;
+   the dynamic check tests whether changes are actually detected. Tasks without an
+   extracted protected file pass.
+
+</details>
+
+<details>
+<summary>Container part</summary>
 
 First, look for the extracted paths in the agent’s starting environment. Paths that
 cannot be found are skipped, since they may come from an extraction mistake. If
@@ -1079,10 +1070,14 @@ record the attempted mutations but leave their interpretation incomplete.
 Without a reference solution, only check whether the extracted paths exist in the
 agent environment and whether the tests mention them. The mutation checks are not run.
 
+</details>
+
 <details>
 <summary>Entry in <code>results.parquet</code></summary>
 
-Column `do_not_modify_dynamic`. Status `pass` or `fail`. No repair. `details`: for a failure, the protected file and change.
+Column `do_not_modify`. Status `pass`, `fail` or `not_applicable` (no protected file in the
+instruction). No repair. `details`: for a failure, the protected file and why it is not
+enforced. Container runs also record `wall_seconds`, `cpu_seconds` and `memory_peak_mb`.
 Example `details`: `/app/config.yaml was changed and the verifier still gave reward 1`
 
 </details>
