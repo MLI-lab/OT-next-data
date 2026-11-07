@@ -2,7 +2,7 @@
 
 **Main research question:** Which defect criteria are worth filtering to improve downstream RL performance?
 
-Before running RL filtering ablations, we need to know whether the labels are reliable. Otherwise, a criterion might appear unhelpful simply because the rubric, prompting strategy, or judge assigns incorrect labels. These preliminary results aim to answer/make labels relaible. 
+Before running RL filtering ablations, we need to know whether the labels are reliable. Otherwise, a criterion might appear unhelpful simply because the rubric, prompting strategy, or judge assigns incorrect labels. These preliminary results aim to answer/make labels relaible. The main results are in [RQ3](#rq3--does-the-choice-of-judge-matter-can-a-cheaper-judge-be-reliable) (you can skip straight to it). 
 
 ## RQ0: Can we build a reliable, minimally subjective ground-truth dataset?
 
