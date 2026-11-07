@@ -2,6 +2,7 @@ import hashlib
 import json
 
 import pytest
+from pathlib import Path
 
 from data.utils.verifier_runtime import runtime_spec
 from hpc.offline_prep.image_python_runtime import command, source_image
@@ -78,6 +79,16 @@ def test_image_commands_use_private_scratch_and_clean_environment(tmp_path):
     assert '--cleanenv' in argv and '--containall' in argv and '--no-home' in argv
     assert argv[argv.index('--env') + 1] == f'TMPDIR={tmp_path}'
     assert argv[-3:] == ['/pristine.sif', '/python', '-I']
+
+
+def test_shm_scratch_is_not_hidden_by_containall_mounts():
+    scratch = Path('/dev/shm/prepare-one/build')
+    argv = command('/source.sif', scratch, scratch / 'python/bin/python3',
+                   '-I', scratch / 'probe.py')
+    assert f'{scratch}:/ot-preparation-work' in argv
+    assert argv[argv.index('--env') + 1] == 'TMPDIR=/ot-preparation-work'
+    assert argv[-3:] == ['/ot-preparation-work/python/bin/python3', '-I',
+                         '/ot-preparation-work/probe.py']
 
 
 def test_image_install_can_use_readonly_local_wheels(tmp_path, monkeypatch):

@@ -196,14 +196,19 @@ def command(image, scratch, *args, binds=()):
         raise ValueError('Stage source overlay into private build scratch before execution')
     overlay = ['--overlay', str(image.overlay) + ':ro'] if isinstance(image, SourceImage) else []
     sif = image.sif if isinstance(image, SourceImage) else image
+    scratch = str(scratch)
+    # --containall mounts a fresh /dev/shm after overlay setup, hiding bind
+    # points created there. Use a reserved top-level point for host shm scratch.
+    inside = '/ot-preparation-work' if Path(scratch).is_relative_to('/dev/shm') else scratch
+    arguments = [str(arg).replace(scratch, inside) for arg in args]
     # Barnard scratch lives below /dev/shm, whose per-job directory does not
     # exist in the immutable source image. A private writable layer lets
     # Apptainer create bind points without modifying the source SIF/overlay.
     return ['unshare', '-r', 'apptainer', 'exec', '--writable-tmpfs',
             '--cleanenv', '--containall', '--no-home', '--pwd', '/',
-            '--env', f'TMPDIR={scratch}',
-            '--bind', f'{scratch}:{scratch}',
-            *[arg for bind in binds for arg in ('--bind', bind)], *overlay, str(sif), *map(str, args)]
+            '--env', f'TMPDIR={inside}',
+            '--bind', f'{scratch}:{inside}',
+            *[arg for bind in binds for arg in ('--bind', bind)], *overlay, str(sif), *arguments]
 
 
 def proxy_environment():
