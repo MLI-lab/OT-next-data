@@ -89,6 +89,23 @@ def test_reconstructed_evidence_rechecks_preserved_inputs(tmp_path):
         failures([task], bound)
 
 
+def test_verified_recovery_returns_task_to_normal_build(tmp_path):
+    task, log, source, manifest = evidence(tmp_path)
+    record = json.loads(source.read_text())[0]
+    report = tmp_path / 'verified.json'
+    report.write_text(json.dumps(dict(operation='image-verification-only', complete=True,
+        images=[dict(status='verified', environment_sha256=record['environment_sha256'],
+                     mount_probe='hpc.offline_prep.image_cache.verify_image_runtime',
+                     node='barnard-node', files={'image.sif': dict(sha256='d'*64)})])))
+    recovered = tmp_path / 'recovered.json'
+    freeze([source], recovered, [report])
+    assert failures([task], recovered) == {}  # No imported pass; normal BUILD is required.
+    assert json.loads(recovered.read_text())['records']
+    report.write_text('{}')
+    with pytest.raises(ValueError, match='verification report changed'):
+        failures([task], recovered)
+
+
 def test_staging_failure_has_bindings_but_no_invented_build_exit(tmp_path, monkeypatch):
     from hpc.offline_prep.image_cache import prepare_images
     import hpc.local_assets

@@ -20,6 +20,24 @@ def load(path):
     document = json.loads(Path(path).read_text())
     if document.get('format') != 'image-preparation-evidence-v1':
         raise ValueError('Unsupported image preparation evidence')
+    recovered = set()
+    for source in document.get('verified_images', []):
+        if sha(source['path']) != source['sha256']:
+            raise ValueError('Image verification report changed')
+        report = json.loads(Path(source['path']).read_text())
+        if report.get('operation') != 'image-verification-only' or not report.get('complete'):
+            raise ValueError('Expected completed image verification evidence')
+        for item in report['images']:
+            if item.get('status') != 'verified':
+                continue
+            if (item.get('mount_probe') != 'hpc.offline_prep.image_cache.verify_image_runtime'
+                    or not re.fullmatch('[a-f0-9]{64}', item.get('environment_sha256', ''))
+                    or not item.get('files') or not item.get('node')):
+                raise ValueError('Incomplete recovered-image verification evidence')
+            for value in item['files'].values():
+                if not re.fullmatch('[a-f0-9]{64}', value.get('sha256', '')):
+                    raise ValueError('Missing recovered-image artifact checksum')
+            recovered.add(item['environment_sha256'])
     entries = {}
     for source in document['records']:
         record_path = Path(source['path'])
@@ -45,6 +63,8 @@ def load(path):
                         raise ValueError('Reconstructed preparation input changed: ' + binding['path'])
             if record.get('key') != record['environment_sha256'][:12]:
                 raise ValueError('Preparation environment key mismatch')
+            if record['environment_sha256'] in recovered:
+                continue  # Normal BUILD still executes against the recovered image.
             entries.setdefault(task, []).append(dict(record, evidence_record=str(record_path)))
     return entries
 
@@ -88,10 +108,13 @@ def failures(tasks, path):
     return results
 
 
-def freeze(paths, destination):
+def freeze(paths, destination, verified_images=()):
     destination = Path(destination)
     document = dict(format='image-preparation-evidence-v1', records=[
         dict(path=str(Path(p).resolve()), sha256=sha(p)) for p in sorted(set(paths))])
+    if verified_images:
+        document['verified_images'] = [dict(path=str(Path(p).resolve()), sha256=sha(p))
+                                      for p in sorted(set(verified_images))]
     with destination.open('x') as stream:
         stream.write(json.dumps(document, indent=2) + '\n')
     load(destination)
@@ -101,5 +124,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--record', type=Path, action='append', required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--verified-images', type=Path, action='append', default=[])
     args = parser.parse_args()
-    freeze(args.record, args.out)
+    freeze(args.record, args.out, args.verified_images)
