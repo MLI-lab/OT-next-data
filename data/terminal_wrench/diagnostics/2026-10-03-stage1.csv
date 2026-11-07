@@ -1,0 +1,33 @@
+task,check,detail
+seta-env-1131,check-task-absolute-path.sh,FAIL seta-env-1131/instruction.md: relative paths used (should be absolute under /app): ./sysinfo_aggregator.sh
+seta-env-1134,check-pip-pinning.sh,"FAIL seta-env-1134: seta-env-1134/environment/Dockerfile: unpinned ['psutil"")'] in `print(""Error: psutil not installed. Install with: pip install psutil"")`"
+seta-env-1139,check-pip-pinning.sh,FAIL seta-env-1139: seta-env-1139/environment/Dockerfile: unpinned ['flask'] in `RUN python3 -m venv /opt/flask-env &&      /opt/flask-env/bin/pip install flask`
+seta-env-1183,check-task-absolute-path.sh,FAIL seta-env-1183/instruction.md: relative paths used (should be absolute under /opt/backup): data/database.txt
+seta-env-1192,check-dockerfile-sanity.sh,FAIL seta-env-1192/environment/Dockerfile: pinned apt dependency found (use 'apt install package' without =version)
+seta-env-125,check-dockerfile-sanity.sh,FAIL seta-env-125/environment/Dockerfile: pinned apt dependency found (use 'apt install package' without =version)
+seta-env-125,check-test-file-references.sh,"FAIL seta-env-125/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/data/app.db, /app/data/output.txt, /app/scripts/backup.sh, /app/scripts/deploy.sh, /app/scripts/process_data.sh"
+seta-env-1251,check-pip-pinning.sh,"FAIL seta-env-1251: seta-env-1251/environment/Dockerfile: unpinned ['python-docx', 'beautifulsoup4', 'lxml', 'EbookLib', 'python-magic', 'reportlab'] in `RUN pip install --no-cache-dir      python-docx      beautifulsoup4      lxml      EbookLib      python-magic      reportlab`"
+seta-env-1326,check-task-absolute-path.sh,FAIL seta-env-1326/instruction.md: relative paths used (should be absolute under /app): ./process_monitor.sh
+seta-env-165,check-test-file-references.sh,FAIL seta-env-165/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /opt/scripts/backup.sh
+seta-env-222,check-task-absolute-path.sh,FAIL seta-env-222/instruction.md: relative paths used (should be absolute under /app): service-wrapper.sh
+seta-env-233,check-test-file-references.sh,FAIL seta-env-233/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/output.pdf
+seta-env-234,check-test-file-references.sh,FAIL seta-env-234/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /opt/standapp
+seta-env-294,check-task-absolute-path.sh,FAIL seta-env-294/instruction.md: relative paths used (should be absolute under /app): results.json
+seta-env-36,check-test-file-references.sh,FAIL seta-env-36/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/hanging_app.py
+seta-env-361,check-task-absolute-path.sh,"FAIL seta-env-361/instruction.md: relative paths used (should be absolute under /app): ./init.sh, ./script.sh"
+seta-env-380,check-test-file-references.sh,"FAIL seta-env-380/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/database.txt, /app/result1.txt, /app/result2.txt, /app/settings.json, /app/users.csv"
+seta-env-429,check-task-absolute-path.sh,FAIL seta-env-429/instruction.md: relative paths used (should be absolute under /app): tar.gz
+seta-env-478,check-nproc.sh,"FAIL seta-env-478: bare nproc, seta-env-478/solution/solve.sh:38: make -j$(nproc)"
+seta-env-494,check-pip-pinning.sh,"FAIL seta-env-494: seta-env-494/environment/Dockerfile: unpinned ['uwsgi', 'flask'] in `RUN python3.8 -m pip install --break-system-packages uwsgi flask`"
+seta-env-530,check-pip-pinning.sh,"FAIL seta-env-530: seta-env-530/solution/solve.sh: unpinned ['psutil', 'flask'] in `pip install psutil flask`"
+seta-env-535,check-nproc.sh,"FAIL seta-env-535: bare nproc, seta-env-535/solution/solve.sh:42: make -j$(nproc)"
+seta-env-540,check-test-file-references.sh,FAIL seta-env-540/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /home/testuser
+seta-env-547,check-task-absolute-path.sh,FAIL seta-env-547/instruction.md: relative paths used (should be absolute under /app): ./record_loopback.sh
+seta-env-596,check-test-file-references.sh,FAIL seta-env-596/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /nvm.sh
+seta-env-656,check-task-absolute-path.sh,"FAIL seta-env-656/instruction.md: relative paths used (should be absolute under /home/user/scripts): ./session_manager.sh, ./session_manager.sh, ./session_manager.sh"
+seta-env-826,check-nproc.sh,"FAIL seta-env-826: bare nproc, seta-env-826/solution/solve.sh:49: if command -v nproc &>/dev/null; then"
+seta-env-906,check-dockerfile-sanity.sh,FAIL seta-env-906/environment/Dockerfile: pinned apt dependency found (use 'apt install package' without =version)
+seta-env-94,check-task-absolute-path.sh,FAIL seta-env-94/instruction.md: relative paths used (should be absolute under /app): error_report.txt
+seta-env-945,check-pip-pinning.sh,"FAIL seta-env-945: seta-env-945/solution/solve.sh: unpinned ['fonttools', 'brotli'] in `pip install fonttools brotli`"
+seta-env-969,check-test-file-references.sh,"FAIL seta-env-969/tests/test_outputs.py: file(s) created by solution and expected by tests but absent from instruction.md: /app/config.dat, /app/index.dat, /app/models.dat"
+seta-env-981,check-task-absolute-path.sh,FAIL seta-env-981/instruction.md: relative paths used (should be absolute under /app): db/database.conf
