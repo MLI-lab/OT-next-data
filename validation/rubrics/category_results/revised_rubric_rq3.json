@@ -1,0 +1,186 @@
+{
+ "definition": "RQ3 rows for the revised rubric (8 criteria) with Qwen3.8-27B and GLM-5.3-Flash labeling, 3 reviews.\n\nRuns: judge-rubric-v2-20261107/{qwen38-27b,glm-5.3-flash}-labeling (HF FWeindel/task-defect-ground-truth@c92211d).\nCohorts are the README's: the 59 clean tasks and the defect tasks of each old criterion\n(prompt_format_comparison.json evidence, matched by task_id). Split criteria are grouped back:\nweak verifier = ACCEPTS-INCOMPLETE or ACCEPTS-SHORTCUTS; mismatch = CONTRADICTION or\nUNSTATED-REQUIREMENT, per review, then majority (>= 2 of 3). Clean is reported strict and lenient\n(lenient ignores ACCEPTS-INCOMPLETE); each half is also reported separately. Tasks without three\ncomplete reviews are left out and counted.\n    python validation/rubrics/category_results/revised_rubric_rq3.py",
+ "clean_tasks": 59,
+ "defect_tasks": {
+  "VERIFIER-TOO-WEAK": 16,
+  "INSTR-VERIFIER-MISMATCH": 116,
+  "INSTR-AMBIGUOUS": 12,
+  "INSTR-ENV-MISMATCH": 59
+ },
+ "models": {
+  "Qwen3.8-27B": {
+   "clean_covered": 59,
+   "missing": {
+    "clean": 0,
+    "VERIFIER-TOO-WEAK": 0,
+    "INSTR-VERIFIER-MISMATCH": 1,
+    "INSTR-AMBIGUOUS": 0,
+    "INSTR-ENV-MISMATCH": 0
+   },
+   "rows": {
+    "VERIFIER-TOO-WEAK": {
+     "defects": 16,
+     "detected": 15,
+     "clean": 59,
+     "clean_passed": 52,
+     "agreement": 57,
+     "tasks": 75,
+     "clean_passed_lenient": 56,
+     "without_tutanota": {
+      "defects": 15,
+      "detected": 14
+     }
+    },
+    "INSTR-VERIFIER-MISMATCH": {
+     "defects": 115,
+     "detected": 77,
+     "clean": 59,
+     "clean_passed": 57,
+     "agreement": 126,
+     "tasks": 174
+    },
+    "INSTR-AMBIGUOUS": {
+     "defects": 12,
+     "detected": 3,
+     "clean": 59,
+     "clean_passed": 59,
+     "agreement": 65,
+     "tasks": 71
+    },
+    "INSTR-ENV-MISMATCH": {
+     "defects": 59,
+     "detected": 57,
+     "clean": 59,
+     "clean_passed": 59,
+     "agreement": 111,
+     "tasks": 118
+    }
+   },
+   "halves": {
+    "VERIFIER-ACCEPTS-INCOMPLETE": {
+     "defects_detected": 15,
+     "defects": 16,
+     "clean_flagged": 7,
+     "clean": 59
+    },
+    "VERIFIER-ACCEPTS-SHORTCUTS": {
+     "defects_detected": 6,
+     "defects": 16,
+     "clean_flagged": 3,
+     "clean": 59
+    },
+    "INSTR-VERIFIER-CONTRADICTION": {
+     "defects_detected": 30,
+     "defects": 115,
+     "clean_flagged": 2,
+     "clean": 59
+    },
+    "INSTR-VERIFIER-UNSTATED-REQUIREMENT": {
+     "defects_detected": 69,
+     "defects": 115,
+     "clean_flagged": 0,
+     "clean": 59
+    }
+   },
+   "clean_overall": {
+    "strict": {
+     "tasks_passed": 48,
+     "reviews_passed": 134,
+     "reviews": 177
+    },
+    "lenient": {
+     "tasks_passed": 54,
+     "reviews_passed": 148,
+     "reviews": 177
+    }
+   }
+  },
+  "GLM-5.3-Flash": {
+   "clean_covered": 59,
+   "missing": {
+    "clean": 0,
+    "VERIFIER-TOO-WEAK": 0,
+    "INSTR-VERIFIER-MISMATCH": 1,
+    "INSTR-AMBIGUOUS": 0,
+    "INSTR-ENV-MISMATCH": 0
+   },
+   "rows": {
+    "VERIFIER-TOO-WEAK": {
+     "defects": 16,
+     "detected": 16,
+     "clean": 59,
+     "clean_passed": 53,
+     "agreement": 64,
+     "tasks": 75,
+     "clean_passed_lenient": 57,
+     "without_tutanota": {
+      "defects": 15,
+      "detected": 15
+     }
+    },
+    "INSTR-VERIFIER-MISMATCH": {
+     "defects": 115,
+     "detected": 87,
+     "clean": 59,
+     "clean_passed": 59,
+     "agreement": 149,
+     "tasks": 174
+    },
+    "INSTR-AMBIGUOUS": {
+     "defects": 12,
+     "detected": 4,
+     "clean": 59,
+     "clean_passed": 59,
+     "agreement": 65,
+     "tasks": 71
+    },
+    "INSTR-ENV-MISMATCH": {
+     "defects": 59,
+     "detected": 58,
+     "clean": 59,
+     "clean_passed": 59,
+     "agreement": 116,
+     "tasks": 118
+    }
+   },
+   "halves": {
+    "VERIFIER-ACCEPTS-INCOMPLETE": {
+     "defects_detected": 16,
+     "defects": 16,
+     "clean_flagged": 4,
+     "clean": 59
+    },
+    "VERIFIER-ACCEPTS-SHORTCUTS": {
+     "defects_detected": 11,
+     "defects": 16,
+     "clean_flagged": 2,
+     "clean": 59
+    },
+    "INSTR-VERIFIER-CONTRADICTION": {
+     "defects_detected": 28,
+     "defects": 115,
+     "clean_flagged": 0,
+     "clean": 59
+    },
+    "INSTR-VERIFIER-UNSTATED-REQUIREMENT": {
+     "defects_detected": 76,
+     "defects": 115,
+     "clean_flagged": 0,
+     "clean": 59
+    }
+   },
+   "clean_overall": {
+    "strict": {
+     "tasks_passed": 53,
+     "reviews_passed": 160,
+     "reviews": 177
+    },
+    "lenient": {
+     "tasks_passed": 57,
+     "reviews_passed": 171,
+     "reviews": 177
+    }
+   }
+  }
+ }
+}

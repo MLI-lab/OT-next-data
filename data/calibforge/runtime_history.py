@@ -12,6 +12,7 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import sqlite3
+import subprocess
 import tarfile
 import tempfile
 import zlib
@@ -274,6 +275,14 @@ class RuntimeHistory:
             ref = {k: v for k, v in ref.items() if k != 'spec'}
             ref.update(storage='squashfs', image_sha256=ready[ref['id']]['image_sha256'])
             updates[name] = (json.dumps(ref, indent=2) + '\n').encode()
+        # Historical packages may predate patcher fixes (e.g. the empty `if` left by a removed uv
+        # installer before 41c1eeb). A replayed shell script must at least parse; otherwise plan
+        # the task afresh with the current patcher instead of copying a broken verifier.
+        broken = [name for name, data in updates.items() if name.endswith('.sh') and
+                  subprocess.run(['bash', '-n'], input=data, capture_output=True).returncode]
+        if broken:
+            record.update(reason='historical shell script does not parse (bash -n)', invalid_files=sorted(broken))
+            return binary, False
         record.update(status='prepared', cache_prepared=True, evidence='historical before/after task packages',
                       baseline_content_sha256=old_digest, prepared_content_sha256=prepared_digest,
                       runtime_ids=sorted(ready), replayed_files=sorted(updates), removed_files=sorted(removed))

@@ -220,3 +220,15 @@ def test_hash_bound_nonruntime_review_does_not_change_other_inputs(tmp_path, nam
     with pytest.raises(ValueError, match='Reviewed nonruntime binding differs'):
         flow.apply('example', task(modified))
     flow.history.close()
+
+
+def test_historical_shell_script_that_does_not_parse_is_not_replayed(tmp_path):
+    before, after, key = historical(tmp_path)
+    broken = dict(after, **{'tests/test.sh': 'if [ ! -f "$HOME/.local/bin/uv" ]; then\n# uv installer replaced by runtime preparation\nfi\n'
+                                              + after['tests/test.sh']})
+    pq.write_table(pa.table({'path': ['example'], 'task_binary': [task(broken)],
+                            'content_sha256': [files_digest((k, v.encode()) for k, v in broken.items())]}), tmp_path/'prepared.parquet')
+    flow = workflow(tmp_path)
+    binary, changed = flow.apply('example', task(before))
+    assert not changed and binary == task(before)
+    flow.history.close()
