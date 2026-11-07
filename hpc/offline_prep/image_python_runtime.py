@@ -204,7 +204,7 @@ def command(image, scratch, *args, binds=()):
     # Barnard scratch lives below /dev/shm, whose per-job directory does not
     # exist in the immutable source image. A private writable layer lets
     # Apptainer create bind points without modifying the source SIF/overlay.
-    return ['unshare', '-r', 'apptainer', 'exec', '--writable-tmpfs',
+    return ['apptainer', 'exec', '--writable-tmpfs',
             '--cleanenv', '--containall', '--no-home', '--pwd', '/',
             '--env', f'TMPDIR={inside}',
             '--bind', f'{scratch}:{inside}',
