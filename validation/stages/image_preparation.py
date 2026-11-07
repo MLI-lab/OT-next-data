@@ -17,6 +17,45 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+ANSI = re.compile(r'\x1b\[[0-9;]*m')
+# Lines that also appear in successful Apptainer conversions are not the cause.
+NOISE = re.compile(r'tmpfiles\.d/|policy-rc\.d denied|debconf: |^\s*$')
+CAUSES = [re.compile(p) for p in (r'FATAL[: ]', r'\* Error:', r'\berror:', r'\bError\b', r'(?i)failed')]
+
+
+def conversion_error(logs):
+    """First line in the build log that states the error, for the BUILD reason."""
+    lines = [ANSI.sub('', line).strip() for line in logs.splitlines()]
+    lines = [line for line in lines if not NOISE.search(line)]
+    for pattern in CAUSES:
+        for line in lines:
+            if pattern.search(line):
+                return line[:300]
+    return lines[-1][:300] if lines else 'no error line in the build log'
+
+
+def load_runtime(document):
+    """Runtime preparation failures: tasks whose image builds but whose verifier runtime cannot be prepared."""
+    entries = {}
+    for source in document.get('runtime_failures', []):
+        record_path = Path(source['path'])
+        if sha(record_path) != source['sha256']:
+            raise ValueError('Runtime preparation record changed: ' + str(record_path))
+        for record in json.loads(record_path.read_text()):
+            task = record.get('task_id')
+            if not task or Path(task).name != task:
+                raise ValueError('Missing or unsafe runtime preparation task ID')
+            if not re.fullmatch('[a-f0-9]{64}', record.get('environment_sha256', '')):
+                raise ValueError('Missing runtime preparation environment binding')
+            if not record.get('reason') or type(record.get('upstream_bug')) is not bool:
+                raise ValueError('Runtime preparation failure needs a reason and an upstream_bug flag')
+            for item in record.get('evidence', []):
+                if sha(item['path']) != item['sha256']:
+                    raise ValueError('Runtime preparation evidence changed: ' + item['path'])
+            entries[task] = dict(record, evidence_record=str(record_path))
+    return entries
+
+
 def load(path):
     document = json.loads(Path(path).read_text())
     if document.get('format') != 'image-preparation-evidence-v1':
@@ -96,9 +135,24 @@ def failures(tasks, path):
     from harbor_patches.image_context import task_dockerfiles, environment_dir_hash
     from validation.outcomes import INFRA, OOM, TIMEOUT
     entries = load(path)
+    runtime = load_runtime(json.loads(Path(path).read_text()))
     results = {}
     for task in tasks:
         records = entries.get(task.name, [])
+        if not records and task.name in runtime:
+            record = runtime[task.name]
+            hashes = {environment_dir_hash(p.parent) for p in task_dockerfiles(task)}
+            if record['environment_sha256'] not in hashes:
+                raise ValueError('Runtime preparation environment differs from validation task: ' + task.name)
+            prefix = ('Upstream bug: runtime preparation fails: ' if record['upstream_bug']
+                      else 'Runtime preparation not completed: ')
+            results[task.name] = dict(task=str(task), status='failed', build_status='failed',
+                cause='runtime-preparation-failed', reason=prefix + record['reason'],
+                runtime_preparation=[record], image_preparation=[],
+                image_preparation_manifest=str(Path(path).resolve()),
+                image_preparation_manifest_sha256=sha(path), infrastructure_error=False,
+                seconds=0, node=record.get('node', ''))
+            continue
         if not records:
             continue
         hashes = {environment_dir_hash(p.parent) for p in task_dockerfiles(task)}
@@ -117,7 +171,7 @@ def failures(tasks, path):
             cause=('infrastructure-error' if category == 'infrastructure_error' else
                    'validation-not-run' if incomplete else 'build-execution-error'),
             reason=('Image preparation did not complete; see bound preparation logs' if incomplete else
-                    'Image build command exited unsuccessfully; see bound preparation logs'),
+                    'Docker to Apptainer conversion failed: ' + conversion_error(logs)),
             image_preparation=records, image_preparation_manifest=str(Path(path).resolve()),
             image_preparation_manifest_sha256=sha(path),
             infrastructure_error=category == 'infrastructure_error',
@@ -129,13 +183,16 @@ def failures(tasks, path):
     return results
 
 
-def freeze(paths, destination, verified_images=()):
+def freeze(paths, destination, verified_images=(), runtime_failures=()):
     destination = Path(destination)
     document = dict(format='image-preparation-evidence-v1', records=[
         dict(path=str(Path(p).resolve()), sha256=sha(p)) for p in sorted(set(paths))])
     if verified_images:
         document['verified_images'] = [dict(path=str(Path(p).resolve()), sha256=sha(p))
                                       for p in sorted(set(verified_images))]
+    if runtime_failures:
+        document['runtime_failures'] = [dict(path=str(Path(p).resolve()), sha256=sha(p))
+                                        for p in sorted(set(runtime_failures))]
     with destination.open('x') as stream:
         stream.write(json.dumps(document, indent=2) + '\n')
     load(destination)

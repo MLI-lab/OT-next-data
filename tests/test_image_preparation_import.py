@@ -161,3 +161,40 @@ def test_failed_build_blocks_requested_nop_protection_check(enabled):
         assert row['do_not_modify_dynamic'] == 'blocked'
     else:
         assert 'do_not_modify_dynamic' not in row
+
+
+def test_build_reason_names_the_conversion_error(tmp_path):
+    task, log, source, manifest = evidence(tmp_path)
+    log.write_text('\x1b[0;1;31m/usr/lib/tmpfiles.d/x.conf:1: Failed to resolve group\x1b[0m\n'
+                   'invoke-rc.d: policy-rc.d denied execution of start.\n'
+                   ' * Error: Data directory /var/lib/postgresql/16/main must not be owned by root\n')
+    records = json.loads(source.read_text()); records[0]['log_sha256'] = sha(log)
+    source.write_text(json.dumps(records))
+    manifest2 = tmp_path / 'conversion.json'
+    freeze([source], manifest2)
+    reason = failures([task], manifest2)['example']['reason']
+    assert reason == ('Docker to Apptainer conversion failed: * Error: Data directory '
+                      '/var/lib/postgresql/16/main must not be owned by root')
+
+
+@pytest.mark.parametrize('upstream', [True, False])
+def test_runtime_preparation_failure_is_a_build_failure(tmp_path, upstream):
+    task, log, source, _ = evidence(tmp_path)
+    from harbor_patches.image_context import environment_dir_hash
+    probe = tmp_path / 'probe.json'
+    probe.write_text('{"returncode": 1}')
+    runtime = tmp_path / 'runtime.json'
+    runtime.write_text(json.dumps([dict(task_id='example', environment_sha256=environment_dir_hash(task / 'environment'),
+                                        reason='the image contains no Python', upstream_bug=upstream,
+                                        evidence=[dict(path=str(probe), sha256=sha(probe))])]))
+    empty = tmp_path / 'empty.json'
+    empty.write_text('[]')
+    manifest = tmp_path / 'runtime-manifest.json'
+    freeze([empty], manifest, runtime_failures=[runtime])
+    result = failures([task], manifest)['example']
+    assert result['build_status'] == 'failed' and result['cause'] == 'runtime-preparation-failed'
+    assert result['reason'].startswith('Upstream bug: runtime preparation fails: ' if upstream
+                                       else 'Runtime preparation not completed: ')
+    probe.write_text('{"returncode": 0}')
+    with pytest.raises(ValueError):
+        failures([task], manifest)
