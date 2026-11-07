@@ -39,6 +39,10 @@ def load(path):
                 raise ValueError('Missing actual preparation invocation')
             if sha(record['log']) != record['log_sha256']:
                 raise ValueError('Image preparation log changed: ' + record['log'])
+            if record.get('reconstructed_provenance'):
+                for binding in record['reconstructed_provenance']['bindings']:
+                    if sha(binding['path']) != binding['sha256']:
+                        raise ValueError('Reconstructed preparation input changed: ' + binding['path'])
             if record.get('key') != record['environment_sha256'][:12]:
                 raise ValueError('Preparation environment key mismatch')
             entries.setdefault(task, []).append(dict(record, evidence_record=str(record_path)))

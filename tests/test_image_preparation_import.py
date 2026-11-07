@@ -73,6 +73,22 @@ def test_unrelated_task_still_requires_normal_build(tmp_path):
     assert failures([other], manifest) == {}
 
 
+def test_reconstructed_evidence_rechecks_preserved_inputs(tmp_path):
+    task, log, source, manifest = evidence(tmp_path)
+    preserved = tmp_path / 'accounting.txt'
+    preserved.write_text('Measured process exit 1\n')
+    records = json.loads(source.read_text())
+    records[0]['reconstructed_provenance'] = {'bindings': [
+        dict(path=str(preserved), sha256=sha(preserved))]}
+    source.write_text(json.dumps(records))
+    bound = tmp_path / 'reconstructed.json'
+    freeze([source], bound)
+    assert failures([task], bound)[task.name]['build_status'] == 'failed'
+    preserved.write_text('Changed accounting\n')
+    with pytest.raises(ValueError, match='Reconstructed preparation input changed'):
+        failures([task], bound)
+
+
 def test_staging_failure_has_bindings_but_no_invented_build_exit(tmp_path, monkeypatch):
     from hpc.offline_prep.image_cache import prepare_images
     import hpc.local_assets
