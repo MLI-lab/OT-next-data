@@ -638,6 +638,11 @@ def inventory(task, context=None, instruction_view=None):
                     return False
                 continue
             block = next((b for b in shell_blocks(lines) if b[0] <= index <= b[1]), None)
+            assignment = re.match(r'\s*([A-Za-z_][A-Za-z_0-9]*)=', lines[index])
+            if block is None and assignment:
+                # `TEST=/workspace/tests/x` directly before `if [ ! -f "$TEST" ]; then TEST=/tests/x; fi`.
+                block = next((b for b in shell_blocks(lines) if index < b[0] <= index + 3
+                              and '$' + assignment[1] in lines[b[0]].replace('{', '')), None)
             # Also `TEST=/tests/x` directly before `if [ ! -f "$TEST" ]; then TEST=...; fi`.
             if block is None or not any(canonical.search(line) for line in lines[max(0, block[0] - 3):block[1] + 1]):
                 return False

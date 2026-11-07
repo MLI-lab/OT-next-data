@@ -675,8 +675,17 @@ pytest "$TEST_FILE"
 '''
 
 
+SHELL_OTHER_DEFAULT = '''#!/bin/bash
+TEST_DIR="/workspace/tests"
+if [ ! -d "$TEST_DIR" ]; then
+    TEST_DIR="/tests"
+fi
+pytest "$TEST_DIR/test_outputs.py"
+'''
+
+
 def test_conditional_verifier_location_fallbacks_excluded(tmp_path):
-    for index, text in enumerate((SHELL_ELSE_ASSIGNMENT, SHELL_NEGATED_DEFAULT)):
+    for index, text in enumerate((SHELL_ELSE_ASSIGNMENT, SHELL_NEGATED_DEFAULT, SHELL_OTHER_DEFAULT.replace('/workspace/tests"', '/workspace/tests/test_outputs.py"').replace('TEST_DIR="/tests"', 'TEST_DIR="/tests/test_outputs.py"'))):
         (tmp_path / str(index)).mkdir()
         path = task(tmp_path / str(index), '')
         (path / 'tests/test.sh').write_text(text)
@@ -684,6 +693,11 @@ def test_conditional_verifier_location_fallbacks_excluded(tmp_path):
         data = record(path)
         entry = next(p for p in data['inventory']['paths'] if p['path'] == '/workspace/tests/test_outputs.py')
         assert entry['excluded'] == 'verifier_location_fallback'
+    (tmp_path / 'dir').mkdir()
+    path = task(tmp_path / 'dir', '')
+    (path / 'tests/test.sh').write_text(SHELL_OTHER_DEFAULT)
+    entry = next(p for p in record(path)['inventory']['paths'] if p['path'] == '/workspace/tests')
+    assert entry['excluded'] == 'verifier_location_fallback'
     (tmp_path / 'py').mkdir()
     path = task(tmp_path / 'py', 'gt = "/tests/test_outputs.py" if os.path.exists("/tests/test_outputs.py") else "/workspace/tests/test_outputs.py"\n')
     (path / 'tests/test_outputs.py').write_text('')
