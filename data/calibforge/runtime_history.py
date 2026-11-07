@@ -142,6 +142,7 @@ class RuntimeHistory:
                                refs=dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
         self.reviewed_inputs = {}
         self.reviewed_verifiers = {}
+        self.reviewed_nonruntime = {}
         if reviewed_inputs:
             path = Path(reviewed_inputs)
             review = json.loads(path.read_text())
@@ -149,6 +150,7 @@ class RuntimeHistory:
                 raise ValueError('Expected source-bound reviewed instruction differences')
             self.reviewed_inputs = review['tasks']
             self.reviewed_verifiers = review.get('verifiers', {})
+            self.reviewed_nonruntime = review.get('nonruntime', {})
             self.provenance['reviewed_inputs'] = dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
 
     def close(self):
@@ -167,6 +169,16 @@ class RuntimeHistory:
         old, old_members, old_digest = before
         prepared, prepared_members, prepared_digest = after
         current, current_members = unpack(binary)
+        nonruntime_review = self.reviewed_nonruntime.get(task, {})
+        for name, decision in nonruntime_review.items():
+            if (name not in ('instruction.md', 'task.toml') or not decision.get('reason') or
+                    decision.get('disposition') not in ('preserve_current', 'use_prepared_instruction') or
+                    (decision['disposition'] == 'use_prepared_instruction' and name != 'instruction.md')):
+                raise ValueError('Unsupported historical nonruntime review: ' + task)
+            for kind, source in (('baseline', old), ('current', current), ('prepared', prepared)):
+                if (name not in source or hashlib.sha256(source[name]).hexdigest() !=
+                        decision.get(kind + '_sha256')):
+                    raise ValueError('Reviewed nonruntime binding differs: ' + task + '/' + name)
         # Refuse changed task inputs, tests or environments. Already-applied
         # historical changes are accepted, but unrelated repairs are never undone.
         conflicts = []
@@ -184,9 +196,12 @@ class RuntimeHistory:
             if (not reviewed.get('reason') or old.get(name) is None or current.get(name) is None or
                     hashlib.sha256(old[name]).hexdigest() != reviewed.get('baseline_sha256') or
                     hashlib.sha256(current[name]).hexdigest() != reviewed.get('current_sha256') or
-                    comparable(name, old[name]) != comparable(name, prepared.get(name))):
+                    comparable(name, prepared.get(name)) not in
+                    (comparable(name, old[name]), comparable(name, current[name]))):
                 raise ValueError('Reviewed instruction binding differs: ' + task)
         for name in old.keys() | current.keys():
+            if name in nonruntime_review:
+                continue
             if merged_verifier is not None and name == 'tests/test_outputs.py':
                 continue
             if reviewed and name == 'instruction.md':
@@ -204,6 +219,12 @@ class RuntimeHistory:
         changed = {name for name in old.keys() | prepared.keys() if old.get(name) != prepared.get(name)}
         updates, removed = {}, set()
         for name in changed:
+            if name in nonruntime_review:
+                if nonruntime_review[name]['disposition'] == 'use_prepared_instruction':
+                    updates[name] = prepared[name]
+                continue
+            if reviewed and name == 'instruction.md':
+                continue  # Both supported historical forms were hash-bound above.
             if comparable(name, old.get(name)) == comparable(name, prepared.get(name)):
                 continue
             if not name.startswith(('tests/', 'setup_files/')):
@@ -260,4 +281,6 @@ class RuntimeHistory:
             record['preserved_reviewed_instruction'] = reviewed
         if verifier_review:
             record['preserved_reviewed_verifier'] = verifier_review
+        if nonruntime_review:
+            record['reviewed_nonruntime'] = nonruntime_review
         return rewrite(binary, updates, removed=removed, templates=prepared_members), True

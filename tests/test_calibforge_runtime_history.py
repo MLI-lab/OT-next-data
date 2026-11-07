@@ -126,10 +126,18 @@ def test_stale_historical_content_digest_rejected(tmp_path):
     flow.history.close()
 
 
-def test_reviewed_instruction_reuse_preserves_current_input(tmp_path):
-    before, _, key = historical(tmp_path)
+@pytest.mark.parametrize('prepared_instruction', ['baseline', 'current', 'unreviewed'])
+def test_reviewed_instruction_reuse_preserves_current_input(tmp_path, prepared_instruction):
+    before, after, key = historical(tmp_path)
     original = before['instruction.md']
     before['instruction.md'] = 'Solve the task using ./program.\n'
+    if prepared_instruction != 'baseline':
+        after['instruction.md'] = before['instruction.md']
+        if prepared_instruction == 'unreviewed':
+            after['instruction.md'] += 'Unreviewed historical requirement.\n'
+        pq.write_table(pa.table({'path': ['example'], 'task_binary': [task(after)],
+            'content_sha256': [files_digest((k, v.encode()) for k, v in after.items())]}),
+            tmp_path / 'prepared.parquet')
     reviewed = tmp_path / 'reviewed.json'
     reviewed.write_text(json.dumps(dict(format='calibforge-reviewed-instructions-v1', tasks={
         'example': dict(baseline_sha256=hashlib.sha256(original.encode()).hexdigest(),
@@ -137,6 +145,11 @@ def test_reviewed_instruction_reuse_preserves_current_input(tmp_path):
                         reason='Inspected instruction path normalization only; runtime inputs unchanged')})))
     flow = RuntimeWorkflow(history=tmp_path/'prepared.parquet', baseline=tmp_path/'baseline.parquet',
                            refs=tmp_path/'refs.json', cache=tmp_path/'cache', reviewed_inputs=reviewed)
+    if prepared_instruction == 'unreviewed':
+        with pytest.raises(ValueError, match='binding differs'):
+            flow.apply('example', task(before))
+        flow.history.close()
+        return
     binary, changed = flow.apply('example', task(before))
     assert changed
     assert members(binary)['instruction.md'] == before['instruction.md']
@@ -174,3 +187,36 @@ def test_reviewed_verifier_merge_keeps_guard_and_runtime_changes():
         preserve_reviewed_verifier(name, baseline, current, prepared+b'\n', review)
     with pytest.raises(ValueError, match='result differs'):
         preserve_reviewed_verifier(name, baseline, current, prepared, dict(review, result_sha256='0'*64))
+
+
+@pytest.mark.parametrize('name,disposition', [('task.toml', 'preserve_current'),
+                                             ('instruction.md', 'use_prepared_instruction')])
+def test_hash_bound_nonruntime_review_does_not_change_other_inputs(tmp_path, name, disposition):
+    before, after, _ = historical(tmp_path)
+    if name == 'task.toml':
+        before[name] = '[environment]\ncpus = 2\n'
+        after[name] = '[environment]\ncpus = 4\nallow_internet = true\n'
+    else:
+        after[name] = 'Solve the task.\nPrepared input is available at /app/input.csv.\n'
+    for label, files in [('baseline', before), ('prepared', after)]:
+        pq.write_table(pa.table({'path': ['example'], 'task_binary': [task(files)],
+            'content_sha256': [files_digest((k, v.encode()) for k, v in files.items())]}),
+            tmp_path / (label + '.parquet'))
+    decision = {key + '_sha256': hashlib.sha256(text.encode()).hexdigest() for key, text in
+                [('baseline', before[name]), ('current', before[name]), ('prepared', after[name])]}
+    decision.update(disposition=disposition, reason='Explicitly reviewed exact historical difference')
+    reviewed = tmp_path / 'reviewed.json'
+    reviewed.write_text(json.dumps(dict(format='calibforge-reviewed-runtime-inputs-v1', tasks={},
+                                       nonruntime={'example': {name: decision}})))
+    flow = RuntimeWorkflow(history=tmp_path/'prepared.parquet', baseline=tmp_path/'baseline.parquet',
+                           refs=tmp_path/'refs.json', cache=tmp_path/'cache', reviewed_inputs=reviewed)
+    result, changed = flow.apply('example', task(before))
+    assert changed
+    expected = before[name] if disposition == 'preserve_current' else after[name]
+    assert members(result)[name] == expected
+    assert members(result)['tests/test_outputs.py'] == before['tests/test_outputs.py']
+    modified = dict(before)
+    modified[name] += 'unreviewed change\n'
+    with pytest.raises(ValueError, match='Reviewed nonruntime binding differs'):
+        flow.apply('example', task(modified))
+    flow.history.close()
