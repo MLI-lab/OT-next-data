@@ -25,9 +25,10 @@ def validate_roots(roots):
     for root in roots:
         if not isinstance(root, str) or not root.startswith('/') or any(c in root for c in '\n\r\0'):
             raise ValueError('Path search roots must be absolute directories')
+        explicit_root = root == '/'
         root = posixpath.normpath(root)
-        if root == '/' or root.startswith('//'):
-            raise ValueError('Choose project directories, not the whole filesystem')
+        if (root == '/' and not explicit_root) or root.startswith('//'):
+            raise ValueError('Use an explicit / for a container-root search')
         if root not in normalized:
             normalized.append(root)
     if not normalized:
@@ -114,9 +115,14 @@ def search_command(candidates, roots):
         if predicates:
             predicates.append('-o')
         predicates.extend(['-path', '*/' + path])
-    # Do not follow symlink directories or search Git objects. Find preserves
+    # Do not follow symlink directories or search Git objects or virtual
+    # filesystems. An explicit / searches the container, never the host.
+    # Absolute exclusions leave project directories named proc/sys/dev intact.
+    # Find preserves
     # all matches, so a second file prevents an unjustified unique resolution.
-    find = ['find', '-P', *roots, '-type', 'd', '-name', '.git', '-prune', '-o',
+    find = ['find', '-P', *roots, '-type', 'd', '(', '-name', '.git',
+            '-o', '-path', '/proc', '-o', '-path', '/sys', '-o', '-path', '/dev',
+            ')', '-prune', '-o',
             '-type', 'f', '(', *predicates, ')', '-print0']
     # find continues across inaccessible/missing roots. Do not short-circuit
     # all remaining roots with a preceding `test -d ... &&` chain.

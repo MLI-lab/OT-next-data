@@ -29,7 +29,9 @@ do not treat the missing scan as evidence that the instruction path is absent.
 See [bridge image-build limits](../../harbor_patches/README.md#image-build-resource-limits-and-retries).
 
 Repeat `--resolve-path-root` for multiple project directories. All declared
-roots must exist; `/` is rejected to avoid scanning system mounts and caches.
+roots must exist. An explicit `/` searches the container filesystem while
+pruning `/proc`, `/sys`, `/dev` and Git metadata. Paths that normalize to `/`,
+such as `/workspace/..`, are rejected to prevent accidental broad searches.
 Choose roots available in that dataset's containers. No container Python,
 model endpoint, oracle solution, or verifier execution is needed for the probe.
 

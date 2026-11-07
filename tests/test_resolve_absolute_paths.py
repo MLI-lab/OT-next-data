@@ -25,10 +25,28 @@ def test_actual_search_preserves_suffix_and_reports_duplicates(tmp_path):
     assert len(findings[0]['matches']) == 2
 
 
-@pytest.mark.parametrize('roots', [[], ['/'], ['relative'], ['/workspace/..'], ['/a\n/b']])
+@pytest.mark.parametrize('roots', [[], ['//workspace'], ['relative'], ['/workspace/..'], ['/a\n/b']])
 def test_unbounded_or_invalid_roots_rejected(roots):
     with pytest.raises(ValueError):
         resolver.validate_roots(roots)
+
+
+def test_explicit_container_root_search_prunes_virtual_filesystems(tmp_path):
+    import shlex
+    assert resolver.validate_roots(['/']) == ['/']
+    command = shlex.split(resolver.search_command(['file.py'], ['/']))
+    assert command[:4] == ['LC_ALL=C', 'find', '-P', '/']
+    for root in ('/proc', '/sys', '/dev'):
+        assert command[command.index(root) - 1] == '-path'
+        assert command.index(root) < command.index('-prune')
+    for name in ('proc', 'sys', 'dev'):
+        path = tmp_path / name / 'file.py'
+        path.parent.mkdir()
+        path.touch()
+    result = subprocess.run(['sh', '-c', resolver.search_command(['file.py'], [str(tmp_path)])],
+                            capture_output=True, text=True, check=True)
+    finding, = resolver.classify(['file.py'], result.stdout, str(tmp_path), ['/'])
+    assert finding['status'] == 'ambiguous' and len(finding['matches']) == 3
 
 
 def test_truncated_and_outside_output_is_not_unique():
