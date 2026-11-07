@@ -1,0 +1,110 @@
+{
+ "definition": "GLM-5.3-Flash labeling, corrected kpool cohort (judge-runtime-repair-20261106/kpool-both-fixes); partial: only tasks with three complete reviews. Same cohorts and majority rule as structured_comparison.json.",
+ "reports": [
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk0/run/shards/0000/report/stage-5-0c26b6ce57f9.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk1/run/shards/0000/report/stage-5-24f1db9e3874.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk2/run/shards/0000/report/stage-5-dc110b770a24.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk4/run/shards/0000/report/stage-5-dcc6f62ea6ac.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk5/run/shards/0000/report/stage-5-b87d0a2608a9.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk6/run/shards/0000/report/stage-5-304c8a1861af.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk7/run/shards/0000/report/stage-5-fc97bb02f492.json"
+ ],
+ "tasks_with_reviews": 265,
+ "tasks_with_three_reviews": 259,
+ "rows": {
+  "VERIFIER-TOO-WEAK": {
+   "defects_covered": 11,
+   "defects_total": 16,
+   "detected": 9,
+   "clean_covered": 53,
+   "clean_total": 59,
+   "clean_passed": 53,
+   "agreement": 59,
+   "tasks": 64
+  },
+  "INSTR-VERIFIER-MISMATCH": {
+   "defects_covered": 96,
+   "defects_total": 117,
+   "detected": 58,
+   "clean_covered": 53,
+   "clean_total": 59,
+   "clean_passed": 53,
+   "agreement": 122,
+   "tasks": 149
+  },
+  "INSTR-AMBIGUOUS": {
+   "defects_covered": 9,
+   "defects_total": 13,
+   "detected": 5,
+   "clean_covered": 53,
+   "clean_total": 59,
+   "clean_passed": 53,
+   "agreement": 60,
+   "tasks": 62
+  },
+  "INSTR-ENV-MISMATCH": {
+   "defects_covered": 59,
+   "defects_total": 59,
+   "detected": 58,
+   "clean_covered": 53,
+   "clean_total": 59,
+   "clean_passed": 53,
+   "agreement": 109,
+   "tasks": 112
+  }
+ },
+ "classification_reports": [
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk0/run/shards/0000/report/stage-5-ac75cddd1cee.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk1/run/shards/0000/report/stage-5-7b9eb19b14ea.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk2/run/shards/0000/report/stage-5-6a92dbed2614.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk4/run/shards/0000/report/stage-5-2e7cd3b9e65b.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk5/run/shards/0000/report/stage-5-bde3c74ec4e2.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk6/run/shards/0000/report/stage-5-ec959733cd6f.json"
+ ],
+ "rq2_rows": {
+  "Labeling": {
+   "CLEAN": {
+    "correct": 158,
+    "reviews": 159
+   },
+   "VERIFIER-TOO-WEAK": {
+    "correct": 27,
+    "reviews": 33
+   },
+   "INSTR-VERIFIER-MISMATCH": {
+    "correct": 167,
+    "reviews": 288
+   },
+   "INSTR-AMBIGUOUS": {
+    "correct": 15,
+    "reviews": 27
+   },
+   "INSTR-ENV-MISMATCH": {
+    "correct": 172,
+    "reviews": 177
+   }
+  },
+  "Classification": {
+   "CLEAN": {
+    "correct": 158,
+    "reviews": 162
+   },
+   "VERIFIER-TOO-WEAK": {
+    "correct": 22,
+    "reviews": 30
+   },
+   "INSTR-VERIFIER-MISMATCH": {
+    "correct": 172,
+    "reviews": 279
+   },
+   "INSTR-AMBIGUOUS": {
+    "correct": 10,
+    "reviews": 27
+   },
+   "INSTR-ENV-MISMATCH": {
+    "correct": 93,
+    "reviews": 99
+   }
+  }
+ }
+}

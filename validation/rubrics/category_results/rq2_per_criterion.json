@@ -10,8 +10,8 @@
       "format": "Labeling",
       "counts": {
         "CLEAN": {
-          "correct": 178,
-          "reviews": 180
+          "correct": 176,
+          "reviews": 177
         },
         "VERIFIER-TOO-WEAK": {
           "correct": 32,
@@ -36,8 +36,8 @@
       "format": "Classification",
       "counts": {
         "CLEAN": {
-          "correct": 180,
-          "reviews": 180
+          "correct": 177,
+          "reviews": 177
         },
         "VERIFIER-TOO-WEAK": {
           "correct": 25,
@@ -63,7 +63,7 @@
       "counts": {
         "CLEAN": {
           "correct": 167,
-          "reviews": 180
+          "reviews": 177
         },
         "VERIFIER-TOO-WEAK": {
           "correct": 38,
@@ -89,7 +89,7 @@
       "counts": {
         "CLEAN": {
           "correct": 158,
-          "reviews": 180
+          "reviews": 177
         },
         "VERIFIER-TOO-WEAK": {
           "correct": 22,

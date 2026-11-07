@@ -14,5 +14,21 @@
     "p90_total_tokens": 2227050.0,
     "min": 96317,
     "max": 18239376
+  },
+  "GPT-6.1-sol": {
+    "reviews": 594,
+    "median_total_tokens": 182168.0,
+    "mean_total_tokens": 202540.38215488216,
+    "p90_total_tokens": 285376.5000000001,
+    "min": 103384,
+    "max": 784693
+  },
+  "GLM-5.3-Flash": {
+    "reviews": 759,
+    "median_total_tokens": 813164.0,
+    "mean_total_tokens": 1126020.0079051384,
+    "p90_total_tokens": 2217379.8000000007,
+    "min": 74736,
+    "max": 12999787
   }
 }

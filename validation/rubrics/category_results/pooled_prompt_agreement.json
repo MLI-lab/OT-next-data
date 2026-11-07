@@ -1,22 +1,20 @@
 {
   "definition": "Sonnet: all six binary decisions agree, combining three labeling and three classification reviews per task case.",
+  "excluded_clean_ids": [
+    "django__django-10097",
+    "django__django-12039",
+    "django__django-13513",
+    "django__django-14376",
+    "django__django-14534",
+    "scikit-learn__scikit-learn-14983",
+    "sympy__sympy-13878"
+  ],
   "clean": [
     {
       "excluded_categories": [],
-      "tasks": 60,
+      "tasks": 59,
       "agreement": 48,
       "evidence": [
-        {
-          "task_id": "django__django-10097",
-          "six_defect_votes": [
-            true,
-            false,
-            false,
-            false,
-            false,
-            false
-          ]
-        },
         {
           "task_id": "django__django-10914",
           "six_defect_votes": [
@@ -673,20 +671,9 @@
         "ANSWER-LEAK",
         "TASK-TRIVIAL"
       ],
-      "tasks": 60,
+      "tasks": 59,
       "agreement": 58,
       "evidence": [
-        {
-          "task_id": "django__django-10097",
-          "six_defect_votes": [
-            true,
-            false,
-            false,
-            false,
-            false,
-            false
-          ]
-        },
         {
           "task_id": "django__django-10914",
           "six_defect_votes": [
@@ -1342,7 +1329,7 @@
   "criteria": [
     {
       "criterion": "VERIFIER-TOO-WEAK",
-      "tasks": 76,
+      "tasks": 75,
       "agreement": 68,
       "evidence": [
         {
@@ -1515,17 +1502,6 @@
           "six_defect_votes": [
             false,
             true,
-            false,
-            false,
-            false,
-            false
-          ]
-        },
-        {
-          "task_id": "django__django-10097",
-          "six_defect_votes": [
-            true,
-            false,
             false,
             false,
             false,
@@ -2185,8 +2161,8 @@
     },
     {
       "criterion": "INSTR-VERIFIER-MISMATCH",
-      "tasks": 177,
-      "agreement": 156,
+      "tasks": 176,
+      "agreement": 155,
       "evidence": [
         {
           "task_id": "django__django-15703",
@@ -3476,17 +3452,6 @@
           ]
         },
         {
-          "task_id": "django__django-10097",
-          "six_defect_votes": [
-            false,
-            false,
-            false,
-            false,
-            false,
-            false
-          ]
-        },
-        {
           "task_id": "django__django-10914",
           "six_defect_votes": [
             false,
@@ -4139,8 +4104,8 @@
     },
     {
       "criterion": "INSTR-AMBIGUOUS",
-      "tasks": 73,
-      "agreement": 65,
+      "tasks": 72,
+      "agreement": 64,
       "evidence": [
         {
           "task_id": "data-anonymization",
@@ -4276,17 +4241,6 @@
         },
         {
           "task_id": "torch-tensor-parallelism",
-          "six_defect_votes": [
-            false,
-            false,
-            false,
-            false,
-            false,
-            false
-          ]
-        },
-        {
-          "task_id": "django__django-10097",
           "six_defect_votes": [
             false,
             false,
@@ -4949,8 +4903,8 @@
     },
     {
       "criterion": "INSTR-ENV-MISMATCH",
-      "tasks": 119,
-      "agreement": 104,
+      "tasks": 118,
+      "agreement": 103,
       "evidence": [
         {
           "task_id": "task_000051_313e5ebc",
@@ -5599,17 +5553,6 @@
             false,
             false,
             true
-          ]
-        },
-        {
-          "task_id": "django__django-10097",
-          "six_defect_votes": [
-            false,
-            false,
-            false,
-            false,
-            false,
-            false
           ]
         },
         {

@@ -1,0 +1,3497 @@
+{
+ "definition": "GPT-6.1-sol labeling (Codex), river_selected, 2 reviews per task, report stage-5-2f4c27d5171f.json. Same cohorts as structured_comparison.json: 59 clean (7 excluded), defect sets 16/117/13/59 (multi-defect excluded). Packages mapped to tasks by task_content_sha256 against the Sonnet reports; 12 tasks whose content changed mapped manually from explanations; identical-content mteb pair assigned in sorted order.",
+ "keymap": {
+  "wal-recovery-ordering__5f3f3b2d67254792120b": "pkg_a9c08509172679dbeffc",
+  "ks-solver-cpp__11d86141df458c9998ee": "pkg_c6e32d53e39c88d9aebd",
+  "mvcc-lsm-compaction__9d1beabfbfc50c39b6cb": "pkg_10129383bca6c7f6f34f",
+  "instance_internetarchive__openlibrary-d109cc7e6e161170391f98f9a6fa1d02534c18e4-ve8c8d62a2b60610a3c4631f5f23ed866bada9818__c3c50b272d2db7419096": "pkg_33d55fb5399109753340",
+  "freecad-impeller__f3c3b4ed2ff85331436d": "pkg_ee228c9e162be95fae1b",
+  "ontology-kg-querying__014d7b71abba18a9874d": "pkg_d792994f143b6f448f7d",
+  "1219__43c8590b2d740213ddf9": "pkg_902db759a040b46bfe66",
+  "1104__b40e7b0159e3a53521e1": "pkg_8621eec442e6a28fa558",
+  "1044__9a2b13ef3a1583dd4f12": "pkg_221d33fa01ff9a667b3f",
+  "task_000254_21ede93b__398c2cdc6f598231950c": "pkg_c77dfb5a9e9c78ea4091",
+  "task_000925_b4cb17ac__d5d6acce50bfe4ff8c22": "pkg_25aa38a12b71bb0174de",
+  "task_008402_0f2d3692__ec0cc9e6036d9d2bda2d": "pkg_8368ee1c2e0342b5bc6a",
+  "cryptographic-protocol-verifier__a17c8d1f18aa9dc4face": "pkg_ff299c6c76c6ab5b0f9a",
+  "floor-plan-geometry__43a5783dec7a4a3066da": "pkg_2ad66569e8cdd8e9ae18",
+  "word-derangement-mapping__c1958971c6a2a47bd83a": "pkg_a0d43893321eb5d11c77",
+  "publisher-market-analysis__211355832cc0ca5b09d3": "pkg_631daf180584278c6fc4",
+  "instance_ansible__ansible-8127abbc298cabf04aaa89a478fc5e5e3432a6fc-v30a923fb5c164d6cd18280c02422f75e611e8fb2__7b2d37eaee730f7597f7": "pkg_a01e83a84d09bc80dab0",
+  "instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc__f24c9f1be3ae0fb431b6": "pkg_c1a34b9515f2e6ff6180",
+  "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb__5468b5f5ec3d6a10f4f7": "pkg_110e445ae302d0d1d765",
+  "instance_navidrome__navidrome-3f2d24695e9382125dfe5e6d6c8bbeb4a313a4f9__2316aa1bad3a8ba6b05f": "pkg_ffed138c0bf2291a2fc8",
+  "instance_navidrome__navidrome-5e549255201e622c911621a7b770477b1f5a89be__893d770bbf11834bb8c5": "pkg_d6e96609383a9f6fb354",
+  "instance_navidrome__navidrome-812dc2090f20ac4f8ac271b6ed95be5889d1a3ca__377fd375fa286d6723ef": "pkg_e741aeb6fac7f7e80d2f",
+  "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf__9abefafbc5259402e06b": "pkg_2099483710d0dcde035b",
+  "06-make-mips-interpreter": "pkg_18fd804cdf4855c58711",
+  "django__django-15703__f4734365dbff3a3dd62c": "pkg_f92c8ebcbce0838fbba9",
+  "scikit-learn__scikit-learn-12860__dcf098b73a6d0d759f28": "pkg_901e30e5064890f98a8d",
+  "instance_flipt-io__flipt-af7a0be46d15f0b63f16a868d13f3b48a838e7ce__614df8a8367753563490": "pkg_1a2056ea895a434c6bf5",
+  "pytest-dev__pytest-5205__204db3af23846e8c3316": "pkg_627b1e31bd14269d16e1",
+  "polyglot-rust-c__c1c3995c6564e08c9208": "pkg_510003945640f8da7993",
+  "scikit-learn__scikit-learn-11264__b804850cde000a0e32b6": "pkg_0a3201f30c71410546d6",
+  "sympy__sympy-13286__6e83df00bb118f4c8803": "pkg_dcce37f80c5e3ae57676",
+  "instance_navidrome__navidrome-b65e76293a917ee2dfc5d4b373b1c62e054d0dca__aa2a88fd66e7b9fa21e4": "pkg_145db71587a50f4b6e52",
+  "03-django__django-12588": "pkg_7cfa9f8402651faa3156",
+  "django__django-15038__a3da7fe12b3efb0dd250": "pkg_699287f8e64f75af4dc9",
+  "django__django-13447__4683ab76fd385b64791c": "pkg_6ac3f46d3a00c45eefdc",
+  "django__django-13495__2e4a5ff511c31b8521b8": "pkg_bea819bf212a49da53bb",
+  "matplotlib__matplotlib-22767__3d3fb351a24e0487a4f8": "pkg_197bb9f9285ae456c67f",
+  "django__django-12121__1420cb3d306ed272a624": "pkg_77eaf90ac369b90ad571",
+  "sphinx-doc__sphinx-8075__c3187a7177dc0bec5ad0": "pkg_2bfe20fe86fedc9f657a",
+  "sympy__sympy-13264__6b4c45c143ea6515ec1a": "pkg_4c50504f6f14eaa39fb2",
+  "scikit-learn__scikit-learn-26318__a9c7cc7a73308dc92739": "pkg_8d283a721eb24cefd04c",
+  "matplotlib__matplotlib-26160__4415f99899da0727995b": "pkg_559b44a65ac344926ae8",
+  "django__django-16746__dfad6cb3267892da678f": "pkg_b0c6b12cd15b8702ca2a",
+  "pylint-dev__pylint-4339__aac5f1fb03f285787b9a": "pkg_f92ecab3d9719e8bc359",
+  "matplotlib__matplotlib-25859__2b118d6b5319717aa190": "pkg_02368115d4a07dd5a7b9",
+  "django__django-12225__0cfc0364443f7fc4ad22": "pkg_fc3dd5ee90892f8dc56d",
+  "pytest-dev__pytest-5980__c575df702e00b28e218e": "pkg_2e7f6fb05c1a841afc21",
+  "pydata__xarray-5362__e15ec5889b3be11de9af": "pkg_a44d830b67165791c6b8",
+  "sphinx-doc__sphinx-7234__cc63390ef68356f43eec": "pkg_24b736cd116276b48f22",
+  "django__django-8961__9d9edf6bbf1ed9674a9e": "pkg_87e8c670983b2d0ba315",
+  "django__django-16757__2110ab1d3609948b5dbe": "pkg_69e2d3837ae8835c600f",
+  "django__django-13722__7b8f60944f5c2375cb0f": "pkg_d8a5c56b49a39cf32707",
+  "polyglot-c-py__74167411b863c6d29e38": "pkg_f32ed9d372f21e8b2538",
+  "pydata__xarray-3114__1df4bedf9e56854dfddf": "pkg_2866a3dc9ef8295cbb82",
+  "caffe-cifar-10__a22f89fd7d2d6fe70497": "pkg_92053a2b462be8425fcd",
+  "django__django-13250__ff861a4261829ff40926": "pkg_fefd7f4c1cb7cf50c602",
+  "django__django-13616__0b4f117213f185027608": "pkg_faf12d3da324e84c4c35",
+  "django__django-12747__0214355f0d7edbdd0e2d": "pkg_6c061a6d1489a6f994ae",
+  "django__django-11742__d28ba8cfdbb43f4724ae": "pkg_0bf10e295e1ab9c71480",
+  "pytest-dev__pytest-8906__20d6bbee5278726740d5": "pkg_aecd6feefb8a2de99177",
+  "matplotlib__matplotlib-24334__3e9334c9f2672dcd674e": "pkg_87fccc07e8b97175cd72",
+  "django__django-12910__068ab835f1cb44134d18": "pkg_c4705471fc57b6d7fb7f",
+  "astropy__astropy-7008__394e967474ccade7fee1": "pkg_635698d6d16eb6ecc58b",
+  "sphinx-doc__sphinx-8278__c59842710fba69d84e58": "pkg_c9cbfe05b9ace7ee2bda",
+  "install-windows-3.11__0268cc7afa4c7e1a5949": "pkg_c439dffd7d0a2fb96ff9",
+  "pytest-dev__pytest-7499__e4c2d2ef073977c45683": "pkg_81c4631a1c4e527ea824",
+  "django__django-13556__946d4cda11ceb3c8ade7": "pkg_6e78e27641c9f2f69c4f",
+  "astropy__astropy-14701__9cee1e6d90c38170c6d8": "pkg_2e8d5380406a35acf1bb",
+  "django__django-11905__89b77d29b2130b041cc8": "pkg_30da10702505420bd561",
+  "pylint-dev__pylint-8799__c404edb6d76fe724eab2": "pkg_a1f7c56d9a74b50b97ee",
+  "instance_qutebrowser__qutebrowser-e34dfc68647d087ca3175d9ad3f023c30d8c9746-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d__8cbe482d0768584ed51e": "pkg_1e38dc20d34d41d9c932",
+  "configure-git-webserver__835e8c91778723621e3a": "pkg_cd8dad14833143a2c96b",
+  "pytest-dev__pytest-7985__3f24b24ae6ac1c70ffd3": "pkg_6436fdaf684cce396dc2",
+  "django__django-15180__4e5374b64a0407614aa3": "pkg_a124eeb852c6bba35582",
+  "sphinx-doc__sphinx-9997__b0ace0729078285036bf": "pkg_1a47d89ece5213f9b60a",
+  "scikit-learn__scikit-learn-15138__85ae96a012451eb1add6": "pkg_b4cd28035eeb49222ba1",
+  "sphinx-doc__sphinx-8539__10a8976773775dfc44ba": "pkg_aaf17bf2783a7067c96a",
+  "django__django-12477__bb9c221b209da650811d": "pkg_7cadb4777400d94c8dcc",
+  "01-pytest-dev__pytest-6186": "pkg_bf8e3cdd4b27ea8e2675",
+  "django__django-13199__369728244812b23a1237": "pkg_1f7aa2ebeb1efdcc7ca0",
+  "django__django-14880__586dcc2f6b021ced4769": "pkg_9d1f3dddf0652e77bccb",
+  "django__django-12073__5798b02ac1508e7b8235": "pkg_b94a5234ec31851bfbdd",
+  "django__django-16888__d3a90e85ff4890eee0ac": "pkg_5b8e7436a8cc8f50cff8",
+  "django__django-13295__67cc23a7f722c35cac6f": "pkg_df1eb70a0371e06c7e46",
+  "pytest-dev__pytest-9064__0d89afa9f41cf98f9a09": "pkg_2c01a9aebecfc77f878a",
+  "django__django-15413__812ae02c2b563c944cae": "pkg_dd628f5a6186fe4a0d58",
+  "django__django-13287__486d03d7d78935689a54": "pkg_ebf4db2825997d5b7c00",
+  "pydata__xarray-7101__cb237f8ef53d2790baa7": "pkg_ac2ba5b2738a149ccb91",
+  "scikit-learn__scikit-learn-25601__bf46fff430de4f6d73ba": "pkg_df376d08aea9a15b3a9e",
+  "make-doom-for-mips__9fd67d40ab8c56ac8eca": "pkg_5f60cc9ce51906d6ca6f",
+  "django__django-12830__b261e843867374a666b1": "pkg_e04121f58462635df277",
+  "pydata__xarray-7147__97e06e35f3352133896c": "pkg_84b98e9595af52958017",
+  "sphinx-doc__sphinx-9828__e40c1606faab927dc0fb": "pkg_caf7164a102899910f23",
+  "django__django-16511__3438e0e85f4ec39d40cc": "pkg_6725ce43e05a116b9ea2",
+  "django__django-13808__36269a3a225a480165af": "pkg_6c724f9e27fe5e127258",
+  "scikit-learn__scikit-learn-13497__b43c7e23a48a0b13eb5f": "pkg_b277255e1e5d13878724",
+  "scikit-learn__scikit-learn-12486__1a0cda314e37ea560438": "pkg_8b34b9b97dc80bbec83d",
+  "pytest-dev__pytest-10115__4a0cea8f064963e6f82b": "pkg_5d473059cfe8eef2918f",
+  "dna-insert__2e7b4568fffc8728eef7": "pkg_fd8ff013cb15fd997fc6",
+  "pydata__xarray-5233__0c0add87483cee4dee87": "pkg_440f89de5601640de3a1",
+  "install-windows-3.11__ef31f5bc1029f893e654": "pkg_3ac93c7dee4966d350f6",
+  "django__django-13684__7ad25508ed69038f0f0a": "pkg_ce9228bb46751da79259",
+  "scikit-learn__scikit-learn-26400__f5ffc292779d86eebad8": "pkg_8a253bf78cee93e9d108",
+  "sam-cell-seg__3c97c5594432cdadaec7": "pkg_fc9422bfcb500ee0d8b4",
+  "django__django-11115__af7ad7425fb1a08dbc73": "pkg_e869783af649821858bc",
+  "django__django-13115__61a211a93537c0048b09": "pkg_aadaa667a66512233631",
+  "pytest-dev__pytest-8365__102a42fc9e2ce26e5e97": "pkg_c22eb4088feab04aac44",
+  "scikit-learn__scikit-learn-25697__3f033a832d9bfdf47075": "pkg_c8c06702315e7e778420",
+  "django__django-15869__41031c2bc053c56c8392": "pkg_d0defe75e97014c3c683",
+  "django__django-13267__f1a413ecbe1ad47a79f7": "pkg_32c3433a09d9e6b899a7",
+  "scikit-learn__scikit-learn-10913__4081959b845753c109e7": "pkg_24c61384aae425174343",
+  "django__django-16693__da5d05e2c5be49321439": "pkg_d7c9ed5edea62a6b4d17",
+  "query-optimize__b1309f21998699bfd8c0": "pkg_22fab90c084ce0aed9ae",
+  "pytest-dev__pytest-11044__0f1cc8d4ce86e77962e7": "pkg_a7023f56e8207526f396",
+  "pydata__xarray-5126__0726483d595ce8566631": "pkg_615f7a1147e63d42f51f",
+  "sympy__sympy-18256__662b82330e934584161e": "pkg_f9fd271597ff8d74f35e",
+  "scikit-learn__scikit-learn-11596__3d3b21606f0cab99a168": "pkg_d0c0c6aa4975acb02849",
+  "02-astropy__astropy-14578": "pkg_88f922ec59443abcee5c",
+  "django__django-16614__98a5945d2e104bb85c61": "pkg_b9c946eb5e945ba67191",
+  "pytest-dev__pytest-6323__8df05f16d5991743e065": "pkg_5b52a48f66365ad4fa50",
+  "instance_internetarchive__openlibrary-77c16d530b4d5c0f33d68bead2c6b329aee9b996-ve8c8d62a2b60610a3c4631f5f23ed866bada9818__3c81573aeb35b1b60786": "pkg_6265c610a2f44e49edf6",
+  "astropy__astropy-12842__5e1a33b6b6f71057e5d0": "pkg_f80c4270c1f98fd3cddc",
+  "django__django-16830__0693165b5fd9c6c19410": "pkg_f0449021f87c257db46e",
+  "django__django-10904__48e858b6eff0591199fc": "pkg_538bfb14f09b803d74bb",
+  "sphinx-doc__sphinx-10481__b895878bafaf4d316afb": "pkg_ca81d2cdd0318cf79e46",
+  "hf-model-inference__528211bccc652622ae05": "pkg_593797006b657a79be0b",
+  "task_001036_07b75c89__9bee625f7e8b9bbb49b7": "pkg_0cabbb3b3f916b679b30",
+  "task_009230_96ffbd11__100c5a730f19f0419317": "pkg_f27032a3a7c3ae3e4315",
+  "task_002319_20a7cc18__71f455d76aa1f661b937": "pkg_e85519db0b3e5a61069e",
+  "task_001636_6dd6fa3d__b0e32abacfafc6375b71": "pkg_5b228d563ee9ccf71296",
+  "task_006064_10c605da__aa9374608dd8e948dae5": "pkg_a581ec6a56997c748b6d",
+  "task_001040_2c8e31b2__9bec9a0e42a1a23992c8": "pkg_1ab286aac4a01491ab21",
+  "obsidian-linter-auto-table-of-contents__1e50630a9782f31a4af4": "pkg_4be37748967129e9ff0e",
+  "instance_internetarchive__openlibrary-8a9d9d323dfcf2a5b4f38d70b1108b030b20ebf3-v13642507b4fc1f8d234172bf8129942da2c2ca26__43e999296a6426f531c7": "pkg_a3d7866d6583d23337e7",
+  "pylint-dev__pylint-4551__96b4ba38f9520ecd5f49": "pkg_d059f5ca6011bf9221c1",
+  "sympy__sympy-18199__e2b5ade0dd8776fe41cf": "pkg_d725d5ebd24a2513d0ac",
+  "scikit-learn__scikit-learn-15084__dde24c85edb794725939": "pkg_4aefa30dace5fe3ffe4f",
+  "django__django-9703__a4b347ecdf9448fb666f": "pkg_e2664fc65c589b88de40",
+  "scikit-learn__scikit-learn-12961__066fa6aabb00042db36a": "pkg_20a93a83a9582b2b6cb4",
+  "django__django-14787__2d348510069332c8e50f": "pkg_380acc6c683c11a9117a",
+  "scikit-learn__scikit-learn-14894__2f8af7af76a00e8abf67": "pkg_022231c0a6f84db2d447",
+  "django__django-11206__23cfe11bb40a5296111b": "pkg_8a4eacee05c63863baf2",
+  "sphinx-doc__sphinx-8475__9abef5c379f58cf5315c": "pkg_ba6636f2b118458471b1",
+  "django__django-11880__ae253e0025e861cffc47": "pkg_9cd9d8258bab7fc47d79",
+  "sympy__sympy-18810__5cb2d0e302cf0b3e8262": "pkg_6c7a14be0e5ebaf9069a",
+  "django__django-10914__bbc754553e707055465a": "pkg_dd37395c37ad7a6953cb",
+  "matplotlib__matplotlib-25122__ac5236433c2d97bda7eb": "pkg_3e26d56951cd50ecdd9e",
+  "django__django-14404__c7b17a06d73b3fcc057b": "pkg_4e5390dd82df9428781d",
+  "django__django-15499__fec8228cc748bc619736": "pkg_dd91d5e9559200d93599",
+  "pydata__xarray-3677__f8e86f713b40a2db9322": "pkg_52b5fcf44caf2854d3c1",
+  "django__django-14631__59cce33f698b68dde5c7": "pkg_89b3b11e8e842e0cd49f",
+  "sympy__sympy-16886__f9641b9bc43fc6869c11": "pkg_d0ea651536af453683be",
+  "django__django-11490__04b966573a0195d42936": "pkg_a0665266b4cc18f5d074",
+  "django__django-14534__588bedacbd37af33af2e": "pkg_48950ef3080e4eb2bd94",
+  "django__django-15930__2ed58ef1c9fdda071735": "pkg_3a6d463f828c64286739",
+  "django__django-16801__8e851784eee85db4545a": "pkg_c7d9a5441ef4214b0327",
+  "sphinx-doc__sphinx-9711__71f9e491e7ad74d4a9a7": "pkg_4ee24f1abf9951ea5a0a",
+  "scikit-learn__scikit-learn-13439__3b63caed8588326a615b": "pkg_557ba2bb1d10537b86ac",
+  "django__django-16824__77449910a3e9bd68c233": "pkg_c499fa122a342cbfc4fb",
+  "django__django-16145__56dc3a7dd48682747308": "pkg_a535c789b2ea66afc9a2",
+  "django__django-13089__69254594002e6285bbe3": "pkg_071db194ab63e245f3fc",
+  "matplotlib__matplotlib-23476__a664a004be69e236f054": "pkg_9186bb921744cbd42b0c",
+  "django__django-10097__1c3c3acae54ace9693d9": "pkg_ca910b9ad7f1a3630efc",
+  "django__django-14855__0c89f5450cd59f9cd1a3": "pkg_ce9e626672048b6dcd3a",
+  "django__django-14765__c851ab11a146266adaae": "pkg_47183314ac3018e6ab64",
+  "scikit-learn__scikit-learn-13496__78e6d2804654ae662659": "pkg_2a143283f37f63df0d80",
+  "sphinx-doc__sphinx-8459__4c99b9e6b9f254b0cf75": "pkg_c3ba61d113473efccc2a",
+  "sphinx-doc__sphinx-9367__4dd6887c8ebe28683d89": "pkg_56b0f58237a04726a4c5",
+  "django__django-11299__8e12ca1164272b2c6bd1": "pkg_854af702d94b0d20a2f0",
+  "django__django-11797__a8e26100fa7fff668059": "pkg_139241fa06b00c859ec0",
+  "django__django-16612__3bddb7aedde2e2abb581": "pkg_7eba2122146276ccb066",
+  "pydata__xarray-4629__76e7e02aa3567a2fd822": "pkg_ddf5479f3be4048849e9",
+  "sympy__sympy-23534__392abc5bddd16e685f36": "pkg_94c499dc83508668eef0",
+  "django__django-12276__35b96c9177bcfba8d595": "pkg_ce06d8f7d7f32f0dea8d",
+  "django__django-16139__cb11ed7b147cb0f2b815": "pkg_68958a12116b091158a8",
+  "sympy__sympy-16766__55e3243c0f3013826ba5": "pkg_9fc7a3b4f32e21e28c33",
+  "django__django-16315__3081c1d43b831ef3cc0f": "pkg_7f27ec8195afd69822c9",
+  "django__django-14170__11285a00dda8448bf749": "pkg_57e001234bb459eabc5e",
+  "scikit-learn__scikit-learn-13135__b2114bd678b6b79527cd": "pkg_f48f35719616bc22ca34",
+  "django__django-13551__e77a93f9b3236619f03a": "pkg_5d79515cfc5085b8b823",
+  "sympy__sympy-24562__4743b059a4393f0e0c58": "pkg_84b4a31c8d81e32457fa",
+  "django__django-14376__d767b0300f69f35d6479": "pkg_208b55a825451fb7b92d",
+  "sympy__sympy-12419__10bfdd3927b84d941385": "pkg_9d0f00147ddf12c1f7d6",
+  "django__django-15467__dca0880e84a53c47a3b4": "pkg_e5d7899ba0f1c1d254fe",
+  "django__django-14007__0511e323de74f256d8f0": "pkg_fadc61d2350df4e58892",
+  "django__django-14382__2d6b6ae57dea46c02747": "pkg_650336141605287421c5",
+  "sympy__sympy-14711__6329a6ecb8b0b97e6932": "pkg_72f4a70f3be66f901276",
+  "django__django-9296__57e034c23430036dbd4a": "pkg_acc509a43b49ccdccfbe",
+  "django__django-11119__1588a2f3854460619d64": "pkg_68352265b7b408312c04",
+  "django__django-13807__1e79d534157957da39e5": "pkg_85e9118d502737c65f60",
+  "sphinx-doc__sphinx-9320__560ea14183c4d2f405c9": "pkg_3557ac2e66c093668262",
+  "django__django-16100__d9669f56fe44f640c383": "pkg_0c0f22aef30f40090531",
+  "scikit-learn__scikit-learn-12585__19e5a64477d0a5c67bd9": "pkg_941c24e1c5d564951934",
+  "django__django-16255__c5670655bde014855322": "pkg_af5c1ef4f3c88c901b69",
+  "django__django-12741__51a0506940a65251f6c1": "pkg_c9f28c5652c6808320f8",
+  "pytest-dev__pytest-5262__d42975d3da005a4c7b5c": "pkg_786a05e1ccf7258015c8",
+  "scikit-learn__scikit-learn-10844__02e8c90a21ddf87b0440": "pkg_f10630ef0cd9638ea341",
+  "django__django-13109__950b371ee0bf3e299824": "pkg_528d033f2c9853090afc",
+  "django__django-12304__4899fcec97beb5add055": "pkg_032667df4d1ff4872ec6",
+  "django__django-15814__37058ff26207ab7f36f9": "pkg_d6e7a1f9dcabbd5b86f9",
+  "psf__requests-5087__cd35236b92c0ba0e2a7c": "pkg_d978f51906931969540b",
+  "data-anonymization__fd557544e19b10dedcf8": "pkg_2e1a9329f1ba821bf760",
+  "sympy__sympy-13043__0b237213223cc1e05825": "pkg_9b10e13df28f38e3d20a",
+  "scikit-learn__scikit-learn-13641__200e64a5c36a9f01dd12": "pkg_0030d292fdbfbafb6620",
+  "pylint-dev__pylint-5595__f0e12fc99021ff766ee2": "pkg_b892234574d8d2128b4a",
+  "sympy__sympy-18908__d1e753cc5fd93004b0e2": "pkg_e303d41fa2b1868d6529",
+  "django__django-12796__72903d694b4d7523c61e": "pkg_61aa996e82eeb47d9c85",
+  "scikit-learn__scikit-learn-14869__e1b04e33073901ba19d8": "pkg_aba0f583d407c1369f3a",
+  "django__django-13386__16afc13783ece208face": "pkg_bbadb32d80075b69ee2f",
+  "mteb-leaderboard__6799723ee006811b5183": "pkg_4d7a25d094bce9b8f84d",
+  "raman-fitting__bf67c8a1ff79452013ca": "pkg_9b4a4d4750c29358131b",
+  "mteb-leaderboard__750f8eebc4e905a760b4": "pkg_3551f3e37b5a2ab562f4",
+  "task_001197_680abe08__b7bc57d30b454677a05e": "pkg_9a52a321506c7d2dbc2d",
+  "task_001220_f5b57353__aeedb5ab7daad21e11a8": "pkg_e5a8f241f02e5c4f45bf",
+  "task_000051_313e5ebc__9c9e6ea5523acee88e02": "pkg_510fe6ee5aaab5b00469",
+  "task_000046_014f62a9__c48895274a435cdfb74f": "pkg_3c6e1805ab6eaf041330",
+  "task_000958_41b6aac3__b36a262fe3a60eaec006": "pkg_cc6207a2d4f3d11f7401",
+  "task_002754_a55aa854__29a4bfeaa16e18e521cb": "pkg_4e226a80946d11223efc",
+  "task_003045_a0576d1c__0159c7f0089315a8f930": "pkg_b3e81038689efa4ee931",
+  "task_003579_ba61b0c5__2705bcc5dd6a5c525f85": "pkg_79657af338a29e0edd57",
+  "task_004532_ea249c54__fccdcc0f18467440b1dd": "pkg_4c51549ffcf532beb60e",
+  "task_004588_128fe7d3__c5032dbc6082755f3b91": "pkg_ca5aa4113623e0045db0",
+  "task_005281_f2b252b6__5b49c3bf96817e2d0332": "pkg_2372a2285575048f8e24",
+  "task_003447_db8af29b__1f436688d6af4c3eb33c": "pkg_a537e3e1f609ed01d9b1",
+  "task_001851_50415050__ecd128f7a41cd6c39cbb": "pkg_9a7508956501913b4bd3",
+  "task_005289_fb717c0e__0cca6ed7e0fc98086d47": "pkg_5567c5cd02921438e354",
+  "task_004050_ceaf8828__96521b0821049ff209eb": "pkg_53a96cb7973aec0e1760",
+  "task_004926_1f9c48af__a9e7dda6b2c0ff04661a": "pkg_be105e64e949ec665252",
+  "task_000210_59ff200a__74c0651082f6ad351e19": "pkg_3e455c15041cc965139a",
+  "task_000582_8fd2afe1__c56f506b04d8005dfcc4": "pkg_6fe8ecd624939f8f5152",
+  "task_001718_513bde5d__fdb445eeab2441a63182": "pkg_e912f8a74a38f8acefb6",
+  "task_001807_a8cb8021__3d59391cea7a08d90551": "pkg_9fee68f1e6ae45df03f8",
+  "task_002939_a4b62a73__1d68682e7fe8992e5dbf": "pkg_b26556001bcc3f4a1c66",
+  "task_003742_9e14c01f__440f93e1d2fb78157fc1": "pkg_118879fa5b1f9d4c934a",
+  "task_003941_b070f53f__bc80ddf7d73cf8009459": "pkg_e254aa0c524ec455f67a",
+  "task_004577_4f434919__5f96cf5356bc147df720": "pkg_f51c9c13d3fbf7c6ae17",
+  "task_004723_794b068a__246d13cc6fb02d7fdd95": "pkg_5b858eb3c4458b4af67d",
+  "task_004788_33571c06__e163a8c65b2a6bb93d88": "pkg_71a2e2ac8010f73f0164",
+  "task_004809_95b06a1d__cdba1f8dde63f5659e36": "pkg_48a8fb29bd76a3dfa5d1",
+  "task_005033_31f6a611__c5559c9c124e004c3422": "pkg_d0d2806d8709d8f94d9d",
+  "task_005225_07d37557__d53573d73dd15168f6d3": "pkg_a38e4b3eb22cd128072d",
+  "task_000215_7bc9b414__be2ebb8e7b03706d3875": "pkg_522c1858f00117ca8dbd",
+  "task_000339_224d0caa__b13190dc6b06bfd7c3a4": "pkg_ec1597eeb9da67c8a9c8",
+  "task_000545_876fd6e7__090b08df2c6405cbf2d6": "pkg_d38cb36e7e491664d8a5",
+  "task_002929_34bc9c19__102cf01fdbaa7d592065": "pkg_1bd0fd94ecbf34a8f34e",
+  "task_004702_3d93cb81__0e94df601250c9709202": "pkg_8a81bfaee1be21613f5b",
+  "task_000774_ced6d103__275752d8bc3418e4f337": "pkg_f342acbdc8ac5941972d",
+  "task_001344_2e242ad8__2641d5a94707f432708e": "pkg_f84347f275494b29d63b",
+  "task_002177_abf911ac__68dc9676510da0ae7425": "pkg_f34f674125bc3c255097",
+  "task_002458_8d55ef5d__953690ca6f22a0d6f9bb": "pkg_3434417ee99f43023630",
+  "task_003317_694501f1__26b98b7aeda3ab53ae94": "pkg_d3ea61b552f949076253",
+  "task_004561_5b3cb71d__7437f77368d09db5eee6": "pkg_edced05dfa0105f8cdc1",
+  "task_004625_097e8ea5__d529461adfaf6c7299df": "pkg_8fc592cb9201508b5ce0",
+  "task_004649_ee8b8678__fcf50138874358fc1843": "pkg_961e60ed46a19e8bb4c7",
+  "task_004658_11dd6256__582d20415ded9343bb52": "pkg_2276d403e3af12aaa13c",
+  "05-task_005110_898fcad1": "pkg_086060d177502bc3c893",
+  "task_005299_bb6a74b2__a3c83f10432214b24863": "pkg_4b9d74f693787768d867",
+  "task_000946_85b2a860__2740ec1aa515ec662408": "pkg_81a995747e0dcef23fe4",
+  "task_001441_7ab944d1__0d1a3a31cbb4a0922a10": "pkg_9f6e7255f34f45699114",
+  "task_002065_eb885195__2890efc25e28698917bb": "pkg_434fe3de6053e5ad6a16",
+  "task_003935_0d990953__d2d86563a64defca9875": "pkg_3ba896abbe237cbf524a",
+  "task_006268_cfdce218__9829d8a99bf7478b04d5": "pkg_e63660d0354fb3f309e0",
+  "task_005481_8f65ba83__b1741c1293cae446171b": "pkg_0d411d6fd92757cef3ec",
+  "task_003309_08d4354c__8e1d51609c0ef3eafae3": "pkg_d0ea4c1efcbc1895c659",
+  "task_002241_459c6324__66fcf80bde77c4d0f0ae": "pkg_522c090492de376b99b0",
+  "task_000534_5e1be5f6__e737c1ce10abedee7c49": "pkg_ffac3ec8d89f0fce987e",
+  "task_004201_b573a0b1__ec00a368aa8e4349a9bb": "pkg_b021f98b127b64d34719",
+  "task_005656_c01b9a4f__691e295c40d2efa702eb": "pkg_7768f75613e9ff59afb0",
+  "task_006304_f633819a__150deaf46d6109f7865e": "pkg_262a6da860cddc039b8b",
+  "task_000885_20adfe7f__c0530bd32ab39ece17c8": "pkg_939caad76443330f7e2c",
+  "task_000202_955e3f2e__d19bbc4c908cff500b6f": "pkg_4e6a8944c53419998578",
+  "task_000850_88128c4d__e56e3c6f920c4246b58a": "pkg_99abd07fd923dbac67e5",
+  "task_002759_0c15b48c__bfe5b0f4ea323cd52f74": "pkg_92946cd581aa635114e2",
+  "task_004359_5f95ca5e__5a9c53dcbbdcf53e9bc9": "pkg_d09e4eb5a23a9056b6fe",
+  "task_008484_7c43bd71__f422214cf5db2214d042": "pkg_0f4150d4218ae7c07892",
+  "task_004430_5219f010__ec8c4e292d559d6ad035": "pkg_f5680c94ec0bf474c156",
+  "task_006302_34fe478c__ed88586352bac1acfd79": "pkg_41b898a9d5af1ddcc4bb",
+  "task_001204_6cf4022d__2c24d50344ae5f3d3ccd": "pkg_2cac4909645efbeabe90",
+  "task_002220_5ff0a0d8__fe2d6712363e482f4aa9": "pkg_68bea97b2c7fb178200b",
+  "task_005081_be0841af__0497564324e20910a955": "pkg_ab9423d66942fd5d9e7b",
+  "task_001248_79b209fb__182377bb31f4e15c319b": "pkg_cdbf995584f90e12cc36",
+  "task_000688_39e964ad__f9c859e57332f81620ec": "pkg_342753004a6d80d8634e",
+  "django__django-12039__6e3cfbeb191c41ae79c0": "pkg_e8272d603cd6ca223ab5",
+  "django__django-13513__5c6ed1f0639e4b91f9a5": "pkg_4c54f7300fe30a0200b2",
+  "scikit-learn__scikit-learn-14983__f46e18670fd16c804fa8": "pkg_1609d86026ce5fd75bc2",
+  "sympy__sympy-13878__071618ff543bd53114f2": "pkg_e5ccc2de8816e22b84cb",
+  "embedding-drift-monitor__59796314c4a5b88d9d76": "pkg_30bcf8b85902c8c4a976",
+  "git-multibranch__f427704ff992e9e03c79": "pkg_f038d5beec9c5846e06e",
+  "instance_flipt-io__flipt-86906cbfc3a5d3629a583f98e6301142f5f14bdb-v6bea0cc3a6fc532d7da914314f2944fc1cd04dee__7c8aee1c23212328c372": "pkg_3530a2c797866485c264",
+  "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d": "pkg_b11a7740962c2d944536",
+  "modernize-scientific-stack__9bca7ca4a2dd36d26914": "pkg_931c8b6d63c0e48c441c",
+  "mteb-retrieve__5aa81c77b5a2bb47a53f": "pkg_2ff2a268779754775bcd",
+  "music-harmony__91eedc171cb6984a0cd8": "pkg_2ed4697813fb98877f7f",
+  "nginx-request-logging__0c8c18f46fe440085ce3": "pkg_48fbff8bbf0cf62d8bd0",
+  "portfolio-optimization__54a0faa63fd7551dbab3": "pkg_17c13839537511a37f84",
+  "task_000233_ee5f0e33__9016bc6cf05b55844479": "pkg_ad5197e455e0ad7b930b",
+  "torch-tensor-parallelism__930310f44312a0d236e7": "pkg_2d8cb6c1badd53384a99",
+  "vf2-speedup-networkx__922d691d807cd0093193": "pkg_4b68500357c3bbdcdefc",
+  "mteb-retrieve__1380ed54e1631be916e4": "pkg_01be7f151ed82eb7247a",
+  "mteb-retrieve__fa3ac63b73cc62663930": "pkg_0b693bc6481d54c14ec1"
+ },
+ "manual_mappings": {
+  "embedding-drift-monitor__59796314c4a5b88d9d76": "pkg_30bcf8b85902c8c4a976",
+  "git-multibranch__f427704ff992e9e03c79": "pkg_f038d5beec9c5846e06e",
+  "instance_flipt-io__flipt-86906cbfc3a5d3629a583f98e6301142f5f14bdb-v6bea0cc3a6fc532d7da914314f2944fc1cd04dee__7c8aee1c23212328c372": "pkg_3530a2c797866485c264",
+  "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d__fbb87967a0dc2cf20d8d": "pkg_b11a7740962c2d944536",
+  "modernize-scientific-stack__9bca7ca4a2dd36d26914": "pkg_931c8b6d63c0e48c441c",
+  "mteb-retrieve__5aa81c77b5a2bb47a53f": "pkg_2ff2a268779754775bcd",
+  "music-harmony__91eedc171cb6984a0cd8": "pkg_2ed4697813fb98877f7f",
+  "nginx-request-logging__0c8c18f46fe440085ce3": "pkg_48fbff8bbf0cf62d8bd0",
+  "portfolio-optimization__54a0faa63fd7551dbab3": "pkg_17c13839537511a37f84",
+  "task_000233_ee5f0e33__9016bc6cf05b55844479": "pkg_ad5197e455e0ad7b930b",
+  "torch-tensor-parallelism__930310f44312a0d236e7": "pkg_2d8cb6c1badd53384a99",
+  "vf2-speedup-networkx__922d691d807cd0093193": "pkg_4b68500357c3bbdcdefc"
+ },
+ "rows": {
+  "VERIFIER-TOO-WEAK": {
+   "defects": 16,
+   "detected_both": 16,
+   "detected_any": 16,
+   "split_defect": 0,
+   "clean_pass_both": 4,
+   "clean_pass_any": 10,
+   "split_clean": 6,
+   "agreement": 69,
+   "tasks": 75,
+   "review_detect": 32,
+   "review_total": 32
+  },
+  "INSTR-VERIFIER-MISMATCH": {
+   "defects": 117,
+   "detected_both": 111,
+   "detected_any": 112,
+   "split_defect": 1,
+   "clean_pass_both": 55,
+   "clean_pass_any": 58,
+   "split_clean": 3,
+   "agreement": 172,
+   "tasks": 176,
+   "review_detect": 223,
+   "review_total": 234
+  },
+  "INSTR-AMBIGUOUS": {
+   "defects": 13,
+   "detected_both": 8,
+   "detected_any": 10,
+   "split_defect": 2,
+   "clean_pass_both": 59,
+   "clean_pass_any": 59,
+   "split_clean": 0,
+   "agreement": 70,
+   "tasks": 72,
+   "review_detect": 18,
+   "review_total": 26
+  },
+  "INSTR-ENV-MISMATCH": {
+   "defects": 59,
+   "detected_both": 59,
+   "detected_any": 59,
+   "split_defect": 0,
+   "clean_pass_both": 59,
+   "clean_pass_any": 59,
+   "split_clean": 0,
+   "agreement": 118,
+   "tasks": 118,
+   "review_detect": 118,
+   "review_total": 118
+  }
+ },
+ "clean_overall_correct_reviews": 12,
+ "clean_overall_reviews": 118,
+ "per_task": {
+  "VERIFIER-TOO-WEAK": {
+   "defect": [
+    [
+     "instance_internetarchive__openlibrary-d109cc7e6e161170391f98f9a6fa1d02534c18e4-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000254_21ede93b",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000233_ee5f0e33",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000925_b4cb17ac",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_008402_0f2d3692",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_ansible__ansible-8127abbc298cabf04aaa89a478fc5e5e3432a6fc-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_future-architect__vuls-86b60e1478e44d28b1aff6b9ac7e95ceb05bc5fc",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_gravitational__teleport-32bcd71591c234f0d8b091ec01f1f5cbfdc0f13c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_internetarchive__openlibrary-5de7de19211e71b29b2f2ba3b1dff2fe065d660f-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_navidrome__navidrome-3f2d24695e9382125dfe5e6d6c8bbeb4a313a4f9",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_navidrome__navidrome-5e549255201e622c911621a7b770477b1f5a89be",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_tutao__tutanota-d1aa0ecec288bfc800cfb9133b087c4f81ad8b38-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "git-multibranch",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "modernize-scientific-stack",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "nginx-request-logging",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "portfolio-optimization",
+     [
+      true,
+      true
+     ]
+    ]
+   ],
+   "clean": [
+    [
+     "django__django-10914",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-11119",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-11206",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-11299",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11490",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-11797",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "django__django-11880",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12276",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12304",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12741",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13089",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13109",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13551",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13807",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14007",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14170",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14382",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14404",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14631",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14765",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14787",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14855",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "django__django-15467",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-15499",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-15814",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-15930",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "django__django-16100",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16139",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16145",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16255",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16315",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16612",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16801",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "django__django-16824",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-9296",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-23476",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-25122",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "psf__requests-5087",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pydata__xarray-3677",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pydata__xarray-4629",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-5262",
+     [
+      false,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-10844",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-12585",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13135",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13439",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13496",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-14894",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8459",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8475",
+     [
+      false,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9320",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9367",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9711",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-12419",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-14711",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-16766",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-16886",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-18810",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-23534",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-24562",
+     [
+      true,
+      true
+     ]
+    ]
+   ]
+  },
+  "INSTR-VERIFIER-MISMATCH": {
+   "defect": [
+    [
+     "django__django-15703",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-12860",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_flipt-io__flipt-af7a0be46d15f0b63f16a868d13f3b48a838e7ce",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-5205",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "polyglot-rust-c",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-11264",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-13286",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_navidrome__navidrome-b65e76293a917ee2dfc5d4b373b1c62e054d0dca",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12588",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-15038",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13447",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13495",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-22767",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12121",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8075",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-13264",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_flipt-io__flipt-86906cbfc3a5d3629a583f98e6301142f5f14bdb-v6bea0cc3a6fc532d7da914314f2944fc1cd04dee",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-26318",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "music-harmony",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-26160",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16746",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pylint-dev__pylint-4339",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-25859",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12225",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-5980",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pydata__xarray-5362",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-7234",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-8961",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16757",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13722",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "polyglot-c-py",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pydata__xarray-3114",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "caffe-cifar-10",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13250",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13616",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12747",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-11742",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-8906",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-24334",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12910",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "astropy__astropy-7008",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8278",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "install-windows-3.11",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-7499",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13556",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "astropy__astropy-14701",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-11905",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pylint-dev__pylint-8799",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_qutebrowser__qutebrowser-e34dfc68647d087ca3175d9ad3f023c30d8c9746-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "configure-git-webserver",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-7985",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-15180",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9997",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-15138",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8539",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12477",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-6186",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13199",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14880",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12073",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16888",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13295",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-9064",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-15413",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13287",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pydata__xarray-7101",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-25601",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "make-doom-for-mips",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12830",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pydata__xarray-7147",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9828",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16511",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13808",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13497",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-12486",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-10115",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "dna-insert",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pydata__xarray-5233",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "install-windows-3.11",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13684",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-26400",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sam-cell-seg",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-11115",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13115",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-8365",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-25697",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-15869",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-13267",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-10913",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16693",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "query-optimize",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-11044",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pydata__xarray-5126",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-18256",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-11596",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "astropy__astropy-14578",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16614",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pytest-dev__pytest-6323",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_internetarchive__openlibrary-77c16d530b4d5c0f33d68bead2c6b329aee9b996-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "astropy__astropy-12842",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-16830",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-10904",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-10481",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "hf-model-inference",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "task_001036_07b75c89",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_009230_96ffbd11",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002319_20a7cc18",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001636_6dd6fa3d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_006064_10c605da",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001040_2c8e31b2",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "obsidian-linter-auto-table-of-contents",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "instance_internetarchive__openlibrary-8a9d9d323dfcf2a5b4f38d70b1108b030b20ebf3-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pylint-dev__pylint-4551",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-18199",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-15084",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-9703",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-12961",
+     [
+      true,
+      true
+     ]
+    ]
+   ],
+   "clean": [
+    [
+     "django__django-10914",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11119",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11206",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11299",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "django__django-11490",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11797",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11880",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12276",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12304",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12741",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13089",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13109",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13551",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13807",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-14007",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14170",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "django__django-14382",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14404",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14631",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14765",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14787",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14855",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15467",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15499",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15814",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15930",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16100",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16139",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16145",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16255",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16315",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16612",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16801",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16824",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-9296",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-23476",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-25122",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "psf__requests-5087",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pydata__xarray-3677",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pydata__xarray-4629",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pytest-dev__pytest-5262",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-10844",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-12585",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13135",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13439",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13496",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-14894",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8459",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8475",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9320",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9367",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9711",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-12419",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-14711",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-16766",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-16886",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-18810",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-23534",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-24562",
+     [
+      false,
+      false
+     ]
+    ]
+   ]
+  },
+  "INSTR-AMBIGUOUS": {
+   "defect": [
+    [
+     "data-anonymization",
+     [
+      true,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-13043",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13641",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "pylint-dev__pylint-5595",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "sympy__sympy-18908",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "django__django-12796",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-14869",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13386",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "mteb-leaderboard",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "mteb-retrieve",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "mteb-retrieve",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "raman-fitting",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "torch-tensor-parallelism",
+     [
+      true,
+      false
+     ]
+    ]
+   ],
+   "clean": [
+    [
+     "django__django-10914",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11119",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11206",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11299",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11490",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11797",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11880",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12276",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12304",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12741",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13089",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13109",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13551",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13807",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14007",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14170",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14382",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14404",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14631",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14765",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14787",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14855",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15467",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15499",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15814",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15930",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16100",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16139",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16145",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16255",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16315",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16612",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16801",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16824",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-9296",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-23476",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-25122",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "psf__requests-5087",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pydata__xarray-3677",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pydata__xarray-4629",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pytest-dev__pytest-5262",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-10844",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-12585",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13135",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13439",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13496",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-14894",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8459",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8475",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9320",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9367",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9711",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-12419",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-14711",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-16766",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-16886",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-18810",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-23534",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-24562",
+     [
+      false,
+      false
+     ]
+    ]
+   ]
+  },
+  "INSTR-ENV-MISMATCH": {
+   "defect": [
+    [
+     "task_000051_313e5ebc",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000046_014f62a9",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000958_41b6aac3",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002754_a55aa854",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_003045_a0576d1c",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_003579_ba61b0c5",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004532_ea249c54",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004588_128fe7d3",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_005281_f2b252b6",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_003447_db8af29b",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001851_50415050",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_005289_fb717c0e",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004050_ceaf8828",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004926_1f9c48af",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000210_59ff200a",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000582_8fd2afe1",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001718_513bde5d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001807_a8cb8021",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002939_a4b62a73",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_003742_9e14c01f",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_003941_b070f53f",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004577_4f434919",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004723_794b068a",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004788_33571c06",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004809_95b06a1d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_005033_31f6a611",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_005225_07d37557",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000215_7bc9b414",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000339_224d0caa",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000545_876fd6e7",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002929_34bc9c19",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004702_3d93cb81",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000774_ced6d103",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001344_2e242ad8",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002177_abf911ac",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002458_8d55ef5d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_003317_694501f1",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004561_5b3cb71d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004625_097e8ea5",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004649_ee8b8678",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004658_11dd6256",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_005110_898fcad1",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_005299_bb6a74b2",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000946_85b2a860",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001441_7ab944d1",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002065_eb885195",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_003935_0d990953",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000202_955e3f2e",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000850_88128c4d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002759_0c15b48c",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004359_5f95ca5e",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_008484_7c43bd71",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_004430_5219f010",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_006302_34fe478c",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001204_6cf4022d",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_002220_5ff0a0d8",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_005081_be0841af",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_001248_79b209fb",
+     [
+      true,
+      true
+     ]
+    ],
+    [
+     "task_000688_39e964ad",
+     [
+      true,
+      true
+     ]
+    ]
+   ],
+   "clean": [
+    [
+     "django__django-10914",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11119",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11206",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11299",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11490",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11797",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-11880",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12276",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12304",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-12741",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13089",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13109",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13551",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-13807",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14007",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14170",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14382",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14404",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14631",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14765",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14787",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-14855",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15467",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15499",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15814",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-15930",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16100",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16139",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16145",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16255",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16315",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16612",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16801",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-16824",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "django__django-9296",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-23476",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "matplotlib__matplotlib-25122",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "psf__requests-5087",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pydata__xarray-3677",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pydata__xarray-4629",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "pytest-dev__pytest-5262",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-10844",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-12585",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13135",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13439",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-13496",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "scikit-learn__scikit-learn-14894",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8459",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-8475",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9320",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9367",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sphinx-doc__sphinx-9711",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-12419",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-14711",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-16766",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-16886",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-18810",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-23534",
+     [
+      false,
+      false
+     ]
+    ],
+    [
+     "sympy__sympy-24562",
+     [
+      false,
+      false
+     ]
+    ]
+   ]
+  }
+ },
+ "excluded_clean_ids": [
+  "django__django-10097",
+  "django__django-12039",
+  "django__django-13513",
+  "django__django-14376",
+  "django__django-14534",
+  "scikit-learn__scikit-learn-14983",
+  "sympy__sympy-13878"
+ ]
+}

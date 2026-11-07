@@ -69,12 +69,12 @@ def test_introduction_matches_execution_mode(kind):
         review.prompt(text, 'task', 'unknown')
 
 
-def test_selected_river_uses_six_identical_definitions_in_both_strategies():
+def test_selected_river_uses_eight_identical_definitions_in_both_strategies():
     labeling = tomllib.loads(review.load('river_selected')[0])
     classification_text = review.load('river_selected', 'classification')[0]
     classification = tomllib.loads(classification_text)
     assert {entry['name'] for entry in labeling['criteria']} == review.river_criteria()
-    assert len(labeling['criteria']) == 6
+    assert len(labeling["criteria"]) == 8
     assert classification['categories'][1:] == labeling['criteria']
     assert classification['categories'][0]['name'] == 'CLEAN'
     assert review.settings(labeling)['prompt'] == 'river_labeling'

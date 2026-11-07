@@ -11,8 +11,12 @@ name = "VERIFIER-ACCEPTS-SHORTCUTS"
 description = "The verifier passes without the task actually being solved: it checks only output shape/format/types/count, trusts a self-reported value, greps the source for keywords, checks a hardcoded subset, or tests only fixed inputs so the answer can be hardcoded. Assign FAIL only if you demonstrate that a fabricated output or hardcoded answer passes without tampering with the tests or scoring."
 
 [[categories]]
-name = "INSTR-VERIFIER-MISMATCH"
-description = "The verifier checks an arbitrary requirement or contradicts the instruction. For example, reads/writes a different path, asserts a hardcoded value that conflicts with the data, demands a stricter format, rejects build artifacts created by the instruction’s own compilation commands, requires specific output keys not stated in the instruction, or requires exact warning/error messages or other prose wording that the instruction does not specify."
+name = "INSTR-VERIFIER-CONTRADICTION"
+description = "The verifier contradicts the instruction or the environment, so a solution that follows the instruction fails. For example, reads/writes a different path, asserts a hardcoded value that conflicts with the data, or rejects build artifacts created by the instruction’s own compilation commands. Check hardcoded expected values, paths and hashes against the data and environment."
+
+[[categories]]
+name = "INSTR-VERIFIER-UNSTATED-REQUIREMENT"
+description = "The verifier checks an arbitrary requirement not specified by the instruction. For example, demands a stricter format than the instruction states, requires specific output keys not stated in the instruction, or requires exact warning/error messages or other prose wording that the instruction does not specify. Judge only from what the agent can see; a requirement is not implied just because the reference solution satisfies it."
 
 [[categories]]
 name = "INSTR-ENV-MISMATCH"

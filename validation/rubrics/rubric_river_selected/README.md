@@ -1,12 +1,13 @@
 # Selected River criteria
 
-The [selected rubric](rubric.toml) contains seven defect definitions adapted from
+The [selected rubric](rubric.toml) contains eight defect definitions adapted from
 [the local River rubric](../rubric_river/rubric.toml), sourced from
 [River, Appendix C.1](https://arxiv.org/html/2608.22631#S0.SS3):
 
 - `VERIFIER-ACCEPTS-INCOMPLETE`
 - `VERIFIER-ACCEPTS-SHORTCUTS`
-- `INSTR-VERIFIER-MISMATCH`
+- `INSTR-VERIFIER-CONTRADICTION`
+- `INSTR-VERIFIER-UNSTATED-REQUIREMENT`
 - `INSTR-ENV-MISMATCH`
 - `INSTR-AMBIGUOUS`
 - `TASK-TRIVIAL`
@@ -22,13 +23,13 @@ Two prompting strategies use these same definitions:
 - **Classification** (`--review-rubric river_selected --review-format classification`):
   select one primary defect, or `CLEAN` if none of these defects is present, with
   the [classification prompt](../prompt_templates/modified/classification.txt).
-  The [classification rubric](classification.toml) explicitly defines the seven
+  The [classification rubric](classification.toml) explicitly defines the eight
   defect categories and `CLEAN`. Existing `CLEAN` definitions are kept unchanged.
   If a classification rubric omits `CLEAN`, the loader warns and adds the
   [documented fallback](../README.md) to the effective rubric only.
   There is no `OTHER` category.
 
-`CLEAN` and passing all seven criteria refer only to these selected defects.
+`CLEAN` and passing all eight criteria refer only to these selected defects.
 For labeling, `--review-criteria` can restrict the criteria under review;
 classification always uses the complete selected category set.
 

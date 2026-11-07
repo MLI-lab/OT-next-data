@@ -1,0 +1,90 @@
+{
+  "task_id": "sphinx-doc__sphinx-8475",
+  "jobs": [
+    1258068,
+    1258077
+  ],
+  "date": "2026-11-07",
+  "image_bundle_sha256": "3c5f540724a5c659c2978ad899c39ef2d45d52f79fbd979dcbd2e59328756cf1",
+  "variants": {
+    "baseline": {
+      "reward": 0,
+      "resolved": false,
+      "graded_counts": {
+        "FAIL_TO_PASS": {
+          "success": 0,
+          "failure": 1
+        },
+        "PASS_TO_PASS": {
+          "success": 0,
+          "failure": 17
+        },
+        "FAIL_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        },
+        "PASS_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        }
+      }
+    },
+    "gold": {
+      "reward": 0,
+      "resolved": false,
+      "graded_counts": {
+        "FAIL_TO_PASS": {
+          "success": 0,
+          "failure": 1
+        },
+        "PASS_TO_PASS": {
+          "success": 0,
+          "failure": 17
+        },
+        "FAIL_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        },
+        "PASS_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        }
+      }
+    },
+    "gold-rA": {
+      "reward": 1,
+      "resolved": true,
+      "graded_counts": {
+        "FAIL_TO_PASS": {
+          "success": 1,
+          "failure": 0
+        },
+        "PASS_TO_PASS": {
+          "success": 17,
+          "failure": 0
+        },
+        "FAIL_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        },
+        "PASS_TO_FAIL": {
+          "success": 0,
+          "failure": 0
+        }
+      }
+    }
+  },
+  "pytest_result": {
+    "baseline": "1 failed, 17 passed",
+    "gold": "18 passed",
+    "gold-rA": "18 passed"
+  },
+  "cause": "Image HEAD is SWE-bench setup commit 555b65cfa on top of base 3ea1ec84c; it adds -rA to tox.ini and changes setup.py. Our setup_files/setup.sh resets to the base commit, so pytest prints no per-test status lines and the swebench 4.0.3 parser grades every test as failed. Unchanged test.sh; gold-rA only sets PYTEST_ADDOPTS=-rA.",
+  "possibly_affected_clean_tasks_not_checked": [
+    "sphinx-doc__sphinx-9711",
+    "sphinx-doc__sphinx-8459",
+    "sphinx-doc__sphinx-9367",
+    "sphinx-doc__sphinx-9320",
+    "pytest-dev__pytest-5262"
+  ]
+}
