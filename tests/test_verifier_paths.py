@@ -729,3 +729,66 @@ def test_routes():
     (tmp_path / 'read').mkdir()
     path = task(tmp_path / 'read', 'def test_read():\n    load_data("/app/missing.txt")\n')
     assert rule.assess(record(path))['status'] == 'failed'
+
+
+def test_more_filesystem_uses_are_classified(tmp_path):
+    path = task(tmp_path, '''
+import os, numpy as np
+from pathlib import Path
+DIR = Path("/app/recovered")
+def run_analyzer(source, output):
+    subprocess.run(["analyzer", source, "-o", output])
+    return json.load(open(output))
+def _read_value(path):
+    with open(path) as handle:
+        return float(handle.read())
+def test_values():
+    U = np.load("/app/results/U_0.npy")
+    assert (DIR / "sensor.bin").stat().st_size == 4096
+    run_analyzer("/app/project/Makefile", "/tmp/output9.json")
+    assert _read_value("/app/G1_vs_G3_U.csv") == 394.0
+    for exe in ["/app/solve", "/app/run"]:
+        assert os.access(exe, os.X_OK)
+    found = any(os.path.exists(p) for p in ["/usr/local/lib/libx.so", "/usr/lib/libx.so"])
+    assert _curl("/static/test.txt")
+    assert check_service_health(WEBHOOK_URL, "/healthz")
+''')
+    paths = {p['path']: p for p in record(path)['inventory']['paths']}
+    roles = lambda p: {u['role'] for u in paths[p]['uses']}
+    assert roles('/app/results/U_0.npy') == {'read'}
+    assert roles('/app/recovered/sensor.bin') == {'read'}
+    assert roles('/app/G1_vs_G3_U.csv') == {'read'}
+    assert paths['/tmp/output9.json']['excluded'] == 'subprocess_role_unresolved'
+    assert 'unclassified' not in roles('/app/project/Makefile')
+    assert paths['/usr/lib/libx.so']['excluded'] == 'optional_or_negative_check'
+    assert paths['/static/test.txt']['excluded'] == paths['/healthz']['excluded'] == 'not_a_path'
+    assert 'unclassified' not in roles('/app/solve')
+
+
+def test_unknown_helper_and_reused_list_stay_unclassified(tmp_path):
+    path = task(tmp_path, '''
+def test_input():
+    load_external("/app/data_manifest.json")
+''')
+    paths = {p['path']: p for p in record(path)['inventory']['paths']}
+    assert {u['role'] for u in paths['/app/data_manifest.json']['uses']} == {'unclassified'}
+
+
+def test_reassigned_fallback_location_is_an_alternative_group(tmp_path):
+    path = task(tmp_path, '''
+from pathlib import Path
+def test_lib():
+    lib_path = Path("/app/xgboost/build/libxgboost.so")
+    if not lib_path.exists():
+        lib_path = Path("/app/xgboost/lib/libxgboost.so")
+    assert lib_path.exists()
+    expected = ["/app/out/a.env", "/app/out/b.env"]
+    for filepath in expected:
+        assert os.path.isfile(filepath)
+''')
+    data = record(path)
+    paths = {p['path']: p for p in data['inventory']['paths']}
+    assert {u['role'] for u in paths['/app/xgboost/lib/libxgboost.so']['uses']} == {'required_alternative'}
+    assert {u['role'] for u in paths['/app/out/a.env']['uses']} == {'required'}
+    result = rule.assess(data)
+    assert {f['path'] for f in result['findings']} == {'/app/out/a.env', '/app/out/b.env', '/app/xgboost/build/libxgboost.so'}

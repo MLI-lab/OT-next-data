@@ -172,7 +172,14 @@ def implied_key_output(path, instruction):
 
 
 HTTP_METHODS = {'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'}
-HTTP_CALL = re.compile(r'(?:^|[._])(?:get|post|put|delete|patch|head|options|request|requests|fetch|urlopen|http\w*|url\w*|route|endpoint|api\w*)$', re.I)
+HTTP_CALL = re.compile(r'(?:^|[._])(?:get|post|put|delete|patch|head|options|request|requests|fetch|urlopen|http\w*|url\w*|route|endpoint|api\w*|\w*curl|wget|\w*health\w*)$', re.I)
+# Library calls whose first argument is an existing file or directory they read.
+READER_CALLS = {'np.load', 'numpy.load', 'torch.load', 'joblib.load', 'pickle.load', 'h5py.File', 'Image.open',
+                'PIL.Image.open', 'os.stat', 'os.listdir', 'os.scandir', 'os.path.getsize', 'filecmp.cmp',
+                'tarfile.open', 'zipfile.ZipFile', 'wave.open', 'shutil.copy', 'shutil.copyfile', 'shutil.copytree'}
+READER_METHODS = {'loadtxt', 'genfromtxt', 'fromfile', 'read_csv', 'read_json', 'read_parquet', 'read_excel',
+                  'read_table', 'read_pickle', 'read_feather', 'read_hdf', 'imread', 'loadmat'}
+SENTINEL = '/__ot_path_parameter__'
 
 
 def literal_context(node, parent, constants, parents=None):
@@ -196,12 +203,33 @@ def literal_context(node, parent, constants, parents=None):
             return 'compared'
     if isinstance(parent, ast.Call) and node in parent.args:
         method = [resolve(arg, constants) for arg in parent.args]
-        if HTTP_CALL.search(name(parent.func) or '') or any(isinstance(m, str) and m.upper() in HTTP_METHODS for m in method):
+        url_argument = any(isinstance(arg, ast.Name) and 'url' in arg.id.lower() or
+                           isinstance(m, str) and m.startswith(('http://', 'https://'))
+                           for arg, m in zip(parent.args, method) if arg is not node)
+        if (HTTP_CALL.search(name(parent.func) or '') or url_argument
+                or any(isinstance(m, str) and m.upper() in HTTP_METHODS for m in method)):
             return 'http_route'
     return 'unclassified'
 
 
-def python_paths(text, source, offset=0, context=None):
+def sentinel_roles(variable, body, source, context, depth):
+    """Roles `body` gives `variable` when it holds an absolute path (helper parameter, loop item).
+
+    Classified with the same rules as literals; the inventory then combines the
+    roles exactly as for a direct use (e.g. written by a command, then read).
+    """
+    if depth >= 2:
+        return set()
+    text = variable + ' = ' + repr(SENTINEL) + '\n' + '\n'.join(ast.unparse(stmt) for stmt in body)
+    try:
+        roles = {r['role'] for r in python_paths(text, source, context=context, depth=depth + 1)
+                 if r['path'] == SENTINEL}
+    except (SyntaxError, ValueError, RecursionError):
+        return set()
+    return roles - {'unclassified'}
+
+
+def python_paths(text, source, offset=0, context=None, depth=0):
     tree = scoped_names(ast.parse(text))
     constants = {}
     assignments = {}
@@ -332,6 +360,12 @@ def python_paths(text, source, offset=0, context=None):
             emit(target, node, 'generated' if mode and any(c in mode for c in 'wax') else guarded_role(target, node, 'read'))
         elif method in ('read_text', 'read_bytes'):
             emit(receiver, node, guarded_role(receiver, node, 'read'))
+        elif method in ('stat', 'iterdir') and absolute(receiver):
+            emit(receiver, node, guarded_role(receiver, node, 'read'))
+        elif (func in READER_CALLS or method in READER_METHODS) and absolute(value):
+            emit(value, node, guarded_role(value, node, 'read'))
+            if func == 'filecmp.cmp' and len(node.args) > 1:
+                emit(resolve(node.args[1], constants), node, guarded_role(resolve(node.args[1], constants), node, 'read'))
         elif method in ('write_text', 'write_bytes', 'touch', 'mkdir') and absolute(receiver):
             emit(receiver, node, 'generated')
         elif func in ('os.mkdir', 'os.makedirs'):
@@ -359,6 +393,95 @@ def python_paths(text, source, offset=0, context=None):
                 elif absolute(command):
                     emit(command, node, guarded_role(command, node, 'execute'))
     records.extend(helper_writes(text, source, offset))
+    classified = {r['path'] for r in records}
+    functions = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            functions.setdefault(node.name, []).append(node)
+    parameter_roles = {}
+
+    def parameter_role(function, index=None, keyword=None):
+        key = (function.name, function.lineno, index, keyword)
+        if key not in parameter_roles:
+            arguments = [*function.args.posonlyargs, *function.args.args]
+            if keyword is not None:
+                match = [a for a in arguments + function.args.kwonlyargs if a.arg.endswith('_' + keyword) or a.arg == keyword]
+            else:
+                match = arguments[index:index + 1] if index < len(arguments) else []
+            parameter_roles[key] = (sentinel_roles(match[0].arg, function.body, source, context, depth)
+                                    if match else set())
+        return parameter_roles[key]
+
+    # Literal arguments of local helpers take the role the helper gives that parameter.
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        candidates = functions.get(node.func.id, [])
+        if len(candidates) != 1:
+            continue  # Redefined or not local: leave unclassified.
+        for index, argument in enumerate(node.args):
+            value = resolve(argument, constants)
+            if absolute(value) and value not in classified:
+                for role in sorted(parameter_role(candidates[0], index=index)):
+                    emit(value, argument, guarded_role(value, node, role) if role in ('read', 'execute') else role)
+        for keyword in node.keywords:
+            value = resolve(keyword.value, constants)
+            if keyword.arg and absolute(value) and value not in classified:
+                for role in sorted(parameter_role(candidates[0], keyword=keyword.arg)):
+                    emit(value, keyword.value, guarded_role(value, node, role) if role in ('read', 'execute') else role)
+
+    # Loops over a literal list of paths: each item takes the role the body gives it.
+    for loop in ast.walk(tree):
+        if not isinstance(loop, ast.For) or not isinstance(loop.target, ast.Name):
+            continue
+        values = literal_paths(loop.iter, assignments, constants)
+        if not values:
+            continue
+        if isinstance(loop.iter, ast.Name):
+            loads = [n for n in ast.walk(tree) if isinstance(n, ast.Name)
+                     and isinstance(n.ctx, ast.Load) and n.id == loop.iter.id]
+            if loads != [loop.iter]:
+                continue  # The list is used elsewhere too: keep it visible.
+        for role in sorted(sentinel_roles(loop.target.id, loop.body, source, context, depth)):
+            for value in values:
+                if value not in classified:
+                    emit(value, loop, role)
+
+    # lib = Path(A); if not lib.exists(): lib = Path(B)  ->  A or B, whichever exists.
+    for statement in ast.walk(tree):
+        if not (isinstance(statement, ast.If) and isinstance(statement.test, ast.UnaryOp)
+                and isinstance(statement.test.op, ast.Not) and len(statement.body) == 1
+                and isinstance(statement.body[0], ast.Assign) and len(statement.body[0].targets) == 1
+                and isinstance(statement.body[0].targets[0], ast.Name)):
+            continue
+        variable = statement.body[0].targets[0].id
+        check = statement.test.operand
+        tested = (check.func.value if isinstance(check, ast.Call) and isinstance(check.func, ast.Attribute)
+                  and check.func.attr in ('exists', 'is_file', 'is_dir') else
+                  check.args[0] if isinstance(check, ast.Call) and check.args
+                  and name(check.func) in ('os.path.exists', 'os.path.isfile', 'os.path.isdir') else None)
+        values = assignments.get(variable, [])
+        if not (isinstance(tested, ast.Name) and tested.id == variable and len(values) == 2):
+            continue
+        first, second = (resolve(v, constants) for v in values)
+        if absolute(first) and absolute(second) and first not in classified and second not in classified:
+            for value in (first, second):
+                emit(value, statement, 'required_alternative')
+                records[-1]['alternatives'] = sorted({first, second})
+
+    # any(<exists>(p) for p in [...]) outside an assert: a search, not a requirement.
+    for call in ast.walk(tree):
+        if not (isinstance(call, ast.Call) and name(call.func) == 'any' and len(call.args) == 1
+                and isinstance(call.args[0], ast.GeneratorExp) and len(call.args[0].generators) == 1):
+            continue
+        clause = call.args[0].generators[0]
+        if not isinstance(clause.target, ast.Name):
+            continue
+        values = literal_paths(clause.iter, assignments, constants)
+        if values and all(v not in classified for v in values) and all(
+                existence_target(call.args[0].elt, dict(constants, **{clause.target.id: v})) == v for v in values):
+            for value in values:
+                emit(value, call, 'optional_check')
     # Preserve unclassified literals, including arguments passed through helpers.
     classified = {r['path'] for r in records}
     for node in ast.walk(tree):
