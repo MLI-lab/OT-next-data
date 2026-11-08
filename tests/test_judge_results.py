@@ -76,3 +76,14 @@ def test_format_3_files_are_still_read(tmp_path):
                         ('nop', pa.struct([('status', pa.string()), ('details', pa.string())]))], metadata={b'ot.results.version': b'3'})
     pq.write_table(pa.Table.from_pylist([{'dataset': 'd', 'task_id': 't', 'content_sha256': 'h', 'nop': {'status': 'pass'}}], schema=schema), path)
     assert results.read(path)[0]['nop'] == 'pass'
+
+
+def test_evaluation_reports_with_their_own_repair_records_do_not_replace_validation_rows(tmp_path):
+    path = tmp_path / 'results.parquet'
+    results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'validated', 'nop': 'pass', 'build': 'pass'}])
+    report = stage5('openai/qwen38-27b', [{'task': '/j/t', 'status': 'findings', 'verdicts': [review('0', A='fail')]}])
+    report['automatic_repairs'] = {'instruction-suffix': {'t': {'applied': False}}}
+    results.export_report(path, report, {'t': 'judge-copy'}, dataset='d')
+    row, judged = cells(path)
+    assert (row['content_sha256'], row['nop'], row['build']) == ('validated', 'pass', 'pass')
+    assert judged['A']['verdicts'] == {'Qwen/Qwen3.8-27B': ['fail']}

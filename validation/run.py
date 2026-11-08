@@ -499,7 +499,12 @@ def merge(previous, incoming):
         judged = {name: value for name, value in update.items() if is_judge_cell(value)}
         update = {name: value for name, value in update.items() if name not in judged}
         evaluation = bool(judged) or any(evaluation_column(n, v) for n, v in update.items())
-        only_judge = evaluation and all(name in BASE or evaluation_column(name, value) for name, value in update.items())
+        # Evaluation runs carry their own run's automatic_repairs record; it describes that run's task
+        # copy, not the validated files, so it does not make the update a validation result.
+        only_judge = evaluation and all(name in BASE or name == 'automatic_repairs' or evaluation_column(name, value)
+                                        for name, value in update.items())
+        if only_judge:
+            update.pop('automatic_repairs', None)
         row = index.get(key)
         if row is None or (row['content_sha256'] != update['content_sha256'] and not only_judge):
             # Results for other task files are not results for these files.
