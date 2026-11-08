@@ -336,7 +336,7 @@ def test_context_overflow_halves_reply_budget_and_asks_for_verdict(tmp_path, mon
     async def completion(model, messages, kwargs):
         calls.append(deepcopy(kwargs))
         if len(calls) == 1:
-            return big('echo inspecting', 700)  # 70 % of a 1,000-token context
+            return big('echo inspecting', 750)  # 75 % of a 1,000-token context
         if kwargs['max_tokens'] > 200:
             raise openai.BadRequestError("This model's maximum context length is 1000 tokens.",
                 response=httpx.Response(400, request=httpx.Request('POST', 'http://x')), body=None)

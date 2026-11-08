@@ -77,7 +77,7 @@ REQUEST_TIMEOUT_SEC = 3600.0
 # fails. Ask for the verdict once the prompt passes this share of the context,
 # and halve the reply budget (down to MIN_REPLY_TOKENS) when the server says
 # prompt plus reply no longer fit.
-CONTEXT_WARNING_FRACTION = 0.6
+CONTEXT_WARNING_FRACTION = 0.7
 MIN_REPLY_TOKENS = 4096
 CONTEXT_LIMIT = ('The conversation is close to the model context limit ({used:,} of {limit:,} tokens). '
                  'Do not investigate further. Write {artifact} now from the evidence you have, '
