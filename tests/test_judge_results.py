@@ -29,7 +29,6 @@ def test_each_criterion_lists_every_review_and_missing_verdicts(tmp_path):
     assert set(judged) == {'A', 'B'} and 'llm_review' not in row
     assert judged['A']['verdicts'] == {'Qwen/Qwen3.8-27B': ['fail', 'pass']}  # review 1 = attempt 000
     assert judged['A']['details']['Qwen/Qwen3.8-27B'] == ['A fail (a/000)', 'A pass (a/001)']
-    assert judged['A']['task_sha256'] == {'Qwen/Qwen3.8-27B': 'j1'}
     _, missing = cells(path, 'u')
     assert missing['B']['verdicts'] == {'Qwen/Qwen3.8-27B': ['no_verdict', 'no_verdict']}
     assert 'OOM' in missing['B']['details']['Qwen/Qwen3.8-27B'][0]
@@ -48,12 +47,11 @@ def test_judges_merge_by_task_id_and_keep_validation_results(tmp_path):
     row, judged = cells(path)
     assert row['content_sha256'] == 'validated' and row['nop'] == 'pass' and row['verifier_paths'] == 'fail'
     assert judged['A']['verdicts'] == {'Qwen/Qwen3.8-27B': ['fail'], 'zai-org/GLM-5.3-Flash': ['pass']}
-    assert judged['A']['task_sha256'] == {'Qwen/Qwen3.8-27B': 'judge-copy-1', 'zai-org/GLM-5.3-Flash': 'judge-copy-2'}
-    # A new task file replaces the validation row but keeps the judge cells.
+    # New task files replace the row, judge reviews included: they were of the old files.
     results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'repaired', 'nop': 'pass'}])
     row, judged = cells(path)
     assert row['content_sha256'] == 'repaired' and row['verifier_paths'] == 'not_requested'
-    assert set(judged['A']['verdicts']) == {'Qwen/Qwen3.8-27B', 'zai-org/GLM-5.3-Flash'}
+    assert judged == {}
 
 
 def test_same_judge_rerun_replaces_reviews_but_missing_verdicts_never_overwrite(tmp_path):

@@ -375,7 +375,7 @@ def observations(reports, hashes, dataset='', settings=None):
     return list(rows.values())
 
 
-JUDGE_FIELDS = ('verdicts', 'details', 'task_sha256')
+JUDGE_FIELDS = ('verdicts', 'details')
 
 
 def is_judge_cell(value):
@@ -416,7 +416,7 @@ def judge_cells(report, item, digest, criteria=None):
             else:
                 verdicts.append('no_verdict')
                 texts.append(error)
-        cells[name] = {'verdicts': {judge: verdicts}, 'details': {judge: texts}, 'task_sha256': {judge: digest}}
+        cells[name] = {'verdicts': {judge: verdicts}, 'details': {judge: texts}}
     return cells
 
 
@@ -436,14 +436,14 @@ def merge_judge(old, new):
             elif verdict != 'no_verdict' or kept[index] == 'no_verdict':
                 kept[index], texts[index] = verdict, text
         out['verdicts'][judge], out['details'][judge] = kept, texts
-        out['task_sha256'][judge] = new['task_sha256'][judge]
     return out
 
 
 def merge(previous, incoming):
     """One row per task. Unobserved cells are kept; new task files replace the row.
-    Judge cells are matched by task id: judge runs prepare their own task copy (another
-    hash), so they neither replace the row nor are dropped when the row is replaced."""
+    Judge cells are matched by task id: a judge run prepares its own task copy (another
+    hash), so it never replaces the row. New task files replace the row including its
+    judge cells: the reviews were of the old files."""
     rows = [normalize_details(r) for r in previous]
     incoming = [normalize_details(r) for r in incoming]
     index = {(r['dataset'], r['task_id']): r for r in rows}
@@ -459,10 +459,9 @@ def merge(previous, incoming):
         row = index.get(key)
         if row is None or (row['content_sha256'] != update['content_sha256'] and not only_judge):
             # Results for other task files are not results for these files.
-            carried = {name: value for name, value in (row or {}).items() if is_judge_cell(value)}
             if row is not None:
                 rows.remove(row)
-            row = {'dataset': key[0], 'task_id': key[1], 'content_sha256': update['content_sha256'], **carried}
+            row = {'dataset': key[0], 'task_id': key[1], 'content_sha256': update['content_sha256']}
             rows.append(row)
             index[key] = row
         for name, cell in judged.items():
@@ -581,8 +580,7 @@ def write(path, rows):
     def kind(name):
         if name in judged:
             reviews = pa.map_(pa.string(), pa.list_(pa.string()))
-            return pa.struct([('verdicts', reviews), ('details', reviews),
-                              ('task_sha256', pa.map_(pa.string(), pa.string()))])
+            return pa.struct([('verdicts', reviews), ('details', reviews)])
         if name in checks:
             fields = [('status', pa.string())]
             if name in repairable:

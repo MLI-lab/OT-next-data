@@ -15,6 +15,7 @@ by `task_id`. The columns are:
 | `content_sha256` | Hash of the task files, after automatic repairs |
 | 18 static checks | `compose-host-binds`, `dockerfile-platform`, `instruction-suffix`, `no-cheat-dir`, `resource-sizes`, `task-timeout`, `dockerfile-references`, `dockerfile-sanity`, `nproc`, `pip-pinning`, `task-absolute-path`, `test-file-references`, `agent_editable_test`, `task-toml-schema`, `no_behavioural_tests`, `script_execution_coverage`, `python_missing_imports`, `artifact_efficiency` |
 | 13 dynamic checks | `build`, `declared_workdir`, `declared_internet_access`, `reference`, `nop`, `reference_determinism`, `nop_determinism`, `repository_history`, `repository_timestamps`, `reference_leaks`, `verifier_tamper`, `do_not_modify`, `verifier_paths` |
+| Judge criteria (stage 5) | One column per rubric criterion, e.g. `INSTR-VERIFIER-CONTRADICTION`. `verdicts` maps each judge (HF model ID) to its reviews in order, e.g. `{"Qwen/Qwen3.8-27B": ["fail", "pass"]}`; `details` holds the explanations in the same order. A review without a valid verdict is `no_verdict`. |
 
 `verifier_paths` is a failure-level check during stage 3 no-op verification. It
 scans Python verifier sources, Python heredocs and shell path literals, then
