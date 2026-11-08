@@ -40,7 +40,7 @@ def test_target_and_teacher_columns_and_merged_resources(tmp_path):
     assert (rows['a']['passk_target_successes'], rows['a']['passk_target_valid_attempts']) == (2, 4)
     assert not any(k in rows['a'] for k in ('passk_target', 'passk_teacher'))  # no pass/fail status cell
     assert rows['a']['content_sha256'] == 'validated' and rows['a']['nop'] == 'pass'  # attached, not replaced
-    assert 'skipped' not in rows  # skipped tasks get no pass@k values
+    assert rows['skipped'].get('passk_target_outcome') is None  # skipped tasks get no pass@k values
     attempts = json.loads(rows['a']['passk_target_attempt_results'])
     assert attempts['k'] == 4 and len(attempts['final_attempts']) == 4
     # The teacher's calibration supersedes the target model's requirement; both histories stay.
