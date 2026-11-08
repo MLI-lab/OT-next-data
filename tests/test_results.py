@@ -128,7 +128,7 @@ def test_details_are_kept_per_check_and_other_checks_are_preserved(tmp_path):
     schema = pq.read_schema(path)
     assert 'details' not in schema.names and 'reference_details' not in schema.names
     assert 'publication_details' in schema.names
-    assert schema.metadata[b'ot.results.version'] == b'3'
+    assert schema.metadata[b'ot.results.version'] == b'4'
     results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'b', 'reference': 'not_run'}])
     changed, = results.read(path)
     assert changed['nproc'] == 'not_requested' and changed['reference'] == 'unknown'

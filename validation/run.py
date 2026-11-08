@@ -127,7 +127,7 @@ def retry_unsettled(args, stage_runs, numbers):
 
 
 BASE = {'dataset', 'task_id', 'content_sha256', 'run', 'details'}
-VERSION = b'3'
+VERSION = b'4'  # 4: one column per judge rubric criterion (judge -> reviews); no llm_review
 from validation.outcomes import RESULTS, NO_RESULT
 STATUSES = {*RESULTS, *NO_RESULT}
 # Checks that run their own containers. Each cell records the check's cost over
@@ -262,6 +262,7 @@ def observations(reports, hashes, dataset='', settings=None):
     for stage, report in reports.items():
         if report.get('dry_run'):
             continue
+        criteria = report_criteria(report) if int(stage) == 5 else None
         for item in report.get('items', report.get('tasks', [])):
             task = Path(item.get('task', '')).name
             if task not in hashes:
@@ -284,7 +285,11 @@ def observations(reports, hashes, dataset='', settings=None):
                 row['details'] = encode({**details(row), name: record})
             static = int(stage) == 0
             if not static:
-                name = {1: 'build', 2: 'reference', 3: 'nop', 5: 'llm_review',
+                if int(stage) == 5:
+                    # One column per rubric criterion with every review of this judge;
+                    # no overall review status (results format 4).
+                    row.update(judge_cells(report, item, digest, criteria))
+                name = {1: 'build', 2: 'reference', 3: 'nop',
                         7: 'trace_metrics', 8: 'trajectory_review', 9: 'adversarial',
                         10: 'repair_loop'}.get(int(stage))
                 if name:
@@ -370,8 +375,75 @@ def observations(reports, hashes, dataset='', settings=None):
     return list(rows.values())
 
 
+JUDGE_FIELDS = ('verdicts', 'details', 'task_sha256')
+
+
+def is_judge_cell(value):
+    return isinstance(value, dict) and 'verdicts' in value and 'status' not in value
+
+
+def judge_name(model):
+    """The judge's full HF model ID when registered, else the configured model name."""
+    from config.models import MODELS, model_key
+    spec = MODELS.get(model_key(model))
+    return spec.hf_repo if spec else str(model or 'unknown')
+
+
+def report_criteria(report):
+    """Every criterion any review of this stage-5 report judged."""
+    return sorted({name for item in report.get('items', []) for review in item.get('verdicts') or []
+                   for name in (review.get('checks') or {})})
+
+
+def judge_cells(report, item, digest, criteria=None):
+    """Stage-5 cells of one task: per criterion, this judge's reviews in order (review 1, 2, ...).
+    A review without a valid verdict for a criterion is `no_verdict`, with the error as its details.
+    Tasks the run did not judge (skipped) get no cells."""
+    if item.get('status') == 'skipped':
+        return {}
+    judge = judge_name(report.get('review_model'))
+    reviews = sorted(item.get('verdicts') or [], key=lambda review: str(review.get('trial')))
+    count = max(int(report.get('review_attempts') or 1), len(reviews))
+    error = ('; '.join(map(str, item.get('findings') or [])) or item.get('reason') or 'no valid verdict')[:1000]
+    cells = {}
+    for name in (report_criteria(report) if criteria is None else criteria):
+        verdicts, texts = [], []
+        for index in range(count):
+            check = (reviews[index].get('checks') or {}).get(name) if index < len(reviews) else None
+            if isinstance(check, dict) and check.get('outcome'):
+                verdicts.append(str(check['outcome']))
+                texts.append(str(check.get('explanation') or ''))
+            else:
+                verdicts.append('no_verdict')
+                texts.append(error)
+        cells[name] = {'verdicts': {judge: verdicts}, 'details': {judge: texts}, 'task_sha256': {judge: digest}}
+    return cells
+
+
+def merge_judge(old, new):
+    """Add a judge run to a criterion cell. Other judges are kept. For the same judge, review N
+    replaces review N, except that a missing verdict never replaces a verdict (retries)."""
+    if not is_judge_cell(old):
+        return new
+    out = {field: {judge: (list(value) if isinstance(value, list) else value)
+                   for judge, value in (old.get(field) or {}).items()} for field in JUDGE_FIELDS}
+    for judge, verdicts in new['verdicts'].items():
+        kept, texts = out['verdicts'].get(judge, []), out['details'].get(judge, [])
+        for index, (verdict, text) in enumerate(zip(verdicts, new['details'][judge])):
+            if index >= len(kept):
+                kept.append(verdict)
+                texts.append(text)
+            elif verdict != 'no_verdict' or kept[index] == 'no_verdict':
+                kept[index], texts[index] = verdict, text
+        out['verdicts'][judge], out['details'][judge] = kept, texts
+        out['task_sha256'][judge] = new['task_sha256'][judge]
+    return out
+
+
 def merge(previous, incoming):
-    """One row per task. Unobserved cells are kept; new task files replace the row."""
+    """One row per task. Unobserved cells are kept; new task files replace the row.
+    Judge cells are matched by task id: judge runs prepare their own task copy (another
+    hash), so they neither replace the row nor are dropped when the row is replaced."""
     rows = [normalize_details(r) for r in previous]
     incoming = [normalize_details(r) for r in incoming]
     index = {(r['dataset'], r['task_id']): r for r in rows}
@@ -381,14 +453,22 @@ def merge(previous, incoming):
                               if k not in BASE and isinstance(v, str) and v in STATUSES}
     for update in incoming:
         key = (update['dataset'], update['task_id'])
+        judged = {name: value for name, value in update.items() if is_judge_cell(value)}
+        update = {name: value for name, value in update.items() if name not in judged}
+        only_judge = bool(judged) and not any(name not in BASE for name in update)
         row = index.get(key)
-        if row is None or row['content_sha256'] != update['content_sha256']:
+        if row is None or (row['content_sha256'] != update['content_sha256'] and not only_judge):
             # Results for other task files are not results for these files.
+            carried = {name: value for name, value in (row or {}).items() if is_judge_cell(value)}
             if row is not None:
                 rows.remove(row)
-            row = {'dataset': key[0], 'task_id': key[1], 'content_sha256': update['content_sha256']}
+            row = {'dataset': key[0], 'task_id': key[1], 'content_sha256': update['content_sha256'], **carried}
             rows.append(row)
             index[key] = row
+        for name, cell in judged.items():
+            row[name] = merge_judge(row.get(name), cell)
+        if only_judge:
+            continue
         if update.get('details') is not None:
             update = dict(update, details=encode({**details(row), **details(update)}))
         if update.get('automatic_repairs'):
@@ -444,6 +524,11 @@ def uncell(row):
     row = dict(row)
     records, repairs = {}, {}
     for name, value in list(row.items()):
+        if isinstance(value, dict) and 'verdicts' in value and 'status' not in value:
+            row[name] = {field: dict(value.get(field) or []) for field in JUDGE_FIELDS} if value['verdicts'] is not None else None
+            if row[name] is None:
+                del row[name]
+            continue
         if not (isinstance(value, dict) and value.get('status') in STATUSES):
             continue
         row[name] = value['status']
@@ -466,8 +551,8 @@ def read(path):
     if not Path(path).is_file():
         return []
     table = pq.read_table(path)
-    if (table.schema.metadata or {}).get(b'ot.results.version') != VERSION:
-        raise ValueError(f'{path}: not a results.parquet of format version 3')
+    if (table.schema.metadata or {}).get(b'ot.results.version') not in (b'3', VERSION):
+        raise ValueError(f'{path}: not a results.parquet of format version 3 or 4')
     return [normalize_details(uncell(row)) for row in table.to_pylist()]
 
 
@@ -486,11 +571,18 @@ def write(path, rows):
         for name, value in list(row.items()):
             if isinstance(value, str) and value in STATUSES and name not in BASE:
                 row[name] = cell(name, value, records.get(name), repairs.get(name))
+            elif is_judge_cell(value):
+                row[name] = {field: sorted((value.get(field) or {}).items()) for field in JUDGE_FIELDS}
         out.append(row)
     names = sorted({k for r in out for k in r} | {'dataset', 'task_id', 'content_sha256'})
     checks = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'status' in v}
+    judged = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'verdicts' in v}
     integers = {n for n in names if n.endswith(('_solved', '_attempts')) or n in ('cpus', 'memory_mb')}
     def kind(name):
+        if name in judged:
+            reviews = pa.map_(pa.string(), pa.list_(pa.string()))
+            return pa.struct([('verdicts', reviews), ('details', reviews),
+                              ('task_sha256', pa.map_(pa.string(), pa.string()))])
         if name in checks:
             fields = [('status', pa.string())]
             if name in repairable:
