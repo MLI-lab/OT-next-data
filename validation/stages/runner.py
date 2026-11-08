@@ -105,6 +105,12 @@ def parser():
     ap.add_argument('--git-checks-only', action='store_true',
                     help='stage 1 only: rerun repository history/timestamps and preserve other result cells')
     ap.add_argument('--review-runs', type=int, help='independent stage-5 reviews per task; defaults to --attempts')
+    ap.add_argument('--judge-results', type=Path, action='append', default=[],
+                    help='results.parquet whose failed stage 0-3 checks exclude tasks from stage 5 (repeatable; '
+                         "this run's own results.parquet is always read)")
+    ap.add_argument('--judge-failed-tasks', choices=['skip', 'include'], default='skip',
+                    help='skip (default): stage 5 does not judge tasks with a failed stage 0-3 check; '
+                         'warnings and missing results do not exclude a task')
     ap.add_argument('--review-retries', type=int, default=1, help='repair rounds for incomplete/invalid stage-5 judgments (default: 1)')
     ap.add_argument('--review-grace-minutes', type=float,
                     help='final-answer window from the finish instruction; model default (60 minutes)')
@@ -1146,6 +1152,18 @@ def _run_stage(number, args):
             from validation.metrics.reward_metrics import summarize
             report['reward_metrics'] = summarize(report['items'])
     elif number == 5 and not args.dry_run:
+        selection = getattr(args, '_judge_failed', None)
+        if selection is not None:
+            from validation.stages.judge_selection import exclusions
+            excluded = exclusions(sources, source_hashes, selection['failed'])
+            report['judge_selection'] = {k: v for k, v in selection.items() if k != 'failed'} | {
+                'rule': 'not judged: a stage 0-3 check failed', 'excluded': len(excluded)}
+            for source in sources:
+                if source.name in excluded:
+                    report['items'].append({'task': str(source), 'status': 'skipped', 'failed_checks': excluded[source.name],
+                                            'reason': 'not judged: failed ' + ', '.join(excluded[source.name])})
+            sources = [source for source in sources if source.name not in excluded]
+            save(report_path, report)
         async def reviews():
             semaphore = asyncio.Semaphore(args.concurrency)
             async def one(index, source):

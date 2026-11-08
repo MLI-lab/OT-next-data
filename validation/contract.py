@@ -240,6 +240,10 @@ def profile(args):
         'review_format': getattr(args, 'review_format', None),
         'review_runs': getattr(args, 'review_runs', None) or args.attempts,
         'review_retries': getattr(args, 'review_retries', 1),
+        'judge_selection': {'failed_tasks': getattr(args, 'judge_failed_tasks', 'skip'),
+                            'rule': 'stage 5 skips tasks with a failed stage 0-3 check; warnings and missing results are judged',
+                            'results': [{'path': str(Path(p).resolve()), 'sha256': hashlib.sha256(Path(p).read_bytes()).hexdigest()}
+                                        for p in getattr(args, 'judge_results', []) or []]},
         'review_grace_minutes': getattr(args, 'review_grace_minutes', 10),
         'review_resume': getattr(args, 'review_resume', True),
         'review_seed': getattr(args, 'review_seed', 42),

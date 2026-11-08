@@ -62,6 +62,9 @@ def run_selected(args, numbers):
             if number in (7, 8):
                 args.trials = Path(job) if job else None
             try:
+                if number == 5 and not args.dry_run:
+                    from validation.stages.judge_selection import prepare
+                    prepare(args, stage_runs)
                 path, result = run_stage(number, args)
                 report['stages'].append({'stage': number, 'report': str(path),
                                          'status': 'findings' if result['has_findings'] else 'completed'})
