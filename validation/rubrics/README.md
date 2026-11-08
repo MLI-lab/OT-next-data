@@ -19,6 +19,12 @@ cached, it uses a base Ubuntu image instead. You can also select this directly
 with `--review-evidence files`, or require the task's image with
 `--review-evidence image`.
 
+**Which tasks are judged.** Stage 5 skips tasks with a failed stage 0–3 check. It
+reads the run's `results.parquet`, any `--judge-results` files and the stages 0–3
+of the same run. Warnings and checks without a result (execution error, timeout,
+out of memory, blocked) do not exclude a task. Skipped tasks are recorded as
+`skipped` with the failed checks. `--judge-failed-tasks include` judges every task.
+
 ## Data
 
 We use ground-truth labeled tasks from
