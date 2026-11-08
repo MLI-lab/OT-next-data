@@ -35,6 +35,8 @@ SUITE_COMMANDS = [('make', {'test', 'check', 'tests'}), ('npm', {'test'}), ('yar
                   ('./gradlew', {'test'}), ('ctest', None), ('tox', None), ('nox', None), ('phpunit', None)]
 TRUSTED_ROOTS = ('/tests', '/setup_files', '/logs', '/usr', '/bin', '/sbin', '/lib', '/etc', '/proc', '/dev', '/opt', '/var/lib/dpkg')
 TEST_LIKE = re.compile(r'(^|[_./-])(tests?|spec|check|verify|grade|eval|run[_-]?tests?|harness)([_./-]|$)', re.I)
+SHELLS = {'bash', 'sh', 'zsh', 'dash'}
+COMPILERS = {'gcc', 'g++', 'cc', 'c++', 'clang', 'clang++', 'rustc', 'gfortran'}
 CHANGE_WORDS = re.compile(r'\b(create|write|implement|add|build|develop|make|produce|generate|modify|fix|update|edit|extend)\b', re.I)
 
 
@@ -98,6 +100,7 @@ class Shell:
         self.seen = set()
         self.vars = {}  # simple VAR=literal assignments
         self.ran_vars = set()  # variables holding output of something the verifier ran
+        self.fresh = set()  # files the verifier itself writes (redirections, Python open(..., 'w'))
 
     def script(self, container_path, depth=0):
         if depth > 4 or container_path in self.seen or not container_path.startswith('/tests/'):
@@ -151,6 +154,7 @@ class Shell:
             p = norm(m.group(1), self.cwd)
             if p and not m.group(0).startswith('>>'):
                 self.events.append(('restore', p, source, number, text.strip()))
+                self.fresh.add(p)
         while tokens and (re.match(r'^\w+=', tokens[0]) or tokens[0] in WRAPPERS or tokens[0] in {'if', 'then', 'else', 'do', '!', '{', '('}):
             tokens = tokens[1:]
             while tokens and tokens[0].startswith('-'):
@@ -212,8 +216,13 @@ class Shell:
         if head in {'.', 'source'} and args:
             self.run(args[0], source, number, text, depth)
             return
+        if name in COMPILERS:
+            self.compile(args, source, number, text)
+            return
         if INTERPRETERS.match(name):
             rest = [a for a in args if not a.startswith('-')]
+            if name in SHELLS and rest and '-n' in args[:args.index(rest[0])]:
+                return  # `bash -n script` only parses the script
             if '-c' in args or '-lc' in args or '-ec' in args:
                 flag = next(a for a in args if a in {'-c', '-lc', '-ec'})
                 i = args.index(flag)
@@ -273,7 +282,21 @@ class Shell:
                 self.events.append(('suite', target, source, number, text.strip()))
         return True
 
+    def compile(self, args, source, number, text):
+        """`gcc -o /tmp/x /tests/x.c`: a binary the verifier builds from its own
+        sources (/tests or files it wrote itself) is not agent-editable, so the
+        output counts as restored. A test-like editable source keeps it unmodelled."""
+        if '-o' not in args or args.index('-o') + 1 >= len(args):
+            return
+        out = norm(args[args.index('-o') + 1], self.cwd)
+        srcs = [norm(a, self.cwd) for a in args if re.search(r'\.(c|cc|cpp|cxx|c\+\+|rs|go|f90|f)$', a, re.I) and not a.startswith('-')]
+        own = [s is not None and (s.startswith('/tests/') or s in self.fresh) for s in srcs]
+        if out and any(own) and not any(s is None or (not o and TEST_LIKE.search(PurePosixPath(s).name)) for s, o in zip(srcs, own)):
+            self.events.append(('restore', out, source, number, text.strip()))
+
     def pytest(self, args, source, number, text):
+        if '--collect-only' in args or '--co' in args:
+            return  # collects test ids without running them
         # Options with values (-p no:x, -W ignore, -k expr) are not paths.
         valued = {'-p', '-W', '-k', '-m', '-o', '-c', '-n', '--rootdir', '--junitxml', '--ctrf', '--tb', '--timeout', '-r'}
         paths, skip = [], False
@@ -321,6 +344,23 @@ def python_runs(task):
                     for t in n.targets:
                         if isinstance(t, ast.Name):
                             consts[t.id] = v.value
+        written = set()  # open(PATH, 'w') / Path(PATH).write_text(...) in this file
+        for n in ast.walk(tree):
+            if not isinstance(n, ast.Call):
+                continue
+            func, target = ast.unparse(n.func), None
+            if func == 'open' and n.args:
+                mode = n.args[1] if len(n.args) > 1 else next((k.value for k in n.keywords if k.arg == 'mode'), None)
+                if isinstance(mode, ast.Constant) and isinstance(mode.value, str) and re.search(r'[wx]', mode.value):
+                    target = n.args[0]
+            elif isinstance(n.func, ast.Attribute) and n.func.attr in {'write_text', 'write_bytes'}:
+                target = n.func.value
+                if isinstance(target, ast.Call) and ast.unparse(target.func) in {'Path', 'pathlib.Path'} and target.args:
+                    target = target.args[0]
+            if isinstance(target, ast.Name):
+                target = ast.Constant(consts.get(target.id))
+            if isinstance(target, ast.Constant) and isinstance(target.value, str) and target.value.startswith('/'):
+                written.add(norm(target.value, None))
         for n in ast.walk(tree):
             if not (isinstance(n, ast.Call) and ast.unparse(n.func) in calls and n.args):
                 continue
@@ -341,6 +381,7 @@ def python_runs(task):
                 continue
             shell = Shell(task)
             shell.cwd = cwd
+            shell.fresh = set(written)
             shell.command(text, str(path.relative_to(task)), n.lineno, 0)
             events += shell.events
     return events
@@ -351,8 +392,19 @@ def mentioned(instruction, path):
 
 
 def asked_to_write(instruction, path):
+    """The instruction asks to change the file: a change word next to its name, or
+    (fix tasks) it introduces the file as "the ... script" and a later sentence
+    states what "the script should/must" do. Running it alone does not count."""
     name = re.escape(PurePosixPath(path).name)
-    return any(CHANGE_WORDS.search(s) and re.search(rf'(?<![\w.-]){name}(?![\w-])', s) for s in re.split(r'(?<=[.!?])\s+|\n', instruction))
+    sentences = re.split(r'(?<=[.!?])\s+|\n', instruction)
+    named = [i for i, s in enumerate(sentences) if re.search(rf'(?<![\w.-]){name}(?![\w-])', s)
+             and not re.match(r'\W*(run|execute|use)\b', s, re.I)]  # "Run X to verify your fix": run only
+    if any(CHANGE_WORDS.search(sentences[i]) for i in named):
+        return True
+    if not re.search(r'\b(fix|repair)\b', instruction, re.I):
+        return False
+    intro = [i for i in named if re.search(r'\bscript\b', sentences[i], re.I)]
+    return any(re.match(r'\W*(the|this)\s+script\s+(should|must)\b', s, re.I) for i in intro[:1] for s in sentences[i + 1:])
 
 
 def verifier_events(task):
@@ -446,8 +498,11 @@ def classify(task, instruction):
                 # the verifier itself (e.g. gcc -o /tmp/x from the agent's source),
                 # or an alternative location that does not exist (/workspace/tests).
                 e['role'] = 'not_provided'
-            elif mentioned(instruction, path) and not (e['test_like'] and not asked_to_write(instruction, path)):
-                e['role'] = 'deliverable'  # running the agent's program is the behaviour under test
+            elif mentioned(instruction, path) and not (e['test_like'] and not asked_to_write(instruction, path)) \
+                    and not (kind == 'suite' and '.' not in PurePosixPath(path).name):
+                # Running the agent's program is the behaviour under test; a whole
+                # directory's test suite runs whatever tests are in it, named or not.
+                e['role'] = 'deliverable'
             else:
                 e['role'] = 'editable_harness'
         out.append(e)

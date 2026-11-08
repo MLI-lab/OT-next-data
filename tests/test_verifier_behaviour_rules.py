@@ -244,3 +244,72 @@ def test_tool():
                     'environment/files/wordfreq.c': '', 'environment/files/scripts/backup.sh': '',
                     'environment/files/run_tests.py': '', 'environment/files/test_outputs.py': ''})
     assert [f['path'] for f in harness.analyze_task(t)['findings']] == ['/app/run_tests.py']
+
+
+START = {'environment/Dockerfile': 'FROM ubuntu\nCOPY files/ /app/\n'}
+
+
+def test_shell_syntax_check_does_not_run_the_script(tmp_path):
+    t = task(tmp_path, 'bash -n /app/check_proxy.sh\nsh -n /app/run_tests.sh\n',
+             files={**START, 'environment/files/check_proxy.sh': '', 'environment/files/run_tests.sh': ''})
+    assert harness.analyze_task(t)['status'] == 'not_evidenced'
+    t2 = task(tmp_path / 'b', 'bash /app/check_proxy.sh\n', files={**START, 'environment/files/check_proxy.sh': ''})
+    assert [f['path'] for f in harness.analyze_task(t2)['findings']] == ['/app/check_proxy.sh']
+
+
+def test_pytest_collect_only_does_not_run_the_suite(tmp_path):
+    test_py = '''import subprocess
+def test_collect():
+    subprocess.run(["/opt/venv/bin/pytest", "--collect-only", "tests/unit/test_transform.py"], cwd="/app/project")
+    subprocess.run(["python3", "-m", "pytest", "--co"], cwd="/app/project")
+'''
+    ins = 'Run the tests from the project root directory and fix whatever is causing the failures.'
+    t = task(tmp_path, 'pytest /tests/test_outputs.py\n', files={'tests/test_outputs.py': test_py}, instruction=ins)
+    assert harness.analyze_task(t)['status'] == 'not_evidenced'
+    # A real run of the whole project suite stays flagged even though the directory is named.
+    run = test_py + '    subprocess.run(["/opt/venv/bin/pytest", "-v"], cwd="/app/project")\n'
+    t2 = task(tmp_path / 'b', 'pytest /tests/test_outputs.py\n', files={'tests/test_outputs.py': run}, instruction=ins)
+    assert [f['path'] for f in harness.analyze_task(t2)['findings']] == ['/app/project']
+
+
+def test_binaries_built_from_verifier_sources_are_not_editable(tmp_path):
+    test_py = '''import subprocess
+C = r"int main(void) { return 0; }"
+def test_reverse():
+    test_file = "/tmp/test_reverse.c"
+    with open(test_file, "w") as f:
+        f.write(C)
+    subprocess.run(["gcc", "-Wall", "-o", "/tmp/test_reverse", test_file, "-I/app/src", "-L/app/build", "-lstrutil"])
+    subprocess.run(["/tmp/test_reverse"])
+'''
+    files = {**START, 'tests/test_outputs.py': test_py, 'tests/test_sum.c': '', 'environment/files/sum.c': '',
+             'environment/files/test_main.c': '', 'environment/files/notes.txt': 'test_reverse test_sum test_main'}
+    sh = ('gcc -o /tmp/test_sum /tests/test_sum.c /app/sum.c\n/tmp/test_sum\n'
+          'gcc -o /tmp/test_main /app/test_main.c /tests/test_sum.c\n/tmp/test_main\n'
+          'pytest /tests/test_outputs.py\n')
+    # The editable test-like /app source keeps its binary flagged: the hack goes through the source.
+    assert [f['path'] for f in harness.analyze_task(task(tmp_path, sh, files=files))['findings']] == ['/tmp/test_main']
+
+
+def test_test_like_script_the_instruction_asks_to_fix_is_a_deliverable(tmp_path):
+    ins = ('The pipeline verifies release signatures, and the verification keeps failing. '
+           'The artifacts are in /app/releases/ and the verification script is `/app/verify-releases.sh`.\n\n'
+           'Fix all issues preventing successful signature verification. '
+           'The script should exit with code 0 and print "All signatures verified successfully" when complete.')
+    test_py = 'import subprocess\ndef test_verify():\n    assert subprocess.run(["bash", "/app/verify-releases.sh"]).returncode == 0\n'
+    files = {**START, 'tests/test_outputs.py': test_py, 'environment/files/verify-releases.sh': ''}
+    t = task(tmp_path, 'pytest /tests/test_outputs.py\n', files=files, instruction=ins)
+    assert harness.analyze_task(t)['status'] == 'not_evidenced'
+    fix = 'Fix the cron monitoring scripts: /app/scripts/check_fail2ban.sh fails under /bin/sh.'
+    t2 = task(tmp_path / 'b', 'bash /app/scripts/check_fail2ban.sh\n', instruction=fix,
+              files={**START, 'environment/files/scripts/check_fail2ban.sh': ''})
+    assert harness.analyze_task(t2)['status'] == 'not_evidenced'
+
+
+def test_harness_the_instruction_only_says_to_run_stays_flagged(tmp_path):
+    ins = ('Fix the bug in /app/calc.py. Run python3 /app/test_runner.py to verify your fix. '
+           'The script should print "All tests passed!" when you are done.')
+    test_py = 'import subprocess\ndef test_runner():\n    assert subprocess.run(["python3", "/app/test_runner.py"]).returncode == 0\n'
+    files = {**START, 'tests/test_outputs.py': test_py, 'environment/files/test_runner.py': '', 'environment/files/calc.py': ''}
+    t = task(tmp_path, 'pytest /tests/test_outputs.py\n', files=files, instruction=ins)
+    assert [f['path'] for f in harness.analyze_task(t)['findings']] == ['/app/test_runner.py']
