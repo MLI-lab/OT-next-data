@@ -16,6 +16,10 @@ by `task_id`. The columns are:
 | 18 static checks | `compose-host-binds`, `dockerfile-platform`, `instruction-suffix`, `no-cheat-dir`, `resource-sizes`, `task-timeout`, `dockerfile-references`, `dockerfile-sanity`, `nproc`, `pip-pinning`, `task-absolute-path`, `test-file-references`, `agent_editable_test`, `task-toml-schema`, `no_behavioural_tests`, `script_execution_coverage`, `python_missing_imports`, `artifact_efficiency` |
 | 13 dynamic checks | `build`, `declared_workdir`, `declared_internet_access`, `reference`, `nop`, `reference_determinism`, `nop_determinism`, `repository_history`, `repository_timestamps`, `reference_leaks`, `verifier_tamper`, `do_not_modify`, `verifier_paths` |
 | Judge criteria (stage 5) | One column per rubric criterion, e.g. `INSTR-VERIFIER-CONTRADICTION`. `verdicts` maps each judge (HF model ID) to its reviews in order, e.g. `{"Qwen/Qwen3.8-27B": ["fail", "pass"]}`; `details` holds the explanations in the same order. A review without a valid verdict is `no_verdict`. |
+| pass@k (stages 6, 7) | `passk_target_*` and `passk_teacher_*`: `_outcome` (`solved`, `unsolved` or `inconclusive`), `_successes`, `_valid_attempts` and `_attempt_results` (every attempt as JSON). See [stages 6 and 7](../README.md#stages-6-and-7-passk-with-resource-calibration). |
+| `resources` | JSON: the task's `task.toml` resources, each model's calibrated allocation and history, and the final per-task requirement (vCPU, memory, disk). |
+
+<a id="verifier_paths"></a>
 
 `verifier_paths` is a failure-level check during stage 3 no-op verification. It
 scans Python verifier sources, Python heredocs and shell path literals, then

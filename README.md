@@ -4,22 +4,139 @@ This repo collects patches to fix and harden existing RL environments and provid
 
 ## Validation pipeline
 
-The pipeline takes an upstream datasource through preparation, validation and model evaluation. The stages below group checks by the question they answer; each check links to its existing explanation, repairs and result fields.
+The pipeline takes an upstream datasource through preparation, validation and model evaluation. The steps
+below group the checks by the question they answer; each check links to its explanation, repairs and result
+fields. The commands use execution stages instead, which run checks from several steps together (see each
+step's *Checks run* and the [execution-stage mapping](validation/README.md#execution-stage-mapping)).
 
-| Stage | Question | Checks and methods |
-| --- | --- | --- |
-| 0. Task & environment preparation | Can we standardize and prepare the task efficiently? | [Datasource patchers](data/README.md): Harbor conversion, Docker → Apptainer adaptation, image minimization and cached runtimes |
-| 1. Configuration & compatibility | Is the task correctly configured and compatible with our infrastructure? | [`task-toml-schema`](validation/rules/README.md#task-toml-schema), [`resource-sizes`](validation/rules/README.md#resource-sizes), [`task-timeout`](validation/rules/README.md#task-timeout), [`dockerfile-platform`](validation/rules/README.md#dockerfile-platform), [`compose-host-binds`](validation/rules/README.md#compose-host-binds), [`instruction-suffix`](validation/rules/README.md#instruction-suffix) |
-| 2. Environment setup & reproducibility | Can the task and verifier environments be set up reliably and reproducibly? | [`build`](validation/rules/README.md#build), [`dockerfile-sanity`](validation/rules/README.md#dockerfile-sanity), [`pip-pinning`](validation/rules/README.md#pip-pinning), [`nproc`](validation/rules/README.md#nproc), [`python_missing_imports`](validation/rules/README.md#python_missing_imports), [`artifact_efficiency`](validation/rules/README.md#artifact_efficiency), [`declared_workdir`](validation/rules/README.md#declared_workdir), [`declared_internet_access`](validation/rules/README.md#declared_internet_access) |
-| 3. Instruction & verifier alignment | Are the instructions clear, and does the verifier enforce their requirements? | [`task-absolute-path`](validation/rules/README.md#task-absolute-path), [`test-file-references`](validation/rules/README.md#test-file-references), [`do_not_modify`](validation/rules/README.md#do_not_modify), [`no_behavioural_tests`](validation/rules/README.md#no_behavioural_tests) |
-| 4. Verifier protection | Can the agent modify the verifier or its grading tools? | [`agent_editable_test`](validation/rules/README.md#agent_editable_test), [`verifier_tamper`](validation/rules/README.md#verifier_tamper) |
-| 5. Solution leakage | Can the agent access solutions or hints through files, Git history or timestamps? | [`no-cheat-dir`](validation/rules/README.md#no-cheat-dir), [`dockerfile-references`](validation/rules/README.md#dockerfile-references), [`repository_history`](validation/rules/README.md#repository_history), [`repository_timestamps`](validation/rules/README.md#repository_timestamps), [`reference_leaks`](validation/rules/README.md#reference_leaks) |
-| 6. Reference solution validation | Does the reference solution consistently score 1? | [`reference`](validation/rules/README.md#reference), [`reference_determinism`](validation/rules/README.md#reference_determinism) |
-| 7. No-op baseline validation | Does doing nothing consistently score 0? | [`nop`](validation/rules/README.md#nop), [`nop_determinism`](validation/rules/README.md#nop_determinism) |
-| 8. LLM task-quality review | What problems were missed by deterministic checks? | [LLM judges and task-quality rubrics](validation/rubrics/README.md) |
-| 9. Agent evaluation (pass@k) | Which tasks can the target RL model and a stronger model solve? | Repeated agent trials with both models; keep missing attempts separate from completed unsuccessful attempts |
-| 10. Trajectory analysis | What do execution statistics and trajectories reveal about failures and reward hacking? | Trace metrics and LLM trajectory review |
-| 11. Adversarial testing (optional) | Can an agent receive reward without completing the intended task? | Adversarial trials and the experimental hacker/fixer loop |
+### 1. Task standardization & runtime preparation
+
+Convert upstream datasources into standardized Harbor tasks, adapt environments for Apptainer, minimize
+container images, prepare offline runtime caches, and validate infrastructure compatibility (task
+configuration, resource limits, timeouts, and filesystem dependencies).
+
+**Input:** Upstream datasource
+**Output:** Datasource patch script, standardized Harbor tasks, minimized Apptainer images, offline runtime
+caches, and configuration and compatibility check results.
+
+<details>
+<summary>Checks run</summary>
+
+[`task-toml-schema`](validation/rules/README.md#task-toml-schema), [`resource-sizes`](validation/rules/README.md#resource-sizes), [`task-timeout`](validation/rules/README.md#task-timeout), [`dockerfile-platform`](validation/rules/README.md#dockerfile-platform), [`compose-host-binds`](validation/rules/README.md#compose-host-binds), [`instruction-suffix`](validation/rules/README.md#instruction-suffix)
+
+*Where they run:* the [datasource patchers](data/README.md) outside the pipeline, then the static checks of
+pipeline stage 0, which read only the task files and run together with the static checks of steps 2 and 3.
+
+</details>
+
+### 2. Environment & verifier validation
+
+Check that container images build successfully, task environments start, and basic setup and dependency
+checks pass. Check dependency version pinning, whether scripts respect the allocated CPU limits, and whether
+the working directory and internet access match the task configuration. Run the reference solution and a
+no-op agent four times each to verify that the reference consistently receives reward 1 and the no-op
+receives reward 0. Check for basic instruction–verifier mismatches and whether tests only inspect code that
+the instructions require the agent to write or modify, without executing it.
+
+**Input:** Standardized Harbor tasks and prepared runtimes
+**Output:** Per-task validation results (pass/fail/warning per check and repair status), resource usage
+measurements (wall-clock time, CPU time, and peak memory usage), and aggregate statistics (tasks passed,
+failed, or unresolved per check and overall).
+
+<details>
+<summary>Checks run</summary>
+
+**Environment setup and dependencies:** [`build`](validation/rules/README.md#build), [`dockerfile-sanity`](validation/rules/README.md#dockerfile-sanity), [`pip-pinning`](validation/rules/README.md#pip-pinning), [`nproc`](validation/rules/README.md#nproc), [`python_missing_imports`](validation/rules/README.md#python_missing_imports), [`artifact_efficiency`](validation/rules/README.md#artifact_efficiency), [`declared_workdir`](validation/rules/README.md#declared_workdir), [`declared_internet_access`](validation/rules/README.md#declared_internet_access)
+
+**Instruction–verifier consistency:** [`task-absolute-path`](validation/rules/README.md#task-absolute-path), [`test-file-references`](validation/rules/README.md#test-file-references), [`do_not_modify`](validation/rules/README.md#do_not_modify), [`no_behavioural_tests`](validation/rules/README.md#no_behavioural_tests), [`verifier_paths`](validation/rules/README.md#verifier_paths)
+
+**Reference and no-op execution:** [`reference`](validation/rules/README.md#reference), [`reference_determinism`](validation/rules/README.md#reference_determinism), [`nop`](validation/rules/README.md#nop), [`nop_determinism`](validation/rules/README.md#nop_determinism)
+
+*Where they run:* the file checks in pipeline stage 0; `build`, `declared_workdir` and
+`declared_internet_access` in stage 1 (one container start per task); `reference`, `reference_determinism`
+and `do_not_modify` in stage 2; `nop`, `nop_determinism` and `verifier_paths` in stage 3. The leakage and
+tampering checks of step 3 run in the same containers, so each task's environment is built and started once.
+
+</details>
+
+### 3. Leakage & tampering checks
+
+Check whether the agent can access reference solutions, hidden tests, or other grading information through
+task files, container images, Git history, or timestamps. Verify that the agent cannot modify protected
+verifier files or grading tools.
+
+**Input:** Standardized Harbor tasks and prepared runtimes
+**Output:** Per-task validation results (pass/fail/warning per check and repair status) and aggregate
+statistics (tasks passed, failed, or unresolved per check and overall).
+
+<details>
+<summary>Checks run</summary>
+
+**Solution and test leakage:** [`no-cheat-dir`](validation/rules/README.md#no-cheat-dir), [`dockerfile-references`](validation/rules/README.md#dockerfile-references), [`repository_history`](validation/rules/README.md#repository_history), [`repository_timestamps`](validation/rules/README.md#repository_timestamps), [`reference_leaks`](validation/rules/README.md#reference_leaks)
+
+**Verifier tampering:** [`agent_editable_test`](validation/rules/README.md#agent_editable_test), [`verifier_tamper`](validation/rules/README.md#verifier_tamper)
+
+*Where they run:* `no-cheat-dir`, `dockerfile-references` and `agent_editable_test` with the file checks of
+stage 0; `repository_history` and `repository_timestamps` in the stage-1 containers; `reference_leaks` and
+`verifier_tamper` in the stage-3 no-op runs. They reuse the containers of step 2 instead of starting their own.
+
+</details>
+
+TO DO: implement a repair agent loop for those still need to specifiy
+
+### 4. LLM-based task quality assessment
+
+Use an LLM as a judge to identify task quality issues by reviewing task instructions, environment files, and
+verifier code, without using agent execution traces. Check whether the instructions are clear and consistent
+with the environment and verifier, whether the verifier could reward incomplete or incorrect solutions, and
+whether tasks are too trivial or reveal their answers.
+
+**Input:** Task files (instructions, environment configuration, and verifier code) for all tasks that have no
+fail in any of the previous stages.
+**Output:** Per-task judgments for each criterion (pass/fail), with explanations and supporting evidence, and
+aggregate statistics (number of tasks flagged per criterion and overall).
+**Rubric:** [revised River rubric](validation/rubrics/rubric_river_selected/rubric.toml); judges and prompts in
+the [judge README](validation/rubrics/README.md). Runs as pipeline stage 5.
+
+### 5. Target RL model pass@k & resource calibration
+
+Evaluate tasks with the target RL model to estimate task difficulty and determine which tasks the model can
+solve. Run k=4 independent agent attempts per task while monitoring CPU, memory, disk usage, and execution
+times. Following MiMo's resource-profiling methodology, automatically increase resources and rerun all k
+attempts if any attempt encounters a resource-related failure. Repeat until all attempts are resource-valid or
+the configured resource limits are reached. Use the final valid batch to calculate pass@k.
+
+**Input:** Task files (instructions, environment configuration, and verifier code) for all tasks that have no
+fail in any of the previous stages.
+**Output:** Per-task pass@k results (number of successful attempts, pass@k outcome), individual attempt
+results (reward, execution status, and resource measurements), and calibrated per-task resource requirements
+(vCPU, memory, disk), including calibration history and unresolved resource failures.
+**Default model:** `Qwen/Qwen3.5-35B-A3B` (configurable). Runs as pipeline stage 6.
+
+### 6. Strong teacher pass@k & resource recalibration
+
+Evaluate tasks that the target RL model could not solve in any of its k=4 valid attempts using a stronger
+model. Start with the resources calibrated in Stage 5 and repeat the same automatic resource-calibration
+procedure, since the stronger model may reach more resource-intensive parts of the task. If any attempt
+encounters a resource-related failure, increase the affected resources and rerun all k attempts. Use the final
+valid batch to calculate pass@k and update the task's resource requirements.
+
+**Input:** Task files (instructions, environment configuration, and verifier code) for tasks with 0/k
+successful attempts in Stage 5, excluding tasks with unresolved resource failures.
+**Output:** Per-task strong-teacher pass@k results (number of successful attempts, pass@k outcome), individual
+attempt results (reward, execution status, and resource measurements), and updated per-task resource
+requirements (vCPU, memory, disk), including calibration history and unresolved resource failures.
+**Default model:** `zai-org/GLM-5.3-Flash` (configurable). Runs as pipeline stage 7.
+
+### 7. Trajectory analysis
+
+Use execution statistics and LLM trajectory review to explain failures and detect possible reward hacking.
+Runs as pipeline stages 8 (trace metrics) and 9 (trajectory review).
+
+### 8. Adversarial testing (optional)
+
+Check whether an agent can receive reward without completing the intended task, with adversarial trials and
+the experimental hacker/fixer loop. Runs as pipeline stages 10 and 11.
 
 ### Preparation inputs and outputs
 
@@ -29,11 +146,11 @@ Preparation includes adapting Docker environments for Apptainer, minimizing and 
 
 ### Validation and evaluation outputs
 
-Tasks that pass the required deterministic checks form **v1**. LLM task-quality reviews provide additional findings. Evaluate v1 with the target RL model; tasks solved at least once form **v2**. Evaluate the remaining unsolved tasks with a stronger model; newly solved tasks form **v3**. Together, v2 and v3 are the solved set, with v3 providing harder tasks for later training. Trajectory analysis helps explain failures and detect possible reward hacking. Adversarial testing is optional and experimental.
-
-Validation writes `results.parquet`, separate from the prepared `tasks.parquet`, with per-task check outcomes and repair evidence. Missing prerequisites or measurements are incomplete results, never passes. Use all checks selected by the default training profile, preserving its intentional exclusions of upstream benchmark conventions. AI-detection checks are intentionally excluded by user policy.
-
-**Running the pipeline:** these conceptual stages 0–11 differ from the current CLI stage IDs. See the [execution-stage mapping](validation/README.md#execution-stage-mapping) and [quickstart](validation/README.md#quickstart) for commands; the [rules reference](validation/rules/README.md) is the source for detailed check behavior.
+Validation writes `results.parquet`, separate from the prepared `tasks.parquet`: one row per task with its check
+outcomes and repair evidence, the judge's verdict per rubric criterion, pass@k of both models and the calibrated
+resources. No separate dataset versions are created. Missing prerequisites or measurements are incomplete
+results, never passes. Use all checks selected by the default training profile, preserving its intentional
+exclusions of upstream benchmark conventions. AI-detection checks are intentionally excluded by user policy.
 
 ## Setup
 

@@ -45,21 +45,49 @@ See [publishing](publishing/README.md) for how READMEs are generated.
 
 ## Execution-stage mapping
 
-`validation/run.py --stages` uses the IDs in [stages/layout.py](stages/layout.py). These group checks by the execution environment they need; they differ from the conceptual stages in the [pipeline overview](../README.md#validation-pipeline).
+`validation/run.py --stages` uses the IDs in [stages/layout.py](stages/layout.py) (layout `environment-first-v4`).
+They group checks by the execution environment they need: one container start per task serves the checks of
+several pipeline steps. They differ from the step numbers in the [pipeline overview](../README.md#validation-pipeline).
 
-| CLI stage | Execution | Pipeline stages covered |
+| CLI stage | Execution | Pipeline steps covered |
 | --- | --- | --- |
-| Preparation outside the runner | `data/<datasource>/patch.py`, image and runtime preparation | 0: task & environment preparation |
-| `0` | Static checks | Static parts of 1–5 |
-| `1` | Build, setup, declared environment checks, repository history/timestamps and absolute-path recovery evidence | Runtime parts of 2, 3 and 5 |
-| `2` | Reference solution, reference determinism and protected-file mutation checks | 3 and 6 |
-| `3` | No-op, no-op determinism, verifier tampering and reference-solution leaks | 4, 5 and 7 |
-| `5` | LLM task-quality review | 8 |
-| `6` | Agent trials; run separately for the target RL model and stronger model | 9 |
-| `7`, `8` | Trace metrics and LLM trajectory review | 10 |
-| `9`, `10` | Adversarial trials and hacker/fixer loop (optional, untested) | 11 |
+| Preparation outside the runner | `data/<datasource>/patch.py`, image and runtime preparation | 1 |
+| `0` | Static checks (task files only) | 1, and the file checks of 2 and 3 |
+| `1` | Build, setup, declared environment checks, repository history/timestamps and absolute-path recovery evidence | 2 and 3 |
+| `2` | Reference solution, reference determinism and protected-file mutation checks | 2 |
+| `3` | No-op, no-op determinism, verifier paths, verifier tampering and reference-solution leaks | 2 and 3 |
+| `5` | LLM task-quality review | 4 |
+| `6` | Target RL model pass@k with resource calibration | 5 |
+| `7` | Strong teacher pass@k with resource recalibration | 6 |
+| `8`, `9` | Trace metrics and LLM trajectory review | 7 |
+| `10`, `11` | Adversarial trials and hacker/fixer loop (optional, untested) | 8 |
 
-There is no CLI stage `4` in the current layout. Do not pass the overview's stage numbers directly to `--stages`.
+There is no CLI stage `4`. Do not pass the overview's step numbers directly to `--stages`. Records of the
+previous layout (`environment-first-v3`) stay valid for stages 0-5, which mean the same in both layouts.
+
+### Stages 6 and 7: pass@k with resource calibration
+
+`--stages 6` runs the target model (`--target-model`, default `Qwen/Qwen3.5-35B-A3B`) and `--stages 7` the
+teacher (`--teacher-model`, default `zai-org/GLM-5.3-Flash`) on the tasks the target model left at 0/k. Each
+stage serves its own model, so run them as separate submissions, stage 7 after stage 6. Both use
+mini-swe-agent and take the tasks without a failed stage 0-3 check, read from `--judge-results` as for
+stage 5. `--pass-k` (default 4) sets k.
+
+Resource calibration follows MiMo's sandbox provisioning pass ([code](stages/calibration.py)). A task starts
+at max(its `task.toml` values, 2 vCPU / 8 GiB / 20 GiB). After a batch of k attempts, an out-of-memory kill
+doubles memory, a full disk doubles disk and a confirmed CPU shortage doubles the vCPUs; the whole batch then
+reruns. An infrastructure failure reruns only that attempt. A timeout alone is not a CPU shortage: it needs
+busy CPUs or CPU pressure as well (Slurm limits CPUs with a cpuset, so the CFS throttling MiMo used stays
+near 0 here). Limits and thresholds are `--calibration-*` options (defaults: at most 4 vCPU, 16384 MB memory,
+40960 MB disk and 3 rounds). A task still failing at the limits is `inconclusive` and does not go to the
+teacher. The teacher starts from the target model's allocation and calibrates again. pass@k uses only the
+final batch. The calibration state is saved after every Harbor job, so rerunning a stage resumes it.
+
+Results in `results.parquet`: `passk_target_outcome` (`solved`, `unsolved` or `inconclusive`),
+`passk_target_successes`, `passk_target_valid_attempts` and `passk_target_attempt_results` (every attempt
+as JSON), the same for `passk_teacher_*`, and `resources` (upstream values, both models' allocations and
+histories, and the final requirement: memory `ceil(peak GiB) + 1`, disk `max(10, ceil(peak GiB) + 2)`, vCPU
+as calibrated, never below `task.toml`).
 
 ## Execution requirements
 
