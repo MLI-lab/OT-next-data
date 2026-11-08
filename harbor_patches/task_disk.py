@@ -104,8 +104,11 @@ class Ledger:
             free = shutil.disk_usage(self.root).free
             written = sum(int(v.get('used', 0)) for v in entries.values())
             capacity = free + written - margin_bytes()
+            if os.environ.get('OT_TASK_DISK_CAPACITY_BYTES'):
+                # A fixed share of the node's disk (tests, or a node shared with other jobs).
+                capacity = min(capacity, int(os.environ['OT_TASK_DISK_CAPACITY_BYTES']))
             reserved = sum(int(v['bytes']) for v in entries.values())
-            if nbytes > free + written - margin_bytes() and not entries:
+            if nbytes > capacity and not entries:
                 raise RuntimeError(f'Task storage {nbytes / 2**30:.1f} GiB exceeds the free node disk '
                                    f'({max(capacity, 0) / 2**30:.1f} GiB after a {margin_bytes() / 2**30:.0f} GiB margin)')
             if reserved + nbytes <= capacity:

@@ -140,3 +140,12 @@ def test_results_record_disk_peak():
     from validation.run import usage
     record = {'trial_seconds': [3, 4], 'resources': [{'agent': {'disk_peak_mb': 120.0}}, {'agent': {'disk_peak_mb': 80.5}}]}
     assert usage('nop', record)['disk_peak_mb'] == 120.0
+
+
+def test_capacity_cap_limits_reservations(tmp_path, monkeypatch):
+    monkeypatch.setattr(task_disk.shutil, 'disk_usage', lambda root: SimpleNamespace(free=500 * 2**30))
+    monkeypatch.setenv('OT_TASK_DISK_CAPACITY_BYTES', str(12 * 2**30))
+    ledger = task_disk.Ledger(tmp_path)
+    assert ledger.try_reserve('a', 10 * 2**30)[0]
+    assert not ledger.try_reserve('b', 5 * 2**30)[0]
+    assert ledger.try_reserve('c', 1 * 2**30)[0]
