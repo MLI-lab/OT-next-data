@@ -193,6 +193,29 @@ def literal_context(node, parent, constants, parents=None):
     compare = lambda n: isinstance(n, ast.Compare) and all(isinstance(op, (ast.Eq, ast.NotEq, ast.In, ast.NotIn)) for op in n.ops)
     if compare(parent):
         return 'compared'
+    # Regular-expression patterns (re.findall(r'/home/user/[^\s]+', text)) describe text, not files.
+    if isinstance(parent, ast.Call) and node in parent.args[:1] and re.fullmatch(r're\.\w+', name(parent.func) or ''):
+        return 'compared'
+    # Keys of an expectation mapping ({"libc.a": 4, "/long/path/lib.o": 1}) are compared values.
+    if isinstance(parent, ast.Dict) and node in parent.keys:
+        return 'compared'
+    # [..., "/tmp/.hidden", ...] used only as `any(x in text for x in LIST)`.
+    collection = parent
+    if isinstance(collection, (ast.List, ast.Tuple, ast.Set)) and parents is not None:
+        owner = parents.get(collection)
+        targets = []
+        if isinstance(owner, ast.comprehension) and owner.iter is collection:
+            targets = [owner]
+        elif isinstance(owner, ast.Assign) and len(owner.targets) == 1 and isinstance(owner.targets[0], ast.Name):
+            ident = owner.targets[0].id
+            targets = [n for n in parents if isinstance(n, ast.comprehension) and isinstance(n.iter, ast.Name) and n.iter.id == ident]
+        for clause in targets:
+            if isinstance(clause.target, ast.Name):
+                generator = parents.get(clause)
+                uses = [n for n in ast.walk(generator) if isinstance(n, ast.Name) and n.id == clause.target.id
+                        and isinstance(n.ctx, ast.Load)]
+                if uses and all(compare(parents.get(n)) for n in uses):
+                    return 'compared'
     # for bad in ['/login/', ...]: assert bad not in endpoints
     loop = (parents or {}).get(parent)
     if (isinstance(parent, (ast.List, ast.Tuple)) and isinstance(loop, ast.For) and loop.iter is parent
@@ -370,6 +393,11 @@ def python_paths(text, source, offset=0, context=None, depth=0):
             emit(receiver, node, 'generated')
         elif func in ('os.mkdir', 'os.makedirs'):
             emit(value, node, 'generated')
+        elif func in ('os.rename', 'os.replace', 'shutil.move', 'shutil.copy', 'shutil.copy2', 'shutil.copyfile',
+                      'shutil.copytree', 'os.symlink', 'os.link') and len(node.args) > 1:
+            emit(resolve(node.args[1], constants), node, 'generated')
+        elif method in ('rename', 'replace') and absolute(receiver) and node.args:
+            emit(resolve(node.args[0], constants), node, 'generated')
         elif func in ('os.system', 'os.popen') and value:
             for target, role in shell_paths(value, context):
                 emit(target, node, role)
@@ -501,6 +529,14 @@ def python_paths(text, source, offset=0, context=None, depth=0):
                     break
                 ancestor = parents.get(ancestor)
             if fragment or absolute(resolve(parent, constants)):
+                continue
+            # NAME = "/path" (or Path("/path")) never read anywhere: not a dependency.
+            holder = parent
+            while isinstance(holder, ast.Call) and name(holder.func) in ('Path', 'pathlib.Path', 'str'):
+                holder = parents.get(holder)
+            if (isinstance(holder, ast.Assign) and len(holder.targets) == 1 and isinstance(holder.targets[0], ast.Name)
+                    and not any(isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id == holder.targets[0].id
+                                for n in ast.walk(tree))):
                 continue
             emit(value, node, literal_context(node, parent, constants, parents))
     return records
@@ -689,6 +725,90 @@ def shell_blocks(lines):
     return sorted(blocks, key=lambda b: b[1] - b[0])
 
 
+SHELL_TEST = re.compile(r'^\s*(?:if|elif)\s+(?:!\s+)?\[\[?\s+(?:!\s+)?-[efdrxs]\s+["\']?([^"\'\s\]]+)["\']?\s*\]\]?')
+
+
+def shell_guarded(lines, index, path):
+    """A shell use is optional when it is the tested path of `if/elif [ -f X ]` or inside that branch."""
+    test = SHELL_TEST.match(lines[index])
+    if test and test[1] == path:
+        return True
+    for start, end in shell_blocks(lines):
+        if start <= index <= end:
+            for k in range(start, index + 1):
+                t = SHELL_TEST.match(lines[k])
+                if t and t[1] == path and not re.search(r'\[\[?\s+!|\bif\s+!', lines[k]):
+                    return True
+    return False
+
+
+X509_NAME = re.compile(r'(?:/[A-Za-z]{1,12}=[^/]*)+')  # openssl -subj /CN=test/O=Org, not a file
+INTENTIONALLY_ABSENT = re.compile(r'(?i)(?:^|[/_.-])(?:non[-_]?existent|nonexist\w*|does[-_]?not[-_]?exist|not[-_]?exist\w*|bogus|fake)(?:$|[/_.-])')
+
+
+def verifier_created(path, texts):
+    """The verifier's own sources create the path: compiler -o, venv, git clone, mkdir, redirects."""
+    q = re.escape(path)
+    end = r'(?=["\'\s,)\]}]|$)'
+    patterns = [r'-o\s*["\']?\s*' + q + end,
+                r'["\']-o["\']\s*,\s*f?["\']' + q + end,
+                r'\bvenv["\']?\s*,?\s*f?["\']?' + q + end,
+                r'\bclone\b[^\n]*?["\'\s]' + q + end,
+                r'\bmkdir\b[^\n]*?["\'\s]' + q + end,
+                r'>>?\s*["\']?' + q + end]
+    return any(re.search(pattern, text) for pattern in patterns for text in texts)
+
+
+def provided_environment(task):
+    """Text of the code and config the task provides (environment/ except the Dockerfile) and its WORKDIRs.
+
+    The Dockerfile is left out on purpose: a COPY line naming an input that is never shipped
+    is a real missing input, not code that produces the file.
+    """
+    texts, workdirs = [], set()
+    root = Path(task) / 'environment'
+    if root.is_dir():
+        for item in sorted(root.rglob('*')):
+            if not item.is_file() or item.stat().st_size > 2_000_000:
+                continue
+            try:
+                text = item.read_text()
+            except (UnicodeError, OSError):
+                continue
+            if item.name == 'Dockerfile':
+                workdirs.update(m.rstrip('/') for m in re.findall(r'(?im)^\s*WORKDIR\s+(\S+)', text))
+            else:
+                texts.append(text)
+    return '\n'.join(texts), workdirs | {'/app'}
+
+
+def produced_by_provided_code(path, text, workdirs):
+    """The provided program/config names the never-existing path: an output of code the agent builds or runs."""
+    if not text:
+        return False
+    bound = r'(?![\w-])'
+    if re.search(r'(?<![\w.-])' + re.escape(path) + bound, text):
+        return True
+    for workdir in workdirs:
+        if path.startswith(workdir + '/'):
+            relative = path[len(workdir) + 1:]
+            if ('/' in relative or '.' in relative) and len(relative) >= 3 and \
+                    re.search(r'(?<![\w/.-])(?:\./)?' + re.escape(relative) + bound, text):
+                return True
+    return False
+
+
+def under_named_directory(path, named, workdirs):
+    """A specific directory (at least two levels, not a workdir or home) named in the instruction contains the path."""
+    parent = PurePosixPath(path).parent
+    while len(parent.parts) >= 3:
+        text = str(parent)
+        if text not in workdirs and not re.fullmatch(r'/home/[^/]+', text) and (text in named or text + '/' in named):
+            return True
+        parent = parent.parent
+    return False
+
+
 def inventory(task, context=None, instruction_view=None):
     task = Path(task)
     context = Path(context) if context is not None else task / 'tests'
@@ -727,7 +847,17 @@ def inventory(task, context=None, instruction_view=None):
                         continue
                     for path, role in shell_paths(line, context):
                         details = fallbacks.get((cursor, path), {'role': role}) if role != 'generated' else {'role': role}
+                        if details['role'] in ('shell_literal', 'read', 'subprocess_input', 'execute') and shell_guarded(lines, cursor, path):
+                            details = {'role': 'optional_check'}
                         records.append(dict(path=path, source=label, line=cursor + 1, **details))
+                    if match:
+                        # Body of a non-Python heredoc (a config file the verifier writes):
+                        # its content is data, not paths the verifier uses.
+                        end = cursor + 1
+                        while end < len(lines) and lines[end].strip() != match[1]:
+                            end += 1
+                        cursor = end + 1
+                        continue
                     cursor += 1
         except (SyntaxError, UnicodeError, OSError) as exc:
             errors.append(f'{label}: {type(exc).__name__}: {exc}')
@@ -771,6 +901,9 @@ def inventory(task, context=None, instruction_view=None):
                 return False
         return True
 
+    verifier_texts = ['\n'.join(lines) for lines in source_lines.values()]
+    named_paths = {m.rstrip('/.,:;)') for m in re.findall(r'(?<![\w.-])(/[\w.+-]+(?:/[\w.+*{}-]+)*/?)', instruction)}
+    environment_text, workdirs = provided_environment(task)
     paths = []
     for path in sorted({r['path'] for r in records}):
         uses = [r for r in records if r['path'] == path]
@@ -801,7 +934,16 @@ def inventory(task, context=None, instruction_view=None):
                   'optional_or_negative_check' if roles <= {'optional_check', 'expected_absent'} else
                   'harness_output' if path == '/logs/verifier' or path.startswith('/logs/verifier/') else
                   'verifier_location_fallback' if verifier_location_fallback(path, uses) else
-                  'not_a_path' if roles <= {'compared', 'http_route'} else None)
+                  'not_a_path' if roles <= {'compared', 'http_route'} else
+                  'not_a_path' if X509_NAME.fullmatch(path) else
+                  'verifier_created' if any(verifier_created(str(p), verifier_texts)
+                                            for p in [PurePosixPath(path), *PurePosixPath(path).parents][:-1]
+                                            if len(p.parts) >= 3) else
+                  'intentionally_absent' if INTENTIONALLY_ABSENT.search(path) else
+                  'parent_of_named_path' if (not roles & {'read', 'execute', 'subprocess_input'} and
+                                             any(p.startswith(path.rstrip('/') + '/') for p in named_paths)) else
+                  'under_named_directory' if under_named_directory(path, named_paths, workdirs) else
+                  'produced_by_provided_code' if produced_by_provided_code(path, environment_text, workdirs) else None)
         paths.append(dict(path=path, uses=uses, excluded=reason,
                           instruction_match='absolute' if mentioned else 'relative' if relative_mention else None,
                           relative_instruction_mention=relative_mention,

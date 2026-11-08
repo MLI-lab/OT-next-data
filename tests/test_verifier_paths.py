@@ -792,3 +792,81 @@ def test_lib():
     assert {u['role'] for u in paths['/app/out/a.env']['uses']} == {'required'}
     result = rule.assess(data)
     assert {f['path'] for f in result['findings']} == {'/app/out/a.env', '/app/out/b.env', '/app/xgboost/build/libxgboost.so'}
+
+
+
+def test_review_false_positive_patterns_are_excluded(tmp_path):
+    source = '''
+import os, re, subprocess
+EXPECTED = {"libc.a": 4, "/very/long/path/lib.o": 1}
+UNUSED = "/app/data_manifest.json"
+def test_all():
+    _run(["gcc", "-o", "/tmp/record_reader_test", str(SRC)])
+    _ot_run([python, "-m", "venv", "/tmp/test_venv"])
+    os.rename("/app/release/README.txt", "/app/release/README.txt.bak")
+    assert re.findall(r'/home/devuser/projects/x', content)
+    indicators = ["suid", "/tmp/.hidden"]
+    assert any(i in report for i in indicators)
+    rc = run_tool(args=["/nonexistent/path"])
+    subprocess.run(["/tmp/record_reader_test"])
+    subprocess.run(["/tmp/test_venv/bin/pip", "install", "."])
+'''
+    path = task(tmp_path, source, instruction='Fix the tool.')
+    excluded = {p['path']: p['excluded'] for p in record(path)['inventory']['paths']}
+    assert excluded['/tmp/record_reader_test'] == 'verifier_created'
+    assert excluded['/app/release/README.txt.bak'] == 'verifier_generated'
+    assert excluded['/home/devuser/projects/x'] == 'not_a_path'
+    assert excluded['/tmp/.hidden'] == 'not_a_path' and excluded['/very/long/path/lib.o'] == 'not_a_path'
+    assert excluded['/nonexistent/path'] == 'intentionally_absent'
+    assert '/app/data_manifest.json' not in excluded
+
+
+def test_shell_heredoc_bodies_and_file_guards_are_not_dependencies(tmp_path):
+    path = task(tmp_path, '')
+    (path / 'tests/test.sh').write_text('''#!/bin/bash
+if [ -f "$HOME/.local/bin/env" ]; then
+  . "$HOME/.local/bin/env"
+elif [ -f "/root/.cargo/env" ]; then
+  . /root/.cargo/env
+fi
+cat > /tmp/dnsmasq.conf <<CONF
+address=/api.service.local/127.0.0.3
+CONF
+cat /app/required_input.txt
+''')
+    excluded = {p['path']: p['excluded'] for p in record(path)['inventory']['paths']}
+    assert excluded['/root/.cargo/env'] in ('optional_or_negative_check', 'subprocess_role_unresolved')
+    assert '/api.service.local/127.0.0.3' not in excluded
+    assert excluded['/app/required_input.txt'] is None
+
+
+def test_provided_code_outputs_and_named_directories(tmp_path):
+    path = task(tmp_path, '''
+def test_outputs():
+    assert open("/app/bin/client").read()
+    assert open("/usr/local/bin/pamtopng").read()
+    assert open("/app/results/summary.json").read()
+    assert open("/etc/default/prometheus-node-exporter").read()
+''', instruction='Build the project with make and install netpbm under /usr/local. Report in /app/report.txt.')
+    (path / 'environment/files').mkdir(parents=True)
+    (path / 'environment/Dockerfile').write_text('FROM ubuntu\nWORKDIR /app\nCOPY files/results/summary.json /app/results/summary.json\n')
+    (path / 'environment/files/Makefile').write_text('bin/client: src/client.c\n\tcc -o bin/client src/client.c\n')
+    excluded = {p['path']: p['excluded'] for p in record(path)['inventory']['paths']}
+    assert excluded['/app/bin/client'] == 'produced_by_provided_code'
+    assert excluded['/usr/local/bin/pamtopng'] == 'under_named_directory'
+    assert excluded['/app/results/summary.json'] is None          # only a Dockerfile COPY names it: a missing input
+    assert excluded['/etc/default/prometheus-node-exporter'] is None
+
+
+def test_x509_subjects_and_files_inside_verifier_created_directories(tmp_path):
+    path = task(tmp_path, '''
+import os, subprocess
+def test_tls():
+    subprocess.run(["openssl", "req", "-x509", "-subj", "/CN=test", "-out", "/tmp/c.pem"])
+    _run(["git", "clone", "git://localhost/p.git", "/tmp/test-clone"])
+    assert os.path.isdir("/tmp/test-clone/.git")
+''')
+    excluded = {p['path']: p['excluded'] for p in record(path)['inventory']['paths']}
+    assert excluded['/CN=test'] is not None
+    assert rule.X509_NAME.fullmatch('/CN=test/O=Org') and not rule.X509_NAME.fullmatch('/app/out=1/x.txt/')
+    assert excluded['/tmp/test-clone/.git'] == 'verifier_created'
