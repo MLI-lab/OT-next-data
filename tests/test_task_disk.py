@@ -151,12 +151,49 @@ def test_capacity_cap_limits_reservations(tmp_path, monkeypatch):
     assert ledger.try_reserve('c', 1 * 2**30)[0]
 
 
-def test_exceeding_declared_storage_is_the_tasks_own_failure():
-    from validation.publishing.outcome_labels import execution_label
-    from validation.stages.build_retries import build_stability
+def test_exceeding_declared_storage_or_memory_fails_the_tasks_own_build(tmp_path, monkeypatch):
+    from validation.stages import build_retries
     from validation.outcomes import category
-    reason = 'Bridge job j-1 failed: Task disk limit exceeded: the task wrote 1088 MiB, its task.toml storage is 1024 MiB'
-    assert execution_label({'status': 'error', 'reason': reason}) == 'build-execution-error'
-    history = [{'status': 'error', 'reason': reason, 'cause': execution_label({'status': 'error', 'reason': reason})}] * 4
-    assert build_stability(history) == 'task_failure'  # a plain build failure, not "infrastructure on every retry"
-    assert category({'status': 'error', 'reason': reason})['reason_code'] == 'disk_limit_exceeded'
+    disk = 'Bridge job j-1 failed: Task disk limit exceeded: the task wrote 1088 MiB, its task.toml storage is 1024 MiB'
+    memory = 'Bridge job j-2 failed: Task memory limit exceeded during environment startup'
+    for reason in (disk, memory):
+        result = {'status': 'error', 'reason': reason}
+        cause = build_retries.failure_cause(result)
+        assert cause == 'build-execution-error'
+        assert build_retries.build_stability([dict(result, cause=cause)] * 4) == 'task_failure'
+    assert category({'status': 'error', 'reason': disk})['reason_code'] == 'disk_limit_exceeded'
+    # A no-op or reference result is not relabeled as a build error.
+    assert build_retries.execution_label({'status': 'error', 'reason': disk}) != 'build-execution-error'
+
+
+def test_fast_writer_is_caught_before_the_regular_measurement(tmp_path, monkeypatch):
+    monkeypatch.setenv('OT_TASK_DISK_POLL_SEC', '30')  # regular du would come far too late
+    monkeypatch.setenv('OT_TASK_DISK_CHECK_SEC', '0.05')
+    free = {'value': 100 * 2**30}
+    monkeypatch.setattr(task_disk, 'free_bytes', lambda path: free['value'])
+    hits = []
+    dog = task_disk.Watchdog(tmp_path, 2 * 2**20, lambda used, limit: hits.append(used), key='env')
+    dog.start()
+    time.sleep(.3)
+    write(tmp_path / 'fast', 3)
+    free['value'] -= 3 * 2**20  # the free-space check sees the drop
+    deadline = time.time() + 3
+    while not hits and time.time() < deadline:
+        time.sleep(.05)
+    dog.stop()
+    assert hits, 'the drop in free disk must trigger an early measurement'
+
+
+def test_other_writers_on_the_node_only_trigger_extra_measurements(tmp_path, monkeypatch):
+    monkeypatch.setenv('OT_TASK_DISK_POLL_SEC', '30')
+    monkeypatch.setenv('OT_TASK_DISK_CHECK_SEC', '0.05')
+    free = {'value': 100 * 2**30}
+    monkeypatch.setattr(task_disk, 'free_bytes', lambda path: free['value'])
+    hits = []
+    dog = task_disk.Watchdog(tmp_path, 2 * 2**20, lambda used, limit: hits.append(used), key='env')
+    dog.start()
+    time.sleep(.3)
+    free['value'] -= 5 * 2**30  # another container wrote 5 GiB
+    time.sleep(.5)
+    dog.stop()
+    assert not hits  # du found nothing in this container

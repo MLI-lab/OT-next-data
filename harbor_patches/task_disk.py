@@ -9,15 +9,18 @@ package installs and builds would slow down. Instead:
 
 1. Measure: the trial's staging directory (writable layer, /tmp, workspace, logs)
    is measured with `du` while it runs; the peak goes into the trial's resources
-   (`disk_peak_mb`, `disk_limit_mb`).
+   (`disk_peak_mb`, `disk_limit_mb`). `du` runs at most every few seconds; in between a
+   cheap free-space check of the staging filesystem (statvfs, every 0.5 s) triggers an
+   earlier measurement once free space has dropped by half of the container's remaining
+   headroom, so a fast writer is caught within about one measurement.
 2. Reserve: before a task container starts, its `storage` is reserved against the
    node's free local disk in a ledger shared by every bridge worker on the node.
    A container waits until it fits: reserved storage of running tasks plus its own
    must stay within free disk + what they already wrote - a safety margin.
 3. Limit: when a task declares `storage` and the limit is on, a watchdog stops the
    container once it has written more than that and the operation fails with
-   "Task disk limit exceeded". Between two measurements a task can overshoot by
-   what it writes in a few seconds.
+   "Task disk limit exceeded". A task can overshoot by what it writes during one
+   measurement plus half a second.
 
 Judges (stage 5) inspect tasks rather than solve them: they get the reservation
 and measurement but no limit (`OT_TASK_STORAGE_LIMIT=0` on the client side).
@@ -38,7 +41,21 @@ _storage = ContextVar('ot_task_storage_mb', default=None)
 
 
 def poll_seconds():
+    """Longest time between two full measurements (du) of a container's files."""
     return float(os.environ.get('OT_TASK_DISK_POLL_SEC', '5'))
+
+
+def check_seconds():
+    """Interval of the cheap free-space check that triggers an earlier measurement."""
+    return float(os.environ.get('OT_TASK_DISK_CHECK_SEC', '0.5'))
+
+
+def free_bytes(path):
+    try:
+        stat = os.statvfs(path)
+    except OSError:
+        return None
+    return stat.f_bavail * stat.f_frsize
 
 
 def margin_bytes():
@@ -166,13 +183,25 @@ class Watchdog(threading.Thread):
             self.on_exceeded(used, self.limit)
         return used
 
+    def due(self, now, free):
+        """Measure now? Regularly, or early when free disk dropped by half the remaining headroom.
+        Free disk is shared with other containers, so a drop is only a hint; du decides."""
+        if now - self.measured_at >= max(poll_seconds(), 3 * self.duration):
+            return True
+        if not self.limit or free is None or self.free_at is None or now - self.measured_at < 2 * self.duration:
+            return False
+        headroom = max(self.limit - self.used, 0)
+        return self.free_at - free >= max(headroom / 2, 1 << 20)
+
     def run(self):
+        self.measured_at, self.duration, self.used, self.free_at = float('-inf'), 0.0, 0, None
         while not self.stopping.is_set():
-            started = time.monotonic()
-            if self.path.exists():
-                self.measure()
-            # A large tree takes long to walk: never spend more than a quarter of the time measuring.
-            self.stopping.wait(max(poll_seconds(), 3 * (time.monotonic() - started)))
+            now = time.monotonic()
+            if self.path.exists() and self.due(now, free_bytes(self.path)):
+                self.free_at = free_bytes(self.path)
+                self.used = self.measure()
+                self.measured_at, self.duration = now, time.monotonic() - now
+            self.stopping.wait(check_seconds())
 
     def stop(self):
         self.stopping.set()

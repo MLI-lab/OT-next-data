@@ -6,10 +6,6 @@ import re
 def execution_label(item):
     """Only classify explicit execution evidence; reward mismatches are not evidence."""
     text = '\n'.join([str(item.get('reason') or ''), *map(str, item.get('findings', []))])
-    if 'Task disk limit exceeded' in text:
-        # The task wrote more than its own task.toml storage: under Docker its
-        # build or setup would fail the same way, so this is the task's failure.
-        return 'build-execution-error'
     if re.search(r'build(?:ing)?[^\n]*(?:fail|timed out|timeout)|(?:Build|ImageBuild)\w*(?:Error|Timeout)', text, re.I):
         return 'build-execution-error'
     if re.search(r'BridgeOutage|No space left on device|workers? (?:are )?dead', text, re.I):

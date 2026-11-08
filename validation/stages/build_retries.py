@@ -8,6 +8,11 @@ import tarfile
 import time
 
 from validation.publishing.outcome_labels import execution_label
+
+# The task exceeded its own task.toml memory or storage while it started or ran
+# its setup. Under Docker the build would fail the same way: the task's failure,
+# not an infrastructure error, so retries do not turn it into "no verdict".
+TASK_LIMIT = ('Task disk limit exceeded', 'Task memory limit exceeded')
 from validation.stages import harbor as runtime
 
 
@@ -59,6 +64,14 @@ def save_preparation_review(sources, items, out):
         'evaluated': len(items), 'passed': len(items) - len(flagged), 'flagged': flagged,
         'measurement': 'setup upload and execution after container readiness; startup recorded separately; prepared images reused',
     }, indent=2) + '\n')
+
+
+def failure_cause(result):
+    """Infrastructure (node, bridge, disk) or the task's own build/start."""
+    text = '\n'.join([str(result.get('reason') or ''), *map(str, result.get('findings', []))])
+    if any(limit in text for limit in TASK_LIMIT):
+        return 'build-execution-error'
+    return execution_label(result) or 'build-execution-error'
 
 
 def task_caused(result):
@@ -145,7 +158,7 @@ async def run_builds(sources, out, args, outcomes):
                       node=socket.gethostname(), seconds=round(time.monotonic() - started, 1))
         if result['status'] != 'passed':
             # Infrastructure (node, bridge, disk) or the task's own build/start.
-            result['cause'] = execution_label(result) or 'build-execution-error'
+            result['cause'] = failure_cause(result)
         histories[index].append(result)
         outcomes.write(json.dumps(result) + '\n')
         outcomes.flush()
