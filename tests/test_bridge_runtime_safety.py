@@ -1152,3 +1152,14 @@ def test_var_tmp_is_a_disk_backed_trial_directory_next_to_tmp(patch, tmp_path):
     explicit = command[:3] + ['--bind', '/x:/var/tmp:rw'] + command[3:]
     assert patch.instance_start_command(explicit, []).count('--bind') == 2
     assert not any('/var/tmp' in a for a in patch.instance_start_command(['apptainer', 'instance', 'start', 'task.sif', 'env'], []))
+
+
+def test_trial_step_caps_single_files_at_the_declared_storage(patch, monkeypatch):
+    monkeypatch.setenv('SLURM_JOB_ID', '123')
+    monkeypatch.delenv('SLURM_STEP_ID', raising=False)
+    limited = patch.trial_step_prefix({'task_env_config': {'cpus': 1, 'memory_mb': 2048, 'storage_mb': 1024}}, 'env-x')
+    assert limited[-3:] == ['prlimit', f'--fsize={1024 * 2**20}', '--'] and limited[0] == 'srun'
+    # Judges (no limit) and tasks without storage get no file-size limit.
+    judge = patch.trial_step_prefix({'task_env_config': {'storage_mb': 1024, 'storage_limit': False}}, 'env-y')
+    plain = patch.trial_step_prefix({'task_env_config': {'cpus': 1}}, 'env-z')
+    assert 'prlimit' not in judge and 'prlimit' not in plain

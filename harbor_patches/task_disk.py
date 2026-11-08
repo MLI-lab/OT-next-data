@@ -10,7 +10,7 @@ package installs and builds would slow down. Instead:
 1. Measure: the trial's staging directory (writable layer, /tmp, workspace, logs)
    is measured with `du` while it runs; the peak goes into the trial's resources
    (`disk_peak_mb`, `disk_limit_mb`). `du` runs at most every few seconds; in between a
-   cheap free-space check of the staging filesystem (statvfs, every 0.5 s) triggers an
+   cheap free-space check of the staging filesystem (statvfs, every 0.1 s) triggers an
    earlier measurement once free space has dropped by half of the container's remaining
    headroom, so a fast writer is caught within about one measurement.
 2. Reserve: before a task container starts, its `storage` is reserved against the
@@ -20,7 +20,8 @@ package installs and builds would slow down. Instead:
 3. Limit: when a task declares `storage` and the limit is on, a watchdog stops the
    container once it has written more than that and the operation fails with
    "Task disk limit exceeded". A task can overshoot by what it writes during one
-   measurement plus half a second.
+   measurement plus 0.1 s. A single file can never exceed the storage: the trial's
+   step runs under RLIMIT_FSIZE = storage (bridge_worker.trial_step_prefix).
 
 Judges (stage 5) inspect tasks rather than solve them: they get the reservation
 and measurement but no limit (`OT_TASK_STORAGE_LIMIT=0` on the client side).
@@ -47,7 +48,7 @@ def poll_seconds():
 
 def check_seconds():
     """Interval of the cheap free-space check that triggers an earlier measurement."""
-    return float(os.environ.get('OT_TASK_DISK_CHECK_SEC', '0.5'))
+    return float(os.environ.get('OT_TASK_DISK_CHECK_SEC', '0.1'))
 
 
 def free_bytes(path):

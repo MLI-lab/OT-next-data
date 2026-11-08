@@ -154,8 +154,13 @@ def trial_step_prefix(payload, env_id):
         nested = ['--nodes=1', '-w', os.environ.get('SLURMD_NODENAME') or socket.gethostname().split('.')[0]]
     # Not --quiet: srun's own messages (step creation delayed, RPC rate limited)
     # land in the step log, whose tail is printed when a start waits or fails.
+    # No single file may exceed the task's whole storage (RLIMIT_FSIZE): the kernel
+    # refuses it at once, while the disk watchdog checks the total only periodically.
+    # Set inside the step, because Helma's Slurm does not propagate resource limits.
+    storage = cfg.get('storage_mb') if cfg.get('storage_limit', True) else None
+    fsize = ['prlimit', f'--fsize={int(storage) * 2**20}', '--'] if storage else []
     return ['srun', '--exact', '-n1', *nested,
-            f'-c{cpus}', f'--mem={mem}', '--gres=none', '--job-name', f'trial-{env_id}']
+            f'-c{cpus}', f'--mem={mem}', '--gres=none', '--job-name', f'trial-{env_id}', *fsize]
 
 
 def anchor_log_tail(env, lines=8):
