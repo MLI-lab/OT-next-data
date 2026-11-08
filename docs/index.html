@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Pipeline Explorer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <a class="brand" href="#/">OT-next-data pipeline</a>
+  <label class="picker">Datasource
+    <select id="dataset"></select>
+  </label>
+</header>
+<main id="view"></main>
+<aside id="drawer" hidden>
+  <button id="close" aria-label="Close">×</button>
+  <div id="drawer-body"></div>
+</aside>
+<div id="tip" role="tooltip" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
