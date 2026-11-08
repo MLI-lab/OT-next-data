@@ -79,7 +79,19 @@ def parser():
     ap.add_argument('--analysis-agent', help='override only the trajectory-analysis agent')
     ap.add_argument('--analysis-model', help='override only the trajectory-analysis judge model')
     ap.add_argument('--agent-kwargs', type=json.loads, default={})
-    ap.add_argument('--attempts', type=int, default=1, help='agent attempts per task in stages 6 and 9 (k of pass@k)')
+    ap.add_argument('--attempts', type=int, default=1, help='agent attempts per task in stage 10 (cheat trials)')
+    ap.add_argument('--pass-k', type=int, default=4,
+                    help='stages 6/7: independent attempts per task and model, k of pass@k (default: 4)')
+    ap.add_argument('--target-model', default='Qwen/Qwen3.5-35B-A3B',
+                    help='stage 6: target RL model, served from config/models.py (default: Qwen/Qwen3.5-35B-A3B)')
+    ap.add_argument('--teacher-model', default='zai-org/GLM-5.3-Flash',
+                    help='stage 7: strong teacher for the tasks the target model left at 0/k (default: zai-org/GLM-5.3-Flash)')
+    from validation.stages.calibration import Policy
+    for name, value in Policy().__dict__.items():
+        ap.add_argument('--calibration-' + name.replace('_', '-'), type=type(value), default=None,
+                        help=f'stages 6/7 resource calibration (MiMo default: {value})')
+    ap.add_argument('--calibration-state', type=Path,
+                    help='stages 6/7: directory of the resumable calibration state (default: --out)')
     ap.add_argument('--reference-leaks', action=argparse.BooleanOptionalAction, default=True,
                     help='evaluate reference-solution leaks in the stage-3 no-op containers (default: enabled)')
     ap.add_argument('--reference-runs', type=int, default=1,
@@ -624,6 +636,34 @@ async def repair_criteria(result, partial, source, item_dir, args, upstream, ref
         result['verdicts'].append({'trial': part['trial'], 'checks': checks, 'criterion_origin': origin})
 
 
+def select_passk_sources(number, sources, source_hashes, report, args):
+    """Stage 6: tasks without a failed stage 0-3 check (as for the judge). Stage 7 additionally only the
+    tasks the target model left at 0/k."""
+    selection = getattr(args, '_judge_failed', None)
+    keep = list(sources)
+    if selection is not None:
+        from validation.stages.judge_selection import exclusions
+        excluded = exclusions(keep, source_hashes, selection['failed'])
+        report['task_selection'] = {k: v for k, v in selection.items() if k != 'failed'} | {
+            'rule': 'not evaluated: a stage 0-3 check failed', 'excluded': len(excluded)}
+        for source in keep:
+            if source.name in excluded:
+                report['items'].append({'task': str(source), 'status': 'skipped', 'failed_checks': excluded[source.name],
+                                        'reason': 'not evaluated: failed ' + ', '.join(excluded[source.name])})
+        keep = [s for s in keep if s.name not in excluded]
+    if number == 7:
+        routing = getattr(args, '_teacher_routing', None) or {'routing': {}, 'outcomes': {}}
+        report['teacher_routing'] = {'rule': 'only tasks with 0/k valid target-model successes',
+                                     'routed': len(routing['routing'])}
+        for source in keep:
+            if source.name not in routing['routing']:
+                outcome = routing['outcomes'].get(source.name, 'no target-model result')
+                report['items'].append({'task': str(source), 'status': 'skipped',
+                                        'reason': f'not evaluated by the teacher: target model {outcome}'})
+        keep = [s for s in keep if s.name in routing['routing']]
+    return keep
+
+
 def run_trial_batch(number, sources, out, args, upstream, report=None, contract=None):
     """One Harbor scheduler across tasks, retaining per-task accounting."""
     items, selected = [], []
@@ -661,6 +701,11 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
     if args.dry_run:
         for _, item in selected:
             item.update(status='previewed', config=str(out / 'job.json'))
+        return items
+    if number in (6, 7):
+        from validation.stages import passk_stage
+        routing = (getattr(args, '_teacher_routing', None) or {}).get('routing') if number == 7 else None
+        passk_stage.run(number, selected, out, args, upstream, report, contract, start_allocations=routing)
         return items
     diagnostic_kwargs = ({'path_search_roots': args.resolve_path_root}
                          if number == REFERENCE and getattr(args, 'resolve_path_root', None) else {})
@@ -1040,8 +1085,8 @@ def run_fortify(source, item_dir, args, upstream):
 
 def stage_runs(number, args):
     """Trials per task for a stage: stage 1 runs once (it retries failed builds itself)."""
-    return {1: 1, REFERENCE: getattr(args, 'reference_runs', 1), NOP: getattr(args, 'nop_runs', 3)}.get(
-        number, getattr(args, 'attempts', 1))
+    return {1: 1, REFERENCE: getattr(args, 'reference_runs', 1), NOP: getattr(args, 'nop_runs', 3),
+            6: getattr(args, 'pass_k', 4), 7: getattr(args, 'pass_k', 4)}.get(number, getattr(args, 'attempts', 1))
 
 
 def run_stage(number, args):
@@ -1155,6 +1200,8 @@ def _run_stage(number, args):
         if checkpoint:
             report['reused_from'] = {k: v for k, v in checkpoint.items() if k != 'items'}
     elif number in (REFERENCE, NOP, 6, 7, 10):
+        if number in (6, 7) and not args.dry_run:
+            sources = select_passk_sources(number, sources, source_hashes, report, args)
         from validation.stages.build_retries import partition_builds
         selected, skipped = partition_builds(sources, args, reference=number == REFERENCE) if number in (REFERENCE, NOP) else (sources, [])
         report['items'] = skipped + run_trial_batch(number, selected, out, args, upstream, report, contract)
@@ -1253,7 +1300,8 @@ def _run_stage(number, args):
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
     report['complete'] = True
     if number in (6, 7) and not args.dry_run:
-        report['complete'] = all(i['status'] == 'completed' for i in report['items'])
+        # Inconclusive (unresolved resource problem) and skipped tasks are finished too.
+        report['complete'] = all(i['status'] in ('completed', 'inconclusive', 'skipped') for i in report['items'])
     if not args.dry_run:
         # Tasks at once: the other stages work through their tasks one by one.
         report['timing'] = stage_timing(clock, report['static_concurrency'] if number == STATIC else

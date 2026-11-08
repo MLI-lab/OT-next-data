@@ -71,12 +71,15 @@ def test_hash_at_execution_is_preserved_and_passk_settings_are_distinct():
                    'items': [{'task': 't', 'status': 'passed'}]}}
     row, = results.observations(reports, {'t': 'new'})
     assert row['content_sha256'] == 'old'
-    trials = {6: {'items': [{'task': 't', 'status': 'completed', 'rewards': [0, 1]}]}}
-    a, = results.observations(trials, {'t': 'hash'}, settings={'model': 'm', 'agent_kwargs': {'thinking': True}})
-    b, = results.observations(trials, {'t': 'hash'}, settings={'model': 'm', 'agent_kwargs': {'thinking': False}})
-    names_a = {k for k in a if k.startswith('passk_')}
-    assert names_a.isdisjoint(k for k in b if k.startswith('passk_'))
-    assert any(a[k] == 1 for k in names_a if k.endswith('_solved'))
+    # Stages 6/7 write one column per role; the model is recorded in the cell and the attempts JSON.
+    item = {'task': 't', 'status': 'completed', 'rewards': [0, 1],
+            'passk': {'model': 'm', 'k': 2, 'outcome': 'solved', 'successes': 1, 'valid_attempts': 2},
+            'calibration': {'final_attempts': [], 'rounds': []}}
+    target, = results.observations({6: {'items': [item]}}, {'t': 'hash'})
+    teacher, = results.observations({7: {'items': [item]}}, {'t': 'hash'})
+    assert (target['passk_target'], target['passk_target_solved'], target['passk_target_attempts']) == ('pass', 1, 2)
+    assert teacher['passk_teacher'] == 'pass' and 'passk_target' not in teacher
+    assert json.loads(target['passk_target_attempt_results'])['model'] == 'm'
 
 
 def test_dynamic_warning_and_baseline_are_independent():

@@ -27,6 +27,8 @@ def main():
         ap.error(str(exc))
     from hpc.validation_submit import maybe_submit
     try:
+        from validation.stages.passk_stage import resolve_models
+        resolve_models(args, numbers)
         from validation.contract import bind
         numbers = bind(args, numbers)
         if numbers is None:
@@ -62,9 +64,11 @@ def run_selected(args, numbers):
             if number in (8, 9):
                 args.trials = Path(job) if job else None
             try:
-                if number == 5 and not args.dry_run:
-                    from validation.stages.judge_selection import prepare
+                if number in (5, 6, 7) and not args.dry_run:
+                    from validation.stages.judge_selection import prepare, teacher_routing
                     prepare(args, stage_runs)
+                    if number == 7:
+                        teacher_routing(args, stage_runs)
                 path, result = run_stage(number, args)
                 report['stages'].append({'stage': number, 'report': str(path),
                                          'status': 'findings' if result['has_findings'] else 'completed'})
@@ -306,16 +310,34 @@ def observations(reports, hashes, dataset='', settings=None):
                     if int(stage) in (2, 3) and item.get('rewards') == []:
                         value = 'not_run'
                     put(name, item, value)
-            if int(stage) in (6, 7):
-                identity = {k: settings.get(k) for k in ('model', 'agent', 'agent_kwargs', 'attempts')}
-                model = re.sub(r'[^a-zA-Z0-9_]+', '_', str(identity['model'] or 'unknown'))
-                name = f"passk_{model}_{hashlib.sha256(encode(identity).encode()).hexdigest()[:10]}"
-                rewards = item.get('rewards', [])
-                solved = sum(isinstance(r, (int, float)) and not isinstance(r, bool) and r == 1 for r in rewards)
-                value = 'pass' if solved else 'fail' if item.get('status') == 'completed' and rewards else 'not_run'
-                put(name, {'settings': identity, 'result': item}, value)
-                row[name + '_solved'] = solved
-                row[name + '_attempts'] = len(rewards)
+            if int(stage) in (6, 7) and item.get('status') != 'skipped':
+                # One column per role: target RL model (6) and strong teacher (7). pass@k is from the final,
+                # resource-valid batch; inconclusive = an unresolved resource or infrastructure problem.
+                name = 'passk_target' if int(stage) == 6 else 'passk_teacher'
+                summary = item.get('calibration') or {}
+                passk = item.get('passk') or {}
+                outcome = passk.get('outcome')
+                value = {'solved': 'pass', 'unsolved': 'fail', 'inconclusive': 'inconclusive'}.get(outcome, 'not_run')
+                put(name, {'details': f"{passk.get('successes', 0)}/{passk.get('k')} with {passk.get('model')}"
+                           + (f"; {summary.get('reason')}" if outcome == 'inconclusive' else '')}, value)
+                row[name + '_solved'] = int(passk.get('successes') or 0)
+                row[name + '_attempts'] = int(passk.get('valid_attempts') or 0)
+                row[name + '_attempt_results'] = encode({
+                    'model': passk.get('model'), 'k': passk.get('k'), 'outcome': outcome,
+                    'final_attempts': summary.get('final_attempts', []), 'rounds': summary.get('rounds', []),
+                    'earlier_attempts': summary.get('earlier_attempts', 0)})
+                # resources: the final per-task requirement. The teacher's calibration, when it ran,
+                # supersedes the target model's; both histories stay in the JSON.
+                previous = json.loads(row.get('resources') or '{}') if isinstance(row.get('resources'), str) else {}
+                role = 'target' if int(stage) == 6 else 'teacher'
+                record = {**previous, 'upstream': summary.get('upstream'),
+                          f'{role}_allocation': summary.get('final_allocation'),
+                          f'{role}_requirements': summary.get('requirements'),
+                          f'{role}_outcome': outcome, f'{role}_rounds': len(summary.get('rounds', []))}
+                if int(stage) == 7 or 'teacher_requirements' not in record:
+                    record['requirements'] = summary.get('requirements')
+                    record['source'] = role
+                row['resources'] = encode(record)
             checks = item.get('checks', [])
             if static and not checks:
                 put('static_input', item)
@@ -383,6 +405,24 @@ JUDGE_FIELDS = ('verdicts', 'details')
 
 def is_judge_cell(value):
     return isinstance(value, dict) and 'verdicts' in value and 'status' not in value
+
+
+def evaluation_column(name, value):
+    """Stage 5-7 columns: judge verdicts, pass@k of both models, resource requirements. Evaluation runs
+    prepare their own task copies (another hash), so these attach to the task's row by task id."""
+    return is_judge_cell(value) or name.startswith('passk_') or name == 'resources'
+
+
+def merge_resources(old, new):
+    """Both models' calibration in one record; the teacher's requirement wins once it exists."""
+    try:
+        old, new = json.loads(old or '{}'), json.loads(new or '{}')
+    except (TypeError, ValueError):
+        return new
+    merged = {**old, **new}
+    if merged.get('teacher_requirements') and new.get('source') == 'target':
+        merged['requirements'], merged['source'] = merged['teacher_requirements'], 'teacher'
+    return encode(merged)
 
 
 def judge_name(model):
@@ -458,7 +498,8 @@ def merge(previous, incoming):
         key = (update['dataset'], update['task_id'])
         judged = {name: value for name, value in update.items() if is_judge_cell(value)}
         update = {name: value for name, value in update.items() if name not in judged}
-        only_judge = bool(judged) and not any(name not in BASE for name in update)
+        evaluation = bool(judged) or any(evaluation_column(n, v) for n, v in update.items())
+        only_judge = evaluation and all(name in BASE or evaluation_column(name, value) for name, value in update.items())
         row = index.get(key)
         if row is None or (row['content_sha256'] != update['content_sha256'] and not only_judge):
             # Results for other task files are not results for these files.
@@ -469,7 +510,14 @@ def merge(previous, incoming):
             index[key] = row
         for name, cell in judged.items():
             row[name] = merge_judge(row.get(name), cell)
+        if update.get('resources') and row.get('resources'):
+            update = dict(update, resources=merge_resources(row['resources'], update['resources']))
         if only_judge:
+            # Keep the row's hash: it identifies the validated task files.
+            update = {k: v for k, v in update.items() if k not in ('content_sha256', 'dataset', 'task_id')}
+            if update.get('details') is not None:
+                update['details'] = encode({**details(row), **details(update)})
+            row.update(update)
             continue
         if update.get('details') is not None:
             update = dict(update, details=encode({**details(row), **details(update)}))

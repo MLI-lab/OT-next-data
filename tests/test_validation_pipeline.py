@@ -229,9 +229,15 @@ def test_batch_schedules_all_tasks_and_accounts_per_task(
             (extra / 'result.json').write_text(json.dumps({'task_name': 'unknown'}))
         return job
     monkeypatch.setattr(runtime, 'execute_job', execute)
+    if number in (6, 7):
+        a.pass_k = 1  # one fake trial per task; calibration rounds are tested in test_passk_stage.py
+        a._teacher_routing = {'routing': {source.name: None, second.name: None}, 'outcomes': {}}
     _, report = stages.run_stage(number, a)
     assert len(captured) == 1 and len(captured[0]['tasks']) == 2
-    if unmatched:
+    if unmatched and number in (6, 7):
+        # A stray trial does not invalidate the calibrated tasks; it is recorded for the run.
+        assert report['unmatched_trials']
+    elif unmatched:
         expected = ['failed' if number == 3 else 'error'] * 2
         assert all(any('unmatched' in finding for finding in item['findings'])
                    for item in report['items'])
@@ -342,7 +348,7 @@ def test_agent_stage_records_run_settings_and_metrics(source, tmp_path, upstream
     with (source / 'task.toml').open('a') as stream:
         stream.write('[agent]\ntimeout_sec=300\n')
     a = args(source.parent, tmp_path)
-    a.dry_run, a.attempts = False, 2
+    a.dry_run, a.pass_k = False, 2
     a.agent = 'terminus-2'  # This test records Terminus's parser and prompt defaults.
     a.agent_kwargs = {'temperature': 0.6, 'max_tokens': 4096, 'max_turns': 40}
     monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
@@ -1460,9 +1466,11 @@ def test_reference_and_nop_run_four_times_including_shuffled_by_default(source, 
     assert a.reference_runs + a.reference_repeat_runs + a.reference_shuffled_runs == 4
     assert a.nop_runs + a.nop_shuffled_runs == 4
     assert (a.reference_shuffled_runs, a.nop_shuffled_runs) == (1, 1)
-    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 1, 3, 1]
-    a = stages.parser().parse_args([str(source.parent), '--reference-runs', '5', '--nop-runs', '2', '--attempts', '8'])
-    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6)] == [1, 5, 2, 8]
+    # Stages 6/7 run --pass-k attempts (default 4); --attempts is for the other agent stages.
+    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6, 7, 10)] == [1, 1, 3, 4, 4, 1]
+    a = stages.parser().parse_args([str(source.parent), '--reference-runs', '5', '--nop-runs', '2', '--attempts', '8',
+                                    '--pass-k', '6'])
+    assert [stages.stage_runs(n, a) for n in (1, 2, 3, 6, 7, 10)] == [1, 5, 2, 6, 6, 8]
 
 
 @pytest.mark.parametrize('number', [1, 2, 3])

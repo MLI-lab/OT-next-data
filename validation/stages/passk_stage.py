@@ -98,6 +98,18 @@ def tool_time(trial):
     return (round(total / count, 2) if count else None), count
 
 
+def trial_result(trial):
+    """The result.json of a trial's evidence directory (the trial directory or one of its parents)."""
+    path = Path(trial)
+    for directory in (path, *path.parents[:3]):
+        if (directory / 'result.json').is_file():
+            try:
+                return json.loads((directory / 'result.json').read_text())
+            except ValueError:
+                return None
+    return None
+
+
 def attempt_record(trial, result, allocation, reward_key='reward'):
     from validation.metrics.passk_completion import passk_reward
     from validation.outcomes import category
@@ -232,7 +244,9 @@ def run(number, selected, out, args, upstream, report, contract, *, start_alloca
             save(job_root / 'job.json', config)
             job_dir = execute(config)
             results = runtime.trial_results(job_dir)
-            grouped, _ = runtime.group_trial_results(results, copies)
+            grouped, unmatched = runtime.group_trial_results(results, copies)
+            if unmatched:
+                report.setdefault('unmatched_trials', []).extend(unmatched)
             for name in names:
                 trials = sorted(grouped.get(name, []), key=lambda pair: str(pair[0]))
                 attempts = [attempt_record(trial, result, allocation, args.reward_key) for trial, result in trials]
@@ -245,6 +259,15 @@ def run(number, selected, out, args, upstream, report, contract, *, start_alloca
             book.save()
     for name, (task, item, state) in tasks.items():
         summary = book.summary(state)
+        final = [(Path(a['trial']), result) for a in summary['final_attempts']
+                 if a.get('trial') and (result := trial_result(a['trial'])) is not None]
+        if summary['outcome'] != 'inconclusive':
+            # The same per-task records as before calibration, from the final batch only.
+            from validation.metrics.passk_completion import assess
+            from validation.metrics.reward_metrics import task_metrics
+            item.update(runtime.assess_trials(final, k, None, args.reward_key, task_path=task))
+            item.update(assess(final, k, args.reward_key))
+            item['metrics'] = task_metrics(final, k, args.reward_key)
         item['calibration'] = summary
         passk = summary['passk'] or {}
         item['rewards'] = [a['reward'] for a in summary['final_attempts']] if summary['outcome'] != 'inconclusive' else []
@@ -255,3 +278,22 @@ def run(number, selected, out, args, upstream, report, contract, *, start_alloca
     report['calibration_policy'] = cal.policy_record(policy)
     report['calibration_state'] = str(book.path)
     return [item for _, item in selected]
+
+
+def resolve_models(args, numbers):
+    """Stage 6 serves --target-model, stage 7 --teacher-model, unless --model/--api-base/--serve-model is given.
+    A job serves one model, so with serving the two stages are separate submissions."""
+    stages = [n for n in numbers if n in (6, 7)]
+    if not stages or getattr(args, 'contract', None):
+        return
+    explicit = getattr(args, 'model', None) or getattr(args, 'api_base', None) or getattr(args, 'serve_model', None)
+    if len(stages) == 2 and not explicit:
+        raise ValueError('stages 6 and 7 serve different models (--target-model, --teacher-model): '
+                         'run them as separate submissions, stage 7 after stage 6')
+    if not explicit:
+        from config.models import model_key, MODELS
+        name = args.target_model if stages[0] == 6 else args.teacher_model
+        key = model_key(name)
+        if key not in MODELS:
+            raise ValueError(f'{name} is not registered in config/models.py; add it or pass --model/--api-base')
+        args.serve_model = key

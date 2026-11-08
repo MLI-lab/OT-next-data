@@ -1,4 +1,4 @@
-"""Stage 5 judges only tasks without a failed check of stages 0-3.
+"""Stages 5 and 6 take only tasks without a failed check of stages 0-3; stage 7 only target-model 0/k tasks.
 
 A task is left out when any stage 0-3 check has status `fail` in the results available
 to the run: this run's `results.parquet`, any `--judge-results` files, and the stages
@@ -48,3 +48,34 @@ def prepare(args, stage_runs):
     args._judge_failed = {'results': [{'path': str(p), 'sha256': hashlib.sha256(Path(p).read_bytes()).hexdigest()} for p in paths],
                           'stages_this_run': sorted(n for n in stage_runs if n <= 3),
                           'failed': failed_by_task(paths, rows)}
+
+
+def teacher_routing(args, stage_runs):
+    """Stage 7 runs only on tasks the target model left at 0/k in a complete, resource-valid batch.
+
+    Each routed task starts from the target model's final (calibrated) allocation. Sources, in order:
+    stage 6 of this run, then this run's results.parquet and any --judge-results files
+    (columns passk_target and resources)."""
+    routing, outcomes = {}, {}
+    if 6 in stage_runs:
+        for item in stage_runs[6][1].get('items', []):
+            summary = item.get('calibration') or {}
+            name = Path(item.get('task', '')).name
+            outcomes[name] = summary.get('outcome') or item.get('status')
+            if summary.get('outcome') == 'unsolved':
+                routing[name] = summary.get('final_allocation')
+    else:
+        import json
+        from validation.run import read
+        paths = [p for p in [Path(args.out) / 'results.parquet', *getattr(args, 'judge_results', [])] if Path(p).is_file()]
+        for row in [r for path in paths for r in read(path)]:
+            name, status = row['task_id'], row.get('passk_target')
+            if status in (None, 'not_requested'):
+                continue
+            outcomes[name] = {'fail': 'unsolved', 'pass': 'solved'}.get(status, status)
+            if status == 'fail':
+                try:
+                    routing[name] = json.loads(row.get('resources') or '{}').get('target_allocation')
+                except ValueError:
+                    routing[name] = None
+    args._teacher_routing = {'routing': routing, 'outcomes': outcomes}
