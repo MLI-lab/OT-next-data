@@ -284,6 +284,9 @@ class ProtectedInstance:
         self.command_generation = 0
         self.commands_cancelled = False
         self.usage = []
+        self.disk = None          # task_disk.Watchdog of this environment's staging directory
+        self.disk_ledger = None
+        self.disk_exceeded = None
 
     def _record_usage(self):
         """Read this step's counters once, before Slurm removes its cgroup."""
@@ -331,6 +334,7 @@ class ProtectedInstance:
             raise RuntimeError('Rejected command submitted before session cancellation')
         if self.stopping.is_set():
             raise RuntimeError('Environment is stopping')
+        self._check_disk()
         if self.commands_cancelled:
             self._recover(time.monotonic() + 180)
             self.commands_cancelled = False
@@ -420,15 +424,54 @@ class ProtectedInstance:
         self.slot.close(self.env_id)
         ipc.cleanup()
 
+    def _reserve_disk(self, payload):
+        """Reserve the task's declared storage on the node before its container starts."""
+        from harbor_patches import task_disk
+        cfg = payload.get('task_env_config') or {}
+        storage = cfg.get('storage_mb')
+        base = getattr(self.inner, 'staging_base', None)
+        if not storage or not base:
+            return
+        self.disk_ledger = task_disk.Ledger(base)
+        with start_wait.waiting(self.env_id, f'{int(storage)} MiB of node disk'):
+            self.disk_ledger.reserve(self.env_id, int(storage) * 2**20,
+                                     wait_sec=float(os.environ.get('OT_TRIAL_STEP_WAIT', '3600')),
+                                     stopped=lambda: self.stopping.is_set() or self.is_abandoned(self.env_id))
+
+    def _watch_disk(self, payload):
+        from harbor_patches import task_disk
+        staging = getattr(self.inner, 'staging_dir', None)
+        if not staging:
+            return
+        cfg = payload.get('task_env_config') or {}
+        limit = int(cfg['storage_mb']) * 2**20 if cfg.get('storage_mb') and cfg.get('storage_limit', True) else None
+
+        def exceeded(used, limit):
+            self.disk_exceeded = task_disk.exceeded_message(used, limit)
+            print(f'[{self.env_id}] {self.disk_exceeded}; stopping the task', flush=True)
+            slot = self.slot
+            if slot is not None:
+                slot.interrupt(self.env_id)
+        self.disk = task_disk.Watchdog(staging, limit, exceeded, self.disk_ledger if self.disk_ledger else None,
+                                       self.env_id)
+        self.disk.start()
+
+    def _check_disk(self):
+        if self.disk_exceeded:
+            raise RuntimeError(self.disk_exceeded)
+
     def start(self, payload):
         with self.lock:
             self.payload = payload
             try:
+                self._reserve_disk(payload)
                 self._new_step()
                 # The real instance start already takes the shared start gate.
                 # Taking it twice here can deadlock concurrent controllers.
                 with active(self), start_wait.starting(self.env_id):
                     result = self.inner.start(payload)
+                self._watch_disk(payload)
+                self._check_disk()
                 if self._oom():
                     raise RuntimeError('Task memory limit exceeded during environment startup')
                 if self.start_command is None:
@@ -477,6 +520,7 @@ class ProtectedInstance:
                 result = self.inner.exec(payload)
             except Exception as exc:
                 error = exc
+            self._check_disk()
             if self._confirmed_exec_oom(result, error):
                 # Only marked terminal interactions may recover. Setup/verifier
                 # OOMs fail their own phase and cannot silently rerun that work.
@@ -541,13 +585,25 @@ class ProtectedInstance:
                 if self.slot:
                     self._close_step()
                     self.slot = None
+                disk, self.disk = self.disk, None
+                if disk is not None:
+                    disk.stop()  # last measurement before the staging tree is removed
                 # A dead executor cannot run upstream stop. Its disk staging
                 # belongs only to this instance and is removed after reaping.
                 staging = getattr(self.inner, 'staging_dir', None)
                 if staging and Path(staging).exists():
                     remove_tree(staging)
+                if self.disk_ledger is not None:
+                    self.disk_ledger.release(self.env_id)
+                    self.disk_ledger = None
             # Measured once per environment; the trial writes it into result.json.
             resources = usage_report(self.usage)
+            if disk is not None:
+                resources = dict(resources or {}, disk_peak_mb=round(disk.peak / 2**20, 1))
+                if disk.limit:
+                    resources['disk_limit_mb'] = round(disk.limit / 2**20, 1)
+                if disk.exceeded is not None:
+                    resources['disk_limit_exceeded'] = True
             if resources and isinstance(result, dict):
                 result = dict(result, resources=resources)
             return result

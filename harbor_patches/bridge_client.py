@@ -261,4 +261,6 @@ def install():
     install_cancellation(bridge, client)
     from harbor_patches.runtime_images import install_client as install_runtime_images
     install_runtime_images(bridge)
+    from harbor_patches.task_disk import install_client as install_task_disk
+    install_task_disk(bridge)
     bridge._reliable_transport = True

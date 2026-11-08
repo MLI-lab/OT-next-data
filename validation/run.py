@@ -135,7 +135,7 @@ STATUSES = {*RESULTS, *NO_RESULT}
 # container memory (largest). Checks evaluated inside another check's container
 # (declared_*, repository_*, verifier_tamper, reference_leaks) add no runs.
 TIMED = ('build', 'reference', 'reference_determinism', 'do_not_modify', 'nop', 'nop_determinism')
-USAGE = ('wall_seconds', 'cpu_seconds', 'memory_peak_mb')
+USAGE = ('wall_seconds', 'cpu_seconds', 'memory_peak_mb', 'disk_peak_mb')
 
 
 def _number(value):
@@ -184,6 +184,7 @@ def usage(name, record):
     environments = [e for _, envs in runs for e in (envs or {}).values() if isinstance(e, dict)]
     cpu = [e['cpu_seconds'] for e in environments if _number(e.get('cpu_seconds'))]
     memory = [e['memory_peak_mb'] for e in environments if _number(e.get('memory_peak_mb'))]
+    disk = [e['disk_peak_mb'] for e in environments if _number(e.get('disk_peak_mb'))]
     out = {}
     if walls:
         out['wall_seconds'] = round(sum(walls), 1)
@@ -191,6 +192,8 @@ def usage(name, record):
         out['cpu_seconds'] = round(sum(cpu), 2)
     if memory:
         out['memory_peak_mb'] = max(memory)
+    if disk:
+        out['disk_peak_mb'] = max(disk)
     return out
 
 
@@ -621,7 +624,7 @@ def write_usage_summary(path, cells):
         for key in USAGE:
             values = [cell[key] for cell in measured if _number(cell.get(key))]
             if values:
-                total[key] = max(values) if key == 'memory_peak_mb' else sum(values)
+                total[key] = max(values) if key in ('memory_peak_mb', 'disk_peak_mb') else sum(values)
         if total:
             totals.append(total)
     overall = {key: stats(values) for key in USAGE if (values := [t[key] for t in totals if key in t])}

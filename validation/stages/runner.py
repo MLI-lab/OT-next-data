@@ -1047,12 +1047,22 @@ def stage_runs(number, args):
 def run_stage(number, args):
     attempts = getattr(args, 'attempts', 1)
     args.attempts = stage_runs(number, args)
+    # Judges inspect tasks rather than solve them: their containers reserve the
+    # task's storage and are measured, but are not stopped at the task's limit.
+    limit = os.environ.get('OT_TASK_STORAGE_LIMIT')
+    if number == 5:
+        os.environ['OT_TASK_STORAGE_LIMIT'] = '0'
     try:
         from validation.stages.judge import credentials
         with credentials(args, number):
             return _run_stage(number, args)
     finally:
         args.attempts = attempts
+        if number == 5:
+            if limit is None:
+                os.environ.pop('OT_TASK_STORAGE_LIMIT', None)
+            else:
+                os.environ['OT_TASK_STORAGE_LIMIT'] = limit
 
 
 def _run_stage(number, args):
