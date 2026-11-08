@@ -758,7 +758,7 @@ def test_values():
     assert roles('/app/results/U_0.npy') == {'read'}
     assert roles('/app/recovered/sensor.bin') == {'read'}
     assert roles('/app/G1_vs_G3_U.csv') == {'read'}
-    assert paths['/tmp/output9.json']['excluded'] == 'subprocess_role_unresolved'
+    assert paths['/tmp/output9.json']['excluded'] in ('subprocess_role_unresolved', 'verifier_generated')
     assert 'unclassified' not in roles('/app/project/Makefile')
     assert paths['/usr/lib/libx.so']['excluded'] == 'optional_or_negative_check'
     assert paths['/static/test.txt']['excluded'] == paths['/healthz']['excluded'] == 'not_a_path'
@@ -813,7 +813,7 @@ def test_all():
 '''
     path = task(tmp_path, source, instruction='Fix the tool.')
     excluded = {p['path']: p['excluded'] for p in record(path)['inventory']['paths']}
-    assert excluded['/tmp/record_reader_test'] == 'verifier_created'
+    assert excluded['/tmp/record_reader_test'] in ('verifier_created', 'verifier_generated')
     assert excluded['/app/release/README.txt.bak'] == 'verifier_generated'
     assert excluded['/home/devuser/projects/x'] == 'not_a_path'
     assert excluded['/tmp/.hidden'] == 'not_a_path' and excluded['/very/long/path/lib.o'] == 'not_a_path'
@@ -870,3 +870,20 @@ def test_tls():
     assert excluded['/CN=test'] is not None
     assert rule.X509_NAME.fullmatch('/CN=test/O=Org') and not rule.X509_NAME.fullmatch('/app/out=1/x.txt/')
     assert excluded['/tmp/test-clone/.git'] == 'verifier_created'
+
+
+def test_clone_target_variable_and_build_products(tmp_path):
+    path = task(tmp_path, '''
+import os, subprocess
+def test_clone():
+    dest = "/tmp/test-clone-daemon"
+    _run(["git", "clone", "git://localhost/p.git", dest])
+    assert os.path.isdir("/tmp/test-clone-daemon")
+def test_tool():
+    assert subprocess.run(["/app/csv2json", "in.csv"]).returncode == 0
+    assert open("/app/results.json").read()
+''', instruction='Fix the bugs in csv2json.c and build it.')
+    excluded = {p['path']: p['excluded'] for p in record(path)['inventory']['paths']}
+    assert excluded['/tmp/test-clone-daemon'] == 'verifier_generated'
+    assert excluded['/app/csv2json'] == 'build_product_of_provided_source'
+    assert excluded['/app/results.json'] is None

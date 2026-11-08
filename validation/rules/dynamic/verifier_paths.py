@@ -421,6 +421,21 @@ def python_paths(text, source, offset=0, context=None, depth=0):
                 elif absolute(command):
                     emit(command, node, guarded_role(command, node, 'execute'))
     records.extend(helper_writes(text, source, offset))
+    # Command lists passed to any helper (_run([...])), with variables resolved:
+    # the outputs they create are the verifier's own files.
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.List, ast.Tuple)) and isinstance(parents.get(node), ast.Call):
+            argv = [resolve(e, constants) for e in node.elts]
+            for i, word in enumerate(argv):
+                target = argv[i + 1] if i + 1 < len(argv) else None
+                if word == '-o' and target:
+                    emit(target, node.elts[i + 1], 'generated')
+                elif word in ('venv', 'clone') and argv[-1] and i < len(argv) - 1:
+                    emit(argv[-1], node.elts[-1], 'generated')
+                elif word == 'mkdir':
+                    for value, element in zip(argv[i + 1:], node.elts[i + 1:]):
+                        if value and not value.startswith('-'):
+                            emit(value, element, 'generated')
     classified = {r['path'] for r in records}
     functions = {}
     for node in ast.walk(tree):
@@ -798,6 +813,12 @@ def produced_by_provided_code(path, text, workdirs):
     return False
 
 
+def build_product(path, stems):
+    name = PurePosixPath(path).name
+    stem = name[:-2] if name.endswith(('.o', '.a')) else name[:-3] if name.endswith('.so') else name
+    return bool(stems) and '.' not in stem.strip('.') and stem in stems or (name.endswith(('.o', '.so', '.a')) and stem in stems)
+
+
 def under_named_directory(path, named, workdirs):
     """A specific directory (at least two levels, not a workdir or home) named in the instruction contains the path."""
     parent = PurePosixPath(path).parent
@@ -904,6 +925,12 @@ def inventory(task, context=None, instruction_view=None):
     verifier_texts = ['\n'.join(lines) for lines in source_lines.values()]
     named_paths = {m.rstrip('/.,:;)') for m in re.findall(r'(?<![\w.-])(/[\w.+-]+(?:/[\w.+*{}-]+)*/?)', instruction)}
     environment_text, workdirs = provided_environment(task)
+    # A binary or object named after a supplied or named source file (csv2json.c -> /app/csv2json).
+    source_stems = {PurePosixPath(m).stem for m in re.findall(r'[\w.+-]+\.(?:c|cc|cpp|cxx|go|rs|f90|f|zig)\b', instruction)}
+    environment_root = task / 'environment'
+    if environment_root.is_dir():
+        source_stems |= {item.stem for item in environment_root.rglob('*')
+                         if item.suffix in ('.c', '.cc', '.cpp', '.cxx', '.go', '.rs', '.f90', '.zig')}
     paths = []
     for path in sorted({r['path'] for r in records}):
         uses = [r for r in records if r['path'] == path]
@@ -943,7 +970,8 @@ def inventory(task, context=None, instruction_view=None):
                   'parent_of_named_path' if (not roles & {'read', 'execute', 'subprocess_input'} and
                                              any(p.startswith(path.rstrip('/') + '/') for p in named_paths)) else
                   'under_named_directory' if under_named_directory(path, named_paths, workdirs) else
-                  'produced_by_provided_code' if produced_by_provided_code(path, environment_text, workdirs) else None)
+                  'produced_by_provided_code' if produced_by_provided_code(path, environment_text, workdirs) else
+                  'build_product_of_provided_source' if build_product(path, source_stems) else None)
         paths.append(dict(path=path, uses=uses, excluded=reason,
                           instruction_match='absolute' if mentioned else 'relative' if relative_mention else None,
                           relative_instruction_mention=relative_mention,
