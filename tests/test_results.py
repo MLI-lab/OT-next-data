@@ -77,8 +77,8 @@ def test_hash_at_execution_is_preserved_and_passk_settings_are_distinct():
             'calibration': {'final_attempts': [], 'rounds': []}}
     target, = results.observations({6: {'items': [item]}}, {'t': 'hash'})
     teacher, = results.observations({7: {'items': [item]}}, {'t': 'hash'})
-    assert (target['passk_target'], target['passk_target_solved'], target['passk_target_attempts']) == ('pass', 1, 2)
-    assert teacher['passk_teacher'] == 'pass' and 'passk_target' not in teacher
+    assert (target['passk_target_outcome'], target['passk_target_successes'], target['passk_target_valid_attempts']) == ('solved', 1, 2)
+    assert teacher['passk_teacher_outcome'] == 'solved' and 'passk_target_outcome' not in teacher
     assert json.loads(target['passk_target_attempt_results'])['model'] == 'm'
 
 

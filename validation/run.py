@@ -313,16 +313,15 @@ def observations(reports, hashes, dataset='', settings=None):
             if int(stage) in (6, 7) and item.get('status') != 'skipped':
                 # One column per role: target RL model (6) and strong teacher (7). pass@k is from the final,
                 # resource-valid batch; inconclusive = an unresolved resource or infrastructure problem.
+                # pass@k is a measurement, not a check: plain values, no pass/fail status.
                 name = 'passk_target' if int(stage) == 6 else 'passk_teacher'
                 summary = item.get('calibration') or {}
                 passk = item.get('passk') or {}
                 outcome = passk.get('outcome')
-                value = {'solved': 'pass', 'unsolved': 'fail', 'inconclusive': 'inconclusive'}.get(outcome, 'not_run')
-                put(name, {'details': f"{passk.get('successes', 0)}/{passk.get('k')} with {passk.get('model')}"
-                           + (f"; {summary.get('reason')}" if outcome == 'inconclusive' else '')}, value)
-                row[name + '_solved'] = int(passk.get('successes') or 0)
-                row[name + '_attempts'] = int(passk.get('valid_attempts') or 0)
-                row[name + '_attempt_results'] = encode({
+                row[name + '_outcome'] = outcome or 'not_run'  # solved / unsolved / inconclusive
+                row[name + '_successes'] = int(passk.get('successes') or 0)
+                row[name + '_valid_attempts'] = int(passk.get('valid_attempts') or 0)
+                row[name + '_attempt_results'] = encode({'reason': summary.get('reason') if outcome == 'inconclusive' else None,
                     'model': passk.get('model'), 'k': passk.get('k'), 'outcome': outcome,
                     'final_attempts': summary.get('final_attempts', []), 'rounds': summary.get('rounds', []),
                     'earlier_attempts': summary.get('earlier_attempts', 0)})
@@ -632,7 +631,7 @@ def write(path, rows):
     names = sorted({k for r in out for k in r} | {'dataset', 'task_id', 'content_sha256'})
     checks = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'status' in v}
     judged = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'verdicts' in v}
-    integers = {n for n in names if n.endswith(('_solved', '_attempts')) or n in ('cpus', 'memory_mb')}
+    integers = {n for n in names if n.endswith(('_solved', '_attempts', '_successes', '_valid_attempts')) or n in ('cpus', 'memory_mb')}
     def kind(name):
         if name in judged:
             reviews = pa.map_(pa.string(), pa.list_(pa.string()))

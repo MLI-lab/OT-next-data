@@ -105,7 +105,7 @@ def check_phase(name):
 RESULTS = ('pass', 'fail', 'warning')
 # A check without a result has its reason as its status.
 NO_RESULT = ('not_requested', 'not_applicable', 'blocked', 'infrastructure_error', 'timeout', 'oom',
-             'execution_error', 'unknown', 'inconclusive')
+             'execution_error', 'unknown')
 SKIPPED = {'not_requested': 'not_requested', 'not_applicable': 'not_applicable',
            'blocked_by_previous_check': 'blocked'}
 

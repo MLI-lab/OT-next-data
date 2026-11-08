@@ -55,7 +55,7 @@ def teacher_routing(args, stage_runs):
 
     Each routed task starts from the target model's final (calibrated) allocation. Sources, in order:
     stage 6 of this run, then this run's results.parquet and any --judge-results files
-    (columns passk_target and resources)."""
+    (columns passk_target_outcome and resources)."""
     routing, outcomes = {}, {}
     if 6 in stage_runs:
         for item in stage_runs[6][1].get('items', []):
@@ -69,11 +69,11 @@ def teacher_routing(args, stage_runs):
         from validation.run import read
         paths = [p for p in [Path(args.out) / 'results.parquet', *getattr(args, 'judge_results', [])] if Path(p).is_file()]
         for row in [r for path in paths for r in read(path)]:
-            name, status = row['task_id'], row.get('passk_target')
-            if status in (None, 'not_requested'):
+            name, outcome = row['task_id'], row.get('passk_target_outcome')
+            if outcome in (None, 'not_run'):
                 continue
-            outcomes[name] = {'fail': 'unsolved', 'pass': 'solved'}.get(status, status)
-            if status == 'fail':
+            outcomes[name] = outcome
+            if outcome == 'unsolved' and row.get('passk_target_valid_attempts'):
                 try:
                     routing[name] = json.loads(row.get('resources') or '{}').get('target_allocation')
                 except ValueError:

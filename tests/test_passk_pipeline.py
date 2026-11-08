@@ -36,10 +36,11 @@ def test_target_and_teacher_columns_and_merged_resources(tmp_path):
                                  {'task': '/tasks/skipped', 'status': 'skipped', 'reason': 'not evaluated: failed nop'}]}
     results.export_report(path, six, {'a': 'h6', 'b': 'h6', 'c': 'h6', 'skipped': 'h6'}, dataset='d')
     rows = {r['task_id']: r for r in results.read(path)}
-    assert (rows['a']['passk_target'], rows['b']['passk_target'], rows['c']['passk_target']) == ('pass', 'fail', 'inconclusive')
-    assert (rows['a']['passk_target_solved'], rows['a']['passk_target_attempts']) == (2, 4)
+    assert [rows[t]['passk_target_outcome'] for t in 'abc'] == ['solved', 'unsolved', 'inconclusive']
+    assert (rows['a']['passk_target_successes'], rows['a']['passk_target_valid_attempts']) == (2, 4)
+    assert not any(k in rows['a'] for k in ('passk_target', 'passk_teacher'))  # no pass/fail status cell
     assert rows['a']['content_sha256'] == 'validated' and rows['a']['nop'] == 'pass'  # attached, not replaced
-    assert 'passk_target' not in rows.get('skipped', {}) or rows['skipped']['passk_target'] == 'not_requested'
+    assert 'skipped' not in rows  # skipped tasks get no pass@k values
     attempts = json.loads(rows['a']['passk_target_attempt_results'])
     assert attempts['k'] == 4 and len(attempts['final_attempts']) == 4
     # The teacher's calibration supersedes the target model's requirement; both histories stay.
@@ -48,7 +49,7 @@ def test_target_and_teacher_columns_and_merged_resources(tmp_path):
     results.export_report(path, seven, {'b': 'h7'}, dataset='d')
     b = {r['task_id']: r for r in results.read(path)}['b']
     resources = json.loads(b['resources'])
-    assert b['passk_teacher'] == 'pass' and b['passk_target'] == 'fail'
+    assert b['passk_teacher_outcome'] == 'solved' and b['passk_target_outcome'] == 'unsolved'
     assert resources['requirements'] == {'cpus': 4, 'memory_mb': 4096, 'storage_mb': 10240} and resources['source'] == 'teacher'
     assert resources['target_allocation'] == BASE and resources['teacher_allocation'] == teacher_alloc
     # A later target-model export does not take the requirement back from the teacher.
