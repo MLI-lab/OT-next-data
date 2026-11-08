@@ -12,7 +12,7 @@ from validation.publishing.outcome_labels import execution_label
 # The task exceeded its own task.toml memory or storage while it started or ran
 # its setup. Under Docker the build would fail the same way: the task's failure,
 # not an infrastructure error, so retries do not turn it into "no verdict".
-TASK_LIMIT = ('Task disk limit exceeded', 'Task memory limit exceeded')
+from validation.outcomes import TASK_LIMITS as TASK_LIMIT
 from validation.stages import harbor as runtime
 
 
@@ -66,11 +66,20 @@ def save_preparation_review(sources, items, out):
     }, indent=2) + '\n')
 
 
+def task_limit(result):
+    """The message of a task.toml memory/storage limit the build or setup exceeded, if any."""
+    text = json.dumps(result, default=str)
+    for limit in TASK_LIMIT:
+        start = text.find(limit)
+        if start >= 0:
+            return text[start:].split('"')[0].split('\\n')[0][:300]
+    return None
+
+
 def failure_cause(result):
     """Infrastructure (node, bridge, disk) or the task's own build/start."""
     # The limit message is the environment's own start/setup error, not the item's reason.
-    text = json.dumps(result, default=str)
-    if any(limit in text for limit in TASK_LIMIT):
+    if task_limit(result):
         return 'build-execution-error'
     return execution_label(result) or 'build-execution-error'
 
@@ -263,6 +272,10 @@ async def run_builds(sources, out, args, outcomes):
         if len(history) > 1:
             stability = build_stability(history)
             item.update(build_attempts=history, build_stability=stability, build_retry_summary=retry_summary(history))
+            limit = next((m for r in history for m in [task_limit(r)] if m), None)
+            if stability == 'task_failure' and limit:
+                # Exceeding the task's own memory or storage is a failed build with a verdict.
+                item.update(status='failed', build_status='failed', reason=limit)
             if stability != 'task_failure':  # keeps the first attempt's status and reason
                 item.update(status={'recovered': 'passed', 'unstable_build': 'failed'}.get(stability, 'error'),
                             reason={'recovered': f'infrastructure failure, then the build passed on retry {len(history) - 1}',

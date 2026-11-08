@@ -14,6 +14,7 @@ TIMEOUT = re.compile(r'\b\w*TimeoutError\b|timed out|deadline exceeded|time limi
                      r'waited \d+ s for a worker or Slurm step', re.I)
 OOM = re.compile(r'\b\w*OutOfMemoryError\b|\bMemoryError\b|out.of.memory|\boom[_ -]?kill(?:ed)?\b|'
                  r'\bOOM\b|cannot allocate memory|task_memory_limit', re.I)
+TASK_LIMITS = ('Task disk limit exceeded', 'Task memory limit exceeded', 'File size limit exceeded')
 CRASH = re.compile(r'\bexception\b|\b\w+Error\b|Traceback|segmentation fault|verifier.*crash', re.I)
 MISSING = re.compile(r'missing (?:numeric )?reward|no (?:valid )?reward|wrote no reward|'
                      r'no (?:valid )?result|did not produce a result|trials, found', re.I)
@@ -43,6 +44,9 @@ def category(record, verdict='not_run', phase='unknown'):
         return None
     if phase == 'checker' and verdict == 'fail' and status in ('failed', 'fail', 'flagged', 'findings'):
         return None  # A checker finding may describe an error in the task's code.
+    if (verdict == 'fail' and record.get('build_stability') == 'task_failure'
+            and any(limit in text or limit in json.dumps(record, default=str) for limit in TASK_LIMITS)):
+        return None  # the build failed because the task exceeded its own task.toml limits: a verdict
     if 'Task disk limit exceeded' in text:
         return found('execution_error', 'disk_limit_exceeded')
     if status in ('oom', 'out_of_memory') or record.get('oom_killed') is True or OOM.search(text):

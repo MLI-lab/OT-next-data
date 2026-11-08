@@ -237,3 +237,21 @@ def test_missing_reference_is_not_applicable_even_after_build_failure(tmp_path):
     assert items[0]['status'] == items[0]['listing_order']['status'] == 'not_applicable'
     selected, skipped = build_retries.partition_builds([source], args)
     assert not selected and skipped[0]['blocked_by_stage'] == 1
+
+
+@pytest.mark.parametrize('error', [
+    'Bridge job j-1 failed: Task disk limit exceeded: the task wrote 1088 MiB, its task.toml storage is 1024 MiB',
+    'Task setup exited 153: line 5: 285 File size limit exceeded dd if=/dev/zero of=/var/tmp/x',
+    'Bridge job j-2 failed: Task memory limit exceeded during environment startup'])
+def test_exceeding_declared_limits_is_a_failed_build_with_a_verdict(tmp_path, monkeypatch, error):
+    from validation import run
+    async def build(task, out, args):
+        return {'status': 'error', 'environments': [{'environment': 'agent', 'status': 'error', 'error': error}]}
+    monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
+    monkeypatch.setattr(build_retries.runtime, 'build_task', build)
+    args = SimpleNamespace(concurrency=1, backend='apptainer', outcome_retries=3)
+    item = asyncio.run(build_retries.run_builds([tmp_path / 'heavy'], tmp_path / 'out', args, StringIO()))[0]
+    assert (item['status'], item['build_status'], item['build_stability']) == ('failed', 'failed', 'task_failure')
+    assert error.split(': ', 1)[-1][:20] in item['reason'] or 'limit exceeded' in item['reason']
+    row, = run.observations({1: {'items': [dict(item, task=str(tmp_path / 'heavy'))]}}, {'heavy': 'h'})
+    assert row['build'] == 'fail'
