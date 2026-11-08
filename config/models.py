@@ -74,6 +74,17 @@ MODELS = {
         gpus=4, thinking=True, weights_gb=245, reasoning_parser='qwen3', tool_call_parser='qwen3_coder',
         sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20},
         extra_args=['--language-model-only']),
+    # Target RL model for the pass@k stage (6). Model card (2026-11-08): thinking on by default,
+    # 262,144-token native context, vLLM --reasoning-parser qwen3 --tool-call-parser qwen3_coder,
+    # --language-model-only for text use. Sampling is the card's "thinking mode for precise coding
+    # tasks" (agentic coding); its general thinking setting uses temperature 1.0, presence 1.5.
+    'qwen35-35b-a3b': Model(
+        name='Qwen3.5-35B-A3B', hf_repo='Qwen/Qwen3.5-35B-A3B',
+        gpus=1, thinking=True, weights_gb=72, reasoning_parser='qwen3', tool_call_parser='qwen3_coder',
+        context=262144, max_output_tokens=65536,
+        sampling={'temperature': 0.6, 'top_p': 0.95, 'top_k': 20, 'min_p': 0.0,
+                  'presence_penalty': 0.0, 'repetition_penalty': 1.0},
+        extra_args=['--language-model-only']),
     # Multi-node teacher that this runtime can actually serve: Qwen3MoeForCausalLM
     # is long supported, and 482 GB of FP8 weights need two of Helma's nodes.
     'qwen3-coder-480b-fp8': Model(

@@ -40,7 +40,7 @@ def freeze(args, numbers):
     if resolved is None:
         resolved = args.resolved_review_pricing = {}
     for number in numbers:
-        if number not in (5, 8) or str(number) in resolved:
+        if number not in (5, 9) or str(number) in resolved:
             continue
         if explicit is not None:
             resolved[str(number)] = {'rates': deepcopy(explicit), 'source': {'basis': 'user_supplied'}}

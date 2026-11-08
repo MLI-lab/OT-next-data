@@ -84,9 +84,9 @@ def test_analysis_stages_local_evidence_and_upstream_schema(source, tmp_path, up
     assert Task(out).config.artifacts[0].destination == 'analysis.json'
 
 
-@pytest.mark.parametrize('number', [0, 1, 2, 3, 5, 6, 9, 10])
+@pytest.mark.parametrize('number', [0, 1, 2, 3, 5, 6, 7, 10, 11])
 def test_stage_previews_and_real_harbor_config_schema(number, source, tmp_path, upstream):
-    if number == 10 and not (ROOT / 'external/harden-v0/.git').exists():
+    if number == 11 and not (ROOT / 'external/harden-v0/.git').exists():
         pytest.skip('harden checkout required')
     options = args(source, tmp_path)
     path, report = stages.run_stage(number, options)
@@ -99,7 +99,7 @@ def test_stage_previews_and_real_harbor_config_schema(number, source, tmp_path, 
         assert config.environment.type.value == 'apptainer'
         if number in (2, 3):
             assert config.agents[0].name == ('oracle' if number == 2 else 'nop')
-    if number == 10:
+    if number == 11:
         cmd = json.loads(next(path.parent.rglob('command.json')).read_text())
         assert cmd[cmd.index('--hacker-model') + 1] == 'test/model'
         config = JobConfig.model_validate_json(next(path.parent.rglob('harbor.json')).read_text())
@@ -182,18 +182,18 @@ def test_all_pipeline_continues_and_analyzes_both_job_types(source, tmp_path, mo
         if number == 5:
             raise RuntimeError('evaluator unavailable')
         return tmp_path / 'stage.json', {'has_findings': False,
-            'items': [{'job_dir': str(tmp_path / f'job-{number}')}] if number in (6, 9) else []}
+            'items': [{'job_dir': str(tmp_path / f'job-{number}')}] if number in (6, 7, 10) else []}
     monkeypatch.setattr(run, 'run_stage', fake)
     options = args(source, tmp_path)
     options.dry_run = False
-    assert run.run_selected(options, [1, 2, 3, 4, 5, 6, 9, 7, 8, 10]) == 1
-    assert [n for n, _ in calls] == [1, 2, 3, 4, 5, 6, 9, 7, 7, 8, 8, 10]
-    assert [p.name for n, p in calls if n == 8] == ['job-6', 'job-9']
+    assert run.run_selected(options, [1, 2, 3, 4, 5, 6, 7, 10, 8, 9, 11]) == 1
+    assert [n for n, _ in calls] == [1, 2, 3, 4, 5, 6, 7, 10, 8, 8, 8, 9, 9, 9, 11]
+    assert [p.name for n, p in calls if n == 9] == ['job-6', 'job-7', 'job-10']
 
 
 @pytest.mark.parametrize('number,expected', [
     (2, ['failed', 'passed']), (3, ['passed', 'failed']),
-    (6, ['completed', 'completed']), (9, ['completed', 'completed']),
+    (6, ['completed', 'completed']), (7, ['completed', 'completed']), (10, ['completed', 'completed']),
 ])
 @pytest.mark.parametrize('unmatched', [False, True])
 def test_batch_schedules_all_tasks_and_accounts_per_task(
@@ -328,7 +328,7 @@ def test_trace_metrics_stage_needs_no_model(source, tmp_path, upstream):
     (tmp_path / 'stage6/agent-run.json').write_text(json.dumps({'limits': {'context_tokens': 1024}}))
     a = args(source.parent, tmp_path)
     a.trials = trial.parent
-    path, report = stages.run_stage(7, a)
+    path, report = stages.run_stage(8, a)
     metrics = report['trace_metrics']
     assert report['items'] == [{'task': str(source), 'trajectories': 1, 'status': 'completed'}]
     assert json.loads((path.parent / 'trace-metrics.json').read_text())['all_tasks']['solved'] == 1
@@ -711,7 +711,7 @@ def test_review_defaults_match_pinned_upstream_and_are_frozen(source, tmp_path, 
     from validation import contract
     defaults = yaml.safe_load((upstream / '.github/harbor-run-defaults.yml').read_text())
     a = stages.parser().parse_args([str(source), '--dry-run'])
-    frozen = contract.create(a, [5, 8], tmp_path / 'judges.json')
+    frozen = contract.create(a, [5, 9], tmp_path / 'judges.json')
     assert a.review_model == defaults['review_model']
     assert a.analysis_model == defaults['analyze_model']
     assert a.review_agent == defaults['review_agent']
@@ -726,7 +726,7 @@ def test_judge_overrides_and_static_runs_need_no_review_model(source):
     assert a.review_model is None and a.analysis_model is None
     a = stages.parser().parse_args([str(source), '--review-model', 'custom/review',
                                    '--analysis-model', 'custom/analysis'])
-    stages.resolve_review_defaults(a, [5, 8])
+    stages.resolve_review_defaults(a, [5, 9])
     assert a.review_model == 'custom/review' and a.analysis_model == 'custom/analysis'
 
 

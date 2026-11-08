@@ -584,7 +584,7 @@ def main(request):
                                persist=lambda: save(request.parent / 'execution.json', status))
             critical_services = list(processes)
             try:
-                # Sampled for stage 7's inference resource use; optional.
+                # Sampled for stage 8's inference resource use; optional.
                 start(['nvidia-smi', '--query-gpu=index,memory.used,memory.total,utilization.gpu',
                        '--format=csv,noheader,nounits', '-l', '10'], 'gpu-usage')
             except OSError as exc:

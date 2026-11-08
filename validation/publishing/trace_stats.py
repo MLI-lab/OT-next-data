@@ -1,7 +1,7 @@
 """Trajectory statistics for a published v2 folder, computed from its trace Parquets.
 
 Writes the `trace_stats/` folder: README.md, data/{summary.json, provenance.json,
-per_attempt.parquet, per_task.parquet} and plots/. Metrics come from stage 7
+per_attempt.parquet, per_task.parquet} and plots/. Metrics come from stage 8
 (validation.metrics.trace_metrics) and plots from the report exporter
 (validation.publishing.plot_results); this module only feeds them the stored
 trajectories, one attempt at a time.
@@ -77,7 +77,7 @@ def metrics(row, scratch):
 
 
 def write_plots(groups, plots, scratch):
-    """Run the report exporter on one stage-7 report per model and on all models together."""
+    """Run the report exporter on one stage-8 report per model and on all models together."""
     written = {}
     for name, rows in groups.items():
         report = Path(scratch) / f'{name}.json'

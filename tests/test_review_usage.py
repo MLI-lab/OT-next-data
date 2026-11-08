@@ -189,12 +189,12 @@ def test_analysis_gets_its_own_price_and_repricing_updates_provenance(tmp_path):
     options = parser().parse_args(['--review-model', 'together_ai/zai-org/GLM-5.3',
                                   '--analysis-model', 'together_ai/openai/gpt-oss-120b'])
     assert for_stage(options, 5)['rates']['input'] == 1.4
-    resolved = for_stage(options, 8)
+    resolved = for_stage(options, 9)
     assert resolved['rates']['input'] == 0.15
     collected = usage.collect([(tmp_path, result())], 'terminus-2', options.analysis_model,
                               resolved['rates'], pricing_source=resolved['source'])
     assert collected['trials'][0]['pricing_source']['basis'] == 'reference_api_equivalent'
-    report = usage.reprice({'stage_layout': 'environment-first-v3', 'stage': 8, 'items': [{'task': 't', 'usage': collected}]}, {'input': 1, 'output': 1})
+    report = usage.reprice({'stage_layout': 'environment-first-v4', 'stage': 9, 'items': [{'task': 't', 'usage': collected}]}, {'input': 1, 'output': 1})
     assert report['items'][0]['usage']['trials'][0]['pricing_source'] == {'basis': 'user_supplied'}
 
 

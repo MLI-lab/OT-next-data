@@ -15,11 +15,11 @@ from validation.stages.runner import parser, run_stage, save
 
 def main():
     ap = parser()
-    ap.add_argument('--stages', default='1', help='comma-separated stage numbers (0-3, 5-10), or all (default: 1)')
+    ap.add_argument('--stages', default='1', help='comma-separated stage numbers (0-3, 5-11), or all (default: 1)')
     args = ap.parse_args()
     from validation.stages.layout import NAMES
     try:
-        numbers = [0, 1, 2, 3, 5, 6, 9, 7, 8, 10] if args.stages == 'all' else [int(n) for n in args.stages.split(',')]
+        numbers = [0, 1, 2, 3, 5, 6, 7, 10, 8, 9, 11] if args.stages == 'all' else [int(n) for n in args.stages.split(',')]
         if not numbers or any(n not in NAMES for n in numbers) or len(set(numbers)) != len(numbers):
             raise ValueError('choose unique stages from ' + ', '.join(map(str, sorted(NAMES)))
                              + ' (static checks are stage 0 since layout v3)')
@@ -55,11 +55,11 @@ def run_selected(args, numbers):
     for number in numbers:
         # With all, review both ordinary and adversarial trajectories. An explicit
         # --trials remains authoritative for a standalone analysis selection.
-        jobs = analysis_jobs if number in (7, 8) and not given_trials else [given_trials]
-        if number in (7, 8) and not jobs:
+        jobs = analysis_jobs if number in (8, 9) and not given_trials else [given_trials]
+        if number in (8, 9) and not jobs:
             report['stages'].append({'stage': number, 'status': 'skipped', 'reason': 'no trial jobs available for analysis'})
         for job in jobs:
-            if number in (7, 8):
+            if number in (8, 9):
                 args.trials = Path(job) if job else None
             try:
                 if number == 5 and not args.dry_run:
@@ -72,7 +72,7 @@ def run_selected(args, numbers):
                 if number == 1 and not args.dry_run:
                     args._build_failures = {i['task']: {'report': str(path), 'reason': i.get('reason', 'build validation failed')}
                                             for i in result['items'] if i.get('build_status', i['status']) != 'passed'}
-                if number in (6, 9):
+                if number in (6, 7, 10):
                     analysis_jobs.extend(i['job_dir'] for i in result['items'] if i.get('job_dir') and i['job_dir'] not in analysis_jobs)
             except Exception as exc:
                 report['stages'].append({'stage': number, 'status': 'error', 'reason': str(exc)})
@@ -293,8 +293,8 @@ def observations(reports, hashes, dataset='', settings=None):
                     # no overall review status (results format 4).
                     row.update(judge_cells(report, item, digest, criteria))
                 name = {1: 'build', 2: 'reference', 3: 'nop',
-                        7: 'trace_metrics', 8: 'trajectory_review', 9: 'adversarial',
-                        10: 'repair_loop'}.get(int(stage))
+                        8: 'trace_metrics', 9: 'trajectory_review', 10: 'adversarial',
+                        11: 'repair_loop'}.get(int(stage))
                 if name:
                     value = (status(item['normal_baseline_status'])
                              if 'normal_baseline_status' in item else None)
@@ -306,7 +306,7 @@ def observations(reports, hashes, dataset='', settings=None):
                     if int(stage) in (2, 3) and item.get('rewards') == []:
                         value = 'not_run'
                     put(name, item, value)
-            if int(stage) == 6:
+            if int(stage) in (6, 7):
                 identity = {k: settings.get(k) for k in ('model', 'agent', 'agent_kwargs', 'attempts')}
                 model = re.sub(r'[^a-zA-Z0-9_]+', '_', str(identity['model'] or 'unknown'))
                 name = f"passk_{model}_{hashlib.sha256(encode(identity).encode()).hexdigest()[:10]}"

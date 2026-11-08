@@ -9,7 +9,7 @@ from validation.metrics.reward_metrics import pass_at_k
 
 def test_current_metrics_include_unsolved_attempts_and_omit_unavailable_k(tmp_path):
     path = tmp_path / 'stage6.json'
-    path.write_text(json.dumps({'stage_layout': 'environment-first-v3', 'stage': 6, 'complete': True, 'items': [
+    path.write_text(json.dumps({'stage_layout': 'environment-first-v4', 'stage': 6, 'complete': True, 'items': [
         {'task': 'source-code-1', 'metrics': {'attempts': 4, 'solved': 2}},
         {'task': 'source-code-2', 'metrics': {'attempts': 1, 'solved': 0}}]}))
     assert rates(path, [1, 4]) == {'code': {1: .25}, 'All tasks': {1: .25}}
@@ -21,7 +21,7 @@ def test_current_metrics_include_unsolved_attempts_and_omit_unavailable_k(tmp_pa
 
 def test_missing_task_metrics_are_not_silently_dropped(tmp_path):
     path = tmp_path / 'stage6.json'
-    path.write_text(json.dumps({'stage_layout': 'environment-first-v3', 'stage': 6, 'complete': True, 'items': [{'task': 'missing'}]}))
+    path.write_text(json.dumps({'stage_layout': 'environment-first-v4', 'stage': 6, 'complete': True, 'items': [{'task': 'missing'}]}))
     with pytest.raises(ValueError, match='missing attempt metrics'):
         rates(path, [1])
 
@@ -29,7 +29,7 @@ def test_missing_task_metrics_are_not_silently_dropped(tmp_path):
 def test_solved_count_distribution_keeps_attempt_budgets_separate(tmp_path):
     from validation.publishing.plot_results import solved_counts
     path = tmp_path / 'stage6.json'
-    path.write_text(json.dumps({'stage_layout': 'environment-first-v3', 'stage': 6, 'complete': True, 'items': [
+    path.write_text(json.dumps({'stage_layout': 'environment-first-v4', 'stage': 6, 'complete': True, 'items': [
         {'task': 'a', 'metrics': {'attempts': 4, 'solved': 0}},
         {'task': 'b', 'metrics': {'attempts': 4, 'solved': 2}},
         {'task': 'c', 'metrics': {'attempts': 4, 'solved': 2}},
@@ -40,7 +40,7 @@ def test_solved_count_distribution_keeps_attempt_budgets_separate(tmp_path):
 def archived_teacher_report(tmp_path, items):
     import io
     import tarfile
-    stage = {'stage_layout': 'environment-first-v3', 'stage': 6, 'name': 'agent_trials', 'complete': True, 'items': items}
+    stage = {'stage_layout': 'environment-first-v4', 'stage': 6, 'name': 'agent_trials', 'complete': True, 'items': items}
     archive = tmp_path / 'evidence.tar.gz'
     payload = json.dumps(stage).encode()
     with tarfile.open(archive, 'w:gz') as tar:
@@ -95,12 +95,12 @@ def test_report_automatically_plots_trace_metrics_without_filling_missing_values
         {'turns': 8, 'input_tokens': None, 'termination': 'task_timeout', 'errors': {'verifier': ['failure']}},
         {'turns': None, 'termination': 'error', 'errors': {'verifier': ['failure']}}],
         'all_tasks': {}, 'families': {}, 'model_server_requests': None, 'inference_resources': {}}
-    stage = {'stage_layout': 'environment-first-v3', 'stage': 7, 'name': 'trace_metrics', 'complete': True,
+    stage = {'stage_layout': 'environment-first-v4', 'stage': 8, 'name': 'trace_metrics', 'complete': True,
              'items': [{'task': 'sample', 'status': 'completed'}], 'trace_metrics': metrics}
     archive = tmp_path / 'evidence.tar.gz'
     with tarfile.open(archive, 'w:gz') as tar:
         payload = json.dumps(stage).encode()
-        member = tarfile.TarInfo('results/stage_7_trace_metrics/run/summary.json')
+        member = tarfile.TarInfo('results/stage_8_trace_metrics/run/summary.json')
         member.size = len(payload)
         tar.addfile(member, io.BytesIO(payload))
     out = tmp_path / 'report'

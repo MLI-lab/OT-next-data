@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select reproducible stage-5 tasks or stage-8 trajectories from stage-7 metrics."""
+"""Select reproducible stage-5 tasks or stage-9 trajectories from stage-8 metrics."""
 from __future__ import annotations
 
 from validation.stages.layout import LAYOUT
@@ -108,7 +108,7 @@ def build_candidates(tasks, metrics, stage, mapping, from_id):
                   'ungraded_attempts': sum(r.get('reward') is None for r in rows)}
         if stage == 5:
             turns = [r['turns'] for r in rows if r.get('turns') is not None]
-            # Same mean as stage 7; recomputing also supports older reports.
+            # Same mean as stage 8; recomputing also supports older reports.
             candidates.append({**common, 'id': task.name,
                 'length': sum(turns) / len(turns) if turns else None,
                 'distribution': mean_distribution(r.get('command_profile') for r in rows)})
@@ -133,7 +133,7 @@ def sample(candidates, size, stage, seed=0):
                 or not math.isclose(sum(distribution.values()), 1.0)):
             raise ValueError(f"missing or invalid command distribution for {row['id']}")
     rng = random.Random(seed)
-    fields = ['reward_group', 'length_bucket', 'family'] + (['termination'] if stage == 8 else [])
+    fields = ['reward_group', 'length_bucket', 'family'] + (['termination'] if stage == 9 else [])
     leaves = []
 
     def allocate(rows, count, depth, path):
@@ -198,10 +198,10 @@ def match_trial(row, indexed):
 def parser():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('tasks', type=Path, help='materialized task directory, or dataset/tasks')
-    ap.add_argument('--trace-metrics', type=Path, required=True, help='stage-7 trace-metrics.json (or full stage-7 report)')
-    ap.add_argument('--stage', type=int, choices=(5, 8), required=True)
-    ap.add_argument('--size', type=int, required=True, help='maximum tasks (stage 5) or trajectories (stage 8)')
-    ap.add_argument('--trials', type=Path, help='original Harbor job directory; required for stage 8')
+    ap.add_argument('--trace-metrics', type=Path, required=True, help='stage-8 trace-metrics.json (or full stage-8 report)')
+    ap.add_argument('--stage', type=int, choices=(5, 9), required=True)
+    ap.add_argument('--size', type=int, required=True, help='maximum tasks (stage 5) or trajectories (stage 9)')
+    ap.add_argument('--trials', type=Path, help='original Harbor job directory; required for stage 9')
     ap.add_argument('--families', type=Path, help='JSON object mapping task IDs to language/family names')
     ap.add_argument('--family-from-id', action='store_true', help='explicitly enable <dataset>-<family>-<number> ID convention')
     ap.add_argument('--seed', type=int, default=0)
@@ -212,8 +212,8 @@ def parser():
 def create(args):
     if args.size < 1:
         raise ValueError('--size must be positive')
-    if args.stage == 8 and not args.trials:
-        raise ValueError('stage 8 requires --trials to copy the selected evidence')
+    if args.stage == 9 and not args.trials:
+        raise ValueError('stage 9 requires --trials to copy the selected evidence')
     out = args.out.resolve()
     if out.exists():
         raise ValueError(f'output already exists: {out}')
@@ -228,16 +228,16 @@ def create(args):
     metrics = json.loads(raw)
     metrics = metrics.get('trace_metrics', metrics)
     if not isinstance(metrics, dict) or not isinstance(metrics.get('trajectories'), list):
-        raise ValueError('--trace-metrics must contain a stage-7 trajectories list')
+        raise ValueError('--trace-metrics must contain a stage-8 trajectories list')
     indexed = load_trials(args.trials.resolve()) if args.trials else {}
     relevant = [r for r in metrics['trajectories'] if r['task'] in sources]
     for row in relevant:
         if sampling_distribution(row.get('command_profile')) is None:
-            raise ValueError(f"missing usable command distribution for {row['trial']}; regenerate stage-7 metrics")
-        if args.stage == 8:
+            raise ValueError(f"missing usable command distribution for {row['trial']}; regenerate stage-8 metrics")
+        if args.stage == 9:
             _, result = match_trial(row, indexed)
             if row.get('reward') != trial_reward(result, metrics.get('reward_key', 'reward')):
-                raise ValueError(f"reward mismatch for {row['trial']}; regenerate stage-7 metrics from these trials")
+                raise ValueError(f"reward mismatch for {row['trial']}; regenerate stage-8 metrics from these trials")
     mapping = json.loads(args.families.read_text()) if args.families else {}
     if not isinstance(mapping, dict):
         raise ValueError('--families must be a JSON object mapping task IDs to strings')
@@ -278,7 +278,7 @@ def create(args):
     try:
         for name in sorted({r['task'] for r in selected}):
             shutil.copytree(sources[name], scratch / 'tasks' / name)
-        if args.stage == 8:
+        if args.stage == 9:
             for row in selected:
                 path, result = match_trial(row, indexed)
                 destination = scratch / 'trials' / row['trial']

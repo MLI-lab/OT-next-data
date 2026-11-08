@@ -120,7 +120,7 @@ def inventory(source, limit=None, task_id_range=None, references=None, suffixes=
 
 # Directory names the job's code copy leaves out (hpc.validation_submit.snapshot_code).
 UNSNAPSHOTTED = {'__pycache__', 'results', 'runs'}
-REVIEW_STAGES, MODEL_STAGES = {5, 8}, {5, 6, 8, 9, 10}
+REVIEW_STAGES, MODEL_STAGES = {5, 9}, {5, 6, 7, 9, 10, 11}
 
 
 def implementation(root=ROOT, stages=None):
@@ -314,11 +314,11 @@ def create(args, numbers, destination):
     from validation.stages.runner import check_args, resolve_review_defaults
     check_args(args)
     resolve_review_defaults(args, numbers)
-    if any(n in (5, 8) for n in numbers) and not args.review_model:
+    if any(n in (5, 9) for n in numbers) and not args.review_model:
         raise ValueError('review stages need --review-model in the contract')
-    if any(n in (6, 9, 10) for n in numbers) and getattr(args, 'judge_mode', None) == 'serve' and not args.model:
+    if any(n in (6, 7, 10, 11) for n in numbers) and getattr(args, 'judge_mode', None) == 'serve' and not args.model:
         raise ValueError('provide --model for solver stages; --judge-model selects only the judge')
-    if any(n in (6, 9, 10) for n in numbers) and not (args.model or args.serve_model):
+    if any(n in (6, 7, 10, 11) for n in numbers) and not (args.model or args.serve_model):
         raise ValueError('agent stages need --model or --serve-model in the contract')
     if getattr(args, 'serve_model', None):
         # Freeze the resolved location in both the contract and submission args.
@@ -420,13 +420,22 @@ def create(args, numbers, destination):
     return contract
 
 
+def layout_compatible(layout, stages):
+    """The current layout, or an earlier one whose selected stages mean the same."""
+    from validation.stages.layout import COMPATIBLE
+    if layout == LAYOUT:
+        return True
+    highest = COMPATIBLE.get(layout)
+    return highest is not None and all(int(stage) <= highest for stage in stages)
+
+
 def read(path):
     contract = json.loads(Path(path).read_text())
     recorded = contract.get('sha256')
     actual = digest({k: v for k, v in contract.items() if k != 'sha256'})
     if recorded != actual:
         raise ValueError(f'contract checksum mismatch in {path}; prepare a new contract instead of editing it')
-    if contract.get('schema_version') != 3 or contract.get('stage_layout') != LAYOUT:
+    if contract.get('schema_version') != 3 or not layout_compatible(contract.get('stage_layout'), contract.get('stages') or []):
         raise ValueError('unsupported stage layout; prepare a new contract')
     manifest = contract['task_manifest']
     name = manifest['path']

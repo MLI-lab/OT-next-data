@@ -187,7 +187,7 @@ def parser():
                          'installed cloud agents need host access on Helma; simulated removes proxy '
                          'and DNS where namespaces are unavailable, localhost keeps working')
     ap.add_argument('--reward-key', default='reward')
-    ap.add_argument('--trials', type=Path, help='Harbor job directory for stages 7 and 8; one level of trial dirs')
+    ap.add_argument('--trials', type=Path, help='Harbor job directory for stages 8 and 9; one level of trial dirs')
     ap.add_argument('--max-iterations', type=int, default=10)
     ap.add_argument('--timeout-minutes', type=float,
                     help='review session budget; model default (300 minutes)')
@@ -212,7 +212,7 @@ def parser():
 
 def resolve_review_defaults(args, numbers):
     """Freeze the defaults from the verified upstream checkout before execution."""
-    if not any(n in (5, 8) for n in numbers):
+    if not any(n in (5, 9) for n in numbers):
         return
     from validation.stages.judge import normalize
     normalize(args)
@@ -411,7 +411,7 @@ def run_review(number, source, item_dir, args, upstream, references=None, suffix
 
 
 async def run_review_async(number, source, item_dir, args, upstream, references=None, suffixes=None):
-    """Run an implementation (stage 5) or trajectory (stage 8) rubric review.
+    """Run an implementation (stage 5) or trajectory (stage 9) rubric review.
 
     A stage-5 judgment that misses criteria keeps its valid checks under exact
     rubric names; the missing ones get one fresh review restricted to them.
@@ -500,7 +500,7 @@ async def _review_once(number, source, item_dir, args, upstream, references=None
         return await review_files(task, source, item_dir, args, agent, model, task_environment=True)
     skipped = json.loads((task / 'rubric-skips.json').read_text()) if number == 5 else {}
     rubric = task / 'rubric.toml' if number == 5 else upstream / 'docs/prompts' / rubric_name
-    if (agent in ('mini-swe-agent', 'terminus-2') and (image or number == 8)) or (agent in env_review.AGENTS and number == 5 and image):
+    if (agent in ('mini-swe-agent', 'terminus-2') and (image or number == 9)) or (agent in env_review.AGENTS and number == 5 and image):
         # Judges run inside the reviewed task's own environment, as a solver would.
         files = ({f'task-under-review/{source.name}': source, 'rubric.toml': rubric} if number == 5
                  else {'task': source, 'trial': args.current_trial})
@@ -554,7 +554,7 @@ async def _review_once(number, source, item_dir, args, upstream, references=None
     result['verdicts'] = []
     for trial, _ in results:
         prepare_review_tasks.collect_verdict(result, trial, trial / 'artifacts' / verdict_name, rubric,
-                                             skipped, analysis=number == 8)
+                                             skipped, analysis=number == 9)
     return result
 
 
@@ -629,7 +629,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
     items, selected = [], []
     agent = {REFERENCE: 'oracle', NOP: 'nop'}.get(number, args.agent)
     model = None if number in (REFERENCE, NOP) else args.model
-    if number in (6, 9) and not model:
+    if number in (6, 7, 10) and not model:
         raise ValueError('provide --model (or submit with --serve-model)')
     for source in sources:
         item = {'task': str(source)}
@@ -640,7 +640,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
                 item['listing_order'] = {'status': 'not_applicable', 'reason': 'No reference solution supplied'}
                 continue
             task = source
-            if number == 9:
+            if number == 10:
                 task = prepare_review_tasks.stage_cheat(source, out / 'inputs' / source.name, upstream)
             runtime.check_runtime_task(task, args.backend)
             selected.append((task, item))
@@ -654,7 +654,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
     config = runtime.job_config(selected[0][0], out / 'jobs', args, agent, model)
     config['tasks'] = [{'path': str(task.resolve())} for task, _ in selected]
     save(out / 'job.json', config)
-    if number in (6, 9) and report is not None:
+    if number in (6, 7, 10) and report is not None:
         from validation.metrics.agent_run import record
         report['agent_run'] = record(args, config, [task for task, _ in selected], contract)
         save(out / 'agent-run.json', report['agent_run'])
@@ -692,7 +692,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
                 json.loads((trial / ARTIFACT).read_text()) if (trial / ARTIFACT).is_file()
                 else {'status': 'incomplete', 'reason': 'Reference fingerprints were not captured'}
                 for trial, _ in groups[task.name]]
-        if number == 6:
+        if number in (6, 7):
             from validation.metrics.passk_completion import assess
             item.update(assess(groups[task.name], args.attempts, args.reward_key))
         if task.name in diagnostic_kwargs.get('pip_pin_capture', {}).get('tasks', {}):
@@ -707,7 +707,7 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
                 for trial, _ in groups[task.name]]
         if job_dir is not None:
             item['job_dir'] = str(job_dir)
-        if number == 6:
+        if number in (6, 7):
             from validation.metrics.reward_metrics import task_metrics
             item['metrics'] = task_metrics(groups[task.name], args.attempts, args.reward_key)
         if unmatched:
@@ -717,8 +717,8 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
             item['status'] = 'passed'
         if number == REFERENCE:
             item['normal_baseline_status'] = item['status']
-        if number == 9:
-            item['note'] = 'Reward 1 alone does not prove cheating; review trajectories in stage 8.'
+        if number == 10:
+            item['note'] = 'Reward 1 alone does not prove cheating; review trajectories in stage 9.'
     if number == REFERENCE:
         # A reference verdict is not a prerequisite for the other checks.
         try:
@@ -993,7 +993,7 @@ def add_listing_order(prepared, normal, shuffled, task, args, *, expected_reward
 
 def run_fortify(source, item_dir, args, upstream):
     if not args.model:
-        raise ValueError('stage 10 needs --model for hacker/fixer/solver')
+        raise ValueError('stage 11 needs --model for hacker/fixer/solver')
     harden = checkout('harden-v0')
     fortify = module(upstream / 'scripts/fortify/fortify.py', 'tb_fortify')
     staged = shutil.copytree(source, item_dir / 'input' / source.name)
@@ -1102,7 +1102,7 @@ def _run_stage(number, args):
     out.mkdir(parents=True)
     report = {'stage': number, 'name': NAMES[number], 'stage_layout': LAYOUT, 'upstream': PINS,
               'backend': args.backend, 'dry_run': args.dry_run, 'items': [], 'complete': False}
-    if number in (5, 8):
+    if number in (5, 9):
         report['review_pricing'] = getattr(args, 'review_pricing', None)
         report['review_attempts'] = (getattr(args, 'review_runs', None) or args.attempts) if number == 5 else args.attempts
     if shard:
@@ -1154,11 +1154,11 @@ def _run_stage(number, args):
         report['build_retries'] = summarize_retries(report['items'])
         if checkpoint:
             report['reused_from'] = {k: v for k, v in checkpoint.items() if k != 'items'}
-    elif number in (REFERENCE, NOP, 6, 9):
+    elif number in (REFERENCE, NOP, 6, 7, 10):
         from validation.stages.build_retries import partition_builds
         selected, skipped = partition_builds(sources, args, reference=number == REFERENCE) if number in (REFERENCE, NOP) else (sources, [])
         report['items'] = skipped + run_trial_batch(number, selected, out, args, upstream, report, contract)
-        if number == 6:
+        if number in (6, 7):
             from validation.metrics.reward_metrics import summarize
             report['reward_metrics'] = summarize(report['items'])
     elif number == 5 and not args.dry_run:
@@ -1195,7 +1195,7 @@ def _run_stage(number, args):
         asyncio.run(reviews())
     else:
         work = [(task, None) for task in sources]
-        if number in (7, 8):
+        if number in (8, 9):
             if not args.trials:
                 raise ValueError(f'stage {number} requires --trials <Harbor job directory>')
             results = runtime.trial_results(args.trials.resolve())
@@ -1210,7 +1210,7 @@ def _run_stage(number, args):
                     report['items'].append({'trial': str(trial), 'status': 'error', 'reason': 'cannot match trial to one selected source task'})
                 else:
                     work.append((matches[0], trial))
-        if number == 7:
+        if number == 8:
             from validation.metrics.trace_metrics import summarize as trace_summary
             names = {str(trial): source.name for source, trial in work}
             run_record = args.trials.resolve().parents[1] / 'agent-run.json'
@@ -1235,7 +1235,7 @@ def _run_stage(number, args):
                     runtime.check_runtime_task(source, args.backend)
                     result = {'status': 'previewed', 'environment': runtime.environment_config(args), 'task': str(source)}
                     save(item_dir / 'build.json', result)
-                elif number == 10:
+                elif number == 11:
                     result = run_fortify(source, item_dir, args, upstream)
                 else:
                     args.current_trial = trial
@@ -1246,23 +1246,23 @@ def _run_stage(number, args):
             if trial:
                 result['source_trial'] = str(trial)
             report['items'].append(result)
-            if number in (5, 8):
+            if number in (5, 9):
                 from validation.rubrics.utils.usage import summarize_items
                 report['usage'] = summarize_items(report['items'], args.attempts)
             save(report_path, report)
             print(f"stage {number} {source.name}: {result['status']}", flush=True)
     report['complete'] = True
-    if number == 6 and not args.dry_run:
+    if number in (6, 7) and not args.dry_run:
         report['complete'] = all(i['status'] == 'completed' for i in report['items'])
     if not args.dry_run:
         # Tasks at once: the other stages work through their tasks one by one.
         report['timing'] = stage_timing(clock, report['static_concurrency'] if number == STATIC else
-                                        args.concurrency if number in (5, 1, 2, 3, 6, 9) else 1,
+                                        args.concurrency if number in (5, 1, 2, 3, 6, 7, 10) else 1,
                                         getattr(args, '_serving_gpu_count', None))
     if number == 5:
         from validation.metrics.review_results import group_reviews
         report['implementation_review_groups'] = group_reviews(report['items'])
-    if number in (5, 8):
+    if number in (5, 9):
         from validation.rubrics.utils.usage import summarize_items
         report['usage'] = summarize_items(report['items'], args.attempts)
         report['resolved_review_pricing'] = getattr(args, 'resolved_review_pricing', {}).get(str(number))

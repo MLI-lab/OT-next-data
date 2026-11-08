@@ -210,7 +210,7 @@ def write_trace_plots(path):
 def write_stage_plots(path):
     """Write figures beside an exported stage report and return their paths."""
     path = Path(path)
-    if json.loads(path.read_text()).get('stage') == 7:
+    if json.loads(path.read_text()).get('stage') == 8:
         return write_trace_plots(path)
     counts = solved_counts(path)
     ks = sorted({1, *counts})

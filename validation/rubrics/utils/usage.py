@@ -109,8 +109,8 @@ def reprice(report, pricing):
     validate_pricing(pricing)
     from validation.stages.layout import require_layout
     require_layout(report)
-    if report.get('stage') not in (5, 8) or 'items' not in report:
-        raise ValueError('provide an exported stage 5 or stage 8 report with items')
+    if report.get('stage') not in (5, 9) or 'items' not in report:
+        raise ValueError('provide an exported stage 5 or stage 9 report with items')
     for item in report['items']:
         usage = item.get('usage')
         if usage is None:

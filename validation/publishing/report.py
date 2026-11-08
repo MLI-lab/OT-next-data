@@ -96,7 +96,7 @@ def summarize(archive):
             stages.append({'stage': number, 'name': report['name'], 'complete': report['complete'],
                            'tasks': len(items), 'counts': dict(counts), 'report': str(path),
                            'contract_sha256': report.get('contract_sha256'), 'timing': report.get('timing')})
-            if number in (5, 8):
+            if number in (5, 9):
                 from validation.rubrics.utils.usage import summarize_items
                 stages[-1]['usage'] = summarize_items(items, report.get('review_attempts', 1))
                 stages[-1]['review_pricing'] = report.get('review_pricing')
@@ -210,7 +210,7 @@ def write_report(archive, out):
                 exported = out / ('stage-' + path.parts[1].split('_')[1] + '-' + path.parts[2] + '.json')
                 publish(exported, content)
                 stage = json.loads(content)
-                if stage.get('stage') in (6, 7) and stage.get('complete') and not stage.get('dry_run'):
+                if stage.get('stage') in (6, 7, 8) and stage.get('complete') and not stage.get('dry_run'):
                     from validation.publishing.plot_results import write_stage_plots
                     try:
                         figures = write_stage_plots(exported)

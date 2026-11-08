@@ -97,7 +97,7 @@ def provider_key(model):
 def credentials(args, number):
     """Scope credentials to a judge stage; never put resolved secrets in configs."""
     mode = getattr(args, 'judge_mode', None)
-    if number not in (5, 8) or mode not in ('api', 'serve', 'local'):
+    if number not in (5, 9) or mode not in ('api', 'serve', 'local'):
         yield
         return
     from dotenv import dotenv_values

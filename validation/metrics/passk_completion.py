@@ -55,7 +55,8 @@ def check_reports(stage6, stage7, task_ids, attempts, contract_sha256=None):
     """One common gate for pilots and full shards; errors are informational."""
     expected = set(task_ids)
     problems = []
-    for number, report in [(6, stage6), (7, stage7)]:
+    # stage7 is the trace-metrics report: stage 8 since layout v4 inserted the teacher stage 7.
+    for number, report in [(6, stage6), (8, stage7)]:
         if report.get('stage') != number or not report.get('complete') or report.get('dry_run'):
             problems.append(f'stage {number}: missing completed non-dry-run report')
         names = [Path(i.get('task', '')).name for i in report.get('items', [])]
@@ -74,10 +75,10 @@ def check_reports(stage6, stage7, task_ids, attempts, contract_sha256=None):
     traces = stage7.get('trace_metrics', {}).get('trajectories', [])
     counts = Counter(row.get('task') for row in traces)
     if counts != Counter({name: attempts for name in expected}):
-        problems.append('stage 7: attempt coverage mismatch')
+        problems.append('stage 8: attempt coverage mismatch')
     identities = [row.get('trial_path') or row.get('trial') for row in traces]
     if len(set(identities)) != len(identities) or not all(identities):
-        problems.append('stage 7: duplicate or unidentified attempts')
+        problems.append('stage 8: duplicate or unidentified attempts')
     errors = stage7.get('trace_metrics', {}).get('all_tasks', {}).get('errors', {})
     return {'passed': not problems, 'problems': problems, 'policy': POLICY,
             'recorded_attempts': sum(len(i.get('attempt_outcomes', [])) for i in stage6.get('items', [])),

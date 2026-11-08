@@ -82,15 +82,15 @@ def test_sampling_diversity_is_finite_reproducible_and_keeps_quotas():
     assert len({r['id'] for r in selected}) == 3
 
 
-def test_stage8_balances_termination():
+def test_stage9_balances_termination():
     rows = candidates(4)
     rows[0]['termination'] = 'task_timeout'
-    chosen, buckets = sample(rows, 2, 8, seed=5)
+    chosen, buckets = sample(rows, 2, 9, seed=5)
     assert {r['termination'] for r in chosen} == {'task_complete', 'task_timeout'}
     assert all('family' in b['bucket'] and 'termination' in b['bucket'] for b in buckets)
 
 
-@pytest.mark.parametrize('stage', [5, 8])
+@pytest.mark.parametrize('stage', [5, 9])
 def test_every_pick_after_first_maximizes_minimum_distance(stage):
     rows = candidates(8)
     for index, row in enumerate(rows):
@@ -168,7 +168,7 @@ def test_stage7_means_family_and_missing_rewards(tmp_path):
     assert next(r for r in rows if r['task'] == 'set-java-0002')['family'] == 'unknown'
 
 
-@pytest.mark.parametrize('stage', [5, 8])
+@pytest.mark.parametrize('stage', [5, 9])
 def test_exported_pilot_is_consumable_and_source_unchanged(tmp_path, stage):
     tasks, job, metrics_path, metrics = dataset(tmp_path)
     before = metrics_path.read_bytes()
@@ -181,7 +181,7 @@ def test_exported_pilot_is_consumable_and_source_unchanged(tmp_path, stage):
     assert metrics_path.read_bytes() == before
     assert json.loads((out / 'pilot.json').read_text()) == manifest
     assert not any(p.is_symlink() for p in out.rglob('*'))
-    if stage == 8:
+    if stage == 9:
         exported = trial_results(out / 'trials')
         assert len(exported) == 3
         assert all((p / 'agent/trajectory.json').is_file() for p, _ in exported)
@@ -190,7 +190,7 @@ def test_exported_pilot_is_consumable_and_source_unchanged(tmp_path, stage):
         create(args)
 
 
-@pytest.mark.parametrize('stage', [5, 8])
+@pytest.mark.parametrize('stage', [5, 9])
 def test_missing_metrics_fail_even_with_trials(tmp_path, stage):
     tasks, job, metrics_path, metrics = dataset(tmp_path)
     del metrics['trajectories'][0]['command_profile']
@@ -206,7 +206,7 @@ def test_wrong_trial_reward_rejection(tmp_path):
     tasks, job, metrics_path, metrics = dataset(tmp_path)
     metrics['trajectories'][0]['reward'] = .25
     metrics_path.write_text(json.dumps(metrics))
-    args = parser().parse_args([str(tasks), '--trace-metrics', str(metrics_path), '--stage', '8',
+    args = parser().parse_args([str(tasks), '--trace-metrics', str(metrics_path), '--stage', '9',
                                '--trials', str(job), '--size', '1', '--out', str(tmp_path / 'pilot')])
     with pytest.raises(ValueError, match='reward mismatch'):
         create(args)
