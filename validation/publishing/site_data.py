@@ -28,6 +28,27 @@ STEPS = [
                 ('Verifier tampering', ['agent_editable_test', 'verifier_tamper'])]},
 ]
 CODE = {'pass': 'p', 'fail': 'f', 'warning': 'w', 'not_applicable': 'a', 'not_requested': 'r', 'blocked': 'b'}
+# Checks without a one-line summary in the rules README.
+FALLBACK = {'verifier_paths': 'Absolute paths the verifier needs that are missing and not named in the instruction.',
+            'script_execution_coverage': 'The instruction asks for a script to be written, fixed or run, but the verifier never executes it.'}
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def descriptions(criteria_files=('validation/rubrics/rubric_river_selected/rubric.toml',)):
+    """One-line meaning of every check (rules README summaries) and judge criterion (rubric definitions)."""
+    import re, tomllib
+    out = dict(FALLBACK)
+    readme = (ROOT / 'validation/rules/README.md').read_text()
+    for name, text in re.findall(r'<summary><code>([^<]+)</code>[^·<]*·\s*([^<]+)</summary>', readme):
+        out.setdefault(name, text.strip())
+    for path in criteria_files:
+        for criterion in tomllib.loads((ROOT / path).read_text()).get('criteria', []):
+            # The definition only, without the instructions to the judge that follow it.
+            meaning = re.split(r' (?=Assign |Check that |Judge only |Do not |Only )', criterion['description'].strip())[0]
+            out.setdefault(criterion['name'], meaning)
+    return out
+
+
 MODEL_NAMES = {'Qwen/Qwen3.8-27B': 'Qwen3.8-27B', 'zai-org/GLM-5.3-Flash': 'GLM-5.3-Flash'}
 
 
@@ -116,7 +137,9 @@ def build(name, path):
             details[r['task_id']] = texts
     steps = [{**{k: v for k, v in s.items() if k != 'groups'},
               'groups': [{'name': g, 'checks': [c for c in cs if c in present]} for g, cs in s['groups']]} for s in STEPS]
+    meaning = descriptions()
     data = {'name': name, 'checks': present, 'steps': steps, 'criteria': criteria,
+            'descriptions': {k: meaning[k] for k in [*present, *criteria] if k in meaning},
             'judges': [{'id': j, 'name': MODEL_NAMES.get(j, j.split('/')[-1])} for j in judges], 'tasks': tasks}
     return data, details
 

@@ -24,6 +24,11 @@ async function details(name) {
   if (!state.details[name]) state.details[name] = await (await fetch(`data/${name}-details.json`)).json();
   return state.details[name];
 }
+function describe(name) {
+  for (const d of Object.values(state.data)) if (d.descriptions?.[name]) return d.descriptions[name];
+  return '';
+}
+const meaning = name => describe(name) ? `<div class="desc">${esc(describe(name))}</div>` : '';
 function datasets() { return state.dataset === 'all' ? state.index.map(d => state.data[d.name]) : [state.data[state.dataset]]; }
 
 /* ---------- counting ---------- */
@@ -121,7 +126,7 @@ function overview() {
     svg += band(x0 + nodeW, top, s.kept * k, x1, top, s.kept * k, STEP_COLOR[i + 1]);
     const rules = Object.entries(s.rules).sort((a, b) => b[1].fail - a[1].fail);
     const tipRules = `<b>Step ${s.id}: ${esc(s.name)}</b><br>${fmt(s.removed)} removed (${pct(s.removed, A.N)} of upstream)<table>` +
-      rules.map(([c, r]) => `<tr><td>${esc(c)}</td><td class="n">${fmt(r.fail)}</td><td class="n">${fmt(r.only)} only</td></tr>`).join('') + `</table>`;
+      rules.map(([c, r]) => `<tr title="${esc(describe(c))}"><td>${esc(c)}</td><td class="n">${fmt(r.fail)}</td><td class="n">${fmt(r.only)} only</td></tr>`).join('') + `</table>`;
     svg += node(x1, top, s.kept * k, STEP_COLOR[i + 1], `${s.id} ${s.short}`, s.kept, `step/${s.id}`, tipRules);
     if (s.removed) {
       // removed tasks leave from the bottom of the previous node, split per check (one bucket per task)
@@ -132,7 +137,7 @@ function overview() {
         const h = n * k;
         svg += band(x0 + nodeW, y, h, bx, by, h, 'var(--out)', 'out');
         const r = s.rules[b];
-        svg += `<g class="node" data-route="step/${s.id}" ${tip(`<b>${esc(b)}</b><br>removes ${fmt(n)} tasks (${pct(n, A.N)} of upstream) not removed by a larger check before it<br>${fmt(r.fail)} tasks fail this check in total, ${fmt(r.only)} fail only this one`)}>
+        svg += `<g class="node" data-route="step/${s.id}" ${tip(`<b>${esc(b)}</b>${meaning(b)}removes ${fmt(n)} tasks (${pct(n, A.N)} of upstream) not removed by a larger check before it<br>${fmt(r.fail)} tasks fail this check in total, ${fmt(r.only)} fail only this one`)}>
           <rect x="${bx}" y="${by}" width="${nodeW - 4}" height="${Math.max(h, 1.5)}" rx="2" fill="var(--out)"/>
           <text x="${bx + 16}" y="${by + Math.max(h, 1.5) / 2 + 4}">${esc(b)} <tspan class="num">${fmt(n)} · ${pct(n, A.N)}</tspan></text></g>`;
         y += h; by += Math.max(h, 1.5) + 15;
@@ -162,7 +167,7 @@ function overview() {
       for (const [c, n] of Object.entries(j.buckets)) {
         const hh = n * k;
         svg += band(laneX + nodeW, y, hh, bx, by, hh, 'var(--out)', 'out');
-        svg += `<g class="node" data-route="judge/${lane.i}" ${tip(`<b>${esc(c)}</b> (${esc(j.name)})<br>removes ${fmt(n)} tasks not removed by a larger criterion before it<br>${fmt(j.crit[c])} of ${fmt(j.reviewed)} reviewed tasks fail it in total (${pct(j.crit[c], j.reviewed)})`)}>
+        svg += `<g class="node" data-route="judge/${lane.i}" ${tip(`<b>${esc(c)}</b> (${esc(j.name)})${meaning(c)}removes ${fmt(n)} tasks not removed by a larger criterion before it<br>${fmt(j.crit[c])} of ${fmt(j.reviewed)} reviewed tasks fail it in total (${pct(j.crit[c], j.reviewed)})`)}>
           <rect x="${bx}" y="${by}" width="${nodeW - 4}" height="${Math.max(hh, 1.5)}" rx="2" fill="var(--out)"/>
           <text x="${bx + 16}" y="${by + Math.max(hh, 1.5) / 2 + 4}">${esc(c)} <tspan class="num">${fmt(n)} · ${pct(n, A.N)}</tspan></text></g>`;
         y += hh; by += Math.max(hh, 1.5) + 15;
@@ -272,7 +277,7 @@ function stepPage(id) {
     `${fmt(st.entering)} tasks entered this step, ${fmt(st.removed)} were removed (a check failed), ${fmt(st.kept)} continue. Click a red, yellow or gray square for the explanation.`,
     `<label>Show <select id="filter"><option value="removed">tasks removed in this step</option><option value="entering">all tasks entering this step</option><option value="all">all tasks</option></select></label>
      <span><span class="cell p"></span> pass <span class="cell f"></span> fail <span class="cell w"></span> warning <span class="cell m"></span> no result <span class="cell a"></span> not applicable</span>`, '');
-  const head = `<thead><tr><th>Task</th>${checks.map(c => `<th class="rot"><div>${esc(c)}</div></th>`).join('')}</tr></thead>`;
+  const head = `<thead><tr><th>Task</th>${checks.map(c => `<th class="rot" data-desc="${esc(c)}"><div>${esc(c)}</div></th>`).join('')}</tr></thead>`;
   const render = rows => `<table class="grid">${head}<tbody>${rows.map(({ d, t }) => `<tr>${taskCell(d, t)}${checks.map(c => {
     const s = statusOf(d, t, c);
     return `<td>${'fwm'.includes(s) ? `<button class="cell ${s}" data-ds="${esc(d.name)}" data-task="${esc(t.id)}" data-check="${esc(c)}" title="${esc(c)}"></button>` : `<span class="cell ${s}" title="${esc(c)}"></span>`}</td>`;
@@ -285,7 +290,7 @@ function stepPage(id) {
   $('#table').addEventListener('click', async e => {
     const b = e.target.closest('button.cell'); if (!b) return;
     const det = (await details(b.dataset.ds))[b.dataset.task] || {}, x = det[b.dataset.check] || {};
-    openDrawer(`<h3>${esc(b.dataset.check)}</h3><div class="muted">${esc(b.dataset.task)}</div>
+    openDrawer(`<h3>${esc(b.dataset.check)}</h3>${meaning(b.dataset.check)}<div class="muted">${esc(b.dataset.task)}</div>
       <p class="status" style="color:${x.status === 'fail' ? 'var(--fail)' : x.status === 'warning' ? 'var(--warn)' : 'var(--missing)'}">${esc(x.status || 'no result')}</p>
       <pre>${esc(x.text || 'No explanation was recorded for this result.')}</pre>`);
   });
@@ -299,7 +304,7 @@ function judgePage(index) {
     `${fmt(j.reviewed)} reviewed tasks (no failed check in steps 1–3), ${fmt(j.flagged)} fail at least one criterion. One square per review; click a red square for the judge's explanation.`,
     `<label>Show <select id="filter"><option value="flagged">flagged tasks</option><option value="all">all reviewed tasks</option></select></label>
      <span><span class="cell p"></span> pass <span class="cell f"></span> fail <span class="cell m"></span> no verdict</span>`, '');
-  const head = `<thead><tr><th>Task</th>${crit.map(c => `<th class="rot"><div>${esc(c)}</div></th>`).join('')}</tr></thead>`;
+  const head = `<thead><tr><th>Task</th>${crit.map(c => `<th class="rot" data-desc="${esc(c)}"><div>${esc(c)}</div></th>`).join('')}</tr></thead>`;
   const render = rows => `<table class="grid">${head}<tbody>${rows.map(({ d, t }) => `<tr>${taskCell(d, t)}${crit.map(c => {
     const v = t.j?.[c]?.[j.id] || '';
     return `<td><span class="reviews">${[...v].map(s => s === 'p' ? `<span class="cell p"></span>` :
@@ -314,7 +319,7 @@ function judgePage(index) {
     const b = e.target.closest('button.cell'); if (!b) return;
     const det = (await details(b.dataset.ds))[b.dataset.task] || {}, notes = det.judge?.[b.dataset.crit] || {};
     const others = A.judges.filter(x => x.id !== j.id);
-    openDrawer(`<h3>${esc(b.dataset.crit)}</h3><div class="muted">${esc(b.dataset.task)}</div>` +
+    openDrawer(`<h3>${esc(b.dataset.crit)}</h3>${meaning(b.dataset.crit)}<div class="muted">${esc(b.dataset.task)}</div>` +
       (notes[j.id] || []).map(n => `<p class="status" style="color:var(--fail)">${esc(j.name)} · review ${n.review}: ${esc(n.verdict)}</p><pre>${esc(n.text)}</pre>`).join('') +
       others.map(o => `<p class="status">${esc(o.name)}: ${(notes[o.id] || []).length ? 'fail' : 'pass or not reviewed'}</p>` +
         (notes[o.id] || []).map(n => `<pre>${esc(n.text)}</pre>`).join('')).join(''));
@@ -354,6 +359,13 @@ function passkPage() {
   });
 }
 
+document.addEventListener('mousemove', e => {
+  const th = e.target.closest?.('th[data-desc]'), el = $('#tip');
+  if (!th) { if (el.dataset.from === 'th') { el.hidden = true; el.dataset.from = ''; } return; }
+  el.innerHTML = `<b>${esc(th.dataset.desc)}</b>${meaning(th.dataset.desc)}`; el.hidden = false; el.dataset.from = 'th';
+  el.style.left = Math.min(e.clientX + 14, innerWidth - el.offsetWidth - 8) + 'px';
+  el.style.top = Math.min(e.clientY + 14, innerHeight - el.offsetHeight - 8) + 'px';
+});
 function openDrawer(html) { $('#drawer-body').innerHTML = html; $('#drawer').hidden = false; }
 function closeDrawer() { $('#drawer').hidden = true; }
 

@@ -90,3 +90,7 @@ button.link:disabled { opacity: .4; cursor: default; }
 #tip table { border-collapse: collapse; margin-top: 4px; }
 #tip td { padding: 1px 10px 1px 0; color: var(--text-secondary); }
 #tip td.n { text-align: right; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+.desc { color: var(--text-secondary); margin: 3px 0 6px; font-size: 12.5px; line-height: 1.4; }
+#drawer .desc { font-size: 13px; margin: 4px 0 8px; }
+.grid th[data-desc] { cursor: help; }
