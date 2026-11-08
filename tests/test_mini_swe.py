@@ -313,7 +313,7 @@ def test_task_oom_in_judge_command_is_feedback_not_failure(tmp_path, monkeypatch
     class OOMEnvironment(Environment):
         async def exec(self, command, **kwargs):
             if command == 'echo big':
-                assert TERMINAL.get() is True
+                assert TERMINAL.get() == 120.0
                 raise RecoveredTaskOOM(FEEDBACK)
             if command.startswith('cat '):
                 assert TERMINAL.get() is False  # verdict reads are not agent commands

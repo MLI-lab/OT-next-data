@@ -377,3 +377,17 @@ def test_stop_removes_staging_with_read_only_directories(tmp_path):
         instance_factory=lambda *a: Inner(), step_prefix=lambda *a: [])
     assert obj.stop({}) == {'stopped': True}
     assert not Inner.staging_dir.exists()
+
+
+@pytest.mark.parametrize('tag, minimum', [('nonce', None), ('nonce restart-grace=120.0', 110), ('nonce restart-grace=9999', 290)])
+def test_judge_restart_grace_extends_only_the_recovery_deadline(tmp_path, monkeypatch, tag, minimum):
+    obj, _, recovered = controller(tmp_path, monkeypatch, oom=True, error=ConnectionResetError())
+    start = time.monotonic()
+    result = obj.exec({'command': p.AGENT_TAG + tag + '\nstart-services', 'timeout_sec': 1})
+    # The feedback still names the bare token the client waits for.
+    assert result['stdout'].startswith(p.OOM_PREFIX + 'nonce\n')
+    remaining = recovered[0] - start
+    if minimum is None:
+        assert remaining <= 1.5  # agents solving a task keep the command's own budget
+    else:
+        assert minimum <= remaining <= p.MAX_RESTART_GRACE_SEC + 1

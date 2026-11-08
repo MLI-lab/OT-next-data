@@ -30,6 +30,8 @@ except ModuleNotFoundError:
 
 ACTIVE = ContextVar('protected_task_controller', default=None)
 AGENT_TAG = '# ot-agent-terminal '
+RESTART_GRACE = 'restart-grace='
+MAX_RESTART_GRACE_SEC = 300.0
 OOM_PREFIX = 'OT_TASK_OOM_RECOVERED '
 OOM_FAILED_PREFIX = 'OT_TASK_OOM_UNRECOVERABLE '
 FEEDBACK = ('Task memory limit exceeded. The container processes and terminal were restarted. '
@@ -478,10 +480,16 @@ class ProtectedInstance:
             if self._confirmed_exec_oom(result, error):
                 # Only marked terminal interactions may recover. Setup/verifier
                 # OOMs fail their own phase and cannot silently rerun that work.
-                token = next((line[len(AGENT_TAG):] for line in payload.get('command', '').splitlines()
-                              if line.startswith(AGENT_TAG)), None)
-                if token is None:
+                tag = next((line[len(AGENT_TAG):] for line in payload.get('command', '').splitlines()
+                            if line.startswith(AGENT_TAG)), None)
+                if tag is None:
                     raise RuntimeError('Task memory limit exceeded outside a recoverable agent terminal interaction') from error
+                token, _, option = tag.partition(' ')
+                if option.startswith(RESTART_GRACE):
+                    # Judges gain nothing from extra time, so their restart may outlast the
+                    # command limit. Agents solving a task keep the command's own budget.
+                    grace = min(float(option[len(RESTART_GRACE):]), MAX_RESTART_GRACE_SEC)
+                    deadline = max(deadline, time.monotonic() + grace)
                 try:
                     self.recovery_deadline = deadline
                     self._recover(deadline)

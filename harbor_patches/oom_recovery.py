@@ -3,8 +3,9 @@ from contextvars import ContextVar
 from functools import wraps
 from uuid import uuid4
 
-from harbor_patches.protected_step import AGENT_TAG, OOM_PREFIX, OOM_FAILED_PREFIX, FEEDBACK
+from harbor_patches.protected_step import AGENT_TAG, OOM_PREFIX, OOM_FAILED_PREFIX, FEEDBACK, RESTART_GRACE
 
+# True for agent terminal commands; a number gives the judge's restart allowance in seconds.
 TERMINAL = ContextVar('oom_recoverable_terminal_call', default=False)
 
 
@@ -29,9 +30,15 @@ def install():
         if not TERMINAL.get():
             return await execute(self, command, *args, **kwargs)
         token = uuid4().hex
+        terminal = TERMINAL.get()
+        if terminal is not True:
+            token_line = token + ' ' + RESTART_GRACE + str(float(terminal))
+        else:
+            token_line = token
         # Keep the bounded-capture tag at the beginning for the worker patch.
         first, separator, rest = command.partition('\n')
-        tagged = first + '\n' + AGENT_TAG + token + '\n' + rest if separator else AGENT_TAG + token + '\n' + command
+        tagged = (first + '\n' + AGENT_TAG + token_line + '\n' + rest if separator
+                  else AGENT_TAG + token_line + '\n' + command)
         result = await execute(self, tagged, *args, **kwargs)
         if (result.stdout or '').startswith(OOM_FAILED_PREFIX + token + '\n'):
             raise TaskMemoryLimitError('Task OOM recovery failed: ' + result.stdout.split('\n', 1)[1])

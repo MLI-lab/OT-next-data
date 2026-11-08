@@ -79,6 +79,9 @@ REQUEST_TIMEOUT_SEC = 3600.0
 # prompt plus reply no longer fit.
 CONTEXT_WARNING_FRACTION = 0.7
 MIN_REPLY_TOKENS = 4096
+# A judge command that hits the task memory limit late may have used up its
+# 30 s command limit; the container restart gets this allowance instead.
+JUDGE_RESTART_GRACE_SEC = 120.0
 CONTEXT_LIMIT = ('The conversation is close to the model context limit ({used:,} of {limit:,} tokens). '
                  'Do not investigate further. Write {artifact} now from the evidence you have, '
                  'then mark the task complete.')
@@ -230,7 +233,7 @@ class MiniSweAgent(BaseAgent):
                     # Mark the command as an agent terminal interaction, so a task OOM
                     # restarts the container processes and returns feedback (as for
                     # Terminus) instead of ending the review.
-                    TERMINAL.set(True)
+                    TERMINAL.set(JUDGE_RESTART_GRACE_SEC)
                     return await environment.exec(action.get('command', ''), cwd=cwd or None,
                                                   timeout_sec=command_limit)
                 try:

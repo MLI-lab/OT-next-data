@@ -93,3 +93,28 @@ def test_report_distinguishes_recovered_events_from_terminal_memory_limit(tmp_pa
     assert failed['termination'] == 'task_memory_limit' and not any(failed['errors'].values())
     summary = aggregate([row, failed])
     assert summary['oom_recoveries'] == 4 and summary['trajectories_with_oom_recovery'] == 2
+
+
+def test_judge_commands_carry_restart_grace_and_terminal_commands_do_not(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from harbor.environments.apptainer.apptainer import ApptainerEnvironment
+    from harbor_patches import oom_recovery
+    from harbor_patches.protected_step import AGENT_TAG
+    sent = []
+    async def execute(self, command, *args, **kwargs):
+        sent.append(command)
+        return SimpleNamespace(stdout='ok', stderr='', return_code=0)
+    monkeypatch.setattr(ApptainerEnvironment, 'exec', execute)
+    monkeypatch.setattr(ApptainerEnvironment, '_ot_oom_feedback', False, raising=False)
+    oom_recovery.install()
+    async def run(value):
+        token = oom_recovery.TERMINAL.set(value)
+        try:
+            await ApptainerEnvironment.exec(object(), 'echo hi')
+        finally:
+            oom_recovery.TERMINAL.reset(token)
+    asyncio.run(run(True)); asyncio.run(run(120.0))
+    tags = [line for c in sent for line in c.splitlines() if line.startswith(AGENT_TAG)]
+    assert len(tags[0].split()) == 3 and 'restart-grace' not in tags[0]
+    assert tags[1].endswith(' restart-grace=120.0')
