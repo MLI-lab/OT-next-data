@@ -43,6 +43,8 @@ def category(record, verdict='not_run', phase='unknown'):
         return None
     if phase == 'checker' and verdict == 'fail' and status in ('failed', 'fail', 'flagged', 'findings'):
         return None  # A checker finding may describe an error in the task's code.
+    if 'Task disk limit exceeded' in text:
+        return found('execution_error', 'disk_limit_exceeded')
     if status in ('oom', 'out_of_memory') or record.get('oom_killed') is True or OOM.search(text):
         return found('oom', 'memory_exhausted')
     if status in ('timeout', 'timed_out') or TIMEOUT.search(text):

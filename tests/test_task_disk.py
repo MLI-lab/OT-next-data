@@ -149,3 +149,14 @@ def test_capacity_cap_limits_reservations(tmp_path, monkeypatch):
     assert ledger.try_reserve('a', 10 * 2**30)[0]
     assert not ledger.try_reserve('b', 5 * 2**30)[0]
     assert ledger.try_reserve('c', 1 * 2**30)[0]
+
+
+def test_exceeding_declared_storage_is_the_tasks_own_failure():
+    from validation.publishing.outcome_labels import execution_label
+    from validation.stages.build_retries import build_stability
+    from validation.outcomes import category
+    reason = 'Bridge job j-1 failed: Task disk limit exceeded: the task wrote 1088 MiB, its task.toml storage is 1024 MiB'
+    assert execution_label({'status': 'error', 'reason': reason}) == 'build-execution-error'
+    history = [{'status': 'error', 'reason': reason, 'cause': execution_label({'status': 'error', 'reason': reason})}] * 4
+    assert build_stability(history) == 'task_failure'  # a plain build failure, not "infrastructure on every retry"
+    assert category({'status': 'error', 'reason': reason})['reason_code'] == 'disk_limit_exceeded'
