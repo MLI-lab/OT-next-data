@@ -242,7 +242,10 @@ def profile(args):
         'review_retries': getattr(args, 'review_retries', 1),
         'judge_selection': {'failed_tasks': getattr(args, 'judge_failed_tasks', 'skip'),
                             'rule': 'stage 5 skips tasks with a failed stage 0-3 check; warnings and missing results are judged',
-                            'results': [{'path': str(Path(p).resolve()), 'sha256': hashlib.sha256(Path(p).read_bytes()).hexdigest()}
+                            # Files of earlier stages that are still running (e.g. stage 6 shards a stage-7
+                            # shard waits for) have no hash yet; the stage report records it when it reads them.
+                            'results': [{'path': str(Path(p).resolve()),
+                                         'sha256': hashlib.sha256(Path(p).read_bytes()).hexdigest() if Path(p).is_file() else 'pending'}
                                         for p in getattr(args, 'judge_results', []) or []]},
         'review_grace_minutes': getattr(args, 'review_grace_minutes', 10),
         'review_resume': getattr(args, 'review_resume', True),
