@@ -31,3 +31,6 @@ external/
 
 # Dated reports and figures (kept locally, not part of the pipeline)
 /updates/
+
+# Website data stays private (published as a private claude.ai Artifact, not in this public repo).
+docs/data/
