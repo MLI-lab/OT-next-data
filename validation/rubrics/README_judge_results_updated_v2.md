@@ -200,6 +200,15 @@ Rates checked November 6, 2026: [Anthropic](https://platform.claude.com/docs/en/
 
 Unexpectedly, Qwen is more expensive per review because it uses far more tokens: an average of 1,055,710 input and output tokens, compared with 101,770 for Sonnet, across both prompting strategies. GPT-6.1-sol uses about twice as many tokens as Sonnet for labeling (202,540 vs. 102,621 on average) at similar rates, so it costs about 36% more per review. GLM-5.3-Flash also uses many tokens (1,126,020 per labeling review on average), but its low rates make it the cheapest; this estimate covers 759 accepted labeling reviews on 253 of the 297 tasks completed so far.
 
+**Local models: time and concurrency.** In the revised-rubric runs on Helma H200s, Qwen ran 12 parallel reviews per GPU and GLM-5.3-Flash 24 per 4-GPU node. The 297 tasks (≈890 labeling reviews) took 5.7 h on up to 10 GPUs for Qwen and 3.7 h on up to 32 GPUs for GLM-5.3-Flash: about **20 reviews per GPU-hour for Qwen** and **13 for GLM-5.3-Flash** (median review 21 and 14 min; model startup 6 and 21 min per job). Processing 1,000 tasks with one review each would take about 50 GPU-hours with Qwen (≈5 h on 10 GPUs) or 77 with GLM-5.3-Flash (≈2.5 h on 8 nodes).
+
+| Judge | Parallel reviews | KV cache use, median | KV cache use, peak | Output tokens/s, total | Output tokens/s per review |
+|---|---:|---:|---:|---:|---:|
+| Qwen3.8-27B (1 H200) | 12 | 36% | 63% (worst 77%) | 291 | 37 |
+| GLM-5.3-Flash (4 H200) | 24 | 21% | 35% (worst 39%) | 902 | 60 |
+
+The KV cache leaves room for about 48 parallel reviews with GLM-5.3-Flash and 16 with Qwen (throughput not yet measured). Jobs that use the full 24 h limit also cut startup from 16% to under 2% of the job time.
+
 ## Why the criteria themselves need RL ablations
 
 Even an accurately detected defect may not justify filtering a task:

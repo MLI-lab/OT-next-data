@@ -56,6 +56,10 @@ MODELS = {
         name='Qwen3.8-27B', hf_repo='Qwen/Qwen3.8-27B', gpus=1,
         weights_gb=56, reasoning_parser='qwen3', tool_call_parser='qwen3_xml', thinking=True,
         context=262144, max_output_tokens=65536,
+        # Helma, 1 H200: revised-rubric run 1259227 (12 sessions) peaked at 63% (median shard)
+        # and 77% (worst) of the 1.16M-token KV cache, so 16 sessions stay below it; 24 would not.
+        # Throughput at 16 is not yet measured; launchers must still budget task CPUs/RAM.
+        recommended_judge_sessions={'helma': 16},
         # The model card's thinking-mode sampling (thinking is on); the old values
         # (0.7 / 0.8 / presence 1.5) were the card's non-thinking settings.
         sampling={'temperature': 1.0, 'top_p': 0.95, 'top_k': 20, 'min_p': 0.0,
@@ -99,10 +103,10 @@ MODELS = {
         name='GLM-5.3-Flash', hf_repo='zai-org/GLM-5.3-Flash',
         gpus=4, thinking=True, weights_gb=306, dtype='auto', reasoning_parser='glm47', tool_call_parser='glm47',
         context=262144, max_output_tokens=65536,
-        # Helma pilot: 4 H200s, 128 CPUs (16 serving), ~80K live tokens/session.
-        # 36 sessions = 12 tasks x 3 reviews, for tasks requesting <=2 CPUs.
-        # Proposed from 678 completed reviews; throughput validation is pending.
-        recommended_judge_sessions={'helma': 36},
+        # Helma, 4 H200s: revised-rubric run 1259236 (24 sessions) used at most 39% of the
+        # 4.09M-token KV cache (median 21%), so 48 sessions peak near 77%. Throughput at 48
+        # is not yet measured; launchers must still budget task CPUs/RAM.
+        recommended_judge_sessions={'helma': 48},
         extra_args=['--language-model-only'],
         sampling={'temperature': 1.0, 'top_p': 0.95}),
 }
