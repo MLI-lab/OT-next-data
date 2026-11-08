@@ -1139,3 +1139,16 @@ def test_workspace_copy_directory_merges_contents(patch, tmp_path, source):
     patch.apply_workspace_copies(SimpleNamespace(), str(tmp_path))
     assert (tmp_path / 'dest/subdir/file').read_text() == 'nested'
     assert not (tmp_path / 'dest/data').exists()
+
+
+def test_var_tmp_is_a_disk_backed_trial_directory_next_to_tmp(patch, tmp_path):
+    stage = tmp_path / 'apt_env'
+    (stage / 'tmp').mkdir(parents=True)
+    command = ['apptainer', 'instance', 'start', '--bind', f'{stage}/tmp:/tmp:rw', 'task.sif', 'env']
+    result = patch.instance_start_command(command, [])
+    assert f'{stage}/var_tmp:/var/tmp:rw' in result and (stage / 'var_tmp').is_dir()
+    assert oct((stage / 'var_tmp').stat().st_mode & 0o7777) == '0o1777'
+    # An explicit /var/tmp mount is kept; without a /tmp bind nothing is added.
+    explicit = command[:3] + ['--bind', '/x:/var/tmp:rw'] + command[3:]
+    assert patch.instance_start_command(explicit, []).count('--bind') == 2
+    assert not any('/var/tmp' in a for a in patch.instance_start_command(['apptainer', 'instance', 'start', 'task.sif', 'env'], []))

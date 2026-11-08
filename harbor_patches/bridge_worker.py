@@ -392,7 +392,27 @@ def instance_start_command(cmd, net_flags):
     archive = getattr(_trial, 'archive', None)
     if archive:
         flags += ['--bind', f'{archive}:{dependency_archives()["target"]}:ro']
+    flags += private_var_tmp(cmd)
     return cmd[:3] + flags + cmd[3:]
+
+
+def private_var_tmp(cmd):
+    """Disk-backed /var/tmp next to the trial's /tmp.
+
+    --contain gives each container an empty tmpfs /var/tmp, so files written there
+    use the task's memory and escape its disk measurement and storage limit. Under
+    Docker /var/tmp is part of the container's disk. Bind a directory of the same
+    trial staging tree instead; it is removed with the trial like /tmp."""
+    if any(arg == '--bind' and cmd[i + 1].split(':')[1:2] == ['/var/tmp'] for i, arg in enumerate(cmd[:-1])):
+        return []
+    tmp = next((cmd[i + 1].split(':')[0] for i, arg in enumerate(cmd[:-1])
+                if arg == '--bind' and cmd[i + 1].split(':')[1:2] == ['/tmp']), None)
+    if not tmp or not Path(tmp).is_dir():
+        return []
+    var_tmp = Path(tmp).parent / 'var_tmp'
+    var_tmp.mkdir(exist_ok=True)
+    var_tmp.chmod(0o1777)
+    return ['--bind', f'{var_tmp}:/var/tmp:rw']
 
 
 def merge_workspace(source, destination):
