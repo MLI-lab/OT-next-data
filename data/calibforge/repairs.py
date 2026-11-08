@@ -9,9 +9,15 @@ R18 Remove the three apt tool-version pins in the reviewed sensor-log debugging 
 C1  Remove ignored agent resource fields from two task.toml files when environment has the same values.
 V1  Missing-output assertions; V2 pandas dependency assertion; V3 expected service failures move from
     fixture setup into test assertions. All explicitly authorized by the user.
+R19 A reviewed task whose Docker ENTRYPOINT starts the service state the agent must repair gets a
+    setup_files/setup.sh that runs that same entrypoint before the agent (the Apptainer runscript
+    only runs its arguments). Image, instruction and verifier are unchanged.
 CHECK_EXCLUSIONS  Tasks archived from no-op results (missing Python, memory limit).
 """
+import hashlib
+import json
 import re
+import shlex
 import tomllib
 
 CD_SEGMENT = re.compile(r"^cd\s+(/[^\s'\"$`;&|]*)$")
@@ -223,3 +229,107 @@ def assert_requested_service(task_id, text):
         index = first.end_lineno if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str) else first.lineno - 1
         lines.insert(index, ''.join('    ' + line + '\n' for line in assertion.splitlines()))
     return marker + "\n" + ''.join(lines)
+
+
+# R19: the Apptainer image's runscript is `cd <workdir>; exec "$@"`, so a Docker ENTRYPOINT never
+# runs in our task containers. Where that entrypoint creates the state the instruction asks the
+# agent to repair, the agent starts in a healthy environment and the no-op scores reward 1.
+# Each record binds the reviewed Dockerfile instructions and the entrypoint's inputs. The setup
+# runs the image's own entrypoint with /bin/true as its payload, where Docker passes the CMD
+# shell, detached from the setup command's output, before the agent starts.
+ENTRYPOINT_STARTUP_SETUP = "setup_files/setup.sh"
+ENTRYPOINT_STARTUP_MARKER = "# CalibForge R19: Docker ENTRYPOINT startup restored before the agent (generated)"
+ENTRYPOINT_STARTUPS = {
+    # Review fp-review-20261108 (Barnard, 2026-11-08): stage 3 of validation-v7-rerun (shard 0013) and
+    # validation-v5-rerun (shard 0017) scored the no-op [1.0, 1.0, 1.0]. logsvc.py writes three logs
+    # (160 MiB), keeps them open after unlinking them and writes /app/.logsvc.pid; the three tests
+    # check that the process is gone, that no deleted /app file is held and that the PID file is gone.
+    "multi_solver-system-administration_20260415_123352_009": {
+        "entrypoint": ["/entrypoint.sh"],
+        "cmd": ["bash"],
+        "workdir": "/app",
+        "script": "printf '#!/bin/bash\\npython3 /app/logsvc.py &\\nsleep 3\\nexec \"$@\"\\n' > /entrypoint.sh",
+        "inputs_sha256": {
+            "environment/files/logsvc.py": "36c6f7911de4e1fb83222be4bc4fb70ff7ce69665f906848041172f02966c873",
+        },
+        # logsvc.py writes its PID file after all three held-deleted logs exist.
+        "ready_path": "/app/.logsvc.pid",
+        "ready_timeout_sec": 120,
+    },
+}
+
+
+def _dockerfile_values(text, op):
+    joined = re.sub(r"\\\r?\n", " ", text)
+    values = []
+    for line in joined.splitlines():
+        parts = line.split(None, 1)
+        if parts and parts[0].upper() == op:
+            values.append(parts[1].strip() if len(parts) > 1 else "")
+    return values
+
+
+def entrypoint_startup_script(task_id):
+    """setup_files/setup.sh of a reviewed R19 task."""
+    record = ENTRYPOINT_STARTUPS[task_id]
+    ready, timeout = record["ready_path"], int(record["ready_timeout_sec"])
+    command = shlex.join([*record["entrypoint"], "/bin/true"])
+    failure = f"entrypoint service did not write {ready} within {timeout} s"
+    return ("#!/bin/bash\n" + ENTRYPOINT_STARTUP_MARKER + "\n"
+            f"# Docker starts this image as ENTRYPOINT {json.dumps(record['entrypoint'])} with CMD "
+            f"{json.dumps(record['cmd'])}; the Apptainer runscript only runs its arguments.\n"
+            "set -e\n"
+            'if [ "${1:-}" = "--prepare" ]; then exit 0; fi\n'
+            f"cd {shlex.quote(record['workdir'])}\n"
+            "# New session without inherited output: the service outlives this command.\n"
+            f"setsid -w {command} </dev/null >/dev/null 2>&1\n"
+            "ot_waited=0\n"
+            f"until [ -s {shlex.quote(ready)} ]; do\n"
+            f'  if [ "$ot_waited" -ge {timeout} ]; then\n'
+            f"    echo {shlex.quote(failure)} >&2\n"
+            "    exit 1\n"
+            "  fi\n"
+            "  sleep 1\n"
+            "  ot_waited=$((ot_waited + 1))\n"
+            "done\n")
+
+
+def is_entrypoint_startup_setup(name, data):
+    """True for an R19-generated setup.sh, which runtime history ignores like other patcher annotations."""
+    return (name == ENTRYPOINT_STARTUP_SETUP and data is not None
+            and any(data == entrypoint_startup_script(task).encode() for task in ENTRYPOINT_STARTUPS))
+
+
+def restore_entrypoint_startup(task_id, files):
+    """R19: ({path: bytes} to add, ENTRYPOINT) for a reviewed task, ({}, None) otherwise.
+
+    files maps the converted task's paths to bytes. Source drift raises for review.
+    """
+    record = ENTRYPOINT_STARTUPS.get(task_id)
+    if record is None:
+        return {}, None
+    script = entrypoint_startup_script(task_id).encode()
+    existing = files.get(ENTRYPOINT_STARTUP_SETUP)
+    if existing is not None and existing != script:
+        raise ValueError(f"{task_id}: existing agent setup needs review before restoring the entrypoint")
+    if any(path.startswith("setup_files/") and path != ENTRYPOINT_STARTUP_SETUP for path in files):
+        raise ValueError(f"{task_id}: existing agent setup files need review before restoring the entrypoint")
+    dockerfile = files.get("environment/Dockerfile", b"").decode("utf-8")
+    entrypoints = _dockerfile_values(dockerfile, "ENTRYPOINT")
+    cmds = _dockerfile_values(dockerfile, "CMD")
+    workdirs = _dockerfile_values(dockerfile, "WORKDIR")
+    try:
+        entrypoint, cmd = json.loads(entrypoints[-1]), json.loads(cmds[-1])
+    except (IndexError, ValueError) as error:
+        raise ValueError(f"{task_id}: reviewed exec-form ENTRYPOINT/CMD changed") from error
+    path = record["entrypoint"][0]
+    if (entrypoint != record["entrypoint"] or cmd != record["cmd"] or len(entrypoints) != 1
+            or not workdirs or workdirs[-1] != record["workdir"]
+            or dockerfile.count(record["script"]) != 1
+            or dockerfile.count(path) != 3 or f"chmod +x {path}" not in dockerfile):
+        raise ValueError(f"{task_id}: reviewed Docker ENTRYPOINT startup changed")
+    for name, digest in record["inputs_sha256"].items():
+        if name not in files or hashlib.sha256(files[name]).hexdigest() != digest:
+            raise ValueError(f"{task_id}: reviewed entrypoint input {name} changed")
+    # An input that already carries this exact setup is left unchanged.
+    return ({} if existing is not None else {ENTRYPOINT_STARTUP_SETUP: script}), " ".join(record["entrypoint"])

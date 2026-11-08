@@ -36,6 +36,10 @@ def comparable(name, data):
     # places (including continued Dockerfile commands) remain significant.
     if data is None:
         return None
+    from data.calibforge.repairs import is_entrypoint_startup_setup
+    if is_entrypoint_startup_setup(name, data):
+        # R19 adds this setup after runtime integration; it is neither runtime input nor output.
+        return None
     if name == 'instruction.md':
         return re.sub(rb'\n+You have [0-9]+ seconds to complete this task\. Do not cheat by using online solutions or hints specific to this task\.\s*$', b'', data).rstrip()
     if name == 'environment/Dockerfile':

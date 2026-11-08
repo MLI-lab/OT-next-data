@@ -54,7 +54,7 @@ B2  A leading block of installation commands moves unchanged from tests/test.sh 
 
 The pytest command, its arguments and reward handling are unchanged. Heredoc RUN lines are left alone
 and listed in the manifest, as are verifier scripts whose installation commands are not a clean
-leading block. Rules R3, R18, C1 and V1-V3 and the no-op exclusions are in repairs.py, which
+leading block. Rules R3, R18, R19, C1 and V1-V3 and the no-op exclusions are in repairs.py, which
 `--no-repairs` leaves out, so the validation rules can be measured on the plain conversion.
 """
 
@@ -84,7 +84,7 @@ from data.calibforge.repairs import (
     APT_TOOL_PIN_TASK, APT_TOOL_PINS, CHECK_EXCLUSIONS, REDUNDANT_AGENT_RESOURCE_TASKS,
     REQUIRED_SOLUTION_FILES, REQUIRED_VERIFIER_MODULES, SERVICE_VERIFIER_REPAIRS,
     assert_required_solution_file, assert_required_verifier_module, assert_requested_service,
-    patch_instruction, remove_redundant_agent_resources, unpin_reviewed_apt_tools)
+    patch_instruction, remove_redundant_agent_resources, restore_entrypoint_startup, unpin_reviewed_apt_tools)
 
 REVISION = "fb1e75441a94b8bb0ced08acd6b59e711704d70a"
 
@@ -1225,6 +1225,11 @@ LABELS = (
     ("R18", "apt-tool-version-pins-removed", "Remove the reviewed build-essential, gdb and valgrind apt version pins "
                                            "({R18}); the sensor-log debugging task does not require those exact tool versions. "
                                            "Preserve the package list, install flags, source files and verifier."),
+    ("R19", "entrypoint-startup-restored", "Run the image's Docker ENTRYPOINT {R19} from setup_files/setup.sh before "
+                                           "the agent starts and wait for its service to be ready: the Apptainer "
+                                           "runscript only runs its arguments, so the service state the instruction "
+                                           "asks the agent to repair was absent. Image, instruction and verifier are "
+                                           "unchanged."),
     ("A", "shared-image", "Use the comment-free equivalent Dockerfile of task {A} so identical environments "
                           "share one cached image."),
     ("B1", "verifier-dependencies-in-image", "Install the verifier's test runner and tools at image build time "
@@ -1410,6 +1415,23 @@ def patch_task(task_id, binary, shared=None, repairs=True):
     return (write_task(members) if modified else binary), changes, bool(modified)
 
 
+def add_entrypoint_startup(task_id, binary):
+    """R19 after runtime integration: runtime plans and history bind the converted contents
+    without agent setup, and the added setup.sh does not change the image or the verifier."""
+    members = read_task(binary)
+    files = {info.name: data for info, data in members if data is not None}
+    updates, entrypoint = restore_entrypoint_startup(task_id, files)
+    if not updates:
+        return binary, entrypoint
+    template = next(info for info, data in members if info.name == "instruction.md")
+    for name, data in updates.items():
+        info = tarfile.TarInfo(name)
+        info.mode, info.mtime, info.uid, info.gid = 0o755, template.mtime, template.uid, template.gid
+        info.uname, info.gname = template.uname, template.gname
+        members.append((info, data))
+    return write_task(members), entrypoint
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
@@ -1483,6 +1505,12 @@ def main():
                         if runtime_modified:
                             changes['RV'] = True
                             modified = True
+                    if repairs:
+                        restored, entrypoint = add_entrypoint_startup(task_id, binary)
+                        if entrypoint:
+                            changes['R19'] = entrypoint
+                            modified = modified or restored != binary
+                            binary = restored
                     if changes:
                         manifest["tasks"].append({"task": task_id, "changes": changes})
                     if modified:
