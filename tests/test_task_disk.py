@@ -157,7 +157,7 @@ def test_exceeding_declared_storage_or_memory_fails_the_tasks_own_build(tmp_path
     disk = 'Bridge job j-1 failed: Task disk limit exceeded: the task wrote 1088 MiB, its task.toml storage is 1024 MiB'
     memory = 'Bridge job j-2 failed: Task memory limit exceeded during environment startup'
     for reason in (disk, memory):
-        result = {'status': 'error', 'reason': reason}
+        result = {'status': 'error', 'environments': [{'environment': 'agent', 'status': 'error', 'error': reason}]}
         cause = build_retries.failure_cause(result)
         assert cause == 'build-execution-error'
         assert build_retries.build_stability([dict(result, cause=cause)] * 4) == 'task_failure'

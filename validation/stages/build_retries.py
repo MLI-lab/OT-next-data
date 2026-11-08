@@ -68,7 +68,8 @@ def save_preparation_review(sources, items, out):
 
 def failure_cause(result):
     """Infrastructure (node, bridge, disk) or the task's own build/start."""
-    text = '\n'.join([str(result.get('reason') or ''), *map(str, result.get('findings', []))])
+    # The limit message is the environment's own start/setup error, not the item's reason.
+    text = json.dumps(result, default=str)
     if any(limit in text for limit in TASK_LIMIT):
         return 'build-execution-error'
     return execution_label(result) or 'build-execution-error'
