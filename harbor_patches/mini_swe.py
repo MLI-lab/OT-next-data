@@ -18,6 +18,7 @@ import threading
 import time
 
 from harbor.agents.base import BaseAgent, TurnCapExhaustedError
+from harbor_patches.oom_recovery import TERMINAL, RecoveredTaskOOM
 from harbor_patches.terminus_session import POLICY, TIME_LIMIT, INVALID_VERDICT, _minutes
 
 
@@ -71,6 +72,16 @@ def request_kwargs(kwargs):
 # long reasoning turns on slow local servers, and each MiniSWE retry restarted
 # the turn from scratch. The review session limit stays the binding deadline.
 REQUEST_TIMEOUT_SEC = 3600.0
+
+# A judge that keeps exploring eventually fills the context and every request
+# fails. Ask for the verdict once the prompt passes this share of the context,
+# and halve the reply budget (down to MIN_REPLY_TOKENS) when the server says
+# prompt plus reply no longer fit.
+CONTEXT_WARNING_FRACTION = 0.6
+MIN_REPLY_TOKENS = 4096
+CONTEXT_LIMIT = ('The conversation is close to the model context limit ({used:,} of {limit:,} tokens). '
+                 'Do not investigate further. Write {artifact} now from the evidence you have, '
+                 'then mark the task complete.')
 
 
 def request_timeout(options):
@@ -146,7 +157,9 @@ class MiniSweAgent(BaseAgent):
         bridge = Bridge()
         policy = POLICY.get()
         started = time.monotonic()
-        state = {'time_limit_message': False, 'completion_rejections': 0, 'events': []}
+        state = {'time_limit_message': False, 'completion_rejections': 0, 'events': [],
+                 'context_message': False, 'prompt_tokens': 0}
+        context_limit = (self.options.get('model_info') or {}).get('max_input_tokens')
         deadline = None
         owner = self
         defaults = yaml.safe_load((Path(minisweagent.__file__).parent / 'config/mini.yaml').read_text())
@@ -161,6 +174,13 @@ class MiniSweAgent(BaseAgent):
                 event('time_limit_message')
                 agent.add_messages(agent.model.format_message(role='user', content=TIME_LIMIT.format(
                     artifact=policy.artifact, minutes=_minutes(policy.grace_sec))))
+            used = state['prompt_tokens']
+            if (policy and context_limit and not state['context_message']
+                    and used >= CONTEXT_WARNING_FRACTION * context_limit):
+                state['context_message'] = True
+                event('context_limit_message', prompt_tokens=used)
+                agent.add_messages(agent.model.format_message(role='user', content=CONTEXT_LIMIT.format(
+                    artifact=policy.artifact, used=used, limit=context_limit)))
 
         async def check_verdict():
             if not policy or not policy.validate:
@@ -179,25 +199,48 @@ class MiniSweAgent(BaseAgent):
                                 openai.PermissionDeniedError, openai.BadRequestError, openai.NotFoundError]
 
             def _query(self, messages, **kwargs):
-                async def request():
+                options = self.config.model_kwargs | kwargs
+                async def request(limit):
                     response = await completion(self.config.model_name, messages,
-                        {**(self.config.model_kwargs | kwargs), "tools": [BASH_TOOL]})
+                        {**options, **({'max_tokens': limit} if limit else {}), "tools": [BASH_TOOL]})
                     # vLLM versions use either name. Keep reasoning in native history.
                     message = response.choices[0].message
                     if not getattr(message, 'reasoning_content', None) and getattr(message, 'reasoning', None):
                         message.reasoning_content = message.reasoning
+                    used = getattr(getattr(response, 'usage', None), 'prompt_tokens', None)
+                    if used:
+                        state['prompt_tokens'] = used
                     return response
-                return bridge.call(request())
+                limit = None
+                while True:
+                    try:
+                        return bridge.call(request(limit))
+                    except openai.BadRequestError as exc:
+                        current = limit or options.get('max_tokens')
+                        if 'maximum context length' not in str(exc) or not current or current // 2 < MIN_REPLY_TOKENS:
+                            raise
+                        limit = current // 2
+                        event('reply_budget_reduced', max_tokens=limit)
 
         class Environment(LocalEnvironment):
             def execute(self, action, cwd='', *, timeout=None):
                 command_limit = timeout or owner.options.get('command_timeout_sec', 30)
+
+                async def agent_command():
+                    # Mark the command as an agent terminal interaction, so a task OOM
+                    # restarts the container processes and returns feedback (as for
+                    # Terminus) instead of ending the review.
+                    TERMINAL.set(True)
+                    return await environment.exec(action.get('command', ''), cwd=cwd or None,
+                                                  timeout_sec=command_limit)
                 try:
-                    result = bridge.call(environment.exec(
-                        action.get('command', ''), cwd=cwd or None, timeout_sec=command_limit))
+                    result = bridge.call(agent_command())
                 except TimeoutError:
                     return {'output': '', 'returncode': -1,
                             'exception_info': f'Command timed out after {command_limit} seconds.'}
+                except RecoveredTaskOOM as exc:
+                    event('task_oom_recovered')
+                    return {'output': 'TASK_MEMORY_LIMIT: ' + str(exc), 'returncode': 137, 'exception_info': ''}
                 output = {'output': (result.stdout or '') + (result.stderr or ''),
                           'returncode': result.return_code, 'exception_info': ''}
                 lines = output['output'].lstrip().splitlines()

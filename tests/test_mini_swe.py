@@ -300,3 +300,67 @@ def test_36_agents_leave_default_executor_available_for_io(tmp_path, monkeypatch
         assert all((tmp_path / str(i) / 'trajectory.json').exists() for i in range(36))
 
     asyncio.run(exercise())
+
+
+def test_task_oom_in_judge_command_is_feedback_not_failure(tmp_path, monkeypatch):
+    from harbor_patches.oom_recovery import TERMINAL, RecoveredTaskOOM
+    from harbor_patches.protected_step import FEEDBACK
+    commands = iter(['echo big', 'write verdict', 'echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'])
+    seen = []
+    async def completion(model, messages, kwargs):
+        seen.append(deepcopy(messages))
+        return response(next(commands))
+    class OOMEnvironment(Environment):
+        async def exec(self, command, **kwargs):
+            if command == 'echo big':
+                assert TERMINAL.get() is True
+                raise RecoveredTaskOOM(FEEDBACK)
+            if command.startswith('cat '):
+                assert TERMINAL.get() is False  # verdict reads are not agent commands
+            return await super().exec(command, **kwargs)
+    monkeypatch.setattr('harbor_patches.mini_swe.completion', completion)
+    agent = MiniSweAgent(logs_dir=tmp_path, model_name='openai/test')
+    context = AgentContext()
+    with active(Policy(review_sec=60, grace_sec=60, validate=validate)):
+        asyncio.run(agent.run('Judge.', OOMEnvironment(), context))
+    assert any('TASK_MEMORY_LIMIT: Task memory limit exceeded' in str(m['content'])
+               for m in seen[1] if m['role'] == 'tool')
+    assert [e['kind'] for e in context.metadata['review_session']['events']] == ['task_oom_recovered']
+
+
+def test_context_overflow_halves_reply_budget_and_asks_for_verdict(tmp_path, monkeypatch):
+    import httpx, openai
+    calls = []
+    def big(command, prompt):
+        r = response(command); r.usage.prompt_tokens = prompt; return r
+    async def completion(model, messages, kwargs):
+        calls.append(deepcopy(kwargs))
+        if len(calls) == 1:
+            return big('echo inspecting', 700)  # 70 % of a 1,000-token context
+        if kwargs['max_tokens'] > 200:
+            raise openai.BadRequestError("This model's maximum context length is 1000 tokens.",
+                response=httpx.Response(400, request=httpx.Request('POST', 'http://x')), body=None)
+        return big('write verdict' if len(calls) < 6 else 'echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT', 900)
+    monkeypatch.setattr('harbor_patches.mini_swe.completion', completion)
+    monkeypatch.setattr('harbor_patches.mini_swe.MIN_REPLY_TOKENS', 100)
+    agent = MiniSweAgent(logs_dir=tmp_path, model_name='openai/test', max_tokens=800,
+                         model_info={'max_input_tokens': 1000})
+    context = AgentContext()
+    with active(Policy(review_sec=60, grace_sec=60, validate=validate)):
+        asyncio.run(agent.run('Judge.', Environment(), context))
+    assert [c['max_tokens'] for c in calls[:4]] == [800, 800, 400, 200]
+    events = [e['kind'] for e in context.metadata['review_session']['events']]
+    assert events[:3] == ['context_limit_message', 'reply_budget_reduced', 'reply_budget_reduced']
+    assert events.count('context_limit_message') == 1
+
+
+def test_context_overflow_below_minimum_reply_budget_still_fails(tmp_path, monkeypatch):
+    import httpx, openai
+    async def completion(model, messages, kwargs):
+        raise openai.BadRequestError("This model's maximum context length is 1000 tokens.",
+            response=httpx.Response(400, request=httpx.Request('POST', 'http://x')), body=None)
+    monkeypatch.setattr('harbor_patches.mini_swe.completion', completion)
+    agent = MiniSweAgent(logs_dir=tmp_path, model_name='openai/test', max_tokens=8192)
+    with pytest.raises(Exception):
+        with active(Policy(review_sec=60, grace_sec=60, validate=validate)):
+            asyncio.run(agent.run('Judge.', Environment(), AgentContext()))
