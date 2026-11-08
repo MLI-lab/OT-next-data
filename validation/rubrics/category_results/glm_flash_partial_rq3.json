@@ -11,10 +11,11 @@
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk6/run/shards/0000/report/stage-5-304c8a1861af.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk7/run/shards/0000/report/stage-5-fc97bb02f492.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-missing-n1/run/shards/0000/report/stage-5-97c6f4d1b20e.json",
-  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-missing-n2/run/shards/0000/report/stage-5-c85a5ab5d8e5.json"
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-missing-n2/run/shards/0000/report/stage-5-c85a5ab5d8e5.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-retry-20261108/run/shards/0000/report/stage-5-4c8c7c628cf7.json"
  ],
  "tasks_with_reviews": 304,
- "tasks_with_three_reviews": 300,
+ "tasks_with_three_reviews": 302,
  "rows": {
   "VERIFIER-TOO-WEAK": {
    "defects_covered": 16,
@@ -27,24 +28,24 @@
    "tasks": 75
   },
   "INSTR-VERIFIER-MISMATCH": {
-   "defects_covered": 116,
+   "defects_covered": 117,
    "defects_total": 117,
-   "detected": 70,
+   "detected": 71,
    "clean_covered": 59,
    "clean_total": 59,
    "clean_passed": 59,
-   "agreement": 140,
-   "tasks": 175
+   "agreement": 141,
+   "tasks": 176
   },
   "INSTR-AMBIGUOUS": {
-   "defects_covered": 12,
+   "defects_covered": 13,
    "defects_total": 13,
    "detected": 6,
    "clean_covered": 59,
    "clean_total": 59,
    "clean_passed": 59,
-   "agreement": 67,
-   "tasks": 71
+   "agreement": 68,
+   "tasks": 72
   },
   "INSTR-ENV-MISMATCH": {
    "defects_covered": 59,
@@ -80,12 +81,12 @@
     "reviews": 48
    },
    "INSTR-VERIFIER-MISMATCH": {
-    "correct": 202,
-    "reviews": 348
+    "correct": 205,
+    "reviews": 351
    },
    "INSTR-AMBIGUOUS": {
     "correct": 18,
-    "reviews": 36
+    "reviews": 39
    },
    "INSTR-ENV-MISMATCH": {
     "correct": 172,

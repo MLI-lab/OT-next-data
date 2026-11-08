@@ -66,7 +66,7 @@ We changed “checks something the instruction does not imply” to **“checks 
 
 We removed “A solution that faithfully follows the instruction still fails” <span style="color: #d1242f;">(not yet evaluated)</span> because this can also describe ambiguity: a solution may follow a reasonable interpretation of the instruction and still fail. Qwen also often used this sentence to incorrectly pass tasks with this defect: it took the reference solution as the faithful solution, saw it pass, and concluded PASS (e.g. `django-15703`), although an agent never sees the reference solution.
 
-We therefore added: “Judge only from what the agent can see; a requirement is not implied just because the reference solution satisfies it” <span style="color: #d1242f;">(not yet evaluated)</span>. Much of Qwen’s run-to-run disagreement on mismatch comes from this: some runs flag an unspecified exact error message, while others pass it because it is exactly what the reference fix produces.
+We therefore added: “Judge only from what the agent can see, not the task's tests/ or solution/ directories. A requirement is not implied just because the reference solution or hidden tests satisfy it” <span style="color: #d1242f;">(the revised-rubric runs used an earlier version that named only the reference solution; the current wording is not yet evaluated)</span>. Much of Qwen’s run-to-run disagreement on mismatch comes from this: some runs flag an unspecified exact error message, while others pass it because it is exactly what the reference fix produces.
 
 We also added: “Check hardcoded expected values, paths and hashes against the provided data and environment” <span style="color: #d1242f;">(not yet evaluated)</span>, because Sonnet often only checked that tested paths and values appear in the instruction, not that they are correct (e.g. a binary path the build never produces in `caffe-cifar-10`).
 
@@ -124,7 +124,7 @@ Here we hold the prompting strategy fixed at **labeling** and compare Sonnet, Qw
 | Qwen3.8-27B / Labeling | 12/16 (75.0%) | 67/117 (57.3%) | 5/13 (38.5%) | 58/59 (98.3%) |
 | Qwen3.8-27B / Labeling, revised rubric | 15/16 (93.8%) | 77/117 (65.8%) | 3/13 (23.1%) | 57/59 (96.6%) |
 | GPT-6.1-sol / Labeling | 16/16 (100.0%) | 111/117 (94.9%) | 8/13 (61.5%) | 59/59 (100.0%) |
-| GLM-5.3-Flash / Labeling | 13/16 (81.3%) | 70/116 (60.3%) | 6/12 (50.0%) | 58/59 (98.3%) |
+| GLM-5.3-Flash / Labeling | 13/16 (81.3%) | 71/117 (60.7%) | 6/13 (46.2%) | 58/59 (98.3%) |
 | GLM-5.3-Flash / Labeling, revised rubric | 16/16 (100.0%) | 87/117 (74.4%) | 4/13 (30.8%) | 58/59 (98.3%) |
 
 Sonnet, Qwen and GLM-5.3-Flash (partial) mostly miss the same weak-verifier tasks. Qwen and GLM-5.3-Flash only check whether the behavior is really tested or a fabricated output could pass; they rarely try a plausible partial solution to see whether it passes. Sonnet sometimes sees the gap but calls it minor. Most missed tasks fall under `VERIFIER-ACCEPTS-INCOMPLETE` in the revised rubric, where it is unclear whether filtering helps, so these misses are a smaller problem.
@@ -162,10 +162,10 @@ On environment mismatch, Sonnet's misses mostly come from assuming that missing 
 | Qwen3.8-27B / Labeling | 70/75 (93.3%) | 128/176 (72.7%) | 68/72 (94.4%) | 112/118 (94.9%) |
 | Qwen3.8-27B / Labeling, revised rubric | 57/75 (76.0%) | 126/176 (71.6%) | 66/72 (91.7%) | 111/118 (94.1%) |
 | GPT-6.1-sol / Labeling | 69/75 (92.0%) | 172/176 (97.7%) | 70/72 (97.2%) | 118/118 (100.0%) |
-| GLM-5.3-Flash / Labeling | 69/75 (92.0%) | 140/175 (80.0%) | 67/71 (94.4%) | 115/118 (97.5%) |
+| GLM-5.3-Flash / Labeling | 69/75 (92.0%) | 141/176 (80.1%) | 68/72 (94.4%) | 115/118 (97.5%) |
 | GLM-5.3-Flash / Labeling, revised rubric | 64/75 (85.3%) | 150/176 (85.2%) | 66/72 (91.7%) | 116/118 (98.3%) |
 
-Qwen and GLM-5.3-Flash agree less on verifier mismatch because their runs apply two standards to the same evidence: some runs flag an exact message, name or key that the instruction never states, while others pass the same task because the tests match the upstream or reference fix. Adding “Judge only from what the agent can see; a requirement is not implied just because the reference solution satisfies it” should fix this (not yet evaluated).
+Qwen and GLM-5.3-Flash agree less on verifier mismatch because their runs apply two standards to the same evidence: some runs flag an exact message, name or key that the instruction never states, while others pass the same task because the tests match the upstream or reference fix. Adding “Judge only from what the agent can see, not the task's tests/ or solution/ directories. A requirement is not implied just because the reference solution or hidden tests satisfy it” should fix this (not yet evaluated).
 
 **Results, revised rubric:** Agreement on weak verifier fell almost entirely on clean tasks: the judges now try to demonstrate a passing partial solution or hardcoded answer, and because many SWE-bench tests check a single fixed input, such a solution often exists, but only some runs find it.
 
