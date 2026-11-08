@@ -1,83 +1,91 @@
 {
  "definition": "GLM-5.3-Flash labeling, corrected kpool cohort (judge-runtime-repair-20261106/kpool-both-fixes); partial: only tasks with three complete reviews. Same cohorts and majority rule as structured_comparison.json.",
  "reports": [
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-caffe-network-n3/run/shards/0000/report/stage-5-ec2e5e41277c.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk0/run/shards/0000/report/stage-5-0c26b6ce57f9.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk1/run/shards/0000/report/stage-5-24f1db9e3874.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk2/run/shards/0000/report/stage-5-dc110b770a24.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk3/run/shards/0000/report/stage-5-e45f7f22ba31.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk4/run/shards/0000/report/stage-5-dcc6f62ea6ac.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk5/run/shards/0000/report/stage-5-b87d0a2608a9.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk6/run/shards/0000/report/stage-5-304c8a1861af.json",
-  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk7/run/shards/0000/report/stage-5-fc97bb02f492.json"
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-chunk7/run/shards/0000/report/stage-5-fc97bb02f492.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-missing-n1/run/shards/0000/report/stage-5-97c6f4d1b20e.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-labeling-kpool-fixed-missing-n2/run/shards/0000/report/stage-5-c85a5ab5d8e5.json"
  ],
- "tasks_with_reviews": 265,
- "tasks_with_three_reviews": 259,
+ "tasks_with_reviews": 304,
+ "tasks_with_three_reviews": 300,
  "rows": {
   "VERIFIER-TOO-WEAK": {
-   "defects_covered": 11,
+   "defects_covered": 16,
    "defects_total": 16,
-   "detected": 9,
-   "clean_covered": 53,
+   "detected": 13,
+   "clean_covered": 59,
    "clean_total": 59,
-   "clean_passed": 53,
-   "agreement": 59,
-   "tasks": 64
+   "clean_passed": 59,
+   "agreement": 69,
+   "tasks": 75
   },
   "INSTR-VERIFIER-MISMATCH": {
-   "defects_covered": 96,
+   "defects_covered": 116,
    "defects_total": 117,
-   "detected": 58,
-   "clean_covered": 53,
+   "detected": 70,
+   "clean_covered": 59,
    "clean_total": 59,
-   "clean_passed": 53,
-   "agreement": 122,
-   "tasks": 149
+   "clean_passed": 59,
+   "agreement": 140,
+   "tasks": 175
   },
   "INSTR-AMBIGUOUS": {
-   "defects_covered": 9,
+   "defects_covered": 12,
    "defects_total": 13,
-   "detected": 5,
-   "clean_covered": 53,
+   "detected": 6,
+   "clean_covered": 59,
    "clean_total": 59,
-   "clean_passed": 53,
-   "agreement": 60,
-   "tasks": 62
+   "clean_passed": 59,
+   "agreement": 67,
+   "tasks": 71
   },
   "INSTR-ENV-MISMATCH": {
    "defects_covered": 59,
    "defects_total": 59,
    "detected": 58,
-   "clean_covered": 53,
+   "clean_covered": 59,
    "clean_total": 59,
-   "clean_passed": 53,
-   "agreement": 109,
-   "tasks": 112
+   "clean_passed": 59,
+   "agreement": 115,
+   "tasks": 118
   }
  },
  "classification_reports": [
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-caffe-network-n3/run/shards/0000/report/stage-5-2bfb0ec07337.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk0/run/shards/0000/report/stage-5-ac75cddd1cee.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk1/run/shards/0000/report/stage-5-7b9eb19b14ea.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk2/run/shards/0000/report/stage-5-6a92dbed2614.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk3/run/shards/0000/report/stage-5-e488b86ee1e7.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk4/run/shards/0000/report/stage-5-2e7cd3b9e65b.json",
   "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk5/run/shards/0000/report/stage-5-bde3c74ec4e2.json",
-  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk6/run/shards/0000/report/stage-5-ec959733cd6f.json"
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk6/run/shards/0000/report/stage-5-ec959733cd6f.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-chunk7/run/shards/0000/report/stage-5-113cea8760dc.json",
+  "/hnvme/workspace/y500bb12-rule-based-checks/judge-runtime-repair-20261106/kpool-both-fixes/glm-5.3-flash-classification-kpool-fixed-missing-n1/run/shards/0000/report/stage-5-0478b48d5fc1.json"
  ],
  "rq2_rows": {
   "Labeling": {
    "CLEAN": {
-    "correct": 158,
-    "reviews": 159
+    "correct": 175,
+    "reviews": 177
    },
    "VERIFIER-TOO-WEAK": {
-    "correct": 27,
-    "reviews": 33
+    "correct": 38,
+    "reviews": 48
    },
    "INSTR-VERIFIER-MISMATCH": {
-    "correct": 167,
-    "reviews": 288
+    "correct": 202,
+    "reviews": 348
    },
    "INSTR-AMBIGUOUS": {
-    "correct": 15,
-    "reviews": 27
+    "correct": 18,
+    "reviews": 36
    },
    "INSTR-ENV-MISMATCH": {
     "correct": 172,
@@ -86,24 +94,24 @@
   },
   "Classification": {
    "CLEAN": {
-    "correct": 158,
-    "reviews": 162
+    "correct": 173,
+    "reviews": 177
    },
    "VERIFIER-TOO-WEAK": {
-    "correct": 22,
-    "reviews": 30
+    "correct": 33,
+    "reviews": 45
    },
    "INSTR-VERIFIER-MISMATCH": {
-    "correct": 172,
-    "reviews": 279
+    "correct": 217,
+    "reviews": 345
    },
    "INSTR-AMBIGUOUS": {
-    "correct": 10,
-    "reviews": 27
+    "correct": 11,
+    "reviews": 36
    },
    "INSTR-ENV-MISMATCH": {
-    "correct": 93,
-    "reviews": 99
+    "correct": 163,
+    "reviews": 177
    }
   }
  }

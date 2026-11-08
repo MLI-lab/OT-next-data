@@ -43,8 +43,17 @@ def glm(e, pool=None):
     r = e['reviews'][0]
     k = re.search(r'/\d{5}-([^/]+)/', r['trial']).group(1)
     h = rep(r['source_report'])['task_content_sha256'].get(k)
-    v = (reviews if pool is None else pool).get(hash_to_key.get(h), [])
-    return v if len(v) == 3 else None
+    key = hash_to_key.get(h)
+    if key is None:  # package rebuilt since the Sonnet run (content hash differs): match by a unique task_id
+        same = {x for x in hash_to_key.values() if x.rsplit('__', 1)[0] == e['task_id'].replace('/', '_')}
+        key = same.pop() if len(same) == 1 else None
+        if key:
+            id_matched.add(key)
+    v = (reviews if pool is None else pool).get(key, [])
+    return v[:3] if len(v) >= 3 else None
+
+
+id_matched = set()
 
 
 cat_rows = {}

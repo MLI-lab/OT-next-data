@@ -3,8 +3,8 @@
  "clean_tasks": 59,
  "defect_tasks": {
   "VERIFIER-TOO-WEAK": 16,
-  "INSTR-VERIFIER-MISMATCH": 116,
-  "INSTR-AMBIGUOUS": 12,
+  "INSTR-VERIFIER-MISMATCH": 117,
+  "INSTR-AMBIGUOUS": 13,
   "INSTR-ENV-MISMATCH": 59
  },
  "models": {
@@ -13,7 +13,7 @@
    "missing": {
     "clean": 0,
     "VERIFIER-TOO-WEAK": 0,
-    "INSTR-VERIFIER-MISMATCH": 1,
+    "INSTR-VERIFIER-MISMATCH": 0,
     "INSTR-AMBIGUOUS": 0,
     "INSTR-ENV-MISMATCH": 0
    },
@@ -32,20 +32,20 @@
      }
     },
     "INSTR-VERIFIER-MISMATCH": {
-     "defects": 115,
+     "defects": 117,
      "detected": 77,
      "clean": 59,
      "clean_passed": 57,
      "agreement": 126,
-     "tasks": 174
+     "tasks": 176
     },
     "INSTR-AMBIGUOUS": {
-     "defects": 12,
+     "defects": 13,
      "detected": 3,
      "clean": 59,
      "clean_passed": 59,
-     "agreement": 65,
-     "tasks": 71
+     "agreement": 66,
+     "tasks": 72
     },
     "INSTR-ENV-MISMATCH": {
      "defects": 59,
@@ -71,13 +71,13 @@
     },
     "INSTR-VERIFIER-CONTRADICTION": {
      "defects_detected": 30,
-     "defects": 115,
+     "defects": 117,
      "clean_flagged": 2,
      "clean": 59
     },
     "INSTR-VERIFIER-UNSTATED-REQUIREMENT": {
      "defects_detected": 69,
-     "defects": 115,
+     "defects": 117,
      "clean_flagged": 0,
      "clean": 59
     }
@@ -100,7 +100,7 @@
    "missing": {
     "clean": 0,
     "VERIFIER-TOO-WEAK": 0,
-    "INSTR-VERIFIER-MISMATCH": 1,
+    "INSTR-VERIFIER-MISMATCH": 0,
     "INSTR-AMBIGUOUS": 0,
     "INSTR-ENV-MISMATCH": 0
    },
@@ -119,20 +119,20 @@
      }
     },
     "INSTR-VERIFIER-MISMATCH": {
-     "defects": 115,
+     "defects": 117,
      "detected": 87,
      "clean": 59,
      "clean_passed": 59,
-     "agreement": 149,
-     "tasks": 174
+     "agreement": 150,
+     "tasks": 176
     },
     "INSTR-AMBIGUOUS": {
-     "defects": 12,
+     "defects": 13,
      "detected": 4,
      "clean": 59,
      "clean_passed": 59,
-     "agreement": 65,
-     "tasks": 71
+     "agreement": 66,
+     "tasks": 72
     },
     "INSTR-ENV-MISMATCH": {
      "defects": 59,
@@ -158,13 +158,13 @@
     },
     "INSTR-VERIFIER-CONTRADICTION": {
      "defects_detected": 28,
-     "defects": 115,
+     "defects": 117,
      "clean_flagged": 0,
      "clean": 59
     },
     "INSTR-VERIFIER-UNSTATED-REQUIREMENT": {
      "defects_detected": 76,
-     "defects": 115,
+     "defects": 117,
      "clean_flagged": 0,
      "clean": 59
     }

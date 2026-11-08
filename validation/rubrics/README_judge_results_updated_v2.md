@@ -122,8 +122,10 @@ Here we hold the prompting strategy fixed at **labeling** and compare Sonnet, Qw
 |---|---:|---:|---:|---:|
 | Sonnet 5.5 / Labeling | 11/16 (68.8%) | 101/117 (86.3%) | 9/13 (69.2%) | 51/59 (86.4%) |
 | Qwen3.8-27B / Labeling | 12/16 (75.0%) | 67/117 (57.3%) | 5/13 (38.5%) | 58/59 (98.3%) |
+| Qwen3.8-27B / Labeling, revised rubric | 15/16 (93.8%) | 77/117 (65.8%) | 3/13 (23.1%) | 57/59 (96.6%) |
 | GPT-6.1-sol / Labeling | 16/16 (100.0%) | 111/117 (94.9%) | 8/13 (61.5%) | 59/59 (100.0%) |
-| GLM-5.3-Flash / Labeling (partial) | 9/11 (81.8%) | 58/96 (60.4%) | 5/9 (55.6%) | 58/59 (98.3%) |
+| GLM-5.3-Flash / Labeling | 13/16 (81.3%) | 70/116 (60.3%) | 6/12 (50.0%) | 58/59 (98.3%) |
+| GLM-5.3-Flash / Labeling, revised rubric | 16/16 (100.0%) | 87/117 (74.4%) | 4/13 (30.8%) | 58/59 (98.3%) |
 
 Sonnet, Qwen and GLM-5.3-Flash (partial) mostly miss the same weak-verifier tasks. Qwen and GLM-5.3-Flash only check whether the behavior is really tested or a fabricated output could pass; they rarely try a plausible partial solution to see whether it passes. Sonnet sometimes sees the gap but calls it minor. Most missed tasks fall under `VERIFIER-ACCEPTS-INCOMPLETE` in the revised rubric, where it is unclear whether filtering helps, so these misses are a smaller problem.
 
@@ -133,18 +135,24 @@ On ambiguity, Sonnet's misses are another case of seeing the problem but calling
 
 On environment mismatch, Sonnet's misses mostly come from assuming that missing grading data will be supplied later, which the revised rubric now clarifies (not yet evaluated).
 
+**Results, revised rubric:** Splitting weak verifier fixed most of the misses: all newly detected tasks are caught by `VERIFIER-ACCEPTS-INCOMPLETE`. Instead of only running the base code and the reference solution, the judges now remove a stated requirement from the reference solution and show that the verifier still passes. Splitting verifier mismatch raised detection because the judges now also check unstated requirements, not only contradictions. Most remaining misses are SWE tasks whose tests require an exact message, name or key that the judges consider visible to the agent: the upstream fix is in the repository's git history, which we did not strip for these runs, or the detail follows a codebase convention. Ambiguity and environment changes are within run-to-run noise.
+
 **Clean tasks correctly passed for each criterion, using the same majority rule (GPT-6.1-sol: both reviews pass):**
 
 | Judge / format | Weak verifier | Verifier mismatch | Ambiguity | Environment mismatch |
 |---|---:|---:|---:|---:|
 | Sonnet 5.5 / Labeling | 59/59 (100.0%) | 59/59 (100.0%) | 59/59 (100.0%) | 59/59 (100.0%) |
 | Qwen3.8-27B / Labeling | 59/59 (100.0%) | 58/59 (98.3%) | 59/59 (100.0%) | 59/59 (100.0%) |
+| Qwen3.8-27B / Labeling, revised rubric | 52/59 (88.1%) | 57/59 (96.6%) | 59/59 (100.0%) | 59/59 (100.0%) |
 | GPT-6.1-sol / Labeling | 4/59 (6.8%) | 55/59 (93.2%) | 59/59 (100.0%) | 59/59 (100.0%) |
-| GLM-5.3-Flash / Labeling (partial) | 53/53 (100.0%) | 53/53 (100.0%) | 53/53 (100.0%) | 53/53 (100.0%) |
+| GLM-5.3-Flash / Labeling | 59/59 (100.0%) | 59/59 (100.0%) | 59/59 (100.0%) | 59/59 (100.0%) |
+| GLM-5.3-Flash / Labeling, revised rubric | 53/59 (89.8%) | 59/59 (100.0%) | 59/59 (100.0%) | 59/59 (100.0%) |
 
 **Why GPT-6.1-sol fails weak verifier on 55/59 clean tasks:** it tested the definition's "does not check one or more requirements stated in the instructions" systematically, and most SWE-bench tests are a single regression test (e.g. special-casing the one tested value in `django-11206` passes). Sonnet and Qwen mostly only checked that the tests run the code and compare real results. The revised rubric therefore separates `VERIFIER-ACCEPTS-INCOMPLETE` from `VERIFIER-ACCEPTS-SHORTCUTS`.
 
 **Why GPT-6.1-sol fails verifier mismatch on 4/59 clean tasks:** three are debatable mismatches (`django-13807`, `-11299`, `-14170`). The fourth, `sphinx-8475`, was a grading bug in our task conversion that Qwen also reported: `setup.sh` dropped the SWE-bench image commit that adds `-rA` to pytest, so the reference solution passed all tests but got reward 0 (verified by running the verifier). We have fixed this for all 74 affected SWE tasks on HF; the judge results above used the earlier packages. We have since fixed `setup.sh` for all 74 affected SWE tasks on HF; the judge runs above used the old packages.
+
+**Results, revised rubric:** `VERIFIER-ACCEPTS-INCOMPLETE` fails 7 (Qwen) and 4 (GLM-5.3-Flash) clean tasks, mostly real gaps in the SWE-bench tests (e.g. a backend or code path named in the issue is never tested); two demonstrations hardcode the tested input and belong under `ACCEPTS-SHORTCUTS`.
 
 **Agreement across three runs (GPT-6.1-sol: two runs), on each defect set plus the same 59 clean tasks:**
 
@@ -152,10 +160,14 @@ On environment mismatch, Sonnet's misses mostly come from assuming that missing 
 |---|---:|---:|---:|---:|
 | Sonnet 5.5 / Labeling | 70/75 (93.3%) | 165/176 (93.8%) | 71/72 (98.6%) | 110/118 (93.2%) |
 | Qwen3.8-27B / Labeling | 70/75 (93.3%) | 128/176 (72.7%) | 68/72 (94.4%) | 112/118 (94.9%) |
+| Qwen3.8-27B / Labeling, revised rubric | 57/75 (76.0%) | 126/176 (71.6%) | 66/72 (91.7%) | 111/118 (94.1%) |
 | GPT-6.1-sol / Labeling | 69/75 (92.0%) | 172/176 (97.7%) | 70/72 (97.2%) | 118/118 (100.0%) |
-| GLM-5.3-Flash / Labeling (partial) | 59/64 (92.2%) | 122/149 (81.9%) | 60/62 (96.8%) | 109/112 (97.3%) |
+| GLM-5.3-Flash / Labeling | 69/75 (92.0%) | 140/175 (80.0%) | 67/71 (94.4%) | 115/118 (97.5%) |
+| GLM-5.3-Flash / Labeling, revised rubric | 64/75 (85.3%) | 150/176 (85.2%) | 66/72 (91.7%) | 116/118 (98.3%) |
 
 Qwen and GLM-5.3-Flash agree less on verifier mismatch because their runs apply two standards to the same evidence: some runs flag an exact message, name or key that the instruction never states, while others pass the same task because the tests match the upstream or reference fix. Adding “Judge only from what the agent can see; a requirement is not implied just because the reference solution satisfies it” should fix this (not yet evaluated).
+
+**Results, revised rubric:** Agreement on weak verifier fell almost entirely on clean tasks: the judges now try to demonstrate a passing partial solution or hardcoded answer, and because many SWE-bench tests check a single fixed input, such a solution often exists, but only some runs find it.
 
 **Conclusion:** GPT-6.1-sol is the strictest judge and Sonnet the most conservative: Sonnet often sees a defect but calls it minor. Qwen and GLM-5.3-Flash (partial) behave similarly: both are conservative on instruction problems (mismatch, ambiguity) but flag more environment problems than Sonnet. Most of their misses follow systematic patterns that the revised rubric now addresses (not yet evaluated). Each judge repeats its own decisions consistently across runs, except Qwen (72.7%) and GLM-5.3-Flash (81.9%) on verifier mismatch, which the revised rubric should fix (not yet evaluated).
 ## Estimated costs

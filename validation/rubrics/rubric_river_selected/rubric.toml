@@ -12,7 +12,7 @@ description = "The verifier contradicts the instruction or the environment, so a
 
 [[criteria]]
 name = "INSTR-VERIFIER-UNSTATED-REQUIREMENT"
-description = "The verifier checks an arbitrary requirement not specified by the instruction. For example, demands a stricter format than the instruction states, requires specific output keys not stated in the instruction, or requires exact warning/error messages or other prose wording that the instruction does not specify. Judge only from what the agent can see; a requirement is not implied just because the reference solution satisfies it."
+description = "The verifier checks an arbitrary requirement not specified by the instruction. For example, demands a stricter format than the instruction states, requires specific output keys not stated in the instruction, or requires exact warning/error messages or other prose wording that the instruction does not specify. Judge only from what the agent can see, not the task's tests/ or solution/ directories. A requirement is not implied just because the reference solution or hidden tests satisfy it."
 
 [[criteria]]
 name = "INSTR-ENV-MISMATCH"
