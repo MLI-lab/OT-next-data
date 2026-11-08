@@ -97,7 +97,10 @@ def signals(attempt, allocation, policy):
     cpu_seconds, wall = agent_env.get('cpu_seconds'), agent_env.get('step_seconds')
     cpus = agent_env.get('cpus') or allocation['cpus']
     busy = cpu_seconds / (wall * cpus) if _number(cpu_seconds) and _number(wall) and wall > 0 and cpus else None
+    # cpu.pressure where PSI is enabled; otherwise the threads' runqueue wait (harbor_patches.task_disk.CpuWait).
     pressure = agent_env.get('cpu_pressure_seconds')
+    if not _number(pressure):
+        pressure = agent_env.get('cpu_wait_seconds')
     pressured = pressure / wall if _number(pressure) and _number(wall) and wall > 0 else None
     hot = ((busy is not None and busy >= policy.busy_fraction)
            or (pressured is not None and pressured >= policy.pressure_fraction))

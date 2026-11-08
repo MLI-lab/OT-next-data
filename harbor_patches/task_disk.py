@@ -65,6 +65,45 @@ def nonreclaimable_bytes(cgroup):
         return None
 
 
+def cgroup_threads(cgroup):
+    """Thread IDs in a cgroup and all its descendants (the container runs in child cgroups)."""
+    tids = set()
+    for root, _, files in os.walk(cgroup, onerror=lambda error: None):
+        if 'cgroup.threads' in files:
+            try:
+                tids.update(int(t) for t in (Path(root) / 'cgroup.threads').read_text().split())
+            except (OSError, ValueError):
+                pass
+    return tids
+
+
+def runqueue_wait_ns(tid):
+    """Time the thread spent runnable but waiting for a CPU (/proc/<tid>/schedstat, field 2)."""
+    try:
+        return int(Path(f'/proc/{tid}/schedstat').read_text().split()[1])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+class CpuWait:
+    """Accumulated runqueue wait of a cgroup's threads: stands in for cpu.pressure, which needs PSI,
+    disabled in the kernels of Helma's compute nodes (2026-11-08: no /proc/pressure). Divided by wall
+    time it is the average number of the task's threads waiting for a CPU; PSI's "some" share is at most
+    that. Threads that start and exit between two samples are missed, so it is a lower bound."""
+
+    def __init__(self):
+        self.seen, self.total_ns = {}, 0
+
+    def sample(self, cgroup):
+        current = {}
+        for tid in cgroup_threads(cgroup):
+            value = runqueue_wait_ns(tid)
+            if value is not None:
+                current[tid] = value
+                self.total_ns += max(0, value - self.seen.get(tid, 0))
+        self.seen = current
+
+
 def free_bytes(path):
     try:
         stat = os.statvfs(path)
@@ -187,6 +226,7 @@ class Watchdog(threading.Thread):
         # The trial step's cgroup, set by the controller (a new one per OOM-recovery step).
         self.memory_cgroup = None
         self.memory_peak = 0
+        self.cpu_wait = CpuWait()
 
     def measure(self):
         used = used_bytes(self.path)
@@ -216,6 +256,7 @@ class Watchdog(threading.Thread):
             value = nonreclaimable_bytes(self.memory_cgroup)
             if value is not None:
                 self.memory_peak = max(self.memory_peak, value)
+            self.cpu_wait.sample(self.memory_cgroup)
 
     def run(self):
         self.measured_at, self.duration, self.used, self.free_at = float('-inf'), 0.0, 0, None

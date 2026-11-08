@@ -390,6 +390,7 @@ class ProtectedInstance:
         self.generation += 1
         if getattr(self, 'disk', None) is not None:
             self.disk.memory_cgroup = self._step_cgroup()  # the OOM-recovery step's own cgroup
+            self.disk.cpu_wait.seen = {}  # new threads in a new cgroup
         print(f'[{self.env_id}] protected task executor: {self.info}; generation={self.generation}', flush=True)
 
     def remote_run(self, cmd, kwargs):
@@ -630,6 +631,8 @@ class ProtectedInstance:
                 resources = dict(resources or {}, disk_peak_mb=round(disk.peak / 2**20, 1))
                 if disk.memory_peak:
                     resources['memory_nonreclaimable_peak_mb'] = round(disk.memory_peak / 2**20, 1)
+                if disk.memory_cgroup is not None:
+                    resources['cpu_wait_seconds'] = round(disk.cpu_wait.total_ns / 1e9, 2)
                 if disk.limit:
                     resources['disk_limit_mb'] = round(disk.limit / 2**20, 1)
                 if disk.exceeded is not None:

@@ -138,3 +138,31 @@ def test_nonreclaimable_memory_is_anon_kernel_and_shmem(tmp_path):
     (tmp_path / 'memory.stat').write_text('anon 1000\nfile 99999\nkernel 200\nshmem 30\n')
     assert task_disk.nonreclaimable_bytes(tmp_path) == 1230
     assert task_disk.nonreclaimable_bytes(tmp_path / 'missing') is None
+
+
+def test_cpu_wait_sums_runqueue_wait_of_all_descendant_threads(tmp_path, monkeypatch):
+    from harbor_patches import task_disk
+    (tmp_path / 'child').mkdir()
+    (tmp_path / 'cgroup.threads').write_text('10\n')
+    (tmp_path / 'child' / 'cgroup.threads').write_text('11\n12\n')
+    waits = {10: 1_000_000_000, 11: 500_000_000, 12: None}
+    monkeypatch.setattr(task_disk, 'runqueue_wait_ns', lambda tid: waits[tid])
+    meter = task_disk.CpuWait()
+    meter.sample(tmp_path)
+    assert meter.total_ns == 1_500_000_000
+    waits.update({10: 1_200_000_000, 11: None})   # 11 exited, 10 waited 0.2 s more
+    meter.sample(tmp_path)
+    assert meter.total_ns == 1_700_000_000
+
+
+def test_runqueue_wait_reads_schedstat_of_this_thread():
+    import threading
+    from harbor_patches import task_disk
+    assert isinstance(task_disk.runqueue_wait_ns(threading.get_native_id()), int)
+
+
+def test_calibration_uses_runqueue_wait_without_psi():
+    from validation.stages import calibration as c
+    attempt = {'reward': 0, 'phases': {'verifier': 20}, 'tool_mean_sec': 15,
+               'resources': {'agent': {'cpu_seconds': 50, 'step_seconds': 100, 'cpus': 2, 'cpu_wait_seconds': 70}}}
+    assert c.classify(attempt, {'cpus': 2, 'memory_mb': 8192, 'storage_mb': 20480}, c.Policy())['cpu_starved']
