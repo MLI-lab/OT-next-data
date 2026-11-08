@@ -24,7 +24,7 @@ def fake_step(root, *, peak=512 * 2**20, limit=2 * 2**30, usec=3_500_000, pids=1
 def test_step_usage_reads_exact_counters_and_step_cpuset(tmp_path):
     usage = p.step_usage(fake_step(tmp_path))
     assert usage == {'memory_peak_bytes': 512 * 2**20, 'memory_limit_bytes': 2 * 2**30,
-                     'pids_peak': 17, 'cpu_usec': 3_500_000, 'cpus': 2}
+                     'pids_peak': 17, 'cpu_usec': 3_500_000, 'cpu_system_usec': 2, 'oom_kills': 0, 'cpus': 2}
 
 
 def test_step_usage_leaves_out_missing_counters(tmp_path):
@@ -32,7 +32,7 @@ def test_step_usage_leaves_out_missing_counters(tmp_path):
     events.parent.mkdir(parents=True)
     events.write_text('oom_kill 0\n')
     (events.parent / 'memory.max').write_text('max\n')
-    assert p.step_usage(events) == {}
+    assert p.step_usage(events) == {'oom_kills': 0}
 
 
 def test_usage_report_combines_oom_recovery_steps():
@@ -115,3 +115,26 @@ def test_stop_result_reaches_only_its_own_trial_result_json(monkeypatch):
     assert json.loads(mine)['resources'] == {'agent': {'memory_peak_mb': 300.0, 'cpu_seconds': 1.5}}
     assert 'resources' not in json.loads(theirs)
     assert env._env_id is None
+
+
+def test_step_usage_reads_calibration_counters(tmp_path):
+    events = fake_step(tmp_path)
+    user = events.parent
+    events.write_text('low 0\nhigh 0\nmax 3\noom 1\noom_kill 2\n')
+    (user / 'cpu.stat').write_text('usage_usec 4000000\nuser_usec 3000000\nsystem_usec 1000000\n'
+                                   'nr_periods 100\nnr_throttled 60\nthrottled_usec 2500000\n')
+    (user / 'cpu.pressure').write_text('some avg10=1.00 avg60=0.50 avg300=0.10 total=7500000\n'
+                                       'full avg10=0.00 avg60=0.00 avg300=0.00 total=100\n')
+    usage = p.step_usage(events)
+    assert usage['oom_kills'] == 2 and usage['cpu_pressure_some_usec'] == 7_500_000
+    assert (usage['cpu_nr_periods'], usage['cpu_nr_throttled'], usage['cpu_system_usec']) == (100, 60, 1_000_000)
+    report = p.usage_report([usage, dict(usage, oom_kills=0)])
+    assert report['oom_kills'] == 2 and report['cpu_pressure_seconds'] == 15.0
+    assert report['cpu_throttled_periods'] == 120 and report['cpu_system_seconds'] == 2.0
+
+
+def test_nonreclaimable_memory_is_anon_kernel_and_shmem(tmp_path):
+    from harbor_patches import task_disk
+    (tmp_path / 'memory.stat').write_text('anon 1000\nfile 99999\nkernel 200\nshmem 30\n')
+    assert task_disk.nonreclaimable_bytes(tmp_path) == 1230
+    assert task_disk.nonreclaimable_bytes(tmp_path / 'missing') is None

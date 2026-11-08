@@ -51,6 +51,20 @@ def check_seconds():
     return float(os.environ.get('OT_TASK_DISK_CHECK_SEC', '0.1'))
 
 
+def nonreclaimable_bytes(cgroup):
+    """anon + kernel + shmem of a cgroup v2 (memory the kernel cannot drop; swap is off).
+    MiMo's measure of what actually causes an OOM kill, as opposed to memory.peak,
+    which includes page cache."""
+    try:
+        stat = dict(line.split() for line in (Path(cgroup) / 'memory.stat').read_text().splitlines())
+    except (OSError, ValueError):
+        return None
+    try:
+        return int(stat['anon']) + int(stat.get('kernel', 0)) + int(stat.get('shmem', 0))
+    except (KeyError, ValueError):
+        return None
+
+
 def free_bytes(path):
     try:
         stat = os.statvfs(path)
@@ -170,6 +184,9 @@ class Watchdog(threading.Thread):
         self.peak = 0
         self.exceeded = None
         self.stopping = threading.Event()
+        # The trial step's cgroup, set by the controller (a new one per OOM-recovery step).
+        self.memory_cgroup = None
+        self.memory_peak = 0
 
     def measure(self):
         used = used_bytes(self.path)
@@ -194,10 +211,20 @@ class Watchdog(threading.Thread):
         headroom = max(self.limit - self.used, 0)
         return self.free_at - free >= max(headroom / 2, 1 << 20)
 
+    def sample_memory(self):
+        if self.memory_cgroup is not None:
+            value = nonreclaimable_bytes(self.memory_cgroup)
+            if value is not None:
+                self.memory_peak = max(self.memory_peak, value)
+
     def run(self):
         self.measured_at, self.duration, self.used, self.free_at = float('-inf'), 0.0, 0, None
+        memory_at = float('-inf')
         while not self.stopping.is_set():
             now = time.monotonic()
+            if now - memory_at >= 1.0:
+                self.sample_memory()
+                memory_at = now
             if self.path.exists() and self.due(now, free_bytes(self.path)):
                 self.free_at = free_bytes(self.path)
                 self.used = self.measure()

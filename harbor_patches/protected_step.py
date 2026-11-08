@@ -123,7 +123,22 @@ def step_usage(memory_events):
     try:
         stat = dict(line.split() for line in (directory / 'cpu.stat').read_text().splitlines())
         usage['cpu_usec'] = int(stat['usage_usec'])
+        # Resource calibration (MiMo's rules): kernel share of CPU and CFS throttling.
+        # Under Slurm's cpuset limit throttling stays near 0; cpu.pressure shows the wait.
+        for key in ('system_usec', 'nr_periods', 'nr_throttled', 'throttled_usec'):
+            if key in stat:
+                usage['cpu_' + key] = int(stat[key])
     except (OSError, KeyError, ValueError):
+        pass
+    try:
+        events = dict(line.split() for line in (directory / 'memory.events').read_text().splitlines())
+        usage['oom_kills'] = int(events.get('oom_kill', 0))
+    except (OSError, ValueError):
+        pass
+    try:
+        some = (directory / 'cpu.pressure').read_text().splitlines()[0]
+        usage['cpu_pressure_some_usec'] = int(dict(p.split('=') for p in some.split()[1:])['total'])
+    except (OSError, IndexError, KeyError, ValueError):
         pass
     # Slurm pins cores with a cpuset; the effective set may sit on the step level.
     path = directory
@@ -158,6 +173,12 @@ def usage_report(steps):
         value = largest(key)
         if value is not None:
             report[key] = value
+    for key, out in (('oom_kills', 'oom_kills'), ('cpu_system_usec', 'cpu_system_seconds'),
+                     ('cpu_pressure_some_usec', 'cpu_pressure_seconds'), ('cpu_throttled_usec', 'cpu_throttled_seconds'),
+                     ('cpu_nr_periods', 'cpu_periods'), ('cpu_nr_throttled', 'cpu_throttled_periods')):
+        if any(key in s for s in steps):
+            total = sum(s.get(key, 0) for s in steps)
+            report[out] = round(total / 1e6, 2) if key.endswith('usec') else total
     return report
 
 
@@ -367,6 +388,8 @@ class ProtectedInstance:
         if self.oom_baseline is None:
             raise RuntimeError('Cannot read task OOM counters from the protected controller')
         self.generation += 1
+        if getattr(self, 'disk', None) is not None:
+            self.disk.memory_cgroup = self._step_cgroup()  # the OOM-recovery step's own cgroup
         print(f'[{self.env_id}] protected task executor: {self.info}; generation={self.generation}', flush=True)
 
     def remote_run(self, cmd, kwargs):
@@ -454,7 +477,12 @@ class ProtectedInstance:
                 slot.interrupt(self.env_id)
         self.disk = task_disk.Watchdog(staging, limit, exceeded, self.disk_ledger if self.disk_ledger else None,
                                        self.env_id)
+        self.disk.memory_cgroup = self._step_cgroup()
         self.disk.start()
+
+    def _step_cgroup(self):
+        info = getattr(self, 'info', None) or {}
+        return Path(info['memory_events']).parent if info.get('memory_events') else None
 
     def _check_disk(self):
         if self.disk_exceeded:
@@ -600,6 +628,8 @@ class ProtectedInstance:
             resources = usage_report(self.usage)
             if disk is not None:
                 resources = dict(resources or {}, disk_peak_mb=round(disk.peak / 2**20, 1))
+                if disk.memory_peak:
+                    resources['memory_nonreclaimable_peak_mb'] = round(disk.memory_peak / 2**20, 1)
                 if disk.limit:
                     resources['disk_limit_mb'] = round(disk.limit / 2**20, 1)
                 if disk.exceeded is not None:
