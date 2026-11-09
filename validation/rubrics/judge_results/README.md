@@ -4,7 +4,7 @@
 
 Before running RL filtering ablations, we need to know whether the labels are reliable. Otherwise, a criterion might appear unhelpful simply because the rubric, prompting strategy, or judge assigns incorrect labels. These preliminary results aim to answer/make labels relaible. 
 
-The main results are in [RQ3](#rq3--does-the-choice-of-judge-matter-can-a-cheaper-judge-be-reliable) (you can skip straight to it). The updated rubric is in [rubric_river_selected/rubric.toml](rubric_river_selected/rubric.toml). 
+The main results are in [RQ3](#rq3--does-the-choice-of-judge-matter-can-a-cheaper-judge-be-reliable) (you can skip straight to it). The updated rubric is in [rubric_ot/rubric.toml](../rubric_ot/rubric.toml). 
 
 ## RQ0: Can we build a reliable, minimally subjective ground-truth dataset?
 
@@ -222,4 +222,13 @@ Even an accurately detected defect may not justify filtering a task:
 | Triviality | A task trivial for a strong judge may still challenge the model being trained. |
 | Answer leak | Suggested fixes may still require meaningful work, unlike an accessible exact reference solution which we catch with rules. |
 
+## Files
 
+- `raw/`: every judge's reviews behind the tables above, copied from the runs by `collect.py`:
+  - `*-verdicts.json`: Sonnet 5.5, Qwen3.8-27B and GLM-5.3-Flash, labeling and classification (RQ1, RQ2);
+  - `glm-5.3-flash-*-report.json`: the GLM-5.3-Flash rows of RQ3;
+  - `*-labeling-revised-report.json`: the "revised rubric" rows;
+  - `gpt-6.1-sol-labeling-report.json`: GPT-6.1-sol.
+- `category_results/`: the scripts and JSON behind each table.
+- `cost_estimates/`: the cost section.
+- `swe_verified/`, `weak_verifier/`: the manual reviews behind the ground-truth labels (RQ0).

@@ -1,8 +1,9 @@
-# Selected River criteria
+# Our rubric (`ot`)
 
-The [selected rubric](rubric.toml) contains eight defect definitions adapted from
-[the local River rubric](../rubric_river/rubric.toml), sourced from
-[River, Appendix C.1](https://arxiv.org/html/2608.22631#S0.SS3):
+The [rubric](rubric.toml) contains eight defect definitions adapted from
+[the local River rubric](../alternatives/rubric_river/rubric.toml), sourced from
+[River, Appendix C.1](https://arxiv.org/html/2608.22631#S0.SS3).
+`--review-rubric river_selected`, its earlier name, still works:
 
 - `VERIFIER-ACCEPTS-INCOMPLETE`
 - `VERIFIER-ACCEPTS-SHORTCUTS`
@@ -15,12 +16,12 @@ The [selected rubric](rubric.toml) contains eight defect definitions adapted fro
 
 Two prompting strategies use these same definitions:
 
-- **Labeling** (`--review-rubric river_selected --review-format labeling`, the
+- **Labeling** (`--review-rubric ot --review-format labeling`, the
   default format): label every criterion independently with the
   [River labeling prompt](../prompt_templates/modified/river_labeling.txt).
   `fail` means the named defect is present; `pass` means it is absent.
   `not_applicable` is not accepted.
-- **Classification** (`--review-rubric river_selected --review-format classification`):
+- **Classification** (`--review-rubric ot --review-format classification`):
   select one primary defect, or `CLEAN` if none of these defects is present, with
   the [classification prompt](../prompt_templates/modified/classification.txt).
   The [classification rubric](classification.toml) explicitly defines the eight

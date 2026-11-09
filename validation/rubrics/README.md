@@ -1,6 +1,12 @@
 # Task-quality judging
 
-We use the [selected River rubric](rubric_river_selected/rubric.toml) with two
+Layout: our rubric in `rubric_ot/`, the others in `alternatives/`, judge experiments and their results in `judge_results/`.
+
+**The default rubric is [`rubric_ot/`](rubric_ot/rubric.toml).** We tuned its definitions in the
+[judge experiments](judge_results/README.md) to remove as much subjectiveness as possible, so that
+repeated reviews and different judges reach the same verdict.
+
+We use [our rubric](rubric_ot/rubric.toml) (`ot`, adapted from River; see [rubric_ot/README.md](rubric_ot/README.md)) with two
 prompting strategies:
 
 - **Labeling:** judge every criterion independently as pass (defect absent) or
@@ -8,10 +14,10 @@ prompting strategies:
 - **Classification:** select one primary category and explain the decision,
   using the [classification prompt](prompt_templates/modified/classification.txt).
   If `CLEAN` is missing, add its definition from the
-  [original River rubric](rubric_river/rubric.toml) and emit a warning.
+  [original River rubric](alternatives/rubric_river/rubric.toml) and emit a warning.
 
-Select labeling with `--review-rubric river_selected --review-format labeling`,
-or classification with `--review-rubric river_selected --review-format classification`.
+Select labeling with `--review-rubric ot --review-format labeling`,
+or classification with `--review-rubric ot --review-format classification`.
 
 By default, each judge starts in the task's own cached image, with the task's
 workspace and setup available for inspection. If no matching task image is

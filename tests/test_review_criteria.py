@@ -17,7 +17,7 @@ from validation.upstream import checkout
 @pytest.mark.parametrize('kind', ['terminal-bench', 'harbor'])
 def test_subset_preserves_guidance_and_drops_unselected_skips(kind):
     text, skipped = (harbor_rubric() if kind == 'harbor' else
-                     implementation_rubric(ROOT / 'rubric_terminal_bench/upstream/task-implementation.toml'))
+                     implementation_rubric(ROOT / 'alternatives/rubric_terminal_bench/upstream/task-implementation.toml'))
     original = tomllib.loads(text)['criteria']
     names = [c['name'] for c in original[:2]]
     selected, automatic = select_criteria(text, skipped, names)
@@ -35,7 +35,7 @@ def test_subset_preserves_guidance_and_drops_unselected_skips(kind):
 
 
 def test_cli_validates_and_contract_records_selection():
-    args = runner.parser().parse_args(['--review-criteria', 'anti_cheat_robustness', 'verifiable'])
+    args = runner.parser().parse_args(['--review-rubric', 'terminal-bench', '--review-criteria', 'anti_cheat_robustness', 'verifiable'])
     runner.check_args(args)
     profile = contract.profile(args)
     assert profile['review_criteria'] == ['anti_cheat_robustness', 'verifiable']

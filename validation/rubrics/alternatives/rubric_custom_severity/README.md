@@ -40,7 +40,7 @@ Select this rubric with `--review-rubric custom_severity`. It uses the existing 
 
 The existing `custom`, `terminal-bench`, `harbor` and `river` rubrics remain runnable through the same scripts with their existing output formats. Select them with `--review-rubric`; severity output applies only to `custom_severity`.
 
-Definitions and examples are in [rubric.toml](rubric.toml). The review prompt is [custom_severity.txt](../prompt_templates/modified/custom_severity.txt). The runner stages both files, and the judge writes `/app/verdicts.json` in the agent environment.
+Definitions and examples are in [rubric.toml](rubric.toml). The review prompt is [custom_severity.txt](../../prompt_templates/modified/custom_severity.txt). The runner stages both files, and the judge writes `/app/verdicts.json` in the agent environment.
 
 Use these options with the normal contract preparation and execution workflow:
 

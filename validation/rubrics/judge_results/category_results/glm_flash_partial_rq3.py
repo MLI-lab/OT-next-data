@@ -1,7 +1,7 @@
 """Partial RQ3 rows for GLM-5.3-Flash labeling (corrected kpool cohort, river_selected, 3 reviews).
 
 Uses only tasks with three complete reviews; tasks are matched to the Sonnet evidence by task_content_sha256.
-    python validation/rubrics/category_results/glm_flash_partial_rq3.py
+    python validation/rubrics/judge_results/category_results/glm_flash_partial_rq3.py
 """
 import functools, glob, json, re
 from pathlib import Path

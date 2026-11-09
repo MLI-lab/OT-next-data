@@ -140,7 +140,7 @@ def stage(bundle, source, root):
     for name in ('validation', 'config', 'harbor_patches', 'hpc', 'data/annotate_dataset', 'data/utils', 'data/seta'):
         if (source / name).exists():
             shutil.copytree(source / name, code / name, symlinks=False,
-                ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'results', 'runs', 'submissions'))
+                ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'results', 'runs', 'judge_results', 'submissions'))
     shutil.copyfile(source / 'requirements.txt', code / 'requirements.txt')
     if (source / 'data/__init__.py').is_file():
         shutil.copyfile(source / 'data/__init__.py', code / 'data/__init__.py')

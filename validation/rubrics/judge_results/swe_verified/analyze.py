@@ -93,6 +93,6 @@ lines += ['', 'These selections only concern the two criteria above; they do not
     '- [label_patterns.csv](label_patterns.csv): counts for every observed label triple, including missing labels.', '',
     'Source: [OpenAI annotation archive](https://cdn.openai.com/introducing-swe-bench-verified/swe-bench-annotation-results.zip), member `samples_with_3_annotations_public.csv`. Copied from the retained local audit CSV and verified byte for byte against the official archive on 2026-11-06. No annotations were changed.', '',
     f'CSV SHA-256: `{hashlib.sha256(source.read_bytes()).hexdigest()}`.', '',
-    'Regenerate the summaries and this README with:', '', '```bash', 'python validation/rubrics/swe_verified/analyze.py', '```', '']
+    'Regenerate the summaries and this README with:', '', '```bash', 'python validation/rubrics/judge_results/swe_verified/analyze.py', '```', '']
 (ROOT / 'README.md').write_text('\n'.join(lines))
 print('\n'.join(lines))

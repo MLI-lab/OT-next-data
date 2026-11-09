@@ -77,7 +77,7 @@ class Files:
 def definition(cell, source):
     kind, fmt = cell['rubric'], cell['format']
     if kind == 'terminal-bench':
-        rubric, skipped = implementation_rubric(ROOT / 'rubric_terminal_bench/upstream/task-implementation.toml')
+        rubric, skipped = implementation_rubric(ROOT / 'alternatives/rubric_terminal_bench/upstream/task-implementation.toml')
     elif kind == 'harbor':
         rubric, skipped = harbor_rubric()
     else:

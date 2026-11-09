@@ -51,5 +51,5 @@ CSV SHA-256: `129f6a0ebe06decf12f7708607206e2cc1ea67e57b2279d7b334b70feaf777e8`.
 Regenerate the summaries and this README with:
 
 ```bash
-python validation/rubrics/swe_verified/analyze.py
+python validation/rubrics/judge_results/swe_verified/analyze.py
 ```

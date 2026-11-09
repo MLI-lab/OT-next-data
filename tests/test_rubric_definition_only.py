@@ -154,7 +154,7 @@ def test_river_definitions_drive_labeling_classification_and_standalone_verifier
     import subprocess
     import sys
     root = tmp_path / 'rubrics'
-    selected = root / 'rubric_river_selected/rubric.toml'
+    selected = root / 'rubric_ot/rubric.toml'
     selected.parent.mkdir(parents=True)
     selected.write_text(''.join(f'[[criteria]]\nname = "{name}"\ndescription = "Definition of {name}."\n\n'
                                 for name in names))
@@ -189,10 +189,11 @@ def test_river_definitions_drive_labeling_classification_and_standalone_verifier
     assert subprocess.run(command, capture_output=True).returncode != 0
 
 
-@pytest.mark.parametrize('kind', ['custom', 'river_selected'])
+@pytest.mark.parametrize('kind', ['custom', 'ot', 'river_selected'])
 def test_classification_warns_and_adds_clean_only_if_missing_without_mutating_source(tmp_path, monkeypatch, kind):
     root = tmp_path / 'rubrics'
-    folder = root / f'rubric_{kind}'
+    monkeypatch.setattr(review, 'ROOT', root)
+    folder = review.rubric_dir(kind)
     folder.mkdir(parents=True)
     (folder / 'rubric.toml').write_text('[[criteria]]\nname = "DEFECT"\ndescription = "A defect."\n')
     path = folder / 'classification.toml'

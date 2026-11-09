@@ -29,21 +29,30 @@ def classification_defaults(text):
     return text
 
 
+# Our rubric is `ot` (rubric_ot/); `river_selected` is its earlier name and stays accepted for saved contracts.
+OURS = ('ot', 'river_selected')
+
+
+def rubric_dir(kind):
+    """rubric_ot/ for our rubric, alternatives/rubric_<kind>/ for the others."""
+    return ROOT / 'rubric_ot' if kind in OURS else ROOT / 'alternatives' / f'rubric_{kind.replace("-", "_")}'
+
+
 def load(kind, output_format=None):
     # Labeling is the public name; criteria remains compatible with saved plans.
     if output_format == 'labeling':
         output_format = 'criteria'
-    if kind == 'river_selected' and output_format not in (None, 'criteria', 'classification'):
-        raise ValueError('river_selected uses --review-format labeling or classification')
+    if kind in OURS and output_format not in (None, 'criteria', 'classification'):
+        raise ValueError(f'{kind} uses --review-format labeling or classification')
     if kind == 'river' and output_format not in (None, 'classification'):
         raise ValueError('River uses classification; --review-format labeling is not supported')
     if kind == 'custom_severity' and output_format not in (None, 'severity'):
         raise ValueError('custom_severity uses --review-format severity')
     if kind == 'custom' and output_format not in (None, 'criteria', 'classification'):
         raise ValueError('custom uses --review-format labeling or classification')
-    text = (ROOT / f'rubric_{kind}' / 'rubric.toml').read_text()
-    if kind in ('custom', 'river_selected') and output_format == 'classification':
-        text = (ROOT / f'rubric_{kind}/classification.toml').read_text()
+    text = (rubric_dir(kind) / 'rubric.toml').read_text()
+    if kind in ('custom', *OURS) and output_format == 'classification':
+        text = (rubric_dir(kind) / 'classification.toml').read_text()
     text = classification_defaults(text)
     return text, {}
 
@@ -51,7 +60,7 @@ def load(kind, output_format=None):
 def selected_river_path():
     """The authoritative definitions, or their frozen copy beside a staged verifier."""
     bundled = Path(__file__).with_name('river-selected-criteria.toml')
-    return bundled if bundled.is_file() else ROOT / 'rubric_river_selected/rubric.toml'
+    return bundled if bundled.is_file() else ROOT / 'rubric_ot/rubric.toml'
 
 
 def river_criteria():

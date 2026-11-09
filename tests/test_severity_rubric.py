@@ -56,7 +56,7 @@ def test_loading_selection_prompt_and_cli():
     assert profile(args)['review_rubric'] == 'custom_severity'
     assert profile(args)['review_format'] == 'severity'
     hashes = implementation(stages=[5])
-    assert 'validation/rubrics/rubric_custom_severity/rubric.toml' in hashes
+    assert 'validation/rubrics/alternatives/rubric_custom_severity/rubric.toml' in hashes
     assert 'validation/rubrics/prompt_templates/modified/custom_severity.txt' in hashes
     for kind, fmt in [('custom_severity', 'criteria'), ('custom_severity', 'classification'),
                       ('custom', 'severity'), ('river', 'severity')]:

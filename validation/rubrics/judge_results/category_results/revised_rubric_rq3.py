@@ -7,7 +7,7 @@ weak verifier = ACCEPTS-INCOMPLETE or ACCEPTS-SHORTCUTS; mismatch = CONTRADICTIO
 UNSTATED-REQUIREMENT, per review, then majority (>= 2 of 3). Clean is reported strict and lenient
 (lenient ignores ACCEPTS-INCOMPLETE); each half is also reported separately. Tasks without three
 complete reviews are left out and counted.
-    python validation/rubrics/category_results/revised_rubric_rq3.py
+    python validation/rubrics/judge_results/category_results/revised_rubric_rq3.py
 """
 import glob, json, re, urllib.request
 from pathlib import Path

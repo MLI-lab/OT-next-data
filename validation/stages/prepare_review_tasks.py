@@ -24,13 +24,13 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
         rubric, skipped = implementation_rubric(rubric_path, references, suffixes)
     elif rubric_kind == 'harbor':
         rubric, skipped = harbor_rubric()
-    elif rubric_kind in ('custom', 'river', 'river_selected', 'custom_severity'):
+    elif rubric_kind in ('ot', 'custom', 'river', 'river_selected', 'custom_severity'):
         from validation.rubrics.utils.review import load
         rubric, skipped = load(rubric_kind, review_format)
     else:
         raise ValueError(f'unknown implementation rubric: {rubric_kind}')
-    if review_format and rubric_kind not in ('custom', 'river', 'river_selected', 'custom_severity'):
-        raise ValueError('--review-format is supported only for custom, river, river_selected and custom_severity rubrics')
+    if review_format and rubric_kind not in ('ot', 'custom', 'river', 'river_selected', 'custom_severity'):
+        raise ValueError('--review-format is supported only for ot, custom, river and custom_severity rubrics')
     from validation.rubrics.utils.review import settings
     if settings(tomllib.loads(rubric))['format'] == 'classification' and criteria is not None:
         raise ValueError('--review-criteria cannot restrict a single-category classification')
@@ -43,7 +43,7 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     if text.count(original_rubric) != 1:
         raise ValueError('expected exactly one embedded upstream rubric')
     text = text.replace(original_rubric, rubric)
-    if rubric_kind in ('custom', 'river', 'river_selected', 'custom_severity'):
+    if rubric_kind in ('ot', 'custom', 'river', 'river_selected', 'custom_severity'):
         from validation.rubrics.utils.review import prompt, install_verifier
         text = prompt(rubric, source.name, evidence_mode, minutes=minutes)
         install_verifier(destination)
@@ -55,7 +55,7 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     text = text.replace('You have 30 minutes for this review.', f'You have {minutes:g} minutes for this review.')
     instruction.write_text(text)
     (destination / 'rubric.toml').write_text(rubric)
-    if rubric_kind in ('custom', 'river', 'river_selected', 'custom_severity'):
+    if rubric_kind in ('ot', 'custom', 'river', 'river_selected', 'custom_severity'):
         (destination / 'setup_files/review-rubric.toml').write_text(rubric)
         (destination / 'setup_files/rubric.toml').write_text(rubric)
     (destination / 'rubric-skips.json').write_text(json.dumps(skipped, indent=2) + '\n')
@@ -63,7 +63,7 @@ def stage_review(source, destination, upstream, references=None, suffixes=None, 
     original = (env / 'Dockerfile').read_text()
     header = original.split('RUN git init /tmp/source', 1)[0]
     (env / 'Dockerfile').write_text(header + 'WORKDIR /app\nRUN ln -s /setup_files/task-under-review /app/task-under-review\n'
-        + ('RUN ln -s /setup_files/rubric.toml /app/rubric.toml\n' if rubric_kind in ('custom', 'river', 'river_selected', 'custom_severity') else ''))
+        + ('RUN ln -s /setup_files/rubric.toml /app/rubric.toml\n' if rubric_kind in ('ot', 'custom', 'river', 'river_selected', 'custom_severity') else ''))
     shutil.copytree(source, destination / 'setup_files' / 'task-under-review' / source.name)
     # Explicit artifact destination keeps host-side validation independent of
     # container absolute paths. Schema is checked by our result reader too.

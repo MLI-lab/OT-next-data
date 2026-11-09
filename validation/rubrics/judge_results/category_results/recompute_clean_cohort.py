@@ -1,4 +1,4 @@
-"""Recompute every clean-cohort table used by README_judge_results_updated_v2.md.
+"""Recompute every clean-cohort table used by judge_results/README.md.
 
 Updates structured_comparison.json (overall, by_criterion), rq2_per_criterion.json,
 pooled_prompt_agreement.json and gpt61sol_labeling_rq3.json in place.
@@ -6,7 +6,7 @@ Definitions match the original scripts: majority = at least 2 of 3 reviews (GPT:
 agreement = all reviews give the same binary decision, overall flag = weak verifier,
 mismatch or ambiguity (environment mismatch, answer leakage and triviality excluded).
 
-    python validation/rubrics/category_results/recompute_clean_cohort.py [--check-old]
+    python validation/rubrics/judge_results/category_results/recompute_clean_cohort.py [--check-old]
 """
 import argparse, collections, json, re
 from pathlib import Path
@@ -110,7 +110,7 @@ def rq2(overall):
 
 def gpt(excluded):
     d = load('category_results/gpt61sol_labeling_rq3.json')
-    g = load('stage-5-2f4c27d5171f.json'); items = {i['task'].rsplit('/', 1)[1]: i for i in g['items']}
+    g = load('raw/gpt-6.1-sol-labeling-report.json'); items = {i['task'].rsplit('/', 1)[1]: i for i in g['items']}
     key = lambda e: re.search(r'/\d{5}-([^/]+)/', e['reviews'][0]['trial']).group(1)
     votes = lambda e, cat: [v['checks'][cat]['outcome'] == 'fail' for v in items[d['keymap'][key(e)]]['verdicts']]
     ce = clean_set('Sonnet 5.5', 'labeling', excluded); n = len(ce)

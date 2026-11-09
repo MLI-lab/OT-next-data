@@ -4,7 +4,7 @@ import json,glob,hashlib
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;R=HERE.parent
 W='/hnvme/workspace/y500bb12-rule-based-checks/judge-all-models-20261105'
-g=json.loads((R/'stage-5-2f4c27d5171f.json').read_text())
+g=json.loads((R/'raw/gpt-6.1-sol-labeling-report.json').read_text())
 est=json.loads((HERE/'estimates.json').read_text())
 keymap=json.loads((R/'category_results/gpt61sol_labeling_rq3.json').read_text())['keymap']
 gh={}
@@ -35,7 +35,7 @@ for task in est['common_tasks']:
 n=len(rows);sums={k:sum(r[k] for r in rows) for k in ['uncached_input','cache_read','output','cost_usd','no_cache_cost_usd']}
 out={'scope':'GPT-6.1-sol labeling via Codex, all 2 reviews per task on the estimate.py common tasks; Codex reported no cache writes. Standard OpenAI tier assumed: no single request exceeds 272K input (per-review totals sum many calls).',
  'pricing_checked':'2026-11-07','pricing_source':'https://developers.openai.com/api/docs/pricing','rates_usd_per_million':RATE,
- 'source':{'path':str(R/'stage-5-2f4c27d5171f.json'),'sha256':hashlib.sha256((R/'stage-5-2f4c27d5171f.json').read_bytes()).hexdigest()},
+ 'source':{'path':str(R/'raw/gpt-6.1-sol-labeling-report.json'),'sha256':hashlib.sha256((R/'raw/gpt-6.1-sol-labeling-report.json').read_bytes()).hexdigest()},
  'missing_tasks':missing,'summary':{'reviews':n,'totals':sums,'means':{k:v/n for k,v in sums.items()},'cache_read_share':sums['cache_read']/(sums['uncached_input']+sums['cache_read'])},'reviews':rows}
 (HERE/'estimates_gpt.json').write_text(json.dumps(out,indent=2)+'\n')
 print(json.dumps({k:out[k] for k in ['missing_tasks','summary']},indent=2))

@@ -71,7 +71,7 @@ def snapshot_code(folder, archive=None):
         return target
 
     def ignore(directory, names):
-        excluded = set(shutil.ignore_patterns('__pycache__', 'results', 'runs', '*.pyc')(directory, names))
+        excluded = set(shutil.ignore_patterns('__pycache__', 'results', 'runs', 'judge_results', '*.pyc')(directory, names))
         # Match contract.implementation's pathlib traversal: directory symlinks
         # are external trees, not part of the frozen implementation. A link whose
         # target is missing (a checkout not fetched on this machine) is none either.
