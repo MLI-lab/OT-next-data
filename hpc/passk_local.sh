@@ -1194,8 +1194,10 @@ EOF
 # them from an evidence archive and a request.json, as the cluster's jobs leave them; local runs leave neither, so
 # this writes both first. The traces (one row per attempt: trajectory, verifier record, reward) go up as
 # runs/<run>/trajectories/<data source>/<model>.parquet, the layout main's publish.py uploads and the v2 traces/
-# files were built from; the pass counts (one row per task) as <data source>/pass_counts.parquet, with the columns
-# of the pass_counts.parquet files already on Hugging Face. The run record stays here, as main keeps it.
+# files were built from; the pass counts (one row per task and model, with the rows of the runs of this data source
+# uploaded before) as <data source>/pass_counts.parquet, with the columns of the pass_counts.parquet files already on
+# Hugging Face. While the pull request of such an earlier run is open, this run goes into it rather than into a second
+# one changing the same file. The run record stays here, as main keeps it.
 upload_check() {   # $1 run folder, $2 the dry run's output, $3 model key: do both files cover exactly the report?
     python - "$1" "$2" "$ds" "$3" <<'EOF'
 import json, sys
@@ -1227,22 +1229,35 @@ for r in rows:
 differ = [task for task in rewards if sorted(mine.get(task, [])) != rewards[task]]
 if differ:
     sys.exit(f'ERROR: the rewards in the traces differ from the report for {len(differ)} tasks, e.g. {differ[:3]}')
-counts = {r['path']: r for r in pq.read_table(out / ds / 'pass_counts.parquet').to_pylist()}
-graded = {task: [x for x in rewards[task] if isinstance(x, (int, float))] for task in rewards}
-wrong = [task for task in rewards if task not in counts or counts[task]['graded'] != len(graded[task])
-         or counts[task]['solved'] != sum(x >= 1 for x in graded[task])]
-if wrong or len(counts) != len(rewards):
-    sys.exit(f'ERROR: {ds}/pass_counts.parquet does not match the merged report ({len(counts)} rows for '
-             f'{len(rewards)} tasks, {len(wrong)} differ, e.g. {wrong[:3]})')
-k = max(r['attempts'] for r in counts.values())
-pass1 = sum(r['solved'] / r['attempts'] for r in counts.values()) / len(counts)
-passk = sum(pass_at_k(r['attempts'], r['solved'], k) or 0 for r in counts.values()) / len(counts)
 print(f'{files[0].relative_to(out)}: {len(rows)} attempts of {len(rewards)} tasks, {sum(r["reward"] >= 1 for r in rows)} '
       f'solved, {sum(not r["trajectory_found"] for r in rows)} without a saved trajectory, '
       f'{files[0].stat().st_size / 1e9:.2f} GB.')
-print(f'{ds}/pass_counts.parquet: {len(counts)} tasks, {sum(r["solved"] > 0 for r in counts.values())} solved at least '
-      f'once; pass@1 {pass1:.1%}, pass@{k} {passk:.1%}.')
-print('Both match the merged report.')
+# The pass counts: this run's rows and those of the runs of this data source uploaded before, each against its report.
+from config.models import resolve
+reports = {resolve(key)[1].hf_repo: report}
+for other in sorted(root.parent.glob(f'{ds}-*-pass*')):
+    if other != root and (other / 'merged/upload.json').is_file():
+        request = json.loads((other / 'merged/request.json').read_text())['args']
+        reports[resolve(request['serve_model'])[1].hf_repo] = json.loads((other / 'merged/report/stage-6-merged.json').read_text())
+by_model = {}
+for r in pq.read_table(out / ds / 'pass_counts.parquet').to_pylist():
+    by_model.setdefault(r['model'], {})[r['path']] = r
+if set(by_model) != set(reports):
+    sys.exit(f'ERROR: {ds}/pass_counts.parquet has the models {sorted(by_model)}, expected {sorted(reports)}')
+for model, report in sorted(reports.items()):
+    graded = {Path(i['task']).name: [x for x in i.get('rewards') or [] if isinstance(x, (int, float))] for i in report['items']}
+    counts = by_model[model]
+    wrong = [task for task in graded if task not in counts or counts[task]['graded'] != len(graded[task])
+             or counts[task]['solved'] != sum(x >= 1 for x in graded[task])]
+    if wrong or len(counts) != len(graded):
+        sys.exit(f'ERROR: the {model} rows of {ds}/pass_counts.parquet do not match its merged report ({len(counts)} '
+                 f'rows for {len(graded)} tasks, {len(wrong)} differ, e.g. {wrong[:3]})')
+    k = max(r['attempts'] for r in counts.values())
+    pass1 = sum(r['solved'] / r['attempts'] for r in counts.values()) / len(counts)
+    passk = sum(pass_at_k(r['attempts'], r['solved'], k) or 0 for r in counts.values()) / len(counts)
+    print(f'{ds}/pass_counts.parquet, {model}: {len(counts)} tasks, {sum(r["solved"] > 0 for r in counts.values())} '
+          f'solved at least once; pass@1 {pass1:.1%}, pass@{k} {passk:.1%}.')
+print('Both files match the merged reports.')
 EOF
 }
 # The records hold this server's paths, with the user name in them, and could hold its host name: those become
@@ -1331,12 +1346,14 @@ record_path.write_text(json.dumps(record, indent=2) + '\n')
 counts = out / ds / 'pass_counts.parquet'
 columns = ('path', 'content_sha256', 'model', 'attempts', 'graded', 'solved')
 t = pq.read_table(counts).select(columns)
-t = t.set_column(columns.index('model'), t.schema.field('model'), pa.array([resolve(key)[1].hf_repo] * t.num_rows, pa.string()))
+keys = t.column('model').to_pylist()
+ids = {m: resolve(m)[1].hf_repo for m in set(keys)}
+t = t.set_column(columns.index('model'), t.schema.field('model'), pa.array([ids[m] for m in keys], pa.string()))
 pq.write_table(t, counts)
 labels = {}
 for old, label in rules:
     labels[label] = labels.get(label, 0) + replaced[old]
-(out / 'cleaned.json').write_text(json.dumps({'replaced': labels}, indent=2) + '\n')
+(out / 'cleaned.json').write_text(json.dumps({'replaced': labels, 'models': {v: k for k, v in sorted(ids.items())}}, indent=2) + '\n')
 print('Server paths removed from the traces: ' + ', '.join(f'{n} x {label}' for label, n in labels.items()) + '.')
 EOF
 }
@@ -1373,7 +1390,26 @@ file = sorted(out.glob(f'runs/*/trajectories/{ds}/{key}.parquet'))[0]
 path = file.relative_to(out).as_posix()
 rewards = pq.read_table(file, columns=['reward']).column('reward').to_pylist()
 counts_path = f'{ds}/pass_counts.parquet'
-counts = pq.read_table(out / counts_path).to_pylist()
+spec = resolve(key)[1]
+every = pq.read_table(out / counts_path).to_pylist()
+models = sorted({r['model'] for r in every})
+counts = [r for r in every if r['model'] == spec.hf_repo]
+# An open pull request of a run of this data source uploaded before gets this run too: both change the pass counts.
+target = None
+for other in sorted(root.parent.glob(f'{ds}-*-pass*')):
+    earlier = other / 'merged/upload.json'
+    if other == root or not earlier.is_file():
+        continue
+    url = json.loads(earlier.read_text()).get('pull_request') or ''
+    if '/discussions/' not in url:
+        continue
+    num = int(url.rstrip('/').rsplit('/', 1)[1])
+    try:
+        status = api.get_discussion_details(repo_id=repo, discussion_num=num, repo_type='dataset').status
+    except Exception as error:
+        sys.exit(f'ERROR: cannot read {url} ({type(error).__name__}: {error}). Nothing was uploaded.')
+    if status in ('open', 'draft'):
+        target = (num, url)
 tasks = [t['task_id'] for t in task_records(c)]
 online = 0
 for task in tasks:
@@ -1381,7 +1417,6 @@ for task in tasks:
         online += bool(tomllib.loads((Path(a['tasks']) / task / 'task.toml').read_text()).get('environment', {}).get('allow_internet'))
     except (OSError, ValueError):
         pass
-spec = resolve(key)[1]
 try:
     weights = json.loads((weights_dir(spec.name) / 'download_complete.json').read_text()).get('revision') or 'unknown'
 except (OSError, ValueError):
@@ -1400,7 +1435,7 @@ passk = sum(pass_at_k(r['attempts'], r['solved'], k) or 0 for r in counts) / len
 description = f"""Traces and pass counts of the pass@{k} run of {ds} with {key} ({spec.hf_repo}): {len(rewards)} attempts of {len(tasks)} tasks; {sum(r >= 1 for r in rewards)} attempts solved, {sum(r['solved'] > 0 for r in counts)} tasks solved at least once; pass@1 {pass1:.1%}, pass@{k} {passk:.1%}.
 
 - {path}: one row per attempt with the trajectory, the verifier record (result.json) and the reward, as validation/publishing/trajectories.py writes them.
-- {counts_path}: one row per task (path, content_sha256, model, attempts, graded, solved), like the other pass_counts.parquet files. Tasks by solved attempts: {by_solved}.
+- {counts_path}: one row per task and model (path, content_sha256, model, attempts, graded, solved), like the other pass_counts.parquet files, for {' and '.join(models)}. {spec.hf_repo}, tasks by solved attempts: {by_solved}.
 
 How it was run: on a local server ({gpu}) with hpc/passk_local.sh from OT-next-data branch passk-script (commit {code[:12]}, stage layout environment-first-v2), not on a cluster. Docker instead of Apptainer, with the task images built on the server; {a.get('concurrency')} attempts at once on one GPU; the model served by vLLM with the settings of config/models.py as the cluster worker starts it, except --max-num-seqs 128; agent {a.get('agent')}; Harbor {harbor[:12]}. Network as each task.toml sets it: {online} of {len(tasks)} tasks allow internet access.
 
@@ -1409,16 +1444,37 @@ Versions: tasks {a.get('dataset_source')} at {a.get('dataset_revision')}; weight
 In the records, this server's paths, user name and host name are replaced by <workspace>, <home>, <user> and <host>; nothing else was changed.
 """
 print(description)
-print(f'Uploading {path} ({file.stat().st_size / 1e9:.2f} GB) and {counts_path} to {repo} as {who.get("name")} '
+operations = [CommitOperationAdd(path_in_repo=path, path_or_fileobj=str(file)),
+              CommitOperationAdd(path_in_repo=counts_path, path_or_fileobj=str(out / counts_path))]
+where = f'pull request {target[1]}' if target else f'a new pull request on {repo}'
+print(f'Uploading {path} ({file.stat().st_size / 1e9:.2f} GB) and {counts_path} to {where} as {who.get("name")} '
       '(can take a while)...', flush=True)
-commit = api.create_commit(repo_id=repo, repo_type='dataset', create_pr=True,
-                           operations=[CommitOperationAdd(path_in_repo=path, path_or_fileobj=str(file)),
-                                       CommitOperationAdd(path_in_repo=counts_path, path_or_fileobj=str(out / counts_path))],
+if target:
+    num, pr = target
+    try:
+        api.create_commit(repo_id=repo, repo_type='dataset', revision=f'refs/pr/{num}', operations=operations,
+                          commit_message=f'{ds}: traces of the pass@{k} run with {key}; pass counts of {len(models)} models',
+                          commit_description=description)
+    except Exception as error:
+        sys.exit(f'ERROR: could not add the files to {pr} ({type(error).__name__}: {error}). Send this output.')
+else:
+    pr = api.create_commit(repo_id=repo, repo_type='dataset', create_pr=True, operations=operations,
                            commit_message=f'{ds}: traces and pass counts of the pass@{k} run with {key}',
-                           commit_description=description)
-done.write_text(json.dumps({'pull_request': commit.pr_url, 'files': [path, counts_path], 'by': who.get('name'),
-                            'at': datetime.now(timezone.utc).isoformat()}, indent=2) + '\n')
-print(f'Pull request: {commit.pr_url}')
+                           commit_description=description).pr_url
+done.write_text(json.dumps({'pull_request': pr, 'added_to_open_pull_request': bool(target), 'files': [path, counts_path],
+                            'by': who.get('name'), 'at': datetime.now(timezone.utc).isoformat()}, indent=2) + '\n')
+if target:
+    keys = json.loads((out / 'cleaned.json').read_text()).get('models') or {}
+    for step, call in (('the description', lambda: api.comment_discussion(repo_id=repo, discussion_num=num, comment=description, repo_type='dataset')),
+                       ('the title', lambda: api.rename_discussion(repo_id=repo, discussion_num=num, repo_type='dataset',
+                                                                  new_title=f'{ds}: traces and pass counts of the runs with ' + ' and '.join(sorted(keys.values()))))):
+        try:
+            call()
+        except Exception as error:
+            print(f'Note: the files are in, but adding {step} to the pull request failed ({type(error).__name__}).')
+    print(f'Added to the pull request: {pr}')
+else:
+    print(f'Pull request: {pr}')
 EOF
             return ;;
         '') ;;
@@ -1478,9 +1534,22 @@ EOF
     rm -rf "$out"
     python validation/publishing/publish_pass_counts.py "$root/merged" --folder "*=$ds" --repo "" --dry-run --out "$out" \
         > "$root/merged/publish.log" 2>&1 || { tail -n 15 "$root/merged/publish.log" >&2; die "writing the traces file failed; full output: $root/merged/publish.log"; }
+    # The pass counts hold the rows of every model of the data source, as on Hugging Face: with those of the runs
+    # of this data source uploaded from here before (their merged/upload.json).
+    local others=() other
+    for other in "$WS/runs/$ds"-*-pass*; do
+        [ "$other" != "$root" ] && [ -f "$other/merged/upload.json" ] && others+=("$other/merged")
+    done
+    if [ ${#others[@]} -gt 0 ]; then
+        rm -rf "$root/merged/publish-all-models"
+        python validation/publishing/publish_pass_counts.py "$root/merged" "${others[@]}" --folder "*=$ds" --repo "" --dry-run \
+            --no-trajectories --out "$root/merged/publish-all-models" >> "$root/merged/publish.log" 2>&1 \
+            || { tail -n 15 "$root/merged/publish.log" >&2; die "writing the pass counts of all models failed; full output: $root/merged/publish.log"; }
+        cp "$root/merged/publish-all-models/$ds/pass_counts.parquet" "$out/$ds/pass_counts.parquet"
+    fi
     upload_clean "$out" "$key" || die "removing the server paths failed; nothing was uploaded"
     upload_check "$root" "$out" "$key"
-    echo "Nothing is uploaded yet. To open the pull request on $HF_REPO with these two files: ./hpc/passk_local.sh upload $ds $model go"
+    echo "Nothing is uploaded yet. To upload these two files to $HF_REPO: ./hpc/passk_local.sh upload $ds $model go"
 }
 
 cmd=${1:-}; ds=${2:-}; model=${3:-}
