@@ -22,6 +22,7 @@
 #   ./hpc/passk_local.sh upload nl2bash_v1 instruct go   # and open the pull request with them (once)
 #   ./hpc/passk_local.sh stop nl2bash_v1 instruct     # stop a run and remove its containers (run again: it continues)
 #   ./hpc/passk_local.sh unserve instruct             # stop the model (refused while its runs still go)
+#   ./hpc/passk_local.sh load thinking                # how busy the model was (from its log): to choose CONCURRENCY
 #   ./hpc/passk_local.sh serve thinking               # then the other model, on the same GPU
 #   GPU=0 BOTH=1 ./hpc/passk_local.sh serve thinking  # or at the same time, on another free GPU (here GPU 0)
 #   ./hpc/passk_local.sh check multiswe_v1            # reference solution = 1 and do-nothing = 0 here? (no GPU needed)
@@ -29,6 +30,12 @@
 #                                                     # again: progress. New runs then use them (MultiSWE requires this);
 #                                                     # 'prebuild multiswe_v1 retry' / 'stop'
 # A run keeps the task folder it was prepared from: resuming never changes its tasks.
+# calibforge_v1 tasks name a ready image on Docker Hub (task.toml docker_image) and ship the Dockerfile the cluster
+# builds. Their images are built here too (run.py --force-build), not downloaded: Docker Hub allows a free account
+# 200 image downloads per 6 hours, and a run needs one per task. A task whose Dockerfile does not build under
+# Docker runs in the image it names (upstream-image.log in its shard says so). IMAGES=pull: download all instead.
+# A shard in which many attempts never got as far as the agent (ENV_FAIL_PERCENT, 10: the image could not be
+# built or downloaded, a network outage) is not counted: it is redone like one that ran out of disk.
 # 'docker image prune -a' or 'docker system prune -a' deletes prebuilt images between attempts: a run that
 # uses them then pauses until 'prebuild' has built them again.
 # A full disk makes attempts fail and count as unsolved. So a shard starts only with MIN_FREE_GB (2000) free on
@@ -57,8 +64,11 @@ STUCK_HOURS=${STUCK_HOURS:-2}   # a shard with no finished attempt for this long
 MAX_TRIALS=${MAX_TRIALS:-64}   # attempts at once over all runs (CPU-bound: agents mostly wait for the model)
 MIN_FREE_GB=${MIN_FREE_GB:-2000}   # a shard starts only with this much free on its disk and Docker's (0: no check)
 CACHE_HOURS=${CACHE_HOURS:-2}      # remove Docker build cache unused this long, every 2 minutes (0: never)
+ENV_FAIL_PERCENT=${ENV_FAIL_PERCENT:-10}   # a shard does not count if this share of its attempts never reached the agent (0: no check)
+IMAGES=${IMAGES:-build}            # tasks that name a ready image and ship a Dockerfile: build it here, or 'pull' the image
 
 die() { echo "ERROR: $*" >&2; exit 1; }
+[ "$IMAGES" = build ] || [ "$IMAGES" = pull ] || die "IMAGES must be 'build' or 'pull', not '$IMAGES'"
 
 model_key() {
     case "$1" in
@@ -661,6 +671,10 @@ check_capacity() {
     [ $((used + new)) -le "$MAX_TRIALS" ] || die "$used attempts already run at once; $new more would exceed MAX_TRIALS=$MAX_TRIALS. Wait for the other run, or set CONCURRENCY lower."
 }
 
+# calibforge_v1: build each task's image from its Dockerfile, as the cluster does (see the top), unless IMAGES=pull.
+# The contract records it (force_build), so a run keeps its way of getting images when it is resumed.
+build_flag() { if [ "$ds" = calibforge_v1 ] && [ "$IMAGES" = build ]; then echo --force-build; fi; }
+
 # prepare <name> <model> <task folder> [extra run.py arguments]: write the contract once, reuse it after.
 prepare() {
     local name=$1 model=$2 tasks=$3; shift 3
@@ -677,7 +691,7 @@ prepare() {
         --no-fix-repository-leaks --no-fix-instruction-suffix --no-fix-instruction-paths --no-fix-pip-pins \
         --api-base "http://127.0.0.1:$(port_of "$model")/v1" --model "openai/$key" --agent-kwargs "$kwargs" \
         --concurrency "$CONCURRENCY" --dataset-source "$HF_REPO/$ds" --dataset-revision "$rev" \
-        --out "$WS/runs/$name" --prepare-contract "$contract" "$@"
+        --out "$WS/runs/$name" --prepare-contract "$contract" $(build_flag) "$@"
 }
 
 # Harbor's Docker backend does not create the folder the repo's grading wrapper uploads into
@@ -692,6 +706,7 @@ write_docker_wrapper() {
     cat > "$WS/bin/run_docker.py" <<'EOF'
 """validation/run.py on Harbor's Docker backend, with the cluster bridge's behaviours and prebuilt images kept."""
 import faulthandler
+import re
 import runpy
 import signal
 import sys
@@ -703,8 +718,9 @@ from harbor.environments.docker import docker_unix  # noqa: E402
 from harbor.environments.docker.docker import DockerEnvironment  # noqa: E402
 
 _upload_file, _upload_dir, _exec = docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir, DockerEnvironment.exec
-_stop = DockerEnvironment.stop
+_stop, _start = DockerEnvironment.stop, DockerEnvironment.start
 _compose_paths = DockerEnvironment._docker_compose_paths
+SHARD = Path(sys.argv[sys.argv.index('--out') + 1]) if '--out' in sys.argv[:-1] else None
 
 
 # When a shard hangs, the watcher asks where: SIGUSR1 writes every thread's stack to the shard log (even while
@@ -753,9 +769,45 @@ async def stop_keeping_prebuilt(self, delete):
     return await _stop(self, delete=delete and not image.startswith('passk-local/'))
 
 
+async def start_built_or_named(self, force_build):
+    # A run with --force-build builds the image of a task that names a ready one (docker_image) from the task's
+    # Dockerfile, as the cluster does. Some of those Dockerfiles do not build under Docker (their Apptainer
+    # repairs call 'unshare -m', which a Docker build may not): such a task runs in the image it names. Not if
+    # its Dockerfile installs the checks' tools and no tests/setup.sh would: the named image lacks them, so
+    # every check would fail there.
+    image = self.task_env_config.docker_image or ''
+    if not force_build or not image or image.startswith('passk-local/'):
+        return await _start(self, force_build)
+    try:
+        return await _start(self, True)
+    except RuntimeError as error:
+        text = str(error)
+        if self._use_prebuilt or not re.search(r'Docker compose command failed.*? build\. Return code', text, re.S):
+            raise   # not the build: starting the container failed, which the named image would not change
+        folder = Path(self.environment_dir)
+        try:
+            tools = 'Verifier preparation' in (folder / 'Dockerfile').read_text(errors='replace')
+        except OSError:
+            tools = True
+        if tools and not (folder.parent / 'tests/setup.sh').is_file():
+            raise
+        why = re.search(r'failed to solve: ([^\n]{0,300})', text)
+        why = why.group(1).strip() if why else 'see the trial log'
+        task = folder.parent.name
+        self.logger.warning(f'The image of {task} did not build here ({why}); using {image}')
+        await _start(self, False)
+        if SHARD:
+            try:
+                with open(SHARD / 'upstream-image.log', 'a') as log:
+                    log.write(f'{task}\t{image}\t{why}\n')
+            except OSError:
+                pass
+
+
 docker_unix.UnixOps.upload_file, docker_unix.UnixOps.upload_dir = upload_file, upload_dir
 DockerEnvironment.exec = exec_with_umask
 DockerEnvironment.stop = stop_keeping_prebuilt
+DockerEnvironment.start = start_built_or_named
 DockerEnvironment._docker_compose_paths = property(compose_paths)
 sys.argv = [f'{repo}/validation/run.py', *sys.argv[1:]]
 runpy.run_path(f'{repo}/validation/run.py', run_name='__main__')
@@ -777,7 +829,8 @@ write_shard_watch() {
 [<floor GB> [<Docker's folder>]]' also records the least free space it sees in <shard>.space and stops the
 shard when that falls below the floor. 'cleanup <folder>' removes the running containers of the attempts under
 a run or shard folder. 'space <path>...', 'low <GB> <% of inodes> <path>...' and 'spoiled <shard> <floor GB>
-[<Docker's folder>]' measure the disk for the loop."""
+[<Docker's folder>]' measure the disk for the loop. 'envfail <shard> <percent>' exits 0, and says how many, when
+that share of the shard's attempts (and at least 10) ended with an error before the agent ran."""
 import json
 import os
 import signal
@@ -813,6 +866,24 @@ if sys.argv[1] == 'enospc':   # the tasks whose attempts under a shard report a 
         except OSError:
             pass
     sys.exit(print('\n'.join(sorted(tasks))) if tasks else 0)
+if sys.argv[1] == 'envfail':
+    total, failed, limit = 0, [], False
+    for result in Path(sys.argv[2]).glob('stage_6_*/*/jobs/job/*/attempts/*/result.json'):
+        try:
+            text = result.read_text(errors='replace')
+            record = json.loads(text)
+        except (OSError, ValueError):
+            continue
+        total += 1
+        error = record.get('exception_info')
+        if error and not record.get('agent_execution'):   # never got as far as the agent
+            failed.append(f"{error.get('exception_type')}: " + ' '.join(str(error.get('exception_message') or '').split())[:160])
+            limit = limit or 'toomanyrequests' in text.lower() or 'pull rate limit' in text.lower()
+    if len(failed) < 10 or 100 * len(failed) < float(sys.argv[3]) * total:
+        sys.exit(1)
+    print(f'{len(failed)} of {total} attempts never got as far as the agent'
+          + ("; Docker Hub's download limit was reached" if limit else '') + f' (for example {max(set(failed), key=failed.count)})')
+    sys.exit(0)
 if sys.argv[1] in ('space', 'low', 'spoiled'):
     if sys.argv[1] == 'space':
         gb, inodes = space(sys.argv[2:])
@@ -1006,7 +1077,7 @@ start_loop() {
     if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then
         die "$name is already running (stop it with: ./hpc/passk_local.sh stop ...)"
     fi
-    [[ $MIN_FREE_GB =~ ^[0-9]+$ && $CACHE_HOURS =~ ^[0-9]+$ ]] || die "MIN_FREE_GB and CACHE_HOURS must be whole numbers"
+    [[ $MIN_FREE_GB =~ ^[0-9]+$ && $CACHE_HOURS =~ ^[0-9]+$ && $ENV_FAIL_PERCENT =~ ^[0-9]+$ ]] || die "MIN_FREE_GB, CACHE_HOURS and ENV_FAIL_PERCENT must be whole numbers"
     dockerroot=$(docker info -f '{{.DockerRootDir}}' 2>/dev/null) || dockerroot=
     echo "$count" > "$root/count"
     echo "$CONCURRENCY" > "$root/concurrency"
@@ -1019,7 +1090,7 @@ start_loop() {
     TMPDIR="$WS/tmp" setsid nohup bash -c '
         set -u
         contract=$1 root=$2 count=$3 wrapper=$4 port=$5 watch=$6 tasks=$7 stuck=$8 images=$9
-        dockerroot=${10} minfree=${11} cachehours=${12}
+        dockerroot=${10} minfree=${11} cachehours=${12} envfail=${13}
         ws=${root%/runs/*} pruner=
         # Every attempt builds its task image, and Docker keeps its layers as build cache after the image is
         # deleted: about 8 GB per MiMo task, and docker system df counts pulled images as 0 B, so Docker never
@@ -1041,7 +1112,7 @@ start_loop() {
             pruner=$!
         fi
         trap "kill $pruner 2>/dev/null; rm -f \"$root/loop.pid\"" EXIT
-        declare -A disk_tries   # per shard: how often it was not counted because of the disk
+        declare -A tries   # per shard: how often it was not counted because of the disk or of attempts that could not start
         # Attempts made while the model is down, or without their prebuilt image, would count as failed, so a
         # shard counts only if the model answers and the images are there before and after it.
         up() { [ -z "$port" ] || curl -sf "http://127.0.0.1:$port/health" >/dev/null; }
@@ -1114,14 +1185,21 @@ EOF
                     why="free space fell to $low, and attempts of $full report a full disk"
                 fi
             fi
+            what="the disk was (nearly) full during shard $i/$count ($why)" hint="Free some space."
+            # Attempts that never get as far as the agent (the image does not build or download, the download
+            # limit of Docker Hub, a network outage) end as errors and would count as unsolved. A few are normal
+            # (4 of 10,036 in a MiMo run); a tenth of a shard points to the machine, not to the tasks.
+            if [ -z "$why" ] && [ "$envfail" != 0 ] && why=$(python "$watch" envfail "$root/shards/$s" "$envfail"); then
+                what="in shard $i/$count, $why" hint="Send this line if it happens again."
+            fi
             if [ -n "$why" ]; then
                 python "$watch" cleanup "$root/shards/$s" >> "$root/loop.log" 2>&1
-                disk_tries[$s]=$((${disk_tries[$s]:-0} + 1))
-                if [ "${disk_tries[$s]}" -le 3 ]; then
-                    echo "$(date -Is) the disk was (nearly) full during shard $i/$count ($why); shard not counted, redone in 30 minutes." >> "$root/loop.log"
+                tries[$s]=$((${tries[$s]:-0} + 1))
+                if [ "${tries[$s]}" -le 3 ]; then
+                    echo "$(date -Is) $what; shard not counted, redone in 30 minutes." >> "$root/loop.log"
                     sleep 1800; i=$((i - 1)); continue
                 fi
-                echo "$(date -Is) the disk was (nearly) full during shard $i/$count ($why), again; shard not counted$([ "$pass" = 1 ] && echo "; it is retried at the end"). Free some space." >> "$root/loop.log"
+                echo "$(date -Is) $what, again; shard not counted$([ "$pass" = 1 ] && echo "; it is retried at the end"). $hint" >> "$root/loop.log"
                 continue
             fi
             for f in "$root"/shards/$s/stage_*_*/*/summary.json; do
@@ -1142,7 +1220,7 @@ EOF
         if [ "$left" = 0 ]; then echo "$(date -Is) all shards done" >> "$root/loop.log"
         else echo "$(date -Is) stopped with $left shards not finished; start the run again to redo them" >> "$root/loop.log"; fi
     ' _ "$WS/contracts/$name.json" "$root" "$count" "$WS/bin/run_docker.py" "$port" "$WS/bin/shard_watch.py" "$tasks" "$STUCK_HOURS" \
-        "$WS/bin/check_images.py" "$dockerroot" "$MIN_FREE_GB" "$CACHE_HOURS" \
+        "$WS/bin/check_images.py" "$dockerroot" "$MIN_FREE_GB" "$CACHE_HOURS" "$ENV_FAIL_PERCENT" \
         > "$root/loop.out" 2>&1 < /dev/null &
     echo $! > "$root/loop.pid"
     echo "Running in the background (pid $(cat "$root/loop.pid")). Progress: $root/loop.log"
@@ -1182,7 +1260,7 @@ EOF
         python validation/run.py "$taskdir" --stages 2,3 --backend docker --submit never \
             --no-fix-repository-leaks --no-fix-instruction-suffix --no-fix-instruction-paths --no-fix-pip-pins \
             --limit 10 --attempts 1 --concurrency "$CONCURRENCY" --dataset-source "$HF_REPO/$ds" \
-            --out "$root" --prepare-contract "$WS/contracts/$name.json" >/dev/null
+            --out "$root" --prepare-contract "$WS/contracts/$name.json" $(build_flag) >/dev/null
     }
     start_loop "$name" 1
     echo "Check started. Run './hpc/passk_local.sh check $ds' again later to see the results."
@@ -1428,6 +1506,12 @@ try:
                          capture_output=True, text=True, timeout=30).stdout.strip() or 'one GPU'
 except (OSError, subprocess.SubprocessError):
     gpu = 'one GPU'
+named = {line.split('\t')[0] for f in root.glob('shards/[0-9][0-9][0-9][0-9]/upstream-image.log')
+         for line in f.read_text().splitlines() if line.strip()}
+images = 'with the task images built on the server'
+if a.get('force_build'):
+    images = ("with each task's image built on the server from the task's Dockerfile, as on the cluster, not downloaded from the "
+              f"docker_image its task.toml names ({len(named)} tasks whose Dockerfile does not build under Docker ran in that image)")
 k = a['attempts']
 by_solved = ', '.join(f'{n}/{k}: {sum(r["solved"] == n for r in counts)}' for n in range(k + 1))
 pass1 = sum(r['solved'] / r['attempts'] for r in counts) / len(counts)
@@ -1437,7 +1521,7 @@ description = f"""Traces and pass counts of the pass@{k} run of {ds} with {key} 
 - {path}: one row per attempt with the trajectory, the verifier record (result.json) and the reward, as validation/publishing/trajectories.py writes them.
 - {counts_path}: one row per task and model (path, content_sha256, model, attempts, graded, solved), like the other pass_counts.parquet files, for {' and '.join(models)}. {spec.hf_repo}, tasks by solved attempts: {by_solved}.
 
-How it was run: on a local server ({gpu}) with hpc/passk_local.sh from OT-next-data branch passk-script (commit {code[:12]}, stage layout environment-first-v2), not on a cluster. Docker instead of Apptainer, with the task images built on the server; {a.get('concurrency')} attempts at once on one GPU; the model served by vLLM with the settings of config/models.py as the cluster worker starts it, except --max-num-seqs 128; agent {a.get('agent')}; Harbor {harbor[:12]}. Network as each task.toml sets it: {online} of {len(tasks)} tasks allow internet access.
+How it was run: on a local server ({gpu}) with hpc/passk_local.sh from OT-next-data branch passk-script (commit {code[:12]}, stage layout environment-first-v2), not on a cluster. Docker instead of Apptainer, {images}; {a.get('concurrency')} attempts at once on one GPU; the model served by vLLM with the settings of config/models.py as the cluster worker starts it, except --max-num-seqs 128; agent {a.get('agent')}; Harbor {harbor[:12]}. Network as each task.toml sets it: {online} of {len(tasks)} tasks allow internet access.
 
 Versions: tasks {a.get('dataset_source')} at {a.get('dataset_revision')}; weights {spec.hf_repo} at {weights}; contract sha256 {c['sha256']}.
 
@@ -1552,15 +1636,65 @@ EOF
     echo "Nothing is uploaded yet. To upload these two files to $HF_REPO: ./hpc/passk_local.sh upload $ds $model go"
 }
 
+# load <model>: how busy the model was, from the line vLLM logs every 10 seconds while it works: how many requests
+# it had at once, how fast it wrote, and how full its memory for requests (the KV cache) was. More attempts at once
+# (CONCURRENCY) only help while requests do not have to wait and that memory is not full; past that, every attempt
+# just gets slower answers and more of them run out of time.
+model_load() {
+    local log="$WS/serve/$1.log"
+    [ -f "$log" ] || die "no log of $1 yet ($log)"
+    python - "$log" "$1" <<'EOF'
+import re, sys
+fields = {'running': r'Running: (\d+) reqs', 'waiting': r'Waiting: (\d+) reqs', 'memory': r'KV cache usage: ([\d.]+)%',
+          'written': r'generation throughput: ([\d.]+) tokens/s'}
+rows, last = [], []
+with open(sys.argv[1], errors='replace') as log:
+    for line in log:
+        if 'Running:' not in line:
+            continue
+        last = (last + [line.strip()])[-3:]
+        found = {name: re.search(pattern, line) for name, pattern in fields.items()}
+        if not all(found.values()):
+            continue
+        row = {name: float(m.group(1)) for name, m in found.items()}
+        when = re.search(r'\d\d-\d\d \d\d:\d\d:\d\d', line)
+        row['when'] = when.group(0) if when else '?'
+        if row['running'] or row['waiting']:
+            rows.append(row)
+if not rows:
+    sys.exit(f'No load lines found in {sys.argv[1]}. Its last lines with "Running:": {last or "none"}')
+
+
+def table(rows, title):
+    print(f'{title}: {len(rows)} log lines, {rows[0]["when"]} to {rows[-1]["when"]}')
+    for low, high in ((1, 8), (9, 16), (17, 24), (25, 32), (33, 48), (49, 10**6)):
+        part = [r for r in rows if low <= r['running'] + r['waiting'] <= high]
+        if not part:
+            continue
+        mean = lambda name: sum(r[name] for r in part) / len(part)
+        each = sum(r['written'] / r['running'] for r in part if r['running']) / max(1, sum(1 for r in part if r['running']))
+        label = f'{low}-{high}' if high < 10**6 else f'{low} or more'
+        print(f'  {label:>10} requests at once: {len(part) / len(rows):4.0%} of the time; {mean("written"):6.0f} tokens/s written '
+              f'({each:.0f} per request); request memory {mean("memory"):3.0f}% full, at most {max(r["memory"] for r in part):.0f}%; '
+              f'requests waiting {sum(r["waiting"] > 0 for r in part) / len(part):.0%} of the time')
+
+
+table(rows, f'{sys.argv[2]}, since it was started')
+if len(rows) > 360:
+    table(rows[-360:], 'its last hour of work')
+EOF
+}
+
 cmd=${1:-}; ds=${2:-}; model=${3:-}
 case "$cmd" in
     setup) setup; exit 0 ;;
+    load) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh load {instruct|thinking}"; model_key "$ds" >/dev/null; activate; model_load "$ds"; exit 0 ;;
     serve) activate; serve "$ds"; exit 0 ;;
     unserve) unserve "$ds"; exit 0 ;;
     check) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh check <dataset>"; activate; check; exit 0 ;;
     prebuild) [ -n "$ds" ] || die "usage: ./hpc/passk_local.sh prebuild <dataset> [retry|stop]"; activate; prebuild "$model"; exit 0 ;;
 esac
-[ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh setup | serve {instruct|thinking} | unserve [instruct|thinking] | check <dataset> | prebuild <dataset> [retry|stop] | {pilot|run|status|stop|merge} <dataset> {instruct|thinking} | upload <dataset> {instruct|thinking} [go]"
+[ -n "$ds" ] && [ -n "$model" ] || die "usage: ./hpc/passk_local.sh setup | serve {instruct|thinking} | unserve [instruct|thinking] | load {instruct|thinking} | check <dataset> | prebuild <dataset> [retry|stop] | {pilot|run|status|stop|merge} <dataset> {instruct|thinking} | upload <dataset> {instruct|thinking} [go]"
 model_key "$model" >/dev/null
 activate
 CONCURRENCY=${CONCURRENCY:-$(default_concurrency "$ds")}
@@ -1633,6 +1767,9 @@ if attempts:
     bad_attempts = {k: v for k, v in errors.items() if v}
     if bad_attempts:
         print(f'WARNING: attempts with errors {bad_attempts}. Check before going on: grading or the environment may be broken.')
+named = {line.split('\t')[0] for f in glob.glob(f'{root}/shards/*/upstream-image.log') for line in open(f) if line.strip()}
+if named:
+    print(f'{len(named)} tasks ran in the image their task.toml names: their Dockerfile did not build here.')
 EOF
                 if [ -f "$root/loop.pid" ] && kill -0 "$(cat "$root/loop.pid")" 2>/dev/null; then echo "Running. Last lines of $root/loop.log:"; tail -3 "$root/loop.log" 2>/dev/null || true
                 else
@@ -1662,6 +1799,9 @@ EOF
                 # How these results differ from the team's cluster runs: local task changes, left-out tasks.
                 tasks=$(contract_tasks "$WS/contracts/$name.json")
                 for f in LOCAL_CHANGES.txt LEFT_OUT.txt; do [ ! -f "$tasks/$f" ] || cp "$tasks/$f" "$root/merged/report/"; done
+                # Tasks that ran in the image they name because their Dockerfile did not build here (see the top).
+                cat "$root"/shards/[0-9][0-9][0-9][0-9]/upstream-image.log 2>/dev/null | sort -u > "$root/merged/report/UPSTREAM_IMAGES.txt" || true
+                [ -s "$root/merged/report/UPSTREAM_IMAGES.txt" ] || rm -f "$root/merged/report/UPSTREAM_IMAGES.txt"
                 echo "Merged report: $root/merged/report/ (send this folder to Franziska)" ;;
             upload) upload_traces "$name" "${4:-}" ;;
         esac ;;
