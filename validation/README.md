@@ -49,18 +49,23 @@ See [publishing](publishing/README.md) for how READMEs are generated.
 They group checks by the execution environment they need: one container start per task serves the checks of
 several pipeline steps. They differ from the step numbers in the [pipeline overview](../README.md#validation-pipeline).
 
-| CLI stage | Execution | Pipeline steps covered |
-| --- | --- | --- |
-| Preparation outside the runner | `data/<datasource>/patch.py`, image and runtime preparation | 1 |
-| `0` | Static checks (task files only) | 1, and the file checks of 2 and 3 |
-| `1` | Build, setup, declared environment checks, repository history/timestamps and absolute-path recovery evidence | 2 and 3 |
-| `2` | Reference solution, reference determinism and protected-file mutation checks | 2 |
-| `3` | No-op, no-op determinism, verifier paths, verifier tampering and reference-solution leaks | 2 and 3 |
-| `5` | LLM task-quality review | 4 |
-| `6` | Target RL model pass@k with resource calibration | 5 |
-| `7` | Strong teacher pass@k with resource recalibration | 6 |
-| `8`, `9` | Trace metrics and LLM trajectory review | 7 |
-| `10`, `11` | Adversarial trials and hacker/fixer loop (optional, untested) | 8 |
+| CLI stage | Execution | Pipeline steps covered | Default rubric and prompt template |
+| --- | --- | --- | --- |
+| Preparation outside the runner | `data/<datasource>/patch.py`, image and runtime preparation | 1 | – |
+| `0` | Static checks (task files only) | 1, and the file checks of 2 and 3 | – |
+| `1` | Build, setup, declared environment checks, repository history/timestamps and absolute-path recovery evidence | 2 and 3 | – |
+| `2` | Reference solution, reference determinism and protected-file mutation checks | 2 | – |
+| `3` | No-op, no-op determinism, verifier paths, verifier tampering and reference-solution leaks | 2 and 3 | – |
+| `5` | LLM task-quality review | 4 | Rubric [rubric_ot/rubric.toml](rubrics/rubric_ot/rubric.toml); prompt [river_labeling.txt](rubrics/prompt_templates/modified/river_labeling.txt) with an [introduction](rubrics/prompt_templates/modified/REVIEW_INTRODUCTION/) per evidence mode |
+| `6` | Target RL model pass@k with resource calibration | 5 | None: the agent gets the task's `instruction.md` in mini-swe-agent's default templates |
+| `7` | Strong teacher pass@k with resource recalibration | 6 | As stage 6 |
+| `8`, `9` | Trace metrics and LLM trajectory review | 7 | Stage 8: none (no LLM). Stage 9: rubric [trial-analysis.toml](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.toml) ([local copy](rubrics/alternatives/rubric_terminal_bench/upstream/trial-analysis.toml)); prompt [trial-analysis.txt](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.txt) |
+| `10`, `11` | Adversarial trials and hacker/fixer loop (optional, untested) | 8 | Stage 10: no rubric; prompt [hack-trial-prompt.md](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/hack-trial-prompt.md), prepended to the task instruction. Stage 11: no rubric; hacker/fixer/solver prompts in harden-v0's [instructions.py](https://github.com/few-sh/harden-v0/blob/342b8474e0c0cf96e4a8313fd2e26c7a11d51193/harden/instructions.py) plus [fixer_guidance.md](https://github.com/few-sh/harden-v0/blob/342b8474e0c0cf96e4a8313fd2e26c7a11d51193/prompts/fixer_guidance.md) |
+
+Stage 5 alternatives: `--review-format classification` uses [rubric_ot/classification.toml](rubrics/rubric_ot/classification.toml)
+with [classification.txt](rubrics/prompt_templates/modified/classification.txt); other rubrics are selected with
+`--review-rubric` (see [rubrics](rubrics/README.md) and [prompt templates](rubrics/prompt_templates/README.md)).
+Stages 9-11 use the files at the commits pinned in [upstream.lock.json](upstream/upstream.lock.json).
 
 There is no CLI stage `4`. Do not pass the overview's step numbers directly to `--stages`. Records of the
 previous layout (`environment-first-v3`) stay valid for stages 0-5, which mean the same in both layouts.
