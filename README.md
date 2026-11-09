@@ -140,6 +140,9 @@ requirements (vCPU, memory, disk), including calibration history and unresolved 
 
 Use execution statistics and LLM trajectory review to explain failures and detect possible reward hacking.
 Runs as pipeline stages 8 (trace metrics) and 9 (trajectory review).
+**Default rubric and prompt (stage 9):** Terminal-Bench's
+[trial-analysis.toml](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.toml)
+and [trial-analysis.txt](https://github.com/harbor-framework/terminal-bench/blob/1dcda8716784493721921c23e4bc7f7d988b4494/docs/prompts/trial-analysis.txt).
 
 ### 8. Adversarial testing (optional)
 
