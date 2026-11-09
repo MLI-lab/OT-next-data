@@ -1,14 +1,9 @@
-<!doctype html>
-<html lang="en">
-<head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Task Pipeline Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="style.css">
-</head>
-<body>
 <header>
-  <a class="brand" href="#/">OT-next-data pipeline</a>
+  <a class="brand" href="#all">OT-next-data pipeline</a>
   <label class="picker">Datasource
     <select id="dataset"></select>
   </label>
@@ -19,6 +14,12 @@
   <div id="drawer-body"></div>
 </aside>
 <div id="tip" role="tooltip" hidden></div>
+<div id="explorer" hidden role="dialog" aria-modal="true" aria-labelledby="ex-title">
+  <div class="ex-box">
+    <div class="ex-head"><div><h2 id="ex-title"></h2><div id="ex-summary"></div></div><button id="ex-close" aria-label="Close">×</button></div>
+    <div class="ex-body"><nav id="ex-files"></nav><div id="ex-view"></div></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 <script src="app.js"></script>
-</body>
-</html>
