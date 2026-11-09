@@ -119,7 +119,7 @@ def inventory(source, limit=None, task_id_range=None, references=None, suffixes=
 
 
 # Directory names the job's code copy leaves out (hpc.validation_submit.snapshot_code).
-UNSNAPSHOTTED = {'__pycache__', 'results', 'runs'}
+UNSNAPSHOTTED = {'__pycache__', 'results', 'runs', 'judge_results'}  # judge_results: analysis only, never run by a job
 REVIEW_STAGES, MODEL_STAGES = {5, 9}, {5, 6, 7, 9, 10, 11}
 
 
@@ -535,6 +535,12 @@ def bind(args, numbers):
         if 'review_evidence' in explicit and args.review_evidence != 'files':
             raise ValueError('Legacy contract uses file-only review; prepare a new contract for image evidence')
         args.review_evidence = 'files'
+    if 'calibration_escalate_when_solved' not in contract['arguments']:
+        # Contracts written before this option raised resources after any limit hit, as MiMo does.
+        args.calibration_escalate_when_solved = True
+    if 'teacher_tasks' not in contract['arguments']:
+        # Contracts written before --teacher-tasks ran the teacher only on the target model's 0/k tasks.
+        args.teacher_tasks = 'unsolved'
     out, preview = args.out, args.dry_run
     for key, value in contract['arguments'].items():
         setattr(args, key, value)

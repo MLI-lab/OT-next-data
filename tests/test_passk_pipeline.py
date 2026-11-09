@@ -7,6 +7,7 @@ import pytest
 
 from validation import run as results
 from validation.stages import judge_selection, passk_stage
+from validation.stages import runner
 from validation.stages.runner import select_passk_sources
 
 
@@ -50,12 +51,17 @@ def test_target_and_teacher_columns_and_merged_resources(tmp_path):
     b = {r['task_id']: r for r in results.read(path)}['b']
     resources = json.loads(b['resources'])
     assert b['passk_teacher_outcome'] == 'solved' and b['passk_target_outcome'] == 'unsolved'
-    assert resources['requirements'] == {'cpus': 4, 'memory_mb': 4096, 'storage_mb': 10240} and resources['source'] == 'teacher'
+    assert resources['requirements'] == {'cpus': 4, 'memory_mb': 4096, 'storage_mb': 10240} and resources['source'] == 'min of solved: teacher'
     assert resources['target_allocation'] == BASE and resources['teacher_allocation'] == teacher_alloc
     # A later target-model export does not take the requirement back from the teacher.
     results.export_report(path, {'stage': 6, 'items': [item('b', 'unsolved', 0, BASE, {'cpus': 2, 'memory_mb': 2048, 'storage_mb': 10240})]},
                           {'b': 'h6'}, dataset='d')
-    assert json.loads({r['task_id']: r for r in results.read(path)}['b']['resources'])['source'] == 'teacher'
+    assert json.loads({r['task_id']: r for r in results.read(path)}['b']['resources'])['source'] == 'min of solved: teacher'
+    # Both models solved a: per resource the least either needed (target 2 vCPU/3 GiB, teacher 4 vCPU/2 GiB).
+    results.export_report(path, {'stage': 7, 'items': [item('a', 'solved', 3, teacher_alloc, {'cpus': 4, 'memory_mb': 2048, 'storage_mb': 10240})]},
+                          {'a': 'h7'}, dataset='d')
+    a = json.loads({r['task_id']: r for r in results.read(path)}['a']['resources'])
+    assert a['requirements'] == {'cpus': 2, 'memory_mb': 2048, 'storage_mb': 10240} and a['source'] == 'min of solved: target, teacher'
 
 
 def test_teacher_routing_from_this_run_and_from_results(tmp_path):
@@ -65,6 +71,8 @@ def test_teacher_routing_from_this_run_and_from_results(tmp_path):
     judge_selection.teacher_routing(args, runs)
     assert args._teacher_routing['routing'] == {'b': {**BASE, 'cpus': 4}}
     assert args._teacher_routing['outcomes'] == {'a': 'solved', 'b': 'unsolved', 'c': 'inconclusive'}
+    # Every task with a valid target batch keeps its calibrated allocation for --teacher-tasks all.
+    assert args._teacher_routing['allocations'] == {'a': BASE, 'b': {**BASE, 'cpus': 4}}
     # Separate submission: read stage 6 from results.parquet.
     results.export_report(tmp_path / 'results.parquet', runs[6][1], {'a': 'h', 'b': 'h', 'c': 'h'}, dataset='d')
     later = SimpleNamespace(out=tmp_path, judge_results=[])
@@ -76,7 +84,8 @@ def test_stage_selection_skips_failed_checks_and_non_zero_tasks(tmp_path):
     sources = [Path(f'/tasks/{n}') for n in ('fails-nop', 'solved', 'unsolved', 'unknown')]
     args = SimpleNamespace(_judge_failed={'results': [], 'stages_this_run': [],
                                           'failed': {'fails-nop': [('h', ['nop'])]}},
-                           _teacher_routing={'routing': {'unsolved': BASE}, 'outcomes': {'solved': 'solved'}})
+                           _teacher_routing={'routing': {'unsolved': BASE}, 'outcomes': {'solved': 'solved'}},
+                           teacher_tasks='unsolved')
     report = {'items': []}
     assert [s.name for s in select_passk_sources(6, sources, {}, report, args)] == ['solved', 'unsolved', 'unknown']
     report = {'items': []}
@@ -85,6 +94,18 @@ def test_stage_selection_skips_failed_checks_and_non_zero_tasks(tmp_path):
     assert reasons['fails-nop'].startswith('not evaluated: failed nop')
     assert reasons['solved'] == 'not evaluated by the teacher: target model solved'
     assert reasons['unknown'] == 'not evaluated by the teacher: target model no target-model result'
+
+
+def test_teacher_runs_every_task_by_default(tmp_path):
+    sources = [Path(f'/tasks/{n}') for n in ('fails-nop', 'solved', 'unsolved', 'unknown')]
+    args = SimpleNamespace(_judge_failed={'results': [], 'stages_this_run': [],
+                                          'failed': {'fails-nop': [('h', ['nop'])]}},
+                           _teacher_routing={'routing': {'unsolved': BASE}, 'outcomes': {'solved': 'solved'},
+                                             'allocations': {'solved': BASE, 'unsolved': BASE}})
+    report = {'items': []}
+    assert [s.name for s in select_passk_sources(7, sources, {}, report, args)] == ['solved', 'unsolved', 'unknown']
+    assert report['teacher_routing']['rule'].startswith('all tasks')
+    assert runner.parser().parse_args([]).teacher_tasks == 'all'
 
 
 def test_each_stage_serves_its_own_model():

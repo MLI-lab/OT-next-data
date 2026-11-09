@@ -139,11 +139,11 @@ class Calibration:
                                         indent=1, default=str) + '\n')
         temporary.replace(self.path)
 
-    def start(self, name, upstream, allocation):
+    def start(self, name, upstream, allocation, capped=False):
         state = self.tasks.get(name)
         if state is None or state.get('k') != self.k:
             state = {'k': self.k, 'upstream': upstream, 'allocation': allocation, 'status': 'pending',
-                     'rounds': [], 'batch': [], 'retries': [], 'infra_retries': 0}
+                     'rounds': [], 'batch': [], 'retries': [], 'infra_retries': 0, 'capped': capped}
             self.tasks[name] = state
         return state
 
@@ -167,8 +167,8 @@ class Calibration:
         else:
             state['batch'] = attempts
         round_index = len(state['rounds'])
-        decision = cal.decide(state['batch'], state['allocation'], self.policy,
-                              round_index=round_index, infra_retries_used=state['infra_retries'])
+        decision = cal.decide(state['batch'], state['allocation'], self.policy, round_index=round_index,
+                              infra_retries_used=state['infra_retries'], capped=state.get('capped', False))
         state['retries'] = decision.retry if decision.action == 'retry_attempts' else []
         if decision.action == 'retry_attempts':
             return decision
@@ -189,7 +189,7 @@ class Calibration:
         outcome = ('inconclusive' if state['status'] != 'final' else
                    'solved' if passk['solved'] else 'unsolved')
         return {'outcome': outcome, 'reason': state.get('reason'), 'passk': passk,
-                'final_allocation': state['allocation'], 'upstream': state['upstream'],
+                'final_allocation': state['allocation'], 'upstream': state['upstream'], 'capped': state.get('capped', False),
                 'requirements': cal.requirements(measured, state['allocation'], state['upstream'], self.policy),
                 'rounds': [{k: v for k, v in r.items() if k != 'attempts'} | {'attempts': len(r['attempts'])}
                            for r in rounds],
@@ -212,8 +212,11 @@ def run(number, selected, out, args, upstream, report, contract, *, start_alloca
     tasks = {}
     for task, item in selected:
         resources = upstream_resources(task)
-        start = (start_allocations or {}).get(task.name) or cal.initial_allocation(resources, policy)
-        tasks[task.name] = (task, item, book.start(task.name, resources, start))
+        # A start allocation from the target model: {'cpus', 'memory_mb', 'storage_mb'[, 'capped': True]}.
+        given = dict((start_allocations or {}).get(task.name) or {})
+        capped = bool(given.pop('capped', False))
+        start = {key: given[key] for key in ('cpus', 'memory_mb', 'storage_mb') if key in given} or cal.initial_allocation(resources, policy)
+        tasks[task.name] = (task, item, book.start(task.name, resources, start, capped))
     book.save()
     execute = execute or (lambda config: asyncio.run(runtime.execute_job(config)))
     job_index = 0

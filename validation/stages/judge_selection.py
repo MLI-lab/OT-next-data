@@ -50,18 +50,46 @@ def prepare(args, stage_runs):
                           'failed': failed_by_task(paths, rows)}
 
 
-def teacher_routing(args, stage_runs):
-    """Stage 7 runs only on tasks the target model left at 0/k in a complete, resource-valid batch.
+def target_requirement(record, attempts_json):
+    """The target model's requirement under the current sizing rule, recomputed from its final attempts when
+    the run recorded them (runs before the smallest-solved rule sized from the largest attempt)."""
+    import json
+    from validation.stages import calibration as cal
+    try:
+        attempts = json.loads(attempts_json or '{}').get('final_attempts') or []
+    except ValueError:
+        attempts = []
+    if attempts and record.get('target_allocation'):
+        return cal.requirements(attempts, record['target_allocation'], record.get('upstream'), cal.Policy())
+    return record.get('target_requirements')
 
-    Each routed task starts from the target model's final (calibrated) allocation. Sources, in order:
-    stage 6 of this run, then this run's results.parquet and any --judge-results files
-    (columns passk_target_outcome and resources)."""
-    routing, outcomes = {}, {}
+
+def start_from_requirement(requirements, fallback):
+    """The target model's requirement as a capped start allocation for the teacher."""
+    if not requirements or not all(requirements.get(k) for k in ('cpus', 'memory_mb', 'storage_mb')):
+        return fallback
+    return {k: requirements[k] for k in ('cpus', 'memory_mb', 'storage_mb')} | {'capped': True}
+
+
+def teacher_routing(args, stage_runs):
+    """Which tasks stage 7 runs and where each starts.
+
+    --teacher-tasks all (default): every task stage 6 would run. unsolved: only tasks the target model left at
+    0/k in a complete, resource-valid batch. A task the target model solved starts at the target model's
+    requirement (the least known to suffice) and is capped there: the teacher can only show it needs less. A task
+    it did not solve starts from the target model's final allocation and may go up. Without a target result, the
+    task starts from its task.toml. Sources, in order: stage 6 of this run, then this
+    run's results.parquet and any --judge-results files (columns passk_target_outcome and resources)."""
+    routing, outcomes, allocations = {}, {}, {}
     if 6 in stage_runs:
         for item in stage_runs[6][1].get('items', []):
             summary = item.get('calibration') or {}
             name = Path(item.get('task', '')).name
             outcomes[name] = summary.get('outcome') or item.get('status')
+            if summary.get('outcome') == 'solved':
+                allocations[name] = start_from_requirement(summary.get('requirements'), summary.get('final_allocation'))
+            elif summary.get('outcome') == 'unsolved':
+                allocations[name] = summary.get('final_allocation')
             if summary.get('outcome') == 'unsolved':
                 routing[name] = summary.get('final_allocation')
     else:
@@ -73,9 +101,15 @@ def teacher_routing(args, stage_runs):
             if outcome in (None, 'not_run'):
                 continue
             outcomes[name] = outcome
-            if outcome == 'unsolved' and row.get('passk_target_valid_attempts'):
+            if outcome in ('solved', 'unsolved') and row.get('passk_target_valid_attempts'):
                 try:
-                    routing[name] = json.loads(row.get('resources') or '{}').get('target_allocation')
+                    record = json.loads(row.get('resources') or '{}')
                 except ValueError:
-                    routing[name] = None
-    args._teacher_routing = {'routing': routing, 'outcomes': outcomes}
+                    record = {}
+                allocations[name] = (start_from_requirement(target_requirement(record, row.get('passk_target_attempt_results')),
+                                                            record.get('target_allocation'))
+                                     if outcome == 'solved' else record.get('target_allocation'))
+                if outcome == 'unsolved':
+                    routing[name] = allocations[name]
+    args._teacher_routing = {'routing': routing, 'outcomes': outcomes, 'allocations': allocations,
+                             'mode': getattr(args, 'teacher_tasks', 'all')}

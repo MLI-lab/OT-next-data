@@ -95,7 +95,7 @@ whether tasks are too trivial or reveal their answers.
 fail in any of the previous stages.
 **Output:** Per-task judgments for each criterion (pass/fail), with explanations and supporting evidence, and
 aggregate statistics (number of tasks flagged per criterion and overall).
-**Rubric:** [revised River rubric](validation/rubrics/rubric_river_selected/rubric.toml); judges and prompts in
+**Rubric:** [revised River rubric](validation/rubrics/rubric_ot/rubric.toml); judges and prompts in
 the [judge README](validation/rubrics/README.md). Runs as pipeline stage 5.
 
 ### 5. Target RL model pass@k & resource calibration
@@ -104,7 +104,12 @@ Evaluate tasks with the target RL model to estimate task difficulty and determin
 solve. Run k=4 independent agent attempts per task while monitoring CPU, memory, disk usage, and execution
 times. Following MiMo's resource-profiling methodology, automatically increase resources and rerun all k
 attempts if any attempt encounters a resource-related failure. Repeat until all attempts are resource-valid or
-the configured resource limits are reached. Use the final valid batch to calculate pass@k.
+the configured resource limits are reached. Use the final valid batch to calculate pass@k. Unlike MiMo, a timeout
+(agent or verifier) counts as a resource problem only when the CPUs were busy or contended, and resources go up
+only while no attempt has solved the task: once one attempt solves it, other attempts with the same resources
+that run out of memory or disk count as failed attempts instead of raising the resources. A task's requirement
+comes from its smallest solved attempt (per resource the smaller of the two models when both solved it), and on
+tasks the target model solved, the teacher starts at that requirement and never goes up.
 
 **Input:** Task files (instructions, environment configuration, and verifier code) for all tasks that have no
 fail in any of the previous stages.
@@ -115,14 +120,17 @@ results (reward, execution status, and resource measurements), and calibrated pe
 
 ### 6. Strong teacher pass@k & resource recalibration
 
-Evaluate tasks that the target RL model could not solve in any of its k=4 valid attempts using a stronger
-model. Start with the resources calibrated in Stage 5 and repeat the same automatic resource-calibration
+Evaluate every task that reached Stage 5 with a stronger model (`--teacher-tasks all`, the default), which gives
+a second, stronger difficulty signal per task; `--teacher-tasks unsolved` limits this to the tasks the target RL
+model could not solve in any of its k=4 valid attempts. Start with the resources calibrated in Stage 5 where a
+task has them, else with its `task.toml`, and repeat the same automatic resource-calibration
 procedure, since the stronger model may reach more resource-intensive parts of the task. If any attempt
 encounters a resource-related failure, increase the affected resources and rerun all k attempts. Use the final
 valid batch to calculate pass@k and update the task's resource requirements.
 
-**Input:** Task files (instructions, environment configuration, and verifier code) for tasks with 0/k
-successful attempts in Stage 5, excluding tasks with unresolved resource failures.
+**Input:** Task files (instructions, environment configuration, and verifier code) for all tasks without a
+failed check in Stages 1-3; with `--teacher-tasks unsolved`, only tasks with 0/k successful attempts in Stage 5,
+excluding tasks with unresolved resource failures.
 **Output:** Per-task strong-teacher pass@k results (number of successful attempts, pass@k outcome), individual
 attempt results (reward, execution status, and resource measurements), and updated per-task resource
 requirements (vCPU, memory, disk), including calibration history and unresolved resource failures.

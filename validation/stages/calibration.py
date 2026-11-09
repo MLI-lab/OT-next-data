@@ -13,14 +13,21 @@ task used its CPUs most of the time) is measured as average busy cores / allocat
 share of wall time with CPU pressure (tasks waiting for a CPU).
 
 A batch is k attempts of one task at one allocation:
-- An attempt that hit a resource limit (OOM kill, disk limit, verifier timeout) is a resource problem.
-  The affected resource is doubled and the whole batch reruns, up to the configured maximum.
-- An infrastructure failure reruns only that attempt, at the same allocation.
-- An agent timeout or a wrong answer is an ordinary solver outcome. A timeout alone never establishes CPU
-  starvation; it needs the CPU signal as well.
+- An attempt that hit a resource limit (OOM kill, disk limit) is a resource problem. The affected resource
+  is doubled and the whole batch reruns, up to the configured maximum.
+- An infrastructure failure (including a bridge result wait that ran out, not the command itself) reruns only
+  that attempt, at the same allocation.
+- An agent or verifier timeout, or a wrong answer, is an ordinary solver outcome unless the CPU signal shows
+  the CPUs were busy or contended: then it is CPU starvation (a timeout alone never establishes it; an idle
+  or single-threaded verifier that times out does not get faster with more CPUs). This differs from MiMo,
+  which counted every verifier timeout as a resource problem.
 - CPU-starved candidates (MiMo's rule) rerun at double the CPUs: a flag only means "worth trying more",
   the rerun is the confirmation. Like MiMo's set-level decision, the higher allocation is kept.
-pass@k counts only the final, resource-valid batch. Unresolved problems make the task inconclusive.
+- Unlike MiMo, resources go up only while no attempt has solved the task: once an attempt solves it at an
+  allocation, that allocation is enough, and attempts that hit a limit there count as failed attempts (an agent
+  that needs less memory or CPU is the better solution). A task can also be capped (the teacher on a task the
+  target model already solved): then resources never go up.
+pass@k counts only the final batch. Unresolved problems make the task inconclusive.
 """
 from dataclasses import asdict, dataclass, field
 import math
@@ -54,6 +61,7 @@ class Policy:
     busy_fraction: float = 0.9       # average cores / allocated cores (stands in for MiMo's throttled > 50 %)
     pressure_fraction: float = 0.5   # share of the trial's wall time with CPU pressure
     disk_full_fraction: float = 0.95  # written disk at this share of the limit counts as "reached the limit"
+    escalate_when_solved: bool = False  # MiMo: True (any resource problem raises resources, even after a solve)
 
 
 def initial_allocation(upstream, policy):
@@ -105,14 +113,20 @@ def signals(attempt, allocation, policy):
     hot = ((busy is not None and busy >= policy.busy_fraction)
            or (pressured is not None and pressured >= policy.pressure_fraction))
     tool_mean = attempt.get('tool_mean_sec')
-    cpu_starved = (verifier_timeout
-                   or (_number(verifier) and verifier > policy.verifier_slow_sec)
-                   or (hot and ((_number(verifier) and verifier > policy.verifier_long_sec)
-                                or (_number(tool_mean) and tool_mean > policy.tool_mean_sec))))
+    # Every rule needs the CPU signal: a slow or timed-out phase on idle CPUs is not starvation.
+    cpu_starved = hot and (verifier_timeout or exception in SOLVER_TIMEOUTS
+                           or (_number(verifier) and verifier > policy.verifier_long_sec)
+                           or (_number(tool_mean) and tool_mean > policy.tool_mean_sec))
     return {'oom': oom, 'disk_full': disk_full, 'verifier_timeout': verifier_timeout, 'cpu_starved': cpu_starved,
             'busy_fraction': round(busy, 3) if busy is not None else None,
             'pressure_fraction': round(pressured, 3) if pressured is not None else None,
             'disk_peak_mb': disk_peak}
+
+
+def bridge_wait_timeout(attempt):
+    """The bridge stopped waiting for a command's result (not the command's own runtime): infrastructure."""
+    message = str(attempt.get('exception_message') or '')
+    return (attempt.get('exception_type') or '') == 'TimeoutError' and 'result-wait budget' in message
 
 
 def classify(attempt, allocation, policy):
@@ -121,11 +135,11 @@ def classify(attempt, allocation, policy):
     A resource problem wins over everything else: an OOM-killed agent did not fail on its own.
     An agent timeout is a solver outcome unless the CPU signal says the task was starved."""
     found = signals(attempt, allocation, policy)
-    if found['oom'] or found['disk_full'] or found['verifier_timeout']:
+    if found['oom'] or found['disk_full'] or (found['verifier_timeout'] and found['cpu_starved']):
         kind = 'resource'
-    elif attempt.get('category') in INFRA:
+    elif attempt.get('category') in INFRA or bridge_wait_timeout(attempt):
         kind = 'infrastructure'
-    elif attempt.get('reward') is None and (attempt.get('exception_type') or '') not in SOLVER_TIMEOUTS:
+    elif attempt.get('reward') is None and (attempt.get('exception_type') or '') not in SOLVER_TIMEOUTS + VERIFIER_TIMEOUTS:
         # No reward and no ordinary timeout: the attempt never produced an outcome.
         kind = 'infrastructure'
     else:
@@ -157,12 +171,26 @@ class Decision:
     retry: list = field(default_factory=list)   # attempt indices to rerun (infrastructure)
 
 
-def decide(batch, allocation, policy, *, round_index, infra_retries_used=0):
-    """What to do after one batch of k attempts (each with its classification under 'calibration')."""
+def solved(attempt):
+    return _number(attempt.get('reward')) and attempt['reward'] >= 1
+
+
+def decide(batch, allocation, policy, *, round_index, infra_retries_used=0, capped=False):
+    """What to do after one batch of k attempts (each with its classification under 'calibration').
+
+    capped: never raise resources (stage 7 on a task the target model solved)."""
     kinds = [a['calibration']['kind'] for a in batch]
     flags = {key: any(a['calibration'][key] for a in batch) for key in ('oom', 'disk_full', 'cpu_starved')}
-    # A timeout that comes without the CPU signal is not starvation; a verifier timeout always flags.
-    flags['cpu_starved'] = flags['cpu_starved'] or any(a['calibration']['verifier_timeout'] for a in batch)
+    hold = capped or (any(solved(a) for a in batch) and not policy.escalate_when_solved)
+    if hold and (any(k == 'resource' for k in kinds) or flags['cpu_starved']):
+        # Enough resources (a solve here) or no more allowed: limit hits are failed attempts.
+        infra = [i for i, k in enumerate(kinds) if k == 'infrastructure']
+        if infra and infra_retries_used < policy.infra_retries:
+            return Decision('retry_attempts', allocation, 'infrastructure failure', retry=infra)
+        if infra:
+            return Decision('inconclusive', allocation, f'infrastructure failure after {policy.infra_retries} retries')
+        why = 'solved at this allocation' if not capped else 'capped at the target model\'s requirement'
+        return Decision('final', allocation, why + '; attempts that hit a limit count as failed')
     if any(k == 'resource' for k in kinds) or flags['cpu_starved']:
         new, raised, capped = escalate(allocation, flags, policy)
         if raised and round_index + 1 < policy.max_rounds:
@@ -182,8 +210,9 @@ def decide(batch, allocation, policy, *, round_index, infra_retries_used=0):
 
 
 def pass_at_k(batch, k):
-    """pass@k of the final batch only: successes among k valid attempts."""
-    valid = [a for a in batch if a['calibration']['kind'] == 'valid']
+    """pass@k of the final batch only: successes among k attempts with an outcome. A limit hit that remains in
+    a final batch (the task was solved at that allocation, or capped) is a failed attempt."""
+    valid = [a for a in batch if a['calibration']['kind'] in ('valid', 'resource')]
     successes = sum(1 for a in valid if _number(a.get('reward')) and a['reward'] >= 1)
     return {'k': k, 'valid_attempts': len(valid), 'successes': successes, 'solved': successes > 0,
             'complete': len(valid) == k}
@@ -196,14 +225,34 @@ def ceil_gib(mb):
 def requirements(attempts, final_allocation, upstream, policy):
     """MiMo's sizing rules over the relevant attempts, never below calibration floors or upstream.
 
+    When attempts solved the task (reward 1, any round): the smallest solved attempt sets memory and disk (its
+    peak, plus MiMo's headroom) and the fewest CPUs any solved attempt had sets CPUs, so the task gets the least
+    that is known to suffice; a runaway attempt (e.g. an endless recursive query) never sets them. Otherwise
+    MiMo's rules over all attempts:
     Memory: ceil(max memory.peak GiB) + 1. An attempt that was OOM-killed measured a truncated peak, so it
     is left out of the maximum; instead the allocation it failed at plus 1 GiB is a floor.
     Disk: max(10, ceil(max written GiB) + 2); an attempt that reached its limit has an unknown real peak,
     so it gives double that limit (MiMo's 40 GiB case).
     CPU: the calibrated count (2 by default, 4 for confirmed CPU-starved tasks), at least upstream."""
     upstream = upstream or {}
+    wins = [a for a in attempts if solved(a)]
+    floors = {'cpus': max(int(upstream.get('cpus') or 0), 1), 'memory_mb': int(upstream.get('memory_mb') or 0),
+              'storage_mb': int(upstream.get('storage_mb') or 0)}
+    if wins:
+        peak = lambda a, key: max((e[key] for e in environments(a) if _number(e.get(key))), default=None)
+        memory = [p for a in wins if (p := peak(a, 'memory_peak_mb')) is not None]
+        disk = [p for a in wins if (p := peak(a, 'disk_peak_mb')) is not None]
+        cpus = [(a.get('allocation') or final_allocation)['cpus'] for a in wins]
+        return {
+            'cpus': max(min(cpus), floors['cpus']),
+            'memory_mb': max((ceil_gib(min(memory)) + 1) * 1024 if memory else final_allocation['memory_mb'], floors['memory_mb']),
+            'storage_mb': max(max(10, ceil_gib(min(disk)) + 2) * 1024 if disk else final_allocation['storage_mb'], floors['storage_mb']),
+            'measured_attempts': len(wins), 'sized_from': 'smallest solved attempt',
+            'memory_peak_mb': min(memory, default=None), 'disk_peak_mb': min(disk, default=None),
+        }
+    sized = attempts
     memory_peaks, disk_peaks, memory_floor, disk_floor = [], [], 0, 0
-    for attempt in attempts:
+    for attempt in sized:
         calibration = attempt.get('calibration') or {}
         allocation = attempt.get('allocation') or final_allocation
         envs = environments(attempt)
@@ -221,7 +270,7 @@ def requirements(attempts, final_allocation, upstream, policy):
         'cpus': max(final_allocation['cpus'], int(upstream.get('cpus') or 0), 1),
         'memory_mb': max(memory, memory_floor, int(upstream.get('memory_mb') or 0)),
         'storage_mb': max(disk, disk_floor, int(upstream.get('storage_mb') or 0)),
-        'measured_attempts': len(attempts),
+        'measured_attempts': len(sized), 'sized_from': 'all attempts (none solved)',
         'memory_peak_mb': max(memory_peaks, default=None), 'disk_peak_mb': max(disk_peaks, default=None),
     }
 

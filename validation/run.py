@@ -325,18 +325,15 @@ def observations(reports, hashes, dataset='', settings=None):
                     'model': passk.get('model'), 'k': passk.get('k'), 'outcome': outcome,
                     'final_attempts': summary.get('final_attempts', []), 'rounds': summary.get('rounds', []),
                     'earlier_attempts': summary.get('earlier_attempts', 0)})
-                # resources: the final per-task requirement. The teacher's calibration, when it ran,
-                # supersedes the target model's; both histories stay in the JSON.
+                # resources: the final per-task requirement (final_requirements); both models' calibration
+                # histories stay in the JSON.
                 previous = json.loads(row.get('resources') or '{}') if isinstance(row.get('resources'), str) else {}
                 role = 'target' if int(stage) == 6 else 'teacher'
                 record = {**previous, 'upstream': summary.get('upstream'),
                           f'{role}_allocation': summary.get('final_allocation'),
                           f'{role}_requirements': summary.get('requirements'),
                           f'{role}_outcome': outcome, f'{role}_rounds': len(summary.get('rounds', []))}
-                if int(stage) == 7 or 'teacher_requirements' not in record:
-                    record['requirements'] = summary.get('requirements')
-                    record['source'] = role
-                row['resources'] = encode(record)
+                row['resources'] = encode(final_requirements(record))
             checks = item.get('checks', [])
             if static and not checks:
                 put('static_input', item)
@@ -412,16 +409,29 @@ def evaluation_column(name, value):
     return is_judge_cell(value) or name.startswith('passk_') or name == 'resources'
 
 
+def final_requirements(record):
+    """The task's requirement from both models' calibration: per resource the least that a model that solved
+    the task needed (each model's own requirement is already its smallest solved attempt); when neither solved
+    it, the teacher's requirement if it ran, else the target model's."""
+    keys = ('cpus', 'memory_mb', 'storage_mb')
+    roles = [r for r in ('target', 'teacher') if record.get(f'{r}_requirements')]
+    winners = [r for r in roles if record.get(f'{r}_outcome') == 'solved']
+    if winners:
+        record['requirements'] = {k: min(record[f'{r}_requirements'][k] for r in winners) for k in keys}
+        record['source'] = 'min of solved: ' + ', '.join(winners)
+    elif roles:
+        role = 'teacher' if 'teacher' in roles else 'target'
+        record['requirements'], record['source'] = record[f'{role}_requirements'], role
+    return record
+
+
 def merge_resources(old, new):
-    """Both models' calibration in one record; the teacher's requirement wins once it exists."""
+    """Both models' calibration in one record, with the final requirement recomputed from both."""
     try:
         old, new = json.loads(old or '{}'), json.loads(new or '{}')
     except (TypeError, ValueError):
         return new
-    merged = {**old, **new}
-    if merged.get('teacher_requirements') and new.get('source') == 'target':
-        merged['requirements'], merged['source'] = merged['teacher_requirements'], 'teacher'
-    return encode(merged)
+    return encode(final_requirements({**old, **new}))
 
 
 def judge_name(model):

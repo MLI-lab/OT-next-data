@@ -59,9 +59,11 @@ def fake_harbor(behaviour, calls):
 
 
 def behaviour(name, allocation, index, call):
-    if name == 'a':  # OOM on one attempt at 8 GiB, fine at 16 GiB
-        if allocation['memory_mb'] < 16384 and index == 1:
-            return {'oom': 1, 'memory': 8192, 'error': ('RuntimeError', 'Task memory limit exceeded outside a recoverable agent terminal interaction')}
+    if name == 'a':  # OOM on one attempt at 8 GiB and no solve there, fine at 16 GiB
+        if allocation['memory_mb'] < 16384:
+            if index == 1:
+                return {'oom': 1, 'memory': 8192, 'error': ('RuntimeError', 'Task memory limit exceeded outside a recoverable agent terminal interaction')}
+            return {'reward': 0, 'memory': 900}
         return {'reward': 1 if index == 0 else 0, 'memory': 9500}
     if name == 'b':  # one infrastructure failure in the first job only
         if call == 1 and index == 2:
@@ -84,7 +86,7 @@ def test_calibrated_passk_workflow_and_resume(tmp_path, monkeypatch):
     assert [r['allocation']['memory_mb'] for r in by['a']['calibration']['rounds']] == [8192, 16384]
     assert by['a']['passk'].items() >= {'outcome': 'solved', 'successes': 1, 'valid_attempts': 4}.items()
     assert by['a']['calibration']['final_allocation'] == {'cpus': 2, 'memory_mb': 16384, 'storage_mb': 20480}
-    # Requirements: ceil(9500 MB)+1 = 11 GiB, at least the OOM floor 8 GiB + 1; disk floor 10 GiB; 2 vCPU.
+    # Requirements from the one solved attempt: ceil(9500 MB)+1 = 11 GiB; disk floor 10 GiB; 2 vCPU.
     assert by['a']['calibration']['requirements'].items() >= {'cpus': 2, 'memory_mb': 11 * 1024, 'storage_mb': 10 * 1024}.items()
     # b: only the failed attempt reran, at the same allocation; one round.
     assert len(by['b']['calibration']['rounds']) == 1 and by['b']['passk']['outcome'] == 'unsolved'
@@ -101,6 +103,18 @@ def test_calibrated_passk_workflow_and_resume(tmp_path, monkeypatch):
     ps.run(6, [(t, {'task': str(t)}) for t in tasks], tmp_path / 'stage6-again', a, None, {}, None,
            execute=fake_harbor(behaviour, again))
     assert again == []
+
+
+def test_capped_teacher_task_never_goes_up(tmp_path, monkeypatch):
+    monkeypatch.setenv('APPTAINER_BRIDGE_URL', 'http://test')
+    task = make_task(tmp_path / 'tasks', 'b')
+    start = {'b': {'cpus': 2, 'memory_mb': 4096, 'storage_mb': 10240, 'capped': True}}
+    oom = lambda *a: {'oom': 1, 'memory': 4096, 'error': ('RuntimeError', 'Task memory limit exceeded')}
+    items = ps.run(7, [(task, {'task': str(task)})], tmp_path / 'stage7', args(tmp_path), None, {}, None,
+                   start_allocations=start, execute=fake_harbor(oom, []))
+    rounds = items[0]['calibration']['rounds']
+    assert len(rounds) == 1 and rounds[0]['allocation'] == {'cpus': 2, 'memory_mb': 4096, 'storage_mb': 10240}
+    assert items[0]['passk'].items() >= {'outcome': 'unsolved', 'valid_attempts': 4}.items()
 
 
 def test_teacher_starts_from_the_target_models_allocation(tmp_path, monkeypatch):

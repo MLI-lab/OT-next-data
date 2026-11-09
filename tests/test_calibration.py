@@ -38,7 +38,12 @@ def test_initial_allocation_takes_the_larger_of_upstream_and_mimo_baseline():
     ({'reward': None, 'disk_exceeded': True}, 'resource'),
     ({'reward': None, 'message': 'File size limit exceeded'}, 'resource'),
     ({'reward': 0, 'disk': 19800}, 'resource'),                          # reached the 20 GiB limit
-    ({'reward': None, 'exception': 'VerifierTimeoutError'}, 'resource'),
+    ({'reward': None, 'exception': 'VerifierTimeoutError', 'cpu': 190}, 'resource'),     # timed out on busy CPUs
+    ({'reward': None, 'exception': 'VerifierTimeoutError'}, 'valid'),     # idle or single-threaded: more CPUs cannot help
+    ({'reward': 0, 'exception': 'AgentTimeoutError', 'cpu': 190}, 'valid'),  # starved, but no limit was hit
+    ({'reward': None, 'exception': 'TimeoutError',
+      'message': 'Bridge job j-1 timed out after 100.0s (last state: running; result-wait budget, not command runtime)'},
+     'infrastructure'),
     ({'reward': None, 'category': 'infrastructure_error'}, 'infrastructure'),
     ({'reward': None, 'exception': 'RuntimeError'}, 'infrastructure'),   # no outcome at all
 ])
@@ -54,19 +59,23 @@ def test_cpu_rule_needs_busy_cpus_and_long_work():
     assert not c.classify(attempt(cpu=5, wall=500, verifier=400), BASE, POLICY)['cpu_starved']
     # CPU pressure stands in for MiMo's throttling, which a Slurm cpuset does not produce.
     assert c.classify(attempt(cpu=50, wall=100, verifier=20, tool_mean=15, pressure=60), BASE, POLICY)['cpu_starved']
-    # MiMo: a verifier over 600 s flags on its own.
-    assert c.classify(attempt(cpu=5, wall=900, verifier=700), BASE, POLICY)['cpu_starved']
+    # Unlike MiMo, a verifier over 600 s or a verifier timeout needs the CPU signal too.
+    assert not c.classify(attempt(cpu=5, wall=900, verifier=700), BASE, POLICY)['cpu_starved']
+    assert not c.classify(attempt(cpu=9, wall=2100, exception='VerifierTimeoutError'), BASE, POLICY)['cpu_starved']
+    # An agent timeout on busy CPUs is a starvation candidate; on idle CPUs an ordinary solver outcome.
+    assert c.classify(attempt(cpu=190, wall=100, exception='AgentTimeoutError'), BASE, POLICY)['cpu_starved']
+    assert not c.classify(attempt(cpu=20, wall=100, exception='AgentTimeoutError'), BASE, POLICY)['cpu_starved']
 
 
 def test_oom_doubles_memory_and_reruns_the_whole_batch():
-    batch = classified([attempt(), attempt(reward=None, oom=1), attempt(), attempt(reward=1)])
+    batch = classified([attempt(), attempt(reward=None, oom=1), attempt(), attempt()])
     decision = c.decide(batch, BASE, POLICY, round_index=0)
     assert decision.action == 'rerun_batch' and decision.raised == ['memory_mb']
     assert decision.allocation == {'cpus': 2, 'memory_mb': 16384, 'storage_mb': 20480}
 
 
 def test_disk_and_cpu_problems_double_their_own_resources():
-    batch = classified([attempt(reward=None, disk_exceeded=True), attempt(reward=None, exception='VerifierTimeoutError'),
+    batch = classified([attempt(reward=None, disk_exceeded=True), attempt(reward=None, exception='VerifierTimeoutError', cpu=190),
                         attempt(), attempt()])
     decision = c.decide(batch, BASE, POLICY, round_index=0)
     assert decision.action == 'rerun_batch' and sorted(decision.raised) == ['cpus', 'storage_mb']
@@ -127,3 +136,41 @@ def test_policy_from_args_overrides_only_given_values():
     from types import SimpleNamespace
     policy = c.policy_from_args(SimpleNamespace(calibration_max_cpus=8, calibration_memory_mb=None))
     assert policy.max_cpus == 8 and policy.memory_mb == 8192
+
+
+def test_requirements_follow_the_solved_attempts():
+    # Three attempts solve in ~200 MB; one fails after a runaway query hit the 8 GiB limit.
+    attempts = classified([attempt(reward=1, memory=200), attempt(reward=1, memory=210), attempt(reward=1, memory=190),
+                           attempt(reward=None, oom=1, memory=8000)])
+    need = c.requirements(attempts, BASE, {'cpus': 1, 'memory_mb': 2048, 'storage_mb': 10240}, POLICY)
+    assert need['memory_mb'] == 2048 and need['sized_from'] == 'smallest solved attempt'   # upstream, not 8 GiB + 1
+    # Nothing solved: all attempts count, the OOM floor included.
+    failed = classified([attempt(reward=0, memory=200), attempt(reward=None, oom=1, memory=8000)])
+    need = c.requirements(failed, BASE, {'cpus': 1, 'memory_mb': 2048, 'storage_mb': 10240}, POLICY)
+    assert need['memory_mb'] == BASE['memory_mb'] + 1024 and need['sized_from'] == 'all attempts (none solved)'
+
+
+def test_requirements_take_the_smallest_solved_attempt():
+    # Two valid solutions, one lean (3 GB) and one memory-hungry (9 GB): the lean one sets the requirement.
+    attempts = [dict(a, allocation=a2) for a, a2 in zip(
+        classified([attempt(reward=1, memory=3000, disk=500), attempt(reward=1, memory=9000, disk=6000)]),
+        [BASE, {**BASE, 'cpus': 4}])]
+    need = c.requirements(attempts, BASE, {}, POLICY)
+    assert (need['cpus'], need['memory_mb'], need['storage_mb']) == (2, 4 * 1024, 10 * 1024)
+
+
+def test_a_solve_stops_escalation_and_limit_hits_count_as_failures():
+    batch = classified([attempt(reward=1), attempt(reward=None, oom=1), attempt(), attempt()])
+    decision = c.decide(batch, BASE, POLICY, round_index=0)
+    assert decision.action == 'final' and 'solved at this allocation' in decision.reason
+    assert c.pass_at_k(batch, 4) == {'k': 4, 'valid_attempts': 4, 'successes': 1, 'solved': True, 'complete': True}
+    # MiMo's behaviour stays available.
+    mimo = c.Policy(escalate_when_solved=True)
+    assert c.decide(batch, BASE, mimo, round_index=0).action == 'rerun_batch'
+    # Capped (teacher on a task the target model solved): never up, even without a solve.
+    unsolved = classified([attempt(), attempt(reward=None, oom=1), attempt(), attempt()])
+    capped = c.decide(unsolved, BASE, POLICY, round_index=0, capped=True)
+    assert capped.action == 'final' and 'capped' in capped.reason
+    # An infrastructure failure is still retried first.
+    flaky = classified([attempt(reward=1), attempt(reward=None, oom=1), attempt(reward=None, category='infrastructure_error'), attempt()])
+    assert c.decide(flaky, BASE, POLICY, round_index=0).action == 'retry_attempts'

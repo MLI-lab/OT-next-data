@@ -69,10 +69,10 @@ def parser():
     ap.add_argument('--review-model', help='override pinned upstream rubric/trajectory judge model')
     ap.add_argument('--review-pricing', type=json.loads,
                     help='review token rates in USD per million: JSON with input/output and optional cache_read/cache_write; reported cost is retained separately')
-    ap.add_argument('--review-rubric', choices=['terminal-bench', 'harbor', 'custom', 'river', 'river_selected', 'custom_severity'], default='terminal-bench',
-                    help='Stage 5 rubric: terminal-bench (default), harbor, custom, river, river_selected, or custom_severity')
+    ap.add_argument('--review-rubric', choices=['ot', 'terminal-bench', 'harbor', 'custom', 'river', 'river_selected', 'custom_severity'], default='ot',
+                    help='Stage 5 rubric: ot (default, ours; river_selected is its earlier name), terminal-bench, harbor, custom, river, or custom_severity')
     ap.add_argument('--review-format', choices=['labeling', 'classification', 'severity', 'criteria'],
-                    help='custom and river_selected: labeling/classification; River: classification; custom_severity: severity; criteria is an alias for labeling')
+                    help='ot and custom: labeling/classification; River: classification; custom_severity: severity; criteria is an alias for labeling')
     ap.add_argument('--review-criteria', nargs='+', metavar='CRITERION',
                     help='Stage 5: review only these criterion names from the chosen rubric; default all')
     ap.add_argument('--review-local', action='store_true', help='judge with the served model or --api-base model with --judge-harness (all evidence modes)')
@@ -85,11 +85,15 @@ def parser():
     ap.add_argument('--target-model', default='Qwen/Qwen3.5-35B-A3B',
                     help='stage 6: target RL model, served from config/models.py (default: Qwen/Qwen3.5-35B-A3B)')
     ap.add_argument('--teacher-model', default='zai-org/GLM-5.3-Flash',
-                    help='stage 7: strong teacher for the tasks the target model left at 0/k (default: zai-org/GLM-5.3-Flash)')
+                    help='stage 7: strong teacher model (default: zai-org/GLM-5.3-Flash)')
+    ap.add_argument('--teacher-tasks', choices=['all', 'unsolved'], default='all',
+                    help='stage 7: all tasks stage 6 runs (default; a second difficulty signal per task), or only the '
+                         'tasks the target model left at 0/k')
     from validation.stages.calibration import Policy
     for name, value in Policy().__dict__.items():
-        ap.add_argument('--calibration-' + name.replace('_', '-'), type=type(value), default=None,
-                        help=f'stages 6/7 resource calibration (MiMo default: {value})')
+        kind = (lambda v: str(v).lower() in ('1', 'true', 'yes')) if isinstance(value, bool) else type(value)
+        ap.add_argument('--calibration-' + name.replace('_', '-'), type=kind, default=None,
+                        help=f'stages 6/7 resource calibration (default: {value})')
     ap.add_argument('--calibration-state', type=Path,
                     help='stages 6/7: directory of the resumable calibration state (default: --out)')
     ap.add_argument('--reference-leaks', action=argparse.BooleanOptionalAction, default=True,
@@ -317,18 +321,18 @@ def check_args(a):
         a.network_mode = cluster.network_mode if cluster else 'isolated'
     kind = getattr(a, 'review_rubric', 'terminal-bench')
     output_format = getattr(a, 'review_format', None)
-    if kind in ('custom', 'river', 'river_selected', 'custom_severity'):
+    if kind in ('ot', 'custom', 'river', 'river_selected', 'custom_severity'):
         from validation.rubrics.utils.review import load
         rubric, skipped = load(kind, output_format)
         if kind == 'custom_severity':
             a.review_format = 'severity'
     elif output_format is not None:
-        raise ValueError('--review-format is supported only for custom, river, river_selected and custom_severity rubrics')
+        raise ValueError('--review-format is supported only for ot, custom, river and custom_severity rubrics')
     if getattr(a, 'review_criteria', None) is not None:
         from validation.rubrics import ROOT as RUBRICS, harbor_rubric, implementation_rubric, select_criteria
-        if kind not in ('custom', 'river', 'river_selected', 'custom_severity'):
+        if kind not in ('ot', 'custom', 'river', 'river_selected', 'custom_severity'):
             rubric, skipped = (harbor_rubric() if kind == 'harbor'
-                               else implementation_rubric(RUBRICS / 'rubric_terminal_bench/upstream/task-implementation.toml'))
+                               else implementation_rubric(RUBRICS / 'alternatives/rubric_terminal_bench/upstream/task-implementation.toml'))
         select_criteria(rubric, skipped, a.review_criteria)
     if getattr(a, 'prebuild_only', False):
         if a.submit not in ('helma', 'zih', 'rwth', 'lrz'):
@@ -651,9 +655,13 @@ def select_passk_sources(number, sources, source_hashes, report, args):
                 report['items'].append({'task': str(source), 'status': 'skipped', 'failed_checks': excluded[source.name],
                                         'reason': 'not evaluated: failed ' + ', '.join(excluded[source.name])})
         keep = [s for s in keep if s.name not in excluded]
-    if number == 7:
+    if number == 7 and getattr(args, 'teacher_tasks', 'all') == 'all':
+        routing = getattr(args, '_teacher_routing', None) or {}
+        report['teacher_routing'] = {'rule': 'all tasks without a failed stage 0-3 check (--teacher-tasks all)',
+                                     'routed': len(keep), 'with_target_allocation': len(routing.get('allocations') or {})}
+    elif number == 7:
         routing = getattr(args, '_teacher_routing', None) or {'routing': {}, 'outcomes': {}}
-        report['teacher_routing'] = {'rule': 'only tasks with 0/k valid target-model successes',
+        report['teacher_routing'] = {'rule': 'only tasks with 0/k valid target-model successes (--teacher-tasks unsolved)',
                                      'routed': len(routing['routing'])}
         for source in keep:
             if source.name not in routing['routing']:
@@ -704,7 +712,8 @@ def run_trial_batch(number, sources, out, args, upstream, report=None, contract=
         return items
     if number in (6, 7):
         from validation.stages import passk_stage
-        routing = (getattr(args, '_teacher_routing', None) or {}).get('routing') if number == 7 else None
+        teacher = getattr(args, '_teacher_routing', None) or {}
+        routing = (teacher.get('allocations') if getattr(args, 'teacher_tasks', 'all') == 'all' else teacher.get('routing')) if number == 7 else None
         passk_stage.run(number, selected, out, args, upstream, report, contract, start_allocations=routing)
         return items
     diagnostic_kwargs = ({'path_search_roots': args.resolve_path_root}
